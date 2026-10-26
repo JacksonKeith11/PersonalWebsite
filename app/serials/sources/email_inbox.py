@@ -135,13 +135,23 @@ def fetch() -> None:
             db.set_state("imap_last_uid", "0")
         last_uid = int(db.get_state("imap_last_uid", "0"))
 
-        _, data = imap.uid("search", None, f"UID {last_uid + 1}:*")
+        # No historical backfill: only emails sent after the first successful sync count,
+        # even if older ones get the label later.
+        since = float(db.get_state("email_since") or 0)
+        if not since:
+            since = time.time()
+            db.set_state("email_since", str(since))
+        since_day = time.strftime("%d-%b-%Y", time.gmtime(since - 86400))
+
+        _, data = imap.uid("search", None, f"UID {last_uid + 1}:* SINCE {since_day}")
         # "N:*" always matches the newest message, even when it is older than N.
         uids = [int(u) for u in data[0].split() if int(u) > last_uid]
         for uid in sorted(uids):
             _, msg_data = imap.uid("fetch", str(uid), "(RFC822)")
             raw = next(part[1] for part in msg_data if isinstance(part, tuple))
-            _process(email.message_from_bytes(raw, policy=policy.default))
+            msg = email.message_from_bytes(raw, policy=policy.default)
+            if msg["Date"] and parsedate_to_datetime(msg["Date"]).timestamp() >= since:
+                _process(msg)
             db.set_state("imap_last_uid", str(uid))
     finally:
         try:

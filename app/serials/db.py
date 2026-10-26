@@ -78,9 +78,16 @@ def save_updates(updates: list[Update]) -> None:
         db.commit()
 
 
-def recent_updates(limit: int = 300) -> list[sqlite3.Row]:
+def recent_updates(limit: int = 300, offset: int = 0) -> list[sqlite3.Row]:
     with _lock:
-        return _db().execute("SELECT * FROM updates ORDER BY published DESC LIMIT ?", (limit,)).fetchall()
+        return _db().execute(
+            "SELECT * FROM updates ORDER BY published DESC LIMIT ? OFFSET ?", (limit, offset)
+        ).fetchall()
+
+
+def count_updates() -> int:
+    with _lock:
+        return _db().execute("SELECT COUNT(*) FROM updates").fetchone()[0]
 
 
 def track(site: str, story_id: str, story_url: str) -> None:

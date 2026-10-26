@@ -51,5 +51,5 @@ def healthz():
 if SERIALS_PATH:
 
     @app.get(f"/{SERIALS_PATH}", include_in_schema=False)
-    def serials():
-        return HTMLResponse(serials_page.render(), headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-store"})
+    def serials(page: int = 1):
+        return HTMLResponse(serials_page.render(page), headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-store"})

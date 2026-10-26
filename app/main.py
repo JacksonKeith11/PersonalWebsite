@@ -15,6 +15,16 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/resume", include_in_schema=False)
+def resume():
+    return FileResponse(STATIC_DIR / "resume.html")
+
+
+@app.get("/projects", include_in_schema=False)
+def projects():
+    return FileResponse(STATIC_DIR / "projects.html")
+
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}

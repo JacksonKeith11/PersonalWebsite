@@ -143,13 +143,20 @@ li { margin-bottom: 6px; }
   font-weight: 600;
   box-shadow: inset 0 -2px 0 var(--accent);
 }
-.nav-download {
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+.download {
   padding: 1px 8px;
   border: 1px solid var(--rule);
   border-radius: 3px;
+  color: var(--muted);
   font-size: 0.85rem;
 }
-.nav-download:hover { border-color: var(--accent); }
+.download:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
 
 .page-title {
   margin: 0 0 8px;

@@ -117,18 +117,12 @@ li { margin-bottom: 6px; }
 .nav {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: baseline;
   gap: 8px 24px;
   margin: -16px 0 40px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--rule);
-}
-.nav-name {
-  font-family: "Source Serif 4", Georgia, serif;
-  font-weight: 700;
-  font-size: 1.15rem;
-  color: var(--fg);
 }
 .nav-links {
   display: flex;

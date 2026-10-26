@@ -9,13 +9,15 @@ from .sources import email_inbox, fictionlive, royalroad, xenforo
 
 log = logging.getLogger("serials")
 
+INTERVAL = 2 * 60  # seconds between syncs of each source
+
 # (name, fetch function, interval in seconds). Email runs first so newly discovered
 # Royal Road and fiction.live stories are polled in the same pass. AO3 comes only from email.
 SOURCES = [
-    ("Email", email_inbox.fetch, 10 * 60),
-    ("Royal Road", royalroad.fetch, 30 * 60),
-    ("fiction.live", fictionlive.fetch, 30 * 60),
-    *[(name, partial(xenforo.fetch, key), 10 * 60) for key, (name, _) in xenforo.FORUMS.items()],
+    ("Email", email_inbox.fetch, INTERVAL),
+    ("Royal Road", royalroad.fetch, INTERVAL),
+    ("fiction.live", fictionlive.fetch, INTERVAL),
+    *[(name, partial(xenforo.fetch, key), INTERVAL) for key, (name, _) in xenforo.FORUMS.items()],
 ]
 
 _last_run: dict[str, float] = {}
@@ -38,7 +40,7 @@ def _loop() -> None:
             if time.time() - _last_run.get(name, 0) >= interval:
                 _last_run[name] = time.time()
                 run_source(name)
-        time.sleep(60)
+        time.sleep(15)
 
 
 def start() -> None:

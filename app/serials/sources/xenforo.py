@@ -8,6 +8,7 @@ import re
 import time
 
 import feedparser
+import httpx
 from bs4 import BeautifulSoup
 
 from .. import db, http
@@ -85,6 +86,11 @@ def fetch(key: str) -> None:
             time.sleep(1)
             try:
                 rss = http.get(c, f"{base}/threads/{thread_id}/threadmarks.rss", params={"threadmark_category": 1})
+            except httpx.HTTPStatusError as e:
+                # Threads with no threadmarks (or deleted ones) return 404; nothing to show.
+                if e.response.status_code != 404:
+                    errors.append(f"{title}: {e}")
+                continue
             except Exception as e:
                 errors.append(f"{title}: {e}")
                 continue

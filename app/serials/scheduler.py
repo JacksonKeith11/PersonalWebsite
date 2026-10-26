@@ -15,7 +15,7 @@ SOURCES = [
     ("Email", email_inbox.fetch, 10 * 60),
     ("Royal Road", royalroad.fetch, 30 * 60),
     ("fiction.live", fictionlive.fetch, 30 * 60),
-    *[(name, partial(xenforo.fetch, key), 30 * 60) for key, (name, _) in xenforo.FORUMS.items()],
+    *[(name, partial(xenforo.fetch, key), 10 * 60) for key, (name, _) in xenforo.FORUMS.items()],
 ]
 
 _last_run: dict[str, float] = {}

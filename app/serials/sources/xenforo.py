@@ -1,13 +1,14 @@
 """SpaceBattles, Sufficient Velocity, and Questionable Questing (all XenForo 2).
 
-Logs in, reads the Watched Threads list, and pulls each thread's threadmarks RSS feed.
+Reads the forum's "What's new → Threadmarks" listing, filtered to watched threads and
+main-story threadmarks, so each sync is a single request instead of one per thread.
 """
 
 import os
 import re
-import time
+from datetime import datetime
+from urllib.parse import urljoin
 
-import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
@@ -20,11 +21,21 @@ FORUMS = {
 }
 
 THREAD_RE = re.compile(r"/threads/(?:([^/]*)\.)?(\d+)/")
-MAX_WATCHED_PAGES = 20
+POST_RE = re.compile(r"post-(\d+)")
+MAX_PAGES = 5
+# Category 1 is the main story; this skips sidebars, omakes, and informational posts.
+LISTING_PARAMS = {"skip": 1, "watched_threads": 1, "threadmark_category_ids[]": 1}
+
+# One client per forum, kept between syncs so we only log in when the session expires.
+_clients: dict[str, httpx.Client] = {}
 
 
 class LoginRejected(RuntimeError):
     pass
+
+
+def update_key(site: str, post_id: str) -> str:
+    return f"{site}#post-{post_id}"
 
 
 def _login(c, base: str, username: str, password: str) -> None:
@@ -47,21 +58,32 @@ def _login(c, base: str, username: str, password: str) -> None:
         raise LoginRejected("login failed" + (f": {error.get_text(' ', strip=True)}" if error else ""))
 
 
-def _watched_threads(c, base: str) -> dict[str, tuple[str, str]]:
-    """Returns {thread_id: (title, url)}."""
-    threads: dict[str, tuple[str, str]] = {}
-    for page in range(1, MAX_WATCHED_PAGES + 1):
-        soup = BeautifulSoup(http.get(c, f"{base}/watched/threads", params={"page": page}).text, "html.parser")
-        for item in soup.select(".structItem--thread"):
-            link = item.select_one(".structItem-title a[data-tp-primary]") or item.select(".structItem-title a")[-1]
-            m = THREAD_RE.search(link.get("href", ""))
-            if m:
-                slug = f"{m.group(1)}." if m.group(1) else ""
-                threads[m.group(2)] = (link.get_text(strip=True), f"{base}/threads/{slug}{m.group(2)}/")
-        if not soup.select_one(".pageNav-jump--next"):
-            break
-        time.sleep(1)
-    return threads
+def _parse(site: str, base: str, soup: BeautifulSoup) -> list[db.Update]:
+    updates = []
+    for item in soup.select(".structItem"):
+        links = item.select(".structItem-title a")
+        posted = item.select_one("time[datetime]")
+        if len(links) < 2 or not posted:
+            continue
+        thread_link, mark_link = links[0], links[-1]
+        url = urljoin(base, mark_link["href"])
+        thread = THREAD_RE.search(thread_link.get("href", ""))
+        post = POST_RE.search(url)
+        if not (thread and post):
+            continue
+        slug = f"{thread.group(1)}." if thread.group(1) else ""
+        updates.append(
+            db.Update(
+                key=update_key(site, post.group(1)),
+                site=site,
+                story_title=thread_link.get_text(strip=True),
+                story_url=f"{base}/threads/{slug}{thread.group(2)}/",
+                title=mark_link.get_text(strip=True) or "New threadmark",
+                url=url,
+                published=datetime.strptime(posted["datetime"], "%Y-%m-%dT%H:%M:%S%z").timestamp(),
+            )
+        )
+    return updates
 
 
 def fetch(key: str) -> None:
@@ -74,42 +96,20 @@ def fetch(key: str) -> None:
     if db.creds_rejected(key, username, password):
         raise RuntimeError("password was rejected; not retrying until it changes in .env")
 
-    with http.client() as c:
+    c = _clients.get(key) or _clients.setdefault(key, http.client())
+    r = http.get(c, f"{base}/whats-new/threadmarks/", params=LISTING_PARAMS)
+    if 'data-logged-in="true"' not in r.text:
         try:
             _login(c, base, username, password)
         except LoginRejected:
             db.mark_creds_rejected(key, username, password)
             raise
-        threads = _watched_threads(c, base)
-        errors = []
-        for thread_id, (title, url) in threads.items():
-            time.sleep(1)
-            try:
-                rss = http.get(c, f"{base}/threads/{thread_id}/threadmarks.rss", params={"threadmark_category": 1})
-            except httpx.HTTPStatusError as e:
-                # Threads with no threadmarks (or deleted ones) return 404; nothing to show.
-                if e.response.status_code != 404:
-                    errors.append(f"{title}: {e}")
-                continue
-            except Exception as e:
-                errors.append(f"{title}: {e}")
-                continue
-            updates = []
-            for entry in feedparser.parse(rss.content).entries:
-                published = http.struct_to_epoch(entry.get("published_parsed") or entry.get("updated_parsed"))
-                if not (published and entry.get("link")):
-                    continue
-                updates.append(
-                    db.Update(
-                        key=entry.link,
-                        site=site,
-                        story_title=title,
-                        story_url=url,
-                        title=entry.get("title", "New threadmark"),
-                        url=entry.link,
-                        published=published,
-                    )
-                )
-            db.save_updates(updates)
-        if errors:
-            raise RuntimeError(f"{len(threads)} threads, {len(errors)} failed: " + "; ".join(errors[:3]))
+        r = http.get(c, f"{base}/whats-new/threadmarks/", params=LISTING_PARAMS)
+
+    for _ in range(MAX_PAGES):
+        soup = BeautifulSoup(r.text, "html.parser")
+        db.save_updates(_parse(site, base, soup))
+        next_page = soup.select_one("a.pageNav-jump--next")
+        if not next_page:
+            break
+        r = http.get(c, urljoin(base, next_page["href"]))

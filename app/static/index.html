@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <main class="paper">
@@ -19,16 +19,37 @@
         <span aria-hidden="true">•</span>
         <a href="https://github.com/JacksonKeith">github.com/JacksonKeith</a>
         <span aria-hidden="true">•</span>
+        <a href="https://www.linkedin.com/in/jacksonkeith11/">LinkedIn</a>
+        <span aria-hidden="true">•</span>
         U.S. Citizen
       </p>
+      <a class="button" href="/static/Jackson-Keith-Resume.pdf" download>Download resume (PDF)</a>
     </header>
 
-    <section class="intro">
-      <p>
-        Hi, I'm Jackson. I'm a software engineer who graduated from Georgia Tech with my M.S. in
-        Computer Science. This is my personal site, where I host my resume along with the various
-        projects I'm working on.
-      </p>
+    <section class="about">
+      <h2>About</h2>
+      <div class="about-body">
+        <div class="about-text">
+          <img class="headshot" src="/static/media/headshot.jpg" alt="Jackson Keith" width="140" height="140">
+          <p>
+            Hi, I'm Jackson. I'm a software engineer who graduated from Georgia Tech with my M.S. in
+            Computer Science, and I'm currently a Software Consultant and Software Manager at Cosairus,
+            where I design and build production software for enterprise customers.
+          </p>
+          <p>
+            This is my personal site, where I host my resume along with the various projects I'm working on.
+          </p>
+          <p>
+            Outside of work, I spend a lot of time reading and in the water. I swam competitively with the
+            Georgia Tech Swim Club, where I qualified for nationals, and these days I'm just as likely to be
+            found behind a boat wakesurfing.
+          </p>
+        </div>
+        <figure>
+          <video src="/static/media/wakesurf.mp4" controls muted loop playsinline autoplay preload="metadata"></video>
+          <figcaption>Wakesurfing</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section>
@@ -78,6 +99,18 @@
 
     <section>
       <h2>Projects</h2>
+      <div class="entry" id="this-site">
+        <div class="entry-head">
+          <h3><a href="https://jacksonfkeith.com">jacksonfkeith.com</a> <span class="role">This website</span></h3>
+          <a class="date" href="https://github.com/JacksonKeith11/PersonalWebsite">Source on GitHub</a>
+        </div>
+        <p>
+          A self-hosted personal site running on a MacBook in Docker, served with Python/FastAPI and exposed
+          to the internet through a Cloudflare Tunnel. Next up: an aggregator that pulls updates from the
+          web serials I follow into one place.
+        </p>
+        <p class="aside">To learn more about this project, see <a href="#this-site">this project</a>.</p>
+      </div>
       <div class="entry">
         <h3>Airbnb Price Prediction Utility</h3>
         <p>Built a Python machine learning model using regression, sentiment analysis, and geospatial data with a Django frontend.</p>

@@ -47,14 +47,6 @@ h1 {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-.intro {
-  margin: 32px 0 8px;
-  padding: 16px 20px;
-  border-left: 3px solid var(--accent);
-  background: #f3ecdd;
-}
-.intro p { margin: 0; }
-
 section { margin-top: 36px; }
 
 h2 {
@@ -118,4 +110,53 @@ li { margin-bottom: 6px; }
   h1 { font-size: 1.75rem; }
   .skills { grid-template-columns: 1fr; gap: 2px; }
   .skills dd { margin-bottom: 10px; }
+}
+
+.button {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 8px 18px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  font-weight: 600;
+}
+.button:hover { background: #5f4523; text-decoration: none; }
+
+.about-body {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+.about-text { flex: 1; }
+.about p { margin: 0 0 12px; }
+
+.headshot {
+  float: left;
+  width: 140px;
+  height: 140px;
+  margin: 0 20px 8px 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--paper);
+  box-shadow: 0 0 0 1px var(--rule), 0 4px 14px rgba(60, 40, 15, 0.18);
+}
+
+figure { flex: none; margin: 0; text-align: center; }
+figure video {
+  display: block;
+  width: 200px;
+  aspect-ratio: 480 / 854;
+  border-radius: 6px;
+  background: #000;
+  box-shadow: 0 4px 14px rgba(60, 40, 15, 0.18);
+}
+figcaption { margin-top: 6px; color: var(--muted); font-size: 0.9rem; }
+
+.aside { color: var(--muted); font-style: italic; }
+
+@media (max-width: 640px) {
+  .about-body { flex-direction: column; align-items: stretch; }
+  .headshot { float: none; display: block; margin: 0 auto 16px; }
+  figure video { width: 100%; max-width: 280px; margin: 0 auto; }
 }

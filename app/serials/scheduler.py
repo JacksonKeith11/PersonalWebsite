@@ -5,18 +5,15 @@ import traceback
 from functools import partial
 
 from . import db
-from .sources import email_inbox, fictionlive, royalroad, xenforo
+from .sources import email_inbox, xenforo
 
 log = logging.getLogger("serials")
 
 INTERVAL = 2 * 60  # seconds between syncs of each source
 
-# (name, fetch function, interval in seconds). Email runs first so newly discovered
-# Royal Road and fiction.live stories are polled in the same pass. AO3 comes only from email.
+# (name, fetch function, interval in seconds). AO3, Royal Road, and fiction.live all come from email.
 SOURCES = [
     ("Email", email_inbox.fetch, INTERVAL),
-    ("Royal Road", royalroad.fetch, INTERVAL),
-    ("fiction.live", fictionlive.fetch, INTERVAL),
     *[(name, partial(xenforo.fetch, key), INTERVAL) for key, (name, _) in xenforo.FORUMS.items()],
 ]
 

@@ -41,12 +41,6 @@ def _db() -> sqlite3.Connection:
                 published REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS updates_published ON updates (published DESC);
-            CREATE TABLE IF NOT EXISTS tracked (
-                site TEXT NOT NULL,
-                story_id TEXT NOT NULL,
-                story_url TEXT NOT NULL,
-                PRIMARY KEY (site, story_id)
-            );
             CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT);
             CREATE TABLE IF NOT EXISTS status (
                 source TEXT PRIMARY KEY,
@@ -88,22 +82,6 @@ def recent_updates(limit: int = 300, offset: int = 0) -> list[sqlite3.Row]:
 def count_updates() -> int:
     with _lock:
         return _db().execute("SELECT COUNT(*) FROM updates").fetchone()[0]
-
-
-def track(site: str, story_id: str, story_url: str) -> None:
-    with _lock:
-        db = _db()
-        db.execute(
-            "INSERT INTO tracked (site, story_id, story_url) VALUES (?, ?, ?) "
-            "ON CONFLICT (site, story_id) DO UPDATE SET story_url = excluded.story_url",
-            (site, story_id, story_url),
-        )
-        db.commit()
-
-
-def tracked(site: str) -> list[sqlite3.Row]:
-    with _lock:
-        return _db().execute("SELECT * FROM tracked WHERE site = ?", (site,)).fetchall()
 
 
 def get_state(k: str, default: str | None = None) -> str | None:

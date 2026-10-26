@@ -1,4 +1,3 @@
-import calendar
 import time
 
 import httpx
@@ -35,7 +34,3 @@ def get(c: httpx.Client, url: str, retries: int = 4, **kwargs) -> httpx.Response
         return r
     r.raise_for_status()
     return r
-
-
-def struct_to_epoch(t) -> float | None:
-    return float(calendar.timegm(t)) if t else None

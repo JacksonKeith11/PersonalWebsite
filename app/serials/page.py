@@ -159,9 +159,11 @@ def render(page: int = 1) -> str:
     details .icon {{ width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; }}
     .err {{ color: #a33; }}
     @media (max-width: 640px) {{
-      .update {{ grid-template-columns: 20px 1fr auto; }}
-      .what {{ grid-column: 1 / -1; grid-row: 2; }}
-      .read {{ grid-column: 3; grid-row: 1; }}
+      .update {{ grid-template-columns: 18px 3.3rem 1fr auto; gap: 4px 10px; }}
+      .update .icon {{ width: 18px; height: 18px; }}
+      .when {{ font-size: 0.8rem; }}
+      .what {{ font-size: 0.95rem; line-height: 1.4; }}
+      .read {{ min-width: 0; padding: 4px 10px; font-size: 0.85rem; }}
     }}
   </style>
 </head>

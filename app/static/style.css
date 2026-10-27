@@ -108,8 +108,6 @@ li { margin-bottom: 6px; }
     border-radius: 0;
   }
   h1 { font-size: 1.75rem; }
-  .nav { margin-top: -8px; justify-content: center; }
-  .nav-links { justify-content: center; gap: 4px 18px; }
   .skills { grid-template-columns: 1fr; gap: 2px; }
   .skills dd { margin-bottom: 10px; }
 }
@@ -136,6 +134,11 @@ li { margin-bottom: 6px; }
   color: var(--accent);
   font-weight: 600;
   box-shadow: inset 0 -2px 0 var(--accent);
+}
+/* After the rules above, so it wins on phones. */
+@media (max-width: 640px) {
+  .nav { margin-top: -8px; justify-content: center; }
+  .nav-links { justify-content: center; gap: 4px 18px; }
 }
 .page-head {
   display: flex;

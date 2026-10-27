@@ -102,7 +102,7 @@ def render(page: int = 1) -> str:
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=10">
   <style>
     .day {{ margin: 32px 0 8px; }}
     .day:first-of-type {{ margin-top: 8px; }}
@@ -198,7 +198,7 @@ def render_login(failed: bool = False, title: str = "Updates", next_path: str = 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=10">
   <style>
     .paper {{ max-width: 420px; }}
     form {{ display: flex; gap: 10px; margin-top: 16px; }}

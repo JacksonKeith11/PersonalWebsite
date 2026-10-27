@@ -2,7 +2,7 @@ import json
 from html import escape
 
 ASSET_VERSION = 21
-STYLE = "/static/style.css?v=9"
+STYLE = "/static/style.css?v=10"
 # What the pages load from this site, kept by the service worker (sw.js) so they open offline.
 SHELL = [
     STYLE,

@@ -1,4 +1,4 @@
-// Pixel art for sprites, tiles and map icons, drawn from text grids into canvases for Phaser and the DOM.
+// Pixel art for sprites and map icons, drawn from text grids and finished by the hi-fi pass (terrain is in tiles.js).
 
 const K = '#1b1226';
 export const ART = {
@@ -258,44 +258,6 @@ export const ART = {
       '...kkkkkkkkkk...',
     ],
   },
-  tree: {
-    pal: { k: '#173018', T: '#2f7a3a', t: '#4fa04c', b: '#6a4a2a' },
-    rows: [
-      '................',
-      '......kkkk......',
-      '....kkTTTTkk....',
-      '...kTTtTTTTTk...',
-      '..kTTTTTTtTTTk..',
-      '..kTtTTTTTTTTk..',
-      '.kTTTTTtTTTTTTk.',
-      '.kTTtTTTTTTtTTk.',
-      '.kTTTTTTTTTTTTk.',
-      '..kTTTtTTTTTTk..',
-      '...kkTTTTTTkk...',
-      '.....kkbbkk.....',
-      '.......bb.......',
-      '......kbbk......',
-      '.....kkkkkk.....',
-      '................',
-    ],
-  },
-  rock: {
-    pal: { k: '#2a2a33', R: '#8a8a96', r: '#b2b2bd', d: '#5a5a68' },
-    rows: [
-      '................', '................', '................', '................',
-      '......kkkk......',
-      '....kkRRRRkk....',
-      '...kRRrRRRRRk...',
-      '..kRrrRRRRRRRk..',
-      '..kRrRRRRRRdRk..',
-      '.kRRRRRRRRRRdRk.',
-      '.kRRRRRRRRRRRdk.',
-      '.kdRRRRRRRRddRk.',
-      '.kddRRRRRRRdddk.',
-      '..kkkkkkkkkkkk..',
-      '................', '................',
-    ],
-  },
 };
 
 export const ICONS = {
@@ -490,52 +452,6 @@ Object.assign(ART, {
     { 5: '...kHCeCeCk.....' }),
 });
 
-const PROPS = {
-  rubble: { pal: { k: '#1e1c28', R: '#6e6c80', r: '#8e8ca0', W: '#e8e2d0' }, rows: [
-    '................', '................', '................', '................', '................', '................',
-    '.......kk.......',
-    '......kRRk......',
-    '...kk.kRrRk.....',
-    '..kRRkkRRRkk....',
-    '..kRrRRkRRRRk...',
-    '.kRRRRRRRWWRRk..',
-    '.kRRWWRRRRRRRk..',
-    'kRRRRRRRRRRrRRk.',
-    'kkkkkkkkkkkkkkk.',
-    '................'] },
-  ash: { pal: { k: '#1a1416', A: '#6a5c5e', a: '#8a7c7e', t: '#3a2a22' }, rows: [
-    '................', '................',
-    '......t.........',
-    '.....tt..t......',
-    '......t.tt......',
-    '.......tt.......',
-    '.......t........',
-    '.......t........',
-    '......kkkk......',
-    '....kkAaAAkk....',
-    '...kAAaAAAAAk...',
-    '..kAAAAAAaAAAk..',
-    '.kAaAAAAAAAAAAk.',
-    '.kAAAAAaAAAAAAk.',
-    'kkkkkkkkkkkkkkkk',
-    '................'] },
-  coffin: { pal: { k: '#14121c', C: '#5a4a3a', c: '#7a6a52', Y: '#c8a040' }, rows: [
-    '................', '................',
-    '......kkkk......',
-    '.....kCccCk.....',
-    '....kCcCCcCk....',
-    '....kCCYYCCk....',
-    '....kCCYYCCk....',
-    '....kCYYYYCk....',
-    '....kCCYYCCk....',
-    '....kCCYYCCk....',
-    '.....kCCCCk.....',
-    '.....kCCCCk.....',
-    '......kCCk......',
-    '......kkkk......',
-    '................', '................'] },
-};
-
 export function paint(art) {
   const w = art.rows[0].length, ht = art.rows.length;
   const c = document.createElement('canvas');
@@ -552,130 +468,77 @@ export function paint(art) {
   return c;
 }
 
-function seeded(seed) {
-  return () => {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function canvas16(fn) {
-  const c = document.createElement('canvas');
-  c.width = c.height = 16;
-  fn(c.getContext('2d'));
-  return c;
-}
-const recolorArt = (art, pal) => ({ rows: art.rows, pal: { ...art.pal, ...pal } });
-
-function floor(theme, x, seed) {
-  const r = seeded(seed);
-  const dot = (col, n) => { x.fillStyle = col; for (let i = 0; i < n; i++) x.fillRect(r() * 16 | 0, r() * 16 | 0, 1, 1); };
-  if (theme === 'wood') {
-    x.fillStyle = '#4f8a3c'; x.fillRect(0, 0, 16, 16);
-    dot('#5f9c48', 13); dot('#437a33', 13);
-    x.fillStyle = '#6fb052';
-    for (let i = 0; i < 3; i++) x.fillRect(r() * 15 | 0, r() * 14 | 0, 1, 2);
-  } else if (theme === 'crypt') {
-    x.fillStyle = '#4b4b5e'; x.fillRect(0, 0, 16, 16);
-    dot('#56566c', 14); dot('#424254', 10);
-    x.fillStyle = '#353545';
-    x.fillRect(0, 7, 16, 1); x.fillRect(0, 15, 16, 1);
-    const o = seed % 2 ? 4 : 10;
-    x.fillRect(o, 0, 1, 7); x.fillRect((o + 7) % 16, 8, 1, 7);
-  } else {
-    x.fillStyle = '#3a2f30'; x.fillRect(0, 0, 16, 16);
-    dot('#47393a', 16); dot('#2e2425', 10);
-    x.fillStyle = '#6a2416';
-    let cx = r() * 16 | 0, cy = r() * 16 | 0;
-    for (let i = 0; i < 6; i++) { x.fillRect(cx, cy, 1, 1); cx = (cx + (r() < 0.5 ? 1 : 0)) % 16; cy = (cy + 1) % 16; }
-    if (r() < 0.5) { x.fillStyle = '#ff6a2a'; x.fillRect(cx, cy, 1, 1); }
-  }
-}
-function bricks(x, base, mortar, hi, seed) {
-  const r = seeded(seed);
-  x.fillStyle = base; x.fillRect(0, 0, 16, 16);
-  x.fillStyle = mortar;
-  for (let y = 3; y < 16; y += 4) x.fillRect(0, y, 16, 1);
-  for (let row = 0; row < 4; row++) for (let bx = (row % 2) * 4; bx < 16; bx += 8) x.fillRect(bx, row * 4, 1, 3);
-  x.fillStyle = hi;
-  for (let row = 0; row < 4; row++) for (let bx = (row % 2) * 4 + 1; bx < 16; bx += 8) x.fillRect(bx, row * 4, 5, 1);
-  x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(0, 14, 16, 2);
-  for (let i = 0; i < 5; i++) { x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(r() * 16 | 0, r() * 16 | 0, 1, 1); }
-}
-function spikes(x, theme, seed) {
-  const r = seeded(seed);
-  const [a, b] = theme === 'wood' ? ['#6a3a1a', '#4a8a3a'] : theme === 'crypt' ? ['#e8e2d0', '#b8b0a0'] : ['#c48aff', '#ff8a3d'];
-  for (let i = 0; i < 5; i++) {
-    const sx = 1 + (r() * 12 | 0), sy = 5 + (r() * 9 | 0);
-    x.fillStyle = '#140c14'; x.fillRect(sx, sy - 3, 3, 4);
-    x.fillStyle = a; x.fillRect(sx + 1, sy - 3, 1, 3); x.fillRect(sx, sy - 1, 3, 1);
-    x.fillStyle = b; x.fillRect(sx + 1, sy - 4, 1, 1);
-  }
-}
-const THEME_KEYS = ['wood', 'crypt', 'ember'];
-export const TILE_VARIANTS = [4, 2, 2, 3, 2, 3, 2, 2];
-export const ANIMATED = new Set([3, 5]);
-
-function tileCanvas(theme, type, v) {
-  const seed = (THEME_KEYS.indexOf(theme) + 1) * 1000 + type * 97 + v * 13;
-  return canvas16(x => {
-    if (type === 3) {
-      if (theme === 'wood') {
-        x.fillStyle = '#2e5d93'; x.fillRect(0, 0, 16, 16);
-        x.fillStyle = '#3f74b0';
-        for (let y = 1; y < 16; y += 4) for (let i = 0; i < 16; i += 8) x.fillRect((i + v * 2 + y) % 16, y, 3, 1);
-        x.fillStyle = '#9cc4ee';
-        for (let y = 3; y < 16; y += 6) x.fillRect((y * 3 + v * 3) % 14, y, 2, 1);
-      } else {
-        x.fillStyle = '#07050c'; x.fillRect(0, 0, 16, 16);
-        x.fillStyle = theme === 'crypt' ? '#2a2a3c' : '#3a1410'; x.fillRect(0, 0, 16, 3);
-        x.fillStyle = theme === 'crypt' ? '#1a1a26' : '#24100c'; x.fillRect(0, 3, 16, 2);
-        if (theme === 'ember') { x.fillStyle = ['#5a1a10', '#7a2414', '#5a1a10'][v]; x.fillRect(0, 13, 16, 3); x.fillStyle = '#ff6a2a'; x.fillRect((v * 5 + 3) % 16, 14, 1, 1); }
-        else { x.fillStyle = '#3a3a52'; x.fillRect((v * 5 + 2) % 16, 8, 1, 1); }
-      }
-      return;
-    }
-    if (type === 5) {
-      const r = seeded(77 + v);
-      x.fillStyle = '#c8401a'; x.fillRect(0, 0, 16, 16);
-      x.fillStyle = '#7a1e10';
-      for (let i = 0; i < 10; i++) x.fillRect(r() * 15 | 0, r() * 15 | 0, 2, 1);
-      x.fillStyle = '#ff8a1a';
-      for (let i = 0; i < 6; i++) { const bx = (r() * 13 + v * 2) % 13 | 0, by = r() * 14 | 0; x.fillRect(bx, by, 3, 2); }
-      x.fillStyle = '#ffd23f';
-      for (let i = 0; i < 4; i++) x.fillRect((r() * 15 + v * 3) % 15 | 0, r() * 15 | 0, 1, 1);
-      return;
-    }
-    if (type === 4) {
-      if (theme === 'wood') { bricks(x, '#77786a', '#4a4b40', '#9a9b88', seed); x.fillStyle = '#4f8a3c'; x.fillRect(2, 0, 3, 1); x.fillRect(10, 4, 2, 1); }
-      else if (theme === 'crypt') bricks(x, '#3c3754', '#221f30', '#57507a', seed);
-      else bricks(x, '#211a2c', '#0e0a14', '#4a3a66', seed);
-      return;
-    }
-    floor(theme, x, seed);
-    if (type === 1) {
-      const art = theme === 'wood' ? ART.tree : theme === 'crypt' ? PROPS.rubble : PROPS.ash;
-      x.drawImage(paint(art), 0, 0);
-    } else if (type === 2) {
-      const art = theme === 'wood' ? ART.rock : theme === 'crypt' ? PROPS.coffin : recolorArt(ART.rock, { R: '#2e2240', r: '#4e3a6e', d: '#1a1226', k: '#0a0610' });
-      x.drawImage(paint(art), 0, 0);
-    } else if (type === 6) {
-      x.fillStyle = 'rgba(255,255,230,0.16)'; x.fillRect(2, 2, 12, 11); x.fillRect(4, 1, 8, 1);
-      x.fillStyle = 'rgba(255,255,230,0.22)'; x.fillRect(4, 3, 8, 2);
-      x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(1, 13, 14, 2); x.fillRect(2, 15, 12, 1);
-      x.fillStyle = 'rgba(0,0,0,0.15)'; x.fillRect(1, 3, 1, 10); x.fillRect(14, 3, 1, 10);
-    } else if (type === 7) {
-      spikes(x, theme, seed);
-    }
-  });
-}
-
-export const tileKey = (theme, type, v) => `t_${theme}_${type}_${v}`;
 export const NODE_COLORS = { battle: '#8e3a35', elite: '#6a2f9a', event: '#2f5f99', shop: '#94701c', boss: '#5a1d2a' };
 
+// ---------- the hi-fi pass ----------
+// Sprites are drawn as 16×16 letter grids; this turns one into a 32×32 canvas with the finish of
+// hand-shaded art: EPX doubles it (rounding off diagonals), the doubled outline is thinned back to a
+// single pixel, outlines take a dark shade of the colour they wrap instead of flat black, and each
+// colour gets a warm highlight on its lit (upper-left) edge and a cool shade on its lower-right edge.
+const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+const toHex = ([r, g, b]) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+// lighter and warmer, or darker and cooler: hue-shifted ramps read as light rather than as grey
+export const lit = (rgb, t) => mix(rgb, [255, 236, 190], t);
+export const shade = (rgb, t) => mix(rgb, [28, 16, 52], t);
+function epx(g) {
+  const h = g.length, w = g[0].length, out = Array.from({ length: h * 2 }, () => Array(w * 2));
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '.' : g[y][x]);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const P = g[y][x], A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), D = at(x, y + 1);
+    // dark detail (outlines, eyes, the gaps between ribs) is never worn away, only grown
+    if (P === 'k' || P === 'e') { out[y * 2][x * 2] = out[y * 2][x * 2 + 1] = out[y * 2 + 1][x * 2] = out[y * 2 + 1][x * 2 + 1] = P; continue; }
+    out[y * 2][x * 2] = C === A && C !== D && A !== B ? A : P;
+    out[y * 2][x * 2 + 1] = A === B && A !== C && B !== D ? B : P;
+    out[y * 2 + 1][x * 2] = D === C && D !== B && C !== A ? C : P;
+    out[y * 2 + 1][x * 2 + 1] = B === D && B !== A && D !== C ? D : P;
+  }
+  return out;
+}
+const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+export function hifi(art) {
+  const g = epx(art.rows.map(r => [...r])), h = g.length, w = g[0].length;
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '.' : g[y][x]);
+  const fill = c => c !== '.' && c !== 'k';
+  const outer = (x, y) => at(x, y) === 'k' && DIR4.some(([dx, dy]) => at(x + dx, y + dy) === '.');
+  // thin the doubled silhouette outline: its inner layer takes the colour inside it (dark detail
+  // inside the sprite keeps its doubled weight, so eyes and gaps stay readable)
+  const t = g.map(r => [...r]);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (g[y][x] !== 'k' || outer(x, y)) continue;
+    let rep = null;
+    for (const [dx, dy] of DIR4) if (outer(x + dx, y + dy) && fill(at(x - dx, y - dy))) { rep = at(x - dx, y - dy); break; }
+    if (rep) t[y][x] = rep;
+  }
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x2 = c.getContext('2d'), img = x2.createImageData(w, h);
+  const T = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '.' : t[y][x]);
+  const edge = ch => ch === '.' || ch === 'k';
+  const rgb = ch => hexRGB(art.pal[ch] || '#ff00ff');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const ch = t[y][x];
+    if (ch === '.' || !art.pal[ch]) continue;
+    let col = rgb(ch);
+    if (ch === 'k') {
+      // an outline takes a deep shade of what it wraps; the bottom edge stays darkest
+      const inside = DIR4.map(([dx, dy]) => T(x + dx, y + dy)).find(fill);
+      col = inside ? shade(rgb(inside), T(x, y + 1) === '.' ? 0.86 : 0.74) : col;
+    } else if (ch !== 'e') {
+      const up = T(x, y - 1), left = T(x - 1, y), down = T(x, y + 1), right = T(x + 1, y);
+      if (edge(down) || edge(right) && edge(T(x + 1, y + 1))) col = shade(col, 0.28);
+      else if (edge(up) || edge(left)) col = lit(col, 0.2);
+      else if (down !== ch && fill(down)) col = shade(col, 0.12);
+    }
+    const i = (y * w + x) * 4;
+    img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
+  }
+  x2.putImageData(img, 0, 0);
+  return c;
+}
+
 const canvases = {};
-export function spriteCanvas(name) { return canvases[name] ||= paint(ART[name]); }
+export function spriteCanvas(name) { return canvases[name] ||= hifi(ART[name]); }
 const urls = {};
 export function spriteURL(name) { return urls[name] ||= spriteCanvas(name).toDataURL(); }
 export function iconCanvas(name) { return canvases['icon_' + name] ||= paint(ICONS[name]); }
@@ -684,10 +547,6 @@ export function buildTextures(scene) {
   const tex = scene.textures;
   for (const name of Object.keys(ART)) if (ART[name] && !tex.exists('s_' + name)) tex.addCanvas('s_' + name, spriteCanvas(name));
   for (const name of Object.keys(ICONS)) if (!tex.exists('i_' + name)) tex.addCanvas('i_' + name, iconCanvas(name));
-  for (const theme of THEME_KEYS) for (let type = 0; type < 8; type++) for (let v = 0; v < TILE_VARIANTS[type]; v++) {
-    const k = tileKey(theme, type, v);
-    if (!tex.exists(k)) tex.addCanvas(k, tileCanvas(theme, type, v));
-  }
   if (!tex.exists('px')) {
     const c = document.createElement('canvas'); c.width = c.height = 4;
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 4, 4);

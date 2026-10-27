@@ -1,11 +1,12 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=16';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=16';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=16';
-import { sfx } from './audio.js?v=16';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=16';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=17';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=17';
+import { spriteURL } from './art.js?v=17';
+import { TP, drawBoard } from './tiles.js?v=17';
+import { sfx } from './audio.js?v=17';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=17';
 
-const S = 4, TS = 16 * S;
+const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const key = (x, y) => x + ',' + y;
 const inb = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH;
@@ -543,7 +544,7 @@ function addShield(t, n) {
 function setTile(x, y, type) {
   if (!inb(x, y) || B.grid[y][x] === type) return;
   B.grid[y][x] = type;
-  if (B.tiles) B.tiles[y][x].setTexture(tileKey(B.theme, type, ANIMATED.has(type) ? B.frame % 3 : B.vari[y][x] % TILE_VARIANTS[type]));
+  redrawBoard();
 }
 
 function applyStatus(u, t, o) {
@@ -1575,9 +1576,14 @@ function banner(text) {
   scene.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 400 * env.speed + 1, yoyo: true, hold: 900 * env.speed, onComplete: () => t.destroy() });
 }
 
+function redrawBoard() {
+  if (!B || !B.board) return;
+  drawBoard(B.board.context, B.theme, B.grid, B.vari, B.frame);
+  B.board.refresh();
+}
 function makeView(u) {
   const c = scene.add.container(u.x * TS, u.y * TS);
-  const shadow = scene.add.rectangle(TS / 2, TS - 6, 32 * Math.min(u.scale || 1, 1.4), 8, 0x000000, 0.3);
+  const shadow = scene.add.ellipse(TS / 2, TS - 6, 34 * Math.min(u.scale || 1, 1.4), 10, 0x0a0614, 0.32);
   const sp = scene.add.image(TS / 2, TS - 2, 's_' + u.spr).setOrigin(0.5, 1).setScale(S * (u.scale || 1));
   sp.flipX = u.side === 'foe';
   const g = scene.add.graphics();
@@ -1625,10 +1631,13 @@ export class BattleScene extends Phaser.Scene {
   create() {
     scene = this;
     const b = B;
-    b.tiles = b.grid.map((row, y) => row.map((t, x) => this.add.image(x * TS, y * TS,
-      tileKey(b.theme, t, ANIMATED.has(t) ? (b.vari[y][x] % 3) : b.vari[y][x] % TILE_VARIANTS[t])).setOrigin(0).setScale(S)));
+    // the whole board is one canvas, repainted when terrain changes and on each animation tick
+    if (this.textures.exists('board')) this.textures.remove('board');
+    b.board = this.textures.createCanvas('board', GW * TP, GH * TP);
+    this.add.image(0, 0, 'board').setOrigin(0).setScale(S);
+    redrawBoard();
     const grid = this.add.graphics().setDepth(1);
-    grid.fillStyle(0x000000, 0.13);
+    grid.fillStyle(0x000000, 0.1);
     for (let x = 1; x < GW; x++) grid.fillRect(x * TS - 1, 0, 2, GH * TS);
     for (let y = 1; y < GH; y++) grid.fillRect(0, y * TS - 1, GW * TS, 2);
     this.ov = this.add.graphics().setDepth(5);
@@ -1640,7 +1649,7 @@ export class BattleScene extends Phaser.Scene {
     this.time.addEvent({ delay: 450, loop: true, callback: () => {
       if (!B || B !== b) return;
       b.frame++;
-      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (ANIMATED.has(b.grid[y][x])) b.tiles[y][x].setTexture(tileKey(b.theme, b.grid[y][x], (b.frame + b.vari[y][x]) % 3));
+      redrawBoard();
     } });
     const cell = p => { const x = Math.floor(p.worldX / TS), y = Math.floor(p.worldY / TS); return inb(x, y) ? { x, y } : null; };
     this.input.on('pointermove', p => { if (B && !p.wasTouch) B.hover = cell(p); });

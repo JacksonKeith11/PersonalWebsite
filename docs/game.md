@@ -21,7 +21,8 @@ loads Phaser 3.80.1 from cdnjs, then `js/main.js` as an ES module.
 | `js/battle.js` | `BattleScene` (Phaser drawing, tweens, particles), the turn loop, damage, statuses, movement, line of sight, terrain effects, the AI, and the battle side panel (HTML). |
 | `js/main.js` | Run flow and every HTML screen: title, map side panel, rewards, equipping, learning skills, promotion, events, shop, party screen, saving, the Phaser game config. |
 | `js/mapscene.js` | `MapScene`: the branching map, drawn and clickable. |
-| `js/art.js` | Pixel art as text grids (16×16 sprites, 8×8 map icons) plus procedural tiles per theme, turned into canvases and Phaser textures. |
+| `js/art.js` | Sprites as 16×16 text grids and 8×8 map icons, and `hifi()`, which turns a grid into a finished 32×32 sprite. |
+| `js/tiles.js` | Terrain at 32px, painted procedurally per theme (`THEME_ART`), and `drawBoard`, which composes a whole battle board including neighbour-aware touches. |
 | `js/audio.js` | Every sound effect and music loop, synthesized at startup with `OfflineAudioContext` and played through Phaser's sound manager. |
 | `js/ui.js` | DOM helpers `h()`, `sprImg()`, `bar()`, and the status tooltips (`tip`, `tipText`, `initTips`). |
 | `game.css` | Styling for the HTML screens and panels. |
@@ -96,6 +97,16 @@ Keep it that way.
   each skill, plus stat changes for hero artifacts (`wearPreview` in `main.js`).
 - **Pixel art only, no image or audio files.** New sprites are 16×16 text grids in `art.js`; new
   sounds are synth recipes in `audio.js`.
+- **The look aims at modern 16-bit (the owner's reference is a cozy farm tileset).** Everything is
+  32px per tile, shown at 2×.
+  - Sprites: `hifi()` doubles a grid with EPX, thins the outer outline back to 1px, tints outlines
+    with a deep shade of what they wrap, and adds a warm highlight upper-left and a cool shade
+    lower-right. Draw grids with a `k` outline and `e` eyes and the pass does the rest; dark detail
+    inside a sprite stays 2px so it stays readable.
+  - Terrain: `tiles.js` paints each tile from the theme's ramps (`blob()` gives lit, rimmed shapes),
+    then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under
+    high ground, shadows below walls, lava glow. The board is one canvas texture, repainted when
+    terrain changes and every animation tick. A new theme is one `THEME_ART` entry.
 - **Later acts scale harder** (`foeUnit`: +12% HP and +8% ATK/MAG per act on top of the per-level
   curve) to answer every hero promoting after each boss.
 - **Difficulty should be hard but winnable.** The random-choice autopilot currently wins about 1 run

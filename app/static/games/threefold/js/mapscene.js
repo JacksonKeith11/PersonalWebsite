@@ -1,6 +1,6 @@
 // The branching path for the current act, drawn and made clickable with Phaser.
-import { ROWS_PER_ACT } from './data.js?v=16';
-import { NODE_COLORS } from './art.js?v=16';
+import { ROWS_PER_ACT } from './data.js?v=17';
+import { NODE_COLORS } from './art.js?v=17';
 
 export const MAP = { W: 640, TOP: 70, STEP: 70, COLS: 6 };
 export const mapHeight = () => MAP.TOP * 2 + ROWS_PER_ACT * MAP.STEP;
@@ -56,7 +56,7 @@ export class MapScene extends Phaser.Scene {
         c.on('pointerout', () => c.setScale(1));
       }
       if (n.id === run.pos) {
-        const hero = this.add.image(p.x, p.y - r - 18, 's_' + mapEnv.leader).setScale(2.5).setDepth(5);
+        const hero = this.add.image(p.x, p.y - r - 18, 's_' + mapEnv.leader).setScale(1.25).setDepth(5);
         this.tweens.add({ targets: hero, y: hero.y - 6, duration: 400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       }
     }

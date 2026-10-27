@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -10,6 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import auth
+from .books import epub
 from .books import routes as books_routes
 from .serials import page as serials_page
 from .serials import scheduler
@@ -25,6 +27,7 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     if SERIALS_PATH:
         scheduler.start()
+    threading.Thread(target=epub.refresh_all, name="books-refresh", daemon=True).start()
     yield
 
 

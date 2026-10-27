@@ -513,7 +513,11 @@ def _xhtml(node, images: _Images) -> str:
         src = node.get("data-src") or node.get("data-url") or node.get("src") or ""
         path = images.add(src) if src and not src.startswith("data:") else None
         alt = escape(node.get("alt", ""))
-        return f'<img src="../{path}" alt="{alt}"/>' if path else ""
+        # How the site sized or floated it, for the reader (see epub._Styles).
+        size = "".join(f' {a}="{v}"' for a in ("width", "height") if (v := node.get(a, "")).isdigit())
+        style = ";".join(f"{k}:{v}" for k, v in epub._declarations(node.get("style") or "").items() if epub._length(v) or k == "float")
+        size += f' style="{escape(style)}"' if style else ""
+        return f'<img src="../{path}" alt="{alt}"{size}/>' if path else ""
     inner = "".join(_xhtml(c, images) for c in node.children)
     name = RENAME.get(node.name, node.name)
     if name in VOID:

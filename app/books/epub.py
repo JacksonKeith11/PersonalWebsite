@@ -6,8 +6,10 @@ EPUB's own HTML (scripts, styles, attributes) reaches the reader page.
 
 import hashlib
 import io
+import logging
 import os
 import posixpath
+import re
 import shutil
 import time
 import uuid
@@ -20,6 +22,11 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import CData, Comment, Declaration, Doctype, ProcessingInstruction
 
 from . import store
+
+log = logging.getLogger(__name__)
+# Bumped when reading EPUBs changes how chapters come out; books stored by an older version are
+# rebuilt from their EPUB at startup (see refresh_all).
+FORMAT = 2
 
 BLOCK = {
     "address", "article", "aside", "blockquote", "body", "center", "dd", "div", "dl", "dt", "figcaption",
@@ -59,10 +66,130 @@ def _resolve(base: str, href: str) -> tuple[str, str]:
     return posixpath.normpath(posixpath.join(posixpath.dirname(base), path)), frag
 
 
+# --- picture sizes ---------------------------------------------------------------------------
+# The EPUB's own styles are dropped, but how it sizes and floats its pictures is kept: a small
+# drop-cap picture floated into the text, or a plate given a width, should look as it does in
+# other readers instead of every picture filling the page (and looking blurry, enlarged).
+
+SIZE_PROPS = ("float", "width", "height")
+LENGTH_RE = re.compile(r"^(\d+(?:\.\d+)?|\.\d+)(px|em|rem|%|pt)?$")
+COMPOUND_RE = re.compile(r"^([a-z][a-z0-9]*|\*)?((?:\.[\w-]+)*)$", re.I)
+
+
+def _length(value: str) -> str | None:
+    """A CSS length the reader can use, from an EPUB's (or an HTML width attribute's) value."""
+    m = LENGTH_RE.match(value.strip().lower())
+    if not m:
+        return None
+    n, unit = float(m.group(1)), m.group(2) or "px"
+    if unit == "pt":
+        n, unit = n * 4 / 3, "px"
+    if unit == "rem":
+        unit = "em"
+    limit = {"px": 2000, "em": 60, "%": 100}[unit]
+    if not 0 < n <= limit:
+        return None
+    return f"{round(n, 2):g}{unit}"
+
+
+def _declarations(text: str) -> dict[str, str]:
+    out = {}
+    for decl in text.split(";"):
+        prop, _, value = decl.partition(":")
+        prop, value = prop.strip().lower(), value.replace("!important", "").strip().lower()
+        if prop in SIZE_PROPS and value:
+            out[prop] = value
+    return out
+
+
+def _css_rules(text: str) -> list[tuple[list[tuple[str | None, set[str]]], dict[str, str]]]:
+    """(selector compounds, size declarations) for the rules of a stylesheet that size or float
+    things. Only selectors like `img`, `.letra`, `div.fig img` are understood; others are skipped."""
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    rules, i = [], 0
+    while (start := text.find("{", i)) >= 0:
+        selector, depth, end = text[i:start].strip(), 1, start + 1
+        while depth and end < len(text):
+            depth += {"{": 1, "}": -1}.get(text[end], 0)
+            end += 1
+        body, i = text[start + 1:end - 1], end
+        if selector.startswith("@"):
+            if selector.lower().startswith("@media"):
+                rules += _css_rules(body)
+            continue
+        decls = _declarations(body)
+        if not decls:
+            continue
+        for sel in selector.split(","):
+            parts = [COMPOUND_RE.match(c) for c in sel.split()]
+            if 1 <= len(parts) <= 2 and all(parts):
+                compounds = [((m.group(1) or "").lower().strip("*") or None, set(m.group(2).split(".")) - {""}) for m in parts]
+                rules.append((compounds, decls))
+    return rules
+
+
+class _Styles:
+    """Size and float of elements in one chapter file, from the stylesheets it uses."""
+
+    def __init__(self, z: zipfile.ZipFile, path: str, soup: BeautifulSoup, sheets: dict):
+        self.rules = []
+        for link in soup.find_all("link", href=True):
+            if "stylesheet" in (link.get("rel") or []):
+                sheet = _resolve(path, link["href"])[0]
+                if sheet not in sheets:
+                    try:
+                        sheets[sheet] = _css_rules(z.read(sheet).decode("utf-8", "replace"))
+                    except KeyError:
+                        sheets[sheet] = []
+                self.rules += sheets[sheet]
+        for style in soup.find_all("style"):
+            self.rules += _css_rules(style.get_text())
+
+    @staticmethod
+    def _matches(el: Tag, compound) -> bool:
+        tag, classes = compound
+        return (tag is None or el.name == tag) and classes <= set(el.get("class") or [])
+
+    def of(self, el: Tag) -> dict[str, str]:
+        out = {}
+        for attr in ("width", "height"):  # presentational attributes count for less than CSS
+            if isinstance(el.get(attr), str):
+                out[attr] = el[attr].lower()
+        for compounds, decls in self.rules:
+            if self._matches(el, compounds[-1]) and (
+                len(compounds) == 1 or any(self._matches(a, compounds[0]) for a in el.parents if isinstance(a, Tag))
+            ):
+                out.update(decls)
+        if isinstance(el.get("style"), str):
+            out.update(_declarations(el["style"]))
+        return out
+
+    def picture(self, img: Tag) -> tuple[str, str]:
+        """(float: "left", "right" or "", inline style) for a picture. Float and width can come
+        from a wrapper holding just the picture and its caption, as in `<div class="figleft">`."""
+        own = self.of(img)
+        floated, width, height = own.get("float"), _length(own.get("width", "")), _length(own.get("height", ""))
+        node = img
+        for _ in range(3):
+            node = node.parent
+            if not isinstance(node, Tag) or node.name in ("body", "html") or len(node.get_text()) > 400 or len(node.find_all("img")) > 1:
+                break
+            st = self.of(node)
+            floated = floated or st.get("float")
+            if width is None and height is None and node.name in ("div", "span", "figure", "p"):
+                width = _length(st.get("width", ""))
+        floated = floated if floated in ("left", "right") else ""
+        if width:
+            height = None  # keep the picture's shape when it has to shrink to fit
+        style = ";".join(f"{k}:{v}" for k, v in (("width", width), ("height", height)) if v)
+        return floated, style
+
+
 class _Chapter:
-    def __init__(self, path: str, res_url):
+    def __init__(self, path: str, res_url, styles: _Styles | None = None):
         self.path = path
         self.res_url = res_url
+        self.styles = styles
         self.blocks: list[tuple[int | None, str]] = []  # (segment or None, markup with a {s} slot)
         self.texts: list[str] = []
         self.anchors: dict[str, int] = {}
@@ -127,7 +254,11 @@ class _Chapter:
             alt = node.get("alt", "")
             # A one- or two-letter alt is a drop cap drawn as an image; it's part of the first word.
             spoken = alt if 0 < len(alt.strip()) <= 2 else ""
-            return f'<img src="{escape(url)}" alt="{escape(alt)}">', spoken, True
+            attrs = ""
+            if self.styles and node.name == "img":  # an SVG <image>'s size is in the SVG's units
+                floated, style = self.styles.picture(node)
+                attrs = (f' class="float-{floated}"' if floated else "") + (f' style="{style}"' if style else "")
+            return f'<img src="{escape(url)}" alt="{escape(alt)}"{attrs}>', spoken, True
         parts = [self._inline(c) for c in node.children]
         html = "".join(p[0] for p in parts)
         tag = INLINE.get(node.name)
@@ -211,7 +342,7 @@ def _read(data: bytes, book_id: str, rev: int) -> tuple[dict, list[dict]]:
     def res_url(path: str) -> str:
         return f"/books/api/{book_id}/res/{quote(path)}?v={rev}"
 
-    chapters, chapter_of, anchors = [], {}, []
+    chapters, chapter_of, anchors, sheets = [], {}, [], {}
     for ref in spine.iterfind("itemref"):
         item = manifest.get(ref.get("idref"))
         if not item or "html" not in item["type"] or ref.get("linear") == "no":
@@ -220,7 +351,7 @@ def _read(data: bytes, book_id: str, rev: int) -> tuple[dict, list[dict]]:
             soup = BeautifulSoup(z.read(item["path"]), "html.parser")
         except KeyError:
             continue
-        chapter = _Chapter(item["path"], res_url)
+        chapter = _Chapter(item["path"], res_url, _Styles(z, item["path"], soup, sheets))
         chapter.walk(soup.body or soup)
         chapter_of[item["path"]] = len(chapters)  # sections with nothing in them point at the next chapter
         if not chapter.blocks:
@@ -283,6 +414,7 @@ def _read(data: bytes, book_id: str, rev: int) -> tuple[dict, list[dict]]:
         "author": ", ".join(authors),
         "cover": cover if cover in images else None,
         "rev": rev,
+        "format": FORMAT,
         "chapters": [
             {"title": chapter_title(i), "segments": len(c["texts"]), "chars": sum(map(len, c["texts"]))}
             for i, c in enumerate(sections)
@@ -378,3 +510,16 @@ def source_of(book: dict) -> str:
         store.write_json(path, {**fresh, "source": source})
     book["source"] = source
     return source
+
+
+def refresh_all() -> None:
+    """Rebuild books stored by an older version of this module from their EPUBs. Narration and
+    reading positions stay, since the spoken text comes out the same."""
+    for book in store.list_books():
+        if book.get("format", 1) >= FORMAT:
+            continue
+        try:
+            update(book["id"], (store.BOOKS_DIR / book["id"] / "book.epub").read_bytes())
+            log.info("Rebuilt %s for format %d", book["id"], FORMAT)
+        except (OSError, EpubError):
+            log.exception("Couldn't rebuild %s", book["id"])

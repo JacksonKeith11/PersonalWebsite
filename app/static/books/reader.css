@@ -141,6 +141,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   object-fit: contain;
   break-inside: avoid;
 }
+/* Pictures the book floats beside the text, like drop caps (see epub._Styles). */
+#flow img.float-left { float: left; margin: 0.15em 0.6em 0.2em 0; max-width: 45%; }
+#flow img.float-right { float: right; margin: 0.15em 0 0.2em 0.6em; max-width: 45%; }
 /* A section that is only a picture (a cover, a frontispiece) gets the whole page. */
 #flow > .origin + .fig:last-child img { max-width: 100%; max-height: var(--page-h, 80vh); }
 #flow [data-s] {

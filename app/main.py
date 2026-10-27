@@ -55,6 +55,16 @@ def recipes():
     return FileResponse(STATIC_DIR / "recipes.html")
 
 
+@app.get("/games", include_in_schema=False)
+def games():
+    return FileResponse(STATIC_DIR / "games.html")
+
+
+@app.get("/games/threefold-path", include_in_schema=False)
+def threefold_path():
+    return FileResponse(STATIC_DIR / "games" / "threefold" / "index.html")
+
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}

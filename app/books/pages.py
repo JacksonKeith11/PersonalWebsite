@@ -18,6 +18,7 @@ NAV = """<nav class="nav">
         <a href="/projects">Projects</a>
         <a href="/books" aria-current="page">Library</a>
         <a href="/recipes">Recipes</a>
+        <a href="/games">Games</a>
       </div>
     </nav>"""
 FONTS = (

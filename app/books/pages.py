@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 11
+ASSET_VERSION = 12
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -20,7 +20,35 @@ HEAD = """<meta charset="utf-8">
   <link rel="apple-touch-icon" href="/static/books/icon-180.png">"""
 
 
-def library() -> str:
+def login(next_path: str = "/books", failed: bool = False) -> str:
+    error = '<p class="notice err">Use 1–32 letters, numbers, dashes or underscores.</p>' if failed else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  {HEAD}
+  <title>Library</title>
+  {FONTS}
+  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
+</head>
+<body>
+  <main class="paper login">
+    <h1 class="page-title">Library</h1>
+    <p class="hint">Enter your username to see your books. A new name starts an empty library.</p>
+    <form method="post" action="/books/login">
+      <input type="hidden" name="next" value="{escape(next_path)}">
+      <input name="username" placeholder="Username" aria-label="Username" autocomplete="username"
+        autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="32" autofocus required>
+      <button type="submit" class="btn">Open</button>
+    </form>
+    {error}
+  </main>
+</body>
+</html>
+"""
+
+
+def library(user: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -34,6 +62,7 @@ def library() -> str:
   <main class="paper library">
     <div class="lib-head">
       <h1 class="page-title">Library</h1>
+      <span class="who">{escape(user)} · <a href="/books/logout">Switch user</a></span>
       <label class="btn add">Add book<input id="file" type="file" accept=".epub,application/epub+zip" multiple hidden></label>
     </div>
     <p id="notice" class="notice" hidden></p>

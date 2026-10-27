@@ -3,7 +3,7 @@
 data/books/
   priority.json          chapter the reader asked to listen to; the worker does it first
   worker.json            what the worker is generating right now
-  <id>/book.json         metadata, chapter list, table of contents
+  <id>/book.json         metadata (including the uploader's username, "owner"), chapter list, table of contents
   <id>/book.epub         the original upload
   <id>/progress.json     reading position
   <id>/chapters/<n>.html reader markup; every spoken block carries data-s="<segment>"
@@ -49,12 +49,13 @@ def load_book(book_id: str) -> dict | None:
     return read_json(path / "book.json") if path else None
 
 
-def list_books() -> list[dict]:
-    """All books, newest upload first."""
+def list_books(owner: str | None = None) -> list[dict]:
+    """All books, or one user's, newest upload first."""
     if not BOOKS_DIR.exists():
         return []
     books = [read_json(p / "book.json") for p in BOOKS_DIR.iterdir() if ID_RE.match(p.name)]
-    return sorted((b for b in books if b), key=lambda b: b["added"], reverse=True)
+    books = [b for b in books if b and (owner is None or b.get("owner") == owner)]
+    return sorted(books, key=lambda b: b["added"], reverse=True)
 
 
 def partial_paths(folder: Path, n: int) -> tuple[Path, Path]:

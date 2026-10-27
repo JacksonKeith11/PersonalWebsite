@@ -4,7 +4,7 @@ import os
 
 from fastapi import HTTPException, Request
 
-# Shared password for the private pages (serials, books). It's a light gate against casual
+# Shared password for the serials page. It's a light gate against casual
 # visitors, not real security.
 PASSWORD = os.environ.get("SERIALS_PASSWORD", "")
 COOKIE = "serials_auth"

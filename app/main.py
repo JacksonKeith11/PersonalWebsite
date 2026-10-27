@@ -82,6 +82,5 @@ if SERIALS_PATH:
         return HTMLResponse(serials_page.render(page), headers=auth.PRIVATE_HEADERS)
 
 
-# Books hold copyrighted text, so they're only served behind the password.
-if auth.PASSWORD:
-    app.include_router(books_routes.router)
+# Books are behind a username rather than the password; see app/books/routes.py.
+app.include_router(books_routes.router)

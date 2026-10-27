@@ -172,9 +172,10 @@ def _ncx_toc(z: zipfile.ZipFile, path: str) -> list[dict]:
     return entries
 
 
-def save(data: bytes) -> str:
-    """Store an uploaded EPUB; returns the book id. Uploading the same file twice is a no-op."""
-    book_id = hashlib.sha256(data).hexdigest()[:12]
+def save(data: bytes, owner: str) -> str:
+    """Store an uploaded EPUB for `owner`; returns the book id. Uploading the same file twice is a no-op,
+    and two people uploading the same file each get their own copy."""
+    book_id = hashlib.sha256(owner.encode() + b"\0" + data).hexdigest()[:12]
     if store.book_dir(book_id):
         return book_id
     try:
@@ -279,6 +280,7 @@ def save(data: bytes) -> str:
 
     book = {
         "id": book_id,
+        "owner": owner,
         "title": title or "Untitled",
         "author": ", ".join(authors),
         "cover": cover if cover in images else None,

@@ -85,6 +85,17 @@
         el("li", {}, del),
       ),
     );
+    // The list hangs right-aligned under the button; on a narrow screen the left column's
+    // would run off the left edge, so slide it back on screen.
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) return;
+      const list = menu.querySelector("ul");
+      list.style.right = "";
+      const { left, right } = list.getBoundingClientRect();
+      const margin = 8;
+      if (left < margin) list.style.right = `${left - margin}px`;
+      else if (right > innerWidth - margin) list.style.right = `${right - innerWidth + margin}px`;
+    });
     return el("div", { className: "book" }, link, menu);
   }
 

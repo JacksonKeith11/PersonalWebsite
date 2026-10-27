@@ -103,6 +103,8 @@
   margin: 6px 0 0;
   padding: 6px 0;
   min-width: 200px;
+  width: max-content;
+  max-width: calc(100vw - 16px);
   list-style: none;
   background: var(--paper);
   border: 1px solid var(--rule);

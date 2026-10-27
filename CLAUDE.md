@@ -16,27 +16,29 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 
 ## Layout
 
-- `app/main.py`: routes, login (`/login`), mounts `/static`
-- `app/auth.py`: shared password gate for the serials page (`SERIALS_PASSWORD`, HMAC cookie `serials_auth`)
-- `app/static/`: public pages (`/`, `/resume`, `/projects`) and assets
-- `app/serials/`: unlisted serial-updates page. Gmail IMAP for Royal Road, AO3, fiction.live;
-  XenForo "What's New" threadmarks for SpaceBattles, Sufficient Velocity, Questionable Questing
-- `app/books/`: EPUB library and reader at `/books`. No password: readers pick a username (cookie
-  `books_user`) and see only books whose `book.json` `owner` matches; others' books 404
-  - `epub.py` parses uploads; `store.py` documents the on-disk layout under `data/books/`
-  - `worker.py` runs in the `tts` container (`Dockerfile.tts`) and narrates with Kokoro (am_michael),
-    only books someone asked for (Make audiobook, or pressing listen: a `narrate` file in the book)
-  - `pages.py` renders the shells; `app/static/books/` has the reader/library JS and CSS
-  - offline reading: `sw.js` (a service worker, served at `/books/sw.js` with `pages.SHELL` filled in)
-    answers from the `book-<id>` caches `library.js` fills when a reader saves a book from the ⋯ menu
-  - `importer.py` builds an EPUB from a Royal Road fiction or SpaceBattles/SV/QQ thread link
-    (threadmarks via reader mode), one import at a time on a background thread. Royal Road and
-    SpaceBattles block the server, so stories also come in through the "Import to Library"
-    bookmarklet (`library.js` `grab`): the same parsers run on pages the reader's browser fetched,
-    and `importer.gather` asks it (via `/books/receive`) for the ones still missing. Importing a story
-    already in that reader's library updates the book in place (⋯ "Check for new chapters"), copying
-    the chapters it has out of its EPUB; `rev` in `book.json` counts updates and versions the URLs
+- `app/main.py`: routes, serials login (`/login`), mounts `/static`; `app/auth.py`: the serials password gate
+- `app/static/`: public pages (`/`, `/resume`, `/projects`, `/recipes`, `/games`) and assets
+- `app/serials/`: unlisted serial-updates page (Gmail IMAP for Royal Road, AO3, fiction.live;
+  XenForo "What's New" threadmarks for SpaceBattles, Sufficient Velocity, Questionable Questing)
+- `app/books/` and `app/static/books/`: EPUB library, reader, story importer and Kokoro narration
+  at `/books`, behind a username
+- `app/static/games/threefold/`: Threefold Path, a Phaser tactics roguelike at `/games/threefold-path`
+- `tools/`: dev scripts (the game's headless autoplay test)
 - `data/`: runtime data (SQLite, books, audio); gitignored
+
+## Area docs
+
+Each area has a doc covering what it does, its design directives, and its gotchas. Don't read them
+up front. Read the matching one before you change something in that area:
+
+| Changing... | Read |
+|---|---|
+| `app/main.py`, `app/auth.py`, public pages, `style.css`, the nav bar, Dockerfiles, compose, deploy | `docs/site.md` |
+| `app/serials/` | `docs/serials.md` |
+| `app/books/`, `app/static/books/` | `docs/books.md` |
+| `app/static/games/`, `tools/threefold-autoplay.js` | `docs/game.md` |
+
+When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.
 
 ## Rules
 
@@ -45,6 +47,6 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   emails for serial updates where a site sends them, fetch only what a reader asked for, and space
   requests out (the books importer waits a second between them).
 - Private pages stay noindex and `no-store`; serials stay behind `auth`, books behind a username.
-- Cloudflare caches static files: when changing CSS/JS, bump `?v=` on `style.css` links or
-  `ASSET_VERSION` in `app/books/pages.py`.
+- Cloudflare caches static files: when changing CSS/JS, bump its `?v=` (`style.css` links,
+  `ASSET_VERSION` in `app/books/pages.py`, or the game's module URLs; see the area docs).
 - Test the reader against public-domain EPUBs (e.g. Project Gutenberg), not the owner's books.

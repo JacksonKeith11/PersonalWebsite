@@ -221,3 +221,5 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .pick .delta { color: var(--text, #e8e0f0); font-size: 18px; margin-top: 3px; line-height: 1.25; }
 .pick .delta .was { color: #8a7c9c; }
 .pick .delta .now { color: var(--green); }
+.pick .fits { color: #7fd8d0; font-size: 17px; margin-top: 4px; line-height: 1.2; }
+.pick .fits.none { color: #c08080; }

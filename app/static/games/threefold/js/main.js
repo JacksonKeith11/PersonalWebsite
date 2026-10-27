@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=11';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=12';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=11';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=11';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=11';
-import { env, startBattle, BattleScene } from './battle.js?v=11';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=11';
-import { h, sprImg, bar } from './ui.js?v=11';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=12';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=12';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=12';
+import { env, startBattle, BattleScene } from './battle.js?v=12';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=12';
+import { h, sprImg, bar } from './ui.js?v=12';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -206,12 +206,21 @@ env.onEnd = (b, win) => {
 // ---------- cards ----------
 const archChips = tags => tags.length ? h('span', { class: 'chips' }, tags.map(t => h('span', { class: 'chip', style: `--c:${ARCHES[t].color}` }, ARCHES[t].name))) : null;
 const modalShow = el => { modal.replaceChildren(h('div', { class: 'modal-box' }, el)); modal.hidden = false; };
+// "Fits: Strike, Cleave (Warrior) · Arcane Bolt (Mage)": the party's skills a skill artifact could go
+// into. A full skill still counts, since an artifact can be moved off it.
+function fitsLine(id) {
+  const groups = run.party.map(p => ({ p, names: p.skills.filter(s => canSocket(p, s.mods.length < MAX_MODS ? s : { ...s, mods: s.mods.slice(0, MAX_MODS - 1) }, id)).map(s => SKILLS[s.id].name) }))
+    .filter(g => g.names.length);
+  if (!groups.length) return h('div', { class: 'fits none' }, 'Fits none of your skills right now.');
+  return h('div', { class: 'fits' }, 'Fits: ', groups.map(g => `${g.names.join(', ')} (${heroTitle(g.p)})`).join(' · '));
+}
 function artCard(id, extra, onpick, disabled) {
   const skill = isSkillArt(id);
   return h('button', { class: 'pick ' + (skill ? 'skillart' : 'heroart'), disabled, onclick: () => { sfx('select'); onpick(); } },
     h('div', { class: 'pick-head' }, h('b', {}, artName(id)), extra),
     h('div', { class: 'kind' }, skill ? (MODS[id].only ? `Skill artifact · ${SKILLS[MODS[id].only].name} only` : 'Skill artifact') : 'Hero artifact', archChips(artTags(id))),
-    h('div', { class: 'desc' }, artText(id)));
+    h('div', { class: 'desc' }, artText(id)),
+    skill && run ? fitsLine(id) : null);
 }
 function skillCard(p, id, extra, onpick, disabled) {
   const o = skStats(p, { id, mods: [] });

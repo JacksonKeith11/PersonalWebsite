@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=11';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=11';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=11';
-import { sfx } from './audio.js?v=11';
-import { h, bar, sprImg } from './ui.js?v=11';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=12';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=12';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=12';
+import { sfx } from './audio.js?v=12';
+import { h, bar, sprImg } from './ui.js?v=12';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -51,7 +51,6 @@ function heroUnit(p) {
   u.anchored = isClass(u, 'juggernaut');
   u.slip = isClass(u, 'trickster');
   u.rampart = isClass(u, 'hoplite');
-  u.thornproof = isClass(u, 'briarknight') || has(u, 'briarboots');
   u.shield = startShield(p, u.maxHp);
   if (isClass(u, 'chronomancer')) u.ct += 60;
   if (has(u, 'stopwatch')) u.ct += 150;
@@ -142,7 +141,7 @@ function hazard(u, x, y) {
   const t = B.grid[y][x];
   if (u.fly) return 0;
   if (t === T.LAVA && !u.fireproof) return Math.round(u.maxHp * 0.12) + 4;
-  if (t === T.THORN && !u.thornproof) return 3 + Math.floor(B.level / 3);
+  if (t === T.THORN) return 3 + Math.floor(B.level / 3);
   return 0;
 }
 
@@ -319,7 +318,7 @@ function mathRule(rule, t) {
 // ---------- damage ----------
 const powerVal = (u, o) => statVal(u, o.stat) * o.pow * (o.still && !u.moved ? 1.5 : 1);
 const missingFrac = u => Math.max(0, 1 - u.hp / u.maxHp);
-const thornsNow = u => thornsOf(u) * (u.thornproof && B.grid[u.y][u.x] === T.THORN && !u.fly ? 2 : 1);
+const thornsNow = u => thornsOf(u) * ((has(u, 'briarboots') && u.shield > 0) || (isClass(u, 'briarknight') && (u.shield > 0 || u.st.guard)) ? 2 : 1);
 const hitsOf = o => o.times || (o.double ? 2 : 1);
 function flanked(a, t) { return B.units.some(o => !o.dead && o !== a && o.side === a.side && dist(o, t) === 1); }
 function dmgMult(a, t, o) {
@@ -341,7 +340,7 @@ function dmgMult(a, t, o) {
   if (t.st.shock > 0 && o.kind === 'mag') m *= 1.3;
   if (o.fester && t.st.poison > 0) m *= 1 + o.fester * t.st.poison;
   if (o.shatter && t.st.slow > 0) m *= 1.6;
-  if (o.bramble && B.grid[t.y][t.x] === T.THORN && !t.fly) m *= 1.6;
+  if (o.ironbark) m *= 1 + o.ironbark * a.def;
   if (o.sanguine) m *= 1 + missingFrac(a);
   if (isClass(a, 'samurai')) m *= 1 + Math.min(0.6, missingFrac(a) * 0.9);
   if (has(a, 'torc') && a.hp * 2 < a.maxHp) m *= 1.5;
@@ -613,7 +612,7 @@ async function enterTile(u) {
     burst('fire', u, 12);
     damage(u, Math.round(u.maxHp * 0.12) + 4, null, { quiet: true });
     if (!u.dead) { u.st.burn = Math.max(u.st.burn || 0, 2); u.st.burnDmg = Math.max(u.st.burnDmg || 0, 3 + Math.floor(B.level / 3)); }
-  } else if (t === T.THORN && !u.thornproof) {
+  } else if (t === T.THORN) {
     damage(u, 3 + Math.floor(B.level / 3), null, { quiet: true });
   }
 }
@@ -914,9 +913,10 @@ async function useSkill(u, s, tx, ty, echoed) {
   if (o.guard) u.st.guard = 1;
   if (o.riposte) u.st.riposte = 1;
   if (o.stealth && !u.dead) { u.st.stealth = 1; refreshView(u); }
-  if (o.thornsUp && !u.dead && !list.some(e => e.t === u)) { u.st.thorns = Math.max(u.st.thorns || 0, o.thornsUp); fxText(u, 'Thorns', '#c8b45a', true); }
+  if (o.thornsUp && !u.dead && (o.kind !== 'buff' || !list.some(e => e.t === u))) { u.st.thorns = Math.max(u.st.thorns || 0, o.thornsUp); fxText(u, 'Thorns', '#c8b45a', true); }
   if (u.st.focus && (o.kind === 'phys' || o.kind === 'mag')) u.st.focus = 0;
   if (o.selfHaste && !u.dead) u.ct += o.selfHaste;
+  if (o.selfShieldHp && !u.dead) addShield(u, u.maxHp * o.selfShieldHp);
   if ((o.leap || o.land) && isClass(u, 'dragoon') && !u.dead) { u.st.airborne = 1; fxText(u, 'Airborne', '#c9f7ff', true); refreshView(u); }
   if (o.kind === 'summon') summon(u, o.summon, o.summonN || 2);
   if (o.ctCost) u.ctDebt = (u.ctDebt || 0) + o.ctCost;
@@ -1006,6 +1006,7 @@ async function startTurn(u) {
   for (const s of u.skills) if (s.cd > 0) s.cd--;
   u.st.guard = 0; u.st.riposte = 0; u.st.airborne = 0;
   if (isClass(u, 'bard')) for (const a of alive().filter(x => x !== u && x.side === u.side && dist(x, u) <= 2)) a.ct += 12;
+  if (has(u, 'goad')) for (const f of alive().filter(x => x.side !== u.side && dist(x, u) <= 2)) { f.st.taunt = Math.max(f.st.taunt || 0, 1); f.st.tauntBy = u; refreshView(f); }
   u.tmp = null;
   if (has(u, 'chaos')) {
     const stat = pick(['atk', 'mag', 'def', 'res', 'spd']);

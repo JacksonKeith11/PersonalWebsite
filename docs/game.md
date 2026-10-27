@@ -155,12 +155,17 @@ the browser can't reach cdnjs.
   A unit that snaps out of a charm can't be charmed again for 2 turns (`st.resolve`), and the AI
   won't charm the last foe standing; without both, a hero with no cooldowns could stall forever.
 - **Thorns** are computed, not stored: `thornsOf(u)` (class, items, the `st.thorns` buff), doubled
-  in brambles for `thornproof` units by `thornsNow` in `battle.js`. They fire inside `damage()` for
-  melee hits (any range with the Retribution Idol), with `reflected` set so they can't bounce.
+  by `thornsNow` in `battle.js` while shielded (Spiked Bulwark) or, for the Briar Knight, shielded
+  or bracing. They fire inside `damage()` for melee hits (any range with the Retribution Idol),
+  with `reflected` set so they can't bounce. The thorns archetype is about toughness (DEF, max HP,
+  shields, taunts, bracing), not brambles: the owner removed the bramble synergies, so don't add
+  terrain payoffs back to it.
 - **`shape: 'math'`** skills target every unit matching `rule` anywhere on the board (prime HP, even
   HP, row + column divisible by 3, poisoned). They're `tgt: 'self'` with no area tiles.
 - **Silence (`cdLock`) only locks skills whose base cooldown is above 0**, so a silenced unit can
   always basic-attack. Don't lock cooldown-0 skills or units with one skill stop acting.
+- **Skill artifact cards list what they fit** (`fitsLine` in `main.js`): the party's skills that
+  `canSocket` accepts, counting full skills as if one slot were free.
 - **IDs must stay distinct between `MODS` and `ITEMS`.** Pack entries are bare ids, and
   `isSkillArt(id)` tells them apart by looking in `MODS`. An id in both breaks the pack. Skill ids
   live in a separate namespace (`SKILLS`).

@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=11';
+import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=12';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -73,10 +73,12 @@ export function skStats(u, s) {
   return o;
 }
 
-// Thorns: damage dealt back to melee attackers (battle.js doubles it in brambles for the Briar Knight and Briar Boots).
+// Thorns: damage dealt back to melee attackers. They scale with toughness (DEF and max HP); battle.js
+// doubles them while shielded (Spiked Bulwark) or, for the Briar Knight, while shielded or bracing.
 export function thornsOf(u) {
   let v = 0;
-  if (isClass(u, 'briarknight')) v += 8 + u.def * 0.5;
+  if (isClass(u, 'briarknight')) v += 8 + u.def * 0.5 + u.maxHp * 0.1;
+  if (has(u, 'brand')) v += u.maxHp * 0.15;
   if (has(u, 'thornmail')) v += 5 + u.def * 0.5;
   if (u.st && u.st.thorns > 0) v += 6 + u.def * 0.5;
   return Math.round(v);
@@ -151,7 +153,7 @@ export function describe(o, src) {
     ['gamble', 'Random damage'], ['ctTake', 'Delays target'], ['ctGive', 'Hastes'], ['stealth', 'Stealth'], ['riposte', 'Riposte'], ['vortex', 'Pulls foes in'],
     ['selfShield', 'Shields you'], ['overflow', 'Overflow shields'], ['backstab', 'Backstab'], ['recoil', 'Hops away'],
     ['shock', 'Shocks'], ['charm', 'Charms'], ['doom', 'Dooms'], ['cdLock', 'Silences'], ['ward', 'Wards'], ['land', 'Jumps'],
-    ['steal', 'Steals gold'], ['still', '+50% if you stayed put'], ['fester', '+15% per poison turn'], ['shatter', '+60% vs slowed'], ['bramble', '+60% vs brambled'],
+    ['steal', 'Steals gold'], ['still', '+50% if you stayed put'], ['fester', '+15% per poison turn'], ['shatter', '+60% vs slowed'], ['ironbark', '+3% per DEF'], ['selfShieldHp', 'Shields you 10% max HP'],
     ['sanguine', '+1% per 1% HP missing'], ['leech', 'Poison heals you'], ['selfHaste', 'Hastes you'], ['brace', 'Braces'], ['guard', 'Guards'],
     ['root', 'Roots'], ['disarm', 'Disarms'], ['weak', 'Weakens'], ['oil', 'Oils'], ['wet', 'Soaks'], ['sleep', 'Sleep'], ['confuse', 'Confuses'], ['purify', 'Purifies'],
     ['dispel', 'Dispels'], ['movUp', '+1 MOV'], ['focus', 'Focus'], ['ctZero', 'Resets their turn'], ['pincer', '+40% per ally beside the target'], ['momentum', '+8% per tile away'],

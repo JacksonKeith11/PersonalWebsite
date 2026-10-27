@@ -1,0 +1,37 @@
+# jacksonfkeith.com
+
+Personal site served from a MacBook: FastAPI in Docker (OrbStack), exposed through a Cloudflare Tunnel.
+
+## Deploying
+
+Merging to `main` deploys. A job on the Mac polls GitHub every 2 minutes, fast-forwards, runs
+`docker compose up -d --build web tts`, and rolls back if `http://localhost:8080/healthz` fails.
+So work on a branch and open a pull request; never push straight to `main`.
+
+Changes that need someone at the Mac (say so in the PR description):
+- new or changed settings in `.env` (it holds every secret and is not in the repo; add new keys,
+  empty, to `.env.example`)
+- changes to the tunnel, OrbStack, or anything outside this repo
+
+## Layout
+
+- `app/main.py`: routes, login (`/login`), mounts `/static`
+- `app/auth.py`: shared password gate (`SERIALS_PASSWORD`, HMAC cookie `serials_auth`)
+- `app/static/`: public pages (`/`, `/resume`, `/projects`) and assets
+- `app/serials/`: unlisted serial-updates page. Gmail IMAP for Royal Road, AO3, fiction.live;
+  XenForo "What's New" threadmarks for SpaceBattles, Sufficient Velocity, Questionable Questing
+- `app/books/`: EPUB library and reader at `/books`
+  - `epub.py` parses uploads; `store.py` documents the on-disk layout under `data/books/`
+  - `worker.py` runs in the `tts` container (`Dockerfile.tts`) and narrates with Kokoro (am_michael)
+  - `pages.py` renders the shells; `app/static/books/` has the reader/library JS and CSS
+- `data/`: runtime data (SQLite, books, audio); gitignored
+
+## Rules
+
+- Never commit secrets, `.env`, or anything under `data/`.
+- Royal Road, AO3, and fiction.live updates come only from notification emails; don't add
+  requests to those sites. Don't add anything that bypasses bot detection or Cloudflare challenges.
+- Private pages stay noindex, `no-store`, and behind `auth`.
+- Cloudflare caches static files: when changing CSS/JS, bump `?v=` on `style.css` links or
+  `ASSET_VERSION` in `app/books/pages.py`.
+- Test the reader against public-domain EPUBs (e.g. Project Gutenberg), not the owner's books.

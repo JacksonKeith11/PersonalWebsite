@@ -786,14 +786,14 @@ export const NODE_COLORS = { battle: '#8e3a35', elite: '#6a2f9a', event: '#2f5f9
 
 // ---------- the hi-fi pass ----------
 // Sprites are drawn as 16×16 letter grids; this turns one into a 32×32 canvas with the finish of
-// hand-shaded art: EPX doubles it (rounding off diagonals), the doubled outline is thinned back to a
-// single pixel, outlines take a dark shade of the colour they wrap instead of flat black, and each
-// colour gets a warm highlight on its lit (upper-left) edge and a cool shade on its lower-right edge.
+// matte, hand-shaded art: EPX doubles it (rounding off diagonals), the doubled outline is thinned back
+// to a single pixel, outlines go near black tinted by what they wrap, colours are muted, and each
+// colour is a flat fill with one darker band on its lower-right side. No highlights: the owner wants
+// it matte, not glossy.
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const toHex = ([r, g, b]) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
-// lighter and warmer, or darker and cooler: hue-shifted ramps read as light rather than as grey
-export const lit = (rgb, t) => mix(rgb, [255, 236, 190], t);
+// darker and cooler: a hue-shifted shade reads as shadow rather than as grey
 export const shade = (rgb, t) => mix(rgb, [28, 16, 52], t);
 function epx(g) {
   const h = g.length, w = g[0].length, out = Array.from({ length: h * 2 }, () => Array(w * 2));
@@ -829,20 +829,21 @@ export function hifi(art) {
   const x2 = c.getContext('2d'), img = x2.createImageData(w, h);
   const T = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '.' : t[y][x]);
   const edge = ch => ch === '.' || ch === 'k';
-  const rgb = ch => hexRGB(art.pal[ch] || '#ff00ff');
+  // a matte palette: colours pulled a fifth of the way toward grey and dimmed a touch
+  const rgb = ch => { const c = hexRGB(art.pal[ch] || '#ff00ff'), l = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11; return c.map(v => (v + (l - v) * 0.2) * 0.94); };
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const ch = t[y][x];
     if (ch === '.' || !art.pal[ch]) continue;
     let col = rgb(ch);
     if (ch === 'k') {
-      // an outline takes a deep shade of what it wraps; the bottom edge stays darkest
+      // an outline is near black, tinted by what it wraps
       const inside = DIR4.map(([dx, dy]) => T(x + dx, y + dy)).find(fill);
-      col = inside ? shade(rgb(inside), T(x, y + 1) === '.' ? 0.86 : 0.74) : col;
+      col = inside ? shade(rgb(inside), 0.88) : col;
     } else if (ch !== 'e') {
-      const up = T(x, y - 1), left = T(x - 1, y), down = T(x, y + 1), right = T(x + 1, y);
-      if (edge(down) || edge(right) && edge(T(x + 1, y + 1))) col = shade(col, 0.28);
-      else if (edge(up) || edge(left)) col = lit(col, 0.2);
-      else if (down !== ch && fill(down)) col = shade(col, 0.12);
+      // flat cel shading, no highlights: each colour keeps its flat fill, with one darker band along
+      // its lower-right side, two pixels deep, where light from the upper left wouldn't reach
+      const out = (dx, dy) => { const n = T(x + dx, y + dy); return n !== ch; };
+      if (out(0, 1) || out(1, 0) || (out(2, 0) && out(1, 1)) || (out(0, 2) && out(1, 1))) col = shade(col, 0.3);
     }
     const i = (y * w + x) * 4;
     img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;

@@ -100,9 +100,10 @@ Keep it that way.
   sounds are synth recipes in `audio.js`.
 - **The look aims at modern 16-bit (the owner's reference is a cozy farm tileset).** Everything is
   32px per tile, shown at 2×.
-  - Sprites: `hifi()` doubles a grid with EPX, thins the outer outline back to 1px, tints outlines
-    with a deep shade of what they wrap, and adds a warm highlight upper-left and a cool shade
-    lower-right. Draw grids with a `k` outline and `e` eyes and the pass does the rest; dark detail
+  - Sprites: `hifi()` doubles a grid with EPX, thins the outer outline back to 1px, makes outlines
+    near black tinted by what they wrap, mutes the palette, and gives each colour a flat fill with
+    one darker band on its lower-right side. Keep sprites matte: the owner found rim highlights too
+    glossy (their reference is a muted, cel-shaded top-down wizard). Draw grids with a `k` outline and `e` eyes and the pass does the rest; dark detail
     inside a sprite stays 2px so it stays readable.
   - Terrain: `tiles.js` paints each tile from the theme's ramps (`blob()` gives lit, rimmed shapes),
     then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under

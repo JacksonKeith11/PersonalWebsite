@@ -27,11 +27,15 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   - `worker.py` runs in the `tts` container (`Dockerfile.tts`) and narrates with Kokoro (am_michael),
     only books someone asked for (Make audiobook, or pressing listen: a `narrate` file in the book)
   - `pages.py` renders the shells; `app/static/books/` has the reader/library JS and CSS
+  - offline reading: `sw.js` (a service worker, served at `/books/sw.js` with `pages.SHELL` filled in)
+    answers from the `book-<id>` caches `library.js` fills when a reader saves a book from the ⋯ menu
   - `importer.py` builds an EPUB from a Royal Road fiction or SpaceBattles/SV/QQ thread link
     (threadmarks via reader mode), one import at a time on a background thread. Royal Road and
     SpaceBattles block the server, so stories also come in through the "Import to Library"
     bookmarklet (`library.js` `grab`): the same parsers run on pages the reader's browser fetched,
-    and `importer.gather` asks it (via `/books/receive`) for the ones still missing
+    and `importer.gather` asks it (via `/books/receive`) for the ones still missing. Importing a story
+    already in that reader's library updates the book in place (⋯ "Check for new chapters"), copying
+    the chapters it has out of its EPUB; `rev` in `book.json` counts updates and versions the URLs
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
 ## Rules

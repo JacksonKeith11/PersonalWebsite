@@ -88,6 +88,16 @@ def receive(request: Request):
     return HTMLResponse(pages.receive(user), headers=auth.PRIVATE_HEADERS)
 
 
+SW_SOURCE = (Path(__file__).parent.parent / "static" / "books" / "sw.js").read_text()
+
+
+@router.get("/sw.js")
+def service_worker():
+    """Offline reading. Served here rather than under /static so it can look after /books."""
+    script = SW_SOURCE.replace("__VERSION__", str(pages.ASSET_VERSION)).replace("__SHELL__", json.dumps(pages.SHELL))
+    return Response(script, media_type="text/javascript", headers={"Service-Worker-Allowed": "/books", **auth.PRIVATE_HEADERS})
+
+
 @router.get("/read/{book_id}")
 def reader(request: Request, book_id: str):
     user = current_user(request)
@@ -346,11 +356,18 @@ async def narrate(book_id: str, request: Request, user: str = Depends(require_us
 async def progress(book_id: str, request: Request, user: str = Depends(require_user)):
     _, folder = _book(book_id, user)
     body = json.loads(await request.body() or b"{}")
+    # A place saved while offline is sent later with when it was saved ("at"), and doesn't
+    # replace one saved since on another device.
+    updated = time.time()
+    if body.get("at"):
+        updated = min(updated, float(body["at"]))
+        if updated < store.read_json(folder / "progress.json", {}).get("updated", 0):
+            return {"ok": True, "kept": "newer"}
     store.write_json(folder / "progress.json", {
         "chapter": int(body.get("chapter", 0)),
         "segment": int(body.get("segment", 0)),
         "percent": max(0.0, min(100.0, float(body.get("percent", 0)))),
-        "updated": time.time(),
+        "updated": updated,
     })
     return {"ok": True}
 

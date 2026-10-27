@@ -4,6 +4,9 @@
   const $ = (sel) => document.querySelector(sel);
   const COLORS = ["#7a5a2f", "#4e6151", "#5b4a6b", "#7b3f3f", "#3f5a73", "#6b5d3a"];
   let refreshTimer;
+  let offlineData = false; // the listing came from the service worker's saved copy
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/books/sw.js", { scope: "/books" }).catch(() => {});
 
   function el(tag, props = {}, ...children) {
     const node = Object.assign(document.createElement(tag), props);
@@ -36,11 +39,99 @@
     return div;
   }
 
+  // ---------- offline copies ----------
+  // A saved book is a "book-<id>" cache holding its reader page, details, chapters and images,
+  // plus a note of the revision saved. The service worker (sw.js) serves them offline.
+
+  const canSave = "caches" in window && "serviceWorker" in navigator;
+  const cacheName = (id) => `book-${id}`;
+  const noteUrl = (id) => `/books/offline/${id}.json`;
+  const saved = new Map(); // id -> {rev, saved}
+  const saving = new Set();
+
+  async function loadSaved() {
+    saved.clear();
+    if (!canSave) return;
+    for (const key of await caches.keys()) {
+      if (!key.startsWith("book-")) continue;
+      const note = await (await caches.open(key)).match(noteUrl(key.slice(5)));
+      if (note) saved.set(key.slice(5), await note.json());
+    }
+  }
+
+  async function saveOffline(b, quiet = false) {
+    if (saving.has(b.id)) return;
+    saving.add(b.id);
+    const say = (text, err) => (!quiet || err) && notice(text, err);
+    const name = `“${b.title}”`;
+    try {
+      navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {});
+      const cache = await caches.open(cacheName(b.id));
+      const get = async (url) => {
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) throw new Error(`the server returned ${r.status}`);
+        return r;
+      };
+      const book = await (await get(`/books/api/${b.id}`)).json();
+      const keep = new Set([`/books/read/${b.id}`, `/books/api/${b.id}`]);
+      await cache.put(`/books/read/${b.id}`, await get(`/books/read/${b.id}`));
+      await cache.put(`/books/api/${b.id}`, new Response(JSON.stringify(book), { headers: { "Content-Type": "application/json" } }));
+      const images = new Set(book.cover ? [book.cover] : []);
+      const chapters = book.chapters.map((_, n) => `/books/api/${b.id}/chapter/${n}?v=${book.rev}`);
+      let done = 0;
+      const next = chapters.entries();
+      const work = async () => {
+        for (const [, url] of next) {
+          keep.add(url);
+          const r = await get(url);
+          const doc = new DOMParser().parseFromString(await r.clone().text(), "text/html");
+          doc.querySelectorAll("img[src]").forEach((img) => images.add(img.getAttribute("src")));
+          await cache.put(url, r);
+          say(`Saving ${name} for offline reading · ${++done} of ${chapters.length} chapters`);
+        }
+      };
+      await Promise.all([work(), work(), work(), work()]);
+      for (const url of images) {
+        keep.add(url);
+        if (!(await cache.match(url))) await cache.put(url, await get(url));
+      }
+      // Chapters and images of an earlier revision.
+      for (const req of await cache.keys()) {
+        const u = new URL(req.url);
+        if (!keep.has(u.pathname + u.search)) await cache.delete(req);
+      }
+      const note = { rev: book.rev, saved: Date.now() };
+      await cache.put(noteUrl(b.id), new Response(JSON.stringify(note), { headers: { "Content-Type": "application/json" } }));
+      saved.set(b.id, note);
+      say(`${name} is saved for offline reading.`);
+    } catch (err) {
+      if (!saved.has(b.id)) await caches.delete(cacheName(b.id));
+      say(`Couldn't save ${name} for offline reading: ${(err && err.message) || err}`, true);
+    } finally {
+      saving.delete(b.id);
+    }
+  }
+
+  async function removeOffline(id) {
+    saved.delete(id);
+    if (canSave) await caches.delete(cacheName(id));
+  }
+
+  // Keep saved copies current: pick up updated books and drop ones deleted elsewhere.
+  async function refreshSaved(books) {
+    const ids = new Set(books.map((b) => b.id));
+    for (const id of [...saved.keys()]) if (!ids.has(id)) await removeOffline(id);
+    for (const b of books) {
+      if (saved.has(b.id) && saved.get(b.id).rev !== b.rev) await saveOffline(b, true);
+    }
+  }
+
   function card(b) {
     const pct = Math.floor(b.percent);
     const progress = b.percent >= 99.5 ? "Finished" : b.opened ? `${pct}%` : "New";
     const bar = el("div", { className: "bar" }, el("i"));
     bar.firstChild.style.width = `${b.percent}%`;
+    const isSaved = saved.has(b.id);
     const link = el("a", { href: `/books/read/${b.id}` },
       cover(b),
       el("div", { className: "title", textContent: b.title }),
@@ -49,13 +140,38 @@
       el("div", { className: "meta" }, el("span", { textContent: progress }), el("span", { textContent: audioLine(b.audio) })),
     );
 
+    if (isSaved) link.querySelector(".cover").append(el("span", { className: "offline-badge", textContent: "Offline" }));
+    const box = el("div", { className: "book" }, link);
+    if (offlineData && !isSaved) {
+      box.classList.add("unavailable");
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        notice(`“${b.title}” isn't saved for offline reading.`);
+      });
+    }
+
     const mp3Ready = b.audio.percent > 0;
     const del = el("button", { className: "danger", textContent: "Delete" });
     del.addEventListener("click", async () => {
       if (!confirm(`Delete “${b.title}” and its audio?`)) return;
       await fetch(`/books/api/${b.id}`, { method: "DELETE" });
+      await removeOffline(b.id);
       load();
     });
+    let offline = null;
+    if (canSave) {
+      offline = el("button", { textContent: isSaved ? "Remove offline copy" : "Save for offline reading" });
+      offline.addEventListener("click", async () => {
+        menu.open = false;
+        if (isSaved) {
+          await removeOffline(b.id);
+          notice(`Removed the offline copy of “${b.title}”.`);
+        } else {
+          await saveOffline(b);
+        }
+        load();
+      });
+    }
     // Narration only runs when asked for (here, or by pressing listen in the reader).
     let narrate = null;
     if (b.audio.ready.length < b.audio.total) {
@@ -103,6 +219,7 @@
           className: mp3Ready ? "" : "off",
           textContent: b.audio.percent >= 100 || !mp3Ready ? "Download audiobook (MP3)" : `Download audio so far (${b.audio.percent}%)`,
         })),
+        offline && el("li", {}, offline),
         update && el("li", {}, update),
         narrate && el("li", {}, narrate),
         el("li", {}, del),
@@ -119,14 +236,23 @@
       if (left < margin) list.style.right = `${left - margin}px`;
       else if (right > innerWidth - margin) list.style.right = `${right - innerWidth + margin}px`;
     });
-    return el("div", { className: "book" }, link, menu);
+    box.append(menu);
+    return box;
   }
 
   async function load() {
     clearTimeout(refreshTimer);
-    const r = await fetch("/books/api/library");
+    let r;
+    try {
+      r = await fetch("/books/api/library");
+    } catch {
+      notice("You're offline, and this device has no saved copy of your library yet.", true);
+      return;
+    }
     if (r.status === 401) return location.reload();
     const books = await r.json();
+    offlineData = r.headers.get("X-Offline") === "1";
+    await loadSaved().catch(() => {});
     // Most recently read first, then newest uploads.
     books.sort((a, b) => Math.max(b.opened, b.added) - Math.max(a.opened, a.added));
     const openMenus = new Set([...document.querySelectorAll(".more[open]")].map((d) => d.dataset.id));
@@ -139,8 +265,33 @@
       grid.append(c);
     }
     $("#empty").hidden = books.length > 0;
+    document.body.classList.toggle("offline", offlineData);
+    if (offlineData) {
+      notice(saved.size ? "You're offline. Books saved for offline reading still open." : "You're offline. No books are saved for offline reading on this device.");
+      return;
+    }
     if (books.some((b) => narrating(b.audio))) refreshTimer = setTimeout(load, 15000);
+    refreshSaved(books).catch(() => {});
   }
+
+  addEventListener("online", () => {
+    notice("");
+    load();
+    loadImports();
+  });
+  addEventListener("offline", () => load());
+
+  // A different reader on this device shouldn't find this one's books saved on it.
+  $("#switch-user").addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (canSave) {
+      for (const key of await caches.keys()) if (key.startsWith("book-") || key === "library") await caches.delete(key);
+    }
+    try {
+      for (const key of Object.keys(localStorage)) if (key.startsWith("progress-")) localStorage.removeItem(key);
+    } catch {}
+    location.href = e.target.href;
+  });
 
   document.addEventListener("click", (e) => {
     document.querySelectorAll(".more[open]").forEach((d) => {
@@ -186,8 +337,8 @@
 
   async function loadImports() {
     clearTimeout(importsTimer);
-    const r = await fetch("/books/api/imports");
-    if (!r.ok) return;
+    const r = await fetch("/books/api/imports").catch(() => null);
+    if (!r || !r.ok) return;
     const jobs = await r.json();
     const list = $("#imports");
     list.textContent = "";
@@ -312,5 +463,5 @@
   fetch("/books/api/imports").then((r) => (r.ok ? r.json() : [])).then((jobs) => {
     for (const j of jobs) if (j.status === "done") finished.add(j.id);
     loadImports();
-  });
+  }).catch(() => {});
 })();

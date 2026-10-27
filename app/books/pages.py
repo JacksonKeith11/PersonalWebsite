@@ -1,7 +1,16 @@
 import json
 from html import escape
 
-ASSET_VERSION = 20
+ASSET_VERSION = 21
+STYLE = "/static/style.css?v=9"
+# What the pages load from this site, kept by the service worker (sw.js) so they open offline.
+SHELL = [
+    STYLE,
+    *(f"/static/books/{name}?v={ASSET_VERSION}" for name in ("library.css", "library.js", "reader.css", "reader.js")),
+    *(f"/static/books/fonts/charter_{style}.woff2" for style in ("regular", "italic", "bold", "bold_italic")),
+    "/static/books/manifest.json",
+    "/static/books/icon-180.png",
+]
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>
@@ -37,7 +46,7 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
   {HEAD}
   <title>Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="{STYLE}">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>
@@ -73,7 +82,7 @@ def library(user: str) -> str:
   {HEAD}
   <title>Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="{STYLE}">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>
@@ -81,7 +90,7 @@ def library(user: str) -> str:
     {NAV}
     <div class="lib-head">
       <h1 class="page-title">Library</h1>
-      <span class="who">{escape(user)} · <a href="/books/logout">Switch user</a></span>
+      <span class="who">{escape(user)} · <a id="switch-user" href="/books/logout">Switch user</a></span>
       <button id="link-toggle" class="btn add" type="button" aria-expanded="false">Add from link</button>
       <label class="btn add">Add book<input id="file" type="file" accept=".epub,application/epub+zip" multiple hidden></label>
     </div>
@@ -114,7 +123,7 @@ def receive(user: str) -> str:
   {HEAD}
   <title>Import to Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="{STYLE}">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>

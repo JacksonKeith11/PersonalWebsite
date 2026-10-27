@@ -19,6 +19,8 @@
   const SIZE_MIN = 14;
   const SIZE_MAX = 32;
 
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/books/sw.js", { scope: "/books" }).catch(() => {});
+
   const settings = { size: 19, theme: "original", font: "original", spacing: "1.6", speed: 1 };
   try {
     Object.assign(settings, JSON.parse(localStorage.getItem("reader-settings") || "{}"));
@@ -208,15 +210,50 @@
     saveTimer = setTimeout(saveNow, 800);
   }
 
+  // The place is also kept on this device, so reading offline doesn't lose it; a save the server
+  // didn't get is sent again, with when it happened, once there's a connection.
+  const PLACE_KEY = `progress-${ID}`;
+
+  function localPlace() {
+    try {
+      return JSON.parse(localStorage.getItem(PLACE_KEY) || "null");
+    } catch {
+      return null;
+    }
+  }
+
+  function keepPlace(place) {
+    try {
+      localStorage.setItem(PLACE_KEY, JSON.stringify(place));
+    } catch {}
+  }
+
+  function sendPlace(place, replay = false) {
+    const body = JSON.stringify({ chapter: place.chapter, segment: place.segment, percent: place.percent, ...(replay && { at: place.at / 1000 }) });
+    fetch(api("/progress"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true })
+      .then((r) => {
+        const now = localPlace();
+        if (r.ok && now && now.at === place.at) keepPlace({ ...now, pending: false });
+      })
+      .catch(() => {});
+  }
+
   function saveNow() {
     clearTimeout(saveTimer);
     if (chapter < 0) return;
-    const body = JSON.stringify({ chapter, segment: segStartingOn(page), percent: percent() });
-    fetch(api("/progress"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+    const place = { chapter, segment: segStartingOn(page), percent: percent(), at: Date.now(), pending: true };
+    keepPlace(place);
+    sendPlace(place);
+  }
+
+  function resendPlace() {
+    const place = localPlace();
+    if (place && place.pending) sendPlace(place, true);
   }
 
   document.addEventListener("visibilitychange", () => document.hidden && saveNow());
   window.addEventListener("pagehide", saveNow);
+  window.addEventListener("online", resendPlace);
 
   // ---------- input: tap, swipe, scroll, keys ----------
 
@@ -362,7 +399,13 @@
       $("#search-count").textContent = "";
       return;
     }
-    const results = await getJSON(api(`/search?q=${encodeURIComponent(q)}`));
+    let results;
+    try {
+      results = await getJSON(api(`/search?q=${encodeURIComponent(q)}`));
+    } catch (e) {
+      if (e.status) throw e;
+      results = await searchHere(q); // offline: look through the saved chapters
+    }
     if (seq !== searchSeq) return;
     list.textContent = "";
     $("#search-count").textContent = results.length
@@ -388,6 +431,38 @@
       li.append(b);
       list.append(li);
     }
+  }
+
+  // The server's search, done on this device over the chapters it has.
+  async function searchHere(q) {
+    const needle = q.toLowerCase();
+    const results = [];
+    for (let n = 0; n < book.chapters.length && results.length < 200; n++) {
+      let html;
+      try {
+        html = await fetchChapter(n);
+      } catch {
+        continue;
+      }
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      for (const el of doc.querySelectorAll("[data-s]")) {
+        const text = el.textContent.replace(/\s+/g, " ").trim();
+        const at = text.toLowerCase().indexOf(needle);
+        if (at < 0) continue;
+        const start = Math.max(0, at - 60);
+        const end = at + needle.length;
+        results.push({
+          chapter: n,
+          segment: Number(el.dataset.s),
+          title: book.chapters[n].title,
+          before: (start ? "…" : "") + text.slice(start, at),
+          match: text.slice(at, end),
+          after: text.slice(end, end + 80) + (end + 80 < text.length ? "…" : ""),
+        });
+        if (results.length >= 200) break;
+      }
+    }
+    return results;
   }
 
   // Mark the search term inside the paragraph and turn to the page it's on.
@@ -496,7 +571,13 @@
   });
 
   async function refreshAudioSummary() {
-    const s = await refreshAudioStatus();
+    let s;
+    try {
+      s = await refreshAudioStatus();
+    } catch {
+      $("#audio-summary").textContent = "You're offline. Listening and downloads need a connection.";
+      return;
+    }
     const done = s.ready.length;
     let text = done === s.total ? "Audiobook is fully narrated." : `Audio: ${s.percent}% of the book narrated.`;
     if (s.working && done < s.total) {
@@ -610,7 +691,7 @@
     } catch (e) {
       if (audioChapter !== n || !listening) return;
       if (e.status !== 404) {
-        setStatus("Couldn't load audio; retrying…");
+        setStatus(navigator.onLine ? "Couldn't load audio; retrying…" : "Listening needs an internet connection");
         waitTimer = setTimeout(() => playChapter(n, seg), 5000);
         return;
       }
@@ -802,9 +883,14 @@
     });
     totalChars = Math.max(1, sum);
     audioReady = new Set(book.audio.ready);
-    const p = book.progress || { chapter: 0, segment: 0 };
+    // A place saved on this device that the server may not have heard about (read offline)
+    // wins, unless the server's is newer (read further on another device since).
+    const here = localPlace();
+    const unsent = here && here.pending && here.at / 1000 > ((book.progress && book.progress.updated) || 0);
+    const p = unsent ? here : book.progress || { chapter: 0, segment: 0 };
     await openChapter(p.chapter, { segment: p.segment });
-    if (!book.progress) document.body.classList.add("chrome");
+    if (!book.progress && !here) document.body.classList.add("chrome");
+    resendPlace();
   }
 
   init();

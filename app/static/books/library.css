@@ -76,6 +76,21 @@
 .bar { height: 3px; margin-top: 8px; background: var(--rule); border-radius: 2px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); }
 .meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--muted); font-size: 0.8rem; }
+.cover { position: relative; }
+.offline-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(251, 247, 239, 0.92);
+  color: var(--fg);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.book.unavailable > a { opacity: 0.45; }
+body.offline .add, body.offline #link-panel { display: none; }
+
 .more {
   position: absolute;
   top: 6px;

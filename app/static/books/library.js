@@ -112,5 +112,81 @@
     load();
   });
 
+  // Imports from a story link run on the server; poll while any are going.
+  let importsTimer;
+  const finished = new Set();
+
+  function importLine(j) {
+    const name = j.title ? `“${j.title}”` : j.url;
+    if (j.status === "queued") return `Waiting to import ${name}`;
+    if (j.status === "running") return j.total ? `Importing ${name} · ${j.done} of ${j.total} chapters` : `Importing ${name}…`;
+    if (j.status === "done") return `Added ${name}. Narration has started in the background.`;
+    return `Couldn't import ${name}: ${j.error}`;
+  }
+
+  async function loadImports() {
+    clearTimeout(importsTimer);
+    const r = await fetch("/books/api/imports");
+    if (!r.ok) return;
+    const jobs = await r.json();
+    const list = $("#imports");
+    list.textContent = "";
+    let reload = false;
+    for (const j of jobs) {
+      const li = el("li", { className: j.status === "error" ? "err" : "" }, el("span", { className: "what", textContent: importLine(j) }));
+      if (j.status === "running" && j.total) {
+        const bar = el("div", { className: "bar" }, el("i"));
+        bar.firstChild.style.width = `${(j.done / j.total) * 100}%`;
+        li.append(bar);
+      }
+      if (j.status === "done" || j.status === "error") {
+        const x = el("button", { className: "dismiss", textContent: "×", title: "Dismiss", ariaLabel: "Dismiss" });
+        x.addEventListener("click", async () => {
+          await fetch(`/books/api/imports/${j.id}`, { method: "DELETE" });
+          loadImports();
+        });
+        li.append(x);
+      }
+      if (j.status === "done" && !finished.has(j.id)) {
+        finished.add(j.id);
+        reload = true;
+      }
+      list.append(li);
+    }
+    list.hidden = jobs.length === 0;
+    if (reload) load();
+    if (jobs.some((j) => j.status === "queued" || j.status === "running")) importsTimer = setTimeout(loadImports, 3000);
+  }
+
+  $("#link-toggle").addEventListener("click", () => {
+    const form = $("#link-form");
+    form.hidden = !form.hidden;
+    $("#link-toggle").setAttribute("aria-expanded", String(!form.hidden));
+    if (!form.hidden) $("#link-url").focus();
+  });
+
+  $("#link-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("#link-url");
+    const r = await fetch("/books/api/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: input.value }),
+    });
+    if (!r.ok) {
+      const detail = await r.json().catch(() => ({}));
+      notice(detail.detail || `Import failed (${r.status})`, true);
+      return;
+    }
+    notice("");
+    input.value = "";
+    loadImports();
+  });
+
   load();
+  // Books already finished before this page loaded are in the library; don't reload for them.
+  fetch("/books/api/imports").then((r) => (r.ok ? r.json() : [])).then((jobs) => {
+    for (const j of jobs) if (j.status === "done") finished.add(j.id);
+    loadImports();
+  });
 })();

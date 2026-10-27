@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=9';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=9';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=9';
-import { sfx } from './audio.js?v=9';
-import { h, bar, sprImg } from './ui.js?v=9';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=10';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=10';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=10';
+import { sfx } from './audio.js?v=10';
+import { h, bar, sprImg } from './ui.js?v=10';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1576,32 +1576,48 @@ export class BattleScene extends Phaser.Scene {
     const mine = u && isHero(u) && b.resolveTurn && !env.auto && !b.busy;
     const fill = (x, y, col, a) => { g.fillStyle(col, a); g.fillRect(x * TS, y * TS, TS, TS); };
     const line = (x, y, col, a, w) => { g.lineStyle(w, col, a); g.strokeRect(x * TS + w / 2, y * TS + w / 2, TS - w, TS - w); };
+    // A set of tiles drawn as one soft region: each tile filled, but only the region's outer edge
+    // outlined, so neighbouring tiles don't double their borders.
+    const region = (tiles, col, a, edge, ea, w = 2) => {
+      if (!tiles.length) return;
+      const set = new Set(tiles.map(([x, y]) => key(x, y)));
+      g.fillStyle(col, a);
+      for (const [x, y] of tiles) g.fillRect(x * TS, y * TS, TS, TS);
+      if (!ea) return;
+      g.fillStyle(edge, ea);
+      for (const [x, y] of tiles) {
+        const X = x * TS, Y = y * TS;
+        if (!set.has(key(x, y - 1))) g.fillRect(X, Y, TS, w);
+        if (!set.has(key(x, y + 1))) g.fillRect(X, Y + TS - w, TS, w);
+        if (!set.has(key(x - 1, y))) g.fillRect(X, Y, w, TS);
+        if (!set.has(key(x + 1, y))) g.fillRect(X + TS - w, Y, w, TS);
+      }
+    };
+    const reachTiles = (r, me, pred = () => true) => [...r.values()].filter(v => v.stop && !(v.x === me.x && v.y === me.y) && pred(v)).map(v => [v.x, v.y]);
     // an inspected unit shows where it could move: red for foes, teal for allies
     const insp = b.inspect && !b.inspect.tile && !b.inspect.dead && b.inspect !== u ? b.inspect : null;
     if (insp) {
       const k = b.units.map(x => x.dead ? '' : `${x.x},${x.y}`).join('|') + `|${insp.st.root || 0}|${insp.st.movUp || 0}`;
       if (!b.inspReach || b.inspReach.u !== insp || b.inspReach.k !== k) b.inspReach = { u: insp, k, r: reach(insp) };
       const foe = homeSide(insp) !== 'hero';
-      for (const v of b.inspReach.r.values()) if (v.stop && !(v.x === insp.x && v.y === insp.y)) {
-        fill(v.x, v.y, foe ? 0xff5040 : 0x40d0c0, 0.24);
-        line(v.x, v.y, foe ? 0xff9080 : 0x80f0e0, 0.55, 2);
-      }
+      region(reachTiles(b.inspReach.r, insp), foe ? 0xc8504a : 0x4ab0a8, 0.2, foe ? 0xf2b0a8 : 0x9ad8d0, 0.6);
     }
     if (mine && b.mode === 'move' && b.reach) {
-      for (const v of b.reach.values()) if (v.stop && !(v.x === u.x && v.y === u.y)) { fill(v.x, v.y, v.risk ? 0xff9040 : 0x4696ff, 0.38); line(v.x, v.y, 0x96c8ff, 0.6, 2); }
+      region(reachTiles(b.reach, u, v => !v.risk), 0x5a8fd6, 0.3, 0xb0d0f4, 0.55);
+      region(reachTiles(b.reach, u, v => v.risk), 0xd9894a, 0.3, 0xf0c49a, 0.55);
     }
     let preview = null;
     if (mine && b.mode === 'skill') {
       const o = b.selO;
       const help = o.kind === 'heal' || o.kind === 'shield' || o.ctGive || o.hits === 'allies';
-      const col = help ? 0x50dc78 : 0xff4646, edge = help ? 0x90f0a8 : 0xff8080;
-      // the whole range faintly, then the tiles you can actually pick
-      for (const [x, y] of b.rangeTiles || []) { fill(x, y, col, 0.26); line(x, y, edge, 0.6, 2); }
-      for (const k of b.targets) { const [x, y] = k.split(',').map(Number); fill(x, y, col, 0.45); line(x, y, 0xffffff, 0.85, 3); }
+      const col = help ? 0x5cbf86 : 0xd65a5a, edge = help ? 0xa8e0c0 : 0xeaa4a4;
+      // the whole range faintly, then the tiles you can actually pick a little stronger
+      region(b.rangeTiles || [], col, 0.16, edge, 0.55);
+      region([...b.targets].map(k => k.split(',').map(Number)), col, 0.2, help ? 0xd8f4e4 : 0xf8d4d4, 0.7);
       const p = b.hover && b.targets.has(key(b.hover.x, b.hover.y)) ? b.hover : b.pending;
       if (p) {
-        for (const [x, y] of areaTiles(u, o, p.x, p.y)) fill(x, y, 0xffd246, 0.4);
-        line(p.x, p.y, 0xffe680, 1, 4);
+        region(areaTiles(u, o, p.x, p.y), 0xf2c94c, 0.28, 0xf6dc8c, 0.6);
+        line(p.x, p.y, 0xfff0b0, 0.9, 3);
         preview = { o, list: hitList(u, o, p.x, p.y, true) };
       }
     }
@@ -1612,9 +1628,9 @@ export class BattleScene extends Phaser.Scene {
     }
     for (const c of b.units) if (c.pending && !c.dead) {
       const po = skStats(c, c.pending.s);
-      for (const [x, y] of areaTiles(c, po, c.pending.tx, c.pending.ty)) line(x, y, 0xff8a3d, 0.5 + 0.3 * Math.sin(time / 150), 3);
+      region(areaTiles(c, po, c.pending.tx, c.pending.ty), 0xe08a4a, 0.12, 0xf0a870, 0.45 + 0.25 * Math.sin(time / 150));
     }
-    if (b.hover && mine) line(b.hover.x, b.hover.y, 0xffffff, 0.7, 2);
+    if (b.hover && mine) line(b.hover.x, b.hover.y, 0xffffff, 0.5, 2);
     if (u && !u.dead && !b.over && u.view) {
       const pl = Math.floor(time / 250) % 2 ? 4 : 2, L = 14, px = u.view.x, py = u.view.y;
       g.fillStyle(0xffe14d, 1);

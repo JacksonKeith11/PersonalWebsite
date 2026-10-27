@@ -123,9 +123,12 @@ the browser can't reach cdnjs.
     resumes the context on any tap.
   - iPhones mute web audio with the silent switch unless `navigator.audioSession.type = 'playback'`.
   - Render at 44.1 kHz; older Safari rejects lower offline rates.
-  - After the tab has been hidden, Safari can leave a looping track silent or its context suspended,
-    even once it reports "running". `audio.js` marks the music stale on hide and restarts the track
-    on the next tap or return to the tab. Chromium doesn't show the bug, so test it on an iPhone.
+  - `audio.js` alone pauses and resumes audio; Phaser's `pauseOnBlur` is off. Phaser suspended the
+    context on window blur and resumed only on a matching focus event, which Safari doesn't reliably
+    send, leaving the game silent after a tab switch. Now: suspend while hidden; resume on return,
+    focus, any tap, and from a once-a-second watchdog; then restart the music, since Safari can leave
+    a looping track silent even once the context says it's running. Chromium shows none of this, so
+    test audio changes on an iPhone or Mac Safari.
   - Buffers are normalized after rendering, so a new sound's synth `vol` only sets its internal
     balance, not its loudness.
 - **Check class passives with `isClass(u, id)`**, never `u.promo === id`: a tier-2 hero keeps
@@ -167,6 +170,9 @@ the browser can't reach cdnjs.
 - **`burnOf`, `poisonOf` and `itemMult` in `rules.js` mirror `applyStatus` and `dmgMult` in
   `battle.js`.** Change a burn or poison formula, or add an always-on damage artifact, in both
   places or the previews lie.
+- **Board overlays are regions.** Draw tile highlights with `region()` in `BattleScene.update`
+  (fill every tile, outline only the region's outer edge) in the soft palette there; per-tile
+  outlines double up where tiles touch.
 - **Line of sight** applies to ranged skills unless they have `lob`. `describe` prints "Needs line of
   sight" from the same rule (`needsLos` in `battle.js`); keep the two in step.
 - **Sprite rows must be exactly 16 characters** (8 for icons), with `.` for transparent. A

@@ -151,21 +151,28 @@ export async function initAudio(game) {
   if (!game.sound || !game.sound.context || typeof OfflineAudioContext === 'undefined') return;
   // iPhones mute web audio with the silent switch unless the page asks for playback audio
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* unsupported */ }
-  // Resume on any tap or key, not only through Phaser's own unlock. After the tab has been hidden,
-  // Safari can leave a looping track silent (or the context suspended) even once it says it's
-  // running, so the first wake after that restarts the music from scratch.
+  // This module alone pauses and resumes audio. Phaser's own pause-on-blur suspends the context on
+  // window blur and resumes only on a matching focus event, which browsers (Safari especially) don't
+  // reliably deliver, so audio could stay suspended after a tab switch. Instead: suspend while the tab
+  // is hidden; on return, focus, any tap, and every second while visible, resume if needed; and once
+  // running again, restart the music, since Safari can leave a looping track silent.
+  game.sound.pauseOnBlur = false;
+  const ctx = game.sound.context;
   const wake = () => {
-    const c = game.sound.context;
-    if (!c) return;
-    const restart = () => { if (A.stale && c.state === 'running') { A.stale = false; restartMusic(); } };
-    if (c.state !== 'running') c.resume().then(restart).catch(() => {});
+    if (document.hidden || ctx.state === 'closed') return;
+    const restart = () => { if (A.stale && ctx.state === 'running') { A.stale = false; restartMusic(); } };
+    if (ctx.state !== 'running') ctx.resume().then(restart).catch(() => {});
     else restart();
   };
-  for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, wake, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) A.stale = true; else wake(); });
+  for (const ev of ['pointerdown', 'touchend', 'keydown', 'click']) document.addEventListener(ev, wake, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { A.stale = true; if (ctx.state === 'running') ctx.suspend().catch(() => {}); }
+    else wake();
+  });
   window.addEventListener('pagehide', () => { A.stale = true; });
   window.addEventListener('pageshow', wake);
   window.addEventListener('focus', wake);
+  setInterval(() => { if (A.ready && (ctx.state !== 'running' || A.stale)) wake(); }, 1000);
   const jobs = [];
   for (const [key, [len, build]] of Object.entries(SFX)) jobs.push(render(len, build, key === 'step' || key === 'click' ? 0.45 : 0.85).then(b => game.cache.audio.add(key, b)));
   await Promise.all(jobs);

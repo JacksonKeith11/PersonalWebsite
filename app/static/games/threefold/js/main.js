@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=9';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=10';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=9';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=9';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=9';
-import { env, startBattle, BattleScene } from './battle.js?v=9';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=9';
-import { h, sprImg, bar } from './ui.js?v=9';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=10';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=10';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=10';
+import { env, startBattle, BattleScene } from './battle.js?v=10';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=10';
+import { h, sprImg, bar } from './ui.js?v=10';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance

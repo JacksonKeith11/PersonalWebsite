@@ -624,6 +624,7 @@
     narrateButton(s);
     setLink($("#dl-book-mp3"), api("/download.mp3"), s.percent > 0);
     $("#dl-book-mp3").textContent = s.percent >= 100 || s.percent === 0 ? "Download audiobook (MP3)" : `Download audiobook so far (MP3, ${s.percent}%)`;
+    setLink($("#dl-book-zip"), api("/download-chapters.zip"), s.percent > 0);
     updateChapterDownload();
   }
 

@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 23
+ASSET_VERSION = 24
 STYLE = "/static/style.css?v=10"
 # What the pages load from this site, kept by the service worker (sw.js) so they open offline.
 SHELL = [
@@ -222,6 +222,7 @@ def reader(book: dict, theme: str = "original") -> str:
       <p class="muted">{escape(book["author"])}</p>
       <a class="menu-item" href="/books/api/{escape(book["id"])}/download.epub" download>Download EPUB</a>
       <a class="menu-item" id="dl-book-mp3" href="/books/api/{escape(book["id"])}/download.mp3" download>Download audiobook (MP3)</a>
+      <a class="menu-item" id="dl-book-zip" href="/books/api/{escape(book["id"])}/download-chapters.zip" download>Download audiobook as separate chapters (ZIP)</a>
       <a class="menu-item" id="dl-chapter-mp3" href="#" download>Download this chapter's audio</a>
       <button class="menu-item" id="narrate" type="button" hidden></button>
       <p id="audio-summary" class="muted"></p>

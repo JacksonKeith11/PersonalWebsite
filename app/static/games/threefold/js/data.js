@@ -29,6 +29,51 @@ export const TERRAIN_HELP = [
   'High ground: costs 2 movement; ranged skills from here reach 1 farther and hit 15% harder.',
   'Cuts anyone who walks in. Costs 2 movement.',
 ];
+// What each status does, for the hover/tap tooltips. A number in brackets is turns left;
+// those count down at the end of the unit's own turn.
+export const STATUS_HELP = {
+  shield: 'Shield: soaks damage before HP does. Lasts until it breaks.',
+  rage: 'Furious: the enemy has fought too long and deals more damage every round.',
+  stun: 'Stunned: loses its next turn.',
+  poison: 'Poisoned: takes damage at the start of each of its turns.',
+  burn: 'Burning: takes damage at the start of each of its turns. Water puts it out; oil makes it flare.',
+  slow: 'Slowed: speed is halved, so its turns come less often.',
+  taunt: 'Taunted: must go after the unit that taunted it.',
+  vuln: 'Exposed: takes extra damage from every hit.',
+  rally: 'Rallied: deals 30% more damage.',
+  blind: 'Blinded: its attacks miss half the time.',
+  stealth: 'Stealthed: enemies can\'t target it until it attacks.',
+  airborne: 'Airborne: enemies can\'t target it until its next turn.',
+  shock: 'Shocked: takes 30% more magic damage. Shocking a wet unit stuns it.',
+  charm: 'Charmed: fights for the other side until it wears off, then can\'t be charmed for 2 turns.',
+  resolve: 'Can\'t be charmed: just shook off a charm.',
+  sleep: 'Asleep: skips its turns until it wakes. Any damage wakes it.',
+  confuse: 'Confused: attacks whoever is nearest, friend or foe.',
+  root: 'Rooted: can\'t move, but can still act.',
+  disarm: 'Disarmed: can\'t use skills, but can still move.',
+  weak: 'Weakened: deals 30% less damage.',
+  oil: 'Oiled: the next burn ignites it for double burn damage and an extra hit.',
+  wet: 'Wet: puts out burning. Shocking or slowing it stuns it instead.',
+  focus: 'Focused: its next attack deals 60% more damage.',
+  movUp: '+1 MOV: moves one tile farther.',
+  imbue: 'Imbued: its attacks add an element (burn, poison, shock or slow).',
+  pending: 'Charging: the skill goes off at the start of its next turn. Kill it or move away.',
+  doom: 'Doomed: when the count reaches 0 it loses 45% of max HP (15% for bosses).',
+  ward: 'Ward: completely blocks the next enemy hit, once per stack.',
+  thorns: 'Thorns: melee attackers take this much damage back.',
+  rampart: 'Rampart: enemies must stop when they step next to it, and allies beside it take 25% less damage.',
+  guard: 'Guarding: takes 40% less damage until its next turn.',
+  riposte: 'Riposte: strikes back at the next melee attacker.',
+  cover: 'In cover: takes 20% less damage.',
+  hill: 'High ground: ranged skills reach 1 farther and hit 15% harder.',
+};
+// Words in skill text that name a status, mapped to its STATUS_HELP key.
+export const STATUS_WORDS = {
+  Stuns: 'stun', Slows: 'slow', Taunts: 'taunt', Rallies: 'rally', Blinds: 'blind', Exposes: 'vuln', Shocks: 'shock',
+  Charms: 'charm', Dooms: 'doom', Wards: 'ward', Guards: 'guard', Braces: 'guard', Roots: 'root', Disarms: 'disarm',
+  Weakens: 'weak', Oils: 'oil', Soaks: 'wet', Sleep: 'sleep', Confuses: 'confuse', Focus: 'focus', Burns: 'burn',
+  Poisons: 'poison', Stealth: 'stealth', Riposte: 'riposte', 'Readies a counter': 'riposte', 'Grows thorns': 'thorns', Imbues: 'imbue',
+};
 export const THEMES = {
   wood: ['Grass', 'Forest', 'Boulder', 'Water', 'Ruined wall', 'Lava', 'Hill', 'Brambles'],
   crypt: ['Flagstones', 'Rubble', 'Sarcophagus', 'Pit', 'Crypt wall', 'Lava', 'Dais', 'Bone spikes'],

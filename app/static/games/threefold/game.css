@@ -228,3 +228,13 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .levels img.spr { width: 24px; height: 24px; }
 .levels b { color: var(--text); font-weight: normal; }
 .next-bp { color: var(--gold); }
+
+/* status tooltips (ui.js initTips) */
+.tip { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.tip:focus-visible { outline: 1px dashed var(--gold); outline-offset: 1px; }
+#tipbox {
+  position: fixed; z-index: 50; max-width: min(320px, calc(100vw - 16px));
+  padding: 6px 9px; background: var(--panel2); color: var(--text); border: 2px solid var(--line);
+  font: 19px/1.15 "VT323", monospace; pointer-events: none; box-shadow: 0 3px 0 #0006;
+}
+#tipbox[hidden] { display: none; }

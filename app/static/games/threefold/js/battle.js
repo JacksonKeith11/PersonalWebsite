@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=13';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=13';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=13';
-import { sfx } from './audio.js?v=13';
-import { h, bar, sprImg } from './ui.js?v=13';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=14';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=14';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=14';
+import { sfx } from './audio.js?v=14';
+import { h, bar, sprImg, tip, tipText } from './ui.js?v=14';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1293,42 +1293,42 @@ async function aiTurn(u) {
 // ---------- side panel ----------
 function statusText(u) {
   const st = u.st, out = [];
-  if (u.shield > 0) out.push(`Shield ${u.shield}`);
-  if (u.side === 'foe' && B.rage) out.push(`Furious +${B.rage * 10}%`);
-  if (st.stun) out.push('Stunned');
-  if (st.poison > 0) out.push(`Poisoned (${st.poison})`);
-  if (st.burn > 0) out.push(`Burning (${st.burn})`);
-  if (st.slow > 0) out.push(`Slowed (${st.slow})`);
-  if (st.taunt > 0) out.push(`Taunted (${st.taunt})`);
-  if (st.vuln > 0) out.push(`Exposed +${Math.round((st.vulnAmt || 0.3) * 100)}% (${st.vuln})`);
-  if (st.rally > 0) out.push(`Rallied (${st.rally})`);
-  if (st.blind > 0) out.push(`Blinded (${st.blind})`);
-  if (st.stealth) out.push('Stealthed');
-  if (st.airborne) out.push('Airborne');
-  if (st.shock > 0) out.push(`Shocked (${st.shock})`);
-  if (st.charm > 0) out.push(`Charmed (${st.charm})`);
-  if (st.resolve > 0) out.push('Can\'t be charmed');
-  if (st.sleep > 0) out.push(`Asleep (${st.sleep})`);
-  if (st.confuse > 0) out.push(`Confused (${st.confuse})`);
-  if (st.root > 0) out.push(`Rooted (${st.root})`);
-  if (st.disarm > 0) out.push(`Disarmed (${st.disarm})`);
-  if (st.weak > 0) out.push(`Weakened −30% (${st.weak})`);
-  if (st.oil > 0) out.push(`Oiled (${st.oil})`);
-  if (st.wet > 0) out.push(`Wet (${st.wet})`);
-  if (st.focus) out.push('Focused +60%');
-  if (st.movUp > 0) out.push(`+1 MOV (${st.movUp})`);
-  if (st.imbue > 0) out.push(`Imbued: ${st.imbueKind} (${st.imbue})`);
-  if (u.pending) out.push(`Charging ${SKILLS[u.pending.s.id].name}`);
-  if (st.doom > 0) out.push(`Doomed in ${st.doom}`);
-  if (st.ward > 0) out.push(`Ward ×${st.ward}`);
+  if (u.shield > 0) out.push(tip(`Shield ${u.shield}`, 'shield'));
+  if (u.side === 'foe' && B.rage) out.push(tip(`Furious +${B.rage * 10}%`, 'rage'));
+  if (st.stun) out.push(tip('Stunned', 'stun'));
+  if (st.poison > 0) out.push(tip(`Poisoned (${st.poison})`, 'poison'));
+  if (st.burn > 0) out.push(tip(`Burning (${st.burn})`, 'burn'));
+  if (st.slow > 0) out.push(tip(`Slowed (${st.slow})`, 'slow'));
+  if (st.taunt > 0) out.push(tip(`Taunted (${st.taunt})`, 'taunt'));
+  if (st.vuln > 0) out.push(tip(`Exposed +${Math.round((st.vulnAmt || 0.3) * 100)}% (${st.vuln})`, 'vuln'));
+  if (st.rally > 0) out.push(tip(`Rallied (${st.rally})`, 'rally'));
+  if (st.blind > 0) out.push(tip(`Blinded (${st.blind})`, 'blind'));
+  if (st.stealth) out.push(tip('Stealthed', 'stealth'));
+  if (st.airborne) out.push(tip('Airborne', 'airborne'));
+  if (st.shock > 0) out.push(tip(`Shocked (${st.shock})`, 'shock'));
+  if (st.charm > 0) out.push(tip(`Charmed (${st.charm})`, 'charm'));
+  if (st.resolve > 0) out.push(tip('Can\'t be charmed', 'resolve'));
+  if (st.sleep > 0) out.push(tip(`Asleep (${st.sleep})`, 'sleep'));
+  if (st.confuse > 0) out.push(tip(`Confused (${st.confuse})`, 'confuse'));
+  if (st.root > 0) out.push(tip(`Rooted (${st.root})`, 'root'));
+  if (st.disarm > 0) out.push(tip(`Disarmed (${st.disarm})`, 'disarm'));
+  if (st.weak > 0) out.push(tip(`Weakened −30% (${st.weak})`, 'weak'));
+  if (st.oil > 0) out.push(tip(`Oiled (${st.oil})`, 'oil'));
+  if (st.wet > 0) out.push(tip(`Wet (${st.wet})`, 'wet'));
+  if (st.focus) out.push(tip('Focused +60%', 'focus'));
+  if (st.movUp > 0) out.push(tip(`+1 MOV (${st.movUp})`, 'movUp'));
+  if (st.imbue > 0) out.push(tip(`Imbued: ${st.imbueKind} (${st.imbue})`, 'imbue'));
+  if (u.pending) out.push(tip(`Charging ${SKILLS[u.pending.s.id].name}`, 'pending'));
+  if (st.doom > 0) out.push(tip(`Doomed in ${st.doom}`, 'doom'));
+  if (st.ward > 0) out.push(tip(`Ward ×${st.ward}`, 'ward'));
   const th = thornsNow(u);
-  if (th > 0) out.push(`Thorns ${th}`);
-  if (u.rampart) out.push('Rampart');
-  if (st.guard) out.push('Guarding');
-  if (st.riposte) out.push('Riposte ready');
-  if (inCover(u)) out.push('In cover');
-  if (onHill(u)) out.push('High ground');
-  return out.join(' · ');
+  if (th > 0) out.push(tip(`Thorns ${th}`, 'thorns'));
+  if (u.rampart) out.push(tip('Rampart', 'rampart'));
+  if (st.guard) out.push(tip('Guarding', 'guard'));
+  if (st.riposte) out.push(tip('Riposte ready', 'riposte'));
+  if (inCover(u)) out.push(tip('In cover', 'cover'));
+  if (onHill(u)) out.push(tip('High ground', 'hill'));
+  return out.flatMap((x, i) => i ? [' · ', x] : [x]);
 }
 function unitCard(u, withSkills) {
   const extra = [u.fly ? 'Flying' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.info].filter(Boolean).join(' · ');
@@ -1340,7 +1340,7 @@ function unitCard(u, withSkills) {
     h('div', { class: 'status' }, statusText(u)),
     withSkills ? h('div', { class: 'skill-list' }, u.skills.map(s => {
       const o = skStats(u, s);
-      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, h('br'), h('span', {}, describe(o, u) + (o.txt ? '. ' + o.txt : '')));
+      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, h('br'), h('span', {}, tipText(describe(o, u) + (o.txt ? '. ' + o.txt : ''))));
     })) : null);
 }
 function tileCard(x, y) {

@@ -23,7 +23,7 @@ loads Phaser 3.80.1 from cdnjs, then `js/main.js` as an ES module.
 | `js/mapscene.js` | `MapScene`: the branching map, drawn and clickable. |
 | `js/art.js` | Pixel art as text grids (16×16 sprites, 8×8 map icons) plus procedural tiles per theme, turned into canvases and Phaser textures. |
 | `js/audio.js` | Every sound effect and music loop, synthesized at startup with `OfflineAudioContext` and played through Phaser's sound manager. |
-| `js/ui.js` | DOM helpers `h()`, `sprImg()`, `bar()`. |
+| `js/ui.js` | DOM helpers `h()`, `sprImg()`, `bar()`, and the status tooltips (`tip`, `tipText`, `initTips`). |
 | `game.css` | Styling for the HTML screens and panels. |
 
 Phaser only draws the map and the board. Everything text-heavy (menus, cards, the battle side
@@ -90,6 +90,12 @@ Keep it that way.
   isn't a tap, and a long press only inspects. Confirm names its outcome ("Confirm: Slime −12"), a
   skill with one possible target aims at it straight away, and the HUD's speed button (1×–3×,
   saved in `localStorage`) scales every animation through `env.speed`.
+
+- **Every status explains itself.** Statuses in the battle panel and status words in skill text
+  ("Slows", "Shocks") are tooltips: hover with a mouse, tap on a phone (a tap on one inside a
+  card shows the tip instead of pressing the card). The text lives in `STATUS_HELP` in `data.js`,
+  and `STATUS_WORDS` maps skill-text words to it. A new status, or a change to what one does,
+  updates `STATUS_HELP` too; a new status word in `describe()` gets a `STATUS_WORDS` entry.
 
 ## Testing
 

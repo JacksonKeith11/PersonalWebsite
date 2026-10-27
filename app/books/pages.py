@@ -2,6 +2,14 @@ import json
 from html import escape
 
 ASSET_VERSION = 12
+NAV = """<nav class="nav">
+      <div class="nav-links">
+        <a href="/">About</a>
+        <a href="/resume">Resume</a>
+        <a href="/projects">Projects</a>
+        <a href="/books" aria-current="page">Books</a>
+      </div>
+    </nav>"""
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -33,6 +41,7 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
 </head>
 <body>
   <main class="paper login">
+    {NAV}
     <h1 class="page-title">Library</h1>
     <p class="hint">Enter your username to see your books. A new name starts an empty library.</p>
     <form method="post" action="/books/login">
@@ -60,6 +69,7 @@ def library(user: str) -> str:
 </head>
 <body>
   <main class="paper library">
+    {NAV}
     <div class="lib-head">
       <h1 class="page-title">Library</h1>
       <span class="who">{escape(user)} · <a href="/books/logout">Switch user</a></span>

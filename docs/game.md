@@ -50,7 +50,8 @@ Keep it that way.
   prefer adding a strange skill over polishing a safe one. Removing a skill means deleting it from
   its pool (and from `SKILLS` if nothing else uses it). A pool naming a missing skill only fails at
   runtime, so grep for the id.
-- **Skills come from class pools.** Heroes start with 3 (`CLASSES.start`) and learn from `pool`
+- **Skills come from class pools.** Heroes start with 2: their basic attack (`CLASSES.start[0]`) and
+  one random pick from the rest of `start` plus `pool`. They learn from `pool`
   plus every class in their line, up to `MAX_SKILLS` = 4. Learning a fifth means forgetting one.
 - **Archetypes give builds a direction.** Six tags in `ARCHES` (poison, elemental, shield, thorns,
   blood, time) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
@@ -77,6 +78,13 @@ Keep it that way.
 - **Difficulty should be hard but winnable.** The random-choice autopilot currently wins about 1 run
   in 6, losing mostly to bosses across all three acts. A person managing HP should do clearly
   better.
+
+- **Phones are a first-class target for combat.** Below 920px the battle's action bar (skills,
+  Confirm, End turn, hint) is pinned to the bottom of the screen (`body.in-battle`), the HUD uses
+  short labels, the board scrolls back into view at the start of a hero's turn, a drag on the board
+  isn't a tap, and a long press only inspects. Confirm names its outcome ("Confirm: Slime −12"), a
+  skill with one possible target aims at it straight away, and the HUD's speed button (1×–3×,
+  saved in `localStorage`) scales every animation through `env.speed`.
 
 ## Testing
 

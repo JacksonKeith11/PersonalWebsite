@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=8';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=9';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=8';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=8';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=8';
-import { env, startBattle, BattleScene } from './battle.js?v=8';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=8';
-import { h, sprImg, bar } from './ui.js?v=8';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=9';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=9';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=9';
+import { env, startBattle, BattleScene } from './battle.js?v=9';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=9';
+import { h, sprImg, bar } from './ui.js?v=9';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -18,7 +18,10 @@ const $ = id => document.getElementById(id);
 const stage = $('stage'), side = $('side'), screen = $('screen'), modal = $('modal');
 env.side = side;
 env.auto = AUTO;
-env.speed = AUTO ? 0.01 : 1;
+// Battle speed: 1x, 2x or 3x animations, remembered between visits.
+let SPEED = 1;
+try { SPEED = Math.min(3, Math.max(1, +localStorage.getItem('threefold-speed') || 1)); } catch (e) { /* storage unavailable */ }
+env.speed = AUTO ? 0.01 : 1 / SPEED;
 
 let run = null;
 let game = null;
@@ -29,6 +32,7 @@ function showStage(scene, sideKids) {
   stage.hidden = false;
   side.replaceChildren(...(sideKids || []));
   for (const k of ['map', 'battle']) if (k !== scene && game.scene.isActive(k)) game.scene.stop(k);
+  document.body.classList.toggle('in-battle', scene === 'battle');
   // the canvas was display:none; Phaser has to re-measure its parent or it stays 0px wide
   game.scale.getParentBounds();
   game.scale.refresh();
@@ -37,6 +41,7 @@ function showStage(scene, sideKids) {
 function setScreen(...kids) {
   for (const k of ['map', 'battle']) if (game.scene.isActive(k)) game.scene.stop(k);
   stage.hidden = true;
+  document.body.classList.remove('in-battle');
   screen.hidden = false;
   screen.replaceChildren(...kids);
   window.scrollTo(0, 0);
@@ -47,10 +52,17 @@ const btn = (label, onclick, cls = '', disabled = false) => h('button', { class:
 function hud(inBattle) {
   const el = $('hud');
   const a = audioState();
+  const small = window.innerWidth <= 640; // phones get short labels so the HUD stays on two rows
   const audio = [
-    h('button', { class: 'btn tiny', onclick: () => { toggleMusic(); hud(inBattle); } }, a.music ? 'Music on' : 'Music off'),
-    h('button', { class: 'btn tiny', onclick: () => { toggleSfx(); hud(inBattle); } }, a.sfx ? 'Sound on' : 'Sound off'),
+    h('button', { class: 'btn tiny', title: 'Music', onclick: () => { toggleMusic(); hud(inBattle); } }, small ? (a.music ? '♪ on' : '♪ off') : a.music ? 'Music on' : 'Music off'),
+    h('button', { class: 'btn tiny', title: 'Sound effects', onclick: () => { toggleSfx(); hud(inBattle); } }, small ? (a.sfx ? 'SFX on' : 'SFX off') : a.sfx ? 'Sound on' : 'Sound off'),
   ];
+  if (inBattle && !AUTO) audio.unshift(h('button', { class: 'btn tiny', title: 'Battle animation speed', onclick: () => {
+    SPEED = SPEED % 3 + 1;
+    env.speed = 1 / SPEED;
+    try { localStorage.setItem('threefold-speed', SPEED); } catch (e) { /* storage unavailable */ }
+    hud(inBattle);
+  } }, small ? `${SPEED}×` : `Speed ${SPEED}×`));
   if (!run) { el.replaceChildren(...audio); return; }
   const floor = run.pos === 'boss' ? ROWS_PER_ACT + 1 : run.pos ? run.map[run.pos].r + 1 : 1;
   el.replaceChildren(

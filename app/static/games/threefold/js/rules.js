@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=8';
+import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=9';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -23,7 +23,8 @@ export const artPrice = id => (MODS[id] || ITEMS[id]).price;
 export function newHero(cls) {
   const c = CLASSES[cls];
   return { cls, promo: null, maxHp: c.hp, hp: c.hp, atk: c.atk, mag: c.mag, def: c.def, res: c.res, spd: c.spd, mov: c.mov, crit: c.crit, items: [], line: [],
-    skills: c.start.map(id => ({ id, mods: [] })) };
+    // the class's basic attack plus one random skill from the rest of its kit
+    skills: [c.start[0], pick([...c.start.slice(1), ...c.pool])].map(id => ({ id, mods: [] })) };
 }
 
 // Stats with hero artifacts applied. gold feeds the Gold Tooth.

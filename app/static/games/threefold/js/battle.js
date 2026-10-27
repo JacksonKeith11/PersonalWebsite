@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=8';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=8';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=8';
-import { sfx } from './audio.js?v=8';
-import { h, bar, sprImg } from './ui.js?v=8';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=9';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=9';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=9';
+import { sfx } from './audio.js?v=9';
+import { h, bar, sprImg } from './ui.js?v=9';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1070,6 +1070,16 @@ function endTurn(u) {
 }
 
 // ---------- player control ----------
+// Phones stack the board above the panel: bring the board back into view when a hero's turn starts.
+const narrow = () => window.innerWidth <= 920;
+function showBoard() {
+  if (!narrow()) return;
+  const el = document.getElementById('game'), r = el.getBoundingClientRect();
+  const bar = document.querySelector('#side .actions');
+  const bottom = window.innerHeight - (bar ? bar.offsetHeight : 0);
+  if (r.top < 0 || r.bottom > bottom) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* unsupported */ } };
 function playerTurn(u) {
   return new Promise(res => {
     B.resolveTurn = res;
@@ -1077,6 +1087,7 @@ function playerTurn(u) {
     B.reach = reach(u);
     B.sel = null; B.pending = null;
     renderPanel();
+    showBoard();
   });
 }
 function finishTurn() {
@@ -1111,6 +1122,7 @@ function undoMove(u) {
   afterHeroStep(u);
 }
 async function doSkill(u, s, x, y) {
+  buzz(12);
   B.busy = true;
   await useSkill(u, s, x, y);
   if (!B) return;
@@ -1145,6 +1157,8 @@ function selectSkill(i) {
   for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (validTarget(u, o, x, y)) B.targets.add(key(x, y));
   B.rangeTiles = rangeTiles(u, o);
   B.pending = o.tgt === 'self' && B.targets.size ? { x: u.x, y: u.y } : null;
+  // only one thing to aim at: aim at it, so a single tap on Confirm (or the tile) fires
+  if (!B.pending && B.targets.size === 1) { const [x, y] = [...B.targets][0].split(',').map(Number); B.pending = { x, y }; }
   renderPanel();
 }
 function onTap(g, touch) {
@@ -1332,6 +1346,17 @@ function tileCard(x, y) {
   const t = B.grid[y][x];
   return h('div', { class: 'card' }, h('b', { class: 'px' }, THEMES[B.theme][t]), h('div', { class: 'stats' }, TERRAIN_HELP[t]));
 }
+// "Confirm: Goblin −12", "Confirm: KO Bat", "Confirm: 3 targets"
+function confirmLabel(u) {
+  const o = B.selO, p = B.pending;
+  if (!o || !p || !(o.kind === 'phys' || o.kind === 'mag') || o.gamble) return 'Confirm';
+  const list = hitList(u, o, p.x, p.y, true), seen = new Map();
+  for (const { t, w } of list) seen.set(t, (seen.get(t) || 0) + w);
+  if (seen.size !== 1) return seen.size ? `Confirm: ${seen.size} targets` : 'Confirm';
+  const [[t, w]] = [...seen];
+  const d = Math.round(calcDmg(u, t, o) * w * hitsOf(o));
+  return d >= t.hp + t.shield ? `Confirm: KO ${t.name}` : `Confirm: ${t.name} −${d}`;
+}
 function hintText() {
   const u = B.active;
   if (B.mode === 'move') return 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
@@ -1364,11 +1389,11 @@ function renderPanel() {
         return h('button', { class: 'btn' + (B.mode === 'skill' && B.sel === i ? ' sel' : ''), disabled: u.acted || s.cd > 0 || u.st.disarm > 0, title: `${o.name}: ${describe(o, u)}`, onclick: () => selectSkill(i) },
           o.name, s.cd > 0 ? h('span', { class: 'cd' }, ` ${s.cd}`) : null);
       }),
-      B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, 'Confirm') : null,
+      B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, confirmLabel(u)) : null,
       h('button', { class: 'btn', onclick: () => { sfx('click'); finishTurn(); } }, 'End turn'),
+      h('div', { class: 'hint' }, hintText()),
     ));
-    kids.push(h('div', { class: 'hint' }, hintText()));
-  } else kids.push(h('div', { class: 'hint' }, u && !B.over ? `${u.name} is acting…` : ''));
+  } else kids.push(h('div', { class: 'actions waiting' }, h('div', { class: 'hint' }, u && !B.over ? `${u.name} is acting…` : '')));
   kids.push(h('div', { class: 'log' }, B.log.slice(-5).map(l => h('div', {}, l))));
   env.side.replaceChildren(...kids);
 }
@@ -1530,7 +1555,15 @@ export class BattleScene extends Phaser.Scene {
     const cell = p => { const x = Math.floor(p.worldX / TS), y = Math.floor(p.worldY / TS); return inb(x, y) ? { x, y } : null; };
     this.input.on('pointermove', p => { if (B && !p.wasTouch) B.hover = cell(p); });
     this.input.on('gameout', () => { if (B) B.hover = null; });
-    this.input.on('pointerup', p => onTap(cell(p), p.wasTouch));
+    // a drag isn't a tap; a long press only inspects, so it can never move or attack by accident
+    let down = null;
+    this.input.on('pointerdown', p => { down = { x: p.x, y: p.y, t: p.downTime || performance.now() }; });
+    this.input.on('pointerup', p => {
+      const d = down; down = null;
+      if (d && Math.hypot(p.x - d.x, p.y - d.y) > 14 * (this.scale.displayScale.x || 1)) return;
+      if (d && (p.upTime || performance.now()) - d.t > 450) { const g = cell(p); if (B && g && !B.busy) { B.inspect = unitAt(g.x, g.y) || { tile: g }; renderPanel(); buzz(8); } return; }
+      onTap(cell(p), p.wasTouch);
+    });
     this.events.once('shutdown', () => { if (scene === this) scene = null; });
     battleLoop(b);
   }

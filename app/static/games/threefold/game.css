@@ -133,6 +133,25 @@ img.spr.flip { transform: scaleX(-1); }
 .bar b { display: block; height: 100%; background: #9fd8ff; }
 .bar.foe i { background: var(--red); }
 .actions { margin: 0 0 10px; }
+.actions .hint { margin: 6px 3px 0; min-height: 0; }
+.actions.waiting .hint { margin: 0 3px; }
+#stage, #hud { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+button, #game { -webkit-tap-highlight-color: transparent; }
+/* Phones: the action bar is pinned to the bottom of the screen during battle, so the skill
+   buttons never move and never need a scroll to reach. */
+@media (max-width: 920px) {
+  body.in-battle #wrap { padding-bottom: 170px; }
+  body.in-battle #side .actions {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(21, 16, 29, 0.97); box-shadow: 0 -3px 0 #000;
+    max-height: 45vh; overflow-y: auto;
+  }
+  body.in-battle #side .actions .btn { padding: 11px 10px; }
+  body.in-battle #side .actions .hint { font-size: 17px; line-height: 1.2; }
+  body.in-battle .top .logo, body.in-battle .top .back { display: none; }
+  body.in-battle .top { padding-top: 6px; padding-bottom: 6px; }
+}
 .hint { color: var(--muted); font-size: 19px; min-height: 2.2em; margin: 4px 3px 8px; }
 .log { font-size: 18px; color: #8f80a3; margin: 0 3px; }
 .log div:last-child { color: var(--text); }

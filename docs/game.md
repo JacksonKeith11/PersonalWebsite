@@ -105,6 +105,14 @@ Keep it that way.
     drawing or changing one: it has the art direction, the palette, and what each chosen hero looks
     like. The drawings live in `tools/threefold-art/` (Python with Pillow). `picks.py` maps each art
     key to its drawing, and `python3 build.py` writes `js/sprites.js`. Then bump the game's `?v=`.
+  - Ground follows the owner's grassland reference
+    (<https://img.craftpix.net/2023/04/Grassland-Top-Down-Tileset-Pixel-Art.jpg>): calm, warm
+    and flat. Greenwood grass is olive `#a1b159` with sparse leafy tufts in clumps, rare small flowers
+    and darker grass gathered under trees and rocks, with no speckle noise. Earth is orange-brown
+    `#b47c43`. Natural grounds (grass, mud, snow, basalt) also get a board-wide layer of soft lighter
+    and darker patches with stepped edges (`patchMask`, theme `patch`); it only recolours bare
+    base-colour pixels. Plain ground has eight variants mixed with position so it doesn't visibly
+    repeat. Keep new ground calm rather than noisy.
   - Terrain: `tiles.js` paints each tile from the theme's ramps (`blob()` gives lit, rimmed shapes),
     then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under
     high ground, shadows below walls, lava glow. The board is one canvas texture, repainted when

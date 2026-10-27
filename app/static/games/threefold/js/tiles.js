@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=24';
+import { T, GW, GH } from './data.js?v=25';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -39,25 +39,32 @@ function shadowOval(x, cx, cy, rx, ry, a = 0.28) {
 function speckle(x, r, cols, n, w = 2) { for (let i = 0; i < n; i++) px(x, cols[i % cols.length], ri(r, 0, 31), ri(r, 0, 31), ri(r, 1, w), 1); }
 
 // ---------- ground styles ----------
+// Leafy tufts: x is the tuft's green, t its lighter tips.
+const TUFTS = [
+  ['t...t..', '.x.t.x.', 'x.x.x.x', '.xxxxx.', '..x.x..'],
+  ['..t..t.', 't.x..x.', '.x.xx.t', 'x.xxx.x', '.xx.xx.'],
+  ['.t.t.', 'x.x.x', '.xxx.', 'x.x.x'],
+  ['t..t..t', '.x.x.x.', 'xx.x.xx', '.xxxxx.'],
+  ['t..t', '.xx.', 'xxxx'],
+];
 const GROUND = {
+  // Calm, warm grass after the owner's reference tileset: a flat base, a few soft leafy tufts a shade
+  // darker (some tipped with yellow-green), and now and then a small flower. No speckle noise.
   grass(x, P, r) {
     px(x, P.g[1], 0, 0, 32, 32);
-    for (let i = 0; i < 3; i++) { // soft patches of lighter and darker grass
-      const cx = ri(r, 0, 31), cy = ri(r, 0, 31), w = ri(r, 3, 7), hh = ri(r, 2, 4), c = i === 1 ? P.g[0] : P.g[2];
-      for (let y = -hh; y <= hh; y++) for (let X = -w; X <= w; X++) if ((X * X) / (w * w) + (y * y) / (hh * hh) <= 1 - r() * 0.3) px(x, c, (cx + X + 32) % 32, (cy + y + 32) % 32);
-    }
-    for (let i = 0; i < 7; i++) { // tufts: a little V of blades with a dark root
-      const bx = ri(r, 2, 29), by = ri(r, 3, 30);
-      px(x, P.g[0], bx - 1, by, 3, 1); px(x, P.g[2], bx - 1, by - 2, 1, 2); px(x, P.g[3], bx, by - 3, 1, 3); px(x, P.g[2], bx + 1, by - 2, 1, 2);
-    }
-    speckle(x, r, [P.g[0], P.g[2]], 10, 1);
-    if (r() < 0.22) { // a flower or two
-      for (let i = ri(r, 1, 2); i > 0; i--) {
-        const fx = ri(r, 3, 28), fy = ri(r, 3, 28), c = P.flower[ri(r, 0, P.flower.length - 1)];
-        px(x, c, fx - 1, fy); px(x, c, fx + 1, fy); px(x, c, fx, fy - 1); px(x, c, fx, fy + 1); px(x, '#ffe680', fx, fy); px(x, P.g[0], fx, fy + 2);
+    // tufts come in a loose clump or two, so the ground has quiet stretches between them
+    for (let k = ri(r, 1, 2); k > 0; k--) {
+      const cx = ri(r, 4, 24), cy = ri(r, 4, 24);
+      for (let i = ri(r, 1, 3); i > 0; i--) {
+        const t = TUFTS[ri(r, 0, TUFTS.length - 1)], bx = Math.min(25, Math.max(0, cx + ri(r, -6, 6))), by = Math.min(26, Math.max(0, cy + ri(r, -4, 4)));
+        const leaf = r() < 0.3 ? P.g[0] : P.tuft, tip = r() < 0.4 ? P.g[3] : P.g[2];
+        t.forEach((row, y) => [...row].forEach((c, X) => { if (c === 'x') px(x, leaf, bx + X, by + y); else if (c === 't') px(x, tip, bx + X, by + y); }));
       }
     }
-    if (r() < 0.35) { const sx = ri(r, 4, 26), sy = ri(r, 4, 28); px(x, P.stone[1], sx, sy, 3, 2); px(x, P.stone[3], sx, sy); px(x, P.g[0], sx, sy + 2, 3, 1); }
+    if (r() < 0.18) { // a small flower: four petals around a bright centre, a leaf below
+      const fx = ri(r, 4, 27), fy = ri(r, 4, 26), c = P.flower[ri(r, 0, P.flower.length - 1)];
+      px(x, P.tuft, fx - 1, fy + 2, 3, 1); px(x, c, fx - 1, fy); px(x, c, fx + 1, fy); px(x, c, fx, fy - 1); px(x, c, fx, fy + 1); px(x, '#ffe680', fx, fy);
+    }
   },
   flag(x, P, r, v) {
     px(x, P.mortar, 0, 0, 32, 32);
@@ -70,13 +77,13 @@ const GROUND = {
         px(x, P.g[0], X + 1, Y + 14, 14, 1); px(x, P.g[0], X + 14, Y + 1, 1, 14);
       }
     }
-    speckle(x, r, [P.g[0], P.g[2]], 18, 2);
+    speckle(x, r, [P.g[0], P.g[2]], 8, 2);
     if (r() < 0.5) { let cx = ri(r, 4, 26), cy = ri(r, 4, 26); for (let i = 0; i < 6; i++) { px(x, P.mortar, cx, cy); cx += ri(r, 0, 1); cy += ri(r, -1, 1); } }
     if (r() < 0.4) for (let i = 0; i < 4; i++) px(x, P.moss, ri(r, 0, 31), ri(r, 0, 31), 2, 1);
   },
   basalt(x, P, r, v, frame) {
     px(x, P.g[1], 0, 0, 32, 32);
-    speckle(x, r, [P.g[0], P.g[2]], 40, 3);
+    speckle(x, r, [P.g[0], P.g[2]], 18, 3);
     for (let k = 0; k < 2; k++) { // cracks, a few of them smouldering
       let cx = ri(r, 0, 31), cy = ri(r, 0, 31);
       const hot = r() < 0.18;
@@ -86,13 +93,13 @@ const GROUND = {
   },
   mud(x, P, r) {
     px(x, P.g[1], 0, 0, 32, 32);
-    speckle(x, r, [P.g[0], P.g[2]], 50, 4);
+    speckle(x, r, [P.g[0], P.g[2]], 22, 3);
     for (let i = 0; i < 2; i++) { const px0 = ri(r, 3, 24), py0 = ri(r, 3, 26); px(x, P.g[0], px0, py0 + 1, 6, 2); px(x, P.puddle, px0 + 1, py0, 4, 2); px(x, P.g[3], px0 + 1, py0, 1, 1); }
-    for (let i = 0; i < 6; i++) { const bx = ri(r, 1, 30), by = ri(r, 3, 30); px(x, P.reed[1], bx, by - 3, 1, 3); px(x, P.reed[0], bx, by, 1, 1); }
+    for (let i = ri(r, 0, 2); i > 0; i--) { const bx = ri(r, 1, 30), by = ri(r, 3, 30); px(x, P.reed[1], bx, by - 3, 1, 3); px(x, P.reed[0], bx, by, 1, 1); }
   },
   snow(x, P, r) {
     px(x, P.g[2], 0, 0, 32, 32);
-    speckle(x, r, [P.g[1], P.g[3]], 40, 4);
+    speckle(x, r, [P.g[1], P.g[3]], 16, 3);
     for (let i = 0; i < 3; i++) { const sx = ri(r, 2, 26), sy = ri(r, 2, 28); px(x, P.g[1], sx, sy + 1, 5, 1); px(x, P.g[3], sx + 1, sy, 3, 1); }
     if (r() < 0.4) { const sx = ri(r, 4, 26), sy = ri(r, 4, 28); px(x, P.stone[1], sx, sy, 3, 2); px(x, P.g[3], sx, sy, 3, 1); }
   },
@@ -275,11 +282,12 @@ function thornTile(x, P, r) {
 const THEME_ART = {
   wood: {
     ground: 'grass', cover: 'tree', rock: 'boulder', hole: 'water',
-    g: ['#3a6a2c', '#4a8238', '#5a9a42', '#78b856'], flower: ['#f4f0e0', '#f2c94c', '#e86a8a', '#9ab8ff'],
-    stone: ['#3e3c4c', '#6e6c80', '#8e8ca0', '#c4c2d4'], moss: '#4f8a3c',
-    leaf: ['#1c3d22', '#24502a', '#2f6e34', '#3f8f3a', '#5aa846', '#86cc5a'], trunk: ['#3c2618', '#6b4a2f'], berry: '#e04848',
-    water: ['#1f4a7a', '#2a63a0', '#4a88c8', '#c8e4ff'], bank: ['#4a3420', '#6b4a2f'], foam: '#bfe0ff',
-    wall: ['#3a3b30', '#5a5b4c', '#7a7b68', '#a2a48c'], thorn: 'bramble', vine: ['#3a1e14', '#7a4a2c', '#e8d4a8'], bush: ['#1e2a1a', '#2a3a22', '#3a4e2a', '#4e6634'], cliff: ['#4a3420', '#6b4a2f', '#3a2618'],
+    // after the owner's grassland reference: warm olive grass, orange-brown earth, deep green canopies
+    g: ['#6e8a44', '#a1b159', '#b4c264', '#cfd06e'], tuft: '#8a9e4c', under: '#7e9848', patch: ['#abba60', '#97a852'], flower: ['#e8902e', '#f2c94c', '#d85a3a', '#6a8ae0'],
+    stone: ['#6a5848', '#a8907a', '#c8b098', '#e0d0b8'], moss: '#6e8a3c',
+    leaf: ['#2c461d', '#3e5e24', '#4a6b28', '#5b7d33', '#738e3c', '#94ac50'], trunk: ['#5a3420', '#8a5434'], berry: '#d04a4a',
+    water: ['#2a4a8a', '#3a62a8', '#5a86c8', '#c8e0ff'], bank: ['#945c37', '#b47c43'], foam: '#bcd8f8',
+    wall: ['#5a4a3a', '#7a6650', '#9a8468', '#bca88a'], thorn: 'bramble', vine: ['#4a2a18', '#8a5434', '#e8d4a8'], bush: ['#2c461d', '#3e5e24', '#4a6b28', '#5b7d33'], cliff: ['#945c37', '#b47c43', '#7a4a2c'],
   },
   crypt: {
     ground: 'flag', cover: 'rubble', rock: 'sarcophagus', hole: 'pit',
@@ -290,7 +298,7 @@ const THEME_ART = {
   },
   ember: {
     ground: 'basalt', cover: 'ashmound', rock: 'obsidian', hole: 'pit',
-    g: ['#221a1c', '#33292a', '#423636', '#5a4a48'], glow: ['#7a2414', '#ff6a2a'], ash: '#8a7c7e',
+    g: ['#221a1c', '#33292a', '#423636', '#5a4a48'], patch: ['#3a2f30', '#2c2324'], glow: ['#7a2414', '#ff6a2a'], ash: '#8a7c7e',
     ashRamp: ['#241c1e', '#3e3436', '#52484a', '#665a5c', '#7e7072'], trunk: ['#1a1210', '#2e221c'],
     obs: ['#0e0816', '#2e2240', '#4e3a6e', '#9a7ad8'], stone: ['#1a1216', '#3a2f30', '#5a4a48', '#7a6a66'],
     pit: ['#030203', '#0e0606', '#2a1410'], wall: ['#120c1a', '#211a2c', '#3a2e52', '#5a4a7a'], wallGlow: '#ff6a2a',
@@ -298,7 +306,7 @@ const THEME_ART = {
   },
   marsh: {
     ground: 'mud', cover: 'reeds', rock: 'stump', hole: 'water',
-    g: ['#2e3a24', '#3c4a2c', '#4a5a34', '#6a7a4a'], puddle: '#2a3a3a', reed: ['#5a6a2a', '#8a9a3a'], cattail: '#5a3a1e',
+    g: ['#2e3a24', '#3c4a2c', '#4a5a34', '#6a7a4a'], patch: ['#445232', '#344228'], puddle: '#2a3a3a', reed: ['#5a6a2a', '#8a9a3a'], cattail: '#5a3a1e',
     stone: ['#2e3028', '#4e5244', '#6a6e5c', '#8a8e78'], moss: '#5a7a34', trunk: ['#2e2016', '#4e3624'], ring: '#7a5a3a',
     water: ['#1a2e26', '#23403a', '#3a5e50', '#8ab0a0'], bank: ['#2a2016', '#3e2e1e'], foam: '#7a9a80',
     wall: ['#2a2e24', '#3e4436', '#56604a', '#76806a'], thorn: 'bramble', vine: ['#2a1a14', '#5a3a24', '#c8b48a'], bush: ['#18221a', '#22301e', '#2e4026', '#3e5430'],
@@ -306,7 +314,7 @@ const THEME_ART = {
   },
   frost: {
     ground: 'snow', cover: 'snowdrift', rock: 'iceblock', hole: 'water',
-    g: ['#9aaac4', '#c4d0e4', '#dfe8f4', '#f6faff'], stone: ['#4a5468', '#6a7488', '#8a94a8', '#b4bccc'],
+    g: ['#9aaac4', '#c4d0e4', '#dfe8f4', '#f6faff'], patchBase: '#dfe8f4', patch: ['#eaf0f8', '#d0dcec'], stone: ['#4a5468', '#6a7488', '#8a94a8', '#b4bccc'],
     snowRamp: ['#8a9ab8', '#b0bed4', '#d0dcec', '#eaf2fa', '#ffffff'], ice: ['#4a7aa8', '#8ac0e8', '#b8e0f8', '#ffffff'],
     water: ['#1a3a5a', '#2a5478', '#5a8ab0', '#e0f4ff'], bank: ['#6a7a94', '#9aaac4'], foam: '#e8f4ff',
     wall: ['#3a5a7a', '#6a9ac0', '#9ac8e8', '#d8f0ff'], thorn: 'spike', spike: ['#b8e0f8', '#ffffff'], cliff: ['#6a7a94', '#8a9ab4', '#4a5a74'],
@@ -339,6 +347,10 @@ function tileArt(theme, type, v, frame) {
   else if (type === T.WALL) wallTile(x, P, rng(seed + 7));
   else {
     ground();
+    if (P.under && (type === T.COVER || type === T.ROCK)) { // darker grass gathered under trees and rocks
+      const r = rng(seed + 9);
+      for (let y = 20; y < 32; y++) for (let X = 2; X < 30; X++) { const dx = (X - 16) / 14, dy = (y - 26) / 5.5; if (dx * dx + dy * dy < 1 - r() * 0.25) px(x, P.under, X, y); }
+    }
     if (type === T.COVER) PROP[P.cover](x, P, rng(seed + 11));
     else if (type === T.ROCK) PROP[P.rock](x, P, rng(seed + 13));
     else if (type === T.HILL) hillTop(x, P);
@@ -351,12 +363,46 @@ function tileArt(theme, type, v, frame) {
 // A plain ground tile, for backdrops like the map.
 export const groundTile = (theme, v) => tileArt(theme, T.FLOOR, v, 0);
 
+// Broad, soft patches of lighter ground that run across tile edges, with stepped (dithered) borders:
+// a value-noise mask per battle, seeded from its tile variants.
+const patchCache = new WeakMap();
+function patchMask(vari) {
+  if (patchCache.has(vari)) return patchCache.get(vari);
+  const r = rng(vari.flat().reduce((a, v, i) => a * 31 + v + i, 7) | 0), C = 10, gw = Math.ceil(GW * TP / C) + 2, gh = Math.ceil(GH * TP / C) + 2;
+  const g = Array.from({ length: gh }, () => Array.from({ length: gw }, () => r()));
+  const W = GW * TP, H = GH * TP, m = new Uint8Array(W * H), sm = t => t * t * (3 - 2 * t);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const gx = x / C, gy = y / C, ix = Math.floor(gx), iy = Math.floor(gy), fx = sm(gx - ix), fy = sm(gy - iy);
+    const v = (g[iy][ix] * (1 - fx) + g[iy][ix + 1] * fx) * (1 - fy) + (g[iy + 1][ix] * (1 - fx) + g[iy + 1][ix + 1] * fx) * fy;
+    m[y * W + x] = v > 0.62 ? 2 : v > 0.58 && (x + y) % 2 === 0 ? 2 : v < 0.3 ? 1 : v < 0.33 && (x + y) % 2 === 0 ? 1 : 0;
+  }
+  patchCache.set(vari, m);
+  return m;
+}
+const hex3 = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+
 // Paint the whole board: each tile's art, then the touches that depend on neighbours.
 export function drawBoard(ctx, theme, grid, vari, frame) {
   const P = THEME_ART[theme];
   const at = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? null : grid[y][x]);
   ctx.clearRect(0, 0, GW * TP, GH * TP);
-  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) ctx.drawImage(tileArt(theme, grid[y][x], vari[y][x] % 4, frame + vari[y][x]), x * TP, y * TP);
+  // plain ground gets eight variants (mixed with position so neighbours rarely match); other tiles four
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+    const t = grid[y][x], v = t === T.FLOOR ? (vari[y][x] * 3 + x * 5 + y * 7) % 8 : vari[y][x] % 4;
+    ctx.drawImage(tileArt(theme, t, v, frame + vari[y][x]), x * TP, y * TP);
+  }
+  if (P.patch) { // only bare base-colour ground changes, so props and tufts are untouched
+    const W = GW * TP, img = ctx.getImageData(0, 0, W, GH * TP), d = img.data, m = patchMask(vari);
+    const base = hex3(P.patchBase || P.g[1]), light = hex3(P.patch[0]), dark = hex3(P.patch[1]);
+    for (let i = 0; i < m.length; i++) {
+      if (!m[i]) continue;
+      const j = i * 4;
+      if (d[j] !== base[0] || d[j + 1] !== base[1] || d[j + 2] !== base[2]) continue;
+      const c = m[i] === 2 ? light : dark;
+      d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2];
+    }
+    ctx.putImageData(img, 0, 0);
+  }
   for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
     const t = grid[y][x], X = x * TP, Y = y * TP;
     if (isHole(t)) {

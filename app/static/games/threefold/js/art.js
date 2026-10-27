@@ -1,6 +1,6 @@
 // Sprites and map icons as canvases for Phaser and the DOM. The sprites themselves are generated into
 // sprites.js by tools/threefold-art (see docs/game-art.md); flat32() gives them their outline and matte shading.
-import { SPRITES } from './sprites.js?v=24';
+import { SPRITES } from './sprites.js?v=25';
 
 const K = '#1b1226';
 export const ICONS = {

@@ -37,7 +37,7 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
   {HEAD}
   <title>Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=8">
+  <link rel="stylesheet" href="/static/style.css?v=9">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>
@@ -73,7 +73,7 @@ def library(user: str) -> str:
   {HEAD}
   <title>Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=8">
+  <link rel="stylesheet" href="/static/style.css?v=9">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>
@@ -114,7 +114,7 @@ def receive(user: str) -> str:
   {HEAD}
   <title>Import to Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=8">
+  <link rel="stylesheet" href="/static/style.css?v=9">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>

@@ -277,32 +277,10 @@
     }
   });
 
-  // Reports how iOS sizes the home screen app, to check the reader fills the screen.
-  function fitScreen() {
-    if (!navigator.standalone) return;
-    const full = window.innerHeight > window.innerWidth ? screen.height : screen.width;
-    const bottom = stage.getBoundingClientRect().bottom;
-    const gap = Math.round(full - bottom);
-    const probe = document.createElement("div");
-    probe.style.cssText = "position:fixed;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);visibility:hidden";
-    document.body.append(probe);
-    const cs = getComputedStyle(probe);
-    const report = {
-      screen: [screen.width, screen.height], inner: [window.innerWidth, window.innerHeight],
-      visual: window.visualViewport ? window.visualViewport.height : null, client: document.documentElement.clientHeight,
-      stageBottom: bottom, safeTop: cs.paddingTop, safeBottom: cs.paddingBottom, gap,
-    };
-    probe.remove();
-    fetch(api("/viewport"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(report) }).catch(() => {});
-  }
-
   let resizeTimer;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      fitScreen();
-      relayout();
-    }, 150);
+    resizeTimer = setTimeout(relayout, 150);
   });
 
   function hideChrome() {
@@ -442,7 +420,12 @@
     document.querySelectorAll("#themes button").forEach((b) => b.classList.toggle("active", b.dataset.theme === settings.theme));
     document.querySelectorAll("#fonts button").forEach((b) => b.classList.toggle("active", b.dataset.font === settings.font));
     document.querySelectorAll("#spacing button").forEach((b) => b.classList.toggle("active", b.dataset.spacing === settings.spacing));
-    document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue("--bg").trim();
+    // iOS only notices a new status bar color when the meta tag is replaced, not edited.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const fresh = meta.cloneNode();
+    fresh.content = getComputedStyle(root).getPropertyValue("--bg").trim();
+    meta.replaceWith(fresh);
+    document.cookie = `reader_theme=${settings.theme}; path=/books; max-age=34560000; samesite=lax; secure`;
     try {
       localStorage.setItem("reader-settings", JSON.stringify(settings));
     } catch {}
@@ -784,7 +767,6 @@
   // ---------- start ----------
 
   async function init() {
-    fitScreen();
     applySettings(false);
     book = await getJSON(api());
     let sum = 0;

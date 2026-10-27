@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 7
+ASSET_VERSION = 8
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -46,12 +46,18 @@ def library() -> str:
 """
 
 
-def reader(book: dict) -> str:
+# Page colors of the reader themes; iOS paints the home screen app's status bar with the one
+# the page loads with, so the server renders it from the reader_theme cookie.
+THEME_BG = {"original": "#ffffff", "sepia": "#f8f1e3", "gray": "#4a4a4d", "night": "#121212"}
+
+
+def reader(book: dict, theme: str = "original") -> str:
+    theme = theme if theme in THEME_BG else "original"
     return f"""<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{theme}">
 <head>
   {HEAD}
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="{THEME_BG[theme]}">
   <title>{escape(book["title"])}</title>
   <link rel="stylesheet" href="/static/books/reader.css?v={ASSET_VERSION}">
 </head>

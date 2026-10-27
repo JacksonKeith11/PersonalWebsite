@@ -160,7 +160,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 #listen-fab {
   position: absolute;
-  right: max(10px, env(safe-area-inset-right));
+  right: max(22px, calc(env(safe-area-inset-right) + 12px));
   bottom: max(calc(var(--footer) - 11px), 0px);
   width: 36px;
   height: 36px;

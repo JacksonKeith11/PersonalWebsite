@@ -406,42 +406,97 @@ def download_epub(book_id: str, user: str = Depends(require_user)):
     )
 
 
-@api.get("/{book_id}/download.mp3")
-def download_mp3(book_id: str, chapter: int | None = None, user: str = Depends(require_user)):
-    """The whole audiobook or a single chapter, including whatever of an unfinished chapter is
-    narrated so far."""
-    book, folder = _book(book_id, user)
+def _audio_parts(book_id: str, folder: Path, numbers) -> list[tuple[int, object, int]]:
+    """(chapter, open file, length) for each chapter with any narration, including whatever of an
+    unfinished chapter is narrated so far. Everything is opened now: an unfinished chapter's file
+    gets renamed when it completes."""
     done = store.audio_done(book_id)
-    numbers = [chapter] if chapter is not None else range(len(book["chapters"]))
-    # Open everything now: an unfinished chapter's file gets renamed when it completes.
     parts = []
     for n in numbers:
         try:
             if n in done:
                 path = folder / "audio" / f"{n}.mp3"
-                parts.append((path.open("rb"), path.stat().st_size))
+                parts.append((n, path.open("rb"), path.stat().st_size))
             else:
                 tmp, partial = store.partial_paths(folder, n)
                 length = (store.read_json(partial) or {}).get("bytes", 0)
                 if length:
-                    parts.append((tmp.open("rb"), length))
+                    parts.append((n, tmp.open("rb"), length))
         except FileNotFoundError:
             continue
     if not parts:
         raise HTTPException(404, "No audio yet")
+    return parts
+
+
+def _copy(fh, length: int):
+    with fh:
+        while length > 0 and (chunk := fh.read(min(1 << 20, length))):
+            length -= len(chunk)
+            yield chunk
+
+
+@api.get("/{book_id}/download.mp3")
+def download_mp3(book_id: str, chapter: int | None = None, user: str = Depends(require_user)):
+    """The whole audiobook as one file, or a single chapter."""
+    book, folder = _book(book_id, user)
+    numbers = [chapter] if chapter is not None else range(len(book["chapters"]))
+    parts = _audio_parts(book_id, folder, numbers)
     name = book["title"] if chapter is None else f"{book['title']} - {book['chapters'][chapter]['title']}"
 
     def stream():
         # Constant-bitrate MP3s with the same settings play back fine when simply joined.
-        for fh, length in parts:
-            with fh:
-                while length > 0 and (chunk := fh.read(min(1 << 20, length))):
-                    length -= len(chunk)
-                    yield chunk
+        for _, fh, length in parts:
+            yield from _copy(fh, length)
 
     return StreamingResponse(stream(), media_type="audio/mpeg", headers={
         "Content-Disposition": _filename(name, "mp3"),
-        "Content-Length": str(sum(length for _, length in parts)),
+        "Content-Length": str(sum(length for _, _, length in parts)),
+        **auth.PRIVATE_HEADERS,
+    })
+
+
+class _ZipSink:
+    """A write-only file for ZipFile that hands back what's been written, so the zip streams."""
+
+    def __init__(self):
+        self.chunks = []
+
+    def write(self, data) -> int:
+        self.chunks.append(bytes(data))
+        return len(data)
+
+    def flush(self):
+        pass
+
+    def take(self) -> bytes:
+        data, self.chunks = b"".join(self.chunks), []
+        return data
+
+
+@api.get("/{book_id}/download-chapters.zip")
+def download_chapters(book_id: str, user: str = Depends(require_user)):
+    """The audiobook as a zip of one MP3 per chapter, numbered so they sort in order."""
+    book, folder = _book(book_id, user)
+    chapters = book["chapters"]
+    parts = _audio_parts(book_id, folder, range(len(chapters)))
+    width = max(2, len(str(len(chapters))))
+
+    def stream():
+        sink = _ZipSink()
+        # MP3s don't compress, so store them. The sink can't seek, so ZipFile writes each
+        # entry's sizes after its data.
+        with zipfile.ZipFile(sink, "w", zipfile.ZIP_STORED) as z:
+            for n, fh, length in parts:
+                title = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "", chapters[n]["title"]).strip()[:80]
+                with z.open(f"{n + 1:0{width}d} {title}.mp3".replace(" .mp3", ".mp3"), "w") as entry:
+                    for chunk in _copy(fh, length):
+                        entry.write(chunk)
+                        yield sink.take()
+        yield sink.take()
+
+    return StreamingResponse(stream(), media_type="application/zip", headers={
+        "Content-Disposition": _filename(f"{book['title']} (chapters)", "zip"),
         **auth.PRIVATE_HEADERS,
     })
 

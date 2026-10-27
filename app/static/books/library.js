@@ -219,6 +219,12 @@
           className: mp3Ready ? "" : "off",
           textContent: b.audio.percent >= 100 || !mp3Ready ? "Download audiobook (MP3)" : `Download audio so far (${b.audio.percent}%)`,
         })),
+        el("li", {}, el("a", {
+          href: `/books/api/${b.id}/download-chapters.zip`,
+          download: "",
+          className: mp3Ready ? "" : "off",
+          textContent: "Download audiobook as separate chapters (ZIP)",
+        })),
         offline && el("li", {}, offline),
         update && el("li", {}, update),
         narrate && el("li", {}, narrate),

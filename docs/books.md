@@ -63,7 +63,8 @@ Read this before changing `app/books/` or `app/static/books/`.
   `audio/.<n>.mp3.tmp` with `<n>.partial.json` recording the bytes and segment start times. Only
   when `audio/<n>.json` exists is chapter n done. `routes._byte_range` serves the partial file with
   Range support because Safari won't play audio without it. MP3s are constant bitrate (48 kbps
-  mono), so byte length maps to time and chapters can simply be concatenated for download.
+  mono), so byte length maps to time and chapters can simply be concatenated for download. "Separate chapters (ZIP)" instead streams a
+  stored (uncompressed) zip of one MP3 per chapter, `NN Title.mp3`, from `download-chapters.zip`.
 - **Updates keep narration selectively.** `epub.update` keeps the audio of every section whose text
   didn't change and drops the rest. The worker notices a new `rev` and abandons narration started on
   old text.

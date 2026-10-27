@@ -20,8 +20,8 @@
 
   function audioLine(a) {
     if (a.ready.length === a.total) return "Audio ready";
-    if (a.working) return `Narrating · ${a.ready.length}/${a.total}`;
-    return a.ready.length ? `Audio ${a.ready.length}/${a.total}` : "Audio queued";
+    if (a.working) return `Narrating · ${a.percent}%`;
+    return a.percent ? `Audio ${a.percent}%` : "Audio queued";
   }
 
   function cover(b) {
@@ -46,7 +46,7 @@
       el("div", { className: "meta" }, el("span", { textContent: progress }), el("span", { textContent: audioLine(b.audio) })),
     );
 
-    const mp3Ready = b.audio.ready.length > 0;
+    const mp3Ready = b.audio.percent > 0;
     const del = el("button", { className: "danger", textContent: "Delete" });
     del.addEventListener("click", async () => {
       if (!confirm(`Delete “${b.title}” and its audio?`)) return;
@@ -61,7 +61,7 @@
           href: `/books/api/${b.id}/download.mp3`,
           download: "",
           className: mp3Ready ? "" : "off",
-          textContent: b.audio.ready.length === b.audio.total || !mp3Ready ? "Download audiobook (MP3)" : `Download audio so far (${b.audio.ready.length}/${b.audio.total})`,
+          textContent: b.audio.percent >= 100 || !mp3Ready ? "Download audiobook (MP3)" : `Download audio so far (${b.audio.percent}%)`,
         })),
         el("li", {}, del),
       ),

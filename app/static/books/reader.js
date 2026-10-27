@@ -460,6 +460,7 @@
   async function refreshAudioStatus() {
     const status = await getJSON(api("/audio-status"));
     audioReady = new Set(status.ready);
+    workingChapter = status.working ? status.working.chapter : -1;
     return status;
   }
 
@@ -468,21 +469,23 @@
     el.classList.toggle("disabled", !enabled);
   }
 
+  let workingChapter = -1;
   function updateChapterDownload() {
-    setLink($("#dl-chapter-mp3"), api(`/download.mp3?chapter=${chapter}`), audioReady.has(chapter));
+    const some = audioReady.has(chapter) || workingChapter === chapter;
+    setLink($("#dl-chapter-mp3"), api(`/download.mp3?chapter=${chapter}`), some && book.chapters[chapter].segments > 0);
   }
 
   async function refreshAudioSummary() {
     const s = await refreshAudioStatus();
     const done = s.ready.length;
-    let text = done === s.total ? "Audiobook is fully narrated." : `Audio: ${done} of ${s.total} sections narrated.`;
-    if (s.working) {
+    let text = done === s.total ? "Audiobook is fully narrated." : `Audio: ${s.percent}% of the book narrated.`;
+    if (s.working && done < s.total) {
       const pct = Math.floor((s.working.segment / s.working.segments) * 100);
-      text += ` Narrating “${book.chapters[s.working.chapter].title}” now (${pct}%).`;
+      text += ` Working on “${book.chapters[s.working.chapter].title}” (${pct}% of that section).`;
     }
     $("#audio-summary").textContent = text;
-    setLink($("#dl-book-mp3"), api("/download.mp3"), done > 0);
-    $("#dl-book-mp3").textContent = done === s.total || done === 0 ? "Download audiobook (MP3)" : `Download audiobook so far (MP3, ${done}/${s.total})`;
+    setLink($("#dl-book-mp3"), api("/download.mp3"), s.percent > 0);
+    $("#dl-book-mp3").textContent = s.percent >= 100 || s.percent === 0 ? "Download audiobook (MP3)" : `Download audiobook so far (MP3, ${s.percent}%)`;
     updateChapterDownload();
   }
 

@@ -56,7 +56,22 @@ def _audio_status(book: dict) -> dict:
     working = store.read_json(store.WORKER) or {}
     if working.get("book") != book["id"] or time.time() - working.get("updated", 0) > 120:
         working = None
-    return {"ready": sorted(store.audio_done(book["id"])), "total": len(book["chapters"]), "working": working}
+    done = store.audio_done(book["id"])
+    # Progress by amount of text, since sections range from a title page to a whole novella.
+    folder = store.BOOKS_DIR / book["id"]
+    narrated = 0.0
+    for n, chapter in enumerate(book["chapters"]):
+        if n in done:
+            narrated += chapter["chars"]
+        elif partial := store.read_json(store.partial_paths(folder, n)[1]):
+            narrated += chapter["chars"] * len(partial["starts"]) / max(1, chapter["segments"])
+    total = sum(c["chars"] for c in book["chapters"]) or 1
+    return {
+        "ready": sorted(done),
+        "total": len(book["chapters"]),
+        "percent": 100 if len(done) == len(book["chapters"]) else min(99, int(narrated / total * 100)),
+        "working": working,
+    }
 
 
 def _filename(title: str, ext: str) -> str:
@@ -246,26 +261,40 @@ def download_epub(book_id: str):
 
 @api.get("/{book_id}/download.mp3")
 def download_mp3(book_id: str, chapter: int | None = None):
-    """The whole audiobook (every chapter narrated so far, in order) or a single chapter."""
+    """The whole audiobook or a single chapter, including whatever of an unfinished chapter is
+    narrated so far."""
     book, folder = _book(book_id)
     done = store.audio_done(book_id)
     numbers = [chapter] if chapter is not None else range(len(book["chapters"]))
-    files = [folder / "audio" / f"{n}.mp3" for n in numbers if n in done]
-    files = [f for f in files if f.exists()]
-    if not files:
+    # Open everything now: an unfinished chapter's file gets renamed when it completes.
+    parts = []
+    for n in numbers:
+        try:
+            if n in done:
+                path = folder / "audio" / f"{n}.mp3"
+                parts.append((path.open("rb"), path.stat().st_size))
+            else:
+                tmp, partial = store.partial_paths(folder, n)
+                length = (store.read_json(partial) or {}).get("bytes", 0)
+                if length:
+                    parts.append((tmp.open("rb"), length))
+        except FileNotFoundError:
+            continue
+    if not parts:
         raise HTTPException(404, "No audio yet")
     name = book["title"] if chapter is None else f"{book['title']} - {book['chapters'][chapter]['title']}"
 
     def stream():
         # Constant-bitrate MP3s with the same settings play back fine when simply joined.
-        for f in files:
-            with f.open("rb") as fh:
-                while chunk := fh.read(1 << 20):
+        for fh, length in parts:
+            with fh:
+                while length > 0 and (chunk := fh.read(min(1 << 20, length))):
+                    length -= len(chunk)
                     yield chunk
 
     return StreamingResponse(stream(), media_type="audio/mpeg", headers={
         "Content-Disposition": _filename(name, "mp3"),
-        "Content-Length": str(sum(f.stat().st_size for f in files)),
+        "Content-Length": str(sum(length for _, length in parts)),
         **auth.PRIVATE_HEADERS,
     })
 

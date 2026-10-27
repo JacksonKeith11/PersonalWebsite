@@ -37,6 +37,7 @@ up front. Read the matching one before you change something in that area:
 | `app/serials/` | `docs/serials.md` |
 | `app/books/`, `app/static/books/` | `docs/books.md` |
 | `app/static/games/`, `tools/threefold-autoplay.js`, `tools/threefold-art/` | `docs/game.md` |
+| Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.
 

@@ -22,7 +22,8 @@ loads Phaser 3.80.1 from cdnjs, then `js/main.js` as an ES module.
 | `js/battle.js` | `BattleScene` (Phaser drawing, tweens, particles), the turn loop, damage, statuses, movement, line of sight, terrain effects, the AI, and the battle side panel (HTML). |
 | `js/main.js` | Run flow and every HTML screen: title, map side panel, rewards, equipping, learning skills, promotion, events, shop, party screen, saving, the Phaser game config. |
 | `js/mapscene.js` | `MapScene`: the branching map, drawn and clickable. |
-| `js/art.js` | Sprites as 16×16 text grids and 8×8 map icons, and `hifi()`, which turns a grid into a finished 32×32 sprite. |
+| `js/art.js` | `flat32()`, which gives every sprite its outline and matte shading, the 8×8 map icons, and the canvas and texture caches. |
+| `js/sprites.js` | **Generated**: every hero and monster as a 32×32 grid of flat colour regions. Never edit it; change `tools/threefold-art/` and run `build.py`. |
 | `js/tiles.js` | Terrain at 32px, painted procedurally per theme (`THEME_ART`), and `drawBoard`, which composes a whole battle board including neighbour-aware touches. |
 | `js/audio.js` | Every sound effect and music loop, synthesized at startup with `OfflineAudioContext` and played through Phaser's sound manager. |
 | `js/ui.js` | DOM helpers `h()`, `sprImg()`, `bar()`, and the status tooltips (`tip`, `tipText`, `initTips`). |
@@ -96,27 +97,14 @@ Keep it that way.
   including burn and poison per turn ("Burns 2 turns (30% MAG = 5/turn)"). Pass a source wherever a
   skill is described. Equipping an artifact shows what it changes: `outputOf` before → after for
   each skill, plus stat changes for hero artifacts (`wearPreview` in `main.js`).
-- **Pixel art only, no image or audio files.** New sprites are 16×16 text grids in `art.js`; new
-  sounds are synth recipes in `audio.js`.
+- **Pixel art only, no image or audio files.** Sprites are drawn in Python and built into
+  `sprites.js`; sounds are synth recipes in `audio.js`.
 - **The look aims at modern 16-bit (the owner's reference is a cozy farm tileset).** Everything is
   32px per tile, shown at 2×.
-  - Sprites: `hifi()` doubles a grid with EPX, thins the outer outline back to 1px, makes outlines
-    near black tinted by what they wrap, mutes the palette, and gives each colour a flat fill with
-    one darker band on its lower-right side. Keep sprites matte: the owner found rim highlights too
-    glossy (their reference is a muted, cel-shaded top-down wizard).
-  - All 21 hero classes are hand-drawn 32×32 grids, picked by the owner from four options each;
-    enemies are next, the same way. Draw them as flat colour regions with no outline, leaving a pixel
-    of room at the edges: `flat32()` adds the outline, a darker band to the lower right of each colour
-    and a faint light edge to the upper left. They're assigned at the end of `art.js`, after every
-    recolour and variant, so enemies built from the old 16×16 grids (Dark Knight, Cutpurse, Clockwork
-    Soldier) keep their originals.
-  - `tools/threefold-art/` holds the Python that draws them (needs Pillow): `kit.py` (primitives,
-    the same shading as `flat32()`, contact sheets), one file per batch with every option including
-    the ones not picked (`warrior.py`, `mage.py`, `rogue.py`, `promos.py`, `masters.py`), `sheet.py`
-    for comparison sheets, and `export2.py`, which prints chosen designs as `art.js` entries, e.g.
-    `python3 export2.py masters out.js samurai=samurai4`. Promotions build on the owner's base picks
-    (`knight()`, `wizard()`, `bandit()` in `promos.py`) so a hero still looks like themselves. Draw grids with a `k` outline and `e` eyes and the pass does the rest; dark detail
-    inside a sprite stays 2px so it stays readable.
+  - Sprites: every hero and monster is hand-drawn at 32×32. **Read `docs/game-art.md`** before
+    drawing or changing one: it has the art direction, the palette, and what each chosen hero looks
+    like. The drawings live in `tools/threefold-art/` (Python with Pillow). `picks.py` maps each art
+    key to its drawing, and `python3 build.py` writes `js/sprites.js`. Then bump the game's `?v=`.
   - Terrain: `tiles.js` paints each tile from the theme's ramps (`blob()` gives lit, rimmed shapes),
     then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under
     high ground, shadows below walls, lava glow. The board is one canvas texture, repainted when

@@ -10,6 +10,7 @@ import re
 import time
 from email import policy
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
@@ -20,6 +21,11 @@ AO3_CHAPTER_RE = re.compile(r"^https?://archiveofourown\.org/works/(\d+)/chapter
 AO3_SUBJECT_RE = re.compile(r"posted (?:.* of )?(.+)$")
 ROYALROAD_FICTION_RE = re.compile(r"^https?://(?:www\.)?royalroad\.com/fiction/(\d+)(?:/[\w-]+)?/?(?:[?#].*)?$")
 ROYALROAD_CHAPTER_RE = re.compile(r"^https?://(?:www\.)?royalroad\.com/fiction/(\d+)(?:/[\w-]+)?/chapter/(\d+)(?:/[\w-]+)?")
+# Royal Road emails only link through a click tracker, so the details come from the text:
+# "<author> has just posted a new chapter of <fiction> titled <chapter>.\nYou can read it at <url>"
+ROYALROAD_SUBJECT_RE = re.compile(r"^New Chapter of (.+)$", re.IGNORECASE)
+ROYALROAD_TITLED_RE = re.compile(r"new chapter of (.+?) titled (.+?)\.?\s*$", re.IGNORECASE | re.MULTILINE)
+ROYALROAD_READ_RE = re.compile(r"read it at (https?://\S+)", re.IGNORECASE)
 FICTIONLIVE_STORY_RE = re.compile(r"^https?://fiction\.live/stories/([^/?#'\"]+)/([A-Za-z0-9]{17})/?(?:[?#].*)?$")
 FICTIONLIVE_CHAPTER_RE = re.compile(r"^https?://fiction\.live/stories/([^/?#'\"]+)/([A-Za-z0-9]{17})/[^/?#'\"]+/([A-Za-z0-9]{17})")
 GONE_LIVE_RE = re.compile(r"^(.*) has gone live\s*$", re.IGNORECASE)
@@ -79,7 +85,44 @@ def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> lis
     return updates
 
 
-def _royalroad_updates(links: list[tuple[str, str]], subject: str, sent: float) -> list[db.Update]:
+def _plain_text(msg: email.message.EmailMessage) -> str:
+    return next((p.get_content() for p in msg.walk() if p.get_content_type() == "text/plain"), "")
+
+
+def _royalroad_tracked_update(msg: email.message.EmailMessage, links: list[tuple[str, str]], subject: str, sent: float) -> list[db.Update]:
+    """Chapter notification whose only links go through Royal Road's click tracker."""
+    text = _plain_text(msg)
+    read = ROYALROAD_READ_RE.search(text)
+    url = read.group(1) if read else next((href for href, label in links if label.strip().lower() == "read now"), None)
+    subject_match = ROYALROAD_SUBJECT_RE.match(subject)
+    if not (url and subject_match):
+        return []
+    fiction = subject_match.group(1).strip()
+    chapter = "New chapter"
+    # Prefer splitting on the exact fiction title, since chapter titles can contain " titled ".
+    marker = f"{fiction} titled "
+    for line in text.splitlines():
+        if marker in line:
+            chapter = line.split(marker, 1)[1].strip().rstrip(".") or chapter
+            break
+    else:
+        titled = ROYALROAD_TITLED_RE.search(text)
+        if titled:
+            chapter = titled.group(2).strip()
+    return [
+        db.Update(
+            key=f"royalroad:{msg.get('Message-ID') or url}",
+            site="Royal Road",
+            story_title=fiction,
+            story_url=f"https://www.royalroad.com/fictions/search?{urlencode({'title': fiction})}",
+            title=chapter,
+            url=url,
+            published=sent,
+        )
+    ]
+
+
+def _royalroad_updates(msg: email.message.EmailMessage, links: list[tuple[str, str]], subject: str, sent: float) -> list[db.Update]:
     fiction_titles: dict[str, str] = {}
     for href, text in links:
         m = ROYALROAD_FICTION_RE.match(href)
@@ -102,7 +145,7 @@ def _royalroad_updates(links: list[tuple[str, str]], subject: str, sent: float) 
                     published=sent,
                 )
             )
-    return updates
+    return updates or _royalroad_tracked_update(msg, links, subject, sent)
 
 
 def _fictionlive_updates(msg: email.message.EmailMessage, links: list[tuple[str, str]], subject: str, sent: float) -> list[db.Update]:
@@ -163,7 +206,7 @@ def _process(msg: email.message.EmailMessage) -> None:
     if "archiveofourown.org" in sender:
         updates = _ao3_updates(links, subject, sent)
     elif "royalroad.com" in sender:
-        updates = _royalroad_updates(links, subject, sent)
+        updates = _royalroad_updates(msg, links, subject, sent)
     elif "fiction.live" in sender:
         updates = _fictionlive_updates(msg, links, subject, sent)
     else:

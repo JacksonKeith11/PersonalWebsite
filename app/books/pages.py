@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 2
+ASSET_VERSION = 3
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -12,7 +12,12 @@ HEAD = """<meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
-  <meta name="apple-mobile-web-app-capable" content="yes">"""
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Library">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/static/books/manifest.json">
+  <link rel="apple-touch-icon" href="/static/books/icon-180.png">"""
 
 
 def library() -> str:
@@ -52,7 +57,6 @@ def reader(book: dict) -> str:
 </head>
 <body data-book="{escape(book["id"])}">
   <div id="stage">
-    <div id="running-head"></div>
     <div id="viewport"><div id="flow"></div></div>
     <div id="footer"><span id="page-info"></span></div>
     <button id="listen-fab" class="icon-btn" aria-label="Listen" title="Listen from this page">{ICON_HEADPHONES}</button>

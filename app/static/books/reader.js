@@ -190,8 +190,6 @@
   }
 
   function updateFooter() {
-    const toc = book.toc[currentTocIndex()];
-    $("#running-head").textContent = toc && toc.chapter <= chapter ? toc.title : book.title;
     const left = pages - page - 1;
     const where = left === 0 ? "Last page in chapter" : `${left} page${left === 1 ? "" : "s"} left in chapter`;
     $("#page-info").textContent = `${where} · ${Math.floor(percent())}%`;

@@ -11,7 +11,7 @@
   --spacing: 1.6;
   --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --ui: -apple-system, system-ui, "Segoe UI", sans-serif;
-  --top: calc(env(safe-area-inset-top) + 40px);
+  --top: calc(env(safe-area-inset-top) + 18px);
   --bottom: calc(env(safe-area-inset-bottom) + 40px);
 }
 :root[data-theme="sepia"] {
@@ -66,7 +66,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   -webkit-user-select: none;
   user-select: none;
 }
-#running-head, #footer {
+#footer {
   position: absolute;
   left: 0;
   right: 0;
@@ -78,7 +78,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#running-head { top: calc(env(safe-area-inset-top) + 12px); }
 #footer { bottom: calc(env(safe-area-inset-bottom) + 14px); }
 
 #viewport {

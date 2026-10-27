@@ -183,3 +183,58 @@ def render(page: int = 1) -> str:
 </body>
 </html>
 """
+
+
+def render_login(failed: bool = False) -> str:
+    error = '<p class="err">Wrong password.</p>' if failed else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Updates</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=7">
+  <style>
+    .paper {{ max-width: 420px; }}
+    form {{ display: flex; gap: 10px; margin-top: 16px; }}
+    input[type=password] {{
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--fg);
+      font: inherit;
+    }}
+    input[type=password]:focus {{ outline: 2px solid var(--accent); outline-offset: -1px; }}
+    button {{
+      padding: 8px 18px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      background: var(--accent);
+      color: var(--paper);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }}
+    .err {{ color: #a33; margin: 12px 0 0; }}
+  </style>
+</head>
+<body>
+  <main class="paper">
+    <h1 class="page-title">Updates</h1>
+    <form method="post">
+      <input type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" autofocus required>
+      <button type="submit">Enter</button>
+    </form>
+    {error}
+  </main>
+</body>
+</html>
+"""

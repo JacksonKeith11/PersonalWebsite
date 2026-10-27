@@ -21,6 +21,7 @@ class Update:
     title: str
     url: str
     published: float  # unix seconds
+    author: str = ""
 
 
 def _db() -> sqlite3.Connection:
@@ -38,7 +39,8 @@ def _db() -> sqlite3.Connection:
                 story_url TEXT NOT NULL,
                 title TEXT NOT NULL,
                 url TEXT NOT NULL,
-                published REAL NOT NULL
+                published REAL NOT NULL,
+                author TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS updates_published ON updates (published DESC);
             CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT);
@@ -50,6 +52,11 @@ def _db() -> sqlite3.Connection:
             );
             """
         )
+        # Added after the table first shipped.
+        columns = {row["name"] for row in _conn.execute("PRAGMA table_info(updates)")}
+        if "author" not in columns:
+            _conn.execute("ALTER TABLE updates ADD COLUMN author TEXT NOT NULL DEFAULT ''")
+            _conn.commit()
     return _conn
 
 
@@ -58,16 +65,17 @@ def save_updates(updates: list[Update]) -> None:
         db = _db()
         db.executemany(
             """
-            INSERT INTO updates (key, site, story_title, story_url, title, url, published)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO updates (key, site, story_title, story_url, title, url, published, author)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (key) DO UPDATE SET
                 story_title = excluded.story_title,
                 story_url = excluded.story_url,
                 title = excluded.title,
                 url = excluded.url,
-                published = excluded.published
+                published = excluded.published,
+                author = excluded.author
             """,
-            [(u.key, u.site, u.story_title, u.story_url, u.title, u.url, u.published) for u in updates],
+            [(u.key, u.site, u.story_title, u.story_url, u.title, u.url, u.published, u.author) for u in updates],
         )
         db.commit()
 

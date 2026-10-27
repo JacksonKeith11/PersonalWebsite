@@ -19,6 +19,8 @@ from .. import db
 AO3_WORK_RE = re.compile(r"^https?://archiveofourown\.org/works/(\d+)/?$")
 AO3_CHAPTER_RE = re.compile(r"^https?://archiveofourown\.org/works/(\d+)/chapters/(\d+)")
 AO3_SUBJECT_RE = re.compile(r"posted (?:.* of )?(.+)$")
+AO3_AUTHOR_RE = re.compile(r"^https?://archiveofourown\.org/users/[^/]+/pseuds/[^/?#]+")
+AO3_SUBJECT_AUTHOR_RE = re.compile(r"^\[AO3\] (.+?) posted ")
 ROYALROAD_FICTION_RE = re.compile(r"^https?://(?:www\.)?royalroad\.com/fiction/(\d+)(?:/[\w-]+)?/?(?:[?#].*)?$")
 ROYALROAD_CHAPTER_RE = re.compile(r"^https?://(?:www\.)?royalroad\.com/fiction/(\d+)(?:/[\w-]+)?/chapter/(\d+)(?:/[\w-]+)?")
 # Royal Road emails only link through a click tracker, so the details come from the text:
@@ -29,6 +31,7 @@ ROYALROAD_READ_RE = re.compile(r"read it at (https?://\S+)", re.IGNORECASE)
 FICTIONLIVE_STORY_RE = re.compile(r"^https?://fiction\.live/stories/([^/?#'\"]+)/([A-Za-z0-9]{17})/?(?:[?#].*)?$")
 FICTIONLIVE_CHAPTER_RE = re.compile(r"^https?://fiction\.live/stories/([^/?#'\"]+)/([A-Za-z0-9]{17})/[^/?#'\"]+/([A-Za-z0-9]{17})")
 GONE_LIVE_RE = re.compile(r"^(.*) has gone live\s*$", re.IGNORECASE)
+FICTIONLIVE_USER_RE = re.compile(r"^https?://fiction\.live/user/([^/?#'\"]+)")
 URL_RE = re.compile(r"https?://[^\s'\"<>()]+")
 # Link text that says nothing about the chapter, e.g. a "Read now" button.
 GENERIC_LINK_TEXT = {"", "read", "read now", "read it here", "read chapter", "read the chapter", "click here", "here", "view"}
@@ -55,6 +58,9 @@ def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> lis
         if m and text:
             work_titles.setdefault(m.group(1), text)
     fallback = AO3_SUBJECT_RE.search(subject)
+    authors = list(dict.fromkeys(text for href, text in links if AO3_AUTHOR_RE.match(href) and text))
+    subject_author = AO3_SUBJECT_AUTHOR_RE.match(subject)
+    author = ", ".join(authors) or (subject_author.group(1) if subject_author else "")
 
     def work_title(work_id: str) -> str:
         return work_titles.get(work_id) or (fallback.group(1) if fallback else f"Work {work_id}")
@@ -73,6 +79,7 @@ def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> lis
                     title=_label(text, "New chapter"),
                     url=url,
                     published=sent,
+                    author=author,
                 )
             )
     if not updates and "posted" in subject:
@@ -80,7 +87,16 @@ def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> lis
         for work_id in work_titles:
             url = f"https://archiveofourown.org/works/{work_id}"
             updates.append(
-                db.Update(key=url, site="AO3", story_title=work_title(work_id), story_url=url, title="New work", url=url, published=sent)
+                db.Update(
+                    key=url,
+                    site="AO3",
+                    story_title=work_title(work_id),
+                    story_url=url,
+                    title="New work",
+                    url=url,
+                    published=sent,
+                    author=author,
+                )
             )
     return updates
 
@@ -157,6 +173,7 @@ def _fictionlive_updates(msg: email.message.EmailMessage, links: list[tuple[str,
             if m.group(2) not in story_titles or not story_titles[m.group(2)][0]:
                 story_titles[m.group(2)] = (_label(text, ""), url)
     live = GONE_LIVE_RE.match(subject)
+    author = next((m.group(1) for m in (FICTIONLIVE_USER_RE.match(href) for href, _ in links) if m), "")
 
     def story(story_id: str, slug: str) -> tuple[str, str]:
         title, url = story_titles.get(story_id, ("", f"https://fiction.live/stories/{slug}/{story_id}"))
@@ -177,6 +194,7 @@ def _fictionlive_updates(msg: email.message.EmailMessage, links: list[tuple[str,
                     title=_label(text, "New chapter"),
                     url=url,
                     published=sent,
+                    author=author,
                 )
             )
     if not updates and story_titles:
@@ -192,6 +210,7 @@ def _fictionlive_updates(msg: email.message.EmailMessage, links: list[tuple[str,
                 title="Went live" if live else "Update",
                 url=url,
                 published=sent,
+                author=author,
             )
         )
     return updates

@@ -69,15 +69,16 @@ def render(page: int = 1) -> str:
             current_day = day
         # AO3 only gives a date, stored as midnight UTC; don't show a fake time.
         when = "" if u["published"] % 86400 == 0 else local.strftime("%-I:%M %p")
+        by = f'<span class="author">by {escape(u["author"])}</span>' if u["author"] else ""
         rows.append(
             f"""<div class="update">
   {_icon(u["site"])}
   <span class="when">{escape(when)}</span>
   <div class="what">
-    <a class="story" href="{escape(u["story_url"])}">{escape(u["story_title"])}</a>
+    <a class="story" href="{escape(u["story_url"])}">{escape(u["story_title"])}</a>{by}
     <span class="chapter">{escape(u["title"])}</span>
   </div>
-  <a class="btn read" href="{escape(u["url"])}">Read</a>
+  <a class="btn read" href="{escape(u["url"])}" target="_blank" rel="noopener noreferrer">Read</a>
 </div>"""
         )
     if not rows:
@@ -96,6 +97,7 @@ def render(page: int = 1) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
   <title>Updates</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,6 +131,7 @@ def render(page: int = 1) -> str:
     .when {{ color: var(--muted); font-size: 0.9rem; white-space: nowrap; }}
     .what {{ min-width: 0; }}
     .story {{ color: var(--fg); font-weight: 600; margin-right: 8px; }}
+    .author {{ color: var(--muted); font-size: 0.9em; margin-right: 8px; }}
     .chapter {{ color: var(--muted); overflow-wrap: anywhere; }}
     .btn {{
       display: inline-block;

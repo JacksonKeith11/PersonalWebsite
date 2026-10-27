@@ -148,9 +148,13 @@ def _royalroad(f: _Fetcher, url: str, job: dict) -> Story:
         listing = json.loads(found.group(1)) if found else []
     except ValueError:
         listing = []
-    listing = [c for c in listing if c.get("isUnlocked", True) and c.get("url")]
     if not listing:
         raise ImportFailed("Couldn't find any chapters on that Royal Road page.")
+    # isUnlocked reads false for every chapter when logged out; only chapters tied to a paid
+    # subscription tier are actually locked.
+    listing = [c for c in listing if not c.get("subscriptionTiers") and c.get("url")]
+    if not listing:
+        raise ImportFailed("Every chapter of that story is locked behind a paid subscription.")
     job["title"], job["total"] = story.title, len(listing)
 
     for c in listing:

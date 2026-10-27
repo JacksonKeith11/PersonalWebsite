@@ -159,10 +159,71 @@
   }
 
   $("#link-toggle").addEventListener("click", () => {
-    const form = $("#link-form");
-    form.hidden = !form.hidden;
-    $("#link-toggle").setAttribute("aria-expanded", String(!form.hidden));
-    if (!form.hidden) $("#link-url").focus();
+    const panel = $("#link-panel");
+    panel.hidden = !panel.hidden;
+    $("#link-toggle").setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) $("#link-url").focus();
+  });
+
+  // The "Import to Library" bookmarklet. It runs on a Royal Road story page, which blocks this
+  // server but not the reader's browser: the browser fetches the story page and its free chapters a
+  // second apart, and hands them to /books/receive (opened as a popup, so it has the books_user
+  // cookie), which sends them to the importer. Self-contained, since it's serialized into the link.
+  function grab(origin) {
+    const fail = (m) => alert("Import to Library: " + m);
+    const fic = location.pathname.match(/^\/fiction\/(\d+)/);
+    if (!/(^|\.)royalroad\.com$/.test(location.hostname) || !fic) return fail("open a story on Royal Road first.");
+    const win = window.open(origin + "/books/receive", "books-receive", "popup,width=480,height=320");
+    if (!win) return fail("allow pop-ups for Royal Road and try again.");
+    const send = (msg) => win.postMessage(msg, origin);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const page = async (path) => {
+      const r = await fetch(path, { credentials: "include" });
+      if (!r.ok) throw new Error(`Royal Road returned an error (${r.status}).`);
+      return r.text();
+    };
+    let started = false;
+    addEventListener("message", async (e) => {
+      if (e.source !== win || e.data !== "ready" || started) return;
+      started = true;
+      try {
+        const index = `/fiction/${fic[1]}`;
+        const pages = { [index]: await page(index) };
+        const found = pages[index].match(/^\s*window\.chapters\s*=\s*(.*?)\s*;\s*$/m);
+        // Same rule as the server: only chapters tied to a paid tier are locked.
+        const chapters = (found ? JSON.parse(found[1]) : []).filter((c) => c.url && !(c.subscriptionTiers && c.subscriptionTiers.length));
+        if (!chapters.length) throw new Error("couldn't find any free chapters in that story.");
+        for (const [i, c] of chapters.entries()) {
+          if (win.closed) return;
+          send({ type: "progress", done: i, total: chapters.length });
+          await wait(1000);
+          const doc = new DOMParser().parseFromString(await page(c.url), "text/html");
+          const content = doc.querySelector("div.chapter-content");
+          if (!content) throw new Error(`couldn't read the chapter “${c.title}”.`);
+          // The page's styles mark Royal Road's hidden decoy paragraphs; the server drops them.
+          const styles = [...doc.querySelectorAll("style")].map((s) => s.outerHTML).join("");
+          pages[new URL(c.url, location.origin).pathname] = styles + content.outerHTML;
+        }
+        send({ type: "pages", url: location.origin + index, pages });
+      } catch (err) {
+        send({ type: "error", message: String((err && err.message) || err) });
+      }
+    });
+  }
+
+  const bookmarklet = "javascript:" + encodeURIComponent(`(${grab})(${JSON.stringify(location.origin)})`);
+  $("#bookmarklet").href = bookmarklet;
+  $("#bookmarklet").addEventListener("click", (e) => {
+    e.preventDefault();
+    notice("Drag that link to your bookmarks bar, then use it on a story's page on Royal Road.");
+  });
+  $("#bookmarklet-copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(bookmarklet);
+      notice("Copied. Add a bookmark, paste this as its address, and use it on a story's page on Royal Road.");
+    } catch {
+      notice("Couldn't copy. Drag the Import to Library link to your bookmarks instead.", true);
+    }
   });
 
   $("#link-form").addEventListener("submit", async (e) => {

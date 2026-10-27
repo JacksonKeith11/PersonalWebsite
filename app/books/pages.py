@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 15
+ASSET_VERSION = 16
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>
@@ -84,17 +84,46 @@ def library(user: str) -> str:
       <button id="link-toggle" class="btn add" type="button" aria-expanded="false">Add from link</button>
       <label class="btn add">Add book<input id="file" type="file" accept=".epub,application/epub+zip" multiple hidden></label>
     </div>
-    <form id="link-form" class="link-form" hidden>
-      <input id="link-url" type="url" placeholder="Royal Road, SpaceBattles, Sufficient Velocity or QQ story link"
-        aria-label="Story link" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
-      <button type="submit" class="btn">Import</button>
-    </form>
+    <div id="link-panel" hidden>
+      <form id="link-form" class="link-form">
+        <input id="link-url" type="url" placeholder="Royal Road, SpaceBattles, Sufficient Velocity or QQ story link"
+          aria-label="Story link" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+        <button type="submit" class="btn">Import</button>
+      </form>
+      <p class="link-hint">Royal Road blocks downloads from this server. Instead, drag
+        <a id="bookmarklet" class="bookmarklet" href="#">Import to Library</a> to your bookmarks bar
+        (or <button id="bookmarklet-copy" class="linkish" type="button">copy it</button> into a new bookmark's
+        address), then use it on a story's page on Royal Road.</p>
+    </div>
     <ul id="imports" class="imports" hidden></ul>
     <p id="notice" class="notice" hidden></p>
     <div id="books" class="books"></div>
     <p id="empty" class="empty" hidden>No books yet. Add an EPUB or a story link to get started; narration starts as soon as it's added.</p>
   </main>
   <script src="/static/books/library.js?v={ASSET_VERSION}"></script>
+</body>
+</html>
+"""
+
+
+def receive(user: str) -> str:
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  {HEAD}
+  <title>Import to Library</title>
+  {FONTS}
+  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
+</head>
+<body>
+  <main class="paper receive">
+    <h1 class="page-title">Import to Library</h1>
+    <p id="status" class="notice">Waiting for Royal Road…</p>
+    <div id="progress" class="bar" hidden><i></i></div>
+    <p class="hint">Signed in as {escape(user)} · <a href="/books" target="_blank" rel="noopener">Open your library</a></p>
+  </main>
+  <script src="/static/books/receive.js?v={ASSET_VERSION}"></script>
 </body>
 </html>
 """

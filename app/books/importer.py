@@ -3,7 +3,10 @@ Questionable Questing, then add it to a reader's library like an upload.
 
 Imports run one at a time on a background thread, a second apart per request, and only when a
 reader asks for one. Nothing here retries past a Cloudflare challenge: a blocked request fails
-the import with a message saying so. Jobs live in memory, so a restart drops unfinished ones.
+the import with a message saying so. Royal Road blocks this server, so its stories can instead
+come from the "Import to Library" bookmarklet: the reader's browser fetches the pages and they're
+parsed here as if fetched (see start_pages). Jobs live in memory, so a restart drops unfinished
+ones.
 """
 
 import hashlib
@@ -19,7 +22,7 @@ import time
 import uuid
 import zipfile
 from html import escape
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString, Tag
@@ -46,6 +49,7 @@ RR_FICTION_RE = re.compile(r"^/fiction/(\d+)")
 THREAD_RE = re.compile(r"/threads/(?:[^/]*\.)?(\d+)(?:/|$)")
 POST_RE = re.compile(r"(?:/posts/|#post-|post-)(\d+)")
 READER_POSTS_PER_PAGE = 10
+BOT_CHECK_RE = re.compile(r"<title>\s*(Just a moment|Making sure you(?:'|&#39;|’)re not a bot)", re.I)
 
 
 class ImportFailed(Exception):
@@ -62,17 +66,29 @@ class _Fetcher:
         self.client = client
         self.last = 0.0
 
+    def blocked(self) -> ImportFailed:
+        if self.site == "Royal Road":
+            return ImportFailed(
+                "Royal Road blocks downloads from this server. Open the story on Royal Road and use the "
+                "Import to Library bookmark instead (see Add from link)."
+            )
+        return ImportFailed(
+            f"{self.site} blocks automated downloads of that page. Save it with WebToEpub in your "
+            "browser and add the EPUB with Add book instead."
+        )
+
     def get(self, url: str, **kwargs) -> httpx.Response:
         time.sleep(max(0.0, self.last + DELAY - time.monotonic()))
         try:
-            return http.get(self.client, url, **kwargs)
+            r = http.get(self.client, url, **kwargs)
+            # Royal Road serves its bot check with a 200.
+            if BOT_CHECK_RE.search(r.text[:2000]):
+                raise self.blocked()
+            return r
         except httpx.HTTPStatusError as e:
             r = e.response
-            if r.headers.get("cf-mitigated") == "challenge" or "Just a moment" in r.text[:2000]:
-                raise ImportFailed(
-                    f"{self.site} blocks automated downloads of that page. Save it with WebToEpub in your "
-                    "browser and add the EPUB with Add book instead."
-                ) from e
+            if r.headers.get("cf-mitigated") == "challenge" or BOT_CHECK_RE.search(r.text[:2000]):
+                raise self.blocked() from e
             if r.status_code == 404:
                 raise ImportFailed(f"{self.site} says that page doesn't exist.") from e
             if r.status_code == 403:
@@ -85,6 +101,24 @@ class _Fetcher:
 
     def soup(self, url: str, **kwargs) -> BeautifulSoup:
         return BeautifulSoup(self.get(url, **kwargs).text, "html.parser")
+
+
+def _page_key(url: str) -> str:
+    return unquote(urlsplit(url).path).rstrip("/")
+
+
+class _Delivered(_Fetcher):
+    """Pages a reader's browser fetched, handed to the site parsers in place of requests."""
+
+    def __init__(self, site: str, client: httpx.Client, pages: dict[str, str]):
+        super().__init__(site, client)
+        self.pages = {_page_key(url): text for url, text in pages.items()}
+
+    def get(self, url: str, **kwargs) -> httpx.Response:
+        text = self.pages.get(_page_key(url))
+        if text is None:
+            raise ImportFailed(f"The browser didn't send {_page_key(url)}. Try the bookmark again.")
+        return httpx.Response(200, text=text, request=httpx.Request("GET", url))
 
 
 def identify(url: str) -> tuple[str, str]:
@@ -404,8 +438,28 @@ _thread: threading.Thread | None = None
 FINISHED_KEEP = 600  # seconds a finished or failed import stays listed
 
 
+_pages: dict[str, dict[str, str]] = {}  # job id -> pages from the bookmarklet, until it runs
+MAX_PAGES = 5000
+
+
 def start(url: str, owner: str) -> dict:
-    site, canonical = identify(url)
+    return _enqueue(*identify(url), owner)
+
+
+def start_pages(url: str, pages, owner: str) -> dict:
+    """Queue a Royal Road import from pages the reader's browser fetched: the story page and
+    each chapter page, keyed by URL or path."""
+    site, canonical = identify(str(url or ""))
+    if site != "royalroad":
+        raise ImportFailed("The bookmark only works on Royal Road.")
+    if not isinstance(pages, dict) or not 0 < len(pages) <= MAX_PAGES or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in pages.items()
+    ):
+        raise ImportFailed("The bookmark sent something unexpected. Try it again.")
+    return _enqueue(site, canonical, owner, pages)
+
+
+def _enqueue(site: str, canonical: str, owner: str, pages: dict[str, str] | None = None) -> dict:
     global _thread
     with _lock:
         for job in _jobs.values():
@@ -417,6 +471,8 @@ def start(url: str, owner: str) -> dict:
             "done": 0, "total": 0, "error": "", "book": None, "updated": time.time(),
         }
         _jobs[job["id"]] = job
+        if pages is not None:
+            _pages[job["id"]] = pages
         if _thread is None or not _thread.is_alive():
             _thread = threading.Thread(target=_run, name="book-import", daemon=True)
             _thread.start()
@@ -445,9 +501,11 @@ def _run() -> None:
         if not job:
             continue
         job["status"], job["updated"] = "running", time.time()
+        pages = _pages.pop(job["id"], None)
         try:
             if job["site"] == "royalroad":
-                f = _Fetcher("Royal Road", http.client())
+                client = http.client()
+                f = _Delivered("Royal Road", client, pages) if pages is not None else _Fetcher("Royal Road", client)
                 try:
                     story = _royalroad(f, job["url"], job)
                     data = build_epub(story, job["url"])

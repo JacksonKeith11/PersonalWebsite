@@ -149,3 +149,10 @@
 }
 .login input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .login .btn { background: var(--accent); color: var(--paper); font: inherit; font-weight: 600; }
+
+.link-hint { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; }
+.bookmarklet { font-weight: 600; padding: 1px 8px; border: 1px dashed var(--accent); border-radius: 4px; }
+.linkish { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.receive { max-width: 520px; }
+.receive .bar { margin-top: 12px; }
+.receive .hint { margin-top: 24px; color: var(--muted); font-size: 0.9rem; }

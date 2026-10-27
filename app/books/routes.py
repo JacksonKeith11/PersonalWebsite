@@ -78,6 +78,15 @@ def library(request: Request):
     return HTMLResponse(pages.library(user), headers=auth.PRIVATE_HEADERS)
 
 
+@router.get("/receive")
+def receive(request: Request):
+    """Opened by the bookmarklet on a Royal Road page; takes the pages it fetched."""
+    user = current_user(request)
+    if not user:
+        return _login("/books/receive")
+    return HTMLResponse(pages.receive(user), headers=auth.PRIVATE_HEADERS)
+
+
 @router.get("/read/{book_id}")
 def reader(request: Request, book_id: str):
     user = current_user(request)
@@ -159,6 +168,22 @@ async def import_url(request: Request, user: str = Depends(require_user)):
     url = str((await request.json()).get("url", ""))
     try:
         job = importer.start(url, user)
+    except importer.ImportFailed as e:
+        raise HTTPException(400, str(e))
+    return {"id": job["id"]}
+
+
+@api.post("/import-pages")
+async def import_pages(request: Request, user: str = Depends(require_user)):
+    """Start building a book from Royal Road pages the reader's browser fetched (the bookmarklet)."""
+    body = await request.body()
+    if len(body) > MAX_UPLOAD:
+        raise HTTPException(413, "That story is too large.")
+    try:
+        data = json.loads(body)
+        job = importer.start_pages(data.get("url"), data.get("pages"), user)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "The bookmark sent something unexpected. Try it again.")
     except importer.ImportFailed as e:
         raise HTTPException(400, str(e))
     return {"id": job["id"]}

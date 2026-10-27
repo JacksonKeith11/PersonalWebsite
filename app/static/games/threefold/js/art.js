@@ -766,6 +766,112 @@ Object.assign(ART, {
   kobold: recolor('sapper', { G: '#c86a3a', g: '#8a4424', Y: '#ffe14d' }),
 });
 
+// ---------- hand-drawn 32×32 sprites ----------
+// Drawn at full size (no doubling), as flat colour regions without outlines; flat32() adds the outline
+// and the matte shading. They replace the 16×16 base classes only after every variant and recolour above
+// has been built from the old grids, so the promotions and the Dark Knight keep working unchanged.
+Object.assign(ART, {
+  warrior: { pal: {'A': '#a8b0bc', 'a': '#7a8494', 'T': '#3a5aa8', 'Y': '#d0a840', 'P': '#c84040', 'k': '#2a2430', 'w': '#dfe6ee', 'h': '#6a4a2e', 'n': '#1e1a26', 'S': '#8a3a2a', 's': '#b85a3a'}, rows: [
+    '.............PPP................',
+    '............PPPPP...............',
+    '...........PP..PP...............',
+    '...........P....................',
+    '..........AAAaaAAA.....ww.......',
+    '.........AAAAaaAAAA....ww.......',
+    '.........AAAAaaAAAA....ww.......',
+    '.........AAAAaaAAAA....ww.......',
+    '.........Annnnnnnnn....ww.......',
+    '.........AAAAaaAAAA....ww.......',
+    '.........AAAAaaAAAA....ww.......',
+    '..........AAAaaAAA.....ww.......',
+    '...........AAaaAA......ww.......',
+    '......aaaaAAAAAAAAaaaa.ww.......',
+    '...SsssssSAAAAAAAAaaaa.ww.......',
+    '..SsssYsssSAAAAAAAaaAAAww.......',
+    '..SsssYsssSTTYYTTTAAAYYYYYY.....',
+    '..SYYYYYYYSTTYYTTTAAAAAhh.......',
+    '..SsssYsssSTTYYTTTAAAaahh.......',
+    '..SsssYsssSYYYYYYYAA.aaa........',
+    '...SssYssSTTTYYTTTA.............',
+    '...SssYssShhhhhhhhh.............',
+    '....SsYsSATTTYYTTTA.............',
+    '.....SsS.TTTTYYTTTT.............',
+    '......S..TTTTYYTTTT.............',
+    '..........aaa..aaa..............',
+    '..........aaa..aaa..............',
+    '..........aaa..aaa..............',
+    '..........aaa..aaa..............',
+    '.........kkkk..kkkk.............',
+    '.........kkkk..kkkk.............',
+    '................................'] },
+  mage: { pal: {'H': '#5b3a8a', 'h': '#45296e', 'Y': '#c8a040', 's': '#e0b48a', 'S': '#a8785a', 'b': '#d8d4cc', 'w': '#6a4a2e', 'c': '#7fd8e8', 'e': '#1a1420', 'l': '#5a3a24', 'k': '#2e2438', 'R': '#3e2766'}, rows: [
+    '........hh......................',
+    '.........hhH........www.........',
+    '..........hHHH.....w.ccw........',
+    '............HHH....wcc.w........',
+    '...........HHHHH...w.ccw........',
+    '...........HHHHH....www.........',
+    '..........HHHHHHH....ww.........',
+    '..........HHHHHHHH...ww.........',
+    '.........HHHHHHHHHH..ww.........',
+    '.......HHHHHHHHHHHHHHww.........',
+    '.....HHHHHHHHHHHHHHHHHH.........',
+    '..........SSSSSSSS...ww.........',
+    '..........ssessess...ww.........',
+    '..........ssssssss...ww.........',
+    '..........bbbbbbbb...ww.........',
+    '........hhbbbbbbbbhh.ww.........',
+    '.......hhhHbbbbbbHhhhww.........',
+    '.......hhhHbbbbbbHHhsss.........',
+    '.......hhhHHbbbbHHH.sss.........',
+    '.......hhhHHHbbHHHH.sss.........',
+    '.......hhhlllYYllllH.ww.........',
+    '.......sssHHYRRYHHHH.ww.........',
+    '.......sssHHYRRYHHHH.ww.........',
+    '........HHHHYRRYHHHH.ww.........',
+    '.......HHHHHYRRYHHHHHww.........',
+    '.......HHHHHYRRYHHHHHww.........',
+    '.......HHHHHYRRYHHHHHww.........',
+    '.......HHHHHYRRYHHHHHHw.........',
+    '......HYYYYYYYYYYYYYYYw.........',
+    '.........kkkk..kkkk..ww.........',
+    '.........kkkk..kkkk..ww.........',
+    '................................'] },
+  rogue: { pal: {'R': '#3a5aa8', 'r': '#2a4280', 's': '#d8a880', 'u': '#3a2a20', 'C': '#4a5a3a', 'V': '#8a6a46', 'v': '#6a4e32', 'w': '#dfe6ee', 'Y': '#c8a040', 'b': '#5a3a24', 'L': '#4a3e36', 'k': '#2a2028', 'e': '#1a1420', 'o': '#e8e0d0'}, rows: [
+    '................................',
+    '................................',
+    '................................',
+    '..........RRRRRRRR..............',
+    '.........RRRRRRRRRR.............',
+    '.........RRRRRRRRRR.............',
+    '.....RRrrRRRRRRRRRR.............',
+    '......Rr.rrrrrrrrrr.............',
+    '.......r..ssssssss..............',
+    '..........ssessess..............',
+    '..........sssssssu..............',
+    '..........suuuuuus.......ww.....',
+    '.......CCCssssssss......ww......',
+    '......CCCCCCooooooo....ww.......',
+    '.....CCCCCCVooooVVVooo.w........',
+    '.....CCCCCCVooooVVVooow.........',
+    '.....CCCCCVVooooVVVooow.........',
+    '.....CCCCCVVooooVVVooYYY........',
+    '.....CCCCCVVooooVVVosss.........',
+    '.....CCCCVVVooooVVVosss.........',
+    '.....CCCCVVVooooVVV.............',
+    '......CCCVVVooooVVV.............',
+    '......sssbbbbYYbbbb.............',
+    '......sssbbbbYYbbbb.............',
+    '.........ooooooovvv.............',
+    '.........ooooooovvv.............',
+    '..........LLL..LLL..............',
+    '..........LLL..LLL..............',
+    '..........LLL..LLL..............',
+    '.........kkkk..kkkk.............',
+    '.........kkkk..kkkk.............',
+    '................................'] },
+});
+
 export function paint(art) {
   const w = art.rows[0].length, ht = art.rows.length;
   const c = document.createElement('canvas');
@@ -852,8 +958,40 @@ export function hifi(art) {
   return c;
 }
 
+// The finish for a 32×32 grid: each colour a flat fill, one darker band where it ends to the lower
+// right, a faint lighter edge where it starts upper left, and a near-black outline around the outside.
+// 'e' (eyes) and 'o' (dark lines) stay flat.
+function flat32(art) {
+  const rows = art.rows, h = rows.length, w = rows[0].length;
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '.' : rows[y][x]);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x2 = c.getContext('2d'), img = x2.createImageData(w, h);
+  const DARK = [24, 16, 40], LIGHT = [255, 240, 210];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const ch = at(x, y);
+    let col;
+    if (ch === '.') {
+      const inside = DIR4.map(([dx, dy]) => at(x + dx, y + dy)).find(n => n !== '.');
+      if (!inside) continue;
+      col = mix(art.pal[inside] ? hexRGB(art.pal[inside]) : DARK, DARK, 0.86);
+    } else {
+      col = hexRGB(art.pal[ch] || '#ff00ff');
+      if (ch !== 'e' && ch !== 'o') {
+        const ne = (dx, dy) => at(x + dx, y + dy) !== ch;
+        if (ne(1, 0) || ne(0, 1) || (ne(2, 0) && ne(1, 1))) col = mix(col, DARK, 0.32);
+        else if (ne(-1, 0) || ne(0, -1)) col = mix(col, LIGHT, 0.08);
+      }
+    }
+    const i = (y * w + x) * 4;
+    img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
+  }
+  x2.putImageData(img, 0, 0);
+  return c;
+}
+
 const canvases = {};
-export function spriteCanvas(name) { return canvases[name] ||= hifi(ART[name]); }
+export function spriteCanvas(name) { return canvases[name] ||= (ART[name].rows.length === 32 ? flat32 : hifi)(ART[name]); }
 const urls = {};
 export function spriteURL(name) { return urls[name] ||= spriteCanvas(name).toDataURL(); }
 export function iconCanvas(name) { return canvases['icon_' + name] ||= paint(ICONS[name]); }

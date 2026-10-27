@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=20';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=21';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=20';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=20';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=20';
-import { env, startBattle, BattleScene } from './battle.js?v=20';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=20';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=20';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=21';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=21';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=21';
+import { env, startBattle, BattleScene } from './battle.js?v=21';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=21';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=21';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance

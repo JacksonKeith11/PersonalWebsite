@@ -38,7 +38,7 @@ def update_key(site: str, post_id: str) -> str:
     return f"{site}#post-{post_id}"
 
 
-def _login(c, base: str, username: str, password: str) -> None:
+def login(c, base: str, username: str, password: str) -> None:
     page = http.get(c, f"{base}/login/")
     token = BeautifulSoup(page.text, "html.parser").find("input", {"name": "_xfToken"})
     if not token:
@@ -100,7 +100,7 @@ def fetch(key: str) -> None:
     r = http.get(c, f"{base}/whats-new/threadmarks/", params=LISTING_PARAMS)
     if 'data-logged-in="true"' not in r.text:
         try:
-            _login(c, base, username, password)
+            login(c, base, username, password)
         except LoginRejected:
             db.mark_creds_rejected(key, username, password)
             raise

@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 13
+ASSET_VERSION = 14
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>
@@ -81,11 +81,18 @@ def library(user: str) -> str:
     <div class="lib-head">
       <h1 class="page-title">Library</h1>
       <span class="who">{escape(user)} · <a href="/books/logout">Switch user</a></span>
+      <button id="link-toggle" class="btn add" type="button" aria-expanded="false">Add from link</button>
       <label class="btn add">Add book<input id="file" type="file" accept=".epub,application/epub+zip" multiple hidden></label>
     </div>
+    <form id="link-form" class="link-form" hidden>
+      <input id="link-url" type="url" placeholder="Royal Road, SpaceBattles, Sufficient Velocity or QQ story link"
+        aria-label="Story link" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <button type="submit" class="btn">Import</button>
+    </form>
+    <ul id="imports" class="imports" hidden></ul>
     <p id="notice" class="notice" hidden></p>
     <div id="books" class="books"></div>
-    <p id="empty" class="empty" hidden>No books yet. Add an EPUB to get started; narration starts as soon as it's uploaded.</p>
+    <p id="empty" class="empty" hidden>No books yet. Add an EPUB or a story link to get started; narration starts as soon as it's added.</p>
   </main>
   <script src="/static/books/library.js?v={ASSET_VERSION}"></script>
 </body>

@@ -7,7 +7,9 @@
   padding: 6px 16px;
   border: 1px solid var(--accent);
   border-radius: 4px;
+  background: none;
   color: var(--accent);
+  font: inherit;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -16,6 +18,26 @@
 .notice { margin: 16px 0 0; color: var(--muted); }
 .notice.err { color: #a33; }
 .empty { color: var(--muted); margin-top: 28px; }
+
+.link-form { display: flex; gap: 10px; margin-top: 16px; }
+.link-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--fg);
+  font: inherit;
+}
+.link-form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.link-form .btn { background: var(--accent); color: var(--paper); font: inherit; font-weight: 600; }
+.imports { list-style: none; margin: 16px 0 0; padding: 0; }
+.imports li { display: flex; align-items: center; gap: 12px; padding: 6px 0; color: var(--muted); }
+.imports li .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.imports li.err .what { color: #a33; }
+.imports .bar { flex: 0 0 120px; margin: 0; }
+.imports .dismiss { border: 0; background: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
 
 .books {
   display: grid;
@@ -104,6 +126,8 @@
 @media (max-width: 640px) {
   .paper.library { margin: 0; padding: 28px 16px 40px; border-radius: 0; min-height: 100vh; }
   .books { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; }
+  .lib-head { flex-wrap: wrap; }
+  .imports .bar { flex-basis: 64px; }
 }
 
 .login { max-width: 520px; }

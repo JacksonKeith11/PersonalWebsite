@@ -11,7 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 
 from .. import auth
-from . import epub, pages, store
+from . import epub, importer, pages, store
 
 MAX_UPLOAD = 200 * 1024 * 1024
 # Chapter text, images and audio never change for a given book id, so browsers may keep them.
@@ -151,6 +151,28 @@ async def upload(request: Request, user: str = Depends(require_user)):
     except epub.EpubError as e:
         raise HTTPException(400, str(e))
     return {"id": book_id}
+
+
+@api.post("/import")
+async def import_url(request: Request, user: str = Depends(require_user)):
+    """Start building a book from a Royal Road or forum story link."""
+    url = str((await request.json()).get("url", ""))
+    try:
+        job = importer.start(url, user)
+    except importer.ImportFailed as e:
+        raise HTTPException(400, str(e))
+    return {"id": job["id"]}
+
+
+@api.get("/imports")
+def imports(user: str = Depends(require_user)):
+    return JSONResponse(importer.jobs_for(user), headers=auth.PRIVATE_HEADERS)
+
+
+@api.delete("/imports/{job_id}")
+def dismiss_import(job_id: str, user: str = Depends(require_user)):
+    importer.dismiss(job_id, user)
+    return {"ok": True}
 
 
 @api.get("/{book_id}")

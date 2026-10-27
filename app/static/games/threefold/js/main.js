@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=10';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=11';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=10';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=10';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=10';
-import { env, startBattle, BattleScene } from './battle.js?v=10';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=10';
-import { h, sprImg, bar } from './ui.js?v=10';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=11';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=11';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=11';
+import { env, startBattle, BattleScene } from './battle.js?v=11';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=11';
+import { h, sprImg, bar } from './ui.js?v=11';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -222,7 +222,9 @@ function skillCard(p, id, extra, onpick, disabled) {
 }
 
 // Put an artifact on a hero or a skill, or in the pack. show() is setScreen or modalShow.
-function equipFlow(id, next, show = setScreen) {
+// back, if given, returns to the screen the artifact was chosen on, with nothing taken or spent.
+function equipFlow(id, next, show = setScreen, back = null) {
+  const backBtn = () => back ? btn('Back', back) : null;
   const keep = () => { run.stash.push(id); next(); };
   hud();
   if (isSkillArt(id)) {
@@ -240,7 +242,7 @@ function equipFlow(id, next, show = setScreen) {
           after && a !== b ? delta('', a, b) : null,
           h('div', { class: 'desc' }, after ? describe(after, heroSrc(t.p, run.gold)) : t.s.mods.length >= MAX_MODS ? 'No free slot' : 'Doesn\'t fit this skill'));
       })),
-      btn('Keep in pack', keep)));
+      btn('Keep in pack', keep), backBtn()));
     auto(() => { const t = targets.find(t => t.ok); if (t) socket(t); else keep(); });
   } else {
     const wear = p => { p.items.push(id); const it = ITEMS[id]; if (it.stats && it.stats.maxHp > 0) p.hp += it.stats.maxHp; clampHp(); sfx('coin'); next(); };
@@ -250,7 +252,7 @@ function equipFlow(id, next, show = setScreen) {
         h('div', { class: 'pick-head' }, sprImg(heroSprite(p)), h('b', {}, heroTitle(p))),
         h('div', { class: 'desc' }, p.items.length ? `Wearing ${p.items.map(artName).join(', ')}` : 'Nothing worn yet'),
         ...(canWear(p, id) ? wearPreview(p, id) : [])))),
-      btn('Keep in pack', keep)));
+      btn('Keep in pack', keep), backBtn()));
     auto(() => { const p = run.party.find(p => canWear(p, id)); if (p) wear(p); else keep(); });
   }
 }
@@ -316,7 +318,7 @@ function showRewards(info) {
       h('h2', {}, taken ? 'Take one more' : info.kind === 'boss' ? `${ACTS[run.act].boss} is defeated!` : 'Victory!'),
       taken ? null : h('p', {}, `+${info.gold} gold. Every hero gains 4 max HP and 1 ${'ATK or MAG'}. Other wounds stay until you rest.`),
       h('h3', {}, picks > 1 ? `Spoils: choose ${picks - taken}` : 'Spoils: choose one'),
-      h('div', { class: 'cards' }, offers.map(id => artCard(id, null, () => { taken++; offers = offers.filter(x => x !== id); equipFlow(id, spoils); }))),
+      h('div', { class: 'cards' }, offers.map(id => artCard(id, null, () => equipFlow(id, () => { taken++; offers = offers.filter(x => x !== id); spoils(); }, setScreen, spoils)))),
       btn('Leave them', learn)));
     auto(() => { taken++; const id = offers.shift(); equipFlow(id, spoils); });
   };
@@ -457,7 +459,7 @@ const EVENTS = [
 function chooseArtifact(title, ids, next) {
   if (!ids.length) { next(); return; }
   setScreen(h('div', { class: 'panel' }, h('h2', {}, title),
-    h('div', { class: 'cards' }, ids.map(id => artCard(id, null, () => equipFlow(id, next)))), btn('Take nothing', next)));
+    h('div', { class: 'cards' }, ids.map(id => artCard(id, null, () => equipFlow(id, next, setScreen, () => chooseArtifact(title, ids, next))))), btn('Take nothing', next)));
   auto(() => equipFlow(ids[0], next));
 }
 function showEvent() {
@@ -504,7 +506,7 @@ function showShop(n) {
   hud();
   music('m_map');
   const again = () => showShop(n);
-  const buy = it => { run.gold -= it.price; it.sold = true; equipFlow(it.id, again); };
+  const buy = it => equipFlow(it.id, () => { run.gold -= it.price; it.sold = true; again(); }, setScreen, again);
   const lesson = c => learnFlow(c.hi, c.id, () => { run.gold -= TUTOR; c.sold = true; again(); }, setScreen, again);
   const rest = () => { run.gold -= INN; shop.inn = true; healAll(innHeal(n)); sfx('heal'); again(); };
   setScreen(h('div', {},
@@ -538,7 +540,7 @@ function showParty() {
   const refresh = () => { hud(); showParty(); };
   const unsocket = (s, i) => { run.stash.push(s.mods.splice(i, 1)[0]); refresh(); };
   const unwear = (p, i) => { run.stash.push(p.items.splice(i, 1)[0]); clampHp(); refresh(); };
-  const equip = i => { const id = run.stash.splice(i, 1)[0]; equipFlow(id, refresh, modalShow); };
+  const equip = i => { const id = run.stash[i]; equipFlow(id, () => { run.stash.splice(run.stash.indexOf(id), 1); refresh(); }, modalShow, refresh); };
   const x = (label, fn) => h('button', { class: 'linkbtn', onclick: fn }, label);
   modalShow(h('div', {},
     h('div', { class: 'row' }, h('h2', { class: 'grow' }, 'Your party'), h('button', { class: 'btn', onclick: close }, 'Close')),

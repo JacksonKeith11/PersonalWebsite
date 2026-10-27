@@ -185,7 +185,7 @@ def render(page: int = 1) -> str:
 """
 
 
-def render_login(failed: bool = False) -> str:
+def render_login(failed: bool = False, title: str = "Updates", next_path: str = "/") -> str:
     error = '<p class="err">Wrong password.</p>' if failed else ""
     return f"""<!doctype html>
 <html lang="en">
@@ -194,7 +194,7 @@ def render_login(failed: bool = False) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
-  <title>Updates</title>
+  <title>{escape(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
@@ -228,8 +228,9 @@ def render_login(failed: bool = False) -> str:
 </head>
 <body>
   <main class="paper">
-    <h1 class="page-title">Updates</h1>
-    <form method="post">
+    <h1 class="page-title">{escape(title)}</h1>
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{escape(next_path)}">
       <input type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" autofocus required>
       <button type="submit">Enter</button>
     </form>

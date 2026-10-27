@@ -10,6 +10,17 @@ services:
     volumes:
       - ./data:/app/data
 
+  # Narrates uploaded books with Kokoro text-to-speech in the background.
+  tts:
+    build:
+      context: .
+      dockerfile: Dockerfile.tts
+    restart: unless-stopped
+    environment:
+      - TTS_VOICE=am_michael
+    volumes:
+      - ./data:/app/data
+
   # Exposes the site on your domain via Cloudflare Tunnel (no router port forwarding).
   # Start with: docker compose --profile tunnel up -d
   tunnel:

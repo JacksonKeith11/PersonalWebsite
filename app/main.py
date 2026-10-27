@@ -1,6 +1,4 @@
 import asyncio
-import hashlib
-import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -11,16 +9,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import auth
+from .books import routes as books_routes
 from .serials import page as serials_page
 from .serials import scheduler
 
 STATIC_DIR = Path(__file__).parent / "static"
 # Unlisted path for the serial updates page; it is only served when this is set.
 SERIALS_PATH = os.environ.get("SERIALS_PATH", "").strip("/")
-# Optional password for that page. It's a light gate against casual visitors, not real security.
-SERIALS_PASSWORD = os.environ.get("SERIALS_PASSWORD", "")
-AUTH_COOKIE = "serials_auth"
-AUTH_MAX_AGE = 400 * 24 * 60 * 60  # browsers cap cookie lifetimes at about 400 days
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,40 +52,36 @@ def healthz():
     return {"status": "ok"}
 
 
-PRIVATE_HEADERS = {"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-store"}
-
-
-def _auth_token() -> str:
-    # Derived from the password, so changing SERIALS_PASSWORD signs out every browser.
-    return hmac.new(SERIALS_PASSWORD.encode(), b"serials-auth", hashlib.sha256).hexdigest()
-
-
-def _authorized(request: Request) -> bool:
-    return not SERIALS_PASSWORD or hmac.compare_digest(request.cookies.get(AUTH_COOKIE, ""), _auth_token())
+@app.post("/login", include_in_schema=False)
+async def login(request: Request):
+    form = parse_qs((await request.body()).decode())
+    password = form.get("password", [""])[0]
+    next_path = form.get("next", ["/"])[0]
+    if not next_path.startswith("/") or next_path.startswith("//"):
+        next_path = "/"
+    if not auth.password_ok(password):
+        await asyncio.sleep(1)  # slow down guessing
+        return HTMLResponse(
+            serials_page.render_login(failed=True, next_path=next_path), status_code=401, headers=auth.PRIVATE_HEADERS
+        )
+    response = RedirectResponse(next_path, status_code=303)
+    response.set_cookie(
+        auth.COOKIE, auth.token(), max_age=auth.MAX_AGE, path="/", secure=True, httponly=True, samesite="lax"
+    )
+    return response
 
 
 if SERIALS_PATH:
 
     @app.get(f"/{SERIALS_PATH}", include_in_schema=False)
     def serials(request: Request, page: int = 1):
-        if not _authorized(request):
-            return HTMLResponse(serials_page.render_login(), status_code=401, headers=PRIVATE_HEADERS)
-        return HTMLResponse(serials_page.render(page), headers=PRIVATE_HEADERS)
+        if not auth.authorized(request):
+            return HTMLResponse(
+                serials_page.render_login(next_path=f"/{SERIALS_PATH}"), status_code=401, headers=auth.PRIVATE_HEADERS
+            )
+        return HTMLResponse(serials_page.render(page), headers=auth.PRIVATE_HEADERS)
 
-    @app.post(f"/{SERIALS_PATH}", include_in_schema=False)
-    async def serials_login(request: Request):
-        password = parse_qs((await request.body()).decode()).get("password", [""])[0]
-        if not SERIALS_PASSWORD or not hmac.compare_digest(password.encode(), SERIALS_PASSWORD.encode()):
-            await asyncio.sleep(1)  # slow down guessing
-            return HTMLResponse(serials_page.render_login(failed=True), status_code=401, headers=PRIVATE_HEADERS)
-        response = RedirectResponse(f"/{SERIALS_PATH}", status_code=303)
-        response.set_cookie(
-            AUTH_COOKIE,
-            _auth_token(),
-            max_age=AUTH_MAX_AGE,
-            path=f"/{SERIALS_PATH}",
-            secure=True,
-            httponly=True,
-            samesite="lax",
-        )
-        return response
+
+# Books hold copyrighted text, so they're only served behind the password.
+if auth.PASSWORD:
+    app.include_router(books_routes.router)

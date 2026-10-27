@@ -92,7 +92,7 @@ export const SKILLS = {
   warcry: { name: 'War Cry', kind: 'buff', tgt: 'self', range: [0, 0], aoe: 3, hits: 'foes', taunt: 2, guard: true, cd: 4,
     txt: 'Nearby foes must attack you, and you take 40% less damage until your next turn.' },
 
-  bolt: { name: 'Arcane Bolt', kind: 'mag', tgt: 'foe', range: [2, 4], pow: 0.75, cd: 0, txt: 'A bolt of force. Needs line of sight.' },
+  bolt: { name: 'Arcane Bolt', kind: 'mag', tgt: 'foe', range: [2, 4], pow: 0.75, cd: 0, txt: 'A bolt of force.' },
   fireball: { name: 'Fireball', kind: 'mag', tgt: 'tile', range: [2, 5], aoe: 1, hits: 'all', pow: 1.15, cd: 3, lob: true, txt: 'Lobbed over walls. Burns friend and foe alike.' },
   frost: { name: 'Frost Lance', kind: 'mag', tgt: 'foe', range: [1, 4], pow: 0.9, cd: 2, slow: 2, txt: 'The target acts at half speed for 2 turns.' },
   mend: { name: 'Mend', kind: 'heal', tgt: 'ally', range: [0, 3], pow: 1.0, cd: 2, cleanse: true, lob: true, txt: 'Restores HP and cures poison and burns.' },
@@ -133,7 +133,7 @@ export const SKILLS = {
   e_boulder: { name: 'Hurl Boulder', kind: 'phys', tgt: 'foe', range: [2, 4], pow: 0.9, knock: true, cd: 2, lob: true },
   e_deathbolt: { name: 'Death Bolt', kind: 'mag', tgt: 'foe', range: [2, 5], pow: 1.0, cd: 0 },
   e_nova: { name: 'Grave Nova', kind: 'mag', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 0.85, cd: 3 },
-  e_raise: { name: 'Raise Dead', kind: 'summon', tgt: 'self', range: [0, 0], cd: 4, summon: 'skeleton', txt: 'Calls up two skeletons.' },
+  e_raise: { name: 'Raise Dead', kind: 'summon', tgt: 'self', range: [0, 0], cd: 5, summon: 'skeleton', txt: 'Calls up two skeletons.' },
   e_roots: { name: 'Grasping Roots', kind: 'mag', tgt: 'foe', range: [2, 5], pow: 0.7, pull: 9, slow: 2, cd: 2, lob: true, txt: 'Drags the target to the Thornmother.' },
   e_thornburst: { name: 'Thornburst', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 0.7, poison: 2, poisonPow: 0.3, cd: 3 },
   e_overgrow: { name: 'Overgrowth', kind: 'mag', tgt: 'tile', range: [2, 5], aoe: 1, hits: 'foes', pow: 0.5, terrain: T.THORN, lob: true, cd: 3, txt: 'Brambles burst from the ground.' },

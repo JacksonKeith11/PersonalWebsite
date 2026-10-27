@@ -56,8 +56,8 @@ function heroUnit(p) {
 }
 function foeUnit(kind, lvl) {
   const d = FOES[kind];
-  const hm = 1 + 0.07 * (lvl - 1), sm = 1 + 0.052 * (lvl - 1), dp = Math.floor((lvl - 1) / 5);
-  const hp = Math.round(d.hp * hm);
+  const hm = 1 + 0.065 * (lvl - 1), sm = 1 + 0.048 * (lvl - 1), dp = Math.floor((lvl - 1) / 5);
+  const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm));
   return { id: ++B.uid, side: 'foe', kind, spr: kind, name: d.name, hp, maxHp: hp, atk: Math.round(d.atk * sm), mag: Math.round((d.mag || 0) * sm),
     def: d.def + dp, res: d.res + dp, spd: d.spd, mov: d.mov, crit: 5, flank: 1.25, items: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, regen: d.regen || 0, scale: d.scale || 1, info: d.info,

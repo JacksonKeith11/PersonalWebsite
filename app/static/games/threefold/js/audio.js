@@ -1,7 +1,7 @@
 // Chiptune audio, synthesized at startup with OfflineAudioContext and handed to Phaser's sound manager.
 // Nothing is downloaded: every effect and music loop is built from oscillators and noise here.
 
-const SR = 22050;
+const SR = 44100; // older Safari can't render offline audio at lower rates
 const A = { game: null, ready: false, music: true, sfx: true, wanted: null, playing: null, playingKey: null };
 try {
   const s = JSON.parse(localStorage.getItem('threefold-audio') || '{}');
@@ -48,13 +48,19 @@ function kit(ctx, out) {
   };
 }
 
-async function render(seconds, build) {
+async function render(seconds, build, target = 0.85) {
   const ctx = new OfflineAudioContext(1, Math.ceil(seconds * SR), SR);
   const out = ctx.createGain();
   out.gain.value = 0.9;
   out.connect(ctx.destination);
   build(kit(ctx, out));
-  return ctx.startRendering();
+  const buf = await ctx.startRendering();
+  // normalize so every sound sits at a healthy level whatever its synth settings
+  const d = buf.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  if (peak > 0) { const k = target / peak; for (let i = 0; i < d.length; i++) d[i] *= k; }
+  return buf;
 }
 
 const SFX = {
@@ -143,21 +149,26 @@ function saveSettings() {
 export async function initAudio(game) {
   A.game = game;
   if (!game.sound || !game.sound.context || typeof OfflineAudioContext === 'undefined') return;
+  // iPhones mute web audio with the silent switch unless the page asks for playback audio
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* unsupported */ }
+  // resume on any tap or key, not only through Phaser's own unlock
+  const wake = () => { const c = game.sound.context; if (c && c.state !== 'running') c.resume().catch(() => {}); };
+  for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, wake, { capture: true, passive: true });
   const jobs = [];
-  for (const [key, [len, build]] of Object.entries(SFX)) jobs.push(render(len, build).then(b => game.cache.audio.add(key, b)));
+  for (const [key, [len, build]] of Object.entries(SFX)) jobs.push(render(len, build, key === 'step' || key === 'click' ? 0.45 : 0.85).then(b => game.cache.audio.add(key, b)));
   await Promise.all(jobs);
   A.ready = true;
   if (A.wanted) { const w = A.wanted; A.wanted = null; music(w); }
   for (const [key, def] of Object.entries(TRACKS)) {
     const [len, build] = track(def);
-    game.cache.audio.add(key, await render(len, build));
+    game.cache.audio.add(key, await render(len, build, 0.8));
     if (A.wanted === key && !A.playing) { A.wanted = null; music(key); }
   }
 }
 
 export function sfx(name, vol = 1) {
   if (!A.ready || !A.sfx || !A.game.cache.audio.exists(name)) return;
-  try { A.game.sound.play(name, { volume: 0.55 * vol, detune: Math.round((Math.random() - 0.5) * 120) }); } catch (e) { /* sound unavailable */ }
+  try { A.game.sound.play(name, { volume: 0.7 * vol, detune: Math.round((Math.random() - 0.5) * 120) }); } catch (e) { /* sound unavailable */ }
 }
 
 export function music(key) {
@@ -166,7 +177,7 @@ export function music(key) {
   A.wanted = key;
   if (!A.ready || !A.music || !key || !A.game.cache.audio.exists(key)) return;
   try {
-    A.playing = A.game.sound.add(key, { loop: true, volume: 0.32 });
+    A.playing = A.game.sound.add(key, { loop: true, volume: 0.45 });
     A.playing.play();
     A.playingKey = key;
     A.wanted = null;
@@ -182,4 +193,4 @@ export function toggleMusic() {
   else if (A.music && k) music(k);
 }
 export function toggleSfx() { A.sfx = !A.sfx; saveSettings(); }
-export const audioDebug = () => ({ ready: A.ready, playing: A.playingKey });
+export const audioDebug = () => ({ ready: A.ready, playing: A.playingKey, state: A.game && A.game.sound.context && A.game.sound.context.state });

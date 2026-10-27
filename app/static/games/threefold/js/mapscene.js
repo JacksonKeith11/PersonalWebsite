@@ -1,6 +1,6 @@
 // The branching path for the current act, drawn and made clickable with Phaser.
-import { ROWS_PER_ACT } from './data.js?v=2';
-import { NODE_COLORS } from './art.js?v=2';
+import { ROWS_PER_ACT } from './data.js?v=3';
+import { NODE_COLORS } from './art.js?v=3';
 
 export const MAP = { W: 640, TOP: 70, STEP: 70, COLS: 6 };
 export const mapHeight = () => MAP.TOP * 2 + ROWS_PER_ACT * MAP.STEP;

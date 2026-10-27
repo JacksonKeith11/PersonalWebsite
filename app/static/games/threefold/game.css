@@ -188,3 +188,12 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
   .title-name { font-size: 19px; }
   .btn { font-size: 9px; padding: 8px 9px; }
 }
+
+/* Artifacts */
+.pick .kind { color: #8f80a3; font-size: 17px; margin-bottom: 2px; }
+.pick.skillart { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px #3f8f8a; }
+.pick.heroart { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px #a0702a; }
+.pick.skillart:hover:not(:disabled), .pick.heroart:hover:not(:disabled) { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px var(--gold); }
+.mods { margin: 2px 0 6px; }
+.mod { display: inline-block; margin-right: 10px; color: #7fd8d0; font-size: 18px; }
+.mod.empty { color: #5d5070; }

@@ -1,5 +1,5 @@
-// Rules shared by the battle and the menus: hero stats, skill stats after upgrades, descriptions.
-import { CLASSES, PROMOS, SKILLS, UPGRADES, ITEMS, MAX_UPGRADES } from './data.js?v=2';
+// Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
+import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=3';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -12,14 +12,18 @@ export function shuffle(a) {
 export const has = (u, id) => !!(u.items && u.items.includes(id));
 export const heroSprite = p => p.promo || p.cls;
 export const heroTitle = p => p.promo ? PROMOS[p.promo].name : CLASSES[p.cls].name;
+export const isSkillArt = id => !!MODS[id];
+export const artName = id => (MODS[id] || ITEMS[id]).name;
+export const artText = id => MODS[id] ? MODS[id].note : ITEMS[id].txt;
+export const artPrice = id => (MODS[id] || ITEMS[id]).price;
 
 export function newHero(cls) {
   const c = CLASSES[cls];
   return { cls, promo: null, maxHp: c.hp, hp: c.hp, atk: c.atk, mag: c.mag, def: c.def, res: c.res, spd: c.spd, mov: c.mov, crit: c.crit, items: [],
-    skills: c.skills.map(id => ({ id, ups: [] })) };
+    skills: c.start.map(id => ({ id, mods: [] })) };
 }
 
-// Stats with items applied. gold feeds the Gold Tooth.
+// Stats with hero artifacts applied. gold feeds the Gold Tooth.
 export function heroStats(p, gold = 0) {
   const o = { maxHp: p.maxHp, atk: p.atk, mag: p.mag, def: p.def, res: p.res, spd: p.spd, mov: p.mov, crit: p.crit };
   for (const id of p.items) for (const [k, v] of Object.entries(ITEMS[id].stats || {})) o[k] += v;
@@ -29,21 +33,21 @@ export function heroStats(p, gold = 0) {
   o.mov = Math.max(1, o.mov); o.spd = Math.max(1, o.spd);
   return o;
 }
+// What describe() and the damage numbers read stats from, for a hero outside battle.
+export const heroSrc = (p, gold) => ({ ...heroStats(p, gold), hp: p.hp, items: p.items });
 
 export function promote(p, id) {
   p.promo = id;
-  const pr = PROMOS[id];
-  for (const [k, v] of Object.entries(pr.stats)) { p[k] += v; if (k === 'maxHp') p.hp += v; }
-  p.skills.push({ id: pr.skill, ups: [] });
+  for (const [k, v] of Object.entries(PROMOS[id].stats)) { p[k] += v; if (k === 'maxHp') p.hp += v; }
 }
 
-// The skill as it stands after its upgrades and the holder's items.
+// The skill as it stands after its artifacts and the holder's hero artifacts.
 export function skStats(u, s) {
   const d = SKILLS[s.id];
-  const o = { ...d, id: s.id, range: [...d.range], ups: s.ups || [] };
+  const o = { ...d, id: s.id, range: [...d.range], mods: s.mods || [] };
   o.stat = d.stat || (d.kind === 'phys' ? 'atk' : 'mag');
   if (!o.hits) o.hits = o.kind === 'heal' || o.kind === 'shield' ? 'allies' : 'foes';
-  for (const id of o.ups) UPGRADES[id].apply(o);
+  for (const id of o.mods) MODS[id].apply(o);
   if (has(u, 'scope') && o.range[1] > 1 && o.tgt !== 'self') o.range = [o.range[0], o.range[1] + 1];
   if (has(u, 'belt') && o.aoe) o.aoe += 1;
   if (has(u, 'hourglass') && o.cd > 1) o.cd -= 1;
@@ -53,8 +57,15 @@ export function skStats(u, s) {
   return o;
 }
 
+export function statVal(u, stat) {
+  let v = stat === 'missing' ? (u.maxHp - u.hp) * 0.6 + 3 : stat === 'heft' ? u.maxHp * 0.3 : u[stat];
+  if (u.tmp && u.tmp[stat]) v += u.tmp[stat];
+  return Math.max(0, v || 0);
+}
+
 const STAT_NAMES = { atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', missing: 'missing HP', heft: '30% max HP' };
-export function describe(o) {
+// src (a battle unit or heroSrc()) adds the raw number the skill puts out, before the target's defenses.
+export function describe(o, src) {
   const parts = [];
   const [a, b] = o.range;
   if (o.shape === 'random') parts.push('A random foe anywhere');
@@ -62,15 +73,17 @@ export function describe(o) {
   else if (o.tgt === 'self') parts.push(o.aoe ? `Around you, radius ${o.aoe}${o.diag ? ' (diagonals too)' : ''}` : 'Self');
   else parts.push(`${o.shape === 'line' ? 'Line, ' : ''}Range ${a === b ? a : a + '–' + b}`);
   if (o.aoe && o.tgt !== 'self') parts.push(`Area ${o.aoe}`);
-  const pct = `${Math.round(o.pow * 100)}% ${STAT_NAMES[o.stat]}`;
+  const n = src ? ` = ${Math.round(statVal(src, o.stat) * o.pow)}` : '';
+  const pct = `${Math.round(o.pow * 100)}% ${STAT_NAMES[o.stat]}${n}`;
+  const times = o.times || (o.double ? 2 : 1);
   if (o.kind === 'heal') parts.push(`Heals ${pct}`);
   else if (o.kind === 'shield') parts.push(`Shields ${pct}`);
-  else if (o.kind === 'phys' || o.kind === 'mag') parts.push(`${pct}${o.kind === 'mag' && o.stat !== 'mag' ? ' (magic)' : o.kind === 'phys' && o.stat !== 'atk' ? ' (physical)' : ''}${o.double ? ' ×2' : ''}`);
+  else if (o.kind === 'phys' || o.kind === 'mag') parts.push(`${pct} ${o.kind === 'mag' ? 'magic' : 'physical'}${times > 1 ? ' ×' + times : ''}`);
   if (o.shape === 'chain') parts.push(`Bounces ${o.chainN}×`);
   if (o.hits === 'all' && o.aoe) parts.push('Hits allies too');
-  if (o.ranged !== false && b > 1 && o.tgt !== 'self' && !o.lob) parts.push('Needs line of sight');
+  if (b > 1 && o.tgt !== 'self' && !o.lob && o.shape !== 'line') parts.push('Needs line of sight');
   const flags = [['stun', 'Stuns'], ['stunLow', 'Stuns if under half HP'], ['slow', 'Slows'], ['poison', 'Poisons'], ['burn', 'Burns'], ['knock', 'Knockback'], ['pull', 'Pulls'],
-    ['swap', 'Swaps places'], ['leap', 'Leaps in'], ['dash', 'Dashes'], ['taunt', 'Taunts'], ['rally', 'Rallies'], ['blind', 'Blinds'], ['execute', '×2 under half HP'],
+    ['swap', 'Swaps places'], ['leap', 'Leaps in'], ['dash', 'Dashes'], ['teleport', 'Teleports'], ['taunt', 'Taunts'], ['rally', 'Rallies'], ['blind', 'Blinds'], ['execute', '×2 under half HP'],
     ['drain', 'Drains'], ['generous', 'Heals an ally'], ['vuln', 'Exposes'], ['terrain', 'Reshapes ground'], ['walls', 'Raises walls'], ['echo', 'May echo'],
     ['gamble', 'Random damage'], ['ctTake', 'Delays target'], ['ctGive', 'Hastes'], ['stealth', 'Stealth'], ['riposte', 'Riposte'], ['vortex', 'Pulls foes in'],
     ['selfShield', 'Shields you'], ['overflow', 'Overflow shields'], ['backstab', 'Backstab'], ['recoil', 'Hops away']];
@@ -82,42 +95,47 @@ export function describe(o) {
   return parts.join(' · ');
 }
 
-// Upgrades that could go on this skill right now.
-export function upgradesFor(p, s) {
-  if (s.ups.length >= MAX_UPGRADES) return [];
-  const o = skStats(p, s);
-  const groups = new Set(s.ups.map(id => UPGRADES[id].group).filter(Boolean));
-  return Object.entries(UPGRADES).filter(([id, up]) => {
-    if (up.only && up.only !== s.id) return false;
-    if (!up.repeat && s.ups.includes(id)) return false;
-    if (up.group && groups.has(up.group)) return false;
-    return up.ok(o);
-  }).map(([id]) => id);
+// ---------- artifacts ----------
+// Can skill artifact id go into skill s of hero p?
+export function canSocket(p, s, id) {
+  const m = MODS[id];
+  if (!m || s.mods.length >= MAX_MODS) return false;
+  if (m.only && m.only !== s.id) return false;
+  if (!m.repeat && s.mods.includes(id)) return false;
+  if (m.group && s.mods.some(x => MODS[x].group === m.group)) return false;
+  return m.ok(skStats(p, s));
 }
-
-// n offers across the party: { hi, si, up }, preferring different skills and a mix of plain and strange.
-export function upgradeOffers(party, n, onlyHero) {
-  const pool = [];
-  party.forEach((p, hi) => {
-    if (onlyHero != null && hi !== onlyHero) return;
-    p.skills.forEach((s, si) => {
-      for (const up of upgradesFor(p, s)) {
-        const u = UPGRADES[up];
-        pool.push({ hi, si, up, w: u.only ? 4 : u.repeat ? 1.2 : 1.6 });
-      }
-    });
-  });
+export const canWear = (p, id) => !!ITEMS[id] && p.items.length < MAX_RELICS;
+// Would this skill artifact fit some skill in the party, ignoring full slots?
+function fitsParty(party, id) {
+  return party.some(p => p.skills.some(s => canSocket(p, s.mods.length < MAX_MODS ? s : { ...s, mods: s.mods.slice(0, MAX_MODS - 1) }, id)));
+}
+export function artifactPool(run, n, skillShare = 0.55) {
+  const owned = new Set([...run.party.flatMap(p => [...p.items, ...p.skills.flatMap(s => s.mods)]), ...run.stash]);
+  const skillArts = shuffle(Object.keys(MODS).filter(id => (MODS[id].repeat || !owned.has(id)) && fitsParty(run.party, id)));
+  const heroArts = shuffle(Object.keys(ITEMS).filter(id => !(ITEMS[id].unique && owned.has(id))));
+  const odd = heroArts.filter(id => ITEMS[id].unique), plain = heroArts.filter(id => !ITEMS[id].unique);
   const out = [];
-  const used = new Set();
-  while (out.length < n && pool.length) {
-    const avail = pool.filter(c => !used.has(c.hi + ':' + c.si));
-    const from = avail.length ? avail : pool;
-    let r = Math.random() * from.reduce((t, c) => t + c.w, 0);
-    const c = from.find(x => (r -= x.w) <= 0) || from[0];
-    out.push(c);
-    used.add(c.hi + ':' + c.si);
-    pool.splice(pool.indexOf(c), 1);
-    for (let i = pool.length - 1; i >= 0; i--) if (pool[i].hi === c.hi && pool[i].si === c.si && pool[i].up === c.up) pool.splice(i, 1);
+  while (out.length < n && (skillArts.length || odd.length || plain.length)) {
+    const from = (chance(skillShare) && skillArts.length) || (!odd.length && !plain.length) ? skillArts : chance(0.75) && odd.length ? odd : plain.length ? plain : odd;
+    out.push(from.shift());
   }
   return out;
 }
+
+// ---------- skills ----------
+export function skillPool(p) {
+  const known = new Set(p.skills.map(s => s.id));
+  const pool = [...CLASSES[p.cls].start, ...CLASSES[p.cls].pool, ...(p.promo ? [PROMOS[p.promo].skill, ...PROMOS[p.promo].pool] : [])];
+  return pool.filter(id => !known.has(id));
+}
+// n offers of { hi, id } spread across the party.
+export function skillOffers(party, n, onlyHero) {
+  const per = party.map((p, hi) => onlyHero != null && hi !== onlyHero ? [] : shuffle(skillPool(p)).map(id => ({ hi, id })));
+  const out = [];
+  for (let round = 0; out.length < n && per.some(l => l.length); round++) {
+    for (const hi of shuffle(per.map((_, i) => i))) if (per[hi].length && out.length < n) out.push(per[hi].shift());
+  }
+  return out;
+}
+export const skillsFull = p => p.skills.length >= MAX_SKILLS;

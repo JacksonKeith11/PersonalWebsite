@@ -3,7 +3,9 @@
 
 export const GW = 10, GH = 8;
 export const ROWS_PER_ACT = 8;   // map rows before each act's boss
-export const MAX_UPGRADES = 4;   // upgrades a single skill can hold
+export const MAX_SKILLS = 4;     // skills a hero can know
+export const MAX_MODS = 2;       // artifacts a single skill can hold
+export const MAX_RELICS = 3;     // hero artifacts a hero can wear
 
 // ---------- terrain ----------
 export const T = { FLOOR: 0, COVER: 1, ROCK: 2, WATER: 3, WALL: 4, LAVA: 5, HILL: 6, THORN: 7 };
@@ -63,22 +65,25 @@ export const ACTS = [
 
 // ---------- classes ----------
 export const CLASSES = {
-  warrior: { name: 'Warrior', hp: 44, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, main: 'atk', skills: ['strike', 'cleave', 'bash', 'warcry'], promos: ['blademaster', 'juggernaut'] },
-  mage: { name: 'Mage', hp: 28, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, main: 'mag', skills: ['bolt', 'fireball', 'frost', 'mend'], promos: ['pyromancer', 'chronomancer'] },
-  rogue: { name: 'Rogue', hp: 32, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, main: 'atk', skills: ['stab', 'knives', 'venom', 'assassinate'], promos: ['assassin', 'trickster'] },
+  warrior: { name: 'Warrior', hp: 50, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, main: 'atk', promos: ['blademaster', 'juggernaut'],
+    start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder'] },
+  mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, main: 'mag', promos: ['pyromancer', 'chronomancer'],
+    start: ['bolt', 'fireball', 'frost'], pool: ['mend', 'chain', 'blink', 'barrier', 'meteor', 'hexbolt'] },
+  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, main: 'atk', promos: ['assassin', 'trickster'],
+    start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'garrote', 'pocketsand'] },
 };
 export const PROMOS = {
-  blademaster: { name: 'Blademaster', stats: { atk: 4, spd: 3 }, skill: 'whirldash',
+  blademaster: { name: 'Blademaster', stats: { atk: 4, spd: 3 }, skill: 'whirldash', pool: ['thousandcuts'],
     passive: 'Riposte: strikes back at anyone who hits them in melee (60% ATK).' },
-  juggernaut: { name: 'Juggernaut', stats: { maxHp: 20, def: 3, res: 3 }, skill: 'aegis',
+  juggernaut: { name: 'Juggernaut', stats: { maxHp: 20, def: 3, res: 3 }, skill: 'aegis', pool: ['quake'],
     passive: 'Bulwark: starts every battle with a shield worth 40% of max HP, and can\'t be knocked around.' },
-  pyromancer: { name: 'Pyromancer', stats: { mag: 4 }, skill: 'eruption',
+  pyromancer: { name: 'Pyromancer', stats: { mag: 4 }, skill: 'eruption', pool: ['wreath'],
     passive: 'Ember Soul: immune to lava and burning; every magic hit sets the target alight.' },
-  chronomancer: { name: 'Chronomancer', stats: { mag: 2, spd: 4 }, skill: 'quicken',
+  chronomancer: { name: 'Chronomancer', stats: { mag: 2, spd: 4 }, skill: 'quicken', pool: ['timestop'],
     passive: 'Time Sense: acts early in every battle, and magic hits shove the target back in the turn order.' },
-  assassin: { name: 'Assassin', stats: { atk: 4, crit: 10 }, skill: 'shadowstep',
+  assassin: { name: 'Assassin', stats: { atk: 4, crit: 10 }, skill: 'shadowstep', pool: ['deathmark'],
     passive: 'Shadow: always crits targets under half HP; a kill cloaks them in stealth.' },
-  trickster: { name: 'Trickster', stats: { spd: 3, mov: 1 }, skill: 'smokebomb',
+  trickster: { name: 'Trickster', stats: { spd: 3, mov: 1 }, skill: 'smokebomb', pool: ['switch'],
     passive: 'Slippery: walks straight through enemies, and every hit pockets 3 gold.' },
 };
 
@@ -115,6 +120,28 @@ export const SKILLS = {
   smokebomb: { name: 'Smoke Bomb', kind: 'buff', tgt: 'tile', range: [1, 4], aoe: 1, hits: 'foes', blind: 2, cd: 3, lob: true,
     txt: 'Blinded foes miss half their attacks for 2 turns.' },
 
+  charge: { name: 'Charge', kind: 'phys', tgt: 'foe', range: [2, 4], pow: 1.0, leap: true, knock: true, cd: 3, txt: 'Rush the target and knock it back.' },
+  hook: { name: 'Chain Hook', kind: 'phys', tgt: 'foe', range: [2, 4], pow: 0.6, pull: 9, cd: 2, txt: 'Drag the target next to you.' },
+  earthsplit: { name: 'Earthsplitter', kind: 'phys', tgt: 'tile', shape: 'line', range: [1, 4], hits: 'foes', pow: 0.8, slow: 2, cd: 3, txt: 'A shockwave along the ground.' },
+  shieldwall: { name: 'Shield Wall', kind: 'shield', stat: 'def', tgt: 'self', range: [0, 0], aoe: 1, hits: 'allies', pow: 1.6, cd: 3, txt: 'Shields you and the allies beside you.' },
+  sunder: { name: 'Sunder', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.8, vuln: 2, vulnAmt: 0.35, cd: 2, txt: 'Cracks armor: the target takes 35% more damage for 2 turns.' },
+  chain: { name: 'Chain Lightning', kind: 'mag', tgt: 'foe', range: [2, 4], pow: 0.8, shape: 'chain', chainN: 2, chainPow: 0.7, cd: 2, txt: 'Arcs to 2 more foes nearby.' },
+  blink: { name: 'Blink', kind: 'buff', tgt: 'tile', range: [1, 4], teleport: true, lob: true, cd: 2, txt: 'Teleport to an open tile.' },
+  barrier: { name: 'Arcane Barrier', kind: 'shield', tgt: 'ally', range: [0, 3], pow: 1.3, cd: 2, lob: true, txt: 'Wraps an ally in a shield that soaks damage.' },
+  meteor: { name: 'Meteor', kind: 'mag', tgt: 'tile', range: [3, 7], aoe: 2, hits: 'all', pow: 1.25, cd: 5, lob: true, txt: 'A huge blast that hits allies too.' },
+  hexbolt: { name: 'Hex', kind: 'mag', tgt: 'foe', range: [1, 4], pow: 0.5, vuln: 3, vulnAmt: 0.4, cd: 2, txt: 'The target takes 40% more damage for 3 turns.' },
+  caltrops: { name: 'Caltrops', kind: 'phys', tgt: 'tile', range: [1, 3], aoe: 1, hits: 'foes', pow: 0.3, terrain: T.THORN, lob: true, cd: 3, txt: 'Scatter spikes: the area becomes brambles.' },
+  fan: { name: 'Fan of Knives', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 0.6, cd: 2, txt: 'Knives in every direction.' },
+  pounce: { name: 'Pounce', kind: 'phys', tgt: 'foe', range: [1, 3], leap: true, pow: 0.9, cd: 2, txt: 'Leap onto a foe.' },
+  garrote: { name: 'Garrote', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.6, stun: 1, cd: 4, txt: 'The target loses its next turn.' },
+  pocketsand: { name: 'Pocket Sand', kind: 'phys', tgt: 'foe', range: [1, 2], pow: 0.3, blind: 2, cd: 2, txt: 'Blinded foes miss half their attacks for 2 turns.' },
+  thousandcuts: { name: 'Thousand Cuts', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.4, times: 4, cd: 3, txt: 'Four quick strikes.' },
+  quake: { name: 'Earthquake', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 0.7, knock: true, cd: 4, txt: 'Throws back every foe within 2 tiles.' },
+  wreath: { name: 'Flame Wreath', kind: 'mag', tgt: 'self', range: [0, 0], aoe: 1, diag: true, hits: 'foes', pow: 1.0, burn: 3, cd: 3, txt: 'Sets everything around you burning.' },
+  timestop: { name: 'Time Stop', kind: 'buff', tgt: 'tile', range: [1, 5], aoe: 1, hits: 'foes', ctTake: 70, lob: true, cd: 4, txt: 'Foes in the area lose most of a turn.' },
+  deathmark: { name: 'Death Mark', kind: 'buff', tgt: 'foe', range: [1, 5], vuln: 3, vulnAmt: 0.6, lob: true, cd: 3, txt: 'The target takes 60% more damage for 3 turns.' },
+  switch: { name: 'Switcheroo', kind: 'buff', tgt: 'foe', range: [1, 6], swap: true, lob: true, cd: 2, txt: 'Trade places with any foe.' },
+
   e_slam: { name: 'Slam', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.0, cd: 0 },
   e_stab: { name: 'Stab', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.0, cd: 0 },
   e_shoot: { name: 'Shoot', kind: 'phys', tgt: 'foe', range: [2, 5], pow: 0.9, cd: 0 },
@@ -148,97 +175,99 @@ export const SKILLS = {
   e_firerain: { name: 'Fire Rain', kind: 'mag', tgt: 'tile', range: [2, 6], aoe: 1, hits: 'foes', pow: 0.9, terrain: T.LAVA, lob: true, cd: 3 },
 };
 
-// ---------- upgrades ----------
-// Each upgrade rewrites the skill. ok(o) decides whether it can apply to the skill as it stands;
-// group makes upgrades in the same group exclusive; repeat lets an upgrade stack.
+// ---------- skill artifacts ----------
+// Socketed into a skill (up to MAX_MODS), each rewrites it. ok(o) decides whether it fits the skill as it
+// stands; group makes artifacts in the same group exclusive on one skill; repeat lets one stack; only ties
+// it to a single skill.
 const dmg = o => o.kind === 'phys' || o.kind === 'mag';
 const powered = o => dmg(o) || o.kind === 'heal' || o.kind === 'shield';
 const single = o => o.tgt === 'foe' && !o.aoe && !o.shape;
 const ranged = o => o.range[1] > 1 && o.tgt !== 'self';
 const melee = o => o.tgt === 'foe' && o.range[1] === 1 && !o.shape;
 
-export const UPGRADES = {
-  honed: { name: 'Honed', note: '+25% power', repeat: true, ok: powered, apply: o => { o.pow *= 1.25; } },
-  hasty: { name: 'Hasty', note: 'Cooldown 1 shorter', repeat: true, ok: o => o.cd > 0, apply: o => { o.cd -= 1; } },
-  reach: { name: 'Far-reaching', note: '+1 range', repeat: true, ok: o => ranged(o) && o.shape !== 'random', apply: o => { o.range = [o.range[0], o.range[1] + 1]; } },
+export const MODS = {
+  honed: { name: 'Whetstone', price: 50, note: '+25% power', repeat: true, ok: powered, apply: o => { o.pow *= 1.25; } },
+  hasty: { name: 'Quickening Sand', price: 60, note: 'Cooldown 1 shorter', repeat: true, ok: o => o.cd > 0, apply: o => { o.cd -= 1; } },
+  reach: { name: 'Spyglass Lens', price: 55, note: '+1 range', repeat: true, ok: o => ranged(o) && o.shape !== 'random', apply: o => { o.range = [o.range[0], o.range[1] + 1]; } },
 
-  ironclad: { name: 'Ironclad', note: 'Scales with DEF instead, at +50% power', group: 'stat', ok: o => powered(o) && o.stat !== 'def', apply: o => { o.stat = 'def'; o.pow *= 1.5; } },
-  quicksilver: { name: 'Quicksilver', note: 'Scales with SPD instead', group: 'stat', ok: o => powered(o) && o.stat !== 'spd', apply: o => { o.stat = 'spd'; } },
-  desperate: { name: 'Desperation', note: 'Scales with how much HP you\'re missing', group: 'stat', ok: powered, apply: o => { o.stat = 'missing'; } },
-  heft: { name: 'Heft', note: 'Scales with 30% of your max HP instead', group: 'stat', ok: powered, apply: o => { o.stat = 'heft'; } },
-  spellblade: { name: 'Spellblade', note: 'Becomes magic: uses MAG, hits RES', group: 'stat', ok: o => o.kind === 'phys', apply: o => { o.kind = 'mag'; o.stat = 'mag'; } },
-  brute: { name: 'Brute Force', note: 'Becomes physical: uses ATK, hits DEF', group: 'stat', ok: o => o.kind === 'mag', apply: o => { o.kind = 'phys'; o.stat = 'atk'; } },
+  ironclad: { name: 'Iron Sigil', price: 65, note: 'Scales with DEF instead, at +50% power', group: 'stat', ok: o => powered(o) && o.stat !== 'def', apply: o => { o.stat = 'def'; o.pow *= 1.5; } },
+  quicksilver: { name: 'Quicksilver Vial', price: 65, note: 'Scales with SPD instead', group: 'stat', ok: o => powered(o) && o.stat !== 'spd', apply: o => { o.stat = 'spd'; } },
+  desperate: { name: 'Bloodied Bandage', price: 65, note: 'Scales with how much HP you\'re missing', group: 'stat', ok: powered, apply: o => { o.stat = 'missing'; } },
+  heft: { name: 'Giant\'s Knuckle', price: 65, note: 'Scales with 30% of your max HP instead', group: 'stat', ok: powered, apply: o => { o.stat = 'heft'; } },
+  spellblade: { name: 'Runed Edge', price: 65, note: 'Becomes magic: uses MAG, hits RES', group: 'stat', ok: o => o.kind === 'phys', apply: o => { o.kind = 'mag'; o.stat = 'mag'; } },
+  brute: { name: 'Brass Knuckles', price: 65, note: 'Becomes physical: uses ATK, hits DEF', group: 'stat', ok: o => o.kind === 'mag', apply: o => { o.kind = 'phys'; o.stat = 'atk'; } },
 
-  piercing: { name: 'Piercing', note: 'Becomes a line that hits everything in its path', group: 'shape', ok: o => single(o) && dmg(o),
+  piercing: { name: 'Lance Tip', price: 75, note: 'Becomes a line that hits everything in its path', group: 'shape', ok: o => single(o) && dmg(o),
     apply: o => { o.shape = 'line'; o.tgt = 'tile'; o.range = [1, Math.max(3, o.range[1])]; o.hits = 'foes'; } },
-  ricochet: { name: 'Ricochet', note: 'Bounces to 2 more foes nearby (60%)', group: 'shape', ok: o => single(o) && dmg(o), apply: o => { o.shape = 'chain'; o.chainN = 2; o.chainPow = 0.6; } },
-  splash: { name: 'Splash', note: 'Hits foes around the target too (75%)', group: 'shape', ok: o => single(o) && dmg(o), apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.75; } },
-  wild: { name: 'Wild Magic', note: 'Hits a random foe anywhere, +40% power', group: 'shape', ok: o => single(o) && dmg(o),
+  ricochet: { name: 'Ricochet Prism', price: 80, note: 'Bounces to 2 more foes nearby (60%)', group: 'shape', ok: o => single(o) && dmg(o), apply: o => { o.shape = 'chain'; o.chainN = 2; o.chainPow = 0.6; } },
+  splash: { name: 'Splash Gourd', price: 70, note: 'Hits foes around the target too (75%)', group: 'shape', ok: o => single(o) && dmg(o), apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.75; } },
+  wild: { name: 'Wild Die', price: 70, note: 'Hits a random foe anywhere, +40% power', group: 'shape', ok: o => single(o) && dmg(o),
     apply: o => { o.shape = 'random'; o.tgt = 'self'; o.range = [0, 0]; o.pow *= 1.4; } },
-  pointblank: { name: 'Point Blank', note: 'Range 1 only, +60% power', group: 'shape', ok: o => single(o) && ranged(o) && dmg(o), apply: o => { o.range = [1, 1]; o.pow *= 1.6; } },
-  sniper: { name: 'Sniper', note: 'Range 3+ only, +2 range, +25% power', group: 'shape', ok: o => single(o) && o.range[1] >= 3 && dmg(o),
+  pointblank: { name: 'Short Fuse', price: 60, note: 'Range 1 only, +60% power', group: 'shape', ok: o => single(o) && ranged(o) && dmg(o), apply: o => { o.range = [1, 1]; o.pow *= 1.6; } },
+  sniper: { name: 'Sniper\'s Sight', price: 70, note: 'Range 3+ only, +2 range, +25% power', group: 'shape', ok: o => single(o) && o.range[1] >= 3 && dmg(o),
     apply: o => { o.range = [3, o.range[1] + 2]; o.pow *= 1.25; } },
-  barrage: { name: 'Barrage', note: 'Fires at 3 random foes in range (55% each)', group: 'shape', ok: o => single(o) && ranged(o) && dmg(o),
+  barrage: { name: 'Triple Quiver', price: 80, note: 'Fires at 3 random foes in range (55% each)', group: 'shape', ok: o => single(o) && ranged(o) && dmg(o),
     apply: o => { o.shape = 'multi'; o.multiN = 3; o.pow *= 0.55; o.tgt = 'self'; } },
-  leap: { name: 'Leaping', note: 'Range 1–4: you leap next to the target first', group: 'move', ok: melee, apply: o => { o.range = [1, 4]; o.leap = true; } },
-  spin: { name: 'Spin', note: '+1 radius, and diagonals count', group: 'shape', ok: o => o.tgt === 'self' && o.aoe > 0, apply: o => { o.aoe += 1; o.diag = true; } },
-  arcing: { name: 'Arcing', note: 'Ignores walls', group: 'lob', ok: o => ranged(o) && !o.lob, apply: o => { o.lob = true; } },
+  leap: { name: 'Frog Charm', price: 70, note: 'Range 1–4: you leap next to the target first', group: 'move', ok: melee, apply: o => { o.range = [1, 4]; o.leap = true; } },
+  spin: { name: 'Spinning Top', price: 70, note: '+1 radius, and diagonals count', group: 'shape', ok: o => o.tgt === 'self' && o.aoe > 0, apply: o => { o.aoe += 1; o.diag = true; } },
+  arcing: { name: 'Arcing Feather', price: 55, note: 'Ignores walls', group: 'lob', ok: o => ranged(o) && !o.lob, apply: o => { o.lob = true; } },
 
-  aegis: { name: 'Aegis Conversion', note: 'No longer hurts anyone: shields allies for the amount instead', group: 'effect', ok: o => dmg(o) && o.shape !== 'random' && o.shape !== 'multi',
+  aegisconv: { name: 'Aegis Mirror', price: 75, note: 'No longer hurts anyone: shields allies for the amount instead', group: 'effect', ok: o => dmg(o) && o.shape !== 'random' && o.shape !== 'multi',
     apply: o => {
       o.kind = 'shield'; o.hits = 'allies'; o.pow *= 0.8;
       if (o.tgt === 'foe') { o.tgt = 'ally'; o.range = [0, o.range[1]]; }
       for (const k of ['stun', 'slow', 'poison', 'burn', 'knock', 'pull', 'execute', 'vuln', 'leap', 'dash']) delete o[k];
     } },
-  reverse: { name: 'Reverse Polarity', note: 'Hurts foes instead of healing (magic)', group: 'effect', ok: o => o.kind === 'heal',
+  reverse: { name: 'Polarity Coil', price: 60, note: 'Hurts foes instead of healing (magic)', group: 'effect', ok: o => o.kind === 'heal',
     apply: o => { o.kind = 'mag'; o.stat = 'mag'; o.tgt = 'foe'; o.hits = 'foes'; o.range = [1, o.range[1]]; delete o.cleanse; } },
-  overflow: { name: 'Overflow', note: 'Healing past full HP becomes a shield', group: 'effect', ok: o => o.kind === 'heal', apply: o => { o.overflow = true; } },
-  vampiric: { name: 'Vampiric', note: 'Heals you for half the damage dealt', group: 'life', ok: dmg, apply: o => { o.drain = 0.5; } },
-  generous: { name: 'Generous', note: '40% of the damage heals your most hurt ally', group: 'life', ok: dmg, apply: o => { o.generous = 0.4; } },
-  martyr: { name: 'Martyrdom', note: 'Costs 15% of your max HP, +60% power', group: 'cost', ok: powered, apply: o => { o.hpCost = 0.15; o.pow *= 1.6; } },
+  overflow: { name: 'Overflowing Chalice', price: 70, note: 'Healing past full HP becomes a shield', group: 'effect', ok: o => o.kind === 'heal', apply: o => { o.overflow = true; } },
+  vampiric: { name: 'Leech Jar', price: 80, note: 'Heals you for half the damage dealt', group: 'life', ok: dmg, apply: o => { o.drain = 0.5; } },
+  generous: { name: 'Charity Coin', price: 75, note: '40% of the damage heals your most hurt ally', group: 'life', ok: dmg, apply: o => { o.generous = 0.4; } },
+  bloodprice: { name: 'Thorned Circlet', price: 65, note: 'Costs 15% of your max HP, +60% power', group: 'cost', ok: powered, apply: o => { o.hpCost = 0.15; o.pow *= 1.6; } },
 
-  frostbite: { name: 'Frostbite', note: 'Slows for 2 turns', ok: o => dmg(o) && !o.slow, apply: o => { o.slow = 2; } },
-  venomous: { name: 'Venomous', note: 'Poisons for 3 turns', ok: o => dmg(o) && !o.poison, apply: o => { o.poison = 3; o.poisonPow = 0.3; } },
-  kindling: { name: 'Kindling', note: 'Sets targets burning for 2 turns', ok: o => dmg(o) && !o.burn, apply: o => { o.burn = 2; } },
-  concussive: { name: 'Concussive', note: 'Stuns targets under half HP', ok: o => dmg(o) && !o.stun, apply: o => { o.stunLow = true; } },
-  hex: { name: 'Hex', note: 'Targets take 30% more damage for 2 turns', ok: o => dmg(o) && !o.vuln, apply: o => { o.vuln = 2; o.vulnAmt = 0.3; } },
-  shove: { name: 'Shove', note: 'Knocks targets back', group: 'push', ok: o => dmg(o) && o.tgt !== 'self' || (o.tgt === 'self' && o.aoe > 0 && dmg(o)), apply: o => { o.knock = true; } },
-  grapple: { name: 'Grapple', note: 'Yanks the target next to you', group: 'push', ok: o => single(o) && ranged(o) && dmg(o), apply: o => { o.pull = 9; } },
-  switcheroo: { name: 'Switcheroo', note: 'You swap places with the target', group: 'push', ok: o => (o.tgt === 'foe' || o.tgt === 'ally') && !o.shape && !o.aoe && !o.leap, apply: o => { o.swap = true; } },
-  hitrun: { name: 'Hit and Run', note: 'Afterwards you hop up to 2 tiles away', group: 'move', ok: o => melee(o) && dmg(o), apply: o => { o.recoil = 2; } },
+  frostbite: { name: 'Frost Shard', price: 60, note: 'Slows for 2 turns', ok: o => dmg(o) && !o.slow, apply: o => { o.slow = 2; } },
+  venomous: { name: 'Venom Gland', price: 60, note: 'Poisons for 3 turns', ok: o => dmg(o) && !o.poison, apply: o => { o.poison = 3; o.poisonPow = 0.3; } },
+  kindling: { name: 'Ember Shard', price: 60, note: 'Sets targets burning for 2 turns', ok: o => dmg(o) && !o.burn, apply: o => { o.burn = 2; } },
+  concussive: { name: 'Lead Weight', price: 70, note: 'Stuns targets under half HP', ok: o => dmg(o) && !o.stun, apply: o => { o.stunLow = true; } },
+  hex: { name: 'Hex Doll', price: 65, note: 'Targets take 30% more damage for 2 turns', ok: o => dmg(o) && !o.vuln, apply: o => { o.vuln = 2; o.vulnAmt = 0.3; } },
+  shove: { name: 'Ram\'s Horn', price: 55, note: 'Knocks targets back', group: 'push', ok: o => dmg(o) && o.tgt !== 'self' || (o.tgt === 'self' && o.aoe > 0 && dmg(o)), apply: o => { o.knock = true; } },
+  grapple: { name: 'Grappling Hook', price: 65, note: 'Yanks the target next to you', group: 'push', ok: o => single(o) && ranged(o) && dmg(o), apply: o => { o.pull = 9; } },
+  switcheroo: { name: 'Twin Mirrors', price: 60, note: 'You swap places with the target', group: 'push', ok: o => (o.tgt === 'foe' || o.tgt === 'ally') && !o.shape && !o.aoe && !o.leap, apply: o => { o.swap = true; } },
+  hitrun: { name: 'Gust Feather', price: 60, note: 'Afterwards you hop up to 2 tiles away', group: 'move', ok: o => melee(o) && dmg(o), apply: o => { o.recoil = 2; } },
 
-  molten: { name: 'Molten', note: 'The ground it hits turns to lava', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.LAVA; } },
-  overgrowth: { name: 'Overgrowth', note: 'The ground it hits sprouts brambles', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.THORN; } },
-  earthshaper: { name: 'Earthshaper', note: 'Raises walls on the open tiles around the target', group: 'terrain', ok: o => (o.tgt === 'foe' || o.tgt === 'tile') && !o.shape, apply: o => { o.walls = true; } },
+  molten: { name: 'Magma Core', price: 70, note: 'The ground it hits turns to lava', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.LAVA; } },
+  overgrowth: { name: 'Seed Pod', price: 55, note: 'The ground it hits sprouts brambles', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.THORN; } },
+  earthshaper: { name: 'Mason\'s Trowel', price: 70, note: 'Raises walls on the open tiles around the target', group: 'terrain', ok: o => (o.tgt === 'foe' || o.tgt === 'tile') && !o.shape, apply: o => { o.walls = true; } },
 
-  echoing: { name: 'Echoing', note: '40% chance to fire again for free', group: 'echo', ok: o => o.kind !== 'summon', apply: o => { o.echo = 0.4; } },
-  twinned: { name: 'Twinned', note: 'Hits twice at 65% power', ok: o => dmg(o) && !o.double, apply: o => { o.double = true; o.pow *= 0.65; } },
-  gamble: { name: 'Loaded Dice', note: 'Damage rolls anywhere from 0% to 250%', ok: dmg, apply: o => { o.gamble = true; } },
-  timedebt: { name: 'Time Debt', note: 'No cooldown, but your next turn comes later', ok: o => o.cd > 0, apply: o => { o.cd = 0; o.ctCost = 35; } },
-  chronoshock: { name: 'Chronoshock', note: 'Targets are shoved 30 back in the turn order', ok: dmg, apply: o => { o.ctTake = 30; } },
+  echoing: { name: 'Echo Shell', price: 85, note: '40% chance to fire again for free', group: 'echo', ok: o => o.kind !== 'summon', apply: o => { o.echo = 0.4; } },
+  twinned: { name: 'Twin Fang', price: 75, note: 'Hits twice at 65% power', ok: o => dmg(o) && !o.double, apply: o => { o.double = true; o.pow *= 0.65; } },
+  gamble: { name: 'Loaded Dice', price: 55, note: 'Damage rolls anywhere from 0% to 250%', ok: dmg, apply: o => { o.gamble = true; } },
+  timedebt: { name: 'Borrowed Time', price: 70, note: 'No cooldown, but your next turn comes later', ok: o => o.cd > 0, apply: o => { o.cd = 0; o.ctCost = 35; } },
+  chronoshock: { name: 'Broken Pocketwatch', price: 65, note: 'Targets are shoved 30 back in the turn order', ok: dmg, apply: o => { o.ctTake = 30; } },
 
   // signature upgrades: only offered for one skill
-  riposte: { name: 'Riposte Stance', only: 'strike', note: 'Also readies a counterattack against the next melee hit', ok: () => true, apply: o => { o.riposte = true; } },
-  maelstrom: { name: 'Maelstrom', only: 'cleave', note: 'First drags every foe within 2 tiles toward you', ok: () => true, apply: o => { o.vortex = 2; } },
-  bulwark: { name: 'Bulwark', only: 'bash', note: 'You gain a shield worth twice the damage dealt', ok: dmg, apply: o => { o.selfShield = 2; } },
-  rally: { name: 'Rallying Cry', only: 'warcry', group: 'effect', note: 'Instead of taunting, allies in range deal +30% damage for 2 turns', ok: () => true,
+  riposte: { name: 'Duelist\'s Glove', price: 70, only: 'strike', note: 'Also readies a counterattack against the next melee hit', ok: () => true, apply: o => { o.riposte = true; } },
+  maelstrom: { name: 'Whirlpool Stone', price: 75, only: 'cleave', note: 'First drags every foe within 2 tiles toward you', ok: () => true, apply: o => { o.vortex = 2; } },
+  bulwark: { name: 'Bulwark Plate', price: 70, only: 'bash', note: 'You gain a shield worth twice the damage dealt', ok: dmg, apply: o => { o.selfShield = 2; } },
+  rally: { name: 'War Banner', price: 70, only: 'warcry', group: 'effect', note: 'Instead of taunting, allies in range deal +30% damage for 2 turns', ok: () => true,
     apply: o => { o.hits = 'allies'; delete o.taunt; o.rally = 2; } },
-  missiles: { name: 'Magic Missile', only: 'bolt', group: 'shape', note: 'Splits into 3 missiles at random foes in range (50% each)', ok: single,
+  missiles: { name: 'Splitting Wand', price: 80, only: 'bolt', group: 'shape', note: 'Splits into 3 missiles at random foes in range (50% each)', ok: single,
     apply: o => { o.shape = 'multi'; o.multiN = 3; o.pow *= 0.67; o.tgt = 'self'; o.range = [o.range[0], o.range[1]]; } },
-  meteor: { name: 'Meteor', only: 'fireball', group: 'shape', note: 'Range 3–8, radius 2, +40% power, cooldown +2', ok: o => o.aoe > 0,
+  starfall: { name: 'Starfall Stone', price: 85, only: 'fireball', group: 'shape', note: 'Range 3–8, radius 2, +40% power, cooldown +2', ok: o => o.aoe > 0,
     apply: o => { o.range = [3, 8]; o.aoe += 1; o.pow *= 1.4; o.cd += 2; } },
-  deepfreeze: { name: 'Deep Freeze', only: 'frost', note: 'Freezes the target solid: stunned, but takes half damage', ok: () => true, apply: o => { o.stun = 1; o.pow *= 0.5; } },
-  transfusion: { name: 'Transfusion', only: 'mend', group: 'effect', note: 'Drains a foe and gives the HP to your most hurt ally', ok: o => o.kind === 'heal',
+  deepfreeze: { name: 'Glacier Heart', price: 75, only: 'frost', note: 'Freezes the target solid: stunned, but takes half damage', ok: () => true, apply: o => { o.stun = 1; o.pow *= 0.5; } },
+  transfusion: { name: 'Blood Vial', price: 75, only: 'mend', group: 'effect', note: 'Drains a foe and gives the HP to your most hurt ally', ok: o => o.kind === 'heal',
     apply: o => { o.kind = 'mag'; o.stat = 'mag'; o.tgt = 'foe'; o.hits = 'foes'; o.range = [1, o.range[1] + 1]; o.generous = 1; delete o.cleanse; } },
-  backstab: { name: 'Backstab', only: 'stab', note: 'Flanked targets take double damage', ok: () => true, apply: o => { o.backstab = true; } },
-  fan: { name: 'Fan of Knives', only: 'knives', group: 'shape', note: 'Hits every foe within 2 tiles of you (70%)', ok: single,
+  backstab: { name: 'Backstabber', price: 70, only: 'stab', note: 'Flanked targets take double damage', ok: () => true, apply: o => { o.backstab = true; } },
+  fanning: { name: 'Knife Fan', price: 70, only: 'knives', group: 'shape', note: 'Hits every foe within 2 tiles of you (70%)', ok: single,
     apply: o => { o.tgt = 'self'; o.range = [0, 0]; o.aoe = 2; o.hits = 'foes'; o.pow *= 1.0; } },
-  plague: { name: 'Plague', only: 'venom', group: 'shape', note: 'Splashes poison onto foes around the target', ok: single, apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.7; } },
-  markdeath: { name: 'Mark for Death', only: 'assassinate', group: 'effect', note: 'No damage: the target takes +75% from everyone for 3 turns, cooldown 2',
+  plague: { name: 'Plague Rat', price: 70, only: 'venom', group: 'shape', note: 'Splashes poison onto foes around the target', ok: single, apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.7; } },
+  markdeath: { name: 'Black Spot', price: 75, only: 'assassinate', group: 'effect', note: 'No damage: the target takes +75% from everyone for 3 turns, cooldown 2',
     ok: () => true, apply: o => { o.kind = 'buff'; o.vuln = 3; o.vulnAmt = 0.75; o.cd = 2; delete o.execute; } },
 };
 
-// ---------- items ----------
+// ---------- hero artifacts ----------
+// Worn by a hero (up to MAX_RELICS): stat changes and odd passives, checked by the battle code via has().
 export const ITEMS = {
   band: { name: 'Power Band', price: 55, stats: { atk: 3 }, txt: '+3 ATK' },
   ring: { name: "Sage's Ring", price: 55, stats: { mag: 3 }, txt: '+3 MAG' },
@@ -287,8 +316,8 @@ export const FOES = {
   shaman: { name: 'Shaman', hp: 18, atk: 3, mag: 8, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_mend', 'e_zap'], ai: 'ranged' },
   golem: { name: 'Stone Golem', hp: 75, atk: 13, def: 8, res: 2, spd: 4, mov: 2, skills: ['e_pound', 'e_rock', 'e_slam'], scale: 1.2 },
   ogre: { name: 'Ogre Warlord', hp: 70, atk: 14, def: 4, res: 1, spd: 5, mov: 3, skills: ['e_boulder', 'e_stomp', 'e_smash'], scale: 1.25 },
-  treant: { name: 'The Thornmother', hp: 140, atk: 10, mag: 9, def: 4, res: 3, spd: 6, mov: 2, skills: ['e_roots', 'e_thornburst', 'e_overgrow', 'e_slam'], boss: true, regen: 0.04, scale: 1.5,
-    info: 'Regrows 4% of her HP every turn.' },
+  treant: { name: 'The Thornmother', hp: 95, atk: 10, mag: 9, def: 4, res: 3, spd: 6, mov: 2, skills: ['e_roots', 'e_thornburst', 'e_overgrow', 'e_slam'], boss: true, regen: 0.025, scale: 1.5,
+    info: 'Regrows a little HP every turn.' },
   skeleton: { name: 'Skeleton', hp: 24, atk: 8, def: 4, res: 0, spd: 6, mov: 3, skills: ['e_slash'] },
   cultist: { name: 'Cultist', hp: 17, atk: 3, mag: 9, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_flame', 'e_hex'], ai: 'ranged' },
   ghost: { name: 'Ghost', hp: 16, atk: 3, mag: 8, def: 1, res: 6, spd: 9, mov: 4, fly: true, phase: true, skills: ['e_wail'], ai: 'ranged', info: 'Drifts through walls.' },

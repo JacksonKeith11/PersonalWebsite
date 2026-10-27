@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES } from './data.js?v=2';
-import { rnd, pick, chance, shuffle, has, skStats, describe, heroStats, heroSprite, heroTitle } from './rules.js?v=2';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=2';
-import { sfx } from './audio.js?v=2';
-import { h, bar, sprImg } from './ui.js?v=2';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES } from './data.js?v=3';
+import { rnd, pick, chance, shuffle, has, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=3';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=3';
+import { sfx } from './audio.js?v=3';
+import { h, bar, sprImg } from './ui.js?v=3';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -45,8 +45,9 @@ export function startBattle({ kind, level, act, list, party }) {
 function heroUnit(p) {
   const st = heroStats(p, env.run.gold);
   const u = { id: ++B.uid, side: 'hero', ref: p, spr: heroSprite(p), name: heroTitle(p), promo: p.promo, ...st, hp: Math.min(p.hp, st.maxHp),
-    flank: CLASSES[p.cls].flank || 1.25, items: p.items, skills: p.skills.map(s => ({ id: s.id, ups: s.ups, cd: 0 })), st: {}, shield: 0,
+    flank: CLASSES[p.cls].flank || 1.25, items: p.items, skills: p.skills.map(s => ({ id: s.id, mods: s.mods, cd: 0 })), st: {}, shield: 0,
     ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee' };
+  u.cap = u.hp; // healing can't restore wounds from earlier battles
   u.fireproof = p.promo === 'pyromancer' || has(u, 'lavawalkers');
   u.anchored = p.promo === 'juggernaut';
   u.slip = p.promo === 'trickster';
@@ -61,7 +62,7 @@ function foeUnit(kind, lvl) {
   return { id: ++B.uid, side: 'foe', kind, spr: kind, name: d.name, hp, maxHp: hp, atk: Math.round(d.atk * sm), mag: Math.round((d.mag || 0) * sm),
     def: d.def + dp, res: d.res + dp, spd: d.spd, mov: d.mov, crit: 5, flank: 1.25, items: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, regen: d.regen || 0, scale: d.scale || 1, info: d.info,
-    skills: d.skills.map(id => ({ id, ups: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30) };
+    skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30) };
 }
 
 function genGrid(rc) {
@@ -217,6 +218,7 @@ function validTarget(u, o, x, y) {
   if (o.leap && t && d > 1 && !leapSpot(u, t)) return false;
   if (o.swap && t && !canSwap(u, t)) return false;
   if (o.tgt === 'tile' && terr(x, y).los && !o.aoe) return false;
+  if (o.teleport && (unitAt(x, y) || !standable(u, x, y))) return false;
   return true;
 }
 function hitFilter(u, o) {
@@ -280,12 +282,8 @@ function areaTiles(u, o, x, y) {
 }
 
 // ---------- damage ----------
-function statVal(u, stat) {
-  let v = stat === 'missing' ? (u.maxHp - u.hp) * 0.6 + 3 : stat === 'heft' ? u.maxHp * 0.3 : u[stat];
-  if (u.tmp && u.tmp[stat]) v += u.tmp[stat];
-  return Math.max(0, v);
-}
 const powerVal = (u, o) => statVal(u, o.stat) * o.pow;
+const hitsOf = o => o.times || (o.double ? 2 : 1);
 function flanked(a, t) { return B.units.some(o => !o.dead && o !== a && o.side === a.side && dist(o, t) === 1); }
 function dmgMult(a, t, o) {
   let m = 1;
@@ -295,6 +293,7 @@ function dmgMult(a, t, o) {
   if (t.st.guard) m *= 0.6;
   if (t.st.vuln > 0) m *= 1 + (t.st.vulnAmt || 0.3);
   if (a.st.rally > 0) m *= 1.3;
+  if (a.side === 'foe' && B.rage) m *= 1 + 0.1 * B.rage;
   if (o.execute && t.hp * 2 < t.maxHp) m *= 2;
   if (has(a, 'monocle')) m *= 1.5;
   if (has(t, 'monocle')) m *= 1.5;
@@ -373,13 +372,14 @@ function ko(t, killer) {
 function heal(t, n, overflow) {
   if (t.dead) return 0;
   n = Math.max(0, Math.round(n));
-  const a = Math.min(n, t.maxHp - t.hp);
+  const a = Math.max(0, Math.min(n, healRoom(t)));
   t.hp += a;
   if (a > 0) fxText(t, '+' + a, '#7dff8a');
   if (overflow && n > a) addShield(t, n - a);
   refreshView(t);
   return a;
 }
+const healRoom = t => Math.min(t.maxHp, t.cap ?? t.maxHp) - t.hp;
 function addShield(t, n) {
   if (t.dead) return;
   n = Math.max(0, Math.min(Math.round(n), t.maxHp - t.shield));
@@ -533,7 +533,7 @@ function castColor(o) {
 function castSound(o, ranged) {
   if (o.kind === 'heal') return 'heal';
   if (o.kind === 'shield') return 'shield';
-  if (o.kind === 'buff') return o.stealth ? 'blink' : 'buff';
+  if (o.kind === 'buff') return o.stealth || o.teleport ? 'blink' : 'buff';
   if (o.kind === 'summon') return 'summon';
   if (o.burn || o.terrain === T.LAVA || o.id === 'fireball') return 'fire';
   if (o.slow && o.kind === 'mag') return 'ice';
@@ -598,7 +598,7 @@ async function useSkill(u, s, tx, ty, echoed) {
     if (o.kind === 'shield') { addShield(t, powerVal(u, o) * w); continue; }
     if (o.kind === 'buff') { applyStatus(u, t, o); burst(t.side === u.side ? 'heal' : 'dark', t, 8); continue; }
     if (o.kind === 'summon') continue;
-    for (let i = 0; i < (o.double ? 2 : 1) && !t.dead; i++) {
+    for (let i = 0; i < hitsOf(o) && !t.dead; i++) {
       if (u.st.blind > 0 && chance(0.5)) { fxText(t, 'Miss', '#aaaaaa'); sfx('miss'); continue; }
       if (has(t, 'hollow') && t.side === u.side && t !== u) { heal(t, calcDmg(u, t, o) * w); continue; }
       const r = roll(u, t, o, w);
@@ -610,7 +610,7 @@ async function useSkill(u, s, tx, ty, echoed) {
         if (o.selfShield) addShield(u, r.dmg * o.selfShield);
       }
       if (u.promo === 'trickster' && t.side !== u.side && isHero(u)) env.run.gold += 3;
-      if (o.double && i === 0) await sleep(140);
+      if (i < hitsOf(o) - 1) await sleep(140);
     }
     if (t.dead) continue;
     applyStatus(u, t, o);
@@ -642,6 +642,14 @@ async function useSkill(u, s, tx, ty, echoed) {
     }
   }
   if (o.dash && !u.dead) await dashAlong(u, o, tx, ty);
+  if (o.teleport && !u.dead && !unitAt(tx, ty)) {
+    await tw({ targets: u.view, alpha: 0, duration: 120 });
+    u.x = tx; u.y = ty;
+    placeView(u);
+    await tw({ targets: u.view, alpha: viewAlpha(u), duration: 120 });
+    burst('dark', u, 10);
+    await enterTile(u);
+  }
   if (o.recoil && !u.dead) await hopAway(u, o.recoil);
   if (o.guard) u.st.guard = 1;
   if (o.riposte) u.st.riposte = 1;
@@ -715,8 +723,16 @@ async function battleLoop(b) {
     endTurn(u);
   }
 }
+const CALM_TURNS = 27; // hero turns (about 9 rounds) before the enemy starts to rage
 async function startTurn(u) {
   u.turns++;
+  if (isHero(u)) {
+    B.heroTurns = (B.heroTurns || 0) + 1;
+    if (B.heroTurns > CALM_TURNS) {
+      B.rage = Math.floor((B.heroTurns - CALM_TURNS + 2) / 3);
+      if (!B.ragedAnnounced) { B.ragedAnnounced = true; banner('The foe grows furious!'); sfx('roar'); log('The enemy grows furious: +10% damage every round from now on.'); }
+    }
+  }
   for (const s of u.skills) if (s.cd > 0) s.cd--;
   u.st.guard = 0; u.st.riposte = 0;
   u.tmp = null;
@@ -837,15 +853,15 @@ function scoreAction(u, o, list) {
   let s = 0;
   for (const { t, w } of list) {
     const foe = t.side !== u.side;
-    if (o.kind === 'heal') { if (!foe) s += Math.min(t.maxHp - t.hp, powerVal(u, o) * w) * 1.2 + (o.cleanse && (t.st.poison || t.st.burn) ? 3 : 0); continue; }
+    if (o.kind === 'heal') { if (!foe) s += Math.min(healRoom(t), powerVal(u, o) * w) * 1.2 + (o.cleanse && (t.st.poison || t.st.burn) ? 3 : 0); continue; }
     if (o.kind === 'shield') { if (!foe) s += Math.min(powerVal(u, o) * w, t.maxHp - t.shield) * (t.hp < t.maxHp * 0.85 ? 0.7 : 0.35); continue; }
     if (o.kind === 'buff') {
-      if (foe) s += (o.taunt ? 4 : 0) + (o.blind ? 6 : 0) + (o.vuln ? 4 + t.hp * 0.1 : 0);
+      if (foe) s += (o.taunt ? 4 : 0) + (o.blind ? 6 : 0) + (o.vuln ? 4 + t.hp * 0.1 : 0) + (o.ctTake ? o.ctTake / 10 : 0) + (o.swap ? 1 : 0);
       else s += (o.rally ? 6 : 0) + (o.ctGive && t !== u ? 14 : 0);
       continue;
     }
     if (!foe && has(t, 'hollow') && t !== u) continue;
-    let d = calcDmg(u, t, o) * w * (o.double ? 2 : 1);
+    let d = calcDmg(u, t, o) * w * hitsOf(o);
     const kills = d + 0.5 >= t.hp + t.shield;
     d = Math.min(d, t.hp + t.shield);
     const extra = kills ? 25 : (o.stun && !t.boss ? 8 : 0) + (o.slow ? 3 : 0) + (o.poison ? o.poison * 2 : 0) + (o.burn ? 4 : 0) + (o.vuln ? 4 : 0);
@@ -933,6 +949,8 @@ async function aiTurn(u) {
 function statusText(u) {
   const st = u.st, out = [];
   if (u.shield > 0) out.push(`Shield ${u.shield}`);
+  if (u.cap != null && u.cap < u.maxHp) out.push(`Old wounds: heals only to ${u.cap}`);
+  if (u.side === 'foe' && B.rage) out.push(`Furious +${B.rage * 10}%`);
   if (st.stun) out.push('Stunned');
   if (st.poison > 0) out.push(`Poisoned (${st.poison})`);
   if (st.burn > 0) out.push(`Burning (${st.burn})`);
@@ -958,7 +976,7 @@ function unitCard(u, withSkills) {
     h('div', { class: 'status' }, statusText(u)),
     withSkills ? h('div', { class: 'skill-list' }, u.skills.map(s => {
       const o = skStats(u, s);
-      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, h('br'), h('span', {}, describe(o) + (o.txt ? '. ' + o.txt : '')));
+      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, h('br'), h('span', {}, describe(o, u) + (o.txt ? '. ' + o.txt : '')));
     })) : null);
 }
 function tileCard(x, y) {
@@ -970,7 +988,7 @@ function hintText() {
   if (B.mode === 'move') return 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
   if (B.mode === 'skill') {
     const o = B.selO;
-    const what = `${o.name}: ${describe(o)}.${o.txt ? ' ' + o.txt : ''}`;
+    const what = `${o.name}: ${describe(o, u)}.${o.txt ? ' ' + o.txt : ''}`;
     if (!B.targets.size) return `${what} No targets in range${needsLos(o) ? ' or sight' : ''}.`;
     if (B.pending) return `${what} Tap again or press Confirm.`;
     return `${what} Tap a highlighted tile.`;
@@ -993,7 +1011,7 @@ function renderPanel() {
       u.moved && !u.acted && B.startPos ? h('button', { class: 'btn', onclick: () => undoMove(u) }, 'Undo move') : null,
       u.skills.map((s, i) => {
         const o = skStats(u, s);
-        return h('button', { class: 'btn' + (B.mode === 'skill' && B.sel === i ? ' sel' : ''), disabled: u.acted || s.cd > 0, title: `${o.name}: ${describe(o)}`, onclick: () => selectSkill(i) },
+        return h('button', { class: 'btn' + (B.mode === 'skill' && B.sel === i ? ' sel' : ''), disabled: u.acted || s.cd > 0, title: `${o.name}: ${describe(o, u)}`, onclick: () => selectSkill(i) },
           o.name, s.cd > 0 ? h('span', { class: 'cd' }, ` ${s.cd}`) : null);
       }),
       B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, 'Confirm') : null,
@@ -1199,11 +1217,11 @@ export class BattleScene extends Phaser.Scene {
         if (i >= this.marks.length) break;
         const o = preview.o;
         let label, col;
-        if (o.kind === 'heal') { if (t.side !== u.side) continue; label = '+' + Math.round(Math.min(t.maxHp - t.hp, powerVal(u, o) * w)); col = '#7dff8a'; }
+        if (o.kind === 'heal') { if (t.side !== u.side) continue; label = '+' + Math.round(Math.max(0, Math.min(healRoom(t), powerVal(u, o) * w))); col = '#7dff8a'; }
         else if (o.kind === 'shield') { if (t.side !== u.side) continue; label = '+' + Math.round(powerVal(u, o) * w); col = '#9fd8ff'; }
         else if (o.kind === 'buff') { label = o.taunt ? 'TAUNT' : o.blind ? 'BLIND' : o.vuln ? 'MARK' : o.rally ? 'RALLY' : o.ctGive ? 'HASTE' : 'OK'; col = t.side === u.side ? '#7dff8a' : '#ff8080'; }
         else {
-          const d = Math.round(calcDmg(u, t, o) * w * (o.double ? 2 : 1));
+          const d = Math.round(calcDmg(u, t, o) * w * hitsOf(o));
           label = o.gamble ? '?' : d >= t.hp + t.shield ? 'KO' : (w < 1 && (o.shape === 'random' || o.shape === 'multi') ? '~' : '-') + d;
           col = t.side === u.side ? '#ff9a9a' : '#ffe14d';
         }

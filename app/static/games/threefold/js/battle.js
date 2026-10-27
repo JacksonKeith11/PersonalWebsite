@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=7';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=7';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=7';
-import { sfx } from './audio.js?v=7';
-import { h, bar, sprImg } from './ui.js?v=7';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=8';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=8';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=8';
+import { sfx } from './audio.js?v=8';
+import { h, bar, sprImg } from './ui.js?v=8';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -47,7 +47,6 @@ function heroUnit(p) {
   const u = { id: ++B.uid, side: 'hero', ref: p, spr: heroSprite(p), name: heroTitle(p), promo: p.promo, line: p.line || [], ...st, hp: Math.min(p.hp, st.maxHp),
     flank: CLASSES[p.cls].flank || 1.25, items: p.items, skills: p.skills.map(s => ({ id: s.id, mods: s.mods, cd: 0 })), st: {}, shield: 0,
     ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee' };
-  u.cap = u.hp; // healing can't restore wounds from earlier battles
   u.fireproof = isClass(u, 'pyromancer') || has(u, 'lavawalkers');
   u.anchored = isClass(u, 'juggernaut');
   u.slip = isClass(u, 'trickster');
@@ -475,7 +474,7 @@ function heal(t, n, overflow) {
   refreshView(t);
   return a;
 }
-const healRoom = t => Math.min(t.maxHp, t.cap ?? t.maxHp) - t.hp;
+const healRoom = t => t.maxHp - t.hp;
 function addShield(t, n) {
   if (t.dead) return;
   n = Math.max(0, Math.min(Math.round(n), t.maxHp - t.shield));
@@ -1119,6 +1118,23 @@ async function doSkill(u, s, x, y) {
   B.startPos = null;
   afterHeroStep(u);
 }
+// Every tile a skill reaches from where u stands, whether or not anything is there to hit.
+function rangeTiles(u, o) {
+  if (o.tgt === 'self') {
+    if (o.aoe) return areaTiles(u, o, u.x, u.y);
+    if (o.shape !== 'multi') return [];
+  }
+  const [a, b] = rangeOf(u, o), out = [];
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+    const d = Math.abs(u.x - x) + Math.abs(u.y - y);
+    if (d < Math.max(a, 1) || d > b) continue;
+    if (o.shape === 'line' && x !== u.x && y !== u.y) continue;
+    if (o.shape === 'line' && !lineTiles(u, o, x, y).some(([tx, ty]) => tx === x && ty === y)) continue;
+    if ((needsLos(o) || (o.shape === 'multi' && !o.lob)) && !los(u.x, u.y, x, y)) continue;
+    out.push([x, y]);
+  }
+  return out;
+}
 function selectSkill(i) {
   const u = B.active;
   sfx('select');
@@ -1127,6 +1143,7 @@ function selectSkill(i) {
   B.mode = 'skill'; B.sel = i; B.selO = o;
   B.targets = new Set();
   for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (validTarget(u, o, x, y)) B.targets.add(key(x, y));
+  B.rangeTiles = rangeTiles(u, o);
   B.pending = o.tgt === 'self' && B.targets.size ? { x: u.x, y: u.y } : null;
   renderPanel();
 }
@@ -1262,7 +1279,6 @@ async function aiTurn(u) {
 function statusText(u) {
   const st = u.st, out = [];
   if (u.shield > 0) out.push(`Shield ${u.shield}`);
-  if (u.cap != null && u.cap < u.maxHp) out.push(`Old wounds: heals only to ${u.cap}`);
   if (u.side === 'foe' && B.rage) out.push(`Furious +${B.rage * 10}%`);
   if (st.stun) out.push('Stunned');
   if (st.poison > 0) out.push(`Poisoned (${st.poison})`);
@@ -1544,7 +1560,11 @@ export class BattleScene extends Phaser.Scene {
     let preview = null;
     if (mine && b.mode === 'skill') {
       const o = b.selO;
-      for (const k of b.targets) { const [x, y] = k.split(',').map(Number); fill(x, y, o.kind === 'heal' || o.kind === 'shield' || o.ctGive ? 0x50dc78 : 0xff4646, 0.3); }
+      const help = o.kind === 'heal' || o.kind === 'shield' || o.ctGive || o.hits === 'allies';
+      const col = help ? 0x50dc78 : 0xff4646, edge = help ? 0x90f0a8 : 0xff8080;
+      // the whole range faintly, then the tiles you can actually pick
+      for (const [x, y] of b.rangeTiles || []) { fill(x, y, col, 0.26); line(x, y, edge, 0.6, 2); }
+      for (const k of b.targets) { const [x, y] = k.split(',').map(Number); fill(x, y, col, 0.45); line(x, y, 0xffffff, 0.85, 3); }
       const p = b.hover && b.targets.has(key(b.hover.x, b.hover.y)) ? b.hover : b.pending;
       if (p) {
         for (const [x, y] of areaTiles(u, o, p.x, p.y)) fill(x, y, 0xffd246, 0.4);

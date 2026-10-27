@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=7';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=8';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=7';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=7';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=7';
-import { env, startBattle, BattleScene } from './battle.js?v=7';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=7';
-import { h, sprImg, bar } from './ui.js?v=7';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=8';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=8';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=8';
+import { env, startBattle, BattleScene } from './battle.js?v=8';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=8';
+import { h, sprImg, bar } from './ui.js?v=8';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -578,7 +578,7 @@ function showTitle() {
         h('li', {}, 'Battles pay out in artifacts. Skill artifacts socket into a skill and rewrite it: swap the stat it uses, turn bolts into ricochets or shields, make attacks leap or melt the floor. Hero artifacts are worn and change the hero.'),
         h('li', {}, 'Artifacts and classes share archetypes (poison, elemental, shield, thorns, blood, time). Stack one and rewards start leaning toward it.'),
         h('li', {}, 'After a fight a hero can learn a new skill from their class. Each knows at most 4, so learning may mean forgetting.'),
-        h('li', {}, 'Healing is scarce. Wounds carry between fights, healing in battle can\'t undo earlier wounds, and the fallen get up with 10% HP. Each new act restores everyone. Dawdle in a fight and the enemy grows furious.'),
+        h('li', {}, 'Healing is scarce. Wounds carry between fights, there\'s no healing after a battle, and the fallen get up with 10% HP. Each new act restores everyone. Dawdle in a fight and the enemy grows furious.'),
         h('li', {}, 'On touch screens, tap a target once to preview, again to confirm.'),
       )),
   ));

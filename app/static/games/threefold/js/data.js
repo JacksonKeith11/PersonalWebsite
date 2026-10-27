@@ -139,7 +139,7 @@ export const SKILLS = {
   bolt: { name: 'Arcane Bolt', kind: 'mag', tgt: 'foe', range: [2, 4], pow: 0.75, cd: 0, txt: 'A bolt of force.' },
   fireball: { name: 'Fireball', kind: 'mag', tgt: 'tile', range: [2, 5], aoe: 1, hits: 'all', pow: 1.15, cd: 3, lob: true, txt: 'Lobbed over walls. Burns friend and foe alike.' },
   frost: { name: 'Frost Lance', kind: 'mag', tgt: 'foe', range: [1, 4], pow: 0.9, cd: 2, slow: 2, txt: 'The target acts at half speed for 2 turns.' },
-  mend: { name: 'Mend', kind: 'heal', tgt: 'ally', range: [0, 3], pow: 1.0, cd: 2, cleanse: true, lob: true, txt: 'Restores HP and cures poison and burns.' },
+  mend: { name: 'Mend', kind: 'heal', tgt: 'ally', range: [0, 3], pow: 1.0, cd: 3, cleanse: true, lob: true, txt: 'Restores HP and cures poison and burns.' },
 
   stab: { name: 'Stab', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.0, cd: 0, txt: 'Quick dagger work.' },
   knives: { name: 'Throwing Knives', kind: 'phys', tgt: 'foe', range: [2, 4], pow: 0.7, cd: 1, txt: 'A knife from a distance.' },
@@ -600,7 +600,7 @@ export const ITEMS = {
   idol: { name: 'Retribution Idol', tags: ['thorns'], price: 70, unique: true, txt: 'Your thorns hit attackers at any range, not just in melee.' },
   rose: { name: 'Black Rose', tags: ['thorns', 'poison'], price: 65, unique: true, txt: 'Your thorns poison whoever they cut.' },
   torc: { name: "Berserker's Torc", tags: ['blood'], price: 65, unique: true, txt: '+50% damage while under half HP.' },
-  chalice: { name: 'Blood Chalice', tags: ['blood'], price: 75, unique: true, txt: 'Each kill restores 10% of max HP (wounds from earlier fights stay).' },
+  chalice: { name: 'Blood Chalice', tags: ['blood'], price: 75, unique: true, txt: 'Each kill restores 10% of max HP.' },
   laststand: { name: 'Last Stand Sigil', tags: ['blood'], price: 80, unique: true, txt: 'Once per battle, a lethal hit leaves you at 1 HP instead.' },
   stopwatch: { name: 'Stopwatch', tags: ['time'], price: 70, unique: true, txt: 'You take the first turn of every battle.' },
   metronome: { name: 'Metronome', tags: ['time'], price: 60, unique: true, txt: 'Every hit you land pushes the target 15 back in the turn order.' },

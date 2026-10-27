@@ -34,8 +34,8 @@ Keep it that way.
 
 - **Healing is scarce; an act's attrition is the challenge.**
   - There's no healing after a fight. The fallen get up with 10% HP.
-  - In-battle healing (Mend, lifesteal, overflow) can't restore wounds from earlier fights: it's
-    capped at the HP the hero started the battle with (`u.cap`).
+  - In-battle healing and lifesteal can restore any HP, old wounds included (the owner dropped the
+    old cap). Scarcity comes from few healing skills: Mend has cooldown 3.
   - Inns heal 25% for 45g (40% in the shops just before a boss), and event heals are 10–25%.
   - A new act fully heals.
   - Don't add easy healing back.

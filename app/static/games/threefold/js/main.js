@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=5';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=6';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=5';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=5';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=5';
-import { env, startBattle, BattleScene } from './battle.js?v=5';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=5';
-import { h, sprImg, bar } from './ui.js?v=5';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=6';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=6';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=6';
+import { env, startBattle, BattleScene } from './battle.js?v=6';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=6';
+import { h, sprImg, bar } from './ui.js?v=6';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -261,7 +261,8 @@ function wearPreview(p, id) {
 const clampHp = () => run.party.forEach(p => { p.hp = Math.min(p.hp, heroStats(p, run.gold).maxHp); });
 
 // Teach hero hi skill id; at MAX_SKILLS they forget one (its artifacts go to the pack).
-function learnFlow(hi, id, next, show = setScreen) {
+// back, if given, returns to the offers so another hero's skill can be picked instead.
+function learnFlow(hi, id, next, show = setScreen, back = null) {
   const p = run.party[hi];
   if (!skillsFull(p)) { p.skills.push({ id, mods: [] }); sfx('buff'); next(); return; }
   const forget = i => { run.stash.push(...p.skills[i].mods); p.skills[i] = { id, mods: [] }; sfx('buff'); next(); };
@@ -270,7 +271,7 @@ function learnFlow(hi, id, next, show = setScreen) {
     h('div', { class: 'cards' }, skillCard(p, id, h('span', { class: 'price' }, 'New'), () => {}, true)),
     h('h3', {}, 'Forget'),
     h('div', { class: 'cards' }, p.skills.map((s, i) => skillCard(p, s.id, s.mods.length ? h('span', { class: 'price' }, `${s.mods.length} art.`) : null, () => forget(i)))),
-    btn(`Don't learn ${SKILLS[id].name}`, next)));
+    back ? btn('Back: choose a different skill', back) : btn(`Don't learn ${SKILLS[id].name}`, next)));
   auto(() => chance(0.5) ? forget(rnd(0, p.skills.length - 1)) : next());
 }
 
@@ -286,13 +287,14 @@ function showRewards(info) {
     if (info.kind === 'boss') { if (run.act >= ACTS.length - 1) victory(); else promotionScreen(nextAct); return; }
     showMap();
   };
+  let opts = null;
   const learn = () => {
-    const opts = skillOffers(run.party, 3);
+    opts ||= skillOffers(run.party, 3);
     if (!opts.length) { after(); return; }
     setScreen(h('div', { class: 'panel' },
       h('h2', {}, 'Learn a new skill?'), h('p', { class: 'muted' }, `Each hero can know ${MAX_SKILLS} skills.`),
       h('div', { class: 'cards' }, opts.map(c => skillCard(run.party[c.hi], c.id, skillsFull(run.party[c.hi]) ? h('span', { class: 'price' }, 'Replaces one') : null,
-        () => learnFlow(c.hi, c.id, after)))),
+        () => learnFlow(c.hi, c.id, after, setScreen, learn)))),
       btn('Skip', after)));
     auto(() => learnFlow(opts[0].hi, opts[0].id, after));
   };
@@ -466,8 +468,9 @@ function showEvent() {
       else if (res.arts) chooseArtifact('Choose one', res.arts, showMap);
       else if (res.learnHero != null) {
         const opts = skillOffers(run.party, 3, res.learnHero);
-        setScreen(h('div', { class: 'panel' }, h('h2', {}, 'Choose a technique'),
-          h('div', { class: 'cards' }, opts.map(c => skillCard(run.party[c.hi], c.id, null, () => learnFlow(c.hi, c.id, showMap)))), btn('Skip', showMap)));
+        const offer = () => setScreen(h('div', { class: 'panel' }, h('h2', {}, 'Choose a technique'),
+          h('div', { class: 'cards' }, opts.map(c => skillCard(run.party[c.hi], c.id, null, () => learnFlow(c.hi, c.id, showMap, setScreen, offer)))), btn('Skip', showMap)));
+        offer();
         auto(() => opts.length ? learnFlow(opts[0].hi, opts[0].id, showMap) : showMap());
       } else showMap();
     };
@@ -490,7 +493,7 @@ function showShop(n) {
   music('m_map');
   const again = () => showShop(n);
   const buy = it => { run.gold -= it.price; it.sold = true; equipFlow(it.id, again); };
-  const lesson = c => { run.gold -= TUTOR; c.sold = true; learnFlow(c.hi, c.id, again); };
+  const lesson = c => learnFlow(c.hi, c.id, () => { run.gold -= TUTOR; c.sold = true; again(); }, setScreen, again);
   const rest = () => { run.gold -= INN; shop.inn = true; healAll(innHeal(n)); sfx('heal'); again(); };
   setScreen(h('div', {},
     h('div', { class: 'panel' },

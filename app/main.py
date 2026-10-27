@@ -47,6 +47,11 @@ def projects():
     return FileResponse(STATIC_DIR / "projects.html")
 
 
+@app.get("/recipes", include_in_schema=False)
+def recipes():
+    return FileResponse(STATIC_DIR / "recipes.html")
+
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}

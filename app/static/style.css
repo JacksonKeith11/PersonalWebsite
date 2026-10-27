@@ -195,3 +195,14 @@ figcaption { margin-top: 6px; color: var(--muted); font-size: 0.9rem; }
   .headshot { float: none; display: block; margin: 0 auto 16px; }
   figure video { width: 100%; max-width: 280px; margin: 0 auto; }
 }
+
+.recipe h3 { margin-bottom: 8px; }
+.recipe h4 {
+  margin: 16px 0 4px;
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.recipe ul, .recipe ol { margin-top: 4px; }
+.recipe + .recipe { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--rule); }

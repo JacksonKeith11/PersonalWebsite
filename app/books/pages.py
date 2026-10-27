@@ -7,7 +7,8 @@ NAV = """<nav class="nav">
         <a href="/">About</a>
         <a href="/resume">Resume</a>
         <a href="/projects">Projects</a>
-        <a href="/books" aria-current="page">Books</a>
+        <a href="/books" aria-current="page">Library</a>
+        <a href="/recipes">Recipes</a>
       </div>
     </nav>"""
 FONTS = (
@@ -36,7 +37,7 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
   {HEAD}
   <title>Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=8">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>
@@ -72,7 +73,7 @@ def library(user: str) -> str:
   {HEAD}
   <title>Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=8">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>
@@ -113,7 +114,7 @@ def receive(user: str) -> str:
   {HEAD}
   <title>Import to Library</title>
   {FONTS}
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=8">
   <link rel="stylesheet" href="/static/books/library.css?v={ASSET_VERSION}">
 </head>
 <body>

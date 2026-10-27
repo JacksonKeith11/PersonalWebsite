@@ -79,5 +79,6 @@ def warrior4():  # paladin: winged helm, gold trim, red cape, tower shield, mace
     g.text(4, 1, ['F    ', 'FF   ', 'FFF  ', ' FFFF', '  FF '])
     g.text(19, 1, ['    F', '   FF', '  FFF', 'FFFF ', ' FF  '])
     return g
-items = [(n, f().strings(), f().pal) for n, f in [('w1', warrior1), ('w2', warrior2), ('w3', warrior3), ('w4', warrior4)]]
-sheet(items, 'warrior.png')
+if __name__ == '__main__':  # preview sheet
+    items = [(n, f().strings(), f().pal) for n, f in [('w1', warrior1), ('w2', warrior2), ('w3', warrior3), ('w4', warrior4)]]
+    sheet(items, 'warrior.png')

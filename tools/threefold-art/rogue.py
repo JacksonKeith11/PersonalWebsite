@@ -69,5 +69,6 @@ def rogue4():  # swashbuckler: feathered cap, vest, sash, rapier
     g.rows(8, 4, [(1, 10), (0, 11), (0, 11)], 'H'); g.rect(8, 6, 19, 6, 'h'); g.rows(10, 2, [(1, 5), (0, 6)], 'H')
     g.text(4, 0, ['FF    ', ' FFF  ', '  FFFF', '    FF'])
     return g
-items = [(n, f().strings(), f().pal) for n, f in [('r1', rogue1), ('r2', rogue2), ('r3', rogue3), ('r4', rogue4)]]
-sheet(items, 'rogue.png')
+if __name__ == '__main__':  # preview sheet
+    items = [(n, f().strings(), f().pal) for n, f in [('r1', rogue1), ('r2', rogue2), ('r3', rogue3), ('r4', rogue4)]]
+    sheet(items, 'rogue.png')

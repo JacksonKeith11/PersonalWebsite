@@ -72,5 +72,6 @@ def mage4():  # battle mage: hood down, short hair, crook staff, glowing fist
     g.rect(11, 7, 17, 13, 's'); g.rect(11, 6, 17, 7, 'a'); g.rect(10, 7, 10, 10, 'a'); g.rect(18, 7, 18, 9, 'a'); g.rect(11, 5, 16, 5, 'a')
     g.px(13, 10, 'e'); g.px(16, 10, 'e'); g.rect(11, 9, 17, 9, 'S'); g.rect(12, 12, 17, 13, 'a'); g.rect(14, 12, 15, 12, 'S')
     return g
-items = [(n, f().strings(), f().pal) for n, f in [('m1', mage1), ('m2', mage2), ('m3', mage3), ('m4', mage4)]]
-sheet(items, 'mage.png')
+if __name__ == '__main__':  # preview sheet
+    items = [(n, f().strings(), f().pal) for n, f in [('m1', mage1), ('m2', mage2), ('m3', mage3), ('m4', mage4)]]
+    sheet(items, 'mage.png')

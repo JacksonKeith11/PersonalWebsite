@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 10
+ASSET_VERSION = 11
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -108,6 +108,7 @@ def reader(book: dict, theme: str = "original") -> str:
       </div>
       <div class="fonts" id="fonts">
         <button data-font="original">Original</button>
+        <button data-font="charter">Charter</button>
         <button data-font="georgia">Georgia</button>
         <button data-font="palatino">Palatino</button>
         <button data-font="system">San Francisco</button>

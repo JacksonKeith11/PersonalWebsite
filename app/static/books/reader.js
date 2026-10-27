@@ -10,6 +10,7 @@
 
   const FONTS = {
     original: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
+    charter: 'Charter, "Charter Web", serif',
     georgia: "Georgia, serif",
     palatino: 'Palatino, "Palatino Linotype", "Book Antiqua", serif',
     system: '-apple-system, system-ui, "Segoe UI", sans-serif',
@@ -115,7 +116,11 @@
         img.addEventListener("error", done, { once: true });
       }));
     await Promise.race([Promise.all(waits), new Promise((done) => setTimeout(done, 1500))]);
-    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    if (document.fonts) {
+      // A web font only starts loading once something uses it, so ask for it before measuring.
+      await document.fonts.load(`${settings.size}px ${FONTS[settings.font] || FONTS.original}`).catch(() => {});
+      await document.fonts.ready;
+    }
   }
 
   async function openChapter(n, { segment = null, end = false } = {}) {

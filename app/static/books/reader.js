@@ -281,13 +281,24 @@
   // screen and leaves the strip below it empty. Measure it so the reader can extend into it.
   function fitScreen() {
     if (!navigator.standalone) return;
-    const full = window.innerHeight > window.innerWidth ? screen.height : screen.width;
-    const gap = Math.max(0, full - window.innerHeight);
     const root = document.documentElement.style;
+    root.removeProperty("--gap");
+    const full = window.innerHeight > window.innerWidth ? screen.height : screen.width;
+    const bottom = stage.getBoundingClientRect().bottom;
+    // Never more than a status bar's height, so a bad reading can't push the page off screen.
+    const gap = Math.min(60, Math.max(0, Math.round(full - bottom)));
     root.setProperty("--gap", `${gap}px`);
-    // Keep the page info clear of the home indicator even if iOS reports no safe area there.
-    if (gap > 0) root.setProperty("--footer", "max(calc(env(safe-area-inset-bottom) - 16px), 18px)");
-    else root.removeProperty("--footer");
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);visibility:hidden";
+    document.body.append(probe);
+    const cs = getComputedStyle(probe);
+    const report = {
+      screen: [screen.width, screen.height], inner: [window.innerWidth, window.innerHeight],
+      visual: window.visualViewport ? window.visualViewport.height : null, client: document.documentElement.clientHeight,
+      stageBottom: bottom, safeTop: cs.paddingTop, safeBottom: cs.paddingBottom, gap,
+    };
+    probe.remove();
+    fetch(api("/viewport"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(report) }).catch(() => {});
   }
 
   let resizeTimer;

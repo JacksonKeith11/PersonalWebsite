@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import shutil
 import time
@@ -14,6 +15,7 @@ from .. import auth
 from ..serials import page as serials_page
 from . import epub, pages, store
 
+log = logging.getLogger("books")
 MAX_UPLOAD = 200 * 1024 * 1024
 # Chapter text, images and audio never change for a given book id, so browsers may keep them.
 IMMUTABLE = {"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, max-age=604800"}
@@ -194,6 +196,13 @@ async def listen(book_id: str, request: Request):
     _book(book_id)
     chapter = int((await request.json()).get("chapter", 0))
     store.write_json(store.PRIORITY, {"book": book_id, "chapter": chapter})
+    return {"ok": True}
+
+
+@api.post("/{book_id}/viewport")
+async def viewport(book_id: str, request: Request):
+    """Screen measurements from the iOS home screen app, logged to tune the reader's layout."""
+    log.info("viewport %s", (await request.body())[:1000].decode(errors="replace"))
     return {"ok": True}
 
 

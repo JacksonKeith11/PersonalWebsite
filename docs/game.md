@@ -104,12 +104,18 @@ Keep it that way.
     near black tinted by what they wrap, mutes the palette, and gives each colour a flat fill with
     one darker band on its lower-right side. Keep sprites matte: the owner found rim highlights too
     glossy (their reference is a muted, cel-shaded top-down wizard).
-  - The base Warrior, Mage and Rogue are hand-drawn 32×32 grids (the owner picked them from four
-    options each; more classes and enemies are being redrawn the same way). Draw them as flat colour
-    regions with no outline, leaving a pixel of room at the edges: `flat32()` adds the outline, a
-    darker band to the lower right of each colour and a faint light edge to the upper left. They're
-    assigned at the end of `art.js`, after every recolour and variant, so promotions and enemies built
-    from the old 16×16 grids (Samurai, Dark Knight, Cutpurse...) keep their originals. Draw grids with a `k` outline and `e` eyes and the pass does the rest; dark detail
+  - All 21 hero classes are hand-drawn 32×32 grids, picked by the owner from four options each;
+    enemies are next, the same way. Draw them as flat colour regions with no outline, leaving a pixel
+    of room at the edges: `flat32()` adds the outline, a darker band to the lower right of each colour
+    and a faint light edge to the upper left. They're assigned at the end of `art.js`, after every
+    recolour and variant, so enemies built from the old 16×16 grids (Dark Knight, Cutpurse, Clockwork
+    Soldier) keep their originals.
+  - `tools/threefold-art/` holds the Python that draws them (needs Pillow): `kit.py` (primitives,
+    the same shading as `flat32()`, contact sheets), one file per batch with every option including
+    the ones not picked (`warrior.py`, `mage.py`, `rogue.py`, `promos.py`, `masters.py`), `sheet.py`
+    for comparison sheets, and `export2.py`, which prints chosen designs as `art.js` entries, e.g.
+    `python3 export2.py masters out.js samurai=samurai4`. Promotions build on the owner's base picks
+    (`knight()`, `wizard()`, `bandit()` in `promos.py`) so a hero still looks like themselves. Draw grids with a `k` outline and `e` eyes and the pass does the rest; dark detail
     inside a sprite stays 2px so it stays readable.
   - Terrain: `tiles.js` paints each tile from the theme's ramps (`blob()` gives lit, rimmed shapes),
     then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under

@@ -77,12 +77,40 @@ export const ARCHES = {
 // ---------- classes ----------
 // Every hero promotes after each act boss: tier 1 (promos) after act 1, tier 2 (next) after act 2.
 // Passives stack, and each class adds its skills to the hero's pool.
+// Level-up growth after each battle won, by the hero's current class (their latest promotion, or
+// their base class): hp and `each` every win, `every` [n, stats] when the level is a multiple of n,
+// and `at` one-off bonuses at a given level. Base classes cover roughly levels 2-7 (Act 1), tier 1
+// about 8-13, tier 2 about 14 and up.
+export const GROWTH = {
+  warrior: { hp: 5, each: { atk: 1 }, every: [[2, { def: 1 }], [3, { res: 1 }]], at: { 6: { spd: 2 } } },
+  mage: { hp: 3, each: { mag: 1 }, every: [[2, { res: 1 }], [3, { spd: 1 }]], at: { 5: { mov: 1 } } },
+  rogue: { hp: 3, each: { atk: 1 }, every: [[2, { spd: 1 }], [3, { crit: 3 }]], at: { 5: { mov: 1 } } },
+  blademaster: { hp: 4, each: { atk: 1 }, every: [[2, { spd: 1 }], [3, { crit: 3 }]], at: { 10: { mov: 1 } } },
+  juggernaut: { hp: 7, each: { def: 1 }, every: [[2, { atk: 1 }], [2, { res: 1 }]], at: { 10: { maxHp: 10 } } },
+  pyromancer: { hp: 3, each: { mag: 1 }, every: [[2, { mag: 1 }], [4, { res: 1 }]], at: { 11: { spd: 2 } } },
+  chronomancer: { hp: 3, each: { mag: 1 }, every: [[2, { spd: 1 }], [3, { res: 1 }]], at: { 10: { mov: 1 } } },
+  assassin: { hp: 3, each: { atk: 1 }, every: [[2, { crit: 3 }], [3, { spd: 1 }]], at: { 10: { mov: 1 } } },
+  trickster: { hp: 4, each: { spd: 1 }, every: [[2, { atk: 1 }], [3, { res: 1 }]], at: { 10: { mov: 1 } } },
+  samurai: { hp: 5, each: { atk: 1 }, every: [[2, { maxHp: 4 }], [3, { crit: 3 }]], at: { 16: { spd: 2 } } },
+  dragoon: { hp: 5, each: { atk: 1 }, every: [[2, { def: 1 }], [3, { spd: 1 }]], at: { 16: { mov: 1 } } },
+  hoplite: { hp: 8, each: { def: 1 }, every: [[2, { res: 1 }], [3, { atk: 1 }]], at: { 16: { maxHp: 12 } } },
+  briarknight: { hp: 8, each: { def: 1 }, every: [[2, { maxHp: 5 }], [3, { atk: 1 }]], at: { 16: { res: 3 } } },
+  stormcaller: { hp: 3, each: { mag: 1 }, every: [[2, { spd: 1 }], [3, { mag: 1 }]], at: { 16: { mov: 1 } } },
+  warlock: { hp: 2, each: { mag: 2 }, every: [[3, { res: 1 }]], at: { 16: { crit: 10 } } },
+  arithmetician: { hp: 3, each: { mag: 1 }, every: [[2, { res: 1 }], [2, { spd: 1 }]], at: { 17: { mag: 3 } } },
+  oracle: { hp: 4, each: { mag: 1 }, every: [[2, { res: 2 }]], at: { 16: { mov: 1 } } },
+  ninja: { hp: 3, each: { atk: 1 }, every: [[2, { spd: 1 }], [2, { crit: 2 }]], at: { 16: { mov: 1 } } },
+  plaguebringer: { hp: 4, each: { atk: 1, mag: 1 }, every: [[3, { def: 1 }]], at: { 16: { res: 2 } } },
+  bard: { hp: 4, each: { res: 1 }, every: [[2, { spd: 1 }], [2, { mag: 1 }]], at: { 16: { mov: 1 } } },
+  mesmer: { hp: 3, each: { mag: 1 }, every: [[2, { spd: 1 }], [3, { atk: 1 }]], at: { 16: { spd: 2 } } },
+};
+
 export const CLASSES = {
-  warrior: { name: 'Warrior', hp: 50, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, main: 'atk', promos: ['blademaster', 'juggernaut'], arch: ['thorns', 'shield'],
+  warrior: { name: 'Warrior', hp: 50, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, promos: ['blademaster', 'juggernaut'], arch: ['thorns', 'shield'],
     start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder', 'ironhide', 'heave', 'bide', 'rallycry', 'revenge'] },
-  mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, main: 'mag', promos: ['pyromancer', 'chronomancer'], arch: ['elemental'],
+  mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, promos: ['pyromancer', 'chronomancer'], arch: ['elemental'],
     start: ['bolt', 'fireball', 'frost'], pool: ['mend', 'chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'gust'] },
-  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, main: 'atk', promos: ['assassin', 'trickster'], arch: ['poison'],
+  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison'],
     start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'garrote', 'pocketsand', 'toxicbomb', 'tripup', 'oilflask', 'throwstone'] },
 };
 export const PROMOS = {

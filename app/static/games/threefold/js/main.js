@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=12';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=13';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=12';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=12';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=12';
-import { env, startBattle, BattleScene } from './battle.js?v=12';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=12';
-import { h, sprImg, bar } from './ui.js?v=12';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=13';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=13';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=13';
+import { env, startBattle, BattleScene } from './battle.js?v=13';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=13';
+import { h, sprImg, bar } from './ui.js?v=13';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -189,18 +189,19 @@ env.onEnd = (b, win) => {
   if (AUTO) (window.__log ||= []).push({ act: run.act + 1, kind: b.kind, lvl: b.level, win, heroes: b.units.filter(u => u.ref).map(u => u.dead ? 0 : u.hp).join('/'),
     foes: win ? '' : b.units.filter(u => u.side === 'foe' && !u.dead).map(u => `${u.name}:${u.hp}`).join(' ') });
   if (!win) { gameOver(); return; }
+  const levels = [];
   for (const u of b.units) {
     if (!u.ref) continue;
     const p = u.ref;
-    p.maxHp += 4;
-    p[CLASSES[p.cls].main] += 1;
-    // no healing after a fight: wounds carry over, and the fallen get up with 10% HP
-    p.hp = u.dead ? Math.ceil(heroStats(p, run.gold).maxHp * 0.1) : Math.min(u.hp + 4, heroStats(p, run.gold).maxHp);
+    const gains = levelUp(p);
+    levels.push({ p, gains });
+    // no healing after a fight: wounds carry over (the new max HP comes filled), and the fallen get up with 10% HP
+    p.hp = u.dead ? Math.ceil(heroStats(p, run.gold).maxHp * 0.1) : Math.min(u.hp + (gains.maxHp || 0), heroStats(p, run.gold).maxHp);
   }
   run.stats.battles++;
   const tooth = run.party.some(p => p.items.includes('goldtooth')) ? 1.4 : 1;
   const base = b.kind === 'boss' ? rnd(90, 110) : b.kind === 'elite' ? rnd(55, 70) + b.level * 3 : rnd(20, 30) + b.level * 2;
-  showRewards({ gold: Math.round(base * tooth), kind: b.kind });
+  showRewards({ gold: Math.round(base * tooth), kind: b.kind, levels });
 };
 
 // ---------- cards ----------
@@ -325,7 +326,9 @@ function showRewards(info) {
     if (taken >= picks || !offers.length) { learn(); return; }
     setScreen(h('div', { class: 'panel' },
       h('h2', {}, taken ? 'Take one more' : info.kind === 'boss' ? `${ACTS[run.act].boss} is defeated!` : 'Victory!'),
-      taken ? null : h('p', {}, `+${info.gold} gold. Every hero gains 4 max HP and 1 ${'ATK or MAG'}. Other wounds stay until you rest.`),
+      taken ? null : h('p', {}, `+${info.gold} gold. Wounds stay until you rest.`),
+      taken || !info.levels ? null : h('div', { class: 'levels' }, info.levels.map(({ p, gains }) => h('div', {}, sprImg(heroSprite(p)),
+        h('b', {}, `${heroTitle(p)} Lv ${p.lvl}`), ` ${gainsText(gains)}`))),
       h('h3', {}, picks > 1 ? `Spoils: choose ${picks - taken}` : 'Spoils: choose one'),
       h('div', { class: 'cards' }, offers.map(id => artCard(id, null, () => equipFlow(id, () => { taken++; offers = offers.filter(x => x !== id); spoils(); }, setScreen, spoils)))),
       btn('Leave them', learn)));
@@ -339,6 +342,7 @@ function promoCard(p, id, onpick) {
     h('div', { class: 'pick-head' }, sprImg(id, 'big'), h('b', {}, pr.name), archChips(pr.arch)),
     h('div', { class: 'new' }, Object.entries(pr.stats).map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k === 'maxHp' ? 'max HP' : k.toUpperCase()}`).join(', ')),
     h('div', { class: 'desc' }, pr.passive),
+    h('div', { class: 'desc dim' }, `Growth: ${growthText(id)}`),
     h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Learns ${o.name}: `), `${describe(o, heroSrc(p, run.gold))}. ${o.txt}`),
     h('div', { class: 'desc dim' }, `Adds to their skill pool: ${pr.pool.map(s => SKILLS[s].name).join(', ')}.`),
     pr.next ? h('div', { class: 'desc dim' }, `Can later become a ${pr.next.map(n => PROMOS[n].name).join(' or ')}.`) : null);
@@ -558,6 +562,8 @@ function showParty() {
       return h('div', { class: 'hero-card' },
         h('div', { class: 'card-head' }, sprImg(heroSprite(p), 'big'), h('div', { class: 'who' }, h('b', {}, heroTitle(p)), bar(p.hp, st.maxHp, false), `${p.hp}/${st.maxHp} HP`)),
         h('div', { class: 'stats' }, `ATK ${st.atk} · MAG ${st.mag} · DEF ${st.def} · RES ${st.res} · SPD ${st.spd} · MOV ${st.mov} · CRIT ${st.crit}%`),
+        h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Lv ${p.lvl || 1} `), `Growth: ${growthText(growthClass(p))}`,
+          nextBreakpoint(p) ? h('span', { class: 'next-bp' }, ` · next ${nextBreakpoint(p)}`) : null),
         ...(p.line || []).map(c => h('div', { class: 'desc' }, h('b', { class: 'inline' }, PROMOS[c].name + ' '), PROMOS[c].passive)),
         h('h3', { style: 'margin-top:10px' }, `Skills ${p.skills.length}/${MAX_SKILLS}`),
         h('div', { class: 'skill-list' }, p.skills.map(s => {

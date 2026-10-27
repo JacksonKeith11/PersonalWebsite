@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=12';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=13';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -22,7 +22,7 @@ export const artPrice = id => (MODS[id] || ITEMS[id]).price;
 
 export function newHero(cls) {
   const c = CLASSES[cls];
-  return { cls, promo: null, maxHp: c.hp, hp: c.hp, atk: c.atk, mag: c.mag, def: c.def, res: c.res, spd: c.spd, mov: c.mov, crit: c.crit, items: [], line: [],
+  return { cls, promo: null, maxHp: c.hp, hp: c.hp, atk: c.atk, mag: c.mag, def: c.def, res: c.res, spd: c.spd, mov: c.mov, crit: c.crit, items: [], line: [], lvl: 1,
     // the class's basic attack plus one random skill from the rest of its kit
     skills: [c.start[0], pick([...c.start.slice(1), ...c.pool])].map(id => ({ id, mods: [] })) };
 }
@@ -41,6 +41,45 @@ export function heroStats(p, gold = 0) {
 export const startShield = (p, maxHp) => Math.round(maxHp * ((isClass(p, 'juggernaut') ? 0.4 : 0) + (p.items.includes('capacitor') ? 0.25 : 0)));
 // What describe() and the damage numbers read stats from, for a hero outside battle.
 export const heroSrc = (p, gold) => { const st = heroStats(p, gold); return { ...st, hp: p.hp, items: p.items, line: p.line, shield: startShield(p, st.maxHp) }; };
+
+// ---------- levels ----------
+const GROWTH_NAMES = { maxHp: 'HP', atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', mov: 'MOV', crit: 'CRIT' };
+const statsText = st => Object.entries(st).map(([k, v]) => `+${v} ${GROWTH_NAMES[k]}`).join(', ');
+// Growth follows the hero's current class: their latest promotion, else their base class.
+export const growthClass = p => (p.line && p.line.length ? p.line[p.line.length - 1] : p.cls);
+export function levelGains(cls, lvl) {
+  const g = GROWTH[cls], out = { maxHp: g.hp };
+  const add = st => { for (const [k, v] of Object.entries(st)) out[k] = (out[k] || 0) + v; };
+  add(g.each);
+  for (const [n, st] of g.every || []) if (lvl % n === 0) add(st);
+  if (g.at && g.at[lvl]) add(g.at[lvl]);
+  return out;
+}
+// Level hero p up after a win; returns what they gained.
+export function levelUp(p) {
+  p.lvl = (p.lvl || 1) + 1;
+  const gains = levelGains(growthClass(p), p.lvl);
+  for (const [k, v] of Object.entries(gains)) p[k] += v;
+  return gains;
+}
+export const gainsText = statsText;
+// "+5 HP, +1 ATK each level · +1 DEF every 2 levels · Lv 6: +2 SPD"
+export function growthText(cls) {
+  const g = GROWTH[cls];
+  return [`+${g.hp} HP, ${statsText(g.each)} each level`, ...(g.every || []).map(([n, st]) => `${statsText(st)} every ${n} levels`),
+    ...Object.entries(g.at || {}).map(([l, st]) => `Lv ${l}: ${statsText(st)}`)].join(' · ');
+}
+// The next one-off or every-N bonus coming for hero p, e.g. "Lv 6: +1 MOV".
+export function nextBreakpoint(p) {
+  const g = GROWTH[growthClass(p)];
+  for (let l = (p.lvl || 1) + 1; l <= (p.lvl || 1) + 6; l++) {
+    const extra = {};
+    for (const [n, st] of g.every || []) if (l % n === 0) Object.assign(extra, st);
+    if (g.at && g.at[l]) Object.assign(extra, g.at[l]);
+    if (Object.keys(extra).length) return `Lv ${l}: ${statsText(extra)}`;
+  }
+  return '';
+}
 
 // The classes hero p can promote into next: two after each act boss, none once they're tier 2.
 export function promoOptions(p) {

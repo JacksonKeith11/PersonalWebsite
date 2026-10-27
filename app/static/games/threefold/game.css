@@ -223,3 +223,8 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .pick .delta .now { color: var(--green); }
 .pick .fits { color: #7fd8d0; font-size: 17px; margin-top: 4px; line-height: 1.2; }
 .pick .fits.none { color: #c08080; }
+.levels { margin: 0 0 10px; font-size: 19px; color: var(--muted); }
+.levels div { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.levels img.spr { width: 24px; height: 24px; }
+.levels b { color: var(--text); font-weight: normal; }
+.next-bp { color: var(--gold); }

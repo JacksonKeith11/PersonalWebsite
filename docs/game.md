@@ -50,6 +50,11 @@ Keep it that way.
   prefer adding a strange skill over polishing a safe one. Removing a skill means deleting it from
   its pool (and from `SKILLS` if nothing else uses it). A pool naming a missing skill only fails at
   runtime, so grep for the id.
+- **Levels grow by class.** Every win levels each hero up (`levelUp` in `rules.js`) using
+  `GROWTH` for their current class (latest promotion, else base class): HP and `each` stats every
+  level, `every` [n, stats] on multiples of n, and `at` one-offs such as +1 MOV. Classes should feel
+  different as they grow; tanks gain DEF and HP, casters MAG and RES, skirmishers SPD, CRIT and MOV.
+  New classes need a `GROWTH` entry.
 - **Skills come from class pools.** Heroes start with 2: their basic attack (`CLASSES.start[0]`) and
   one random pick from the rest of `start` plus `pool`. They learn from `pool`
   plus every class in their line, up to `MAX_SKILLS` = 4. Learning a fifth means forgetting one.

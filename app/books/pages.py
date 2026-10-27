@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 16
+ASSET_VERSION = 17
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>
@@ -90,10 +90,10 @@ def library(user: str) -> str:
           aria-label="Story link" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
         <button type="submit" class="btn">Import</button>
       </form>
-      <p class="link-hint">Royal Road blocks downloads from this server. Instead, drag
+      <p class="link-hint">Royal Road and SpaceBattles block downloads from this server. Instead, drag
         <a id="bookmarklet" class="bookmarklet" href="#">Import to Library</a> to your bookmarks bar
         (or <button id="bookmarklet-copy" class="linkish" type="button">copy it</button> into a new bookmark's
-        address), then use it on a story's page on Royal Road.</p>
+        address), then use it on the story's page there. It works on the other forums too.</p>
     </div>
     <ul id="imports" class="imports" hidden></ul>
     <p id="notice" class="notice" hidden></p>
@@ -119,7 +119,7 @@ def receive(user: str) -> str:
 <body>
   <main class="paper receive">
     <h1 class="page-title">Import to Library</h1>
-    <p id="status" class="notice">Waiting for Royal Road…</p>
+    <p id="status" class="notice">Waiting for the story's page…</p>
     <div id="progress" class="bar" hidden><i></i></div>
     <p class="hint">Signed in as {escape(user)} · <a href="/books" target="_blank" rel="noopener">Open your library</a></p>
   </main>

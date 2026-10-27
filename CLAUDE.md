@@ -26,10 +26,10 @@ Changes that need someone at the Mac (say so in the PR description):
   - `worker.py` runs in the `tts` container (`Dockerfile.tts`) and narrates with Kokoro (am_michael)
   - `pages.py` renders the shells; `app/static/books/` has the reader/library JS and CSS
   - `importer.py` builds an EPUB from a Royal Road fiction or SpaceBattles/SV/QQ thread link
-    (threadmarks via reader mode), one import at a time on a background thread. Royal Road blocks
-    the server, so its stories also come in through the "Import to Library" bookmarklet
-    (`library.js` `grab`): the reader's browser fetches the pages and `/books/receive` posts them
-    to `/books/api/import-pages`
+    (threadmarks via reader mode), one import at a time on a background thread. Royal Road and
+    SpaceBattles block the server, so stories also come in through the "Import to Library"
+    bookmarklet (`library.js` `grab`): the same parsers run on pages the reader's browser fetched,
+    and `importer.gather` asks it (via `/books/receive`) for the ones still missing
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
 ## Rules

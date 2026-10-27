@@ -3,10 +3,10 @@ Questionable Questing, then add it to a reader's library like an upload.
 
 Imports run one at a time on a background thread, a second apart per request, and only when a
 reader asks for one. Nothing here retries past a Cloudflare challenge: a blocked request fails
-the import with a message saying so. Royal Road blocks this server, so its stories can instead
-come from the "Import to Library" bookmarklet: the reader's browser fetches the pages and they're
-parsed here as if fetched (see start_pages). Jobs live in memory, so a restart drops unfinished
-ones.
+the import with a message saying so. Royal Road and SpaceBattles block this server, so stories can
+instead come through the "Import to Library" bookmarklet: the same parsers run here on pages the
+reader's browser fetched, asking it for more until they have every page they need (see gather).
+Jobs live in memory, so a restart drops unfinished ones.
 """
 
 import hashlib
@@ -49,6 +49,7 @@ RR_FICTION_RE = re.compile(r"^/fiction/(\d+)")
 THREAD_RE = re.compile(r"/threads/(?:[^/]*\.)?(\d+)(?:/|$)")
 POST_RE = re.compile(r"(?:/posts/|#post-|post-)(\d+)")
 READER_POSTS_PER_PAGE = 10
+BOOKMARKLET_SITES = {"Royal Road", "SpaceBattles", "Sufficient Velocity", "Questionable Questing"}
 BOT_CHECK_RE = re.compile(r"<title>\s*(Just a moment|Making sure you(?:'|&#39;|’)re not a bot)", re.I)
 
 
@@ -67,9 +68,9 @@ class _Fetcher:
         self.last = 0.0
 
     def blocked(self) -> ImportFailed:
-        if self.site == "Royal Road":
+        if self.site in BOOKMARKLET_SITES:
             return ImportFailed(
-                "Royal Road blocks downloads from this server. Open the story on Royal Road and use the "
+                f"{self.site} blocks downloads from this server. Open the story on {self.site} and use the "
                 "Import to Library bookmark instead (see Add from link)."
             )
         return ImportFailed(
@@ -102,23 +103,45 @@ class _Fetcher:
     def soup(self, url: str, **kwargs) -> BeautifulSoup:
         return BeautifulSoup(self.get(url, **kwargs).text, "html.parser")
 
+    def prefetch(self, urls: list[str]) -> None:
+        """Pages about to be read; only matters to _Delivered, which asks for them in one go."""
+
 
 def _page_key(url: str) -> str:
-    return unquote(urlsplit(url).path).rstrip("/")
+    u = httpx.URL(url)
+    query = "&".join(sorted(f"{k}={v}" for k, v in u.params.multi_items()))
+    return unquote(u.path).rstrip("/") + (f"?{query}" if query else "")
+
+
+class _Need(Exception):
+    def __init__(self, urls: list[str]):
+        self.urls = urls
 
 
 class _Delivered(_Fetcher):
-    """Pages a reader's browser fetched, handed to the site parsers in place of requests."""
+    """Pages a reader's browser fetched, handed to the site parsers in place of requests. With
+    `collect`, a missing page raises _Need so the browser can be asked for it."""
 
-    def __init__(self, site: str, client: httpx.Client, pages: dict[str, str]):
+    def __init__(self, site: str, client: httpx.Client | None, pages: dict[str, str], collect: bool = False):
         super().__init__(site, client)
-        self.pages = {_page_key(url): text for url, text in pages.items()}
+        self.pages = pages
+        self.collect = collect
 
-    def get(self, url: str, **kwargs) -> httpx.Response:
+    def get(self, url: str, params: dict | None = None, **kwargs) -> httpx.Response:
+        url = str(httpx.URL(url, params=params) if params else httpx.URL(url))
         text = self.pages.get(_page_key(url))
         if text is None:
+            if self.collect:
+                raise _Need([url])
             raise ImportFailed(f"The browser didn't send {_page_key(url)}. Try the bookmark again.")
+        if BOT_CHECK_RE.search(text[:2000]):
+            raise ImportFailed(f"{self.site} showed your browser a bot check. Reload the story there and try again.")
         return httpx.Response(200, text=text, request=httpx.Request("GET", url))
+
+    def prefetch(self, urls: list[str]) -> None:
+        missing = list(dict.fromkeys(u for u in urls if _page_key(u) not in self.pages))
+        if missing and self.collect:
+            raise _Need(missing)
 
 
 def identify(url: str) -> tuple[str, str]:
@@ -146,7 +169,7 @@ def identify(url: str) -> tuple[str, str]:
 
 
 class Story:
-    def __init__(self, client: httpx.Client, base: str):
+    def __init__(self, client: httpx.Client | None, base: str):
         self.title = ""
         self.author = ""
         self.cover: str | None = None  # zip path of the cover image
@@ -194,6 +217,7 @@ def _royalroad(f: _Fetcher, url: str, job: dict) -> Story:
         raise ImportFailed("Every chapter of that story is locked behind a paid subscription.")
     job["title"], job["total"] = story.title, len(listing)
 
+    f.prefetch([urljoin(str(r.url), c["url"]) for c in listing])
     for c in listing:
         page = f.soup(urljoin(str(r.url), c["url"]))
         content = page.select_one("div.chapter-inner.chapter-content") or page.select_one("div.chapter-content")
@@ -220,6 +244,8 @@ def _xenforo(f: _Fetcher, key: str, url: str, job: dict) -> Story:
     soup = BeautifulSoup(r.text, "html.parser")
     if not soup.select("article.message--post") and 'data-logged-in="true"' not in r.text:
         # Some boards (QQ's especially) only show threads to members.
+        if isinstance(f, _Delivered):
+            raise ImportFailed(f"{name} only shows that thread to members. Log in there in this browser and try again.")
         username = os.environ.get(f"{key.upper()}_USERNAME")
         password = os.environ.get(f"{key.upper()}_PASSWORD")
         if not (username and password):
@@ -252,8 +278,13 @@ def _xenforo(f: _Fetcher, key: str, url: str, job: dict) -> Story:
 
     # Reader mode lists threadmarked posts in order, ten to a page.
     titles = {post_id: mark_title for mark_title, post_id in marks}
-    for page in range(1, math.ceil(len(marks) / READER_POSTS_PER_PAGE) + 1):
-        reader = f.soup(f"{thread}/reader/page-{page}", params={"threadmark_category": 1})
+    reader_pages = [
+        str(httpx.URL(f"{thread}/reader/page-{page}", params={"threadmark_category": 1}))
+        for page in range(1, math.ceil(len(marks) / READER_POSTS_PER_PAGE) + 1)
+    ]
+    f.prefetch(reader_pages)
+    for page in reader_pages:
+        reader = f.soup(page)
         for post in reader.select("article.message--post"):
             post_id = POST_RE.search(post.get("data-content", "") or post.get("id", ""))
             body = post.select_one("article.message-body .bbWrapper") or post.select_one(".bbWrapper")
@@ -277,24 +308,39 @@ def _threadmarks(f: _Fetcher, url: str, params: dict | None = None, seen: set | 
     seen.add(key)
     soup = f.soup(url, params=params)
     marks = []
-    for item in soup.select("div.structItem--threadmark"):
+    items = soup.select("div.structItem--threadmark")
+    later = []
+    if params is not None:  # only the first page links to the rest
+        pages = soup.select("ul.pageNav-main li.pageNav-page a")
+        last = re.match(r"^(?P<prefix>.*[?&]page=)(?P<last>\d+)", pages[-1].get("href", "")) if pages else None
+        if last:
+            later = [urljoin(url, last["prefix"] + str(n)) for n in range(2, int(last["last"]) + 1)]
+    f.prefetch([
+        urljoin(url, fetcher["data-fetchurl"])
+        for item in items if (fetcher := item.find(attrs={"data-xf-click": "threadmark-fetcher"}))
+    ] + later)
+    for item in items:
         link = item.find("a", attrs={"data-tp-primary": "on"})
         if link and (post := POST_RE.search(link.get("href", ""))):
             marks.append((link.get_text(" ", strip=True), post.group(1)))
         elif fetcher := item.find(attrs={"data-xf-click": "threadmark-fetcher"}):
             marks += _threadmarks(f, urljoin(url, fetcher["data-fetchurl"]), None, seen)
-    if params is not None:  # only the first page links to the rest
-        pages = soup.select("ul.pageNav-main li.pageNav-page a")
-        last = re.match(r"^(?P<prefix>.*[?&]page=)(?P<last>\d+)", pages[-1].get("href", "")) if pages else None
-        if last:
-            for n in range(2, int(last["last"]) + 1):
-                marks += _threadmarks(f, urljoin(url, last["prefix"] + str(n)), None, seen)
+    for page in later:
+        marks += _threadmarks(f, page, None, seen)
     deduped, ids = [], set()
     for mark in marks:
         if mark[1] not in ids:
             ids.add(mark[1])
             deduped.append(mark)
     return deduped
+
+
+def _site_name(site: str) -> str:
+    return "Royal Road" if site == "royalroad" else xenforo.FORUMS[site][0]
+
+
+def _parse(site: str, url: str, f: _Fetcher, job: dict) -> Story:
+    return _royalroad(f, url, job) if site == "royalroad" else _xenforo(f, site, url, job)
 
 
 # --- EPUB ----------------------------------------------------------------------------------
@@ -312,13 +358,15 @@ DROP_CLASSES = {"bbCodeBlock-expandLink", "bbCodeBlock-shrinkLink", "bbCodeBlock
 
 
 class _Images:
-    def __init__(self, client: httpx.Client, base: str):
+    def __init__(self, client: httpx.Client | None, base: str):
         self.client = client
         self.base = base
         self.files: dict[str, tuple[str, bytes, str]] = {}  # url -> (zip path, data, media type)
         self.failed: set[str] = set()
 
     def add(self, src: str) -> str | None:
+        if self.client is None:  # gathering pages from the browser; images come at build time
+            return None
         url = urljoin(self.base, src)
         if not url.startswith(("http://", "https://")) or url in self.failed:
             return None
@@ -439,24 +487,54 @@ FINISHED_KEEP = 600  # seconds a finished or failed import stays listed
 
 
 _pages: dict[str, dict[str, str]] = {}  # job id -> pages from the bookmarklet, until it runs
+_sessions: dict[str, dict] = {}  # bookmarklet imports still gathering pages
+SESSION_KEEP = 1800
 MAX_PAGES = 5000
+MAX_GATHER_BYTES = 300 * 1024 * 1024
 
 
 def start(url: str, owner: str) -> dict:
     return _enqueue(*identify(url), owner)
 
 
-def start_pages(url: str, pages, owner: str) -> dict:
-    """Queue a Royal Road import from pages the reader's browser fetched: the story page and
-    each chapter page, keyed by URL or path."""
-    site, canonical = identify(str(url or ""))
-    if site != "royalroad":
-        raise ImportFailed("The bookmark only works on Royal Road.")
-    if not isinstance(pages, dict) or not 0 < len(pages) <= MAX_PAGES or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in pages.items()
-    ):
+def gather(owner: str, url: str | None = None, session: str | None = None, pages=None) -> dict:
+    """One round of a bookmarklet import. The site parser runs on the pages the reader's browser
+    has sent so far; returns {"session", "need": [urls]} while it wants more, then queues the
+    import and returns {"id"} of the job."""
+    if pages is None:
+        pages = {}
+    if not isinstance(pages, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in pages.items()):
         raise ImportFailed("The bookmark sent something unexpected. Try it again.")
-    return _enqueue(site, canonical, owner, pages)
+    now = time.time()
+    with _lock:
+        for sid in [k for k, v in _sessions.items() if now - v["updated"] > SESSION_KEEP]:
+            del _sessions[sid]
+        if session:
+            s = _sessions.get(str(session))
+            if not s or s["owner"] != owner:
+                raise ImportFailed("That import timed out. Start it again from the bookmark.")
+        else:
+            site, canonical = identify(str(url or ""))
+            session = uuid.uuid4().hex
+            s = _sessions[session] = {"owner": owner, "site": site, "url": canonical, "pages": {}, "size": 0}
+        s["updated"] = now
+        for k, v in pages.items():
+            s["pages"][_page_key(k)] = v
+            s["size"] += len(v)
+        if len(s["pages"]) > MAX_PAGES or s["size"] > MAX_GATHER_BYTES:
+            del _sessions[session]
+            raise ImportFailed("That story is too long to import this way.")
+    try:
+        _parse(s["site"], s["url"], _Delivered(_site_name(s["site"]), None, s["pages"], collect=True), {})
+    except _Need as e:
+        return {"session": session, "need": e.urls}
+    except ImportFailed:
+        with _lock:
+            _sessions.pop(session, None)
+        raise
+    with _lock:
+        _sessions.pop(session, None)
+    return {"id": _enqueue(s["site"], s["url"], owner, s["pages"])["id"]}
 
 
 def _enqueue(site: str, canonical: str, owner: str, pages: dict[str, str] | None = None) -> dict:
@@ -503,9 +581,15 @@ def _run() -> None:
         job["status"], job["updated"] = "running", time.time()
         pages = _pages.pop(job["id"], None)
         try:
-            if job["site"] == "royalroad":
-                client = http.client()
-                f = _Delivered("Royal Road", client, pages) if pages is not None else _Fetcher("Royal Road", client)
+            if pages is not None:
+                f = _Delivered(_site_name(job["site"]), http.client(), pages)
+                try:
+                    story = _parse(job["site"], job["url"], f, job)
+                    data = build_epub(story, job["url"])
+                finally:
+                    f.client.close()
+            elif job["site"] == "royalroad":
+                f = _Fetcher("Royal Road", http.client())
                 try:
                     story = _royalroad(f, job["url"], job)
                     data = build_epub(story, job["url"])

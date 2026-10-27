@@ -1,12 +1,14 @@
 (() => {
   "use strict";
 
-  // Opened by the "Import to Library" bookmarklet (see library.js) on a Royal Road page, which
-  // sends the pages it fetched once this page says it's ready.
-  const ROYAL_ROAD = /^https:\/\/(www\.)?royalroad\.com$/;
+  // Opened by the "Import to Library" bookmarklet (see library.js) on a story's site. Relays
+  // between it and the importer: the importer names the pages it still needs, the bookmarklet
+  // fetches them, and this sends them back until the book can be built.
+  const SITES = /^https:\/\/([\w-]+\.)*(royalroad\.com|spacebattles\.com|sufficientvelocity\.com|questionablequesting\.com)$/;
   const status = document.getElementById("status");
   const bar = document.getElementById("progress");
-  let busy = false;
+  let site = null; // origin of the story's site, once the bookmarklet says hello
+  let session = null;
 
   function show(text, isError = false, fraction = null) {
     status.textContent = text;
@@ -15,21 +17,21 @@
     if (fraction != null) bar.firstChild.style.width = `${fraction * 100}%`;
   }
 
-  async function build(msg) {
-    busy = true;
-    show("Sending the chapters to your library…");
+  async function round(body) {
     const r = await fetch("/books/api/import-pages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: msg.url, pages: msg.pages }),
+      body: JSON.stringify(body),
     });
-    if (!r.ok) {
-      const detail = await r.json().catch(() => ({}));
-      return show(`Couldn't import: ${detail.detail || `error ${r.status}`}`, true);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return show(`Couldn't import: ${data.detail || `error ${r.status}`}`, true);
+    if (data.need) {
+      session = data.session;
+      window.opener.postMessage({ type: "need", urls: data.need }, site);
+      return;
     }
-    const { id } = await r.json();
     for (;;) {
-      const job = (await (await fetch("/books/api/imports")).json()).find((j) => j.id === id);
+      const job = (await (await fetch("/books/api/imports")).json()).find((j) => j.id === data.id);
       if (!job) return show("Finished. Check your library.");
       if (job.status === "done") return show(`Added “${job.title}” to your library. Narration has started; you can close this window.`);
       if (job.status === "error") return show(`Couldn't import: ${job.error}`, true);
@@ -39,14 +41,25 @@
     }
   }
 
+  const lost = () => show("Lost contact with the library. Try the bookmark again.", true);
+
   addEventListener("message", (e) => {
-    if (e.source !== window.opener || !ROYAL_ROAD.test(e.origin) || busy) return;
+    if (e.source !== window.opener || !SITES.test(e.origin) || (site && e.origin !== site)) return;
     const msg = e.data || {};
-    if (msg.type === "progress") show(`Fetching chapter ${msg.done + 1} of ${msg.total} from Royal Road…`, false, msg.done / msg.total);
-    else if (msg.type === "error") show(`Couldn't import: ${msg.message}`, true);
-    else if (msg.type === "pages") build(msg).catch(() => show("Lost contact with the library. Try the bookmark again.", true));
+    if (msg.type === "start") {
+      site = e.origin;
+      show("Looking at the story…");
+      round({ url: msg.url }).catch(lost);
+    } else if (msg.type === "progress") {
+      show(`Fetching page ${msg.done + 1} of ${msg.total} from ${new URL(site).hostname}…`, false, msg.done / msg.total);
+    } else if (msg.type === "pages") {
+      show("Reading the pages…");
+      round({ session, pages: msg.pages }).catch(lost);
+    } else if (msg.type === "error") {
+      show(`Couldn't import: ${msg.message}`, true);
+    }
   });
 
   if (window.opener) window.opener.postMessage("ready", "*");
-  else show("Open a story on Royal Road and use the Import to Library bookmark there.", true);
+  else show("Open a story and use the Import to Library bookmark there.", true);
 })();

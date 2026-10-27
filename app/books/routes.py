@@ -175,18 +175,18 @@ async def import_url(request: Request, user: str = Depends(require_user)):
 
 @api.post("/import-pages")
 async def import_pages(request: Request, user: str = Depends(require_user)):
-    """Start building a book from Royal Road pages the reader's browser fetched (the bookmarklet)."""
+    """One round of a bookmarklet import: story pages the reader's browser fetched go in, and either
+    the pages still needed or the queued job's id come back."""
     body = await request.body()
     if len(body) > MAX_UPLOAD:
         raise HTTPException(413, "That story is too large.")
     try:
         data = json.loads(body)
-        job = importer.start_pages(data.get("url"), data.get("pages"), user)
+        return await run_in_threadpool(importer.gather, user, data.get("url"), data.get("session"), data.get("pages"))
     except (ValueError, AttributeError):
         raise HTTPException(400, "The bookmark sent something unexpected. Try it again.")
     except importer.ImportFailed as e:
         raise HTTPException(400, str(e))
-    return {"id": job["id"]}
 
 
 @api.get("/imports")

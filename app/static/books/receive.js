@@ -33,10 +33,15 @@
     for (;;) {
       const job = (await (await fetch("/books/api/imports")).json()).find((j) => j.id === data.id);
       if (!job) return show("Finished. Check your library.");
+      const name = job.title ? `“${job.title}”` : "the book";
+      const chapters = (n) => `${n} ${job.update ? "new " : ""}chapter${n === 1 ? "" : "s"}`;
+      if (job.status === "done" && job.update) {
+        return show(`${job.new ? `Added ${chapters(job.new)} to ${name}.` : `${name} has no new chapters.`} You can close this window.`);
+      }
       if (job.status === "done") return show(`Added “${job.title}” to your library. You can close this window.`);
       if (job.status === "error") return show(`Couldn't import: ${job.error}`, true);
-      const name = job.title ? `“${job.title}”` : "the book";
-      show(job.total ? `Building ${name} · ${job.done} of ${job.total} chapters` : `Building ${name}…`, false, job.total ? job.done / job.total : null);
+      const verb = job.update ? "Updating" : "Building";
+      show(job.total ? `${verb} ${name} · ${job.done} of ${chapters(job.total)}` : `${verb} ${name}…`, false, job.total ? job.done / job.total : null);
       await new Promise((res) => setTimeout(res, 2000));
     }
   }

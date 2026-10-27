@@ -71,6 +71,28 @@
         load();
       });
     }
+    // Imported stories can pick up chapters posted since. Royal Road and SpaceBattles turn this
+    // server away, so for those the reader opens the story and uses the bookmarklet there.
+    let update = null;
+    if (b.update) {
+      update = el("button", { textContent: "Check for new chapters" });
+      update.addEventListener("click", async () => {
+        menu.open = false;
+        if (b.update === "browser") {
+          window.open(b.source, "_blank", "noopener");
+          notice(`Use the Import to Library bookmark on the story's page on ${new URL(b.source).hostname} to add its new chapters.`);
+          return;
+        }
+        const r = await fetch(`/books/api/${b.id}/update`, { method: "POST" });
+        if (!r.ok) {
+          const detail = await r.json().catch(() => ({}));
+          notice(detail.detail || `Couldn't check for new chapters (${r.status})`, true);
+          return;
+        }
+        notice("");
+        loadImports();
+      });
+    }
     const menu = el("details", { className: "more" },
       el("summary", { textContent: "⋯", title: "More" }),
       el("ul", {},
@@ -81,6 +103,7 @@
           className: mp3Ready ? "" : "off",
           textContent: b.audio.percent >= 100 || !mp3Ready ? "Download audiobook (MP3)" : `Download audio so far (${b.audio.percent}%)`,
         })),
+        update && el("li", {}, update),
         narrate && el("li", {}, narrate),
         el("li", {}, del),
       ),
@@ -148,6 +171,13 @@
 
   function importLine(j) {
     const name = j.title ? `“${j.title}”` : j.url;
+    if (j.update) {
+      const chapters = (n) => `${n} new chapter${n === 1 ? "" : "s"}`;
+      if (j.status === "queued") return `Waiting to update ${name}`;
+      if (j.status === "running") return j.total ? `Updating ${name} · ${j.done} of ${chapters(j.total)}` : `Checking ${name} for new chapters…`;
+      if (j.status === "done") return j.new ? `Added ${chapters(j.new)} to ${name}.` : `No new chapters in ${name}.`;
+      return `Couldn't update ${name}: ${j.error}`;
+    }
     if (j.status === "queued") return `Waiting to import ${name}`;
     if (j.status === "running") return j.total ? `Importing ${name} · ${j.done} of ${j.total} chapters` : `Importing ${name}…`;
     if (j.status === "done") return `Added ${name}.`;

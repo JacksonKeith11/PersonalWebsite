@@ -14,7 +14,8 @@ from .. import auth
 from . import epub, importer, pages, store
 
 MAX_UPLOAD = 200 * 1024 * 1024
-# Chapter text, images and audio never change for a given book id, so browsers may keep them.
+# Chapter text, images and audio never change for a given book id and rev (the pages ask with
+# ?v=<rev>; an update bumps it), so browsers may keep them.
 IMMUTABLE = {"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, max-age=604800"}
 
 # Each reader picks a username, with no password, and sees only the books uploaded under it.
@@ -128,6 +129,10 @@ def _audio_status(book: dict) -> dict:
     }
 
 
+def _res_url(book: dict, path: str) -> str:
+    return f"/books/api/{book['id']}/res/{quote(path)}?v={book.get('rev', 0)}"
+
+
 def _filename(title: str, ext: str) -> str:
     ascii_name = re.sub(r"[^A-Za-z0-9 ._-]+", "", title).strip()[:80] or "book"
     return f"attachment; filename=\"{ascii_name}.{ext}\"; filename*=UTF-8''{quote(title[:80])}.{ext}"
@@ -138,11 +143,15 @@ def library_data(user: str = Depends(require_user)):
     books = []
     for book in store.list_books(user):
         progress = store.read_json(store.BOOKS_DIR / book["id"] / "progress.json", {})
+        source = epub.source_of(book)
         books.append({
             "id": book["id"],
             "title": book["title"],
             "author": book["author"],
-            "cover": book["cover"] and f"/books/api/{book['id']}/res/{quote(book['cover'])}",
+            "cover": book["cover"] and _res_url(book, book["cover"]),
+            "rev": book.get("rev", 0),
+            "source": source,
+            "update": importer.update_route(source),
             "percent": progress.get("percent", 0),
             "opened": progress.get("updated", 0),
             "added": book["added"],
@@ -205,7 +214,8 @@ def dismiss_import(job_id: str, user: str = Depends(require_user)):
 def book_data(book_id: str, user: str = Depends(require_user)):
     book, folder = _book(book_id, user)
     book = {k: v for k, v in book.items() if k != "images"}
-    book["cover"] = book["cover"] and f"/books/api/{book_id}/res/{quote(book['cover'])}"
+    book["cover"] = book["cover"] and _res_url(book, book["cover"])
+    book["rev"] = book.get("rev", 0)
     book["progress"] = store.read_json(folder / "progress.json")
     book["audio"] = _audio_status(book)
     return JSONResponse(book, headers=auth.PRIVATE_HEADERS)
@@ -216,6 +226,22 @@ def delete(book_id: str, user: str = Depends(require_user)):
     _, folder = _book(book_id, user)
     shutil.rmtree(folder)
     return {"ok": True}
+
+
+@api.post("/{book_id}/update")
+def update(book_id: str, user: str = Depends(require_user)):
+    """Check an imported book's story for new chapters, on sites that let this server in."""
+    book, _ = _book(book_id, user)
+    route = importer.update_route(epub.source_of(book))
+    if route is None:
+        raise HTTPException(400, "Only books imported from a story link can be updated.")
+    if route == "browser":
+        raise HTTPException(400, "Use the Import to Library bookmark on the story's page to update this book.")
+    try:
+        job = importer.update(book)
+    except importer.ImportFailed as e:
+        raise HTTPException(400, str(e))
+    return {"id": job["id"]}
 
 
 @api.get("/{book_id}/chapter/{n}")

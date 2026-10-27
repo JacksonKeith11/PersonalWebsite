@@ -3,7 +3,8 @@
 data/books/
   priority.json          chapter the reader asked to listen to; the worker does it first
   worker.json            what the worker is generating right now
-  <id>/book.json         metadata (including the uploader's username, "owner"), chapter list, table of contents
+  <id>/book.json         metadata (including the uploader's username, "owner"), chapter list, table of contents;
+                         "source" is the story link of an imported book, and "rev" counts its updates
   <id>/book.epub         the original upload
   <id>/progress.json     reading position
   <id>/narrate           present once someone asks for the audiobook; the worker narrates only these
@@ -33,10 +34,15 @@ def read_json(path: Path, default=None):
         return default
 
 
-def write_json(path: Path, data) -> None:
+def write_text(path: Path, text: str) -> None:
+    """Replace a file in one step, so a reader never sees half of it."""
     tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(json.dumps(data))
+    tmp.write_text(text)
     os.replace(tmp, path)
+
+
+def write_json(path: Path, data) -> None:
+    write_text(path, json.dumps(data))
 
 
 def book_dir(book_id: str) -> Path | None:

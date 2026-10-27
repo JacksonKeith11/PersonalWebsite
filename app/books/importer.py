@@ -7,6 +7,10 @@ the import with a message saying so. Royal Road and SpaceBattles block this serv
 instead come through the "Import to Library" bookmarklet: the same parsers run here on pages the
 reader's browser fetched, asking it for more until they have every page they need (see gather).
 Jobs live in memory, so a restart drops unfinished ones.
+
+Importing a story that's already in the reader's library updates that book instead: chapters it
+already has are copied from its EPUB (each chapter records the link it came from), so only new
+ones are downloaded.
 """
 
 import hashlib
@@ -21,7 +25,7 @@ import threading
 import time
 import uuid
 import zipfile
-from html import escape
+from html import escape, unescape
 from urllib.parse import unquote, urljoin, urlsplit
 
 import httpx
@@ -30,7 +34,7 @@ from bs4.element import Comment
 
 from ..serials import http
 from ..serials.sources import xenforo
-from . import epub
+from . import epub, store
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +55,8 @@ POST_RE = re.compile(r"(?:/posts/|#post-|post-)(\d+)")
 READER_POSTS_PER_PAGE = 10
 BOOKMARKLET_SITES = {"Royal Road", "SpaceBattles", "Sufficient Velocity", "Questionable Questing"}
 BOT_CHECK_RE = re.compile(r"<title>\s*(Just a moment|Making sure you(?:'|&#39;|’)re not a bot)", re.I)
+# Sites that turn this server away, so updates go through the bookmarklet.
+SERVER_BLOCKED = {"royalroad", "spacebattles"}
 
 
 class ImportFailed(Exception):
@@ -168,23 +174,91 @@ def identify(url: str) -> tuple[str, str]:
     raise ImportFailed("Only Royal Road, SpaceBattles, Sufficient Velocity and Questionable Questing links work.")
 
 
+class _Previous:
+    """The chapters of a book the importer built earlier, read back from its EPUB."""
+
+    def __init__(self, path):
+        self.zip = zipfile.ZipFile(path)
+        names = set(self.zip.namelist())
+        opf = self.zip.read("OEBPS/content.opf").decode()
+        self.types = dict(re.findall(r'href="(images/[^"]+)" media-type="([^"]+)"', opf))
+        cover = re.search(r'href="(images/[^"]+)" media-type="[^"]+" properties="cover-image"', opf)
+        self.cover = cover and cover.group(1)
+        self.chapters: list[tuple[str | None, str, str]] = []  # (link, title, XHTML body)
+        while (name := f"OEBPS/text/{len(self.chapters)}.xhtml") in names:
+            page = self.zip.read(name).decode()
+            title = re.search(r"<title>(.*?)</title>", page, re.S)
+            link = re.search(r'<meta name="source" content="([^"]*)"', page)
+            body = page.split("<body>\n", 1)[-1].rsplit("\n</body>", 1)[0]
+            body = re.sub(r"^<h2>.*?</h2>\n", "", body, count=1, flags=re.S)
+            self.chapters.append((link and unescape(link.group(1)), unescape(title.group(1)) if title else "", body))
+        self.by_link = {link: i for i, (link, _, _) in enumerate(self.chapters) if link}
+
+    def find(self, i: int, link: str, title: str) -> int | None:
+        """Which earlier chapter is the story's chapter i. Books imported before chapters recorded
+        their links go by position and title."""
+        if self.by_link:
+            return self.by_link.get(link)
+        return i if i < len(self.chapters) and self.chapters[i][1] == title else None
+
+    def close(self) -> None:
+        self.zip.close()
+
+
+def _previous(book_id: str | None) -> _Previous | None:
+    folder = book_id and store.book_dir(book_id)
+    if not folder:
+        return None
+    try:
+        return _Previous(folder / "book.epub")
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return None
+
+
 class Story:
-    def __init__(self, client: httpx.Client | None, base: str):
+    def __init__(self, client: httpx.Client | None, base: str, url: str, previous: _Previous | None = None):
+        self.url = url  # canonical story link
         self.title = ""
         self.author = ""
         self.cover: str | None = None  # zip path of the cover image
-        self.chapters: list[tuple[str, str]] = []  # (title, XHTML body)
+        self.chapters: list[tuple[str, str, str]] = []  # (title, XHTML body, link)
         self.images = _Images(client, base)
+        self.previous = previous
+        self.reused = 0
 
-    def add(self, title: str, content: Tag) -> None:
+    def convert(self, content: Tag) -> str:
         # Converted right away so a long story doesn't keep every parsed page in memory.
-        self.chapters.append((title, "".join(_xhtml(c, self.images) for c in content.children)))
+        return "".join(_xhtml(c, self.images) for c in content.children)
+
+    def add(self, title: str, content: Tag, link: str) -> None:
+        self.chapters.append((title, self.convert(content), link))
+
+    def reuse(self, index: int, title: str, link: str) -> None:
+        """Copy chapter `index` of the earlier book, with its images."""
+        def image(m: re.Match) -> str:
+            path = self.images.adopt(self.previous, m.group(1))
+            return f'<img src="../{path}"{m.group(2)}/>' if path else ""
+
+        body = re.sub(r'<img src="\.\./(images/[^"]+)"([^>]*?)/>', image, self.previous.chapters[index][2])
+        self.chapters.append((title, body, link))
+        self.reused += 1
+
+    def unchanged(self) -> bool:
+        """An update that found nothing new."""
+        p = self.previous
+        return bool(p) and self.reused == len(self.chapters) == len(p.chapters) and all(
+            title == old[1] for (title, _, _), old in zip(self.chapters, p.chapters)
+        )
+
+    @property
+    def new(self) -> int:
+        return len(self.chapters) - self.reused
 
 
-def _royalroad(f: _Fetcher, url: str, job: dict) -> Story:
+def _royalroad(f: _Fetcher, url: str, job: dict, previous: _Previous | None = None) -> Story:
     r = f.get(url)
     soup = BeautifulSoup(r.text, "html.parser")
-    story = Story(f.client, str(r.url))
+    story = Story(f.client, str(r.url), url, previous)
     meta = {}
     if tag := soup.select_one('script[type="application/ld+json"]'):
         try:
@@ -200,7 +274,9 @@ def _royalroad(f: _Fetcher, url: str, job: dict) -> Story:
     heading = soup.select_one(".fic-header h1") or soup.find("h1")
     story.title = meta.get("name") or (heading and heading.get_text(strip=True)) or og("og:title")
     story.author = (meta.get("author") or {}).get("name") or og("books:author")
-    if cover := meta.get("image") or og("og:image"):
+    if previous and previous.cover:
+        story.cover = story.images.adopt(previous, previous.cover)
+    elif cover := meta.get("image") or og("og:image"):
         story.cover = story.images.add(cover)
 
     found = re.search(r"^\s*window\.chapters\s*=\s*(.*?)\s*;\s*$", r.text, flags=re.MULTILINE)
@@ -215,11 +291,17 @@ def _royalroad(f: _Fetcher, url: str, job: dict) -> Story:
     listing = [c for c in listing if not c.get("subscriptionTiers") and c.get("url")]
     if not listing:
         raise ImportFailed("Every chapter of that story is locked behind a paid subscription.")
-    job["title"], job["total"] = story.title, len(listing)
+    links = [urljoin(str(r.url), c["url"]) for c in listing]
+    titles = [c.get("title") or f"Chapter {i + 1}" for i, c in enumerate(listing)]
+    have = [previous.find(i, link, t) if previous else None for i, (link, t) in enumerate(zip(links, titles))]
+    job["title"], job["total"] = story.title, have.count(None)
 
-    f.prefetch([urljoin(str(r.url), c["url"]) for c in listing])
-    for c in listing:
-        page = f.soup(urljoin(str(r.url), c["url"]))
+    f.prefetch([link for link, old in zip(links, have) if old is None])
+    for c, link, title, old in zip(listing, links, titles, have):
+        if old is not None:
+            story.reuse(old, title, link)
+            continue
+        page = f.soup(link)
         content = page.select_one("div.chapter-inner.chapter-content") or page.select_one("div.chapter-content")
         if content is None:
             raise ImportFailed(f"Couldn't read the chapter “{c.get('title', '')}”.")
@@ -229,15 +311,15 @@ def _royalroad(f: _Fetcher, url: str, job: dict) -> Story:
             hidden.update(re.findall(r"\.([\w-]+)\s*\{[^}]*display\s*:\s*none", style.get_text(), flags=re.I))
         for el in content.find_all(class_=lambda cls: cls in hidden):
             el.decompose()
-        story.add(c.get("title") or f"Chapter {len(story.chapters) + 1}", content)
-        job["done"] = len(story.chapters)
+        story.add(title, content, link)
+        job["done"] = story.new
     return story
 
 
 _forum_clients: dict[str, httpx.Client] = {}
 
 
-def _xenforo(f: _Fetcher, key: str, url: str, job: dict) -> Story:
+def _xenforo(f: _Fetcher, key: str, url: str, job: dict, previous: _Previous | None = None) -> Story:
     name, base = xenforo.FORUMS[key]
     c = f.client
     r = f.get(url)
@@ -261,7 +343,7 @@ def _xenforo(f: _Fetcher, key: str, url: str, job: dict) -> Story:
         raise ImportFailed(f"That doesn't look like a {name} thread.")
     thread = f"{base}/threads/{m.group(1)}"
 
-    story = Story(c, str(r.url))
+    story = Story(c, str(r.url), f"{thread}/", previous)
     title = soup.select_one("h1.p-title-value")
     if title:
         for label in title.select(".label, .label-append"):
@@ -274,26 +356,38 @@ def _xenforo(f: _Fetcher, key: str, url: str, job: dict) -> Story:
     marks = _threadmarks(f, f"{thread}/threadmarks", {"threadmark_category": 1, "per_page": 200})
     if not marks:
         raise ImportFailed("That thread has no threadmarks, so there's no story to collect.")
-    job["title"], job["total"] = story.title, len(marks)
+    links = [f"{base}/posts/{post_id}/" for _, post_id in marks]
+    have = [previous.find(i, link, t) if previous else None for i, (link, (t, _)) in enumerate(zip(links, marks))]
+    wanted = {post_id for (_, post_id), old in zip(marks, have) if old is None}
+    job["title"], job["total"] = story.title, len(wanted)
 
-    # Reader mode lists threadmarked posts in order, ten to a page.
-    titles = {post_id: mark_title for mark_title, post_id in marks}
+    # Reader mode lists threadmarked posts in order, ten to a page. Read the pages the missing
+    # posts should be on first, then any others until they've all turned up.
     reader_pages = [
         str(httpx.URL(f"{thread}/reader/page-{page}", params={"threadmark_category": 1}))
         for page in range(1, math.ceil(len(marks) / READER_POSTS_PER_PAGE) + 1)
     ]
-    f.prefetch(reader_pages)
-    for page in reader_pages:
+    likely = sorted({i // READER_POSTS_PER_PAGE for i, old in enumerate(have) if old is None})
+    order = [reader_pages[i] for i in likely] + [p for i, p in enumerate(reader_pages) if i not in likely]
+    bodies = {}
+    f.prefetch(order[:len(likely)])
+    for page in order:
+        if not wanted:
+            break
         reader = f.soup(page)
         for post in reader.select("article.message--post"):
             post_id = POST_RE.search(post.get("data-content", "") or post.get("id", ""))
             body = post.select_one("article.message-body .bbWrapper") or post.select_one(".bbWrapper")
-            if post_id and body and post_id.group(1) in titles:
-                story.add(titles.pop(post_id.group(1)), body)
-        job["done"] = len(story.chapters)
-        if not titles:
-            break
-    if not story.chapters:
+            if post_id and body and post_id.group(1) in wanted:
+                wanted.discard(post_id.group(1))
+                bodies[post_id.group(1)] = story.convert(body)
+        job["done"] = len(bodies)
+    for (mark_title, post_id), link, old in zip(marks, links, have):
+        if old is not None:
+            story.reuse(old, mark_title, link)
+        elif post_id in bodies:
+            story.chapters.append((mark_title, bodies[post_id], link))
+    if not story.new and not story.reused:
         raise ImportFailed(f"Couldn't read the threadmarked posts on {name}.")
     return story
 
@@ -339,8 +433,8 @@ def _site_name(site: str) -> str:
     return "Royal Road" if site == "royalroad" else xenforo.FORUMS[site][0]
 
 
-def _parse(site: str, url: str, f: _Fetcher, job: dict) -> Story:
-    return _royalroad(f, url, job) if site == "royalroad" else _xenforo(f, site, url, job)
+def _parse(site: str, url: str, f: _Fetcher, job: dict, previous: _Previous | None = None) -> Story:
+    return _royalroad(f, url, job, previous) if site == "royalroad" else _xenforo(f, site, url, job, previous)
 
 
 # --- EPUB ----------------------------------------------------------------------------------
@@ -388,6 +482,22 @@ class _Images:
         self.files[url] = (path, r.content, media_type)
         return path
 
+    def adopt(self, previous: "_Previous", old_path: str) -> str | None:
+        """An image of the earlier book, copied in without downloading it again."""
+        key = f"previous:{old_path}"
+        if key in self.files:
+            return self.files[key][0]
+        media_type = previous.types.get(old_path)
+        if media_type not in IMAGE_TYPES or len(self.files) >= MAX_IMAGES:
+            return None
+        try:
+            data = previous.zip.read(f"OEBPS/{old_path}")
+        except KeyError:
+            return None
+        path = f"images/{len(self.files)}.{IMAGE_TYPES[media_type]}"
+        self.files[key] = (path, data, media_type)
+        return path
+
 
 def _xhtml(node, images: _Images) -> str:
     """Well-formed XHTML from a page fragment, keeping only plain formatting tags."""
@@ -413,19 +523,21 @@ def _xhtml(node, images: _Images) -> str:
     return f"<{name}>{inner}</{name}>"
 
 
-def _page(title: str, body: str) -> str:
+def _page(title: str, body: str, link: str = "") -> str:
+    # The link a chapter came from lets an update tell which chapters it already has.
+    meta = f'<meta name="source" content="{escape(link)}"/>' if link else ""
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n'
         '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
-        f"<head><title>{escape(title)}</title></head>\n<body>\n{body}\n</body>\n</html>\n"
+        f"<head><title>{escape(title)}</title>{meta}</head>\n<body>\n{body}\n</body>\n</html>\n"
     )
 
 
-def build_epub(story: Story, source: str) -> bytes:
-    images, cover = story.images, story.cover
+def build_epub(story: Story) -> bytes:
+    images, cover, source = story.images, story.cover, story.url
     chapters = []
-    for n, (title, body) in enumerate(story.chapters):
-        chapters.append((f"text/{n}.xhtml", title, _page(title, f"<h2>{escape(title)}</h2>\n{body}")))
+    for n, (title, body, link) in enumerate(story.chapters):
+        chapters.append((f"text/{n}.xhtml", title, _page(title, f"<h2>{escape(title)}</h2>\n{body}", link)))
 
     book_id = "urn:uuid:" + str(uuid.uuid5(uuid.NAMESPACE_URL, source))
     nav = _page("Contents", '<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>' + "".join(
@@ -497,6 +609,26 @@ def start(url: str, owner: str) -> dict:
     return _enqueue(*identify(url), owner)
 
 
+def update(book: dict) -> dict:
+    """Check an imported book's story for new chapters."""
+    return _enqueue(*identify(epub.source_of(book)), book["owner"], target=book["id"])
+
+
+def update_route(source: str) -> str | None:
+    """How an imported book gets its new chapters: "server" fetches them here, "browser" means
+    through the bookmarklet on the story's page. None for a book that wasn't imported."""
+    try:
+        site, _ = identify(source) if source else (None, None)
+    except ImportFailed:
+        return None
+    return site and ("browser" if site in SERVER_BLOCKED else "server")
+
+
+def _existing(owner: str, canonical: str) -> str | None:
+    """The reader's book of this story, if they've imported it before."""
+    return next((b["id"] for b in store.list_books(owner) if epub.source_of(b) == canonical), None)
+
+
 def gather(owner: str, url: str | None = None, session: str | None = None, pages=None) -> dict:
     """One round of a bookmarklet import. The site parser runs on the pages the reader's browser
     has sent so far; returns {"session", "need": [urls]} while it wants more, then queues the
@@ -516,7 +648,10 @@ def gather(owner: str, url: str | None = None, session: str | None = None, pages
         else:
             site, canonical = identify(str(url or ""))
             session = uuid.uuid4().hex
-            s = _sessions[session] = {"owner": owner, "site": site, "url": canonical, "pages": {}, "size": 0}
+            s = _sessions[session] = {
+                "owner": owner, "site": site, "url": canonical, "pages": {}, "size": 0,
+                "target": _existing(owner, canonical),
+            }
         s["updated"] = now
         for k, v in pages.items():
             s["pages"][_page_key(k)] = v
@@ -524,21 +659,27 @@ def gather(owner: str, url: str | None = None, session: str | None = None, pages
         if len(s["pages"]) > MAX_PAGES or s["size"] > MAX_GATHER_BYTES:
             del _sessions[session]
             raise ImportFailed("That story is too long to import this way.")
+    previous = _previous(s["target"])
     try:
-        _parse(s["site"], s["url"], _Delivered(_site_name(s["site"]), None, s["pages"], collect=True), {})
+        _parse(s["site"], s["url"], _Delivered(_site_name(s["site"]), None, s["pages"], collect=True), {}, previous)
     except _Need as e:
         return {"session": session, "need": e.urls}
     except ImportFailed:
         with _lock:
             _sessions.pop(session, None)
         raise
+    finally:
+        if previous:
+            previous.close()
     with _lock:
         _sessions.pop(session, None)
-    return {"id": _enqueue(s["site"], s["url"], owner, s["pages"])["id"]}
+    return {"id": _enqueue(s["site"], s["url"], owner, s["pages"], s["target"])["id"]}
 
 
-def _enqueue(site: str, canonical: str, owner: str, pages: dict[str, str] | None = None) -> dict:
+def _enqueue(site: str, canonical: str, owner: str, pages: dict[str, str] | None = None, target: str | None = None) -> dict:
     global _thread
+    if target is None and pages is None:
+        target = _existing(owner, canonical)
     with _lock:
         for job in _jobs.values():
             if job["owner"] == owner and job["url"] == canonical and job["status"] in ("queued", "running"):
@@ -547,6 +688,7 @@ def _enqueue(site: str, canonical: str, owner: str, pages: dict[str, str] | None
             "id": hashlib.sha256(f"{owner}\0{canonical}\0{time.time()}".encode()).hexdigest()[:12],
             "owner": owner, "site": site, "url": canonical, "title": "", "status": "queued",
             "done": 0, "total": 0, "error": "", "book": None, "updated": time.time(),
+            "target": target, "update": bool(target), "new": 0,
         }
         _jobs[job["id"]] = job
         if pages is not None:
@@ -580,29 +722,24 @@ def _run() -> None:
             continue
         job["status"], job["updated"] = "running", time.time()
         pages = _pages.pop(job["id"], None)
+        previous = _previous(job["target"])
+        own_client = None
         try:
             if pages is not None:
-                f = _Delivered(_site_name(job["site"]), http.client(), pages)
-                try:
-                    story = _parse(job["site"], job["url"], f, job)
-                    data = build_epub(story, job["url"])
-                finally:
-                    f.client.close()
+                f = own_client = _Delivered(_site_name(job["site"]), http.client(), pages)
             elif job["site"] == "royalroad":
-                f = _Fetcher("Royal Road", http.client())
-                try:
-                    story = _royalroad(f, job["url"], job)
-                    data = build_epub(story, job["url"])
-                finally:
-                    f.client.close()
+                f = own_client = _Fetcher("Royal Road", http.client())
             else:
                 # Kept between imports so a forum login lasts; images may be members-only attachments.
                 client = _forum_clients.get(job["site"]) or _forum_clients.setdefault(job["site"], http.client())
                 f = _Fetcher(xenforo.FORUMS[job["site"]][0], client)
-                story = _xenforo(f, job["site"], job["url"], job)
-                data = build_epub(story, job["url"])
-            job["title"] = story.title
-            job["book"] = epub.save(data, job["owner"])
+            story = _parse(job["site"], job["url"], f, job, previous)
+            job["title"], job["new"] = story.title, story.new
+            if story.unchanged():
+                job["book"] = job["target"]
+            else:
+                data = build_epub(story)
+                job["book"] = (job["target"] and epub.update(job["target"], data)) or epub.save(data, job["owner"], story.url)
             job["status"] = "done"
         except ImportFailed as e:
             job["status"], job["error"] = "error", str(e)
@@ -611,4 +748,9 @@ def _run() -> None:
         except Exception:
             log.exception("import of %s failed", job["url"])
             job["status"], job["error"] = "error", "Something went wrong building the book."
+        finally:
+            if own_client:
+                own_client.client.close()
+            if previous:
+                previous.close()
         job["updated"] = time.time()

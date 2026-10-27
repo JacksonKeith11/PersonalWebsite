@@ -6,9 +6,11 @@ EPUB's own HTML (scripts, styles, attributes) reaches the reader page.
 
 import hashlib
 import io
+import os
 import posixpath
 import shutil
 import time
+import uuid
 import zipfile
 from html import escape
 from urllib.parse import quote, unquote
@@ -172,12 +174,9 @@ def _ncx_toc(z: zipfile.ZipFile, path: str) -> list[dict]:
     return entries
 
 
-def save(data: bytes, owner: str) -> str:
-    """Store an uploaded EPUB for `owner`; returns the book id. Uploading the same file twice is a no-op,
-    and two people uploading the same file each get their own copy."""
-    book_id = hashlib.sha256(owner.encode() + b"\0" + data).hexdigest()[:12]
-    if store.book_dir(book_id):
-        return book_id
+def _read(data: bytes, book_id: str, rev: int) -> tuple[dict, list[dict]]:
+    """The book.json fields describing an EPUB's contents, and its sections' markup and text.
+    Image links carry `rev`, so a book rebuilt by an update doesn't show cached images."""
     try:
         z = zipfile.ZipFile(io.BytesIO(data))
         container = _xml(z.read("META-INF/container.xml"))
@@ -210,7 +209,7 @@ def save(data: bytes, owner: str) -> str:
     images = {m["path"]: m["type"] for m in manifest.values() if m["type"].startswith("image/")}
 
     def res_url(path: str) -> str:
-        return f"/books/api/{book_id}/res/{quote(path)}"
+        return f"/books/api/{book_id}/res/{quote(path)}?v={rev}"
 
     chapters, chapter_of, anchors = [], {}, []
     for ref in spine.iterfind("itemref"):
@@ -280,11 +279,10 @@ def save(data: bytes, owner: str) -> str:
 
     book = {
         "id": book_id,
-        "owner": owner,
         "title": title or "Untitled",
         "author": ", ".join(authors),
         "cover": cover if cover in images else None,
-        "added": time.time(),
+        "rev": rev,
         "chapters": [
             {"title": chapter_title(i), "segments": len(c["texts"]), "chars": sum(map(len, c["texts"]))}
             for i, c in enumerate(sections)
@@ -292,6 +290,18 @@ def save(data: bytes, owner: str) -> str:
         "toc": toc,
         "images": images,
     }
+    return book, sections
+
+
+def save(data: bytes, owner: str, source: str = "") -> str:
+    """Store an uploaded EPUB for `owner`; returns the book id. Uploading the same file twice is a no-op,
+    and two people uploading the same file each get their own copy. `source` is the story link of a
+    book the importer built, which lets it be updated later."""
+    book_id = hashlib.sha256(owner.encode() + b"\0" + data).hexdigest()[:12]
+    if store.book_dir(book_id):
+        return book_id
+    book, sections = _read(data, book_id, 0)
+    book.update(owner=owner, added=time.time(), source=source)
 
     # Build in a hidden folder and rename, so the worker never sees a half-written book.
     store.BOOKS_DIR.mkdir(parents=True, exist_ok=True)
@@ -306,3 +316,65 @@ def save(data: bytes, owner: str) -> str:
     store.write_json(tmp / "book.json", book)
     tmp.rename(store.BOOKS_DIR / book_id)
     return book_id
+
+
+def update(book_id: str, data: bytes) -> str | None:
+    """Replace a book's contents with a newer EPUB of the same story, keeping its id, reading
+    position and the narration of every section whose text didn't change (an update usually just
+    adds chapters at the end). Returns None if the book is gone."""
+    folder = store.book_dir(book_id)
+    old = folder and store.read_json(folder / "book.json")
+    if not old:
+        return None
+    book, sections = _read(data, book_id, old.get("rev", 0) + 1)
+    book.update(owner=old["owner"], added=old["added"], source=old.get("source", ""), updated=time.time())
+
+    # Sections are rewritten one file at a time; the worker notices the new rev in book.json and
+    # drops narration it started on text that changed.
+    chapters, audio = folder / "chapters", folder / "audio"
+
+    def drop_audio(n: int) -> None:
+        for path in (audio / f"{n}.json", audio / f"{n}.mp3", *store.partial_paths(folder, n)):
+            path.unlink(missing_ok=True)
+
+    for i, c in enumerate(sections):
+        if store.read_json(chapters / f"{i}.json") != c["texts"]:
+            drop_audio(i)
+        store.write_text(chapters / f"{i}.html", "\n".join(c["blocks"]))
+        store.write_json(chapters / f"{i}.json", c["texts"])
+    for path in chapters.glob("*.json"):
+        if path.stem.isdigit() and int(path.stem) >= len(sections):
+            drop_audio(int(path.stem))
+            path.unlink(missing_ok=True)
+            path.with_suffix(".html").unlink(missing_ok=True)
+    tmp = folder / ".book.epub.tmp"
+    tmp.write_bytes(data)
+    os.replace(tmp, folder / "book.epub")
+    store.write_json(folder / "book.json", book)
+
+    progress = store.read_json(folder / "progress.json")
+    if progress and progress.get("chapter", 0) >= len(sections):
+        store.write_json(folder / "progress.json", {**progress, "chapter": len(sections) - 1, "segment": 0})
+    return book_id
+
+
+def source_of(book: dict) -> str:
+    """The story link of a book the importer built, or "" for an upload. Books imported before
+    book.json recorded it get it from the EPUB, whose identifier the importer derives from the link."""
+    if "source" in book:
+        return book["source"]
+    source = ""
+    try:
+        with zipfile.ZipFile(store.BOOKS_DIR / book["id"] / "book.epub") as z:
+            opf = _xml(z.read("OEBPS/content.opf"))
+        link = (opf.findtext("metadata/source") or "").strip()
+        if link and opf.findtext("metadata/identifier") == f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, link)}":
+            source = link
+    except (OSError, KeyError, zipfile.BadZipFile, ElementTree.ParseError):
+        pass
+    path = store.BOOKS_DIR / book["id"] / "book.json"
+    fresh = store.read_json(path)
+    if fresh and "source" not in fresh:
+        store.write_json(path, {**fresh, "source": source})
+    book["source"] = source
+    return source

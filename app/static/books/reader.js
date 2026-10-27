@@ -34,6 +34,8 @@
   let totalChars = 1;
   let navigating = false;
   const cache = new Map();
+  // Chapters and audio are cached for a week per book revision; an update bumps it.
+  const rev = () => `v=${book.rev || 0}`;
 
   async function getJSON(url, options) {
     const r = await fetch(url, options);
@@ -46,7 +48,7 @@
 
   function fetchChapter(n) {
     if (!cache.has(n)) {
-      const p = fetch(api(`/chapter/${n}`)).then((r) => {
+      const p = fetch(api(`/chapter/${n}?${rev()}`)).then((r) => {
         if (r.status === 401) location.reload();
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.text();
@@ -604,7 +606,7 @@
     setStatus("Loading audio…");
     let t = null;
     try {
-      t = await getJSON(api(`/audio/${n}.json`));
+      t = await getJSON(api(`/audio/${n}.json?${rev()}`));
     } catch (e) {
       if (audioChapter !== n || !listening) return;
       if (e.status !== 404) {
@@ -623,7 +625,7 @@
   async function load(n, t, at) {
     timing = t;
     unlocking = false;
-    audio.src = api(`/audio/${n}.mp3`) + (t.complete === false ? `?bytes=${t.bytes}` : "");
+    audio.src = api(`/audio/${n}.mp3?${rev()}`) + (t.complete === false ? `&bytes=${t.bytes}` : "");
     audio.defaultPlaybackRate = settings.speed;
     audio.playbackRate = settings.speed;
     const loaded = await new Promise((done) => {
@@ -661,7 +663,7 @@
   async function continuePartial(n, at) {
     let t = null;
     try {
-      t = await getJSON(api(`/audio/${n}.json`));
+      t = await getJSON(api(`/audio/${n}.json?${rev()}`));
     } catch {}
     if (audioChapter !== n || !listening) return;
     if (t && (t.complete !== false || t.duration > at + 1)) return load(n, t, at);

@@ -110,14 +110,26 @@ def generate(kokoro: Kokoro, book: dict, n: int) -> None:
             "starts": starts, "duration": round(written / BYTES_PER_SECOND, 3), "bytes": written, "segments": len(texts),
         })
 
+    def updated() -> bool:
+        """The book was updated with new chapters since this started."""
+        return (store.read_json(folder / "book.json") or {}).get("rev", 0) != book.get("rev", 0)
+
+    def rewritten() -> bool:
+        """An update changed this section's text, so what's narrated of it is thrown away."""
+        if not updated() or store.read_json(folder / "chapters" / f"{n}.json") == texts:
+            return False
+        tmp.unlink(missing_ok=True)
+        partial.unlink(missing_ok=True)
+        return True
+
     with tmp.open("ab") as out:
         def check() -> None:
-            """Stop for a deleted book, or pause (keeping what's written) when narration was turned
-            off or someone is waiting on another chapter."""
+            """Stop for a deleted or updated book, or pause (keeping what's written) when narration
+            was turned off or someone is waiting on another chapter."""
             nonlocal written
-            if not folder.exists():
+            if not folder.exists() or rewritten():
                 raise Preempted
-            if not store.narration_requested(book["id"]) or _wanted_elsewhere(book["id"], n):
+            if updated() or not store.narration_requested(book["id"]) or _wanted_elsewhere(book["id"], n):
                 tail = enc.flush()
                 out.write(tail)
                 written += len(tail)
@@ -154,6 +166,8 @@ def generate(kokoro: Kokoro, book: dict, n: int) -> None:
             samples += len(chunk)
             checkpoint()
         out.write(enc.flush())
+    if rewritten():
+        raise Preempted
     os.replace(tmp, mp3)
     store.write_json(timing, {"starts": starts, "duration": round(mp3.stat().st_size / BYTES_PER_SECOND, 3)})
     partial.unlink(missing_ok=True)

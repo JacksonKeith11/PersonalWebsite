@@ -12,7 +12,9 @@
   --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --ui: -apple-system, system-ui, "Segoe UI", sans-serif;
   --top: calc(env(safe-area-inset-top) + 18px);
-  --bottom: calc(env(safe-area-inset-bottom) + 40px);
+  /* The page info sits beside the home indicator, inside the bottom safe area when there is one. */
+  --footer: max(calc(env(safe-area-inset-bottom) - 16px), 5px);
+  --bottom: calc(var(--footer) + 22px);
 }
 :root[data-theme="sepia"] {
   --bg: #f8f1e3;
@@ -78,7 +80,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#footer { bottom: calc(env(safe-area-inset-bottom) + 14px); }
+#footer { bottom: var(--footer); }
 
 #viewport {
   position: absolute;
@@ -159,7 +161,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #listen-fab {
   position: absolute;
   right: max(10px, env(safe-area-inset-right));
-  bottom: calc(env(safe-area-inset-bottom) + 2px);
+  bottom: max(calc(var(--footer) - 11px), 0px);
   width: 36px;
   height: 36px;
   color: var(--muted);

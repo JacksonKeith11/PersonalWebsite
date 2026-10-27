@@ -6,6 +6,7 @@ data/books/
   <id>/book.json         metadata (including the uploader's username, "owner"), chapter list, table of contents
   <id>/book.epub         the original upload
   <id>/progress.json     reading position
+  <id>/narrate           present once someone asks for the audiobook; the worker narrates only these
   <id>/chapters/<n>.html reader markup; every spoken block carries data-s="<segment>"
   <id>/chapters/<n>.json the text of each segment, in order
   <id>/audio/<n>.mp3     narration for chapter n
@@ -21,6 +22,7 @@ from pathlib import Path
 BOOKS_DIR = Path(os.environ.get("BOOKS_DIR", "/app/data/books"))
 PRIORITY = BOOKS_DIR / "priority.json"
 WORKER = BOOKS_DIR / "worker.json"
+NARRATE = "narrate"
 ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
 
@@ -56,6 +58,10 @@ def list_books(owner: str | None = None) -> list[dict]:
     books = [read_json(p / "book.json") for p in BOOKS_DIR.iterdir() if ID_RE.match(p.name)]
     books = [b for b in books if b and (owner is None or b.get("owner") == owner)]
     return sorted(books, key=lambda b: b["added"], reverse=True)
+
+
+def narration_requested(book_id: str) -> bool:
+    return (BOOKS_DIR / book_id / NARRATE).exists()
 
 
 def partial_paths(folder: Path, n: int) -> tuple[Path, Path]:

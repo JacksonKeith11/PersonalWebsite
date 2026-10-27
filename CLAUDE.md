@@ -23,7 +23,8 @@ Changes that need someone at the Mac (say so in the PR description):
 - `app/books/`: EPUB library and reader at `/books`. No password: readers pick a username (cookie
   `books_user`) and see only books whose `book.json` `owner` matches; others' books 404
   - `epub.py` parses uploads; `store.py` documents the on-disk layout under `data/books/`
-  - `worker.py` runs in the `tts` container (`Dockerfile.tts`) and narrates with Kokoro (am_michael)
+  - `worker.py` runs in the `tts` container (`Dockerfile.tts`) and narrates with Kokoro (am_michael),
+    only books someone asked for (Make audiobook, or pressing listen: a `narrate` file in the book)
   - `pages.py` renders the shells; `app/static/books/` has the reader/library JS and CSS
   - `importer.py` builds an EPUB from a Royal Road fiction or SpaceBattles/SV/QQ thread link
     (threadmarks via reader mode), one import at a time on a background thread. Royal Road and

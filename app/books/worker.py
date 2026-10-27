@@ -1,11 +1,13 @@
 """Narrates every uploaded book with Kokoro, one chapter MP3 at a time.
 
-Runs in its own container (see Dockerfile.tts). Order of work: the chapter someone pressed
-listen on and the rest of that book, then the newest upload first.
+Runs in its own container (see Dockerfile.tts). Only books someone asked to narrate (Make
+audiobook, or pressing listen) are done. Order of work: the chapter someone pressed listen on and
+the rest of that book, then the newest request first.
 """
 
 import logging
 import os
+import re
 import time
 from pathlib import Path
 
@@ -40,12 +42,13 @@ def _wanted_elsewhere(book_id: str, n: int) -> bool:
     if (pri_book, pri_chapter) == (book_id, n):
         return False
     pri = store.load_book(pri_book or "")
-    return bool(pri) and pri_chapter < len(pri["chapters"]) and pri_chapter not in store.audio_done(pri_book)
+    return bool(pri) and store.narration_requested(pri_book) and pri_chapter < len(pri["chapters"]) and pri_chapter not in store.audio_done(pri_book)
 
 
 def next_job() -> tuple[dict, int] | None:
     pri_book, pri_chapter = _priority()
-    books = sorted(store.list_books(), key=lambda b: b["id"] != pri_book)
+    books = [b for b in store.list_books() if store.narration_requested(b["id"])]
+    books.sort(key=lambda b: b["id"] != pri_book)
     for book in books:
         done = store.audio_done(book["id"])
         start = pri_chapter if book["id"] == pri_book else 0
@@ -54,6 +57,18 @@ def next_job() -> tuple[dict, int] | None:
             if n not in done:
                 return book, n
     return None
+
+
+def _pieces(text: str, limit: int = 400) -> list[str]:
+    """Runs of whole sentences, so a stop or delete doesn't wait out a long paragraph."""
+    pieces, cur = [], ""
+    for sentence in re.split(r"(?<=[.!?…])\s+", text):
+        if cur and len(cur) + len(sentence) + 1 > limit:
+            pieces.append(cur)
+            cur = sentence
+        else:
+            cur = f"{cur} {sentence}" if cur else sentence
+    return [*pieces, cur] if cur else pieces
 
 
 def _encoder() -> lameenc.Encoder:
@@ -96,15 +111,21 @@ def generate(kokoro: Kokoro, book: dict, n: int) -> None:
         })
 
     with tmp.open("ab") as out:
-        for i in range(len(starts), len(texts)):
+        def check() -> None:
+            """Stop for a deleted book, or pause (keeping what's written) when narration was turned
+            off or someone is waiting on another chapter."""
+            nonlocal written
             if not folder.exists():
-                raise Preempted  # book was deleted
-            if _wanted_elsewhere(book["id"], n):
+                raise Preempted
+            if not store.narration_requested(book["id"]) or _wanted_elsewhere(book["id"], n):
                 tail = enc.flush()
                 out.write(tail)
                 written += len(tail)
                 checkpoint()
                 raise Preempted
+
+        for i in range(len(starts), len(texts)):
+            check()
             if time.time() - last_status > 2:
                 done = i - began
                 store.write_json(store.WORKER, {
@@ -113,12 +134,18 @@ def generate(kokoro: Kokoro, book: dict, n: int) -> None:
                 })
                 last_status = time.time()
 
-            starts.append(round(samples / RATE, 3))
+            parts = []
             try:
-                audio, _ = kokoro.create(texts[i], voice=VOICE, speed=1.0, lang="en-us")
+                for piece in _pieces(texts[i]):
+                    check()
+                    parts.append(kokoro.create(piece, voice=VOICE, speed=1.0, lang="en-us")[0])
+                audio = np.concatenate(parts) if parts else np.zeros(0, dtype=np.float32)
+            except Preempted:
+                raise
             except Exception:
                 log.exception("Couldn't narrate segment %d of %s chapter %d", i, book["id"], n)
                 audio = np.zeros(0, dtype=np.float32)
+            starts.append(round(samples / RATE, 3))
             chunk = np.concatenate([audio.astype(np.float32), PAUSE])
             data = enc.encode((np.clip(chunk, -1, 1) * 32767).astype("<i2").tobytes())
             out.write(data)
@@ -150,7 +177,7 @@ def main() -> None:
             generate(kokoro, book, n)
             log.info("%s chapter %d/%d done in %.0fs", book["title"], n + 1, len(book["chapters"]), time.time() - started)
         except Preempted:
-            log.info("%s chapter %d paused for a listen request", book["title"], n + 1)
+            log.info("%s chapter %d paused", book["title"], n + 1)
         except Exception:
             log.exception("Failed on %s chapter %d", book["id"], n)
             time.sleep(30)

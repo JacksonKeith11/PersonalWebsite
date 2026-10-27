@@ -20,9 +20,12 @@
 
   function audioLine(a) {
     if (a.ready.length === a.total) return "Audio ready";
+    if (!a.requested) return a.percent ? `Audio ${a.percent}% · stopped` : "";
     if (a.working) return `Narrating · ${a.percent}%`;
     return a.percent ? `Audio ${a.percent}%` : "Audio queued";
   }
+
+  const narrating = (a) => a.requested && a.ready.length < a.total;
 
   function cover(b) {
     if (b.cover) return el("div", { className: "cover" }, el("img", { src: b.cover, alt: "" }));
@@ -53,6 +56,21 @@
       await fetch(`/books/api/${b.id}`, { method: "DELETE" });
       load();
     });
+    // Narration only runs when asked for (here, or by pressing listen in the reader).
+    let narrate = null;
+    if (b.audio.ready.length < b.audio.total) {
+      narrate = el("button", {
+        textContent: b.audio.requested ? "Stop making audiobook" : b.audio.percent ? "Resume making audiobook" : "Make audiobook",
+      });
+      narrate.addEventListener("click", async () => {
+        await fetch(`/books/api/${b.id}/narrate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on: !b.audio.requested }),
+        });
+        load();
+      });
+    }
     const menu = el("details", { className: "more" },
       el("summary", { textContent: "⋯", title: "More" }),
       el("ul", {},
@@ -63,6 +81,7 @@
           className: mp3Ready ? "" : "off",
           textContent: b.audio.percent >= 100 || !mp3Ready ? "Download audiobook (MP3)" : `Download audio so far (${b.audio.percent}%)`,
         })),
+        narrate && el("li", {}, narrate),
         el("li", {}, del),
       ),
     );
@@ -86,7 +105,7 @@
       grid.append(c);
     }
     $("#empty").hidden = books.length > 0;
-    if (books.some((b) => b.audio.ready.length < b.audio.total)) refreshTimer = setTimeout(load, 15000);
+    if (books.some((b) => narrating(b.audio))) refreshTimer = setTimeout(load, 15000);
   }
 
   document.addEventListener("click", (e) => {
@@ -108,7 +127,7 @@
         return;
       }
     }
-    notice(files.length ? "Added. Narration has started in the background." : "");
+    notice(files.length ? "Added. Choose Make audiobook in its ⋯ menu to narrate it." : "");
     load();
   });
 
@@ -120,7 +139,7 @@
     const name = j.title ? `“${j.title}”` : j.url;
     if (j.status === "queued") return `Waiting to import ${name}`;
     if (j.status === "running") return j.total ? `Importing ${name} · ${j.done} of ${j.total} chapters` : `Importing ${name}…`;
-    if (j.status === "done") return `Added ${name}. Narration has started in the background.`;
+    if (j.status === "done") return `Added ${name}.`;
     return `Couldn't import ${name}: ${j.error}`;
   }
 

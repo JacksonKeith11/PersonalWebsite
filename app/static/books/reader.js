@@ -480,6 +480,19 @@
     setLink($("#dl-chapter-mp3"), api(`/download.mp3?chapter=${chapter}`), some && book.chapters[chapter].segments > 0);
   }
 
+  function narrateButton(s) {
+    const b = $("#narrate");
+    b.hidden = s.ready.length === s.total;
+    b.textContent = s.requested ? "Stop making audiobook" : s.percent ? "Resume making audiobook" : "Make audiobook";
+    b.dataset.on = s.requested ? "1" : "";
+  }
+
+  $("#narrate").addEventListener("click", async () => {
+    const on = !$("#narrate").dataset.on;
+    await fetch(api("/narrate"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) });
+    refreshAudioSummary();
+  });
+
   async function refreshAudioSummary() {
     const s = await refreshAudioStatus();
     const done = s.ready.length;
@@ -488,7 +501,9 @@
       const pct = Math.floor((s.working.segment / s.working.segments) * 100);
       text += ` Working on “${book.chapters[s.working.chapter].title}” (${pct}% of that section).`;
     }
+    if (!s.requested && done < s.total) text = s.percent ? `Audio: ${s.percent}% narrated; narration is stopped.` : "No audiobook yet. Press listen, or make the whole audiobook here.";
     $("#audio-summary").textContent = text;
+    narrateButton(s);
     setLink($("#dl-book-mp3"), api("/download.mp3"), s.percent > 0);
     $("#dl-book-mp3").textContent = s.percent >= 100 || s.percent === 0 ? "Download audiobook (MP3)" : `Download audiobook so far (MP3, ${s.percent}%)`;
     updateChapterDownload();

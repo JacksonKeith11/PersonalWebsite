@@ -124,6 +124,7 @@ def _audio_status(book: dict) -> dict:
         "total": len(book["chapters"]),
         "percent": 100 if len(done) == len(book["chapters"]) else min(99, int(narrated / total * 100)),
         "working": working,
+        "requested": store.narration_requested(book["id"]),
     }
 
 
@@ -296,11 +297,23 @@ def audio_status(book_id: str, user: str = Depends(require_user)):
 
 @api.post("/{book_id}/listen")
 async def listen(book_id: str, request: Request, user: str = Depends(require_user)):
-    """Ask the worker to narrate this chapter next."""
-    _book(book_id, user)
+    """Ask the worker to narrate this chapter next (and so the book: pressing listen asks for it)."""
+    _, folder = _book(book_id, user)
     chapter = int((await request.json()).get("chapter", 0))
+    (folder / store.NARRATE).touch()
     store.write_json(store.PRIORITY, {"book": book_id, "chapter": chapter})
     return {"ok": True}
+
+
+@api.post("/{book_id}/narrate")
+async def narrate(book_id: str, request: Request, user: str = Depends(require_user)):
+    """Start or stop making the audiobook; stopping keeps what's been narrated."""
+    book, folder = _book(book_id, user)
+    if (await request.json()).get("on", True):
+        (folder / store.NARRATE).touch()
+    else:
+        (folder / store.NARRATE).unlink(missing_ok=True)
+    return JSONResponse(_audio_status(book), headers=auth.PRIVATE_HEADERS)
 
 
 @api.post("/{book_id}/progress")

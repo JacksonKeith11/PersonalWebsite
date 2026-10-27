@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 17
+ASSET_VERSION = 18
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>
@@ -43,8 +43,8 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
   <main class="paper login">
     {NAV}
     <h1 class="page-title">Library</h1>
-    <p class="intro">A private reading shelf for EPUBs. Upload a book and it's turned into an audiobook
-      automatically, so you can switch between reading and listening.</p>
+    <p class="intro">A private reading shelf for EPUBs. Upload a book and have it narrated as an
+      audiobook when you want, so you can switch between reading and listening.</p>
     <ul class="features">
       <li>Read page by page with adjustable themes, fonts, text size and spacing</li>
       <li>Listen with the current paragraph highlighted as it's read aloud</li>
@@ -98,7 +98,7 @@ def library(user: str) -> str:
     <ul id="imports" class="imports" hidden></ul>
     <p id="notice" class="notice" hidden></p>
     <div id="books" class="books"></div>
-    <p id="empty" class="empty" hidden>No books yet. Add an EPUB or a story link to get started; narration starts as soon as it's added.</p>
+    <p id="empty" class="empty" hidden>No books yet. Add an EPUB or a story link to get started.</p>
   </main>
   <script src="/static/books/library.js?v={ASSET_VERSION}"></script>
 </body>
@@ -212,6 +212,7 @@ def reader(book: dict, theme: str = "original") -> str:
       <a class="menu-item" href="/books/api/{escape(book["id"])}/download.epub" download>Download EPUB</a>
       <a class="menu-item" id="dl-book-mp3" href="/books/api/{escape(book["id"])}/download.mp3" download>Download audiobook (MP3)</a>
       <a class="menu-item" id="dl-chapter-mp3" href="#" download>Download this chapter's audio</a>
+      <button class="menu-item" id="narrate" type="button" hidden></button>
       <p id="audio-summary" class="muted"></p>
       <a class="menu-item" href="/books">Back to library</a>
     </div>

@@ -63,7 +63,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 #stage {
   position: fixed;
-  inset: 0 0 calc(-1 * var(--gap, 0px));
+  inset: 0;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
@@ -197,12 +197,12 @@ body.chrome #topbar { transform: none; }
   text-overflow: ellipsis;
 }
 
-#scrim { position: fixed; inset: 0 0 calc(-1 * var(--gap, 0px)); z-index: 20; background: rgba(0, 0, 0, 0.28); }
+#scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.28); }
 .sheet {
   position: fixed;
   z-index: 21;
   left: 50%;
-  bottom: calc(-1 * var(--gap, 0px));
+  bottom: 0;
   width: min(100%, 560px);
   max-height: 82vh;
   display: flex;
@@ -303,7 +303,7 @@ body.chrome #topbar { transform: none; }
   position: fixed;
   z-index: 9;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 10px - var(--gap, 0px));
+  bottom: calc(env(safe-area-inset-bottom) + 10px);
   width: min(100% - 20px, 460px);
   transform: translateX(-50%);
   padding: 8px 10px 6px;

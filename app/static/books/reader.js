@@ -277,17 +277,12 @@
     }
   });
 
-  // As a home screen app with a translucent status bar, iOS sizes the page shorter than the
-  // screen and leaves the strip below it empty. Measure it so the reader can extend into it.
+  // Reports how iOS sizes the home screen app, to check the reader fills the screen.
   function fitScreen() {
     if (!navigator.standalone) return;
-    const root = document.documentElement.style;
-    root.removeProperty("--gap");
     const full = window.innerHeight > window.innerWidth ? screen.height : screen.width;
     const bottom = stage.getBoundingClientRect().bottom;
-    // Never more than a status bar's height, so a bad reading can't push the page off screen.
-    const gap = Math.min(60, Math.max(0, Math.round(full - bottom)));
-    root.setProperty("--gap", `${gap}px`);
+    const gap = Math.round(full - bottom);
     const probe = document.createElement("div");
     probe.style.cssText = "position:fixed;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);visibility:hidden";
     document.body.append(probe);

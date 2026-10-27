@@ -199,3 +199,6 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .mod.empty { color: #5d5070; }
 .chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
 .chip { font-size: 15px; line-height: 1; padding: 2px 5px; border: 1px solid var(--c); color: var(--c); border-radius: 2px; white-space: nowrap; }
+.pick .delta { color: var(--text, #e8e0f0); font-size: 18px; margin-top: 3px; line-height: 1.25; }
+.pick .delta .was { color: #8a7c9c; }
+.pick .delta .now { color: var(--green); }

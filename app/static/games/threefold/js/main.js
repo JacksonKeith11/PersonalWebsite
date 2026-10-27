@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=4';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=5';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=4';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=4';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=4';
-import { env, startBattle, BattleScene } from './battle.js?v=4';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=4';
-import { h, sprImg, bar } from './ui.js?v=4';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=5';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=5';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=5';
+import { env, startBattle, BattleScene } from './battle.js?v=5';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=5';
+import { h, sprImg, bar } from './ui.js?v=5';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -218,12 +218,14 @@ function equipFlow(id, next, show = setScreen) {
     run.party.forEach(p => p.skills.forEach(s => targets.push({ p, s, ok: canSocket(p, s, id) })));
     const socket = t => { t.s.mods.push(id); sfx('shield'); next(); };
     show(h('div', { class: 'panel' },
-      h('h2', {}, `Socket the ${artName(id)}`), h('p', { class: 'muted' }, `${artText(id)}. Each skill holds ${MAX_MODS}. You can move it later from the Party screen.`),
+      h('h2', {}, `Socket the ${artName(id)}`), h('p', { class: 'muted' }, `${artText(id).replace(/\.$/, '')}. Each skill holds ${MAX_MODS}. You can move it later from the Party screen.`),
       h('div', { class: 'cards' }, targets.map(t => {
         const after = t.ok ? skStats(t.p, { ...t.s, mods: [...t.s.mods, id] }) : null;
+        const src = heroSrc(t.p, run.gold), a = outputOf(skStats(t.p, t.s), src), b = after ? outputOf(after, src) : '';
         return h('button', { class: 'pick', disabled: !t.ok, onclick: () => socket(t) },
           h('div', { class: 'pick-head' }, sprImg(heroSprite(t.p)), h('b', {}, SKILLS[t.s.id].name)),
           t.s.mods.length ? h('div', { class: 'kind' }, t.s.mods.map(artName).join(', ')) : null,
+          after && a !== b ? delta('', a, b) : null,
           h('div', { class: 'desc' }, after ? describe(after, heroSrc(t.p, run.gold)) : t.s.mods.length >= MAX_MODS ? 'No free slot' : 'Doesn\'t fit this skill'));
       })),
       btn('Keep in pack', keep)));
@@ -231,13 +233,30 @@ function equipFlow(id, next, show = setScreen) {
   } else {
     const wear = p => { p.items.push(id); const it = ITEMS[id]; if (it.stats && it.stats.maxHp > 0) p.hp += it.stats.maxHp; clampHp(); sfx('coin'); next(); };
     show(h('div', { class: 'panel' },
-      h('h2', {}, `Who wears the ${artName(id)}?`), h('p', { class: 'muted' }, `${artText(id)}. Each hero wears ${MAX_RELICS}.`),
+      h('h2', {}, `Who wears the ${artName(id)}?`), h('p', { class: 'muted' }, `${artText(id).replace(/\.$/, '')}. Each hero wears ${MAX_RELICS}.`),
       h('div', { class: 'cards' }, run.party.map(p => h('button', { class: 'pick', disabled: !canWear(p, id), onclick: () => wear(p) },
         h('div', { class: 'pick-head' }, sprImg(heroSprite(p)), h('b', {}, heroTitle(p))),
-        h('div', { class: 'desc' }, p.items.length ? p.items.map(artName).join(', ') : 'Nothing worn yet')))),
+        h('div', { class: 'desc' }, p.items.length ? `Wearing ${p.items.map(artName).join(', ')}` : 'Nothing worn yet'),
+        ...(canWear(p, id) ? wearPreview(p, id) : [])))),
       btn('Keep in pack', keep)));
     auto(() => { const p = run.party.find(p => canWear(p, id)); if (p) wear(p); else keep(); });
   }
+}
+// "Strike: 12 physical → 15 physical" lines for what an artifact would change.
+const delta = (label, a, b) => h('div', { class: 'delta' }, label ? h('b', { class: 'inline' }, label + ': ') : null, h('span', { class: 'was' }, a || 'nothing'), ' → ', h('span', { class: 'now' }, b || 'nothing'));
+function wearPreview(p, id) {
+  const w = { ...p, items: [...p.items, id] };
+  const st0 = heroStats(p, run.gold), st1 = heroStats(w, run.gold);
+  const src0 = heroSrc(p, run.gold), src1 = heroSrc(w, run.gold);
+  const names = { maxHp: 'max HP', atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', mov: 'MOV', crit: 'CRIT' };
+  const stats = Object.keys(names).filter(k => st0[k] !== st1[k]).map(k => `${names[k]} ${st0[k]} → ${st1[k]}`);
+  const skills = p.skills.map(s => ({ s, a: outputOf(skStats(p, s), src0), b: outputOf(skStats(w, s), src1), d0: describe(skStats(p, s), src0), d1: describe(skStats(w, s), src1) }))
+    .filter(x => x.a !== x.b || x.d0 !== x.d1);
+  return [
+    stats.length ? h('div', { class: 'delta' }, stats.join(' · ')) : null,
+    ...skills.map(x => x.a !== x.b ? delta(SKILLS[x.s.id].name, x.a, x.b) : h('div', { class: 'delta' }, h('b', { class: 'inline' }, SKILLS[x.s.id].name + ': '), describe(skStats(w, x.s), src1))),
+    !stats.length && !skills.length ? h('div', { class: 'desc dim' }, 'No change to stats or skill numbers; it works in battle.') : null,
+  ];
 }
 const clampHp = () => run.party.forEach(p => { p.hp = Math.min(p.hp, heroStats(p, run.gold).maxHp); });
 

@@ -66,8 +66,10 @@ Keep it that way.
   - Unequipped ones wait in `run.stash`, the pack.
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
-- **Show the numbers.** `describe(o, src)` prints the result next to the scaling ("75% MAG = 9").
-  Pass a source wherever a skill is described.
+- **Show the numbers.** `describe(o, src)` prints the result next to the scaling ("75% MAG = 9"),
+  including burn and poison per turn ("Burns 2 turns (30% MAG = 5/turn)"). Pass a source wherever a
+  skill is described. Equipping an artifact shows what it changes: `outputOf` before → after for
+  each skill, plus stat changes for hero artifacts (`wearPreview` in `main.js`).
 - **Pixel art only, no image or audio files.** New sprites are 16×16 text grids in `art.js`; new
   sounds are synth recipes in `audio.js`.
 - **Later acts scale harder** (`foeUnit`: +12% HP and +8% ATK/MAG per act on top of the per-level
@@ -151,6 +153,9 @@ the browser can't reach cdnjs.
 - **A skill artifact's `ok(o)`** sees the skill as already modified by earlier artifacts. Use
   `group` for mutually exclusive effects (two stat swaps, two shapes). `only` ties an artifact to
   one skill.
+- **`burnOf`, `poisonOf` and `itemMult` in `rules.js` mirror `applyStatus` and `dmgMult` in
+  `battle.js`.** Change a burn or poison formula, or add an always-on damage artifact, in both
+  places or the previews lie.
 - **Line of sight** applies to ranged skills unless they have `lob`. `describe` prints "Needs line of
   sight" from the same rule (`needsLos` in `battle.js`); keep the two in step.
 - **Sprite rows must be exactly 16 characters** (8 for icons), with `.` for transparent. A

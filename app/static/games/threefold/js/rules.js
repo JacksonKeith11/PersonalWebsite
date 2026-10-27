@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=4';
+import { CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=5';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -86,6 +86,37 @@ export function statVal(u, stat) {
   return Math.max(0, v || 0);
 }
 
+// Damage multipliers from worn artifacts that always apply. Situational ones (Hermit's Lantern,
+// Berserker's Torc and the like) only show up in the battle previews.
+export const itemMult = u => (has(u, 'monocle') ? 1.5 : 1) * (has(u, 'crown') ? 1.4 : 1);
+const isDmg = o => o.kind === 'phys' || o.kind === 'mag';
+// Burn and poison a skill leaves, as battle.js applyStatus computes them: { turns, n (per turn) }.
+export function burnOf(o, src) {
+  const turns = o.burn || (isClass(src, 'pyromancer') && o.kind === 'mag' ? 2 : 0);
+  if (!turns) return null;
+  const ember = has(src, 'emberheart');
+  return { turns: turns + (ember ? 2 : 0), n: Math.max(1, Math.round(statVal(src, o.stat) * 0.3 * (ember ? 1.5 : 1))), pct: ember ? 45 : 30 };
+}
+export function poisonOf(o, src) {
+  if (!o.poison) return null;
+  const pow = o.poisonPow || 0.3;
+  return { turns: o.poison, n: Math.max(1, Math.round(statVal(src, o.stat) * pow)), pct: Math.round(pow * 100) };
+}
+// The headline numbers of a skill for src, e.g. "18 physical ×2, burn 4/turn for 2". Used for before/after.
+export function outputOf(o, src) {
+  const out = [];
+  const n = Math.round(statVal(src, o.stat) * o.pow * (isDmg(o) ? itemMult(src) : 1));
+  const times = o.times || (o.double ? 2 : 1);
+  if (o.gravity) out.push(`${Math.round(o.gravity * 100)}% of current HP`);
+  else if (isDmg(o)) out.push(`${n}${times > 1 ? ' ×' + times : ''} ${o.kind === 'mag' ? 'magic' : 'physical'}`);
+  else if (o.kind === 'heal') out.push(`heals ${n}`);
+  else if (o.kind === 'shield') out.push(`shields ${n}`);
+  const b = burnOf(o, src), p = poisonOf(o, src);
+  if (b) out.push(`burn ${b.n}/turn for ${b.turns}`);
+  if (p) out.push(`poison ${p.n}/turn for ${p.turns}`);
+  if (o.thornsUp && src) out.push(`thorns ${Math.round(6 + src.def * 0.5)}`);
+  return out.join(', ');
+}
 const STAT_NAMES = { atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', missing: 'missing HP', heft: '30% max HP', shield: 'shield', thorns: 'thorns' };
 const RULES = { prime: 'Every foe whose HP is prime', even: 'Every unit with even HP', grid3: 'Every foe where row + column is a multiple of 3', poisoned: 'Every poisoned foe',
   odd: 'Every foe with odd HP', square: 'Every foe whose HP is a perfect square', fib: 'Every foe whose HP is a Fibonacci number', evenpos: 'Every ally on a "white" square (row + column even)',
@@ -103,7 +134,7 @@ export function describe(o, src) {
   else if (o.tgt === 'self') parts.push(o.aoe ? `Around you, radius ${o.aoe}${o.diag ? ' (diagonals too)' : ''}` : 'Self');
   else parts.push(`${o.shape === 'line' ? 'Line, ' : ''}Range ${a === b ? a : a + '–' + b}`);
   if (o.aoe && o.tgt !== 'self') parts.push(`Area ${o.aoe}`);
-  const n = src ? ` = ${Math.round(statVal(src, o.stat) * o.pow)}` : '';
+  const n = src ? ` = ${Math.round(statVal(src, o.stat) * o.pow * (isDmg(o) ? itemMult(src) : 1))}` : '';
   const pct = `${Math.round(o.pow * 100)}% ${STAT_NAMES[o.stat]}${n}`;
   const times = o.times || (o.double ? 2 : 1);
   if (o.gravity) parts.push(`Takes ${Math.round(o.gravity * 100)}% of current HP (half on bosses)`);
@@ -113,19 +144,28 @@ export function describe(o, src) {
   if (o.shape === 'chain') parts.push(`Bounces ${o.chainN}×`);
   if (o.hits === 'all' && o.aoe) parts.push('Hits allies too');
   if (b > 1 && o.tgt !== 'self' && !o.lob && o.shape !== 'line') parts.push('Needs line of sight');
-  const flags = [['stun', 'Stuns'], ['stunLow', 'Stuns if under half HP'], ['slow', 'Slows'], ['poison', 'Poisons'], ['burn', 'Burns'], ['knock', 'Knockback'], ['pull', 'Pulls'],
+  const flags = [['stun', 'Stuns'], ['stunLow', 'Stuns if under half HP'], ['slow', 'Slows'], ['knock', 'Knockback'], ['pull', 'Pulls'],
     ['swap', 'Swaps places'], ['leap', 'Leaps in'], ['dash', 'Dashes'], ['teleport', 'Teleports'], ['taunt', 'Taunts'], ['rally', 'Rallies'], ['blind', 'Blinds'], ['execute', '×2 under half HP'],
     ['drain', 'Drains'], ['generous', 'Heals an ally'], ['vuln', 'Exposes'], ['terrain', 'Reshapes ground'], ['walls', 'Raises walls'], ['echo', 'May echo'],
     ['gamble', 'Random damage'], ['ctTake', 'Delays target'], ['ctGive', 'Hastes'], ['stealth', 'Stealth'], ['riposte', 'Riposte'], ['vortex', 'Pulls foes in'],
     ['selfShield', 'Shields you'], ['overflow', 'Overflow shields'], ['backstab', 'Backstab'], ['recoil', 'Hops away'],
-    ['shock', 'Shocks'], ['charm', 'Charms'], ['doom', 'Dooms'], ['cdLock', 'Silences'], ['ward', 'Wards'], ['thornsUp', 'Grows thorns'], ['land', 'Jumps'],
+    ['shock', 'Shocks'], ['charm', 'Charms'], ['doom', 'Dooms'], ['cdLock', 'Silences'], ['ward', 'Wards'], ['land', 'Jumps'],
     ['steal', 'Steals gold'], ['still', '+50% if you stayed put'], ['fester', '+15% per poison turn'], ['shatter', '+60% vs slowed'], ['bramble', '+60% vs brambled'],
     ['sanguine', '+1% per 1% HP missing'], ['leech', 'Poison heals you'], ['selfHaste', 'Hastes you'], ['brace', 'Braces'], ['guard', 'Guards'],
     ['root', 'Roots'], ['disarm', 'Disarms'], ['weak', 'Weakens'], ['oil', 'Oils'], ['wet', 'Soaks'], ['sleep', 'Sleep'], ['confuse', 'Confuses'], ['purify', 'Purifies'],
     ['dispel', 'Dispels'], ['movUp', '+1 MOV'], ['focus', 'Focus'], ['ctZero', 'Resets their turn'], ['pincer', '+40% per ally beside the target'], ['momentum', '+8% per tile away'],
     ['perDebuff', '+30% per debuff on the target'], ['recoilDmg', 'Hurts you too'], ['sure', 'Can\'t miss'], ['stealShield', 'Steals shields'], ['spread', 'Spreads debuffs'],
     ['trap', 'Lays traps'], ['onLava', '+60% vs targets on lava'], ['delay', 'Lands next turn'], ['counter', 'Readies a counter']];
-  for (const [k, label] of flags) if (o[k]) parts.push(label);
+  // damage over time, with its scaling and (given a source) the number per turn
+  const sName = STAT_NAMES[o.stat];
+  const burn = src ? burnOf(o, src) : o.burn ? { turns: o.burn, pct: 30 } : null;
+  if (burn) parts.push(`Burns ${burn.turns} turns (${burn.pct}% ${sName}${src ? ` = ${burn.n}` : ''}/turn)${!o.burn ? ' from Ember Soul' : ''}`);
+  const poison = src ? poisonOf(o, src) : o.poison ? { turns: o.poison, pct: Math.round((o.poisonPow || 0.3) * 100) } : null;
+  if (poison) parts.push(`Poisons ${poison.turns} turns (${poison.pct}% ${sName}${src ? ` = ${poison.n}` : ''}/turn)${src && (isClass(src, 'plaguebringer') || has(src, 'toxicheart')) ? ', stacking' : ''}`);
+  if (o.thornsUp) parts.push(`Grows thorns for ${o.thornsUp} turns (6 + 50% DEF${src && o.tgt === 'self' ? ` = ${Math.round(6 + src.def * 0.5)}` : ''})`);
+  if (o.selfShield) parts.push(`Shields you for ${Math.round(o.selfShield * 100)}% of damage dealt`);
+  if (o.drain) parts.push(`Heals you ${Math.round(o.drain * 100)}% of damage dealt`);
+  for (const [k, label] of flags) if (o[k] && k !== 'drain' && k !== 'selfShield') parts.push(label);
   if (o.detonate) parts.push(`Detonates ${o.detonate === 'burn' ? 'burns' : 'poison'}`);
   if (o.push) parts.push(`Pushes ${o.push}`);
   if (o.cull) parts.push(`Kills under ${Math.round(o.cull * 100)}% HP`);

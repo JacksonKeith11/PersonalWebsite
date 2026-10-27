@@ -151,9 +151,21 @@ export async function initAudio(game) {
   if (!game.sound || !game.sound.context || typeof OfflineAudioContext === 'undefined') return;
   // iPhones mute web audio with the silent switch unless the page asks for playback audio
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* unsupported */ }
-  // resume on any tap or key, not only through Phaser's own unlock
-  const wake = () => { const c = game.sound.context; if (c && c.state !== 'running') c.resume().catch(() => {}); };
+  // Resume on any tap or key, not only through Phaser's own unlock. After the tab has been hidden,
+  // Safari can leave a looping track silent (or the context suspended) even once it says it's
+  // running, so the first wake after that restarts the music from scratch.
+  const wake = () => {
+    const c = game.sound.context;
+    if (!c) return;
+    const restart = () => { if (A.stale && c.state === 'running') { A.stale = false; restartMusic(); } };
+    if (c.state !== 'running') c.resume().then(restart).catch(() => {});
+    else restart();
+  };
   for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, wake, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) A.stale = true; else wake(); });
+  window.addEventListener('pagehide', () => { A.stale = true; });
+  window.addEventListener('pageshow', wake);
+  window.addEventListener('focus', wake);
   const jobs = [];
   for (const [key, [len, build]] of Object.entries(SFX)) jobs.push(render(len, build, key === 'step' || key === 'click' ? 0.45 : 0.85).then(b => game.cache.audio.add(key, b)));
   await Promise.all(jobs);
@@ -171,8 +183,15 @@ export function sfx(name, vol = 1) {
   try { A.game.sound.play(name, { volume: 0.7 * vol, detune: Math.round((Math.random() - 0.5) * 120) }); } catch (e) { /* sound unavailable */ }
 }
 
+function restartMusic() {
+  const k = A.playingKey || A.wanted;
+  if (A.playing) { A.playing.stop(); A.playing.destroy(); A.playing = null; A.playingKey = null; }
+  if (k) music(k);
+}
 export function music(key) {
-  if (A.playingKey === key && A.playing) return;
+  const ctx = A.game && A.game.sound && A.game.sound.context;
+  // keep a track that's really playing; restart one that only thinks it is
+  if (A.playingKey === key && A.playing && A.playing.isPlaying && !A.stale && (!ctx || ctx.state === 'running')) return;
   if (A.playing) { A.playing.stop(); A.playing.destroy(); A.playing = null; A.playingKey = null; }
   A.wanted = key;
   if (!A.ready || !A.music || !key || !A.game.cache.audio.exists(key)) return;
@@ -181,6 +200,7 @@ export function music(key) {
     A.playing.play();
     A.playingKey = key;
     A.wanted = null;
+    if (ctx && ctx.state === 'running') A.stale = false;
   } catch (e) { A.playing = null; }
 }
 
@@ -193,4 +213,4 @@ export function toggleMusic() {
   else if (A.music && k) music(k);
 }
 export function toggleSfx() { A.sfx = !A.sfx; saveSettings(); }
-export const audioDebug = () => ({ ready: A.ready, playing: A.playingKey, state: A.game && A.game.sound.context && A.game.sound.context.state });
+export const audioDebug = () => ({ ready: A.ready, playing: A.playingKey, isPlaying: !!(A.playing && A.playing.isPlaying), paused: !!(A.playing && A.playing.isPaused), wanted: A.wanted, state: A.game && A.game.sound.context && A.game.sound.context.state });

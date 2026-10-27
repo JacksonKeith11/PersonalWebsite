@@ -115,6 +115,9 @@ the browser can't reach cdnjs.
     resumes the context on any tap.
   - iPhones mute web audio with the silent switch unless `navigator.audioSession.type = 'playback'`.
   - Render at 44.1 kHz; older Safari rejects lower offline rates.
+  - After the tab has been hidden, Safari can leave a looping track silent or its context suspended,
+    even once it reports "running". `audio.js` marks the music stale on hide and restarts the track
+    on the next tap or return to the tab. Chromium doesn't show the bug, so test it on an iPhone.
   - Buffers are normalized after rendering, so a new sound's synth `vol` only sets its internal
     balance, not its loudness.
 - **Check class passives with `isClass(u, id)`**, never `u.promo === id`: a tier-2 hero keeps

@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=6';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=6';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=6';
-import { sfx } from './audio.js?v=6';
-import { h, bar, sprImg } from './ui.js?v=6';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=7';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=7';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=7';
+import { sfx } from './audio.js?v=7';
+import { h, bar, sprImg } from './ui.js?v=7';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1338,6 +1338,7 @@ function renderPanel() {
   const shown = B.inspect && !B.inspect.dead ? B.inspect : u;
   if (shown && shown.tile) kids.push(tileCard(shown.tile.x, shown.tile.y));
   else if (shown) kids.push(unitCard(shown, !(mine && shown === u)));
+  if (shown && !shown.tile && shown !== u) kids.push(h('div', { class: 'hint' }, `Shaded tiles: where ${shown.name} can move this turn${shown.st.root > 0 ? ' (rooted)' : ''}.`));
   if (mine) {
     kids.push(h('div', { class: 'actions' },
       h('button', { class: 'btn' + (B.mode === 'move' ? ' sel' : ''), disabled: u.moved, onclick: () => { sfx('click'); if (B.mode === 'move') { B.mode = null; renderPanel(); } else afterHeroStep(u); } }, 'Move'),
@@ -1526,6 +1527,17 @@ export class BattleScene extends Phaser.Scene {
     const mine = u && isHero(u) && b.resolveTurn && !env.auto && !b.busy;
     const fill = (x, y, col, a) => { g.fillStyle(col, a); g.fillRect(x * TS, y * TS, TS, TS); };
     const line = (x, y, col, a, w) => { g.lineStyle(w, col, a); g.strokeRect(x * TS + w / 2, y * TS + w / 2, TS - w, TS - w); };
+    // an inspected unit shows where it could move: red for foes, teal for allies
+    const insp = b.inspect && !b.inspect.tile && !b.inspect.dead && b.inspect !== u ? b.inspect : null;
+    if (insp) {
+      const k = b.units.map(x => x.dead ? '' : `${x.x},${x.y}`).join('|') + `|${insp.st.root || 0}|${insp.st.movUp || 0}`;
+      if (!b.inspReach || b.inspReach.u !== insp || b.inspReach.k !== k) b.inspReach = { u: insp, k, r: reach(insp) };
+      const foe = homeSide(insp) !== 'hero';
+      for (const v of b.inspReach.r.values()) if (v.stop && !(v.x === insp.x && v.y === insp.y)) {
+        fill(v.x, v.y, foe ? 0xff5040 : 0x40d0c0, 0.24);
+        line(v.x, v.y, foe ? 0xff9080 : 0x80f0e0, 0.55, 2);
+      }
+    }
     if (mine && b.mode === 'move' && b.reach) {
       for (const v of b.reach.values()) if (v.stop && !(v.x === u.x && v.y === u.y)) { fill(v.x, v.y, v.risk ? 0xff9040 : 0x4696ff, 0.38); line(v.x, v.y, 0x96c8ff, 0.6, 2); }
     }

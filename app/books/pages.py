@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 12
+ASSET_VERSION = 13
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>
@@ -43,7 +43,16 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
   <main class="paper login">
     {NAV}
     <h1 class="page-title">Library</h1>
-    <p class="hint">Enter your username to see your books. A new name starts an empty library.</p>
+    <p class="intro">A private reading shelf for EPUBs. Upload a book and it's turned into an audiobook
+      automatically, so you can switch between reading and listening.</p>
+    <ul class="features">
+      <li>Read page by page with adjustable themes, fonts, text size and spacing</li>
+      <li>Listen with the current paragraph highlighted as it's read aloud</li>
+      <li>Search the text and jump around with the table of contents</li>
+      <li>Your place is saved, and you can download the EPUB or the MP3 audiobook</li>
+    </ul>
+    <p class="hint">Enter a username to open your library. A new name starts an empty one, and you'll only
+      see books uploaded under your name.</p>
     <form method="post" action="/books/login">
       <input type="hidden" name="next" value="{escape(next_path)}">
       <input name="username" placeholder="Username" aria-label="Username" autocomplete="username"

@@ -277,10 +277,26 @@
     }
   });
 
+  // As a home screen app with a translucent status bar, iOS sizes the page shorter than the
+  // screen and leaves the strip below it empty. Measure it so the reader can extend into it.
+  function fitScreen() {
+    if (!navigator.standalone) return;
+    const full = window.innerHeight > window.innerWidth ? screen.height : screen.width;
+    const gap = Math.max(0, full - window.innerHeight);
+    const root = document.documentElement.style;
+    root.setProperty("--gap", `${gap}px`);
+    // Keep the page info clear of the home indicator even if iOS reports no safe area there.
+    if (gap > 0) root.setProperty("--footer", "max(calc(env(safe-area-inset-bottom) - 16px), 18px)");
+    else root.removeProperty("--footer");
+  }
+
   let resizeTimer;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(relayout, 150);
+    resizeTimer = setTimeout(() => {
+      fitScreen();
+      relayout();
+    }, 150);
   });
 
   function hideChrome() {
@@ -762,6 +778,7 @@
   // ---------- start ----------
 
   async function init() {
+    fitScreen();
     applySettings(false);
     book = await getJSON(api());
     let sum = 0;

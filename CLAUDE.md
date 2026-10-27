@@ -4,11 +4,12 @@ Personal site served from a MacBook: FastAPI in Docker (OrbStack), exposed throu
 
 ## Deploying
 
-Merging to `main` deploys. A job on the Mac polls GitHub every 2 minutes, fast-forwards, runs
+Pushing to `main` deploys. A job on the Mac polls GitHub every 2 minutes, fast-forwards, runs
 `docker compose up -d --build web tts`, and rolls back if `http://localhost:8080/healthz` fails.
-So work on a branch and open a pull request; never push straight to `main`.
+So commit and push straight to `main`; no branches or pull requests. Check a change works before
+pushing, since every push goes live.
 
-Changes that need someone at the Mac (say so in the PR description):
+Changes that need someone at the Mac (say so in the commit message and to the user):
 - new or changed settings in `.env` (it holds every secret and is not in the repo; add new keys,
   empty, to `.env.example`)
 - changes to the tunnel, OrbStack, or anything outside this repo

@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=14';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=14';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=14';
-import { sfx } from './audio.js?v=14';
-import { h, bar, sprImg, tip, tipText } from './ui.js?v=14';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=15';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, describeParts, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=15';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=15';
+import { sfx } from './audio.js?v=15';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=15';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -118,14 +118,40 @@ function genGrid(rc) {
 const alive = () => B.units.filter(u => !u.dead);
 const unitAt = (x, y) => B.units.find(u => !u.dead && u.x === x && u.y === y);
 const terr = (x, y) => TERRAIN[B.grid[y][x]];
-const spdOf = u => Math.max(1, (u.st.slow > 0 ? Math.floor(u.spd / 2) : u.spd) + ((u.tmp && u.tmp.spd) || 0));
+const spdOf = u => Math.max(1, (u.st.slow > 0 ? Math.floor(u.spd * 2 / 3) : u.spd) + ((u.tmp && u.tmp.spd) || 0));
+// Turn-order pushes are resisted so nothing can be locked out of its turns: bosses take half, each
+// push after the first before the unit's next turn does half again, and nobody goes below -50.
+function delayUnit(t, n) {
+  if (!(n > 0) || t.dead) return;
+  n *= (t.boss ? 0.5 : 1) * 0.5 ** (t.st.timeworn || 0);
+  t.ct = Math.min(t.ct, Math.max(-50, t.ct - n));
+  t.st.timeworn = (t.st.timeworn || 0) + 1;
+}
+// Haste can make a unit next, but never pushes it past ready (no double turns); repeats do half.
+// The unit acting now still holds the 100 its turn will spend, so its cap is 100 higher until endTurn.
+function hasteUnit(t, n, cap = t === B.active ? 200 : 100) {
+  if (!(n > 0) || t.dead) return;
+  n *= 0.5 ** (t.st.hasted || 0);
+  t.ct = Math.max(t.ct, Math.min(cap, t.ct + n));
+  t.st.hasted = (t.st.hasted || 0) + 1;
+}
+// A stun can't land on a unit that is still Steady from the last one.
+function stun(t) { if (!t.boss && !(t.st.steady > 0)) t.st.stun = 1; }
+const HEX_MAX = 9;
+function addHex(t, n) { if (!t.dead && n > 0) { t.st.hex = Math.min(HEX_MAX, (t.st.hex || 0) + n); refreshView(t); } }
+const hexBurstDmg = (u, o, t) => Math.round((t.st.hex || 0) * (4 + statVal(u, o.stat) * 0.25));
+// Lifesteal: at most 20% of max HP back from one skill (echoes included).
+function leech(u, n) {
+  const room = Math.max(0, u.maxHp * 0.2 - (B.leeched || 0));
+  B.leeched = (B.leeched || 0) + heal(u, Math.min(n, room));
+}
 const onHill = u => B.grid[u.y][u.x] === T.HILL && !u.fly;
 const inCover = u => B.grid[u.y][u.x] === T.COVER && !u.fly;
 const targetable = (u, t) => !((t.st.stealth || t.st.airborne) && t.side !== u.side);
 const isHero = u => u.side === 'hero' && u.ref;
 // The side a unit really belongs to, under any charm or confusion.
 const homeSide = u => u.origSide || u.madSide || u.side;
-const DEBUFFS = ['poison', 'burn', 'slow', 'stun', 'blind', 'vuln', 'shock', 'doom', 'sleep', 'confuse', 'root', 'disarm', 'weak', 'oil', 'wet', 'taunt'];
+const DEBUFFS = ['poison', 'burn', 'slow', 'stun', 'blind', 'vuln', 'shock', 'doom', 'sleep', 'confuse', 'root', 'disarm', 'weak', 'oil', 'wet', 'taunt', 'hex'];
 const BUFFS = ['ward', 'guard', 'rally', 'focus', 'stealth', 'thorns', 'movUp', 'imbue', 'riposte'];
 const debuffCount = t => DEBUFFS.filter(k => t.st[k] > 0).length;
 function log(s) { B.log.push(s); if (B.log.length > 40) B.log.shift(); }
@@ -256,7 +282,9 @@ function hitList(u, o, x, y, expect) {
   if (o.shape === 'coin') {
     const side = s => alive().filter(t => (s ? t.side === u.side : t.side !== u.side));
     if (expect) return [...side(false).map(t => ({ t, w: 0.5 })), ...side(true).map(t => ({ t, w: 0.5 }))];
-    B.coin = chance(0.5);
+    // true lands on your own side; Loaded Dice make it land the helpful way 3 times in 4
+    const good = o.kind === 'buff' || o.kind === 'heal' || o.kind === 'shield';
+    B.coin = has(u, 'loadeddice') ? (chance(0.75) ? good : !good) : chance(0.5);
     return side(B.coin).map(t => ({ t, w: 1 }));
   }
   if (o.shape === 'math') return alive().filter(t => filt(t) && (o.hits === 'all' || targetable(u, t)) && mathRule(o.rule, t)).map(t => ({ t, w: 1 }));
@@ -306,6 +334,7 @@ function mathRule(rule, t) {
   if (rule === 'even') return t.hp % 2 === 0;
   if (rule === 'grid3') return (t.x + t.y) % 3 === 0;
   if (rule === 'poisoned') return t.st.poison > 0;
+  if (rule === 'hexed') return t.st.hex > 0;
   if (rule === 'odd') return t.hp % 2 === 1;
   if (rule === 'square') return Number.isInteger(Math.sqrt(t.hp));
   if (rule === 'fib') return FIB.has(t.hp);
@@ -347,6 +376,8 @@ function dmgMult(a, t, o) {
   if (has(a, 'plaguemask') && t.st.poison > 0) m *= 1.25;
   if (has(a, 'tricore') && (t.st.burn > 0 || t.st.slow > 0 || t.st.shock > 0)) m *= 1.35;
   if (has(a, 'pauldron') && a.shield > 0) m *= 1.3;
+  if (t.st.hex > 0) m *= 1 + 0.05 * t.st.hex;
+  if (has(a, 'trophy')) m *= 1 + Math.min(0.36, 0.06 * (a.kills || 0));
   if (a.st.weak > 0) m *= 0.7;
   if (a.st.focus > 0) m *= 1.6;
   if (o.perDebuff) m *= 1 + o.perDebuff * debuffCount(t);
@@ -364,9 +395,9 @@ function calcDmg(a, t, o) {
 function roll(a, t, o, w) {
   if (o.gravity) return { dmg: Math.max(1, Math.round(calcDmg(a, t, o) * w)), crit: false };
   let v = calcDmg(a, t, o) * w * (0.9 + Math.random() * 0.2);
-  if (o.gamble) v *= Math.random() * 2.5;
-  const crit = Math.random() * 100 < a.crit || (isClass(a, 'assassin') && t.hp * 2 < t.maxHp) || (isClass(a, 'arithmetician') && isPrime(t.hp));
-  if (crit) v *= 1.5;
+  if (o.gamble) v *= has(a, 'loadeddice') ? Math.max(Math.random(), Math.random()) * 2.5 : Math.random() * 2.5;
+  const crit = o.alwaysCrit || Math.random() * 100 < a.crit + (o.critUp || 0) || (isClass(a, 'assassin') && t.hp * 2 < t.maxHp) || (isClass(a, 'arithmetician') && isPrime(t.hp));
+  if (crit) v *= has(a, 'clover') ? 2 : 1.5;
   return { dmg: Math.max(o.gamble ? 0 : 1, Math.round(v)), crit };
 }
 
@@ -434,7 +465,7 @@ function ko(t, killer) {
     log(`${t.name} rises from the ashes!`);
     return;
   }
-  const venom = t.st.poison > 0 ? { n: t.st.poison, dmg: t.st.poisonDmg, by: t.st.poisonBy } : null;
+  const venom = t.st.poison > 0 ? { n: t.st.poison, dmg: t.st.poisonDmg, by: t.st.poisonBy } : null, hexes = t.st.hex || 0;
   if (t.origSide) { t.side = t.origSide; t.origSide = null; }
   t.pending = null;
   t.hp = 0; t.dead = true; t.st = {}; t.shield = 0;
@@ -448,7 +479,19 @@ function ko(t, killer) {
   }
   if (killer && !killer.dead && isClass(killer, 'assassin')) killer.st.stealth = 1;
   if (killer && !killer.dead && killer.side !== t.side) {
-    const f = (isClass(killer, 'warlock') ? 0.08 : 0) + (has(killer, 'chalice') ? 0.1 : 0);
+    killer.kills = (killer.kills || 0) + 1;
+    const near = alive().filter(x => x.side === t.side && dist(x, t) === 1);
+    if (has(killer, 'wisp')) { burst('fire', t, 24); sfx('fire'); for (const n of near) damage(n, Math.round(t.maxHp * 0.25), killer, { quiet: true, reflected: true }); }
+    if (has(killer, 'gasoline')) for (const n of near.filter(x => !x.dead && !x.fireproof)) {
+      n.st.burn = Math.max(n.st.burn || 0, 3); n.st.burnDmg = Math.max(n.st.burnDmg || 0, Math.round(Math.max(killer.atk, killer.mag) * 0.3) + 1); burst('fire', n, 10); refreshView(n);
+    }
+  }
+  if (hexes && alive().some(x => x.side !== t.side && has(x, 'voodoo'))) {
+    const n = alive().filter(x => x.side === t.side).sort((a, b) => dist(a, t) - dist(b, t))[0];
+    if (n) { addHex(n, hexes); fxText(n, 'Hexes jump', '#e070c0', true); }
+  }
+  if (killer && !killer.dead && killer.side !== t.side) {
+    const f = (isClass(killer, 'warlock') ? 0.08 : 0) + (has(killer, 'chalice') ? 0.07 : 0);
     if (f) heal(killer, killer.maxHp * f);
   }
   if (venom && venom.by && (isClass(venom.by, 'plaguebringer') || has(venom.by, 'spores'))) {
@@ -493,8 +536,9 @@ function applyStatus(u, t, o) {
   const foe = t.side !== u.side;
   const hit = o.kind === 'phys' || o.kind === 'mag';
   const ext = isClass(u, 'bard') ? 1 : 0; // Encore
-  if (o.stun && !t.boss) t.st.stun = 1;
-  if (o.stunLow && !t.boss && t.hp * 2 < t.maxHp) t.st.stun = 1;
+  if (o.stun) stun(t);
+  if (o.stunLow && t.hp * 2 < t.maxHp) stun(t);
+  if (o.hex && foe) addHex(t, o.hex);
   if (o.slow) t.st.slow = Math.max(t.st.slow || 0, o.slow + ext);
   if (o.poison && !has(t, 'plaguemask')) {
     const dose = Math.max(1, Math.round(statVal(u, o.stat) * (o.poisonPow || 0.3)));
@@ -533,7 +577,7 @@ function applyStatus(u, t, o) {
   if (o.wet && foe) { t.st.wet = Math.max(t.st.wet || 0, o.wet); if (t.st.burn > 0) t.st.burn = 0; }
   if (o.sleep && foe && !t.boss) { t.st.sleep = Math.max(t.st.sleep || 0, o.sleep + ext); fxText(t, 'Zzz', '#c9f7ff'); }
   if (o.confuse && foe && !t.boss) { t.st.confuse = Math.max(t.st.confuse || 0, o.confuse + ext); fxText(t, 'Confused', '#ffd23f', true); }
-  if (o.ctZero && foe) t.ct = Math.min(t.ct, 0);
+  if (o.ctZero && foe) delayUnit(t, Math.max(0, t.ct));
   if (o.dispel && foe) {
     const had = BUFFS.some(k => t.st[k] > 0) || t.shield > 0;
     for (const k of BUFFS) t.st[k] = 0;
@@ -562,13 +606,11 @@ function applyStatus(u, t, o) {
     damage(t, t.st.burnDmg, u, { quiet: true });
   }
   if (t.st.wet > 0 && (t.st.shock > 0 || (o.slow && foe)) && !t.boss && !t.dead) {
-    t.st.wet = 0; t.st.stun = 1;
+    t.st.wet = 0; stun(t);
     fxText(t, t.st.shock > 0 ? 'Conduct!' : 'Frozen!', '#c9f7ff');
   }
-  if (o.ctGive && !foe) { t.ct += o.ctGive; for (const s of t.skills) s.cd = Math.max(0, s.cd - (o.cdReduce || 0)); fxText(t, 'Haste!', '#c9f7ff'); }
-  if (o.ctTake && foe) t.ct -= o.ctTake;
-  if (isClass(u, 'chronomancer') && o.kind === 'mag' && foe) t.ct -= 25;
-  if (has(u, 'metronome') && foe && hit) t.ct -= 15;
+  if (o.ctGive && !foe) { hasteUnit(t, o.ctGive); for (const s of t.skills) s.cd = Math.max(0, s.cd - (o.cdReduce || 0)); fxText(t, 'Haste!', '#c9f7ff'); }
+  if (foe) delayUnit(t, (o.ctTake || 0) + (isClass(u, 'chronomancer') && o.kind === 'mag' ? 15 : 0) + (has(u, 'metronome') && hit ? 10 : 0));
   if (has(u, 'frostlocket') && foe && hit) t.st.slow = Math.max(t.st.slow || 0, 2);
   refreshView(t);
 }
@@ -745,10 +787,21 @@ function effective(u, s) {
   return { ...m, name: `${o.name}: ${m.name}`, cd: o.cd, mimicked: last };
 }
 // echoed: true for an echo, 'delayed' when a charged skill goes off, 'mimic' for the copied skill.
+// What a skill does when it finishes a foe off (carnage): spill, cooldown reset, shield, a second move.
+async function onKill(u, s, o, t, excess) {
+  if (o.reset && s.cd > 0) { s.cd = 0; fxText(u, 'Ready!', '#d8d0c0', true); }
+  if (o.butcher) addShield(u, u.maxHp * 0.15);
+  if ((o.frenzy || has(u, 'spurs')) && u.moved && !u.extraMove) { u.moved = false; u.extraMove = true; fxText(u, 'Move again', '#d8d0c0', true); }
+  if (o.overkill && excess > 0) {
+    const n = alive().filter(x => x.side === t.side && dist(x, t) <= 2).sort((a, b) => dist(a, t) - dist(b, t))[0];
+    if (n) { projectile(t, n.x, n.y, 0xd8d0c0); fxText(n, 'Overkill', '#d8d0c0', true); damage(n, Math.round(excess), u, { quiet: true }); }
+  }
+}
 async function useSkill(u, s, tx, ty, echoed) {
   let o = effective(u, s);
   if (o.mimic && !o.mimicked) { s.cd = o.cd; u.acted = true; fxText(u, 'Nothing to copy', '#aaaaaa', true); await sleep(300); return; }
   if (o.mimicked) { s.cd = o.cd; u.acted = true; return useSkill(u, { id: o.mimicked.id, mods: o.mimicked.mods, cd: 0 }, tx, ty, 'mimic'); }
+  if (!echoed) B.leeched = 0;
   if (!echoed) { s.cd = o.cd; u.acted = true; B.lastCast = { ...(B.lastCast || {}), [homeSide(u)]: { id: s.id, mods: s.mods } }; }
   B.mode = null; B.pending = null;
   renderPanel();
@@ -823,7 +876,7 @@ async function useSkill(u, s, tx, ty, echoed) {
     }
     if (o.kind === 'shield') { addShield(t, powerVal(u, o) * w); if (o.brace) t.st.guard = 1; continue; }
     if (o.kind === 'buff') {
-      if (o.shape === 'coin' && o.ctGive) { t.ct += o.ctGive; fxText(t, 'Haste!', '#c9f7ff'); }
+      if (o.shape === 'coin' && o.ctGive) { hasteUnit(t, o.ctGive); fxText(t, 'Haste!', '#c9f7ff'); }
       applyStatus(u, t, o); burst(t.side === u.side ? 'heal' : 'dark', t, 8);
       if (o.push && homeSide(t) !== homeSide(u) && !t.dead) await knock(u, t, o.push, o.tgt === 'tile' ? { x: tx, y: ty } : u);
       if (o.pull && homeSide(t) !== homeSide(u) && !t.dead) await pull(u, t, o.pull);
@@ -835,10 +888,19 @@ async function useSkill(u, s, tx, ty, echoed) {
       if (!sure && u.st.blind > 0 && chance(0.5)) { fxText(t, 'Miss', '#aaaaaa'); sfx('miss'); continue; }
       if (!sure && t.side !== u.side && ((isClass(t, 'oracle') && chance(0.2)) || (has(t, 'bladegrasp') && o.kind === 'phys' && chance(0.25)))) { fxText(t, 'Dodge', '#c9f7ff'); sfx('miss'); continue; }
       if (has(t, 'hollow') && t.side === u.side && t !== u) { heal(t, calcDmg(u, t, o) * w); continue; }
-      const shocked = t.st.shock > 0;
+      const shocked = t.st.shock > 0, hexed = t.st.hex > 0, before = t.hp + t.shield;
       const r = roll(u, t, o, w);
       damage(t, r.dmg, u, { crit: r.crit, melee: dist(u, t) === 1 });
       dealt += r.dmg;
+      if (t.side !== u.side) {
+        if (hexed && has(u, 'evileye')) addHex(t, 1);
+        if (r.crit) {
+          if (has(u, 'predator')) u.st.movUp = Math.max(u.st.movUp || 0, 2);
+          const g = (has(u, 'midas') ? 4 : 0) + (o.jackpot ? 10 : 0);
+          if (g && isHero(u)) { env.run.gold += g; fxText(u, `+${g}g`, '#ffd23f', true); sfx('coin'); }
+        }
+        if (t.dead && !u.dead) await onKill(u, s, o, t, r.dmg - before);
+      }
       if (shocked && o.kind === 'mag' && isClass(u, 'stormcaller') && t.side !== u.side && !u.dead) {
         const arc = alive().filter(x => x !== t && x.side === t.side && dist(x, t) <= 2).sort((a, b) => dist(a, t) - dist(b, t))[0];
         if (arc) { projectile(t, arc.x, arc.y, 0xffe14d); damage(arc, Math.max(1, Math.round(r.dmg * 0.5)), u, { quiet: true }); }
@@ -846,14 +908,21 @@ async function useSkill(u, s, tx, ty, echoed) {
       if (o.cull && !t.dead && !t.boss && t.hp <= t.maxHp * o.cull) { fxText(t, 'Culled', '#ff6a6a'); damage(t, t.hp + t.shield, u, { quiet: true }); }
       if (o.recoilDmg && !u.dead) damage(u, Math.max(1, Math.round(r.dmg * o.recoilDmg)), null, { quiet: true });
       if (!u.dead) {
-        if (o.drain) heal(u, r.dmg * o.drain);
-        if (has(u, 'fang')) heal(u, r.dmg * 0.2);
+        if (o.drain) leech(u, r.dmg * o.drain);
+        if (has(u, 'fang')) leech(u, r.dmg * 0.1);
         if (o.selfShield) addShield(u, r.dmg * o.selfShield);
       }
       if (isClass(u, 'trickster') && t.side !== u.side && isHero(u)) env.run.gold += 3;
       if (i < hitsOf(o) - 1) await sleep(140);
     }
     if (o.detonate) detonate(u, t, o.detonate);
+    if (o.hexBurst && t.st.hex > 0 && !t.dead) {
+      const n = hexBurstDmg(u, o, t);
+      t.st.hex = 0;
+      fxText(t, 'Hex burst!', '#e070c0'); burst('dark', t, 18); sfx('crit');
+      damage(t, n, u, { quiet: true });
+      if (t.dead && !u.dead && t.side !== u.side) await onKill(u, s, o, t, 0);
+    }
     if (t.dead) continue;
     applyStatus(u, t, o);
     if (o.steal && isHero(u) && t.side !== u.side) { const g = rnd(8, 15); env.run.gold += g; fxText(t, `+${g}g`, '#ffd23f', true); sfx('coin'); }
@@ -915,7 +984,7 @@ async function useSkill(u, s, tx, ty, echoed) {
   if (o.stealth && !u.dead) { u.st.stealth = 1; refreshView(u); }
   if (o.thornsUp && !u.dead && (o.kind !== 'buff' || !list.some(e => e.t === u))) { u.st.thorns = Math.max(u.st.thorns || 0, o.thornsUp); fxText(u, 'Thorns', '#c8b45a', true); }
   if (u.st.focus && (o.kind === 'phys' || o.kind === 'mag')) u.st.focus = 0;
-  if (o.selfHaste && !u.dead) u.ct += o.selfHaste;
+  if (o.selfHaste && !u.dead) hasteUnit(u, o.selfHaste);
   if (o.selfShieldHp && !u.dead) addShield(u, u.maxHp * o.selfShieldHp);
   if ((o.leap || o.land) && isClass(u, 'dragoon') && !u.dead) { u.st.airborne = 1; fxText(u, 'Airborne', '#c9f7ff', true); refreshView(u); }
   if (o.kind === 'summon') summon(u, o.summon, o.summonN || 2);
@@ -975,7 +1044,7 @@ async function battleLoop(b) {
   while (B === b && !b.over) {
     const u = nextActor();
     b.active = u; b.inspect = null; b.startPos = null;
-    u.moved = false; u.acted = false;
+    u.moved = false; u.acted = false; u.extraMove = false;
     renderPanel();
     const skip = await startTurn(u);
     if (B !== b || checkEnd()) return;
@@ -1005,7 +1074,8 @@ async function startTurn(u) {
   }
   for (const s of u.skills) if (s.cd > 0) s.cd--;
   u.st.guard = 0; u.st.riposte = 0; u.st.airborne = 0;
-  if (isClass(u, 'bard')) for (const a of alive().filter(x => x !== u && x.side === u.side && dist(x, u) <= 2)) a.ct += 12;
+  if (isClass(u, 'bard')) for (const a of alive().filter(x => x !== u && x.side === u.side && dist(x, u) <= 2)) a.ct = Math.max(a.ct, Math.min(100, a.ct + 12));
+  if (has(u, 'hexlantern')) for (const f of alive().filter(x => x.side !== u.side && dist(x, u) <= 2)) addHex(f, 1);
   if (has(u, 'goad')) for (const f of alive().filter(x => x.side !== u.side && dist(x, u) <= 2)) { f.st.taunt = Math.max(f.st.taunt || 0, 1); f.st.tauntBy = u; refreshView(f); }
   u.tmp = null;
   if (has(u, 'chaos')) {
@@ -1019,7 +1089,7 @@ async function startTurn(u) {
   if (!u.dead && u.st.poison > 0) {
     const by = u.st.poisonBy, n = damage(u, u.st.poisonDmg, null, { quiet: true });
     burst('poison', u, 8); log(`${u.name} suffers from poison.`);
-    if (u.st.leech && by && !by.dead && n > 0) heal(by, n);
+    if (u.st.leech && by && !by.dead && n > 0) heal(by, n / 2);
     await sleep(300);
   }
   if (!u.dead && u.st.doom > 0 && --u.st.doom === 0) {
@@ -1047,7 +1117,7 @@ async function startTurn(u) {
     return true;
   }
   if (u.st.stun) {
-    u.st.stun = 0;
+    u.st.stun = 0; u.st.steady = 2;
     fxText(u, 'Stunned', '#ffd23f');
     sfx('stun');
     log(`${u.name} is stunned.`);
@@ -1059,13 +1129,14 @@ async function startTurn(u) {
 }
 function endTurn(u) {
   if (u.dead) return;
-  u.ct -= 100 - (u.moved ? 0 : 20) - (u.acted ? 0 : 20) + (u.ctDebt || 0);
+  u.ct -= 100 - (u.moved || u.extraMove ? 0 : 20) - (u.acted ? 0 : 20) + (u.ctDebt || 0);
+  u.st.timeworn = 0; u.st.hasted = 0;
   u.ctDebt = 0;
-  for (const k of ['poison', 'burn', 'slow', 'taunt', 'vuln', 'rally', 'blind', 'shock', 'thorns', 'root', 'disarm', 'weak', 'oil', 'wet', 'movUp', 'imbue', 'confuse']) if (u.st[k] > 0) u.st[k]--;
+  for (const k of ['poison', 'burn', 'slow', 'taunt', 'vuln', 'rally', 'blind', 'shock', 'thorns', 'root', 'disarm', 'weak', 'oil', 'wet', 'movUp', 'imbue', 'confuse', 'steady']) if (u.st[k] > 0) u.st[k]--;
   if (u.st.resolve > 0) u.st.resolve--;
   if (u.st.charm > 0 && --u.st.charm === 0 && u.origSide) { u.side = u.origSide; u.origSide = null; u.st.resolve = 2; fxText(u, 'Snaps out', '#ff8ad8', true); }
   if (!u.st.taunt) u.st.tauntBy = null;
-  if (has(u, 'clockwork') && u.turns % 3 === 0) { u.ct += 100; fxText(u, 'Tick!', '#ffd23f'); }
+  if (has(u, 'clockwork') && u.turns % 3 === 0) { hasteUnit(u, 60, 100); fxText(u, 'Tick!', '#ffd23f'); }
   u.tmp = null;
   refreshView(u);
 }
@@ -1205,7 +1276,8 @@ function scoreAction(u, o, list) {
     if (t.lure && foe) s += 6;
     const kills = d + 0.5 >= t.hp + t.shield || (o.cull && !t.boss && t.hp - d <= t.maxHp * o.cull);
     d = Math.min(d, t.hp + t.shield);
-    const extra = kills ? 25 : (o.stun && !t.boss ? 8 : 0) + (o.slow ? 3 : 0) + (o.poison ? o.poison * 2 : 0) + (o.burn ? 4 : 0) + (o.vuln ? 4 : 0) + (o.shock ? 3 : 0)
+    if (o.hexBurst && foe) d += hexBurstDmg(u, o, t);
+    const extra = kills ? 25 : (o.hex ? o.hex * 2 : 0) + (o.stun && !t.boss && !(t.st.steady > 0) ? 8 : 0) + (o.slow ? 3 : 0) + (o.poison ? o.poison * 2 : 0) + (o.burn ? 4 : 0) + (o.vuln ? 4 : 0) + (o.shock ? 3 : 0)
       + (o.detonate === 'poison' && t.st.poison > 0 ? t.st.poison * t.st.poisonDmg : 0) + (o.detonate === 'burn' && t.st.burn > 0 ? t.st.burn * t.st.burnDmg * 2 : 0);
     s += foe ? d + extra : -(d + extra) * 1.5;
   }
@@ -1319,7 +1391,11 @@ function statusText(u) {
   if (st.movUp > 0) out.push(tip(`+1 MOV (${st.movUp})`, 'movUp'));
   if (st.imbue > 0) out.push(tip(`Imbued: ${st.imbueKind} (${st.imbue})`, 'imbue'));
   if (u.pending) out.push(tip(`Charging ${SKILLS[u.pending.s.id].name}`, 'pending'));
+  if (st.hex > 0) out.push(tip(`Hexed ×${st.hex} (+${st.hex * 5}%)`, 'hex'));
   if (st.doom > 0) out.push(tip(`Doomed in ${st.doom}`, 'doom'));
+  if (st.timeworn > 0) out.push(tip('Time-worn', 'timeworn'));
+  if (st.hasted > 0) out.push(tip('Hasted', 'hasted'));
+  if (st.steady > 0) out.push(tip('Steady', 'steady'));
   if (st.ward > 0) out.push(tip(`Ward ×${st.ward}`, 'ward'));
   const th = thornsNow(u);
   if (th > 0) out.push(tip(`Thorns ${th}`, 'thorns'));
@@ -1340,7 +1416,7 @@ function unitCard(u, withSkills) {
     h('div', { class: 'status' }, statusText(u)),
     withSkills ? h('div', { class: 'skill-list' }, u.skills.map(s => {
       const o = skStats(u, s);
-      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, h('br'), h('span', {}, tipText(describe(o, u) + (o.txt ? '. ' + o.txt : ''))));
+      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, skillText(o, u));
     })) : null);
 }
 function tileCard(x, y) {
@@ -1363,7 +1439,7 @@ function hintText() {
   if (B.mode === 'move') return 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
   if (B.mode === 'skill') {
     const o = B.selO;
-    const what = `${o.name}: ${describe(o, u)}.${o.txt ? ' ' + o.txt : ''}`;
+    const what = `${o.name}: ${describeParts(o, u).head.join(' · ')}.`;
     if (!B.targets.size) return `${what} No targets in range${needsLos(o) ? ' or sight' : ''}.`;
     if (B.pending) return `${what} Tap again or press Confirm.`;
     return `${what} Tap a highlighted tile.`;
@@ -1380,6 +1456,7 @@ function renderPanel() {
   const shown = B.inspect && !B.inspect.dead ? B.inspect : u;
   if (shown && shown.tile) kids.push(tileCard(shown.tile.x, shown.tile.y));
   else if (shown) kids.push(unitCard(shown, !(mine && shown === u)));
+  if (mine && B.mode === 'skill' && B.selO && shown === u) kids.push(h('div', { class: 'card sel-skill' }, h('b', {}, B.selO.name), skillText(B.selO, u)));
   if (shown && !shown.tile && shown !== u) kids.push(h('div', { class: 'hint' }, `Shaded tiles: where ${shown.name} can move this turn${shown.st.root > 0 ? ' (rooted)' : ''}.`));
   if (mine) {
     kids.push(h('div', { class: 'actions' },
@@ -1518,6 +1595,7 @@ function refreshView(u) {
   if (u.st.stun) pips.push(0xffe14d);
   if (u.st.taunt > 0) pips.push(0xff4d4d);
   if (u.st.vuln > 0) pips.push(0xc44dff);
+  if (u.st.hex > 0) pips.push(0xe070c0);
   if (u.st.rally > 0) pips.push(0xffb03b);
   if (u.st.blind > 0) pips.push(0x777777);
   if (u.st.guard || u.st.riposte) pips.push(0xd8d8e8);

@@ -36,6 +36,9 @@ Keep it that way.
   - There's no healing after a fight. The fallen get up with 10% HP.
   - In-battle healing and lifesteal can restore any HP, old wounds included (the owner dropped the
     old cap). Scarcity comes from few healing skills: Mend has cooldown 3.
+  - Lifesteal was too strong and was cut: drains are 15–45% of damage, Leech Jar 25%, Vampire Fang
+    10%, Leech Seed heals half the poison, and `leech()` caps what one skill (echoes included) can
+    drink at 20% of max HP.
   - Inns heal 25% for 45g (40% in the shops just before a boss), and event heals are 10–25%.
   - A new act fully heals.
   - Don't add easy healing back.
@@ -58,11 +61,26 @@ Keep it that way.
 - **Skills come from class pools.** Heroes start with 2: their basic attack (`CLASSES.start[0]`) and
   one random pick from the rest of `start` plus `pool`. They learn from `pool`
   plus every class in their line, up to `MAX_SKILLS` = 4. Learning a fifth means forgetting one.
-- **Archetypes give builds a direction.** Six tags in `ARCHES` (poison, elemental, shield, thorns,
-  blood, time) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
+- **Archetypes give builds a direction.** Nine tags in `ARCHES` (poison, elemental, shield, thorns,
+  blood, time, plus hex, carnage and fortune borrowed from other roguelikes) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
   how much of each archetype the party has (`partyArches`), so a build snowballs without being
   forced. Every archetype needs payoff artifacts that reward stacking it (detonate poison, damage vs
   shocked, scale with shield or thorns), not just more of the same status.
+  - Hex (Slay the Spire's marks, Darkest Dungeon): `st.hex` stacks to 9, never expires, adds 5%
+    damage taken each, and is cashed in by `hexBurst` (4 + 25% of the skill's stat per hex).
+  - Carnage (Risk of Rain on-kill items): `onKill()` in battle.js handles per-skill kill rewards
+    (overkill spill, cooldown reset, shield, a second move via `u.extraMove`); `ko()` handles worn
+    ones (Will-o'-Wisp, Gasoline, Headhunter's Trophy via `u.kills`).
+  - Fortune (crits and luck): `critUp`, `alwaysCrit`, Four-Leaf Clover, Loaded Dice (`roll()` and
+    the coin flip), crit payouts.
+- **Turn order can't be locked.** Time effects used to stunlock foes. Every delay goes through
+  `delayUnit` (bosses take half, a second push before the unit's next turn does half again, floor
+  of −50 CT) and every haste through `hasteUnit` (capped at "acts next", never a double turn;
+  repeats do half). A stun leaves the unit Steady (`st.steady`) so it can't be stunned again until
+  its next turn ends. Slow cuts SPD by a third. Don't write `t.ct` directly for a new effect.
+- **Skill text is laid out, not run on.** `describeParts()` splits a description into `head`
+  (reach, power, cooldown), `fx` and `cost`; `skillText()` in ui.js renders them as a line, chips
+  (costs in red) and italic flavour. `describe()` still gives the joined string for `title`s.
 - **Classes and skills borrow from FFT, Tactics Ogre and Horizon's Gate** (Jump, Draw Out, Rampart,
   Arithmetician math targeting, Steal Heart, songs), reshaped to fit the grid and scarce healing.
 - **Skill modifiers are artifacts, and artifacts are the main battle reward.**

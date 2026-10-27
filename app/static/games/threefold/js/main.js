@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=14';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=15';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=14';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=14';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=14';
-import { env, startBattle, BattleScene } from './battle.js?v=14';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=14';
-import { h, sprImg, bar, tipText, initTips } from './ui.js?v=14';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=15';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=15';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=15';
+import { env, startBattle, BattleScene } from './battle.js?v=15';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=15';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=15';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -228,7 +228,7 @@ function skillCard(p, id, extra, onpick, disabled) {
   return h('button', { class: 'pick', disabled, onclick: () => { sfx('select'); onpick(); } },
     h('div', { class: 'pick-head' }, sprImg(heroSprite(p)), h('b', {}, o.name), extra),
     h('div', { class: 'kind' }, `${heroTitle(p)} skill`),
-    h('div', { class: 'desc' }, tipText(`${describe(o, heroSrc(p, run.gold))}. ${o.txt || ''}`)));
+    h('div', { class: 'desc' }, skillText(o, heroSrc(p, run.gold))));
 }
 
 // Put an artifact on a hero or a skill, or in the pack. show() is setScreen or modalShow.
@@ -250,7 +250,7 @@ function equipFlow(id, next, show = setScreen, back = null) {
           h('div', { class: 'pick-head' }, sprImg(heroSprite(t.p)), h('b', {}, SKILLS[t.s.id].name)),
           t.s.mods.length ? h('div', { class: 'kind' }, t.s.mods.map(artName).join(', ')) : null,
           after && a !== b ? delta('', a, b) : null,
-          h('div', { class: 'desc' }, after ? tipText(describe(after, heroSrc(t.p, run.gold))) : t.s.mods.length >= MAX_MODS ? 'No free slot' : 'Doesn\'t fit this skill'));
+          h('div', { class: 'desc' }, after ? skillText({ ...after, txt: '' }, heroSrc(t.p, run.gold)) : t.s.mods.length >= MAX_MODS ? 'No free slot' : 'Doesn\'t fit this skill'));
       })),
       btn('Keep in pack', keep), backBtn()));
     auto(() => { const t = targets.find(t => t.ok); if (t) socket(t); else keep(); });
@@ -343,7 +343,7 @@ function promoCard(p, id, onpick) {
     h('div', { class: 'new' }, Object.entries(pr.stats).map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k === 'maxHp' ? 'max HP' : k.toUpperCase()}`).join(', ')),
     h('div', { class: 'desc' }, pr.passive),
     h('div', { class: 'desc dim' }, `Growth: ${growthText(id)}`),
-    h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Learns ${o.name}: `), tipText(`${describe(o, heroSrc(p, run.gold))}. ${o.txt}`)),
+    h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Learns ${o.name}`), skillText(o, heroSrc(p, run.gold))),
     h('div', { class: 'desc dim' }, `Adds to their skill pool: ${pr.pool.map(s => SKILLS[s].name).join(', ')}.`),
     pr.next ? h('div', { class: 'desc dim' }, `Can later become a ${pr.next.map(n => PROMOS[n].name).join(' or ')}.`) : null);
 }
@@ -459,6 +459,21 @@ const EVENTS = [
     { label: 'Clasp the hand', note: 'Every hero takes 6 damage; choose a thorns artifact', go: () => { hurtAll(6); return { text: 'The thorns bite deep and come away in your palm.', arts: artifactPool(run, 2, 0.5, 'thorns') }; } },
     { label: 'Cut it down', note: '+25 gold', go: () => { run.gold += 25; return 'Coins tumble out of the hollow knight.'; } },
   ] },
+  { title: 'Gambler\'s Den', text: 'A smoky tent. A one-eyed dealer shuffles cards without looking at them. "Feeling lucky?"', choices: () => [
+    { label: 'Play a hand for his charms', note: 'Even odds: a free fortune artifact, or lose 25 gold', cond: run.gold >= 25, go: () => {
+      if (chance(0.5)) return { text: 'You win. He pushes a tray of charms across the table.', arts: artifactPool(run, 2, 0.5, 'fortune') };
+      run.gold -= 25; return 'The card turns. The dealer sweeps your coins away.'; } },
+    { label: 'Buy a lucky charm', note: '35 gold: choose a fortune artifact', cond: run.gold >= 35, go: () => { run.gold -= 35; return { text: '"This one\'s never lost me a bet."', arts: artifactPool(run, 2, 0.5, 'fortune') }; } },
+    { label: 'Leave', go: () => '"Next time, then."' },
+  ] },
+  { title: 'Hanging Tree', act: r => r.act >= 1, text: 'Every branch of a dead oak is hung with dolls of twig and hair. One turns to watch you.', choices: () => [
+    { label: 'Take a doll', note: 'Every hero takes 5 damage; choose a hex artifact', go: () => { hurtAll(5); return { text: 'Something cold follows you a little way down the road.', arts: artifactPool(run, 2, 0.5, 'hex') }; } },
+    { label: 'Burn the tree', note: '+20 gold', go: () => { run.gold += 20; return 'Coins drop from the ashes. The dolls don\'t burn.'; } },
+  ] },
+  { title: 'Battlefield Ossuary', text: 'Bones of an old war, stacked with care. Trophies hang from every skull.', choices: () => [
+    { label: 'Take a trophy', note: 'Choose a carnage artifact', go: () => ({ text: 'It still smells of the hunt.', arts: artifactPool(run, 2, 0.5, 'carnage') }) },
+    { label: 'Pay respects', note: 'Heal 8%', go: () => { healAll(0.08); return 'A quiet moment helps.'; } },
+  ] },
   { title: 'Poisoner\'s Garden', act: r => r.act >= 1, text: 'Neat rows of beautiful, deadly plants. A sign reads "Take one. Don\'t eat it."', choices: () => [
     { label: 'Take a cutting', note: 'Choose a poison artifact', go: () => ({ text: 'You wrap it carefully in cloth.', arts: artifactPool(run, 2, 0.5, 'poison') }) },
     { label: 'Eat one', note: 'A random hero: +3 ATK and MAG, −12 max HP', go: () => { const p = pick(run.party); p.atk += 3; p.mag += 3; p.maxHp = Math.max(10, p.maxHp - 12); clampHp(); return `The ${heroTitle(p)} goes green, then grins.`; } },
@@ -568,7 +583,7 @@ function showParty() {
         h('h3', { style: 'margin-top:10px' }, `Skills ${p.skills.length}/${MAX_SKILLS}`),
         h('div', { class: 'skill-list' }, p.skills.map(s => {
           const o = skStats(p, s);
-          return h('div', {}, h('b', {}, o.name), h('br'), h('span', {}, tipText(`${describe(o, src)}.${o.txt ? ' ' + o.txt : ''}`)),
+          return h('div', {}, h('b', {}, o.name), skillText(o, src),
             h('div', { class: 'mods' }, s.mods.map((id, i) => h('span', { class: 'mod' }, `◆ ${artName(id)} `, x('remove', () => unsocket(s, i)))),
               s.mods.length < MAX_MODS ? h('span', { class: 'mod empty' }, `◇ empty slot`) : null));
         })),

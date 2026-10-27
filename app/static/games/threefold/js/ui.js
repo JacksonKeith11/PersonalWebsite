@@ -1,6 +1,7 @@
 // Small DOM helpers shared by the menus and the battle side panel.
-import { spriteURL } from './art.js?v=14';
-import { STATUS_HELP, STATUS_WORDS } from './data.js?v=14';
+import { spriteURL } from './art.js?v=15';
+import { STATUS_HELP, STATUS_WORDS } from './data.js?v=15';
+import { describeParts } from './rules.js?v=15';
 
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -40,6 +41,16 @@ export function tipText(str) {
   }
   out.push(str.slice(last));
   return out;
+}
+
+// A skill's description laid out for reading: one line of basics (reach, power, cooldown), then its
+// extra effects as chips (costs in red), then its flavour text.
+export function skillText(o, src) {
+  const d = describeParts(o, src), chip = (t, cls) => h('span', { class: 'fx' + (cls ? ' ' + cls : '') }, tipText(t));
+  return h('div', { class: 'sk' },
+    h('div', { class: 'sk-head' }, d.head.join(' · ')),
+    d.fx.length || d.cost.length ? h('div', { class: 'sk-fx' }, d.fx.map(t => chip(t)), d.cost.map(t => chip(t, 'cost'))) : null,
+    o.txt ? h('div', { class: 'sk-txt' }, o.txt) : null);
 }
 
 let box = null, anchor = null, touch = false;

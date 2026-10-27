@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=14';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=15';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -162,11 +162,12 @@ export function outputOf(o, src) {
 const STAT_NAMES = { atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', missing: 'missing HP', heft: '30% max HP', shield: 'shield', thorns: 'thorns' };
 const RULES = { prime: 'Every foe whose HP is prime', even: 'Every unit with even HP', grid3: 'Every foe where row + column is a multiple of 3', poisoned: 'Every poisoned foe',
   odd: 'Every foe with odd HP', square: 'Every foe whose HP is a perfect square', fib: 'Every foe whose HP is a Fibonacci number', evenpos: 'Every ally on a "white" square (row + column even)',
-  bramble: 'Every foe standing in brambles', all: 'Every foe on the board' };
+  bramble: 'Every foe standing in brambles', hexed: 'Every hexed foe', all: 'Every foe on the board' };
 const RULES_ALLY = { all: 'Every ally on the board', prime: 'Every ally whose HP is prime', evenpos: 'Every ally on a "white" square (row + column even)' };
 // src (a battle unit or heroSrc()) adds the raw number the skill puts out, before the target's defenses.
-export function describe(o, src) {
-  const parts = [];
+// head: what it hits, how hard, and its cooldown; fx: everything else it does; cost: what it costs you.
+export function describeParts(o, src) {
+  const parts = [], fx = [], cost = [];
   const [a, b] = o.range;
   if (o.shape === 'random') parts.push('A random foe anywhere');
   else if (o.shape === 'math') parts.push(o.hits === 'allies' ? RULES_ALLY[o.rule] || RULES[o.rule] : o.hits === 'all' && o.rule === 'all' ? 'Every unit on the board' : RULES[o.rule]);
@@ -184,7 +185,7 @@ export function describe(o, src) {
   else if (o.kind === 'shield') parts.push(`Shields ${pct}`);
   else if (o.kind === 'phys' || o.kind === 'mag') parts.push(`${pct} ${o.kind === 'mag' ? 'magic' : 'physical'}${times > 1 ? ' ×' + times : ''}`);
   if (o.shape === 'chain') parts.push(`Bounces ${o.chainN}×`);
-  if (o.hits === 'all' && o.aoe) parts.push('Hits allies too');
+  if (o.hits === 'all' && o.aoe) cost.push('Hits allies too');
   if (b > 1 && o.tgt !== 'self' && !o.lob && o.shape !== 'line') parts.push('Needs line of sight');
   const flags = [['stun', 'Stuns'], ['stunLow', 'Stuns if under half HP'], ['slow', 'Slows'], ['knock', 'Knockback'], ['pull', 'Pulls'],
     ['swap', 'Swaps places'], ['leap', 'Leaps in'], ['dash', 'Dashes'], ['teleport', 'Teleports'], ['taunt', 'Taunts'], ['rally', 'Rallies'], ['blind', 'Blinds'], ['execute', '×2 under half HP'],
@@ -197,27 +198,35 @@ export function describe(o, src) {
     ['root', 'Roots'], ['disarm', 'Disarms'], ['weak', 'Weakens'], ['oil', 'Oils'], ['wet', 'Soaks'], ['sleep', 'Sleep'], ['confuse', 'Confuses'], ['purify', 'Purifies'],
     ['dispel', 'Dispels'], ['movUp', '+1 MOV'], ['focus', 'Focus'], ['ctZero', 'Resets their turn'], ['pincer', '+40% per ally beside the target'], ['momentum', '+8% per tile away'],
     ['perDebuff', '+30% per debuff on the target'], ['recoilDmg', 'Hurts you too'], ['sure', 'Can\'t miss'], ['stealShield', 'Steals shields'], ['spread', 'Spreads debuffs'],
-    ['trap', 'Lays traps'], ['onLava', '+60% vs targets on lava'], ['delay', 'Lands next turn'], ['counter', 'Readies a counter']];
+    ['trap', 'Lays traps'], ['onLava', '+60% vs targets on lava'], ['delay', 'Lands next turn'], ['counter', 'Readies a counter'],
+    ['hexBurst', 'Bursts hexes'], ['overkill', 'Overkill spills over'], ['reset', 'A kill resets its cooldown'], ['frenzy', 'A kill lets you move again'],
+    ['butcher', 'A kill shields you 15%'], ['alwaysCrit', 'Always crits'], ['jackpot', 'Crits pay 10 gold']];
   // damage over time, with its scaling and (given a source) the number per turn
   const sName = STAT_NAMES[o.stat];
   const burn = src ? burnOf(o, src) : o.burn ? { turns: o.burn, pct: 30 } : null;
-  if (burn) parts.push(`Burns ${burn.turns} turns (${burn.pct}% ${sName}${src ? ` = ${burn.n}` : ''}/turn)${!o.burn ? ' from Ember Soul' : ''}`);
+  if (burn) fx.push(`Burns ${burn.turns} turns (${burn.pct}% ${sName}${src ? ` = ${burn.n}` : ''}/turn)${!o.burn ? ' from Ember Soul' : ''}`);
   const poison = src ? poisonOf(o, src) : o.poison ? { turns: o.poison, pct: Math.round((o.poisonPow || 0.3) * 100) } : null;
-  if (poison) parts.push(`Poisons ${poison.turns} turns (${poison.pct}% ${sName}${src ? ` = ${poison.n}` : ''}/turn)${src && (isClass(src, 'plaguebringer') || has(src, 'toxicheart')) ? ', stacking' : ''}`);
-  if (o.thornsUp) parts.push(`Grows thorns for ${o.thornsUp} turns (6 + 50% DEF${src && o.tgt === 'self' ? ` = ${Math.round(6 + src.def * 0.5)}` : ''})`);
-  if (o.selfShield) parts.push(`Shields you for ${Math.round(o.selfShield * 100)}% of damage dealt`);
-  if (o.drain) parts.push(`Heals you ${Math.round(o.drain * 100)}% of damage dealt`);
-  for (const [k, label] of flags) if (o[k] && k !== 'drain' && k !== 'selfShield') parts.push(label);
-  if (o.detonate) parts.push(`Detonates ${o.detonate === 'burn' ? 'burns' : 'poison'}`);
-  if (o.push) parts.push(`Pushes ${o.push}`);
-  if (o.cull) parts.push(`Kills under ${Math.round(o.cull * 100)}% HP`);
-  if (o.imbue) parts.push(`Imbues ${o.imbue}`);
-  if (o.kind === 'summon') parts.push(`Summons ${o.summonN || 2}`);
-  if (o.hpCost) parts.push(`Costs ${Math.round(o.hpCost * 100)}% HP`);
-  if (o.bloodpact) parts.push('Costs 10% HP');
-  if (o.ctCost) parts.push('Delays your next turn');
+  if (poison) fx.push(`Poisons ${poison.turns} turns (${poison.pct}% ${sName}${src ? ` = ${poison.n}` : ''}/turn)${src && (isClass(src, 'plaguebringer') || has(src, 'toxicheart')) ? ', stacking' : ''}`);
+  if (o.thornsUp) fx.push(`Grows thorns for ${o.thornsUp} turns (6 + 50% DEF${src && o.tgt === 'self' ? ` = ${Math.round(6 + src.def * 0.5)}` : ''})`);
+  if (o.selfShield) fx.push(`Shields you for ${Math.round(o.selfShield * 100)}% of damage dealt`);
+  if (o.drain) fx.push(`Heals you ${Math.round(o.drain * 100)}% of damage dealt`);
+  if (o.hex) fx.push(`Hexes ${o.hex}`);
+  if (o.critUp) fx.push(`+${o.critUp}% crit`);
+  for (const [k, label] of flags) if (o[k] && k !== 'drain' && k !== 'selfShield') (k === 'recoilDmg' ? cost : fx).push(label);
+  if (o.detonate) fx.push(`Detonates ${o.detonate === 'burn' ? 'burns' : 'poison'}`);
+  if (o.push) fx.push(`Pushes ${o.push}`);
+  if (o.cull) fx.push(`Kills under ${Math.round(o.cull * 100)}% HP`);
+  if (o.imbue) fx.push(`Imbues ${o.imbue}`);
+  if (o.kind === 'summon') fx.push(`Summons ${o.summonN || 2}`);
+  if (o.hpCost) cost.push(`Costs ${Math.round(o.hpCost * 100)}% HP`);
+  if (o.bloodpact) cost.push('Costs 10% HP');
+  if (o.ctCost) cost.push('Delays your next turn');
   parts.push(o.cd ? `Cooldown ${o.cd}` : 'No cooldown');
-  return parts.join(' · ');
+  return { head: parts, fx, cost };
+}
+export function describe(o, src) {
+  const d = describeParts(o, src);
+  return [...d.head, ...d.fx, ...d.cost].join(' · ');
 }
 
 // ---------- artifacts ----------

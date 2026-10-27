@@ -1,6 +1,7 @@
 // The branching path for the current act, drawn and made clickable with Phaser.
-import { ROWS_PER_ACT } from './data.js?v=17';
-import { NODE_COLORS } from './art.js?v=17';
+import { ROWS_PER_ACT } from './data.js?v=19';
+import { NODE_COLORS } from './art.js?v=19';
+import { groundTile, TP } from './tiles.js?v=19';
 
 export const MAP = { W: 640, TOP: 70, STEP: 70, COLS: 6 };
 export const mapHeight = () => MAP.TOP * 2 + ROWS_PER_ACT * MAP.STEP;
@@ -19,10 +20,11 @@ export class MapScene extends Phaser.Scene {
     const run = mapEnv.run, H = mapHeight();
     const cam = this.cameras.main;
     cam.setBounds(0, 0, MAP.W, H);
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1d1628); bg.fillRect(0, 0, MAP.W, H);
-    bg.fillStyle(0x251c33);
-    for (let y = 0; y < H; y += 16) for (let x = (y / 16 % 2) * 16; x < MAP.W; x += 32) bg.fillRect(x, y, 16, 16);
+    // the act's own ground, dimmed so the path reads on top of it
+    const theme = mapEnv.theme || 'wood';
+    for (let v = 0; v < 4; v++) if (!this.textures.exists(`g_${theme}_${v}`)) this.textures.addCanvas(`g_${theme}_${v}`, groundTile(theme, v));
+    for (let y = 0; y < H; y += TP * 2) for (let x = 0; x < MAP.W; x += TP * 2) this.add.image(x, y, `g_${theme}_${(x / 64 * 3 + y / 64 * 5) % 4}`).setOrigin(0).setScale(2);
+    this.add.rectangle(0, 0, MAP.W, H, 0x120c1a, 0.62).setOrigin(0);
     const avail = new Set(mapEnv.available().map(n => n.id));
     const visited = new Set(run.visited);
     const nodes = Object.values(run.map);

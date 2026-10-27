@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=17';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=17';
-import { spriteURL } from './art.js?v=17';
-import { TP, drawBoard } from './tiles.js?v=17';
-import { sfx } from './audio.js?v=17';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=17';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=19';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=19';
+import { spriteURL } from './art.js?v=19';
+import { TP, drawBoard } from './tiles.js?v=19';
+import { sfx } from './audio.js?v=19';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=19';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -63,10 +63,14 @@ function foeUnit(kind, lvl) {
   const act = Math.floor((lvl - 1) / 9);
   const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.12 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.08 * act), dp = Math.floor((lvl - 1) / 5);
   const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm));
-  return { id: ++B.uid, side: 'foe', kind, spr: kind, name: d.name, hp, maxHp: hp, atk: Math.round(d.atk * sm), mag: Math.round((d.mag || 0) * sm),
+  const u = { id: ++B.uid, side: 'foe', kind, spr: kind, name: d.name, hp, maxHp: hp, atk: Math.round(d.atk * sm), mag: Math.round((d.mag || 0) * sm),
     def: d.def + dp, res: d.res + dp, spd: d.spd, mov: d.mov, crit: 5, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, lure: !!d.lure, regen: d.regen || 0, scale: d.scale || 1, info: d.info,
+    swim: !!d.swim, rampart: !!d.rampart, split: d.split, burst: !!d.burst, heads: d.heads, chill: !!d.chill, plating: d.plating || 0, overdrive: !!d.overdrive, loot: 0,
     skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30) };
+  if (d.items) u.items = [...d.items];
+  if (d.stealth) u.st.stealth = 1;
+  return u;
 }
 
 function genGrid(rc) {
@@ -81,9 +85,9 @@ function genGrid(rc) {
     }
     for (let i = span(rc.hill); i > 0; i--) { const c = { x: rnd(0, GW - 1), y: rnd(0, GH - 1) }; set(c.x, c.y, T.HILL); if (chance(0.5)) set(c.x + 1, c.y, T.HILL); }
     for (let i = span(rc.rock); i > 0; i--) { const c = mid(); set(c.x, c.y, T.ROCK); }
-    if (chance(rc.water)) {
+    for (let p = rc.pools ? span(rc.pools) : chance(rc.water) ? 1 : 0; p > 0; p--) {
       let { x, y } = mid();
-      for (let i = rnd(2, 4); i > 0; i--) { if (x >= 2 && x < GW - 3) set(x, y, T.WATER); const [dx, dy] = pick(DIRS); x += dx; y += dy; }
+      for (let i = rnd(2, rc.pools ? 5 : 4); i > 0; i--) { if (x >= 2 && x < GW - 3) set(x, y, T.WATER); const [dx, dy] = pick(DIRS); x += dx; y += dy; }
     }
     for (let i = span(rc.walls); i > 0; i--) {
       let { x, y } = mid();
@@ -173,6 +177,7 @@ function moveCost(u, x, y) {
   const t = terr(x, y);
   if (t.los) return u.phase ? 1 : Infinity;
   if (u.fly) return 1;
+  if (u.swim && B.grid[y][x] === T.WATER) return 2;
   return t.cost;
 }
 const standable = (u, x, y) => inb(x, y) && !terr(x, y).los && moveCost(u, x, y) < Infinity;
@@ -400,6 +405,7 @@ function dmgMult(a, t, o) {
   if (o.momentum) m *= 1 + o.momentum * dist(a, t);
   if (o.onLava && B.grid[t.y][t.x] === T.LAVA && !t.fly) m *= 1.6;
   if (t.side !== a.side && alive().some(x => x !== t && x.rampart && x.side === t.side && dist(x, t) === 1)) m *= 0.75; // Phalanx
+  if (t.heads && alive().some(x => x.kind === t.heads && x.side === t.side)) m *= 0.6; // the Hydra's heads shield it
   return m;
 }
 function calcDmg(a, t, o) {
@@ -491,6 +497,20 @@ function ko(t, killer) {
   if (has(t, 'spite')) {
     fxText(t, 'Spite!', '#ff6a6a');
     for (const f of alive().filter(x => x.side !== t.side)) damage(f, Math.round(f.maxHp * 0.3), null, { quiet: true });
+  }
+  if (t.loot > 0) { env.run.gold += t.loot; fxText(t, `+${t.loot}g`, '#ffd23f', true); sfx('coin'); log(`${t.name} drops the stolen gold.`); t.loot = 0; }
+  if (t.burst) {
+    fxText(t, 'Boom!', '#ff8a3d', true); burst('fire', t, 30); sfx('fire');
+    for (const n of alive().filter(x => dist(x, t) === 1)) damage(n, Math.round(t.atk * 1.2 + 4), null, { quiet: true });
+  }
+  if (t.split) {
+    const { x, y } = t, kind = t.split, side = t.side;
+    setTimeout(() => {
+      if (!B || B.over) return;
+      const spots = [{ x, y }, ...DIRS.map(([dx, dy]) => ({ x: x + dx, y: y + dy }))].filter(p => standable({}, p.x, p.y) && !unitAt(p.x, p.y));
+      for (const p of spots.slice(0, 2)) spawn(kind, side, p.x, p.y, side === 'hero');
+      log(`${t.name} splits apart!`);
+    }, 350 * env.speed);
   }
   if (killer && !killer.dead && isClass(killer, 'assassin')) killer.st.stealth = 1;
   if (killer && !killer.dead && killer.side !== t.side) {
@@ -940,6 +960,11 @@ async function useSkill(u, s, tx, ty, echoed) {
     if (t.dead) continue;
     applyStatus(u, t, o);
     if (o.steal && isHero(u) && t.side !== u.side) { const g = rnd(8, 15); env.run.gold += g; fxText(t, `+${g}g`, '#ffd23f', true); sfx('coin'); }
+    if (o.steal && !isHero(u) && isHero(t) && env.run.gold > 0) {
+      const g = Math.min(env.run.gold, rnd(6, 12));
+      env.run.gold -= g; u.loot = (u.loot || 0) + g;
+      fxText(t, `-${g}g`, '#ffd23f', true); sfx('coin'); log(`${u.name} steals ${g} gold!`);
+    }
     if (o.spread) for (const n of alive().filter(x => x !== t && x.side === t.side && dist(x, t) === 1)) {
       for (const k of ['poison', 'burn', 'slow', 'shock', 'vuln', 'blind', 'weak', 'oil', 'wet']) if (t.st[k] > 0 && !(n.st[k] > 0)) {
         n.st[k] = t.st[k];
@@ -1098,6 +1123,9 @@ async function startTurn(u) {
     fxText(u, `+8 ${stat.toUpperCase()}`, '#ffd23f');
   }
   if (u.regen) heal(u, u.maxHp * u.regen);
+  if (u.plating && u.turns % 3 === 1) { addShield(u, u.maxHp * u.plating); fxText(u, 'Plating', '#9fd8ff', true); }
+  if (u.overdrive && !u.overdriven && u.hp * 2 < u.maxHp) { u.overdriven = true; u.spd = Math.round(u.spd * 1.5); fxText(u, 'Overdrive!', '#ff6a2a'); log(`${u.name} goes into overdrive!`); }
+  if (u.chill) for (const f of alive().filter(x => homeSide(x) !== homeSide(u) && dist(x, u) === 1)) { f.st.slow = Math.max(f.st.slow || 0, 2); fxText(f, 'Chilled', '#c9f7ff', true); refreshView(f); }
   if (has(u, 'crown')) { u.hp = Math.max(1, u.hp - Math.round(u.maxHp * 0.05)); refreshView(u); }
   if (B.grid[u.y][u.x] === T.LAVA && !u.fireproof && !u.fly) { await enterTile(u); await sleep(300); }
   if (!u.dead && u.st.poison > 0) {
@@ -1267,7 +1295,7 @@ function onTap(g, touch) {
 
 // ---------- AI ----------
 function scoreAction(u, o, list) {
-  if (o.kind === 'summon') return B.units.filter(t => t.summoned && !t.dead && t.side === u.side).length < 2 ? 20 : 0;
+  if (o.kind === 'summon') return B.units.filter(t => !t.dead && t.side === u.side && t.summoned).length < 2 && alive().filter(t => t.side === u.side && t.kind === o.summon).length < 3 ? 20 : 0;
   if (o.trap) return 0; // traps are a player's tool
   let s = 0;
   for (const { t, w } of list) {
@@ -1280,7 +1308,7 @@ function scoreAction(u, o, list) {
         + (o.sleep && !t.boss && !(t.st.sleep > 0) ? 8 : 0) + (o.confuse && !t.boss && !(t.st.confuse > 0) ? 9 : 0) + (o.oil && !(t.st.oil > 0) ? 3 : 0) + (o.wet && !(t.st.wet > 0) ? 2 : 0)
         + (o.dispel ? t.shield * 0.5 + BUFFS.filter(k => t.st[k] > 0).length * 4 : 0) + (o.stealShield ? t.shield * 0.8 : 0) + (o.ctZero ? Math.max(0, t.ct) / 10 : 0) + (o.push ? 1 : 0)
         + (o.charm && !t.boss && !t.st.charm && !(t.st.resolve > 0) && alive().filter(x => x.side === t.side).length > 1 ? 10 + t.atk * 0.5 : 0) + (o.doom && !t.st.doom ? t.maxHp * (t.boss ? 0.1 : 0.25) : 0) + (o.cdLock ? 3 + (t.boss ? 6 : 0) : 0) + (o.stun && !t.boss ? 8 : 0);
-      else s += (o.rally ? 6 : 0) + (o.ctGive && t !== u ? 14 : 0) + (o.ward && !(t.st.ward > 0) ? 5 + (1 - t.hp / t.maxHp) * 8 : 0)
+      else s += (o.rally ? 6 : 0) + (o.ctGive && t !== u && !(t.st.hasted > 0) && t.ct < 100 ? 10 : 0) + (o.ward && !(t.st.ward > 0) ? 5 + (1 - t.hp / t.maxHp) * 8 : 0)
         + (o.stealth && t === u ? (u.hp < u.maxHp * 0.5 ? 8 : 2) : 0) + (o.thornsUp ? 4 : 0) + (o.purify ? debuffCount(t) * 4 : 0) + (o.movUp ? 2 : 0)
         + (o.focus && !t.st.focus ? 5 : 0) + (o.imbue && !(t.st.imbue > 0) ? 6 : 0) + (o.brace ? 3 : 0) + (o.counter ? 2 : 0);
       continue;
@@ -1419,7 +1447,7 @@ function statusText(u) {
   return out.flatMap((x, i) => i ? [' · ', x] : [x]);
 }
 function unitCard(u, withSkills) {
-  const extra = [u.fly ? 'Flying' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.info].filter(Boolean).join(' · ');
+  const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info].filter(Boolean).join(' · ');
   return h('div', { class: 'card' },
     h('div', { class: 'card-head' }, sprImg(u.spr, u.side === 'foe' ? 'flip' : ''),
       h('div', { class: 'who' }, h('b', {}, u.name), bar(u.hp, u.maxHp, u.side === 'foe', u.shield), `${u.hp}/${u.maxHp} HP${u.shield ? ` +${u.shield} shield` : ''}`)),

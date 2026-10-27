@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=17';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=19';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=17';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=17';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=17';
-import { env, startBattle, BattleScene } from './battle.js?v=17';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=17';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=17';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=19';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=19';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=19';
+import { env, startBattle, BattleScene } from './battle.js?v=19';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=19';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=19';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -105,7 +105,7 @@ function genMap() {
   return nodes;
 }
 function newRun() {
-  run = { party: ['warrior', 'mage', 'rogue'].map(newHero), gold: 60, act: 0, map: genMap(), pos: null, visited: [], seen: [], stash: [], stats: { kills: 0, battles: 0 } };
+  run = { party: ['warrior', 'mage', 'rogue'].map(newHero), gold: 60, act: 0, acts: ACT_SLOTS.map(slot => pick(slot)), map: genMap(), pos: null, visited: [], seen: [], stash: [], stats: { kills: 0, battles: 0 } };
   env.run = run;
   if (AUTO && params.has('chaos')) {
     // stress test: promoted heroes with four random skills, every slot filled with random artifacts
@@ -121,21 +121,21 @@ function newRun() {
   }
   actIntro();
 }
+// This run's act: one of the two in each slot, drawn when the run starts (older saves get the first).
+const curAct = () => ACTS[(run.acts || ACT_SLOTS.map(s => s[0]))[run.act]];
 const available = () => !run.pos ? Object.values(run.map).filter(n => n.r === 0) : run.map[run.pos].next.map(id => run.map[id]);
 const level = n => run.act * (ROWS_PER_ACT + 1) + (n.id === 'boss' ? ROWS_PER_ACT + 1 : n.r + 1);
 const hurtAll = n => run.party.forEach(p => { p.hp = Math.max(1, p.hp - n); });
 const healAll = f => run.party.forEach(p => { const m = heroStats(p, run.gold).maxHp; p.hp = Math.min(m, p.hp + Math.round(m * f)); });
 
 function actIntro() {
-  const act = ACTS[run.act];
+  const act = curAct();
   hud();
   music('m_map');
   setScreen(h('div', { class: 'panel center' },
     h('div', { class: 'title-name' }, `Act ${run.act + 1}`),
     h('h2', {}, act.name),
-    h('p', {}, ['The road climbs through the Greenwood toward the Thornmother\'s grove.',
-      'Below the old city, the Hollow King hoards the dead.',
-      'At the top of the burning peaks, the Cinder Wyrm waits.'][run.act]),
+    h('p', {}, act.intro),
     btn('Begin', showMap, 'big go'),
   ));
   auto(showMap);
@@ -146,18 +146,18 @@ function showMap() {
   save();
   hud();
   music('m_map');
-  const legend = h('div', { class: 'panel legend' }, h('h3', {}, ACTS[run.act].name),
+  const legend = h('div', { class: 'panel legend' }, h('h3', {}, curAct().name),
     ...['battle', 'elite', 'event', 'shop', 'boss'].map(t => {
       const c = h('canvas', { width: 24, height: 24 });
       const x = c.getContext('2d');
       x.imageSmoothingEnabled = false;
       x.fillStyle = NODE_COLORS[t]; x.fillRect(0, 0, 24, 24);
       x.drawImage(iconCanvas(t), 4, 4, 16, 16);
-      return h('div', {}, c, t === 'boss' ? ACTS[run.act].boss : { battle: 'Battle', elite: 'Elite battle (two artifacts)', event: 'Unknown event', shop: 'Shop (rest, lessons, artifacts)' }[t]);
+      return h('div', {}, c, t === 'boss' ? curAct().boss : { battle: 'Battle', elite: 'Elite battle (two artifacts)', event: 'Unknown event', shop: 'Shop (rest, lessons, artifacts)' }[t]);
     }),
     h('p', { class: 'muted' }, 'Pick a glowing node. Drag or scroll the map to look ahead. Healing is rare: wounds carry between fights, and only a new act restores everyone fully.'));
   showStage('map', [legend]);
-  Object.assign(mapEnv, { run, available, pick: enterNode, actName: `Act ${run.act + 1}: ${ACTS[run.act].name}`, leader: heroSprite(run.party[0]) });
+  Object.assign(mapEnv, { run, available, pick: enterNode, actName: `Act ${run.act + 1}: ${curAct().name}`, theme: curAct().theme, leader: heroSprite(run.party[0]) });
   game.scene.start('map');
   auto(() => {
     const opts = available(), low = run.party.some(p => p.hp < heroStats(p, run.gold).maxHp * 0.45);
@@ -177,11 +177,11 @@ function enterNode(n) {
 
 // ---------- battle ----------
 function battle(kind) {
-  const act = ACTS[run.act], n = run.map[run.pos];
+  const act = curAct(), n = run.map[run.pos];
   const lvl = level(n);
   const list = kind === 'boss' ? act.bossParty : kind === 'elite' ? pick(act.elite) : pick(n.r < 4 ? act.early : act.late);
   hud(true);
-  music(kind === 'boss' ? 'm_boss' : 'm_' + act.theme);
+  music(kind === 'boss' ? 'm_boss' : act.music);
   showStage('battle');
   startBattle({ kind, level: lvl, act, list, party: run.party });
 }
@@ -308,7 +308,7 @@ function showRewards(info) {
   let offers = artifactPool(run, info.kind === 'normal' ? 3 : 4);
   let taken = 0;
   const after = () => {
-    if (info.kind === 'boss') { if (run.act >= ACTS.length - 1) victory(); else promotionScreen(nextAct); return; }
+    if (info.kind === 'boss') { if (run.act >= ACT_SLOTS.length - 1) victory(); else promotionScreen(nextAct); return; }
     showMap();
   };
   let opts = null;
@@ -325,7 +325,7 @@ function showRewards(info) {
   const spoils = () => {
     if (taken >= picks || !offers.length) { learn(); return; }
     setScreen(h('div', { class: 'panel' },
-      h('h2', {}, taken ? 'Take one more' : info.kind === 'boss' ? `${ACTS[run.act].boss} is defeated!` : 'Victory!'),
+      h('h2', {}, taken ? 'Take one more' : info.kind === 'boss' ? `${curAct().boss} is defeated!` : 'Victory!'),
       taken ? null : h('p', {}, `+${info.gold} gold. Wounds stay until you rest.`),
       taken || !info.levels ? null : h('div', { class: 'levels' }, info.levels.map(({ p, gains }) => h('div', {}, sprImg(heroSprite(p)),
         h('b', {}, `${heroTitle(p)} Lv ${p.lvl}`), ` ${gainsText(gains)}`))),
@@ -363,7 +363,7 @@ function promotionScreen(next) {
   step();
 }
 function nextAct() {
-  if (run.act >= ACTS.length - 1) { victory(); return; }
+  if (run.act >= ACT_SLOTS.length - 1) { victory(); return; }
   run.act++;
   run.map = genMap(); run.pos = null; run.visited = [];
   run.party.forEach(p => { p.hp = heroStats(p, run.gold).maxHp; });
@@ -609,7 +609,7 @@ function showTitle() {
   setScreen(h('div', { class: 'panel center' },
     h('div', { class: 'title-name' }, 'Threefold Path'),
     h('div', { class: 'title-art' }, sprImg('warrior', 'huge'), sprImg('mage', 'huge'), sprImg('rogue', 'huge')),
-    h('p', {}, 'Three heroes. Three acts. A forest, a crypt and a burning mountain.'),
+    h('p', {}, 'Three heroes. Three acts, each drawn from two lands, each with its own boss.'),
     saved ? btn('Continue run', () => { run = saved; env.run = run; showMap(); }, 'big go') : null,
     btn(saved ? 'New run' : 'Start run', () => { clearSave(); newRun(); }, 'big'),
     h('details', { class: 'howto', open: !saved && window.innerWidth > 640 },

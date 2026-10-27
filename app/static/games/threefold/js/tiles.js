@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=17';
+import { T, GW, GH } from './data.js?v=19';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -296,6 +296,28 @@ const THEME_ART = {
     pit: ['#030203', '#0e0606', '#2a1410'], wall: ['#120c1a', '#211a2c', '#3a2e52', '#5a4a7a'], wallGlow: '#ff6a2a',
     thorn: 'spike', spike: ['#c48aff', '#ffd8a0'], cliff: ['#1a1214', '#2e2224', '#120c0e'],
   },
+  marsh: {
+    ground: 'mud', cover: 'reeds', rock: 'stump', hole: 'water',
+    g: ['#2e3a24', '#3c4a2c', '#4a5a34', '#6a7a4a'], puddle: '#2a3a3a', reed: ['#5a6a2a', '#8a9a3a'], cattail: '#5a3a1e',
+    stone: ['#2e3028', '#4e5244', '#6a6e5c', '#8a8e78'], moss: '#5a7a34', trunk: ['#2e2016', '#4e3624'], ring: '#7a5a3a',
+    water: ['#1a2e26', '#23403a', '#3a5e50', '#8ab0a0'], bank: ['#2a2016', '#3e2e1e'], foam: '#7a9a80',
+    wall: ['#2a2e24', '#3e4436', '#56604a', '#76806a'], thorn: 'bramble', vine: ['#2a1a14', '#5a3a24', '#c8b48a'], bush: ['#18221a', '#22301e', '#2e4026', '#3e5430'],
+    cliff: ['#2a2016', '#3e2e1e', '#1e160e'],
+  },
+  frost: {
+    ground: 'snow', cover: 'snowdrift', rock: 'iceblock', hole: 'water',
+    g: ['#9aaac4', '#c4d0e4', '#dfe8f4', '#f6faff'], stone: ['#4a5468', '#6a7488', '#8a94a8', '#b4bccc'],
+    snowRamp: ['#8a9ab8', '#b0bed4', '#d0dcec', '#eaf2fa', '#ffffff'], ice: ['#4a7aa8', '#8ac0e8', '#b8e0f8', '#ffffff'],
+    water: ['#1a3a5a', '#2a5478', '#5a8ab0', '#e0f4ff'], bank: ['#6a7a94', '#9aaac4'], foam: '#e8f4ff',
+    wall: ['#3a5a7a', '#6a9ac0', '#9ac8e8', '#d8f0ff'], thorn: 'spike', spike: ['#b8e0f8', '#ffffff'], cliff: ['#6a7a94', '#8a9ab4', '#4a5a74'],
+  },
+  foundry: {
+    ground: 'plate', cover: 'crate', rock: 'gearpile', hole: 'pit',
+    g: ['#2a2a32', '#3a3a44', '#44444f', '#5a5a68'], mortar: '#1a1a20', rivet: '#8a8a9a', rust: '#6a3a24',
+    wood: ['#3a2416', '#6a4426', '#8a5a32', '#aa7a46'], metal: ['#2a2a32', '#5a5a68', '#7a7a8a', '#a8a8b8'],
+    pit: ['#050404', '#140a06', '#3a1a0a'], glow: ['#7a2a0a', '#ff7a1a'],
+    wall: ['#1e1e26', '#34343e', '#4e4e5c', '#6e6e80'], wallGlow: '#c8a040', thorn: 'spike', spike: ['#a8a8b8', '#ffffff'], cliff: ['#1a1a20', '#2e2e38', '#121216'],
+  },
 };
 export const THEME_KEYS = Object.keys(THEME_ART);
 export function addThemes(more) { Object.assign(THEME_ART, more); THEME_KEYS.splice(0, THEME_KEYS.length, ...Object.keys(THEME_ART)); }
@@ -325,6 +347,9 @@ function tileArt(theme, type, v, frame) {
   cache.set(k, c);
   return c;
 }
+
+// A plain ground tile, for backdrops like the map.
+export const groundTile = (theme, v) => tileArt(theme, T.FLOOR, v, 0);
 
 // Paint the whole board: each tile's art, then the touches that depend on neighbours.
 export function drawBoard(ctx, theme, grid, vari, frame) {

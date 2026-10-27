@@ -99,6 +99,9 @@ const TRACKS = {
   m_wood: { bpm: 120, chords: [[48, ''], [57, 'm'], [53, ''], [55, '']], seed: 11, lead: 'square', drums: 1 },
   m_crypt: { bpm: 100, chords: [[50, 'm'], [46, ''], [43, 'm'], [45, '']], seed: 23, lead: 'triangle', drums: 1 },
   m_ember: { bpm: 136, chords: [[52, 'm'], [48, ''], [50, ''], [47, '']], seed: 31, lead: 'square', drums: 2 },
+  m_marsh: { bpm: 92, chords: [[45, 'm'], [41, ''], [43, ''], [40, 'm']], seed: 53, lead: 'triangle', drums: 1 },
+  m_frost: { bpm: 104, chords: [[52, 'm'], [48, ''], [55, ''], [50, '']], seed: 61, lead: 'triangle', drums: 0 },
+  m_foundry: { bpm: 128, chords: [[50, 'm'], [50, 'm'], [46, ''], [48, '']], seed: 71, lead: 'square', drums: 2 },
   m_boss: { bpm: 150, chords: [[57, 'm'], [55, ''], [53, ''], [52, '']], seed: 41, lead: 'sawtooth', drums: 2 },
 };
 function track(def) {

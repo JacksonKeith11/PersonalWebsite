@@ -4,8 +4,9 @@ Read this before changing anything in `app/static/games/` or `tools/threefold-au
 
 ## What it is
 
-A pixel-art tactical roguelike: a Warrior, Mage and Rogue climb three acts (Greenwood, Sunken
-Crypt, Ember Peaks). Each act is a branching map of battles, elites, events and shops ending in a
+A pixel-art tactical roguelike: a Warrior, Mage and Rogue climb three acts, each drawn per run
+from two (Greenwood or Drowned Marsh, Sunken Crypt or Rime Halls, Ember Peaks or Clockwork
+Foundry). Each act is a branching map of battles, elites, events and shops ending in a
 boss. Battles are grid tactics on a 10×8 board, with speed-based turn order, terrain, flanking,
 statuses and line of sight. Runs save to `localStorage`.
 
@@ -141,6 +142,16 @@ the browser can't reach cdnjs.
   undo, skill buttons, confirm).
 
 ## Gotchas
+
+- Acts are looked up by id: `ACT_SLOTS` lists the two choices per slot, `run.acts` holds the ids
+  drawn for this run, and `curAct()` in `main.js` resolves the current one (saves from before
+  alternative acts have no `run.acts` and get the first of each slot). Never index `ACTS` by number.
+- Enemy mechanics are flags on `FOES` copied onto the unit in `foeUnit`: `split`, `burst`,
+  `rampart`, `items`, `stealth`, `swim`, `heads`, `chill`, `plating`, `overdrive`. Death effects
+  (split, burst, returning stolen `loot`) live in `ko()`; turn-start ones (plating, overdrive,
+  chill) in `startTurn()`. Swimmers pay 2 to enter water and can stand in it.
+- Summoning stops at 3 of a kind on a side (`scoreAction`), which is what keeps the Hydra's
+  regrowing heads in check.
 
 - **Every module URL carries `?v=N`, and they must all match.** Cloudflare caches `/static`, and a
   module loaded under two URLs runs twice. When changing any JS, bump `?v=` together in every

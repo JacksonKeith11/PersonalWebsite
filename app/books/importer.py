@@ -69,7 +69,10 @@ class _Fetcher:
         except httpx.HTTPStatusError as e:
             r = e.response
             if r.headers.get("cf-mitigated") == "challenge" or "Just a moment" in r.text[:2000]:
-                raise ImportFailed(f"{self.site} showed a Cloudflare check instead of the page. Try again later.") from e
+                raise ImportFailed(
+                    f"{self.site} blocks automated downloads of that page. Save it with WebToEpub in your "
+                    "browser and add the EPUB with Add book instead."
+                ) from e
             if r.status_code == 404:
                 raise ImportFailed(f"{self.site} says that page doesn't exist.") from e
             if r.status_code == 403:

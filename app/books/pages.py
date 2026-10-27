@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 14
+ASSET_VERSION = 15
 NAV = """<nav class="nav">
       <div class="nav-links">
         <a href="/">About</a>

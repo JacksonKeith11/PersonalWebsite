@@ -32,10 +32,10 @@ Changes that need someone at the Mac (say so in the PR description):
 ## Rules
 
 - Never commit secrets, `.env`, or anything under `data/`.
-- Royal Road, AO3, and fiction.live updates come only from notification emails; don't add
-  requests to those sites. The one exception is the books importer fetching a Royal Road story a
-  reader asked for, throttled to a request a second. Don't add anything that bypasses bot
-  detection or Cloudflare challenges.
+- Keep requests to Royal Road, AO3, fiction.live and the forums to a minimum: use notification
+  emails for serial updates where a site sends them, fetch only what a reader asked for, and space
+  requests out (the books importer waits a second between them). Don't add anything that bypasses
+  bot detection or Cloudflare challenges.
 - Private pages stay noindex and `no-store`; serials stay behind `auth`, books behind a username.
 - Cloudflare caches static files: when changing CSS/JS, bump `?v=` on `style.css` links or
   `ASSET_VERSION` in `app/books/pages.py`.

@@ -252,3 +252,26 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .sel-skill b { color: var(--gold); }
 .sk-fx .fx .tip { color: inherit; }
 .skill-list .sk div { margin-bottom: 0; }
+
+/* event choices: one full-width button per choice, its note underneath */
+.choices { display: grid; gap: 8px; margin-top: 6px; }
+.choices .btn { text-align: left; margin: 3px; }
+.howto summary { cursor: pointer; list-style: none; }
+.howto summary::-webkit-details-marker { display: none; }
+.howto summary h3 { display: inline-block; margin: 0; }
+.howto summary h3::before { content: '▸ '; color: var(--gold); }
+.howto[open] summary h3::before { content: '▾ '; }
+.howto[open] summary { margin-bottom: 8px; }
+.modal-head { position: sticky; top: -24px; z-index: 2; background: var(--bg); padding: 8px 0; margin: -8px 0 6px; align-items: center; }
+.modal-head h2 { margin: 0; }
+#modal { background: rgba(8, 5, 12, 0.96); }
+.pick .pick-head { flex-wrap: wrap; }
+@media (max-width: 640px) {
+  #wrap { padding: 10px 6px; }
+  #screen { padding: 0; }
+  .panel { padding: 12px; }
+  .cards { grid-template-columns: 1fr; gap: 10px; }
+  #modal { padding: 12px 6px; }
+  .modal-head { top: -12px; }
+  .hero-cards { grid-template-columns: 1fr; }
+}

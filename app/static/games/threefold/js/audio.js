@@ -178,8 +178,12 @@ export async function initAudio(game) {
   await Promise.all(jobs);
   A.ready = true;
   if (A.wanted) { const w = A.wanted; A.wanted = null; music(w); }
-  for (const [key, def] of Object.entries(TRACKS)) {
-    const [len, build] = track(def);
+  // tracks render one at a time, so render whichever one is wanted right now first
+  const left = new Set(Object.keys(TRACKS));
+  while (left.size) {
+    const key = left.has(A.wanted) ? A.wanted : left.values().next().value;
+    left.delete(key);
+    const [len, build] = track(TRACKS[key]);
     game.cache.audio.add(key, await render(len, build, 0.8));
     if (A.wanted === key && !A.playing) { A.wanted = null; music(key); }
   }

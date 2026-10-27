@@ -1,13 +1,13 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=15';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=16';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=15';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=15';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=15';
-import { env, startBattle, BattleScene } from './battle.js?v=15';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=15';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=15';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=16';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=16';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=16';
+import { env, startBattle, BattleScene } from './battle.js?v=16';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=16';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=16';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -520,7 +520,7 @@ function showEvent() {
     auto(next);
   };
   setScreen(h('div', { class: 'panel' }, h('h2', {}, ev.title), h('p', {}, ev.text),
-    h('div', {}, choices.map(c => h('button', { class: 'btn', disabled: c.cond === false, onclick: () => choose(c) }, c.label, c.note ? h('small', {}, c.note) : null)))));
+    h('div', { class: 'choices' }, choices.map(c => h('button', { class: 'btn', disabled: c.cond === false, onclick: () => choose(c) }, c.label, c.note ? h('small', {}, c.note) : null)))));
   auto(() => choose(choices.find(c => c.cond !== false)));
 }
 
@@ -571,7 +571,7 @@ function showParty() {
   const equip = i => { const id = run.stash[i]; equipFlow(id, () => { run.stash.splice(run.stash.indexOf(id), 1); refresh(); }, modalShow, refresh); };
   const x = (label, fn) => h('button', { class: 'linkbtn', onclick: fn }, label);
   modalShow(h('div', {},
-    h('div', { class: 'row' }, h('h2', { class: 'grow' }, 'Your party'), h('button', { class: 'btn', onclick: close }, 'Close')),
+    h('div', { class: 'row modal-head' }, h('h2', { class: 'grow' }, 'Your party'), h('button', { class: 'btn', onclick: close }, 'Close')),
     h('div', { class: 'hero-cards' }, run.party.map(p => {
       const st = heroStats(p, run.gold), src = heroSrc(p, run.gold);
       return h('div', { class: 'hero-card' },
@@ -612,15 +612,15 @@ function showTitle() {
     h('p', {}, 'Three heroes. Three acts. A forest, a crypt and a burning mountain.'),
     saved ? btn('Continue run', () => { run = saved; env.run = run; showMap(); }, 'big go') : null,
     btn(saved ? 'New run' : 'Start run', () => { clearSave(); newRun(); }, 'big'),
-    h('div', { class: 'howto' },
-      h('h3', {}, 'How to play'),
+    h('details', { class: 'howto', open: !saved && window.innerWidth > 640 },
+      h('summary', {}, h('h3', {}, 'How to play')),
       h('ul', {},
         h('li', {}, 'Each act is a branching map of battles, events (?) and shops, ending in a boss. Beating a boss promotes every hero: each picks one of two advanced classes after Act 1, then one of two master classes after Act 2. Passives stack.'),
         h('li', {}, 'In battle, units take turns by speed (the "Next" strip). On a hero\'s turn, move once and act once, in either order.'),
         h('li', {}, 'Walls block movement and line of sight: bolts and arrows can\'t pass them, but lobbed skills can. Lava burns, brambles cut, high ground extends range, and cover cuts damage. Tap any tile to read it.'),
         h('li', {}, 'Flank: hitting a foe that another hero stands next to deals 25% more (the Rogue gets 50%).'),
         h('li', {}, 'Battles pay out in artifacts. Skill artifacts socket into a skill and rewrite it: swap the stat it uses, turn bolts into ricochets or shields, make attacks leap or melt the floor. Hero artifacts are worn and change the hero.'),
-        h('li', {}, 'Artifacts and classes share archetypes (poison, elemental, shield, thorns, blood, time). Stack one and rewards start leaning toward it.'),
+        h('li', {}, `Artifacts and classes share archetypes (${Object.values(ARCHES).map(a => a.name.toLowerCase()).join(', ')}). Stack one and rewards start leaning toward it. Tap an underlined word to read what it does.`),
         h('li', {}, 'After a fight a hero can learn a new skill from their class. Each knows at most 4, so learning may mean forgetting.'),
         h('li', {}, 'Healing is scarce. Wounds carry between fights, there\'s no healing after a battle, and the fallen get up with 10% HP. Each new act restores everyone. Dawdle in a fight and the enemy grows furious.'),
         h('li', {}, 'On touch screens, tap a target once to preview, again to confirm.'),

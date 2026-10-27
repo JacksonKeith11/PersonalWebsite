@@ -1,9 +1,9 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=15';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, describeParts, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=15';
-import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=15';
-import { sfx } from './audio.js?v=15';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=15';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=16';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=16';
+import { tileKey, TILE_VARIANTS, ANIMATED, spriteURL } from './art.js?v=16';
+import { sfx } from './audio.js?v=16';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=16';
 
 const S = 4, TS = 16 * S;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -137,6 +137,18 @@ function hasteUnit(t, n, cap = t === B.active ? 200 : 100) {
 }
 // A stun can't land on a unit that is still Steady from the last one.
 function stun(t) { if (!t.boss && !(t.st.steady > 0)) t.st.stun = 1; }
+// Burning and poison keep the longer duration and the stronger tick (an expired one's tick doesn't linger).
+function burnUnit(t, turns, dmg) {
+  if (t.dead || t.fireproof) return;
+  t.st.burnDmg = Math.max(t.st.burn > 0 ? t.st.burnDmg || 0 : 0, Math.max(1, Math.round(dmg)));
+  t.st.burn = Math.max(t.st.burn || 0, turns);
+}
+function poisonUnit(t, turns, dmg, by) {
+  if (t.dead || has(t, 'plaguemask')) return;
+  t.st.poisonDmg = Math.max(t.st.poison > 0 ? t.st.poisonDmg || 0 : 0, Math.max(1, Math.round(dmg)));
+  t.st.poison = Math.max(t.st.poison || 0, turns);
+  if (by) t.st.poisonBy = by;
+}
 const HEX_MAX = 9;
 function addHex(t, n) { if (!t.dead && n > 0) { t.st.hex = Math.min(HEX_MAX, (t.st.hex || 0) + n); refreshView(t); } }
 const hexBurstDmg = (u, o, t) => Math.round((t.st.hex || 0) * (4 + statVal(u, o.stat) * 0.25));
@@ -182,17 +194,19 @@ function reach(u) {
     }
     return res;
   }
+  const occ = new Map(alive().map(o => [key(o.x, o.y), o]));
+  const ramparts = alive().filter(o => o.rampart && o.side !== u.side);
   const q = [[u.x, u.y, 0]];
   while (q.length) {
     q.sort((a, b) => a[2] - b[2]);
     const [x, y, c] = q.shift();
     const cur = res.get(key(x, y));
     if (c > cur.c) continue;
-    if (c > 0 && !u.fly && alive().some(o => o.rampart && o.side !== u.side && Math.abs(o.x - x) + Math.abs(o.y - y) === 1)) continue; // Rampart: stop here
+    if (c > 0 && !u.fly && ramparts.some(o => Math.abs(o.x - x) + Math.abs(o.y - y) === 1)) continue; // Rampart: stop here
     for (const [dx, dy] of DIRS) {
       const nx = x + dx, ny = y + dy;
       if (!inb(nx, ny)) continue;
-      const o = unitAt(nx, ny);
+      const o = occ.get(key(nx, ny));
       if (o && o.side !== u.side && !u.fly && !u.slip && !u.phase) continue;
       const nc = c + moveCost(u, nx, ny);
       if (nc > mov) continue;
@@ -439,7 +453,7 @@ function damage(t, amount, src, opts = {}) {
   if (th > 0) {
     fxText(src, 'Thorns', '#c8b45a', true);
     damage(src, th, t, { reflected: true, quiet: true });
-    if (has(t, 'rose') && !src.dead && !has(src, 'plaguemask')) { src.st.poison = Math.max(src.st.poison || 0, 2); src.st.poisonDmg = Math.max(src.st.poisonDmg || 0, Math.ceil(th / 3)); refreshView(src); }
+    if (has(t, 'rose')) { poisonUnit(src, 2, Math.ceil(th / 3), t); refreshView(src); }
   }
   if (src && opts.melee && !opts.counter && !t.dead && !src.dead && src.side !== t.side && (t.st.riposte || isClass(t, 'blademaster') || has(t, 'countertackle')) && dist(t, src) === 1) {
     fxText(t, 'Riposte', '#ffd23f');
@@ -483,7 +497,7 @@ function ko(t, killer) {
     const near = alive().filter(x => x.side === t.side && dist(x, t) === 1);
     if (has(killer, 'wisp')) { burst('fire', t, 24); sfx('fire'); for (const n of near) damage(n, Math.round(t.maxHp * 0.25), killer, { quiet: true, reflected: true }); }
     if (has(killer, 'gasoline')) for (const n of near.filter(x => !x.dead && !x.fireproof)) {
-      n.st.burn = Math.max(n.st.burn || 0, 3); n.st.burnDmg = Math.max(n.st.burnDmg || 0, Math.round(Math.max(killer.atk, killer.mag) * 0.3) + 1); burst('fire', n, 10); refreshView(n);
+      burnUnit(n, 3, Math.max(killer.atk, killer.mag) * 0.3 + 1); burst('fire', n, 10); refreshView(n);
     }
   }
   if (hexes && alive().some(x => x.side !== t.side && has(x, 'voodoo'))) {
@@ -496,7 +510,7 @@ function ko(t, killer) {
   }
   if (venom && venom.by && (isClass(venom.by, 'plaguebringer') || has(venom.by, 'spores'))) {
     for (const n of alive().filter(x => x.side === t.side && dist(x, t) === 1 && !has(x, 'plaguemask'))) {
-      n.st.poison = Math.max(n.st.poison || 0, Math.max(2, venom.n)); n.st.poisonDmg = Math.max(n.st.poisonDmg || 0, venom.dmg); n.st.poisonBy = venom.by;
+      poisonUnit(n, Math.max(2, venom.n), venom.dmg, venom.by);
       burst('poison', n, 10); refreshView(n);
     }
     log(`The plague spreads from ${t.name}.`);
@@ -550,8 +564,7 @@ function applyStatus(u, t, o) {
   const burn = o.burn || (isClass(u, 'pyromancer') && o.kind === 'mag' ? 2 : 0);
   if (burn && !t.fireproof) {
     const ember = has(u, 'emberheart');
-    t.st.burn = Math.max(t.st.burn || 0, burn + (ember ? 2 : 0));
-    t.st.burnDmg = Math.max(t.st.burnDmg || 0, Math.max(1, Math.round(statVal(u, o.stat) * 0.3 * (ember ? 1.5 : 1))));
+    burnUnit(t, burn + (ember ? 2 : 0), statVal(u, o.stat) * 0.3 * (ember ? 1.5 : 1));
   }
   const shock = o.shock || (hit && o.kind === 'mag' && (isClass(u, 'stormcaller') || has(u, 'stormcrown')) ? 2 : 0);
   if (shock && foe) t.st.shock = Math.max(t.st.shock || 0, shock + ext);
@@ -594,8 +607,8 @@ function applyStatus(u, t, o) {
   if (o.counter && !foe) t.st.riposte = 1;
   if (hit && foe && u.st.imbue > 0) {
     const k = u.st.imbueKind;
-    if (k === 'burn' && !t.fireproof) { t.st.burn = Math.max(t.st.burn || 0, 2); t.st.burnDmg = Math.max(t.st.burnDmg || 0, Math.round(statVal(u, 'atk') * 0.3) + 1); }
-    if (k === 'poison' && !has(t, 'plaguemask')) { t.st.poison = Math.max(t.st.poison || 0, 3); t.st.poisonDmg = Math.max(t.st.poisonDmg || 0, Math.round(statVal(u, 'atk') * 0.3) + 1); t.st.poisonBy = u; }
+    if (k === 'burn') burnUnit(t, 2, statVal(u, 'atk') * 0.3 + 1);
+    if (k === 'poison') poisonUnit(t, 3, statVal(u, 'atk') * 0.3 + 1, u);
     if (k === 'shock') t.st.shock = Math.max(t.st.shock || 0, 2);
     if (k === 'slow') t.st.slow = Math.max(t.st.slow || 0, 2);
   }
@@ -653,7 +666,7 @@ async function enterTile(u) {
     sfx('lava');
     burst('fire', u, 12);
     damage(u, Math.round(u.maxHp * 0.12) + 4, null, { quiet: true });
-    if (!u.dead) { u.st.burn = Math.max(u.st.burn || 0, 2); u.st.burnDmg = Math.max(u.st.burnDmg || 0, 3 + Math.floor(B.level / 3)); }
+    burnUnit(u, 2, 3 + Math.floor(B.level / 3));
   } else if (t === T.THORN) {
     damage(u, 3 + Math.floor(B.level / 3), null, { quiet: true });
   }
@@ -1308,16 +1321,14 @@ function planAI(u) {
   const ox = u.x, oy = u.y;
   const hostile = alive().filter(t => t.side !== u.side);
   const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;
+  const usable = u.st.disarm > 0 ? [] : u.skills.filter(s => s.cd <= 0).map(s => ({ s, o: effective(u, s) })).filter(({ o }) => !(o.mimic && !o.mimicked));
   let best = null;
   for (const v of R.values()) {
     if (!v.stop) continue;
     u.x = v.x; u.y = v.y;
     let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8;
     if (u.ai === 'ranged') pos += (Math.min(...hostile.map(t => dist(t, v))) >= 2 ? 3 : -2) + (onHill(u) ? 1.5 : 0);
-    for (const s of u.skills) {
-      if (s.cd > 0 || u.st.disarm > 0) continue;
-      const o = effective(u, s);
-      if (o.mimic && !o.mimicked) continue;
+    for (const { s, o } of usable) {
       const cands = [];
       if (o.tgt === 'self') cands.push([u.x, u.y]);
       else {
@@ -1439,16 +1450,16 @@ function hintText() {
   if (B.mode === 'move') return 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
   if (B.mode === 'skill') {
     const o = B.selO;
-    const what = `${o.name}: ${describeParts(o, u).head.join(' · ')}.`;
-    if (!B.targets.size) return `${what} No targets in range${needsLos(o) ? ' or sight' : ''}.`;
-    if (B.pending) return `${what} Tap again or press Confirm.`;
-    return `${what} Tap a highlighted tile.`;
+    if (!B.targets.size) return `${o.name}: no targets in range${needsLos(o) ? ' or line of sight' : ''}. Move first, or pick another action.`;
+    if (B.pending) return `${o.name}: tap the same tile again, or press Confirm.`;
+    return `${o.name}: tap a highlighted tile to aim.`;
   }
   if (u.moved && u.acted) return '';
   return u.acted ? 'Move, or end your turn.' : 'Choose an action, or end your turn.';
 }
 function renderPanel() {
   if (!B || !env.side) return;
+  B.panelGen = (B.panelGen || 0) + 1;
   const u = B.active;
   const mine = u && isHero(u) && B.resolveTurn && !B.busy && !env.auto;
   const kids = [h('div', { class: 'order' }, h('span', { class: 'lbl' }, 'NEXT'),
@@ -1648,11 +1659,19 @@ export class BattleScene extends Phaser.Scene {
   }
   update(time) {
     const b = B, g = this.ov;
+    const u = b && b.active;
+    const mine = u && isHero(u) && b.resolveTurn && !env.auto && !b.busy;
+    // Redraw the overlay only when something it shows has changed: what's selected or hovered, unit
+    // positions, and a coarse clock for the blinking cursor and the pulsing charge areas.
+    const charging = b && b.units.some(c => c.pending && !c.dead);
+    const sig = b ? [b.mode, b.sel, mine, b.busy, b.over, b.hover && key(b.hover.x, b.hover.y), b.pending && key(b.pending.x, b.pending.y),
+      b.inspect && (b.inspect.tile ? 't' : b.inspect.id), b.targets && b.targets.size, b.reach && b.reach.size, b.traps && b.traps.size, b.panelGen,
+      u && u.view && `${u.view.x},${u.view.y}`, b.units.map(x => x.dead ? '' : x.x * 8 + x.y).join(), Math.floor(time / (charging ? 100 : 250))].join('|') : '';
+    if (sig === this.sig) return;
+    this.sig = sig;
     g.clear();
     this.marks.forEach(m => m.setVisible(false));
     if (!b) return;
-    const u = b.active;
-    const mine = u && isHero(u) && b.resolveTurn && !env.auto && !b.busy;
     const fill = (x, y, col, a) => { g.fillStyle(col, a); g.fillRect(x * TS, y * TS, TS, TS); };
     const line = (x, y, col, a, w) => { g.lineStyle(w, col, a); g.strokeRect(x * TS + w / 2, y * TS + w / 2, TS - w, TS - w); };
     // A set of tiles drawn as one soft region: each tile filled, but only the region's outer edge

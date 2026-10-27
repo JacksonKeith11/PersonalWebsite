@@ -135,12 +135,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #flow .fig { margin: 0.5em 0; text-align: center; break-inside: avoid; }
 #flow img {
   display: block;
-  max-width: 100%;
-  max-height: var(--page-h, 80vh);
+  max-width: 85%;
+  max-height: calc(var(--page-h, 80vh) * 0.45);
   margin: 0 auto;
   object-fit: contain;
   break-inside: avoid;
 }
+/* A section that is only a picture (a cover, a frontispiece) gets the whole page. */
+#flow > .origin + .fig:last-child img { max-width: 100%; max-height: var(--page-h, 80vh); }
 #flow [data-s] {
   border-radius: 3px;
   transition: background-color 0.3s, box-shadow 0.3s;

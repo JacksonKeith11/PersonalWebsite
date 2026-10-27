@@ -136,23 +136,57 @@
     segs = [...flow.querySelectorAll("[data-s]")];
     flow.querySelectorAll("img").forEach((img) => img.addEventListener("load", () => relayout(), { once: true }));
     if (listening && audioChapter === chapter && segs[curSeg]) segs[curSeg].classList.add("reading");
+    // Turn to the place right away, so the old page number doesn't show the wrong part of the
+    // new chapter while pictures load, and again once they have.
+    const place = () => {
+      paginate();
+      if (end || segment == null || !segs[segment]) go(end ? pages - 1 : 0, false);
+      else go(pageOfSeg(segment), false, { el: segs[segment] });
+    };
+    place();
     await settle();
-    paginate();
-    go(end ? pages - 1 : segment != null ? pageOfSeg(segment) : 0, false);
+    place();
     if (n + 1 < book.chapters.length) fetchChapter(n + 1).catch(() => {});
     updateChapterDownload();
   }
 
-  async function relayout() {
-    if (chapter < 0) return;
-    const anchor = listening && audioChapter === chapter && curSeg >= 0 ? curSeg : segStartingOn(page);
-    await settle();
-    paginate();
-    go(pageOfSeg(anchor), false);
+  // What the reader is looking at, as an element and how many pages into it, noted whenever
+  // the page changes. A relayout (an image finishing loading, new text settings) returns to it;
+  // working it out afresh from the page number would be wrong once the text has moved.
+  let anchor = null;
+
+  function anchorAt(p, el = segs[segAtPage(p)]) {
+    if (!el) return null;
+    const [a, b] = pageRange(el);
+    return { el, into: p - a, span: b - a + 1 };
   }
 
-  function go(p, animate = true) {
+  function anchoredPage() {
+    if (!anchor || !anchor.el.isConnected) return page;
+    const { el, into, span } = anchor;
+    const [a, b] = pageRange(el);
+    if (into < 0) return a + into;
+    if (into >= span) return b + into - span + 1; // pictures after the paragraph
+    return a + Math.min(b - a, Math.floor((into * (b - a + 1)) / span));
+  }
+
+  async function relayout() {
+    if (chapter < 0) return;
+    const restore = () => {
+      paginate();
+      if (listening && audioChapter === chapter && segs[curSeg]) anchor = { el: segs[curSeg], into: 0, span: 1 };
+      go(anchoredPage(), false, { keep: true });
+    };
+    // The text has already moved (an image loaded, the window resized): follow it now, and
+    // again once other images and fonts are in.
+    restore();
+    await settle();
+    restore();
+  }
+
+  function go(p, animate = true, { keep = false, el = null } = {}) {
     page = Math.max(0, Math.min(pages - 1, p));
+    if (!keep) anchor = anchorAt(page, el || undefined);
     flow.classList.toggle("instant", !animate);
     flow.style.transform = `translateX(${-page * pageWidth}px)`;
     updateFooter();
@@ -481,8 +515,9 @@
       const mark = document.createElement("mark");
       mark.className = "hit";
       range.surroundContents(mark);
-      go(pageRange(mark)[0], false);
+      go(pageRange(mark)[0], false, { el: mark });
       setTimeout(() => {
+        if (anchor && anchor.el === mark) anchor = anchorAt(pageRange(mark)[0], el);
         mark.replaceWith(...mark.childNodes);
         el.normalize();
       }, 4000);

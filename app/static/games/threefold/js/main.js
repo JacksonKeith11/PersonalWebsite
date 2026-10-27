@@ -1,17 +1,17 @@
 // Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=3';
+import { GW, GH, ROWS_PER_ACT, ACTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=4';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull } from './rules.js?v=3';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=3';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=3';
-import { env, startBattle, BattleScene } from './battle.js?v=3';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=3';
-import { h, sprImg, bar } from './ui.js?v=3';
+  isSkillArt, artName, artText, artPrice, artTags, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=4';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=4';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=4';
+import { env, startBattle, BattleScene } from './battle.js?v=4';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=4';
+import { h, sprImg, bar } from './ui.js?v=4';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
-const SAVE_KEY = 'threefold-path-run-v3';
+const SAVE_KEY = 'threefold-path-run-v4';
 const TS = 64;
 
 const $ = id => document.getElementById(id);
@@ -99,7 +99,8 @@ function newRun() {
     // stress test: promoted heroes with four random skills, every slot filled with random artifacts
     const odd = shuffle(Object.keys(ITEMS).filter(id => ITEMS[id].unique));
     run.party.forEach((p, i) => {
-      promote(p, pick(CLASSES[p.cls].promos));
+      promote(p, pick(promoOptions(p)));
+      promote(p, pick(promoOptions(p)));
       p.skills = shuffle(skillPool(p).concat(p.skills.map(s => s.id))).slice(0, MAX_SKILLS).map(id => ({ id, mods: [] }));
       for (const s of p.skills) for (const id of shuffle(Object.keys(MODS))) if (canSocket(p, s, id)) s.mods.push(id);
       p.items.push(...odd.slice(i * MAX_RELICS, (i + 1) * MAX_RELICS));
@@ -191,12 +192,13 @@ env.onEnd = (b, win) => {
 };
 
 // ---------- cards ----------
+const archChips = tags => tags.length ? h('span', { class: 'chips' }, tags.map(t => h('span', { class: 'chip', style: `--c:${ARCHES[t].color}` }, ARCHES[t].name))) : null;
 const modalShow = el => { modal.replaceChildren(h('div', { class: 'modal-box' }, el)); modal.hidden = false; };
 function artCard(id, extra, onpick, disabled) {
   const skill = isSkillArt(id);
   return h('button', { class: 'pick ' + (skill ? 'skillart' : 'heroart'), disabled, onclick: () => { sfx('select'); onpick(); } },
     h('div', { class: 'pick-head' }, h('b', {}, artName(id)), extra),
-    h('div', { class: 'kind' }, skill ? (MODS[id].only ? `Skill artifact · ${SKILLS[MODS[id].only].name} only` : 'Skill artifact') : 'Hero artifact'),
+    h('div', { class: 'kind' }, skill ? (MODS[id].only ? `Skill artifact · ${SKILLS[MODS[id].only].name} only` : 'Skill artifact') : 'Hero artifact', archChips(artTags(id))),
     h('div', { class: 'desc' }, artText(id)));
 }
 function skillCard(p, id, extra, onpick, disabled) {
@@ -290,32 +292,27 @@ function showRewards(info) {
 function promoCard(p, id, onpick) {
   const pr = PROMOS[id], o = skStats(p, { id: pr.skill, mods: [] });
   return h('button', { class: 'pick sig', onclick: () => { sfx('promote'); onpick(); } },
-    h('div', { class: 'pick-head' }, sprImg(id, 'big'), h('b', {}, pr.name)),
-    h('div', { class: 'new' }, Object.entries(pr.stats).map(([k, v]) => `+${v} ${k === 'maxHp' ? 'max HP' : k.toUpperCase()}`).join(', ')),
+    h('div', { class: 'pick-head' }, sprImg(id, 'big'), h('b', {}, pr.name), archChips(pr.arch)),
+    h('div', { class: 'new' }, Object.entries(pr.stats).map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k === 'maxHp' ? 'max HP' : k.toUpperCase()}`).join(', ')),
     h('div', { class: 'desc' }, pr.passive),
     h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Learns ${o.name}: `), `${describe(o, heroSrc(p, run.gold))}. ${o.txt}`),
-    h('div', { class: 'desc dim' }, `Can later learn ${pr.pool.map(s => SKILLS[s].name).join(', ')}.`));
+    h('div', { class: 'desc dim' }, `Adds to their skill pool: ${pr.pool.map(s => SKILLS[s].name).join(', ')}.`),
+    pr.next ? h('div', { class: 'desc dim' }, `Can later become a ${pr.next.map(n => PROMOS[n].name).join(' or ')}.`) : null);
 }
-function promotionScreen(next, cost) {
-  const cands = run.party.map((p, hi) => ({ p, hi })).filter(c => !c.p.promo);
-  if (!cands.length) { next(); return; }
-  const become = (hi, id) => { if (cost) run.gold -= cost; promote(run.party[hi], id); learnFlow(hi, PROMOS[id].skill, next); };
-  const choose = hi => {
-    const p = run.party[hi];
-    setScreen(h('div', { class: 'panel' }, h('h2', {}, `The ${heroTitle(p)} can become...`),
-      h('div', { class: 'cards' }, CLASSES[p.cls].promos.map(id => promoCard(p, id, () => become(hi, id)))),
-      btn('Back', () => promotionScreen(next, cost))));
-    auto(() => become(hi, pick(CLASSES[p.cls].promos)));
+// After an act boss every hero promotes, choosing between two classes.
+function promotionScreen(next) {
+  const queue = run.party.map((p, hi) => hi).filter(hi => promoOptions(run.party[hi]).length);
+  const step = () => {
+    if (!queue.length) { next(); return; }
+    const hi = queue.shift(), p = run.party[hi], opts = promoOptions(p);
+    const become = id => { promote(p, id); clampHp(); hud(); learnFlow(hi, PROMOS[id].skill, step); };
+    setScreen(h('div', { class: 'panel' },
+      h('h2', {}, `The ${heroTitle(p)} can become...`),
+      h('p', { class: 'muted' }, p.line && p.line.length ? 'A master class. The old passive stays; the new one stacks on top.' : 'Victory sharpens every hero. Each gains stats, a passive and a new skill pool.'),
+      h('div', { class: 'cards' }, opts.map(id => promoCard(p, id, () => become(id))))));
+    auto(() => become(pick(opts)));
   };
-  setScreen(h('div', { class: 'panel' },
-    h('h2', {}, 'Promotion'),
-    h('p', {}, cost ? `For ${cost} gold, one hero may take up an advanced class.` : 'Victory sharpens one of your heroes. Choose who takes up an advanced class: they gain stats, a passive and a new skill.'),
-    h('div', { class: 'cards' }, cands.map(({ p, hi }) => h('button', { class: 'pick', onclick: () => { sfx('select'); choose(hi); } },
-      h('div', { class: 'pick-head' }, sprImg(heroSprite(p), 'big'), h('b', {}, heroTitle(p))),
-      h('div', { class: 'desc' }, 'Becomes ' + CLASSES[p.cls].promos.map(id => PROMOS[id].name).join(' or '))))),
-    cost ? btn('Not now', next) : null,
-  ));
-  auto(() => choose(pick(cands).hi));
+  step();
 }
 function nextAct() {
   if (run.act >= ACTS.length - 1) { victory(); return; }
@@ -405,9 +402,18 @@ const EVENTS = [
     { label: 'Read', note: 'Choose a skill artifact', go: () => ({ text: 'The words crawl off the page and harden into something you can hold.', arts: artifactPool(run, 3, 1) }) },
     { label: 'Burn a few for warmth', note: 'Heal 10%', go: () => { healAll(0.1); return 'The books scream a little. You feel slightly better.'; } },
   ] },
-  { title: 'Ascension Shrine', w: 3, act: r => r.act >= 1 && r.party.some(p => !p.promo), text: 'A pillar of light hums in a ring of standing stones. It asks for gold, and offers change.', choices: () => [
-    { label: 'Offer 80 gold', note: 'Promote a hero', cond: run.gold >= 80, go: () => ({ text: 'The light bends toward you.', promote: 80 }) },
-    { label: 'Leave', go: () => 'The light dims as you go.' },
+  { title: 'Curio Peddler', w: 2, text: 'A peddler unrolls a mat of strange goods, sorted with great care into little heaps. "Pick a heap, any heap. Forty gold."', choices: () => [
+    ...shuffle(Object.keys(ARCHES)).slice(0, 3).map(t => ({ label: `The ${ARCHES[t].name.toLowerCase()} heap`, note: `40 gold: choose from three ${ARCHES[t].name.toLowerCase()} artifacts`, cond: run.gold >= 40,
+      go: () => { run.gold -= 40; return { text: 'She sweeps the heap toward you. "Choose. Quickly."', arts: artifactPool(run, 3, 0.5, t) }; } })),
+    { label: 'Browse and leave', go: () => '"Window shoppers," she mutters.' },
+  ] },
+  { title: 'Thorned Altar', text: 'Brambles have grown into the shape of a kneeling knight. Its outstretched hand is full of thorns.', choices: () => [
+    { label: 'Clasp the hand', note: 'Every hero takes 6 damage; choose a thorns artifact', go: () => { hurtAll(6); return { text: 'The thorns bite deep and come away in your palm.', arts: artifactPool(run, 2, 0.5, 'thorns') }; } },
+    { label: 'Cut it down', note: '+25 gold', go: () => { run.gold += 25; return 'Coins tumble out of the hollow knight.'; } },
+  ] },
+  { title: 'Poisoner\'s Garden', act: r => r.act >= 1, text: 'Neat rows of beautiful, deadly plants. A sign reads "Take one. Don\'t eat it."', choices: () => [
+    { label: 'Take a cutting', note: 'Choose a poison artifact', go: () => ({ text: 'You wrap it carefully in cloth.', arts: artifactPool(run, 2, 0.5, 'poison') }) },
+    { label: 'Eat one', note: 'A random hero: +3 ATK and MAG, −12 max HP', go: () => { const p = pick(run.party); p.atk += 3; p.mag += 3; p.maxHp = Math.max(10, p.maxHp - 12); clampHp(); return `The ${heroTitle(p)} goes green, then grins.`; } },
   ] },
   { title: 'Lava Forge', act: r => r.act === 2, text: 'A dwarven forge, still roaring, built over a lava vent.', choices: () => [
     { label: 'Forge something', note: 'Every hero takes 8 damage; choose a fiery skill artifact', go: () => { hurtAll(8); return { text: 'The heat is unbearable. Something glows on the anvil.', arts: ['molten', 'kindling'] }; } },
@@ -444,8 +450,7 @@ function showEvent() {
         setScreen(h('div', { class: 'panel' }, h('h2', {}, 'Choose a technique'),
           h('div', { class: 'cards' }, opts.map(c => skillCard(run.party[c.hi], c.id, null, () => learnFlow(c.hi, c.id, showMap)))), btn('Skip', showMap)));
         auto(() => opts.length ? learnFlow(opts[0].hi, opts[0].id, showMap) : showMap());
-      } else if (res.promote) promotionScreen(showMap, res.promote);
-      else showMap();
+      } else showMap();
     };
     setScreen(h('div', { class: 'panel' }, h('h2', {}, ev.title), h('p', {}, res.text), btn('Continue', next, 'go')));
     auto(next);
@@ -508,7 +513,7 @@ function showParty() {
       return h('div', { class: 'hero-card' },
         h('div', { class: 'card-head' }, sprImg(heroSprite(p), 'big'), h('div', { class: 'who' }, h('b', {}, heroTitle(p)), bar(p.hp, st.maxHp, false), `${p.hp}/${st.maxHp} HP`)),
         h('div', { class: 'stats' }, `ATK ${st.atk} · MAG ${st.mag} · DEF ${st.def} · RES ${st.res} · SPD ${st.spd} · MOV ${st.mov} · CRIT ${st.crit}%`),
-        p.promo ? h('div', { class: 'desc' }, PROMOS[p.promo].passive) : null,
+        ...(p.line || []).map(c => h('div', { class: 'desc' }, h('b', { class: 'inline' }, PROMOS[c].name + ' '), PROMOS[c].passive)),
         h('h3', { style: 'margin-top:10px' }, `Skills ${p.skills.length}/${MAX_SKILLS}`),
         h('div', { class: 'skill-list' }, p.skills.map(s => {
           const o = skStats(p, s);
@@ -520,6 +525,9 @@ function showParty() {
         p.items.length ? h('ul', {}, p.items.map((id, i) => h('li', {}, `${artName(id)}: ${artText(id)} `, x('remove', () => unwear(p, i))))) : h('div', { class: 'muted' }, 'Nothing'),
       );
     })),
+    h('div', { class: 'panel', style: 'margin-top:16px' }, h('h3', {}, 'Archetypes'),
+      h('p', { class: 'muted' }, 'Rewards lean toward the archetypes your classes and artifacts share.'),
+      archChips(Object.entries(partyArches(run)).sort((a, b) => b[1] - a[1]).map(([t]) => t))),
     h('div', { class: 'panel', style: 'margin-top:16px' }, h('h3', {}, 'Pack'),
       run.stash.length ? h('div', { class: 'cards' }, run.stash.map((id, i) => artCard(id, h('span', { class: 'price' }, 'Equip'), () => equip(i)))) : h('div', { class: 'muted' }, 'Empty. Removed artifacts wait here.')),
   ));
@@ -541,11 +549,12 @@ function showTitle() {
     h('div', { class: 'howto' },
       h('h3', {}, 'How to play'),
       h('ul', {},
-        h('li', {}, 'Each act is a branching map of battles, events (?) and shops, ending in a boss. Beating a boss lets one hero take up an advanced class.'),
+        h('li', {}, 'Each act is a branching map of battles, events (?) and shops, ending in a boss. Beating a boss promotes every hero: each picks one of two advanced classes after Act 1, then one of two master classes after Act 2. Passives stack.'),
         h('li', {}, 'In battle, units take turns by speed (the "Next" strip). On a hero\'s turn, move once and act once, in either order.'),
         h('li', {}, 'Walls block movement and line of sight: bolts and arrows can\'t pass them, but lobbed skills can. Lava burns, brambles cut, high ground extends range, and cover cuts damage. Tap any tile to read it.'),
         h('li', {}, 'Flank: hitting a foe that another hero stands next to deals 25% more (the Rogue gets 50%).'),
         h('li', {}, 'Battles pay out in artifacts. Skill artifacts socket into a skill and rewrite it: swap the stat it uses, turn bolts into ricochets or shields, make attacks leap or melt the floor. Hero artifacts are worn and change the hero.'),
+        h('li', {}, 'Artifacts and classes share archetypes (poison, elemental, shield, thorns, blood, time). Stack one and rewards start leaning toward it.'),
         h('li', {}, 'After a fight a hero can learn a new skill from their class. Each knows at most 4, so learning may mean forgetting.'),
         h('li', {}, 'Healing is scarce. Wounds carry between fights, healing in battle can\'t undo earlier wounds, and the fallen get up with 10% HP. Each new act restores everyone. Dawdle in a fight and the enemy grows furious.'),
         h('li', {}, 'On touch screens, tap a target once to preview, again to confirm.'),

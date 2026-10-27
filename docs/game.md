@@ -16,8 +16,8 @@ loads Phaser 3.80.1 from cdnjs, then `js/main.js` as an ES module.
 
 | File | Holds |
 |---|---|
-| `js/data.js` | All content: terrain, acts and encounters, classes and skill pools, promotions, `SKILLS`, `MODS` (skill artifacts), `ITEMS` (hero artifacts), `FOES`. Start here for content or balance changes. |
-| `js/rules.js` | Pure rules shared by menus and battle: hero stats, `skStats` (a skill after its artifacts and the hero's artifacts), `describe`, `canSocket`, reward pools, skill offers. |
+| `js/data.js` | All content: terrain, acts and encounters, `ARCHES` (archetypes), classes and skill pools, promotions (`PROMOS`, two tiers), `SKILLS`, `MODS` (skill artifacts), `ITEMS` (hero artifacts), `FOES`. Start here for content or balance changes. |
+| `js/rules.js` | Pure rules shared by menus and battle: hero stats, `isClass`, `promoOptions`, `skStats` (a skill after its artifacts, the hero's artifacts and class passives), `thornsOf`, `describe`, `canSocket`, archetype-weighted reward pools, skill offers. |
 | `js/battle.js` | `BattleScene` (Phaser drawing, tweens, particles), the turn loop, damage, statuses, movement, line of sight, terrain effects, the AI, and the battle side panel (HTML). |
 | `js/main.js` | Run flow and every HTML screen: title, map side panel, rewards, equipping, learning skills, promotion, events, shop, party screen, saving, the Phaser game config. |
 | `js/mapscene.js` | `MapScene`: the branching map, drawn and clickable. |
@@ -41,8 +41,24 @@ Keep it that way.
   - Don't add easy healing back.
 - **No stalling.** After about 9 rounds (`CALM_TURNS` hero turns) foes gain +10% damage per round.
   This exists to stop "keep one enemy alive and heal in a corner".
+- **Every hero promotes after each act boss**, choosing between two classes: a tier-1 class
+  (`CLASSES.promos`) after Act 1, then a tier-2 master class (`PROMOS[t1].next`) after Act 2. That's
+  6 + 12 classes. `p.line` lists a hero's classes and **all their passives stack**; `p.promo` is
+  only the latest (sprite and title). Each class teaches a signature skill and adds 7–12 skills to
+  the hero's pool.
+- **Skill pools are deliberately maximalist.** The owner plays them and prunes what isn't fun, so
+  prefer adding a strange skill over polishing a safe one. Removing a skill means deleting it from
+  its pool (and from `SKILLS` if nothing else uses it). A pool naming a missing skill only fails at
+  runtime, so grep for the id.
 - **Skills come from class pools.** Heroes start with 3 (`CLASSES.start`) and learn from `pool`
-  (promotions add their own), up to `MAX_SKILLS` = 4. Learning a fifth means forgetting one.
+  plus every class in their line, up to `MAX_SKILLS` = 4. Learning a fifth means forgetting one.
+- **Archetypes give builds a direction.** Six tags in `ARCHES` (poison, elemental, shield, thorns,
+  blood, time) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
+  how much of each archetype the party has (`partyArches`), so a build snowballs without being
+  forced. Every archetype needs payoff artifacts that reward stacking it (detonate poison, damage vs
+  shocked, scale with shield or thorns), not just more of the same status.
+- **Classes and skills borrow from FFT, Tactics Ogre and Horizon's Gate** (Jump, Draw Out, Rampart,
+  Arithmetician math targeting, Steal Heart, songs), reshaped to fit the grid and scarce healing.
 - **Skill modifiers are artifacts, and artifacts are the main battle reward.**
   - Skill artifacts (`MODS`) socket into a skill (`MAX_MODS` = 2) and rewrite it: the stat it
     scales with, its targeting, its effect.
@@ -54,6 +70,8 @@ Keep it that way.
   Pass a source wherever a skill is described.
 - **Pixel art only, no image or audio files.** New sprites are 16×16 text grids in `art.js`; new
   sounds are synth recipes in `audio.js`.
+- **Later acts scale harder** (`foeUnit`: +12% HP and +8% ATK/MAG per act on top of the per-level
+  curve) to answer every hero promoting after each boss.
 - **Difficulty should be hard but winnable.** The random-choice autopilot currently wins about 1 run
   in 6, losing mostly to bosses across all three acts. A person managing HP should do clearly
   better.
@@ -97,6 +115,36 @@ the browser can't reach cdnjs.
   - Render at 44.1 kHz; older Safari rejects lower offline rates.
   - Buffers are normalized after rendering, so a new sound's synth `vol` only sets its internal
     balance, not its loudness.
+- **Check class passives with `isClass(u, id)`**, never `u.promo === id`: a tier-2 hero keeps
+  their tier-1 passive. Foes have `line: []`.
+- **Status vocabulary** (all on `u.st`, counted down in `endTurn` unless noted): poison, burn,
+  slow, stun, blind, vuln, shock, doom (counts down at turn start), sleep (skips turns, ends when
+  hit), confuse, root (no movement), disarm (no skills), weak (−30% damage), oil (fire ignites it),
+  wet (lightning or frost on a wet target stuns it), focus (next damaging skill +60%), ward, guard,
+  rally, movUp, imbue (hits add `imbueKind`), thorns, stealth, airborne. `DEBUFFS` and `BUFFS` in
+  `battle.js` drive purify, dispel, Ruin Touch and Viral; add new statuses there too.
+- **Odd skill machinery** in `useSkill`:
+  - `delay`: the skill charges and goes off at the start of the caster's next turn (`u.pending`,
+    drawn as pulsing tiles). Use `tgt: 'tile'` so it has somewhere to land.
+  - `mimic`: `effective(u, s)` swaps in the last skill the caster's side used (`B.lastCast`). Call
+    `effective`, not `skStats`, wherever a skill is about to be targeted or used.
+  - `shape: 'coin'`: every foe or every ally, decided by `B.coin` when it's used.
+  - `trap`: plants on the empty tiles of the area (`B.traps`), sprung in `enterTile` by the other
+    side. The AI never lays traps.
+  - Hero summons (`kind: 'summon'`) spawn allied foe units; `decoy` has `lure`, which the AI loves
+    to hit.
+- **Charm flips `u.side`.** The original is kept in `u.origSide` and restored when the charm ends or
+  the unit dies. `checkEnd` counts `homeSide(u)` (which also sees through confusion's temporary `'mad'` side), so charming the last foe doesn't win the
+  battle. Anything new that asks "is this a foe?" for bookkeeping (kills, rewards) should do the same.
+  A unit that snaps out of a charm can't be charmed again for 2 turns (`st.resolve`), and the AI
+  won't charm the last foe standing; without both, a hero with no cooldowns could stall forever.
+- **Thorns** are computed, not stored: `thornsOf(u)` (class, items, the `st.thorns` buff), doubled
+  in brambles for `thornproof` units by `thornsNow` in `battle.js`. They fire inside `damage()` for
+  melee hits (any range with the Retribution Idol), with `reflected` set so they can't bounce.
+- **`shape: 'math'`** skills target every unit matching `rule` anywhere on the board (prime HP, even
+  HP, row + column divisible by 3, poisoned). They're `tgt: 'self'` with no area tiles.
+- **Silence (`cdLock`) only locks skills whose base cooldown is above 0**, so a silenced unit can
+  always basic-attack. Don't lock cooldown-0 skills or units with one skill stop acting.
 - **IDs must stay distinct between `MODS` and `ITEMS`.** Pack entries are bare ids, and
   `isSkillArt(id)` tells them apart by looking in `MODS`. An id in both breaks the pack. Skill ids
   live in a separate namespace (`SKILLS`).

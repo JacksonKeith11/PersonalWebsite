@@ -443,6 +443,52 @@ Object.assign(ART, {
   assassin: recolor('rogue', { H: '#2b2240', h: '#16112a', c: '#1f1a2e', C: '#3a3050', L: '#120e1c', w: '#c44dff' }),
   trickster: recolor('rogue', { H: '#d9a520', h: '#a03030', c: '#7a2a6a', C: '#b04090', L: '#30306a', w: '#7fe3ff' }),
 });
+ART.decoy = {
+  pal: { k: K, Y: '#e0c060', y: '#a08030', B: '#6a4a2a', R: '#b03a3a', w: '#f2ead8', e: K },
+  rows: [
+    '................',
+    '......kkkk......',
+    '.....kYYYYk.....',
+    '....kYYYYYYk....',
+    '.....kwewek.....',
+    '.....kwwwwk.....',
+    '..kkkkRRRRkkkk..',
+    '.kYyyBRRRRByyYk.',
+    '..kkkkRRRRkkkk..',
+    '.....kRyRRk.....',
+    '.....kRRyRk.....',
+    '......kBBk......',
+    '......kBBk......',
+    '......kBBk......',
+    '.....kkBBkk.....',
+    '....kkkkkkkk....',
+  ],
+};
+// Master classes: a recolor plus replacement rows (row index -> 16-char row) for a new silhouette.
+const variant = (base, pal, rows) => { const r = recolor(base, pal); r.rows = r.rows.map((row, i) => rows[i] || row); return r; };
+Object.assign(ART, {
+  samurai: variant('warrior', { G: '#2a2a3a', g: '#c73b3b', b: '#8a2020', B: '#c73b3b', S: '#2a2a3a', Y: '#f2c94c', w: '#ffffff', L: '#26222e' },
+    { 0: '...Y.......Y....', 1: '....YkkkkkY.....' }),
+  dragoon: variant('warrior', { G: '#3a5aa8', g: '#22336a', b: '#2a4a8a', B: '#5a7ad8', S: '#3a5aa8', Y: '#c9f7ff', w: '#e7eef7', L: '#1a2240' },
+    { 0: '......k.......k.', 1: '.....kkkkk...kwk', 2: '....kGGGGGk..kwk', 3: '....kGgggGk..kwk' }),
+  hoplite: variant('warrior', { G: '#d9a520', g: '#9a7414', b: '#a83232', B: '#d85050', S: '#d9a520', Y: '#a83232', L: '#4a3a2c' },
+    { 0: '.....kBBBk......', 1: '.....kkkkk......' }),
+  briarknight: variant('warrior', { G: '#3e6a32', g: '#24421e', b: '#4a6a2a', B: '#7aa04a', S: '#5a4a2a', Y: '#c8b45a', w: '#d8e8b8', L: '#2a3a1e' },
+    { 0: '....k.k.k.k.....', 1: '.....kkkkk......' }),
+  stormcaller: recolor('mage', { P: '#2a4a9a', p: '#16285a', O: '#ffe14d', Y: '#ffe14d', w: '#6a6a7a' }),
+  warlock: variant('mage', { P: '#3a1a3a', p: '#1a0a1a', O: '#e04848', Y: '#e04848', w: '#2a1a1a', e: '#ff4040' },
+    { 0: '....k.....k.....', 1: '....kPk...kPk...' }),
+  arithmetician: recolor('mage', { P: '#e8e2d0', p: '#9a9480', O: '#7dff8a', Y: '#3a8a4a', w: '#6a4a2a' }),
+  oracle: recolor('mage', { P: '#f2ead8', p: '#c8a040', O: '#c9a0ff', Y: '#c8a040', w: '#c8a040' }),
+  ninja: variant('rogue', { H: '#1a1a24', h: '#0e0e16', c: '#1a1a24', C: '#2e2e3a', L: '#0e0e16', w: '#e04848' },
+    { 5: '...kHkekekk.....', 6: '...kHhhhhhk.....' }),
+  plaguebringer: variant('rogue', { H: '#3a2a20', h: '#1e140e', c: '#2a2a20', C: '#4a4a3a', L: '#1a1a14', w: '#8be04e', s: '#d8d0b8' },
+    { 5: '...kHsesesskk...', 6: '...kHhsssssk.....'.slice(0, 16) }),
+  bard: variant('rogue', { H: '#2a7ab0', h: '#1a4a70', c: '#b03a3a', C: '#e0a040', L: '#3a2a5a', w: '#f2c94c' },
+    { 0: '.........ww.....', 1: '.....kkkkkw.....' }),
+  mesmer: variant('rogue', { H: '#9a2a8a', h: '#5a1a5a', c: '#3a1a4a', C: '#ff8ad8', L: '#2a1a3a', w: '#ff8ad8', s: '#f8e8f0' },
+    { 5: '...kHCeCeCk.....' }),
+});
 
 const PROPS = {
   rubble: { pal: { k: '#1e1c28', R: '#6e6c80', r: '#8e8ca0', W: '#e8e2d0' }, rows: [

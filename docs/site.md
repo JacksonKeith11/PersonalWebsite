@@ -53,4 +53,4 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   set when the app started. Changing `.env` needs a restart.
 - uvicorn runs with `--proxy-headers` because requests arrive through the tunnel. Cookies are set
   `secure=True`, so logging in over plain `http://localhost:8080` won't stick in a browser.
-- `README.md` is older than most of the site; trust `CLAUDE.md` and these docs over it.
+- `README.md` is the human-facing overview; keep its table of paths current when adding a page.

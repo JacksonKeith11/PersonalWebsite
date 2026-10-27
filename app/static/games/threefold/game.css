@@ -197,3 +197,5 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .mods { margin: 2px 0 6px; }
 .mod { display: inline-block; margin-right: 10px; color: #7fd8d0; font-size: 18px; }
 .mod.empty { color: #5d5070; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.chip { font-size: 15px; line-height: 1; padding: 2px 5px; border: 1px solid var(--c); color: var(--c); border-radius: 2px; white-space: nowrap; }

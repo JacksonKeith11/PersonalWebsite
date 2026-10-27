@@ -48,7 +48,6 @@ def login(next_path: str = "/books", failed: bool = False) -> str:
     <ul class="features">
       <li>Read page by page with adjustable themes, fonts, text size and spacing</li>
       <li>Listen with the current paragraph highlighted as it's read aloud</li>
-      <li>Search the text and jump around with the table of contents</li>
       <li>Your place is saved, and you can download the EPUB or the MP3 audiobook</li>
     </ul>
     <p class="hint">Enter a username to open your library. A new name starts an empty one, and you'll only

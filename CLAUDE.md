@@ -23,7 +23,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/books/` and `app/static/books/`: EPUB library, reader, story importer and Kokoro narration
   at `/books`, behind a username
 - `app/static/games/threefold/`: Threefold Path, a Phaser tactics roguelike at `/games/threefold-path`
-- `tools/`: dev scripts (the game's headless autoplay test)
+- `tools/`: dev scripts (the game's headless autoplay test, and `threefold-art/`, the Python that draws its sprites)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
 ## Area docs
@@ -36,7 +36,7 @@ up front. Read the matching one before you change something in that area:
 | `app/main.py`, `app/auth.py`, public pages, `style.css`, the nav bar, Dockerfiles, compose, deploy | `docs/site.md` |
 | `app/serials/` | `docs/serials.md` |
 | `app/books/`, `app/static/books/` | `docs/books.md` |
-| `app/static/games/`, `tools/threefold-autoplay.js` | `docs/game.md` |
+| `app/static/games/`, `tools/threefold-autoplay.js`, `tools/threefold-art/` | `docs/game.md` |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.
 

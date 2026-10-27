@@ -568,13 +568,15 @@
     relayout();
   }
 
+  // Sections are playable while they're still being narrated: the timing then has
+  // complete: false and covers only the paragraphs written so far.
   async function playChapter(n, seg = 0) {
     clearTimeout(waitTimer);
     audioChapter = n;
     timing = null;
     followPage = -1;
     setStatus("Loading audio…");
-    let t;
+    let t = null;
     try {
       t = await getJSON(api(`/audio/${n}.json`));
     } catch (e) {
@@ -584,30 +586,61 @@
         waitTimer = setTimeout(() => playChapter(n, seg), 5000);
         return;
       }
-      fetch(api("/listen"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chapter: n }) });
-      const s = await refreshAudioStatus();
-      if (audioChapter !== n || !listening) return;
-      const w = s.working;
-      setStatus(w && w.chapter === n
-        ? `Narrating this section… ${Math.floor((w.segment / w.segments) * 100)}% (plays when ready)`
-        : "Queued for narration; plays when ready");
-      waitTimer = setTimeout(() => playChapter(n, seg), 4000);
-      return;
     }
     if (audioChapter !== n || !listening) return;
-    audioReady.add(n);
-    if (!t.starts.length) return advance(n);
+    if (t && t.complete !== false && !t.starts.length) return advance(n);
+    if (!t || (t.complete === false && t.starts.length <= seg)) return waitFor(n, seg, () => playChapter(n, seg));
+    if (t.complete !== false) audioReady.add(n);
+    load(n, t, t.starts[Math.min(seg, t.starts.length - 1)] || 0);
+  }
+
+  async function load(n, t, at) {
     timing = t;
     unlocking = false;
-    audio.src = api(`/audio/${n}.mp3`);
+    audio.src = api(`/audio/${n}.mp3`) + (t.complete === false ? `?bytes=${t.bytes}` : "");
     audio.defaultPlaybackRate = settings.speed;
     audio.playbackRate = settings.speed;
-    await new Promise((done) => audio.addEventListener("loadedmetadata", done, { once: true }));
+    const loaded = await new Promise((done) => {
+      audio.addEventListener("loadedmetadata", () => done(true), { once: true });
+      audio.addEventListener("error", () => done(false), { once: true });
+    });
     if (audioChapter !== n || !listening) return;
-    audio.currentTime = t.starts[Math.min(seg, t.starts.length - 1)] || 0;
+    if (!loaded) {
+      setStatus("Couldn't load audio; retrying…");
+      waitTimer = setTimeout(() => continuePartial(n, at), 4000);
+      return;
+    }
+    audio.currentTime = at;
     audio.playbackRate = settings.speed;
     audio.play().catch(() => setStatus("Tap play to start"));
     updateMediaSession();
+  }
+
+  // Ask for this section to be narrated next and check back until paragraph `seg` exists.
+  async function waitFor(n, seg, retry) {
+    fetch(api("/listen"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chapter: n }) });
+    const s = await refreshAudioStatus().catch(() => null);
+    if (audioChapter !== n || !listening) return;
+    const w = s && s.working;
+    let text = "Queued for narration; plays when ready";
+    if (w && w.chapter === n) {
+      const eta = w.seconds_per_segment ? (seg - w.segment) * w.seconds_per_segment : 0;
+      text = eta > 90 ? `Narration reaches this page in about ${Math.round(eta / 60)} min` : "Narrating; starts in a moment…";
+    }
+    setStatus(text);
+    waitTimer = setTimeout(retry, 3000);
+  }
+
+  // Reached the end of what's been narrated so far: pick up the newly written audio.
+  async function continuePartial(n, at) {
+    let t = null;
+    try {
+      t = await getJSON(api(`/audio/${n}.json`));
+    } catch {}
+    if (audioChapter !== n || !listening) return;
+    if (t && (t.complete !== false || t.duration > at + 1)) return load(n, t, at);
+    const seg = timing.starts.length;
+    waitFor(n, seg, () => continuePartial(n, at));
   }
 
   async function advance(n) {
@@ -619,7 +652,8 @@
 
   audio.addEventListener("ended", () => {
     if (unlocking || !listening || !timing) return;
-    advance(audioChapter);
+    if (timing.complete === false) continuePartial(audioChapter, audio.currentTime);
+    else advance(audioChapter);
   });
 
   audio.addEventListener("timeupdate", () => {
@@ -636,7 +670,7 @@
     }
     curSeg = i;
     const title = book.chapters[audioChapter].title;
-    setStatus(`${title} · ${fmt(t)} / ${fmt(timing.duration)}`);
+    setStatus(`${title} · ${fmt(t)} / ${fmt(timing.duration)}${timing.complete === false ? "+" : ""}`);
   });
 
   // Turn pages along with the narration, but only when the narration itself reaches a new page,
@@ -660,6 +694,7 @@
   const ICON_PLAY = '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
   const ICON_PAUSE = $("#playpause").innerHTML;
   audio.addEventListener("play", () => {
+    if (unlocking) return;
     $("#playpause").innerHTML = ICON_PAUSE;
     $("#playpause").setAttribute("aria-label", "Pause");
   });
@@ -675,7 +710,11 @@
 
   $("#listen-fab").addEventListener("click", onListenButton);
   $("#listen-top").addEventListener("click", onListenButton);
-  $("#playpause").addEventListener("click", () => (audio.paused ? audio.play() : audio.pause()));
+  $("#playpause").addEventListener("click", () => {
+    if (!timing || unlocking) return; // nothing narrated to play yet
+    if (audio.paused) audio.play();
+    else audio.pause();
+  });
   $("#back15").addEventListener("click", () => skip(-15));
   $("#fwd15").addEventListener("click", () => skip(15));
   $("#stop").addEventListener("click", stopListening);

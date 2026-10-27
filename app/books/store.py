@@ -10,6 +10,7 @@ data/books/
   <id>/chapters/<n>.json the text of each segment, in order
   <id>/audio/<n>.mp3     narration for chapter n
   <id>/audio/<n>.json    {"starts": [segment start seconds], "duration": seconds}; written last, marks n done
+  <id>/audio/.<n>.mp3.tmp, <n>.partial.json   chapter n while it's being narrated (playable as it grows)
 """
 
 import json
@@ -54,6 +55,11 @@ def list_books() -> list[dict]:
         return []
     books = [read_json(p / "book.json") for p in BOOKS_DIR.iterdir() if ID_RE.match(p.name)]
     return sorted((b for b in books if b), key=lambda b: b["added"], reverse=True)
+
+
+def partial_paths(folder: Path, n: int) -> tuple[Path, Path]:
+    """The MP3 of a chapter still being narrated, and the record of how much of it is written."""
+    return folder / "audio" / f".{n}.mp3.tmp", folder / "audio" / f"{n}.partial.json"
 
 
 def audio_done(book_id: str) -> set[int]:

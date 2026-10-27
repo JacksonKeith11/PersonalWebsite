@@ -134,18 +134,52 @@ def resource(book_id: str, path: str):
 def audio_timing(book_id: str, n: int):
     _, folder = _book(book_id)
     timing = store.read_json(folder / "audio" / f"{n}.json")
-    if timing is None:
+    if timing is not None:
+        return JSONResponse(timing, headers=IMMUTABLE)
+    partial = store.read_json(store.partial_paths(folder, n)[1])
+    if not partial or not partial["starts"]:
         raise HTTPException(404, "Not generated yet")
-    return JSONResponse(timing, headers=IMMUTABLE)
+    return JSONResponse({**partial, "complete": False}, headers=auth.PRIVATE_HEADERS)
 
 
 @api.get("/{book_id}/audio/{n}.mp3")
-def audio(book_id: str, n: int):
+def audio(book_id: str, n: int, request: Request):
     _, folder = _book(book_id)
     path = folder / "audio" / f"{n}.mp3"
-    if not (folder / "audio" / f"{n}.json").exists() or not path.exists():
+    if (folder / "audio" / f"{n}.json").exists() and path.exists():
+        return FileResponse(path, media_type="audio/mpeg", headers=IMMUTABLE)
+    tmp, partial = store.partial_paths(folder, n)
+    length = (store.read_json(partial) or {}).get("bytes", 0)
+    try:
+        return _byte_range(tmp, length, request.headers.get("range"))
+    except FileNotFoundError:  # finished between the checks above; serve the final file
+        if not path.exists():
+            raise HTTPException(404)
+        return FileResponse(path, media_type="audio/mpeg", headers=IMMUTABLE)
+
+
+def _byte_range(path: Path, length: int, header: str | None) -> Response:
+    """Serve the first `length` bytes of a file that's still being written, honoring Range
+    requests (Safari won't play audio without them)."""
+    if length <= 0:
         raise HTTPException(404)
-    return FileResponse(path, media_type="audio/mpeg", headers=IMMUTABLE)
+    start, end, status = 0, length - 1, 200
+    if header and header.startswith("bytes="):
+        first, _, last = header[6:].split(",")[0].strip().partition("-")
+        if first:
+            start, end = int(first), min(int(last) if last else length - 1, length - 1)
+        else:
+            start = max(0, length - int(last))
+        if start > end:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{length}"})
+        status = 206
+    with path.open("rb") as f:
+        f.seek(start)
+        data = f.read(end - start + 1)
+    headers = {"Accept-Ranges": "bytes", **auth.PRIVATE_HEADERS}
+    if status == 206:
+        headers["Content-Range"] = f"bytes {start}-{end}/{length}"
+    return Response(data, status_code=status, media_type="audio/mpeg", headers=headers)
 
 
 @api.get("/{book_id}/audio-status")

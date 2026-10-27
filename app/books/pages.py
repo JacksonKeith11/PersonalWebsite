@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 1
+ASSET_VERSION = 2
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'

@@ -20,6 +20,7 @@ MODEL_DIR = Path(os.environ.get("KOKORO_DIR", "/models"))
 RATE = 24000
 PAUSE = np.zeros(int(RATE * 0.4), dtype=np.float32)  # between paragraphs
 BITRATE = 48  # kbps mono; plenty for speech
+BYTES_PER_SECOND = BITRATE * 1000 // 8
 
 log = logging.getLogger("tts")
 
@@ -72,37 +73,63 @@ def generate(kokoro: Kokoro, book: dict, n: int) -> None:
         store.write_json(timing, {"starts": [], "duration": 0})
         return
 
+    # The MP3 grows paragraph by paragraph, and the .partial.json beside it records what's been
+    # written, so the reader can start listening right away and paused work resumes where it left off.
     mp3 = folder / "audio" / f"{n}.mp3"
-    tmp = mp3.with_name(f".{n}.mp3.tmp")
+    tmp, partial = store.partial_paths(folder, n)
+    state = store.read_json(partial) if tmp.exists() else None
+    if state:
+        with tmp.open("r+b") as f:
+            f.truncate(state["bytes"])  # drop anything written after the last checkpoint
+        starts, written = state["starts"], state["bytes"]
+    else:
+        tmp.write_bytes(b"")
+        starts, written = [], 0
+    # Constant bitrate, so the file length is the audio length.
+    samples = written * RATE // BYTES_PER_SECOND
     enc = _encoder()
-    starts, samples, last_status = [], 0, 0.0
-    try:
-        with tmp.open("wb") as out:
-            for i, text in enumerate(texts):
-                if _wanted_elsewhere(book["id"], n):
-                    raise Preempted  # restarted later
-                if not folder.exists():
-                    raise Preempted  # book was deleted
-                if time.time() - last_status > 2:
-                    store.write_json(store.WORKER, {
-                        "book": book["id"], "chapter": n, "segment": i, "segments": len(texts), "updated": time.time(),
-                    })
-                    last_status = time.time()
+    began, began_at, last_status = len(starts), time.time(), 0.0
 
-                starts.append(round(samples / RATE, 3))
-                try:
-                    audio, _ = kokoro.create(text, voice=VOICE, speed=1.0, lang="en-us")
-                except Exception:
-                    log.exception("Couldn't narrate segment %d of %s chapter %d", i, book["id"], n)
-                    audio = np.zeros(0, dtype=np.float32)
-                chunk = np.concatenate([audio.astype(np.float32), PAUSE])
-                out.write(enc.encode((np.clip(chunk, -1, 1) * 32767).astype("<i2").tobytes()))
-                samples += len(chunk)
-            out.write(enc.flush())
-        os.replace(tmp, mp3)
-        store.write_json(timing, {"starts": starts, "duration": round(samples / RATE, 3)})
-    finally:
-        tmp.unlink(missing_ok=True)
+    def checkpoint() -> None:
+        store.write_json(partial, {
+            "starts": starts, "duration": round(written / BYTES_PER_SECOND, 3), "bytes": written, "segments": len(texts),
+        })
+
+    with tmp.open("ab") as out:
+        for i in range(len(starts), len(texts)):
+            if not folder.exists():
+                raise Preempted  # book was deleted
+            if _wanted_elsewhere(book["id"], n):
+                tail = enc.flush()
+                out.write(tail)
+                written += len(tail)
+                checkpoint()
+                raise Preempted
+            if time.time() - last_status > 2:
+                done = i - began
+                store.write_json(store.WORKER, {
+                    "book": book["id"], "chapter": n, "segment": i, "segments": len(texts), "updated": time.time(),
+                    "seconds_per_segment": (time.time() - began_at) / done if done else None,
+                })
+                last_status = time.time()
+
+            starts.append(round(samples / RATE, 3))
+            try:
+                audio, _ = kokoro.create(texts[i], voice=VOICE, speed=1.0, lang="en-us")
+            except Exception:
+                log.exception("Couldn't narrate segment %d of %s chapter %d", i, book["id"], n)
+                audio = np.zeros(0, dtype=np.float32)
+            chunk = np.concatenate([audio.astype(np.float32), PAUSE])
+            data = enc.encode((np.clip(chunk, -1, 1) * 32767).astype("<i2").tobytes())
+            out.write(data)
+            out.flush()
+            written += len(data)
+            samples += len(chunk)
+            checkpoint()
+        out.write(enc.flush())
+    os.replace(tmp, mp3)
+    store.write_json(timing, {"starts": starts, "duration": round(mp3.stat().st_size / BYTES_PER_SECOND, 3)})
+    partial.unlink(missing_ok=True)
 
 
 def main() -> None:

@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=32';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=33';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -33,7 +33,6 @@ export function heroStats(p, gold = 0) {
   for (const id of p.items) for (const [k, v] of Object.entries(ITEMS[id].stats || {})) o[k] += v;
   if (p.items.includes('anklet')) o.maxHp = Math.round(o.maxHp * 0.75);
   if (p.items.includes('goldtooth')) { const b = Math.floor(gold / 100); o.atk += b; o.mag += b; }
-  if (p.items.includes('swapstone')) [o.atk, o.mag] = [o.mag, o.atk];
   o.mov = Math.max(1, o.mov); o.spd = Math.max(1, o.spd);
   return o;
 }
@@ -182,7 +181,7 @@ export function describeParts(o, src) {
   const times = o.times || (o.double ? 2 : 1);
   if (o.gravity) parts.push(`Takes ${Math.round(o.gravity * 100)}% of current HP (half on bosses)`);
   else if (o.kind === 'heal') parts.push(`Heals ${pct}`);
-  else if (o.kind === 'shield') parts.push(`Shields ${pct}`);
+  else if (o.kind === 'shield') parts.push(`Shields ${pct} for 2 rounds`);
   else if (o.kind === 'phys' || o.kind === 'mag') parts.push(`${pct} ${o.kind === 'mag' ? 'magic' : 'physical'}${times > 1 ? ' ×' + times : ''}`);
   if (o.shape === 'chain') parts.push(`Bounces ${o.chainN}×`);
   if (o.hits === 'all' && o.aoe) cost.push('Hits allies too');
@@ -190,11 +189,11 @@ export function describeParts(o, src) {
   const flags = [['stun', 'Stuns'], ['stunLow', 'Stuns if under half HP'], ['slow', 'Slows'], ['knock', 'Knockback'], ['pull', 'Pulls'],
     ['swap', 'Swaps places'], ['leap', 'Leaps in'], ['dash', 'Dashes'], ['teleport', 'Teleports'], ['taunt', 'Taunts'], ['rally', 'Rallies'], ['blind', 'Blinds'], ['execute', '×2 under half HP'],
     ['drain', 'Drains'], ['generous', 'Heals an ally'], ['vuln', 'Exposes'], ['terrain', 'Reshapes ground'], ['walls', 'Raises walls'], ['echo', 'May echo'],
-    ['gamble', 'Random damage'], ['ctTake', 'Delays target'], ['ctGive', 'Hastes'], ['stealth', 'Stealth'], ['riposte', 'Riposte'], ['vortex', 'Pulls foes in'],
+    ['gamble', 'Random damage'], ['stealth', 'Stealth'], ['riposte', 'Riposte'], ['vortex', 'Pulls foes in'],
     ['selfShield', 'Shields you'], ['overflow', 'Overflow shields'], ['backstab', 'Backstab'], ['recoil', 'Hops away'],
     ['shock', 'Shocks'], ['charm', 'Charms'], ['doom', 'Dooms'], ['cdLock', 'Silences'], ['ward', 'Wards'], ['land', 'Jumps'],
     ['steal', 'Steals gold'], ['still', '+50% if you stayed put'], ['fester', '+15% per poison turn'], ['shatter', '+60% vs slowed'], ['ironbark', '+3% per DEF'], ['selfShieldHp', 'Shields you 10% max HP'],
-    ['sanguine', '+1% per 1% HP missing'], ['leech', 'Poison heals you'], ['selfHaste', 'Hastes you'], ['brace', 'Braces'], ['guard', 'Guards'],
+    ['sanguine', '+1% per 1% HP missing'], ['leech', 'Poison heals you'], ['brace', 'Braces'], ['guard', 'Guards'],
     ['root', 'Roots'], ['disarm', 'Disarms'], ['weak', 'Weakens'], ['oil', 'Oils'], ['wet', 'Soaks'], ['sleep', 'Sleep'], ['confuse', 'Confuses'], ['purify', 'Purifies'],
     ['dispel', 'Dispels'], ['movUp', '+1 MOV'], ['focus', 'Focus'], ['ctZero', 'Resets their turn'], ['pincer', '+40% per ally beside the target'], ['momentum', '+8% per tile away'],
     ['perDebuff', '+30% per debuff on the target'], ['recoilDmg', 'Hurts you too'], ['sure', 'Can\'t miss'], ['stealShield', 'Steals shields'], ['spread', 'Spreads debuffs'],
@@ -213,6 +212,10 @@ export function describeParts(o, src) {
   if (o.hex) fx.push(`Hexes ${o.hex}`);
   if (o.critUp) fx.push(`+${o.critUp}% crit`);
   for (const [k, label] of flags) if (o[k] && k !== 'drain' && k !== 'selfShield') (k === 'recoilDmg' ? cost : fx).push(label);
+  // turn-order shifts, as a share of a turn (100 CT)
+  if (o.ctTake) fx.push(`Delays target ${o.ctTake}% of a turn`);
+  if (o.ctGive) fx.push(`Hastes ${o.ctGive >= 100 ? 'to act next' : `${o.ctGive}% of a turn`}`);
+  if (o.selfHaste) fx.push(`Hastes you ${o.selfHaste}% of a turn`);
   if (o.detonate) fx.push(`Detonates ${o.detonate === 'burn' ? 'burns' : 'poison'}`);
   if (o.push) fx.push(`Pushes ${o.push}`);
   if (o.cull) fx.push(`Kills under ${Math.round(o.cull * 100)}% HP`);
@@ -277,7 +280,9 @@ export function artifactPool(run, n, skillShare = 0.55, tag = null) {
 // ---------- skills ----------
 export function skillPool(p) {
   const known = new Set(p.skills.map(s => s.id));
-  const pool = [...CLASSES[p.cls].start, ...CLASSES[p.cls].pool, ...(p.line || []).flatMap(c => [PROMOS[c].skill, ...PROMOS[c].pool])];
+  // only the current class teaches: the base class until the first promotion, then the latest one
+  const cur = p.line && p.line.length ? PROMOS[p.line[p.line.length - 1]] : null;
+  const pool = cur ? [cur.skill, ...cur.pool] : [...CLASSES[p.cls].start, ...CLASSES[p.cls].pool];
   return pool.filter(id => !known.has(id));
 }
 // n offers of { hi, id } spread across the party.

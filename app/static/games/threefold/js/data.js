@@ -32,7 +32,7 @@ export const TERRAIN_HELP = [
 // What each status does, for the hover/tap tooltips. A number in brackets is turns left;
 // those count down at the end of the unit's own turn.
 export const STATUS_HELP = {
-  shield: 'Shield: soaks damage before HP does. Lasts until it breaks.',
+  shield: 'Shield: soaks damage before HP does. Each shield fades at the start of the holder\'s second turn after it was gained, so it lasts about 2 rounds.',
   rage: 'Furious: the enemy has fought too long and deals more damage every round.',
   stun: 'Stunned: loses its next turn, then can\'t be stunned again until its following turn ends.',
   delay: 'Delay: pushes the target back in the turn order. Bosses take half; a unit already pushed since its last turn takes half again; nobody is pushed past a floor.',
@@ -204,7 +204,7 @@ export const CLASSES = {
   warrior: { name: 'Warrior', hp: 50, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, promos: ['blademaster', 'juggernaut'], arch: ['thorns', 'shield', 'carnage'],
     start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder', 'ironhide', 'heave', 'bide', 'rallycry', 'revenge', 'carve'] },
   mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, promos: ['pyromancer', 'chronomancer'], arch: ['elemental', 'hex'],
-    start: ['bolt', 'fireball', 'frost'], pool: ['mend', 'chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'gust'] },
+    start: ['bolt', 'fireball', 'frost'], pool: ['chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'gust'] },
   rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison', 'fortune'],
     start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'garrote', 'pocketsand', 'toxicbomb', 'tripup', 'oilflask', 'throwstone', 'luckyshot', 'jackpot'] },
 };
@@ -417,7 +417,7 @@ export const SKILLS = {
   bluespring: { name: 'Blue Spring', kind: 'buff', tgt: 'self', range: [0, 0], shape: 'coin', ctGive: 50, cd: 3, txt: 'Flip a coin: every ally gets half a turn sooner... or every foe does.' },
   greenspring: { name: 'Green Spring', kind: 'shield', tgt: 'self', range: [0, 0], shape: 'coin', pow: 1.4, cd: 3, txt: 'Flip a coin: every ally is shielded... or every foe is.' },
   stealshield: { name: 'Steal Shield', kind: 'buff', tgt: 'foe', range: [1, 1], stealShield: true, cd: 2, txt: 'Take the target\'s shield for yourself.' },
-  stealtime: { name: 'Steal Time', kind: 'buff', tgt: 'foe', range: [1, 4], ctTake: 40, selfHaste: 40, lob: true, cd: 3, txt: 'Half a turn moves from the target to you.' },
+  stealtime: { name: 'Steal Time', kind: 'buff', tgt: 'foe', range: [1, 4], ctTake: 40, selfHaste: 40, lob: true, cd: 3, txt: 'Take 40% of a turn from the target and give it to yourself.' },
   juggle: { name: 'Juggle', kind: 'phys', tgt: 'self', range: [0, 5], shape: 'multi', multiN: 4, pow: 0.45, gamble: true, lob: true, cd: 2, txt: 'Knives at 4 random foes; each lands anywhere from harmless to brutal.' },
   mimic: { name: 'Mimic', kind: 'buff', tgt: 'self', range: [0, 0], mimic: true, cd: 2, txt: 'Copy the last skill an ally used, as your own.' },
   decoy: { name: 'Scarecrow', kind: 'summon', tgt: 'self', range: [0, 0], summon: 'decoy', summonN: 1, cd: 4, txt: 'A straw decoy that foes can\'t resist hitting.' },
@@ -645,7 +645,7 @@ export const MODS = {
   bloodprice: { name: 'Thorned Circlet', tags: ['blood'], price: 65, note: 'Costs 15% of your max HP, +60% power', group: 'cost', ok: powered, apply: o => { o.hpCost = 0.15; o.pow *= 1.6; } },
 
   frostbite: { name: 'Frost Shard', tags: ['elemental'], price: 60, note: 'Slows for 2 turns', ok: o => dmg(o) && !o.slow, apply: o => { o.slow = 2; } },
-  venomous: { name: 'Venom Gland', tags: ['poison'], price: 60, note: 'Poisons for 3 turns', ok: o => dmg(o) && !o.poison, apply: o => { o.poison = 3; o.poisonPow = 0.3; } },
+  venomous: { name: 'Venom Gland', tags: ['poison'], price: 60, note: 'Poisons for 3 turns, each turn dealing 30% of the stat the skill uses', ok: o => dmg(o) && !o.poison, apply: o => { o.poison = 3; o.poisonPow = 0.3; } },
   kindling: { name: 'Ember Shard', tags: ['elemental'], price: 60, note: 'Sets targets burning for 2 turns', ok: o => dmg(o) && !o.burn, apply: o => { o.burn = 2; } },
   concussive: { name: 'Lead Weight', price: 70, note: 'Stuns targets under half HP', ok: o => dmg(o) && !o.stun, apply: o => { o.stunLow = true; } },
   hex: { name: 'Hex Doll', price: 65, note: 'Targets take 30% more damage for 2 turns', ok: o => dmg(o) && !o.vuln, apply: o => { o.vuln = 2; o.vulnAmt = 0.3; } },
@@ -655,7 +655,7 @@ export const MODS = {
   hitrun: { name: 'Gust Feather', price: 60, note: 'Afterwards you hop up to 2 tiles away', group: 'move', ok: o => melee(o) && dmg(o), apply: o => { o.recoil = 2; } },
 
   molten: { name: 'Magma Core', tags: ['elemental'], price: 70, note: 'The ground it hits turns to lava', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.LAVA; } },
-  overgrowth: { name: 'Seed Pod', price: 55, note: 'The ground it hits sprouts brambles', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.THORN; } },
+  overgrowth: { name: 'Seed Pod', price: 55, note: 'The ground it hits sprouts brambles, which cut anyone who enters for 3 (more in later fights)', group: 'terrain', ok: o => dmg(o) && o.tgt !== 'self' && o.shape !== 'random' && o.shape !== 'multi', apply: o => { o.terrain = T.THORN; } },
   earthshaper: { name: 'Mason\'s Trowel', tags: ['shield'], price: 70, note: 'Raises walls on the open tiles around the target', group: 'terrain', ok: o => (o.tgt === 'foe' || o.tgt === 'tile') && !o.shape, apply: o => { o.walls = true; } },
 
   echoing: { name: 'Echo Shell', tags: ['time'], price: 85, note: '40% chance to fire again for free', group: 'echo', ok: o => o.kind !== 'summon', apply: o => { o.echo = 0.4; } },
@@ -680,7 +680,7 @@ export const MODS = {
   linked: { name: 'Linked Bracers', tags: ['shield'], price: 60, note: 'The shield also covers allies next to the target', group: 'shape', ok: o => o.kind === 'shield' && !o.aoe, apply: o => { o.aoe = 1; o.hits = 'allies'; } },
   rivet: { name: 'Bracing Rivet', tags: ['shield'], price: 55, note: 'Shields 50% stronger, and the target braces (takes 40% less) until its turn', ok: o => o.kind === 'shield' && !o.brace,
     apply: o => { o.pow *= 1.5; o.brace = true; } },
-  barbed: { name: 'Barbed Wire', tags: ['thorns'], price: 60, note: 'Using it grows thorns on you for 2 turns', ok: o => o.kind !== 'summon' && !o.thornsUp, apply: o => { o.thornsUp = 2; } },
+  barbed: { name: 'Barbed Wire', tags: ['thorns'], price: 60, note: 'Using it grows thorns on you for 2 turns: melee attackers take 6 + 50% of your DEF', ok: o => o.kind !== 'summon' && !o.thornsUp, apply: o => { o.thornsUp = 2; } },
   briarheart: { name: 'Briar Heart', tags: ['thorns'], price: 70, note: 'Scales with 300% of your thorns instead', group: 'stat', ok: o => dmg(o) && o.stat !== 'thorns', apply: o => { o.stat = 'thorns'; o.pow *= 3; } },
   brambleblade: { name: 'Ironbark Edge', tags: ['thorns'], price: 60, note: '+3% damage for every point of your DEF', ok: o => dmg(o) && !o.ironbark, apply: o => { o.ironbark = 0.03; } },
   taunting: { name: 'Provoking Barb', tags: ['thorns'], price: 55, note: 'Whatever it hits must attack you for 2 turns', ok: o => dmg(o) && !o.taunt && o.hits !== 'allies', apply: o => { o.taunt = 2; } },
@@ -701,12 +701,10 @@ export const MODS = {
   starfall: { name: 'Starfall Stone', tags: ['elemental'], price: 85, only: 'fireball', group: 'shape', note: 'Range 3–8, radius 2, +40% power, cooldown +2', ok: o => o.aoe > 0,
     apply: o => { o.range = [3, 8]; o.aoe += 1; o.pow *= 1.4; o.cd += 2; } },
   deepfreeze: { name: 'Glacier Heart', tags: ['elemental'], price: 75, only: 'frost', note: 'Freezes the target solid: stunned, but takes half damage', ok: () => true, apply: o => { o.stun = 1; o.pow *= 0.5; } },
-  transfusion: { name: 'Blood Vial', tags: ['blood'], price: 75, only: 'mend', group: 'effect', note: 'Drains a foe and gives the HP to your most hurt ally', ok: o => o.kind === 'heal',
-    apply: o => { o.kind = 'mag'; o.stat = 'mag'; o.tgt = 'foe'; o.hits = 'foes'; o.range = [1, o.range[1] + 1]; o.generous = 0.6; delete o.cleanse; } },
   backstab: { name: 'Backstabber', tags: ['poison'], price: 70, only: 'stab', note: 'Flanked targets take double damage', ok: () => true, apply: o => { o.backstab = true; } },
   fanning: { name: 'Knife Fan', price: 70, only: 'knives', group: 'shape', note: 'Hits every foe within 2 tiles of you (70%)', ok: single,
     apply: o => { o.tgt = 'self'; o.range = [0, 0]; o.aoe = 2; o.hits = 'foes'; o.pow *= 1.0; } },
-  plague: { name: 'Plague Rat', tags: ['poison'], price: 70, only: 'venom', group: 'shape', note: 'Splashes poison onto foes around the target', ok: single, apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.7; } },
+  plague: { name: 'Plague Rat', tags: ['poison'], price: 70, only: 'venom', group: 'shape', note: 'Splashes onto foes around the target at 70% power, poisoning them too', ok: single, apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.7; } },
   hexing: { name: 'Hexing Needle', tags: ['hex'], price: 60, note: 'Hits also lay a hex', ok: o => dmg(o) && !o.hex, apply: o => { o.hex = 1; } },
   cursedink: { name: 'Cursed Ink', tags: ['hex'], price: 65, note: 'Lays twice as many hexes', ok: o => !!o.hex, apply: o => { o.hex *= 2; } },
   pressure: { name: 'Pressure Seal', tags: ['hex'], price: 70, note: 'Bursts the target\'s hexes (4 + 25% of its stat each)', ok: o => dmg(o) && !o.hexBurst, apply: o => { o.hexBurst = true; } },
@@ -730,7 +728,6 @@ export const ITEMS = {
   feather: { name: 'Quick Feather', tags: ['time'], price: 50, stats: { spd: 4 }, txt: '+4 SPD: takes turns more often' },
 
   monocle: { name: 'Glass Monocle', price: 70, unique: true, txt: 'Deal 50% more damage. Take 50% more damage.' },
-  swapstone: { name: 'Swapstone', price: 40, unique: true, txt: 'Your ATK and MAG trade places.' },
   tortoise: { name: 'Tortoise Shell', tags: ['shield'], price: 60, unique: true, stats: { def: 7, spd: -3, mov: -1 }, txt: '+7 DEF, −3 SPD, −1 MOV' },
   anklet: { name: 'Featherweight Anklet', price: 65, unique: true, stats: { mov: 2, spd: 3 }, txt: '+2 MOV and +3 SPD, but −25% max HP' },
   phoenix: { name: 'Phoenix Feather', tags: ['blood'], price: 110, unique: true, txt: 'Once per battle, rise again at 50% HP when knocked out.' },
@@ -744,7 +741,7 @@ export const ITEMS = {
   crown: { name: 'Cursed Crown', tags: ['blood'], price: 70, unique: true, txt: '+40% damage, but lose 5% of max HP every turn.' },
   mirror: { name: 'Mirror Shard', tags: ['thorns'], price: 75, unique: true, txt: 'Attackers take 35% of the damage they deal you, at any range.' },
   blink: { name: 'Blink Boots', price: 80, unique: true, txt: 'You teleport instead of walking: terrain and bodies don\'t slow you.' },
-  thornseed: { name: 'Thornseed Pouch', price: 45, unique: true, txt: 'Ground you hit sprouts brambles.' },
+  thornseed: { name: 'Thornseed Pouch', price: 45, unique: true, txt: 'Ground you hit sprouts brambles, which cut anyone who enters for 3 (more in later fights).' },
   frostlocket: { name: 'Frostbite Locket', tags: ['elemental'], price: 80, unique: true, txt: 'Your hits slow, and slowed foes take 40% more from you.' },
   phylactery: { name: "Lich's Phylactery", price: 110, unique: true, txt: 'Foes you kill rise as skeletons on your side for the rest of the battle.' },
   martyr: { name: "Martyr's Locket", tags: ['shield'], price: 65, unique: true, txt: 'Damage aimed at adjacent allies hits you instead, at half strength.' },
@@ -762,7 +759,7 @@ export const ITEMS = {
   // archetype artifacts
   toxicheart: { name: 'Toxic Heart', tags: ['poison'], price: 70, unique: true, txt: 'Poison you apply stacks: new doses add to the damage instead of replacing it.' },
   plaguemask: { name: "Plague Doctor's Mask", tags: ['poison'], price: 65, unique: true, txt: 'Immune to poison. +25% damage against poisoned foes.' },
-  spores: { name: 'Virulent Spores', tags: ['poison'], price: 60, unique: true, txt: 'When a foe you poisoned dies, its poison spreads to everyone next to it.' },
+  spores: { name: 'Virulent Spores', tags: ['poison'], price: 60, unique: true, txt: 'When a foe you poisoned dies, its poison (same damage per turn, at least 2 turns) spreads to everyone next to it.' },
   stormcrown: { name: 'Storm Circlet', tags: ['elemental'], price: 70, unique: true, txt: 'Your magic hits shock the target (+30% magic damage taken for 2 turns).' },
   tricore: { name: 'Tri-Element Core', tags: ['elemental'], price: 75, unique: true, txt: '+35% damage against foes that are burning, slowed or shocked.' },
   emberheart: { name: 'Ember Heart', tags: ['elemental'], price: 65, unique: true, txt: 'Burns you apply last 2 turns longer and hurt 50% more.' },
@@ -776,7 +773,7 @@ export const ITEMS = {
   goad: { name: 'Goading Horn', tags: ['thorns'], price: 65, unique: true, txt: 'At the start of your turn, foes within 2 tiles must attack you until their next turn.' },
   brand: { name: 'Retribution Brand', tags: ['thorns'], price: 65, unique: true, txt: 'Your thorns also add 15% of your max HP.' },
   idol: { name: 'Retribution Idol', tags: ['thorns'], price: 70, unique: true, txt: 'Your thorns hit attackers at any range, not just in melee.' },
-  rose: { name: 'Black Rose', tags: ['thorns', 'poison'], price: 65, unique: true, txt: 'Your thorns poison whoever they cut.' },
+  rose: { name: 'Black Rose', tags: ['thorns', 'poison'], price: 65, unique: true, txt: 'Your thorns poison whoever they cut for 2 turns, each turn dealing a third of the thorns damage.' },
   torc: { name: "Berserker's Torc", tags: ['blood'], price: 65, unique: true, txt: '+50% damage while under half HP.' },
   chalice: { name: 'Blood Chalice', tags: ['blood'], price: 75, unique: true, txt: 'Each kill restores 7% of max HP.' },
   laststand: { name: 'Last Stand Sigil', tags: ['blood'], price: 80, unique: true, txt: 'Once per battle, a lethal hit leaves you at 1 HP instead.' },

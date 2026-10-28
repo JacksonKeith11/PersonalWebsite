@@ -1,13 +1,13 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=32';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=33';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=32';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=32';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=32';
-import { env, startBattle, BattleScene } from './battle.js?v=32';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=32';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=32';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=33';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=33';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=33';
+import { env, startBattle, BattleScene } from './battle.js?v=33';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=33';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=33';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -76,7 +76,18 @@ function hud(inBattle) {
 
 // ---------- saving ----------
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(run)); } catch (e) { /* storage unavailable */ } }
-function load() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function load() {
+  try {
+    const s = localStorage.getItem(SAVE_KEY), r = s ? JSON.parse(s) : null;
+    // artifacts removed from the game since the save was made just disappear
+    if (r) {
+      const ok = id => MODS[id] || ITEMS[id];
+      r.stash = (r.stash || []).filter(ok);
+      for (const p of r.party) { p.items = p.items.filter(id => ITEMS[id]); for (const sk of p.skills) sk.mods = (sk.mods || []).filter(id => MODS[id]); }
+    }
+    return r;
+  } catch (e) { return null; }
+}
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* storage unavailable */ } }
 
 // ---------- run ----------
@@ -336,15 +347,15 @@ function showRewards(info) {
   };
   spoils();
 }
-function promoCard(p, id, onpick) {
-  const pr = PROMOS[id], o = skStats(p, { id: pr.skill, mods: [] });
+function promoCard(p, id, sig, onpick) {
+  const pr = PROMOS[id], o = skStats(p, { id: sig, mods: [] });
   return h('button', { class: 'pick sig', onclick: () => { sfx('promote'); onpick(); } },
     h('div', { class: 'pick-head' }, sprImg(id, 'big'), h('b', {}, pr.name), archChips(pr.arch)),
     h('div', { class: 'new' }, Object.entries(pr.stats).map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k === 'maxHp' ? 'max HP' : k.toUpperCase()}`).join(', ')),
     h('div', { class: 'desc' }, pr.passive),
     h('div', { class: 'desc dim' }, `Growth: ${growthText(id)}`),
     h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Learns ${o.name}`), skillText(o, heroSrc(p, run.gold))),
-    h('div', { class: 'desc dim' }, `Adds to their skill pool: ${pr.pool.map(s => SKILLS[s].name).join(', ')}.`),
+    h('div', { class: 'desc dim' }, `Their skill pool becomes: ${[pr.skill, ...pr.pool].filter(s => s !== sig).map(s => SKILLS[s].name).join(', ')}.`),
     pr.next ? h('div', { class: 'desc dim' }, `Can later become a ${pr.next.map(n => PROMOS[n].name).join(' or ')}.`) : null);
 }
 // After an act boss every hero promotes, choosing between two classes.
@@ -353,11 +364,14 @@ function promotionScreen(next) {
   const step = () => {
     if (!queue.length) { next(); return; }
     const hi = queue.shift(), p = run.party[hi], opts = promoOptions(p);
-    const become = id => { promote(p, id); clampHp(); hud(); learnFlow(hi, PROMOS[id].skill, step); };
+    // each class teaches one skill from its pool, rolled when the choice is offered
+    const known = new Set(p.skills.map(s => s.id));
+    const sig = Object.fromEntries(opts.map(id => { const pool = [PROMOS[id].skill, ...PROMOS[id].pool].filter(s => !known.has(s)); return [id, pool.length ? pick(pool) : PROMOS[id].skill]; }));
+    const become = id => { promote(p, id); clampHp(); hud(); learnFlow(hi, sig[id], step); };
     setScreen(h('div', { class: 'panel' },
       h('h2', {}, `The ${heroTitle(p)} can become...`),
-      h('p', { class: 'muted' }, p.line && p.line.length ? 'A master class. The old passive stays; the new one stacks on top.' : 'Victory sharpens every hero. Each gains stats, a passive and a new skill pool.'),
-      h('div', { class: 'cards' }, opts.map(id => promoCard(p, id, () => become(id))))));
+      h('p', { class: 'muted' }, p.line && p.line.length ? 'A master class. The old passive stays and the new one stacks on top; new skills now come from the master class.' : 'Victory sharpens every hero. Each gains stats, a passive and a new skill pool, which replaces the old one.'),
+      h('div', { class: 'cards' }, opts.map(id => promoCard(p, id, sig[id], () => become(id))))));
     auto(() => become(pick(opts)));
   };
   step();
@@ -428,13 +442,6 @@ const EVENTS = [
     { label: 'Decline', go: () => '"Your loss!"' },
   ] },
   { title: 'Ambush!', text: 'Shapes rush out of hiding. You are surrounded.', choices: () => [{ label: 'Fight!', go: () => ({ text: 'Weapons out!', battle: true }) }] },
-  { title: 'Mirror Pool', text: 'A still pool shows each of you as you might have been.', choices: () => [
-    ...run.party.map(p => ({ label: `The ${heroTitle(p)} gazes in`, note: 'Their base ATK and MAG swap, forever', go: () => {
-      [p.atk, p.mag] = [p.mag, p.atk];
-      return `The ${heroTitle(p)}'s reflection winks. ATK is now ${p.atk}, MAG ${p.mag}. A Runed Edge or Brass Knuckles might help.`;
-    } })),
-    { label: 'Look away', go: () => 'The pool ripples, disappointed.' },
-  ] },
   { title: 'Mad Tinkerer', text: 'A wild-eyed tinkerer grabs at your gear. "Give me something, I\'ll make it STRANGER."', choices: () => [
     ...run.party.filter(p => p.items.length).map(p => ({ label: `Hand over the ${heroTitle(p)}'s ${artName(p.items[0])}`, note: 'Trade it for a random odd hero artifact', go: () => {
       const old = p.items.shift();
@@ -629,6 +636,17 @@ function showTitle() {
   ));
   auto(() => { clearSave(); newRun(); });
 }
+// How each hero did over the run (counted in battle.js as p.tally).
+function heroStatsTable() {
+  const rows = [['Damage dealt', 'dmg'], ['Biggest hit', 'best'], ['Kills', 'kills'], ['Damage taken', 'taken'], ['HP healed', 'healed'], ['Shield gained', 'shielded'], ['Crits', 'crits'], ['Times knocked out', 'falls']];
+  const v = (p, k) => Math.round((p.tally && p.tally[k]) || 0);
+  return h('table', { class: 'run-stats' },
+    h('thead', {}, h('tr', {}, h('th', {}, ''), run.party.map(p => h('th', {}, sprImg(heroSprite(p)), h('div', {}, heroTitle(p)))))),
+    h('tbody', {}, rows.map(([label, k]) => {
+      const top = Math.max(...run.party.map(p => v(p, k)));
+      return h('tr', {}, h('th', {}, label), run.party.map(p => h('td', { class: k !== 'taken' && k !== 'falls' && top > 0 && v(p, k) === top ? 'lead' : '' }, v(p, k).toLocaleString())));
+    })));
+}
 function gameOver() {
   clearSave();
   hud();
@@ -636,6 +654,7 @@ function gameOver() {
   setScreen(h('div', { class: 'panel center' },
     h('div', { class: 'title-name' }, 'Defeat'),
     h('p', {}, `Your party fell in Act ${run.act + 1}. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
+    heroStatsTable(),
     btn('Try again', newRun, 'big go'), btn('Title', showTitle, 'big')));
   if (AUTO) window.__result = { win: false, act: run.act + 1, ...run.stats };
 }
@@ -647,8 +666,8 @@ function victory() {
   setScreen(h('div', { class: 'panel center' },
     h('div', { class: 'title-name' }, 'Victory!'),
     h('div', { class: 'title-art' }, run.party.map(p => sprImg(heroSprite(p), 'huge'))),
-    h('p', {}, `The Cinder Wyrm falls and the mountain goes quiet. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
-    h('p', { class: 'muted' }, run.party.map(heroTitle).join(', ')),
+    h('p', {}, `${curAct().boss} falls and the path goes quiet. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
+    heroStatsTable(),
     btn('New run', newRun, 'big go')));
   if (AUTO) window.__result = { win: true, act: 3, ...run.stats };
 }

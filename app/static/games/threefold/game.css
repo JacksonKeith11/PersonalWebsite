@@ -276,3 +276,12 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
   .modal-head { top: -12px; }
   .hero-cards { grid-template-columns: 1fr; }
 }
+
+/* end-of-run hero stats */
+.run-stats { margin: 14px auto; border-collapse: collapse; font-size: 19px; }
+.run-stats th, .run-stats td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+.run-stats tbody th { text-align: left; color: var(--muted); font-weight: normal; }
+.run-stats thead th { text-align: center; vertical-align: bottom; font-weight: normal; }
+.run-stats thead th div { font-size: 16px; color: var(--muted); }
+.run-stats td.lead { color: var(--gold); }
+@media (max-width: 640px) { .run-stats { font-size: 16px; } .run-stats th, .run-stats td { padding: 3px 5px; } }

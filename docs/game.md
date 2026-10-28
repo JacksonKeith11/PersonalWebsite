@@ -42,7 +42,8 @@ Keep it that way.
 - **Healing is scarce; an act's attrition is the challenge.**
   - There's no healing after a fight. The fallen get up with 10% HP.
   - In-battle healing and lifesteal can restore any HP, old wounds included (the owner dropped the
-    old cap). Scarcity comes from few healing skills: Mend has cooldown 3.
+    old cap). Scarcity comes from few healing skills. The owner took Mend out of the Mage's pool (it stays in
+    `SKILLS` so old saves work), and the Blood Vial artifact, which only fit Mend, went with it.
   - Lifesteal was too strong and was cut: drains are 15–45% of damage, Leech Jar 25%, Vampire Fang
     10%, Leech Seed heals half the poison, and `leech()` caps what one skill (echoes included) can
     drink at 20% of max HP.
@@ -54,8 +55,9 @@ Keep it that way.
 - **Every hero promotes after each act boss**, choosing between two classes: a tier-1 class
   (`CLASSES.promos`) after Act 1, then a tier-2 master class (`PROMOS[t1].next`) after Act 2. That's
   6 + 12 classes. `p.line` lists a hero's classes and **all their passives stack**; `p.promo` is
-  only the latest (sprite and title). Each class teaches a signature skill and adds 7–12 skills to
-  the hero's pool.
+  only the latest (sprite and title). Promoting teaches one skill picked at random from the new
+  class's `skill` plus `pool`, rolled when the choice is shown so the card can name it; each class
+  has 8–13 skills in all. The class's skill pool then replaces the old one (see below).
 - **Skill pools are deliberately maximalist.** The owner plays them and prunes what isn't fun, so
   prefer adding a strange skill over polishing a safe one. Removing a skill means deleting it from
   its pool (and from `SKILLS` if nothing else uses it). A pool naming a missing skill only fails at
@@ -66,8 +68,9 @@ Keep it that way.
   different as they grow; tanks gain DEF and HP, casters MAG and RES, skirmishers SPD, CRIT and MOV.
   New classes need a `GROWTH` entry.
 - **Skills come from class pools.** Heroes start with 2: their basic attack (`CLASSES.start[0]`) and
-  one random pick from the rest of `start` plus `pool`. They learn from `pool`
-  plus every class in their line, up to `MAX_SKILLS` = 4. Learning a fifth means forgetting one.
+  one random pick from the rest of `start` plus `pool`. They learn only from their
+  current class (`skillPool` in rules.js): `start` plus `pool` before the first promotion, then the
+  latest class's `skill` plus `pool`, up to `MAX_SKILLS` = 4. Skills already known stay. Learning a fifth means forgetting one.
 - **Archetypes give builds a direction.** Nine tags in `ARCHES` (poison, elemental, shield, thorns,
   blood, time, plus hex, carnage and fortune borrowed from other roguelikes) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
   how much of each archetype the party has (`partyArches`), so a build snowballs without being
@@ -96,6 +99,20 @@ Keep it that way.
   be hit. Stun, sleep, confusion, charm and death clear it (the card says "Next: skips its turn").
   The board draws red tiles, a line through where it will stand and the summed damage on each
   target (`intentView`); the foe's card says "Next: Skill → Target −N".
+- **Shields last about two rounds.** Each shield gained is its own piece in `u.shieldBits`
+  ({ n, t: 2 }); `startTurn` counts them down and drops a piece at the start of the holder's second
+  turn after it was gained. Hits eat the oldest piece first (`drainShield`). Don't write `u.shield`
+  directly: use `addShield`, `drainShield` or `clearShield` so the pieces stay in step. This was
+  added because long fights let shields stack without limit.
+- **Run stats.** `tally(u)` in battle.js counts, on each hero's party entry (`p.tally`, so it saves),
+  damage dealt (shield soaked plus HP lost, poison and burn credited to whoever applied them via
+  `opts.by`), biggest hit, kills, damage taken, HP healed, shield gained, crits and knockouts. The
+  defeat and victory screens show them in a table (`heroStatsTable` in main.js).
+- **Artifacts that mention a status say how strong it is.** Poison, thorns, brambles and turn
+  shifts give their numbers in the note ("each turn dealing 30% of the stat the skill uses", "6 + 50%
+  of your DEF", "40% of a turn"); `describeParts` prints delays and hastes as a share of a turn.
+- **Removed:** the Swapstone (ATK and MAG trade places) and the Mirror Pool event that did the same,
+  since no class wants it. `load()` drops artifact ids that no longer exist from old saves.
 - **Skill text is laid out, not run on.** `describeParts()` splits a description into `head`
   (reach, power, cooldown), `fx` and `cost`; `skillText()` in ui.js renders them as a line, chips
   (costs in red) and italic flavour. `describe()` still gives the joined string for `title`s.
@@ -161,6 +178,8 @@ the browser can't reach cdnjs.
   It runs at 1/100 speed for animation waits and sets `window.__result` and `window.__log`.
 - `&chaos` starts every hero promoted with four random skills and full artifact slots, to stress
   the odd mechanics.
+- For a quick syntax check use `node --experimental-default-type=module --check js/<file>.js`. Plain
+  `node --check` parses the files as CommonJS and misses errors that stop the game loading.
 - Run a few `--chaos` runs after mechanic changes, and about 10 normal runs after balance changes.
   Then check a real click-through in a browser: autopilot skips the player-control code (move,
   undo, skill buttons, confirm).

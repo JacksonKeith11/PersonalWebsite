@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=32';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=32';
-import { spriteURL } from './art.js?v=32';
-import { TP, drawBoard } from './tiles.js?v=32';
-import { sfx } from './audio.js?v=32';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=32';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=33';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=33';
+import { spriteURL } from './art.js?v=33';
+import { TP, drawBoard } from './tiles.js?v=33';
+import { sfx } from './audio.js?v=33';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=33';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -53,6 +53,7 @@ function heroUnit(p) {
   u.slip = isClass(u, 'trickster');
   u.rampart = isClass(u, 'hoplite');
   u.shield = startShield(p, u.maxHp);
+  u.shieldBits = u.shield ? [{ n: u.shield, t: 2 }] : [];
   if (isClass(u, 'chronomancer')) u.ct += 60;
   if (has(u, 'stopwatch')) u.ct += 150;
   return u;
@@ -143,8 +144,9 @@ function hasteUnit(t, n, cap = t === B.active ? 200 : 100) {
 // A stun can't land on a unit that is still Steady from the last one.
 function stun(t) { if (!t.boss && !(t.st.steady > 0)) t.st.stun = 1; }
 // Burning and poison keep the longer duration and the stronger tick (an expired one's tick doesn't linger).
-function burnUnit(t, turns, dmg) {
+function burnUnit(t, turns, dmg, by) {
   if (t.dead || t.fireproof) return;
+  if (by) t.st.burnBy = by;
   t.st.burnDmg = Math.max(t.st.burn > 0 ? t.st.burnDmg || 0 : 0, Math.max(1, Math.round(dmg)));
   t.st.burn = Math.max(t.st.burn || 0, turns);
 }
@@ -435,10 +437,12 @@ function damage(t, amount, src, opts = {}) {
     refreshView(t);
     return 0;
   }
-  let left = amount;
+  let left = amount, soaked = 0;
+  const hp0 = t.hp;
   if (t.shield > 0) {
     const s = Math.min(t.shield, left);
-    t.shield -= s; left -= s;
+    soaked = s;
+    drainShield(t, s); left -= s;
     if (s) fxText(t, `-${s}`, '#9fd8ff');
     if (s && t.shield === 0 && has(t, 'shrapnel')) {
       fxText(t, 'Shrapnel!', '#9fd8ff');
@@ -450,11 +454,22 @@ function damage(t, amount, src, opts = {}) {
     t.hp = Math.max(0, t.hp - left);
     fxText(t, (opts.crit ? 'CRIT ' : '') + left, opts.crit ? '#ffd23f' : '#ffffff');
   }
+  {
+    const dealt = soaked + (hp0 - t.hp); // shield soaked plus HP actually lost
+    const by = src || opts.by, a = by && homeSide(by) !== homeSide(t) ? tally(by) : null, b = tally(t);
+    if (a) { a.dmg += dealt; a.best = Math.max(a.best, dealt); if (opts.crit) a.crits++; }
+    if (b) b.taken += dealt;
+  }
   flash(t);
   burst('hit', t, opts.crit ? 14 : 7);
   sfx(opts.crit ? 'crit' : 'hit', opts.quiet ? 0.5 : 1);
   if (opts.crit) scene && scene.cameras.main.shake(120 * env.speed + 1, 0.006);
-  if (t.hp <= 0) ko(t, src);
+  if (t.hp <= 0) {
+    ko(t, src);
+    // a poison or burn kill counts for whoever applied it
+    const a = !src && opts.by && t.dead && homeSide(opts.by) !== homeSide(t) ? tally(opts.by) : null;
+    if (a) a.kills++;
+  }
   if (src && src !== t && has(t, 'mirror') && !opts.reflected && !src.dead) damage(src, Math.max(1, Math.round(amount * 0.35)), t, { reflected: true, quiet: true });
   const th = src && src.side !== t.side && !opts.reflected && !opts.counter && !src.dead && (opts.melee || has(t, 'idol')) ? thornsNow(t) : 0;
   if (th > 0) {
@@ -489,7 +504,9 @@ function ko(t, killer) {
   const venom = t.st.poison > 0 ? { n: t.st.poison, dmg: t.st.poisonDmg, by: t.st.poisonBy } : null, hexes = t.st.hex || 0;
   if (t.origSide) { t.side = t.origSide; t.origSide = null; }
   t.pending = null; t.intent = null;
-  t.hp = 0; t.dead = true; t.st = {}; t.shield = 0;
+  t.hp = 0; t.dead = true; t.st = {}; clearShield(t);
+  { const a = tally(t); if (a) a.falls++; }
+  { const a = killer && homeSide(killer) !== homeSide(t) ? tally(killer) : null; if (a) a.kills++; }
   log(`${t.name} falls.`);
   sfx('death');
   if (t.side === 'foe') env.run.stats.kills++;
@@ -518,7 +535,7 @@ function ko(t, killer) {
     const near = alive().filter(x => x.side === t.side && dist(x, t) === 1);
     if (has(killer, 'wisp')) { burst('fire', t, 24); sfx('fire'); for (const n of near) damage(n, Math.round(t.maxHp * 0.25), killer, { quiet: true, reflected: true }); }
     if (has(killer, 'gasoline')) for (const n of near.filter(x => !x.dead && !x.fireproof)) {
-      burnUnit(n, 3, Math.max(killer.atk, killer.mag) * 0.3 + 1); burst('fire', n, 10); refreshView(n);
+      burnUnit(n, 3, Math.max(killer.atk, killer.mag) * 0.3 + 1, killer); burst('fire', n, 10); refreshView(n);
     }
   }
   if (hexes && alive().some(x => x.side !== t.side && has(x, 'voodoo'))) {
@@ -546,17 +563,31 @@ function heal(t, n, overflow) {
   n = Math.max(0, Math.round(n));
   const a = Math.max(0, Math.min(n, healRoom(t)));
   t.hp += a;
-  if (a > 0) fxText(t, '+' + a, '#7dff8a');
+  if (a > 0) { fxText(t, '+' + a, '#7dff8a'); const r = tally(t); if (r) r.healed += a; }
   if (overflow && n > a) addShield(t, n - a);
   refreshView(t);
   return a;
 }
 const healRoom = t => t.maxHp - t.hp;
+function drainShield(t, n) {
+  t.shield = Math.max(0, t.shield - n);
+  for (const c of t.shieldBits || []) { const k = Math.min(c.n, n); c.n -= k; n -= k; if (!n) break; }
+  t.shieldBits = (t.shieldBits || []).filter(c => c.n > 0);
+}
+function clearShield(t) { t.shield = 0; t.shieldBits = []; }
+const shieldLeft = t => (t.shieldBits || []).reduce((m, c) => Math.min(m, c.t), 9);
+// Run stats for the end screen, kept on the party member so they survive saves.
+const tally = u => u && u.ref ? (u.ref.tally ||= { dmg: 0, best: 0, kills: 0, taken: 0, healed: 0, shielded: 0, crits: 0, falls: 0 }) : null;
+// Shields come in pieces that each fade at the start of the holder's second turn after they were
+// gained (about 2 rounds), so they can't be stacked up over a long fight. Hits eat the oldest first.
 function addShield(t, n) {
   if (t.dead) return;
   n = Math.max(0, Math.min(Math.round(n), t.maxHp - t.shield));
   if (!n) return;
   t.shield += n;
+  (t.shieldBits ||= []).push({ n, t: 2 });
+  const a = tally(t);
+  if (a) a.shielded += n;
   fxText(t, '+' + n + ' shield', '#9fd8ff');
   burst('shield', t, 10);
   refreshView(t);
@@ -585,7 +616,7 @@ function applyStatus(u, t, o) {
   const burn = o.burn || (isClass(u, 'pyromancer') && o.kind === 'mag' ? 2 : 0);
   if (burn && !t.fireproof) {
     const ember = has(u, 'emberheart');
-    burnUnit(t, burn + (ember ? 2 : 0), statVal(u, o.stat) * 0.3 * (ember ? 1.5 : 1));
+    burnUnit(t, burn + (ember ? 2 : 0), statVal(u, o.stat) * 0.3 * (ember ? 1.5 : 1), u);
   }
   const shock = o.shock || (hit && o.kind === 'mag' && (isClass(u, 'stormcaller') || has(u, 'stormcrown')) ? 2 : 0);
   if (shock && foe) t.st.shock = Math.max(t.st.shock || 0, shock + ext);
@@ -615,10 +646,10 @@ function applyStatus(u, t, o) {
   if (o.dispel && foe) {
     const had = BUFFS.some(k => t.st[k] > 0) || t.shield > 0;
     for (const k of BUFFS) t.st[k] = 0;
-    t.shield = 0;
+    clearShield(t);
     if (had) fxText(t, 'Dispelled', '#c9a0ff', true);
   }
-  if (o.stealShield && foe && t.shield > 0) { const n = t.shield; t.shield = 0; addShield(u, n); fxText(t, 'Stolen!', '#9fd8ff', true); }
+  if (o.stealShield && foe && t.shield > 0) { const n = t.shield; clearShield(t); addShield(u, n); fxText(t, 'Stolen!', '#9fd8ff', true); }
   if (o.purify && !foe) { for (const k of DEBUFFS) t.st[k] = 0; fxText(t, 'Purified', '#7dff8a', true); }
   if (o.movUp && !foe) t.st.movUp = Math.max(t.st.movUp || 0, o.movUp + ext);
   if (o.focus && !foe) { t.st.focus = 1; fxText(t, 'Focus', '#ffd23f', true); }
@@ -628,7 +659,7 @@ function applyStatus(u, t, o) {
   if (o.counter && !foe) t.st.riposte = 1;
   if (hit && foe && u.st.imbue > 0) {
     const k = u.st.imbueKind;
-    if (k === 'burn') burnUnit(t, 2, statVal(u, 'atk') * 0.3 + 1);
+    if (k === 'burn') burnUnit(t, 2, statVal(u, 'atk') * 0.3 + 1, u);
     if (k === 'poison') poisonUnit(t, 3, statVal(u, 'atk') * 0.3 + 1, u);
     if (k === 'shock') t.st.shock = Math.max(t.st.shock || 0, 2);
     if (k === 'slow') t.st.slow = Math.max(t.st.slow || 0, 2);
@@ -1128,6 +1159,11 @@ async function startTurn(u) {
     u.tmp = { [stat]: 8 };
     fxText(u, `+8 ${stat.toUpperCase()}`, '#ffd23f');
   }
+  if (u.shieldBits && u.shieldBits.length) {
+    let lost = 0;
+    for (const c of u.shieldBits) if (--c.t <= 0) lost += c.n;
+    if (lost) { u.shieldBits = u.shieldBits.filter(c => c.t > 0); u.shield = Math.max(0, u.shield - lost); fxText(u, 'Shield fades', '#9fd8ff', true); refreshView(u); }
+  }
   if (u.regen) heal(u, u.maxHp * u.regen);
   if (u.plating && u.turns % 3 === 1) { addShield(u, u.maxHp * u.plating); fxText(u, 'Plating', '#9fd8ff', true); }
   if (u.overdrive && !u.overdriven && u.hp * 2 < u.maxHp) { u.overdriven = true; u.spd = Math.round(u.spd * 1.5); fxText(u, 'Overdrive!', '#ff6a2a'); log(`${u.name} goes into overdrive!`); }
@@ -1135,7 +1171,7 @@ async function startTurn(u) {
   if (has(u, 'crown')) { u.hp = Math.max(1, u.hp - Math.round(u.maxHp * 0.05)); refreshView(u); }
   if (B.grid[u.y][u.x] === T.LAVA && !u.fireproof && !u.fly) { await enterTile(u); await sleep(300); }
   if (!u.dead && u.st.poison > 0) {
-    const by = u.st.poisonBy, n = damage(u, u.st.poisonDmg, null, { quiet: true });
+    const by = u.st.poisonBy, n = damage(u, u.st.poisonDmg, null, { quiet: true, by });
     burst('poison', u, 8); log(`${u.name} suffers from poison.`);
     if (u.st.leech && by && !by.dead && n > 0) heal(by, n / 2);
     await sleep(300);
@@ -1148,7 +1184,7 @@ async function startTurn(u) {
     damage(u, Math.round(u.maxHp * (u.boss ? 0.15 : 0.45)), null);
     await sleep(400);
   }
-  if (!u.dead && u.st.burn > 0 && !u.fireproof) { damage(u, u.st.burnDmg, null, { quiet: true }); burst('fire', u, 8); log(`${u.name} burns.`); await sleep(300); }
+  if (!u.dead && u.st.burn > 0 && !u.fireproof) { damage(u, u.st.burnDmg, null, { quiet: true, by: u.st.burnBy }); burst('fire', u, 8); log(`${u.name} burns.`); await sleep(300); }
   if (u.dead) return true;
   if (u.pending) {
     const p = u.pending;
@@ -1453,7 +1489,7 @@ function intentView(u) {
 // ---------- side panel ----------
 function statusText(u) {
   const st = u.st, out = [];
-  if (u.shield > 0) out.push(tip(`Shield ${u.shield}`, 'shield'));
+  if (u.shield > 0) out.push(tip(`Shield ${u.shield} (${shieldLeft(u) <= 1 ? 'fades next turn' : 'fades in 2 turns'})`, 'shield'));
   if (u.side === 'foe' && B.rage) out.push(tip(`Furious +${B.rage * 10}%`, 'rage'));
   if (st.stun) out.push(tip('Stunned', 'stun'));
   if (st.poison > 0) out.push(tip(`Poisoned (${st.poison})`, 'poison'));

@@ -114,6 +114,15 @@ img.spr.flip { transform: scaleX(-1); }
 }
 .legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .legend canvas { width: 24px; height: 24px; }
+.legend summary { font-family: var(--px); font-size: 10px; color: var(--muted); cursor: pointer; margin-bottom: 8px; }
+/* the map's next steps, as big buttons that also point at their node on the map */
+.choices h3 { margin: 0 0 10px; }
+.choice { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; margin: 0 0 8px; padding: 10px 12px;
+  background: var(--panel2); color: var(--text); border: 0; box-shadow: 0 0 0 3px #000, inset 0 0 0 2px var(--line); cursor: pointer; font: inherit; }
+.choice:hover, .choice:focus-visible { box-shadow: 0 0 0 3px #000, inset 0 0 0 2px var(--gold); background: #3a2c50; outline: none; }
+.choice canvas { width: 30px; height: 30px; flex: none; image-rendering: pixelated; }
+.choice b { display: block; font-family: var(--px); font-size: 10px; color: var(--gold); margin-bottom: 4px; }
+.choice small { display: block; font-size: 17px; line-height: 1.2; color: var(--muted); }
 
 .order { display: flex; align-items: center; gap: 3px; margin: 3px 3px 12px; flex-wrap: wrap; }
 .order .lbl { font-family: var(--px); font-size: 8px; color: var(--muted); margin-right: 4px; }

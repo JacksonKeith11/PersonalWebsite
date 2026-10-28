@@ -66,6 +66,8 @@ export const STATUS_HELP = {
   movUp: '+1 MOV: moves one tile farther.',
   imbue: 'Imbued: its attacks add an element (burn, poison, shock or slow).',
   intent: 'Intent: what the foe plans to do on its next turn, from where things stand now: red tiles and the damage. It\'s replanned after every move and action, so a foe that loses its target will look for another.',
+  eva: 'EVA (evasion): points off the chance that attacks hit this unit. A faster unit dodges more (half the SPD gap, up to 15). Blows from the side face half its EVA, from behind none, and magic only half. Stunned, asleep or frozen units can\'t dodge.',
+  hit: 'Hit chance: 100% plus the attacker\'s accuracy (and 5% per level of height above the target), minus the target\'s EVA. Never below 5%. Blinded attackers lose 50%.',
   pending: 'Charging: the skill lands on the marked tiles at the start of its next turn. Step out of them, kill the caster, or break the charge: stun it, put it to sleep, charm it or knock it back. Delaying the caster holds the spell back too.',
   doom: 'Doomed: when the count reaches 0 it loses 45% of max HP (15% for bosses).',
   ward: 'Ward: completely blocks the next enemy hit, once per stack.',
@@ -185,6 +187,7 @@ export const ARCHES = {
   terrain: { name: 'Geomancy', color: '#a08060' },
   echo: { name: 'Echo', color: '#80c8ff' },
   martyr: { name: 'Martyr', color: '#f0e0b0' },
+  evasion: { name: 'Evasion', color: '#b8f0e0' },
 };
 
 // ---------- classes ----------
@@ -223,7 +226,7 @@ export const CLASSES = {
     start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder', 'ironhide', 'bide', 'rallycry', 'revenge', 'carve', 'overhead', 'guardbreak', 'shakeitoff', 'titanswing'] },
   mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, promos: ['pyromancer', 'chronomancer'], arch: ['elemental', 'hex', 'frost'],
     start: ['bolt', 'fireball', 'frost'], pool: ['chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'frostnova', 'missiles2', 'manalance', 'starfall'] },
-  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison', 'fortune', 'momentum'],
+  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, eva: 10, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison', 'fortune', 'momentum', 'evasion'],
     start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'toxicbomb', 'tripup', 'luckyshot', 'jackpot', 'lowblow', 'bounceknife', 'eviscerate', 'cointoss', 'deadeye'] },
 };
 export const PROMOS = {
@@ -236,9 +239,9 @@ export const PROMOS = {
     passive: 'Ember Soul: immune to lava and burning; every magic hit sets the target alight.' },
   chronomancer: { name: 'Chronomancer', tier: 1, stats: { mag: 2, spd: 4 }, skill: 'quicken', pool: ['timestop', 'slowga', 'hasteaura', 'stop', 'graviga', 'immobilize', 'stall', 'comet', 'tailwind', 'masterstroke', 'chronobolt'], next: ['arithmetician', 'oracle'], arch: ['time', 'frost'],
     passive: 'Time Sense: acts early in every battle, and magic hits shove the target back in the turn order.' },
-  assassin: { name: 'Assassin', tier: 1, stats: { atk: 4, crit: 10 }, skill: 'shadowstep', pool: ['deathmark', 'nightshade', 'vanish', 'cull', 'shiftstab', 'doomfist', 'toxinsalve', 'hamstring', 'shadowsnap', 'pressurepoint', 'frenzy', 'deathblossom', 'pricehead'], next: ['ninja', 'plaguebringer'], arch: ['poison', 'carnage', 'bounty'],
+  assassin: { name: 'Assassin', tier: 1, stats: { atk: 4, crit: 10, eva: 5 }, skill: 'shadowstep', pool: ['deathmark', 'nightshade', 'vanish', 'cull', 'shiftstab', 'doomfist', 'toxinsalve', 'hamstring', 'shadowsnap', 'pressurepoint', 'frenzy', 'deathblossom', 'pricehead'], next: ['ninja', 'plaguebringer'], arch: ['poison', 'carnage', 'bounty'],
     passive: 'Shadow: always crits targets under half HP; a kill cloaks them in stealth.' },
-  trickster: { name: 'Trickster', tier: 1, stats: { spd: 3, mov: 1 }, skill: 'smokebomb', pool: ['mug', 'misdirect', 'redspring', 'bluespring', 'greenspring', 'stealshield', 'stealtime', 'juggle', 'mimic', 'decoy', 'flaretrap', 'jackpot', 'snakeeyes', 'swipe', 'wildcard'], next: ['bard', 'mesmer'], arch: ['time', 'fortune', 'summon', 'bounty'],
+  trickster: { name: 'Trickster', tier: 1, stats: { spd: 3, mov: 1, eva: 5 }, skill: 'smokebomb', pool: ['mug', 'misdirect', 'redspring', 'bluespring', 'greenspring', 'stealshield', 'stealtime', 'juggle', 'mimic', 'decoy', 'flaretrap', 'jackpot', 'snakeeyes', 'swipe', 'wildcard'], next: ['bard', 'mesmer'], arch: ['time', 'fortune', 'summon', 'bounty', 'evasion'],
     passive: 'Slippery: walks straight through enemies, and every hit pockets 3 gold.' },
   // tier 2
   samurai: { name: 'Samurai', tier: 2, stats: { atk: 5, maxHp: 10 }, skill: 'ashura', pool: ['kiyomori', 'masamune', 'muramasa', 'murakumo', 'chirijiraden', 'bizen', 'shirahadori', 'bonecrusher', 'kotetsu', 'frenzy', 'crosscut'], arch: ['blood', 'carnage', 'bleed'],
@@ -255,9 +258,9 @@ export const PROMOS = {
     passive: 'Dark Pact: damaging skills cost 6% HP and hit 35% harder; every kill restores 8% max HP.' },
   arithmetician: { name: 'Arithmetician', tier: 2, stats: { mag: 4, res: 2 }, skill: 'primeholy', pool: ['evenflare', 'gridthree', 'oddquake', 'squareroot', 'fibonacci', 'halving', 'primeshield', 'probability', 'snakeeyes', 'evenodds'], arch: ['time', 'fortune'],
     passive: 'Prime Insight: always crits a target whose HP is a prime number.' },
-  oracle: { name: 'Oracle', tier: 2, stats: { mag: 3, res: 4, spd: 2 }, skill: 'silence', pool: ['petrify', 'foresee', 'umbra', 'repose', 'harmony', 'trepidation', 'invigoration', 'grandprophecy', 'sanctity', 'malediction', 'witchinghour'], arch: ['time', 'shield', 'hex', 'martyr'],
-    passive: 'Foresight: dodges 20% of attacks.' },
-  ninja: { name: 'Ninja', tier: 2, stats: { atk: 3, spd: 3, crit: 5 }, skill: 'shuriken', pool: ['shadowbind', 'utsusemi', 'smokestep', 'kunairain', 'shadowclone', 'fuma', 'katon', 'suiton', 'raiton', 'pressurepoint', 'luckyshot'], arch: ['poison', 'time', 'fortune', 'momentum'],
+  oracle: { name: 'Oracle', tier: 2, stats: { mag: 3, res: 4, spd: 2, eva: 20 }, skill: 'silence', pool: ['petrify', 'foresee', 'umbra', 'repose', 'harmony', 'trepidation', 'invigoration', 'grandprophecy', 'sanctity', 'malediction', 'witchinghour'], arch: ['time', 'shield', 'hex', 'martyr'],
+    passive: 'Foresight: +20 EVA, so attacks aimed at it miss far more often.' },
+  ninja: { name: 'Ninja', tier: 2, stats: { atk: 3, spd: 3, crit: 5, eva: 10 }, skill: 'shuriken', pool: ['shadowbind', 'utsusemi', 'smokestep', 'kunairain', 'shadowclone', 'fuma', 'katon', 'suiton', 'raiton', 'pressurepoint', 'luckyshot'], arch: ['poison', 'time', 'fortune', 'momentum', 'evasion'],
     passive: 'Dual Wield: single-target melee skills strike twice at 60%.' },
   plaguebringer: { name: 'Plaguebringer', tier: 2, stats: { atk: 3, mag: 3, maxHp: 8 }, skill: 'pandemic', pool: ['blight', 'rotdart', 'viral', 'epidemic', 'ooze', 'miasmatrap', 'fester', 'noxious', 'contagion'], arch: ['poison'],
     passive: 'Virulence: their poison stacks instead of refreshing, and a poisoned foe that dies spreads it to its neighbours.' },
@@ -751,6 +754,8 @@ export const MODS = {
   oakheart: { name: 'Oak Heart', tags: ['thorns', 'shield'], note: 'Using it shields you for 6% of max HP', ok: o => o.kind !== 'summon' && !o.selfShieldHp, apply: o => { o.selfShieldHp = 0.06; } },
   sanguine: { name: 'Sanguine Edge', tags: ['blood'], note: 'Costs 8% HP; +1% damage for every 1% HP you\'re missing', ok: o => dmg(o) && !o.sanguine, apply: o => { o.sanguine = true; o.hpCost = (o.hpCost || 0) + 0.08; } },
   leechseed: { name: 'Leech Seed', tags: ['blood', 'poison'], note: 'Poison it applies heals you for half of what it deals', ok: o => !!o.poison && !o.leech, apply: o => { o.leech = true; } },
+  sharpeye: { name: 'Sharp Eye', tags: ['evasion'], note: '+30 accuracy', ok: o => dmg(o), apply: o => { o.acc = (o.acc || 0) + 30; } },
+  truestrike: { name: 'True Strike', tags: ['evasion'], note: 'Can\'t miss or be dodged, −10% power', ok: o => dmg(o) && !o.sure, apply: o => { o.sure = true; o.pow *= 0.9; } },
   afterimage: { name: 'Afterimage Lens', tags: ['time'], note: 'Your next turn comes 20 sooner', ok: o => o.kind !== 'summon' && !o.ctCost && !o.selfHaste, apply: o => { o.selfHaste = 20; } },
   stillwater: { name: 'Still Water', tags: ['time'], note: '+50% power if you haven\'t moved this turn', ok: o => powered(o) && !o.still, apply: o => { o.still = true; } },
 
@@ -920,6 +925,17 @@ export const ITEMS = {
   metronome: { name: 'Metronome', tags: ['time'], unique: true, txt: 'Every hit you land pushes the target 10 back in the turn order.' },
   bladegrasp: { name: 'Blade Grasp Gloves', unique: true, txt: 'Catch 25% of physical attacks aimed at you.' },
   concentrate: { name: 'Focus Beads', unique: true, txt: 'Your attacks can\'t miss or be dodged, and ignore cover.' },
+  // Evasion: EVA (dodging) and accuracy, and what happens when an attack misses you
+  mistcloak: { name: 'Mist Cloak', tags: ['evasion'], stats: { eva: 12 }, txt: '+12 EVA' },
+  hawkeye: { name: 'Hawkeye Charm', tags: ['evasion'], stats: { acc: 15 }, txt: '+15 accuracy' },
+  rabbitfoot: { name: 'Rabbit\'s Foot', tags: ['evasion', 'fortune'], stats: { eva: 8, crit: 5 }, txt: '+8 EVA, +5 CRIT' },
+  matador: { name: 'Matador\'s Cape', tags: ['evasion', 'fortune'], unique: true, txt: 'After you dodge an attack, your next hit is a sure critical.' },
+  phantomstep: { name: 'Phantom Step', tags: ['evasion', 'momentum'], unique: true, txt: 'After you dodge, your next turn comes 30 sooner and you get +1 MOV.' },
+  parrydagger: { name: 'Parrying Dagger', tags: ['evasion', 'thorns'], unique: true, txt: 'When you dodge a melee attack, strike back for 60% ATK.' },
+  blurboots: { name: 'Blurring Boots', tags: ['evasion', 'momentum'], unique: true, txt: '+5 EVA for each tile you moved on your last turn (up to +25).' },
+  arrowbane: { name: 'Arrowbane Veil', tags: ['evasion'], unique: true, txt: 'Attacks from beyond melee range are 20% less likely to hit you.' },
+  glasswings: { name: 'Glass Wings', tags: ['evasion'], unique: true, stats: { eva: 35 }, txt: '+35 EVA.', down: 'Hits that do land deal 50% more damage to you.' },
+  eyestorm: { name: 'Eye of the Storm', tags: ['evasion', 'fortune'], unique: true, txt: 'Your attacks can\'t miss, and deal 1% more damage for each point of the target\'s EVA.' },
   evileye: { name: 'Evil Eye', tags: ['hex'], unique: true, txt: 'Every hit you land on a hexed foe adds another hex.' },
   hexlantern: { name: 'Hex Lantern', tags: ['hex'], unique: true, txt: 'When your turn starts, every foe within 2 tiles is hexed.' },
   voodoo: { name: 'Voodoo Doll', tags: ['hex'], unique: true, txt: 'When a hexed foe dies, its hexes jump to the nearest foe.' },
@@ -948,11 +964,11 @@ export const RARITY = {
 };
 const RARE_IDS = {
   c: 'honed reach frostbite venomous kindling copper keen arcing barbed hexing taunting gamble shove pointblank grip serrated rimeshard bountybrand icetome ' +
-    'band ring shield cloak heart lensmaker ironbark gauntlet wand jerkin wraps huntcharm wardstone greaves tome brawlwraps luckycoin',
+    'band ring shield cloak heart lensmaker ironbark gauntlet wand jerkin wraps huntcharm wardstone greaves tome brawlwraps luckycoin mistcloak hawkeye rabbitfoot sharpeye',
   r: 'ironclad ricochet splash wild barrage aegisconv vampiric bloodprice echoing timedebt burstgland flashpowder prism towercrest bulwark missiles starfall pressure reaper ace markdeath slipstream coldsnap execaxe ' +
     'ledger mantra resonator sharedpain razorwire necropact swarmbanner afterburner permafrost ' +
-    'monocle crown spite lavawalkers clockwork mirror blink frostlocket goldtooth fang scope stormcrown tricore idol chalice laststand stopwatch bladegrasp evileye hexlantern wisp trophy spurs clover loadeddice midas openveins soullantern censer magmaheart reflplate jesterhat',
-  l: 'godforge twinsoul chronoshard starcore phoenix echo bloodpact phylactery hourglass belt sunblade mountain worldstone hydrafang philstone scythe timecrown dawnaegis crimsontide gravebanner cometboots winterheart bramblecrown paradox cursecrown fate noose earthcrown infloop saintrelic abyssal shackle voidheart chronodebt',
+    'monocle crown spite lavawalkers clockwork mirror blink frostlocket goldtooth fang scope stormcrown tricore idol chalice laststand stopwatch bladegrasp evileye hexlantern wisp trophy spurs clover loadeddice midas openveins soullantern censer magmaheart reflplate jesterhat blurboots arrowbane',
+  l: 'godforge twinsoul chronoshard starcore phoenix echo bloodpact phylactery hourglass belt sunblade mountain worldstone hydrafang philstone scythe timecrown dawnaegis crimsontide gravebanner cometboots winterheart bramblecrown paradox cursecrown fate noose earthcrown infloop saintrelic abyssal shackle voidheart chronodebt glasswings eyestorm',
 };
 // everything not listed is uncommon
 for (const a of [...Object.values(MODS), ...Object.values(ITEMS)]) a.rar = 'u';
@@ -963,10 +979,10 @@ for (const [r, ids] of Object.entries(RARE_IDS)) for (const id of ids.split(' ')
 export const FOES = {
   decoy: { name: 'Scarecrow', hp: 24, atk: 0, def: 3, res: 3, spd: 1, mov: 0, skills: [], lure: true, info: 'A decoy. Foes can\'t resist hitting it.' },
   slime: { name: 'Slime', hp: 18, atk: 6, def: 1, res: 1, spd: 5, mov: 2, skills: ['e_slam'] },
-  goblin: { name: 'Goblin', hp: 15, atk: 7, def: 1, res: 1, spd: 10, mov: 3, skills: ['e_stab'] },
+  goblin: { name: 'Goblin', hp: 15, atk: 7, def: 1, res: 1, spd: 10, mov: 3, eva: 5, skills: ['e_stab'] },
   archer: { name: 'Goblin Archer', hp: 13, atk: 7, def: 1, res: 1, spd: 8, mov: 3, skills: ['e_shoot'], ai: 'ranged' },
-  wolf: { name: 'Wolf', hp: 17, atk: 7, def: 1, res: 1, spd: 12, mov: 4, skills: ['e_bite'] },
-  bat: { name: 'Bat', hp: 10, atk: 5, def: 0, res: 1, spd: 13, mov: 4, fly: true, skills: ['e_drain'] },
+  wolf: { name: 'Wolf', hp: 17, atk: 7, def: 1, res: 1, spd: 12, mov: 4, eva: 10, skills: ['e_bite'] },
+  bat: { name: 'Bat', hp: 10, atk: 5, def: 0, res: 1, spd: 13, mov: 4, eva: 20, fly: true, skills: ['e_drain'] },
   shaman: { name: 'Shaman', hp: 18, atk: 3, mag: 8, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_mend', 'e_zap'], ai: 'ranged' },
   golem: { name: 'Stone Golem', hp: 75, atk: 13, def: 8, res: 2, spd: 4, mov: 2, skills: ['e_pound', 'e_rock', 'e_slam'], scale: 1.2 },
   ogre: { name: 'Ogre Warlord', hp: 70, atk: 14, def: 4, res: 1, spd: 5, mov: 3, skills: ['e_boulder', 'e_stomp', 'e_smash', 'e_quake'], scale: 1.25 },
@@ -974,11 +990,11 @@ export const FOES = {
     info: 'Regrows a little HP every turn.' },
   skeleton: { name: 'Skeleton', hp: 24, atk: 8, def: 4, res: 0, spd: 6, mov: 3, skills: ['e_slash'] },
   cultist: { name: 'Cultist', hp: 17, atk: 3, mag: 9, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_flame', 'e_hex', 'e_ritual'], ai: 'ranged' },
-  ghost: { name: 'Ghost', hp: 16, atk: 3, mag: 8, def: 1, res: 6, spd: 9, mov: 3, fly: true, phase: true, skills: ['e_wail'], ai: 'ranged', info: 'Drifts through walls.' },
-  spider: { name: 'Crypt Spider', hp: 16, atk: 7, def: 2, res: 1, spd: 11, mov: 3, skills: ['e_web', 'e_spiderbite'] },
+  ghost: { name: 'Ghost', hp: 16, atk: 3, mag: 8, def: 1, res: 6, spd: 9, mov: 3, eva: 10, fly: true, phase: true, skills: ['e_wail'], ai: 'ranged', info: 'Drifts through walls.' },
+  spider: { name: 'Crypt Spider', hp: 16, atk: 7, def: 2, res: 1, spd: 11, mov: 3, eva: 5, skills: ['e_web', 'e_spiderbite'] },
   knight: { name: 'Dark Knight', hp: 60, atk: 12, def: 6, res: 3, spd: 7, mov: 3, skills: ['e_kcleave', 'e_slash'], scale: 1.1 },
   lich: { name: 'The Hollow King', hp: 110, atk: 4, mag: 12, def: 3, res: 6, spd: 8, mov: 3, skills: ['e_raise', 'e_nova', 'e_deathbolt', 'e_knell'], ai: 'ranged', boss: true, scale: 1.4 },
-  imp: { name: 'Imp', hp: 14, atk: 3, mag: 9, def: 1, res: 3, spd: 12, mov: 3, fly: true, fireproof: true, skills: ['e_firebolt'], ai: 'ranged' },
+  imp: { name: 'Imp', hp: 14, atk: 3, mag: 9, def: 1, res: 3, spd: 12, mov: 3, eva: 10, fly: true, fireproof: true, skills: ['e_firebolt'], ai: 'ranged' },
   salamander: { name: 'Salamander', hp: 26, atk: 10, def: 3, res: 2, spd: 8, mov: 3, fireproof: true, trail: true, skills: ['e_flamebite'], info: 'Leaves lava where it walks.' },
   orc: { name: 'Orc Brute', hp: 36, atk: 11, def: 3, res: 1, spd: 5, mov: 3, skills: ['e_stomp', 'e_smash'] },
   firecultist: { name: 'Ash Priest', hp: 20, atk: 3, mag: 11, def: 1, res: 4, spd: 7, mov: 3, skills: ['e_flame', 'e_firebolt', 'e_pillar'], ai: 'ranged' },
@@ -988,20 +1004,20 @@ export const FOES = {
   // (half damage while units of that kind live), chill (slows foes beside it), plating (shield every third
   // turn, as a share of max HP), overdrive (faster below half HP).
   bloat: { name: 'Bloated Slime', hp: 26, atk: 7, def: 1, res: 1, spd: 4, mov: 2, skills: ['e_slam'], split: 'slime', info: 'Splits into two slimes when it dies.' },
-  boar: { name: 'Tusked Boar', hp: 26, atk: 9, def: 2, res: 1, spd: 9, mov: 3, skills: ['e_gore', 'e_bite'], info: 'Charges from 3 tiles away.' },
-  sapper: { name: 'Goblin Sapper', hp: 14, atk: 7, def: 1, res: 1, spd: 9, mov: 3, skills: ['e_bomb', 'e_stab'], burst: true, ai: 'ranged', info: 'Explodes when it dies, hurting everyone beside it.' },
+  boar: { name: 'Tusked Boar', hp: 26, atk: 9, def: 2, res: 1, spd: 9, mov: 3, eva: 5, skills: ['e_gore', 'e_bite'], info: 'Charges from 3 tiles away.' },
+  sapper: { name: 'Goblin Sapper', hp: 14, atk: 7, def: 1, res: 1, spd: 9, mov: 3, eva: 5, skills: ['e_bomb', 'e_stab'], burst: true, ai: 'ranged', info: 'Explodes when it dies, hurting everyone beside it.' },
   totem: { name: 'War Totem', hp: 24, atk: 0, def: 4, res: 3, spd: 6, mov: 0, skills: ['e_warcry'], ai: 'ranged', info: 'Can\'t move. Drums its allies into a frenzy.' },
-  cutpurse: { name: 'Cutpurse', hp: 15, atk: 7, def: 1, res: 1, spd: 13, mov: 4, skills: ['e_pickpocket'], info: 'Steals gold and runs. Kill it to get the gold back.' },
+  cutpurse: { name: 'Cutpurse', hp: 15, atk: 7, def: 1, res: 1, spd: 13, mov: 4, eva: 15, skills: ['e_pickpocket'], info: 'Steals gold and runs. Kill it to get the gold back.' },
   bulwark: { name: 'Bone Bulwark', hp: 34, atk: 7, def: 7, res: 1, spd: 5, mov: 2, skills: ['e_slash'], rampart: true, info: 'Rampart: you must stop beside it, and its allies beside it take 25% less damage.' },
-  shade: { name: 'Mirror Shade', hp: 18, atk: 3, mag: 9, def: 1, res: 5, spd: 9, mov: 3, fly: true, phase: true, items: ['mirror'], skills: ['e_wail'], ai: 'ranged', info: 'Reflects 35% of the damage it takes.' },
+  shade: { name: 'Mirror Shade', hp: 18, atk: 3, mag: 9, def: 1, res: 5, spd: 9, mov: 3, eva: 10, fly: true, phase: true, items: ['mirror'], skills: ['e_wail'], ai: 'ranged', info: 'Reflects 35% of the damage it takes.' },
   wight: { name: 'Barrow Wight', hp: 28, atk: 9, def: 3, res: 4, spd: 7, mov: 3, skills: ['e_chill', 'e_doomtouch'], info: 'Its curse dooms.' },
   broodmother: { name: 'Brood Mother', hp: 55, atk: 10, def: 3, res: 2, spd: 7, mov: 3, skills: ['e_spawn', 'e_spiderbite'], scale: 1.3, info: 'Births spiders.' },
-  kobold: { name: 'Powder Kobold', hp: 18, atk: 8, def: 2, res: 1, spd: 9, mov: 3, fireproof: true, skills: ['e_bomb', 'e_stab'], burst: true, ai: 'ranged', info: 'Explodes when it dies, hurting everyone beside it.' },
+  kobold: { name: 'Powder Kobold', hp: 18, atk: 8, def: 2, res: 1, spd: 9, mov: 3, eva: 5, fireproof: true, skills: ['e_bomb', 'e_stab'], burst: true, ai: 'ranged', info: 'Explodes when it dies, hurting everyone beside it.' },
   lavaworm: { name: 'Lava Worm', hp: 30, atk: 11, def: 3, res: 2, spd: 8, mov: 3, fireproof: true, stealth: true, skills: ['e_burrow', 'e_flamebite'], info: 'Starts underground: it can\'t be targeted until it strikes.' },
   brazier: { name: 'Brazier Totem', hp: 26, atk: 0, mag: 9, def: 4, res: 4, spd: 6, mov: 0, fireproof: true, skills: ['e_flamering'], ai: 'ranged', info: 'Can\'t move. Burns anything that comes close.' },
   toad: { name: 'Giant Toad', hp: 22, atk: 8, def: 2, res: 1, spd: 7, mov: 3, swim: true, skills: ['e_tongue', 'e_slam'], info: 'Swims. Its tongue drags heroes in.' },
-  leech: { name: 'Marsh Leech', hp: 14, atk: 6, def: 0, res: 1, spd: 10, mov: 3, swim: true, skills: ['e_leech'], info: 'Swims. Drinks blood and poisons.' },
-  lizard: { name: 'Lizardfolk', hp: 20, atk: 8, def: 2, res: 1, spd: 9, mov: 3, swim: true, skills: ['e_spear'], info: 'Swims. Its spear reaches 2 tiles.' },
+  leech: { name: 'Marsh Leech', hp: 14, atk: 6, def: 0, res: 1, spd: 10, mov: 3, eva: 5, swim: true, skills: ['e_leech'], info: 'Swims. Drinks blood and poisons.' },
+  lizard: { name: 'Lizardfolk', hp: 20, atk: 8, def: 2, res: 1, spd: 9, mov: 3, eva: 5, swim: true, skills: ['e_spear'], info: 'Swims. Its spear reaches 2 tiles.' },
   wisp: { name: 'Will-o\'-Wisp', hp: 12, atk: 2, mag: 8, def: 0, res: 5, spd: 12, mov: 4, fly: true, skills: ['e_glare', 'e_zap'], ai: 'ranged', info: 'Its glare blinds.' },
   croc: { name: 'Mire Crocodile', hp: 65, atk: 13, def: 5, res: 2, spd: 6, mov: 3, swim: true, skills: ['e_deathroll', 'e_bite'], scale: 1.3, info: 'Swims. Its death roll stuns.' },
   hydra: { name: 'The Bog Hydra', hp: 92, atk: 12, mag: 9, def: 4, res: 3, spd: 7, mov: 2, swim: true, boss: true, heads: 'hydrahead', skills: ['e_hydrabite', 'e_bogspit', 'e_growhead'], scale: 1.6,
@@ -1010,7 +1026,7 @@ export const FOES = {
   yeti: { name: 'Yeti', hp: 48, atk: 13, def: 3, res: 2, spd: 6, mov: 3, skills: ['e_maul', 'e_slam'], scale: 1.25 },
   icewight: { name: 'Rime Wight', hp: 28, atk: 9, def: 3, res: 4, spd: 7, mov: 3, skills: ['e_chill', 'e_doomtouch'], info: 'Its touch slows; its curse dooms.' },
   frostarcher: { name: 'Frost Archer', hp: 15, atk: 8, def: 1, res: 2, spd: 8, mov: 3, skills: ['e_frostshot'], ai: 'ranged' },
-  snowwolf: { name: 'Snow Wolf', hp: 19, atk: 8, def: 1, res: 2, spd: 12, mov: 4, skills: ['e_bite'] },
+  snowwolf: { name: 'Snow Wolf', hp: 19, atk: 8, def: 1, res: 2, spd: 12, mov: 4, eva: 10, skills: ['e_bite'] },
   icegolem: { name: 'Ice Golem', hp: 80, atk: 13, def: 7, res: 4, spd: 4, mov: 2, chill: true, skills: ['e_pound', 'e_slam'], scale: 1.2, info: 'Anyone beside it when its turn starts is slowed.' },
   frostqueen: { name: 'The Frost Queen', hp: 115, atk: 6, mag: 13, def: 4, res: 7, spd: 8, mov: 3, boss: true, chill: true, skills: ['e_blizzard', 'e_icelance', 'e_icewall', 'e_hail'], ai: 'ranged', scale: 1.45,
     info: 'Anyone beside her when her turn starts is slowed. Her lance shatters the slowed.' },

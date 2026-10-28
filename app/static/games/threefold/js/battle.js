@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=54';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=54';
-import { spriteURL } from './art.js?v=54';
-import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=54';
-import { sfx } from './audio.js?v=54';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=54';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=56';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=56';
+import { spriteURL } from './art.js?v=56';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=56';
+import { sfx } from './audio.js?v=56';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=56';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -77,7 +77,7 @@ function foeUnit(kind, lvl) {
   const tough = (B.asc >= 1 && (d.boss || B.kind === 'elite') ? 1.2 : 1) * (B.asc >= 5 ? 1.1 : 1) * (B.team.includes('lichbargain') ? 1.15 : 1);
   const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm) * tough);
   const u = { id: ++B.uid, side: 'foe', kind, spr: kind, name: d.name, hp, maxHp: hp, atk: Math.round(d.atk * sm), mag: Math.round((d.mag || 0) * sm),
-    def: d.def + dp, res: d.res + dp, spd: foeSpd(d.spd, lvl), mov: d.mov, crit: 5, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
+    def: d.def + dp, res: d.res + dp, spd: foeSpd(d.spd, lvl), mov: d.mov, crit: 5, eva: d.eva || 0, acc: 0, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, lure: !!d.lure, regen: d.regen || 0, scale: d.scale || 1, info: d.info,
     swim: !!d.swim, rampart: !!d.rampart, split: d.split, burst: !!d.burst, heads: d.heads, chill: !!d.chill, plating: d.plating || 0, overdrive: !!d.overdrive, loot: 0,
     skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30), face: [-1, 0] };
@@ -470,6 +470,33 @@ function hitSide(a, t) {
   return fwd > across ? 'front' : -fwd > across ? 'back' : 'side';
 }
 const FACING_MULT = { front: 1, side: 1.1, back: 1.3 };
+// EVA: the unit's stat (class, promotions, artifacts), plus Blurring Boots for the tiles it moved on
+// its last turn (u.walked holds them until its next turn starts).
+const evaOf = t => (t.eva || 0) + (has(t, 'blurboots') ? Math.min(25, 5 * (t.walked || 0)) : 0);
+// The chance (5-100) that a's damaging skill o lands on t. Accuracy (the attacker's, the skill's, and
+// 5 per level of height above the target) minus the target's EVA, which grows with how much faster it
+// is (half the SPD gap, up to 15). Blows from the side face half the EVA and from behind none; magic
+// faces half. A helpless target (stunned, asleep, frozen) can't dodge; allies never miss each other.
+function hitChance(a, t, o) {
+  if (!t || t === a || t.side === a.side || o.sure || has(a, 'concentrate') || has(a, 'eyestorm')) return 100;
+  if (t.st.stun || t.st.sleep > 0 || t.st.frozen > 0) return 100;
+  const from = hitSide(a, t);
+  let eva = evaOf(t) + Math.max(0, Math.min(15, (spdOf(t) - spdOf(a)) / 2)) + (has(t, 'bladegrasp') && o.kind === 'phys' ? 25 : 0);
+  eva *= (from === 'back' ? 0 : from === 'side' ? 0.5 : 1) * (o.kind === 'mag' ? 0.5 : 1);
+  const acc = 100 + (a.acc || 0) + (o.acc || 0) + 5 * Math.max(0, elev(a) - elev(t)) - (a.st.blind > 0 ? 50 : 0) - (has(t, 'arrowbane') && dist(a, t) > 1 ? 20 : 0);
+  return Math.max(5, Math.min(100, Math.round(acc - eva)));
+}
+// When t dodges a's attack: the evasion artifacts answer.
+function onDodge(t, a) {
+  if (t.dead) return;
+  if (has(t, 'matador')) { t.st.fated = 1; fxText(t, 'Olé!', '#ffd23f', true); }
+  if (has(t, 'phantomstep')) { hasteUnit(t, 30); t.st.movUp = Math.max(t.st.movUp || 0, 1); }
+  if (has(t, 'parrydagger') && a && !a.dead && dist(a, t) === 1) {
+    fxText(t, 'Parry', '#ffd23f');
+    damage(a, Math.round(calcDmg(t, a, { kind: 'phys', stat: 'atk', pow: 0.6, range: [1, 1] })), t, { counter: true });
+  }
+  refreshView(t);
+}
 // Sprites are drawn facing right; on the isometric board +y runs down-left and -x up-left.
 const faceFlip = f => (env.iso ? f[0] - f[1] < 0 : f[0] < 0);
 // Turn toward a tile (the longer axis wins; a tie keeps left or right).
@@ -542,6 +569,8 @@ function dmgMult(a, t, o) {
   if (a.echoing && has(a, 'resonator')) m *= 1.5;
   if (has(a, 'lastrites')) m *= 1 + 0.3 * B.units.filter(x => x.dead && x.ref && homeSide(x) === homeSide(a)).length;
   if (has(a, 'abyssal')) m *= 2;
+  if (has(t, 'glasswings')) m *= 1.5;
+  if (has(a, 'eyestorm') && t.side !== a.side) m *= 1 + evaOf(t) / 100;
   if (has(t, 'chronodebt')) m *= 1.4;
   if (a.owner && has(a.owner, 'packhorn')) m *= 1.4;
   if (a.st.poison > 0 && alive().some(x => x.side !== a.side && has(x, 'censer'))) m *= 0.8;
@@ -1260,9 +1289,11 @@ async function useSkill(u, s, tx, ty, echoed) {
     }
     if (o.kind === 'summon') continue;
     for (let i = 0; i < hitsOf(o) && !t.dead; i++) {
-      const sure = has(u, 'concentrate') || o.sure;
-      if (!sure && u.st.blind > 0 && chance(0.5)) { fxText(t, 'Miss', '#aaaaaa'); sfx('miss'); continue; }
-      if (!sure && t.side !== u.side && ((isClass(t, 'oracle') && chance(0.2)) || (has(t, 'bladegrasp') && o.kind === 'phys' && chance(0.25)))) { fxText(t, 'Dodge', '#c9f7ff'); sfx('miss'); continue; }
+      if (t.side !== u.side && Math.random() * 100 >= hitChance(u, t, o)) {
+        fxText(t, u.st.blind > 0 ? 'Miss' : 'Dodge', '#c9f7ff'); sfx('miss');
+        onDodge(t, u);
+        continue;
+      }
       if (has(t, 'hollow') && t.side === u.side && t !== u) { heal(t, calcDmg(u, t, o) * w); continue; }
       const shocked = t.st.shock > 0, hexed = t.st.hex > 0, before = t.hp + t.shield;
       const r = roll(u, t, o, w), wet = t.st.wet > 0;
@@ -1739,7 +1770,8 @@ function scoreAction(u, o, list) {
     if (o.hexBurst && foe) d += hexBurstDmg(u, o, t);
     const extra = kills ? 25 : (o.hex ? o.hex * 2 : 0) + (o.stun && !t.boss && !(t.st.steady > 0) ? 8 : 0) + (o.slow ? 3 : 0) + (o.poison ? o.poison * 2 : 0) + (o.burn ? 4 : 0) + (o.vuln ? 4 : 0) + (o.shock ? 3 : 0)
       + (o.detonate === 'poison' && t.st.poison > 0 ? t.st.poison * t.st.poisonDmg : 0) + (o.detonate === 'burn' && t.st.burn > 0 ? t.st.burn * t.st.burnDmg * 2 : 0);
-    s += foe ? d + extra : -(d + extra) * 1.5;
+    const hc = hitChance(u, t, o) / 100; // a likely miss is worth less
+    s += foe ? (d + extra) * hc : -(d + extra) * 1.5 * hc;
   }
   if ((o.hpCost || o.bloodpact) && u.hp < u.maxHp * 0.35) s -= 15;
   if (o.kind === 'shield' && o.guard) s += 3;
@@ -1893,7 +1925,8 @@ function intentView(u) {
   const hits = [];
   for (const { t, w } of hitList(u, o, tx, ty, true)) {
     if (t === u && o.tgt !== 'self') continue;
-    hits.push({ t, w, dmg: o.kind === 'phys' || o.kind === 'mag' ? Math.round(calcDmg(u, t, o) * (randomPick(o) ? 1 : w) * hitsOf(o)) : 0 });
+    const dmg = o.kind === 'phys' || o.kind === 'mag' ? Math.round(calcDmg(u, t, o) * (randomPick(o) ? 1 : w) * hitsOf(o)) : 0;
+    hits.push({ t, w, dmg, hc: dmg ? hitChance(u, t, o) : 100 });
   }
   u.x = ox; u.y = oy;
   return { o, area, hits, tx, ty };
@@ -1954,7 +1987,7 @@ function unitCard(u, withSkills) {
   return h('div', { class: 'card' },
     h('div', { class: 'card-head' }, sprImg(u.spr, u.side === 'foe' ? 'flip' : ''),
       h('div', { class: 'who' }, h('b', {}, u.name), bar(u.hp, u.maxHp, u.side === 'foe', u.shield), `${u.hp}/${u.maxHp} HP${u.shield ? ` +${u.shield} shield` : ''}`)),
-    h('div', { class: 'stats' }, `ATK ${u.atk} · MAG ${u.mag} · DEF ${u.def} · RES ${u.res} · SPD ${spdOf(u)} · MOV ${u.mov}`),
+    h('div', { class: 'stats' }, `ATK ${u.atk} · MAG ${u.mag} · DEF ${u.def} · RES ${u.res} · SPD ${spdOf(u)} · MOV ${u.mov} · `, tip(`EVA ${evaOf(u)}`, 'eva'), u.acc ? ` · ACC +${u.acc}` : ''),
     extra ? h('div', { class: 'stats' }, extra) : null,
     h('div', { class: 'status' }, statusText(u)),
     u.side === 'foe' && !u.dead ? intentLine(u) : null,
@@ -1972,7 +2005,7 @@ function objectiveLine(o) {
 function intentLine(u) {
   if (!u.intent || !canPlan(u)) return u.st.stun || u.st.sleep > 0 ? h('div', { class: 'intent' }, tip('Next: skips its turn', 'intent')) : null;
   const I = intentView(u);
-  const who = I.hits.filter(e => e.t !== u).map(e => e.dmg ? `${e.t.name} ${e.dmg >= e.t.hp + e.t.shield ? 'KO' : '−' + e.dmg}` : e.t.name);
+  const who = I.hits.filter(e => e.t !== u).map(e => e.dmg ? `${e.t.name} ${e.dmg >= e.t.hp + e.t.shield ? 'KO' : '−' + e.dmg}${e.hc < 100 ? ` (${e.hc}%)` : ''}` : e.t.name);
   return h('div', { class: 'intent' }, tip(`Next: ${I.o.name}`, 'intent'), who.length ? ` → ${who.join(', ')}` : ' (nobody in the red now)');
 }
 function tileCard(x, y) {
@@ -1987,8 +2020,8 @@ function confirmLabel(u) {
   for (const { t, w } of list) seen.set(t, (seen.get(t) || 0) + w);
   if (seen.size !== 1) return seen.size ? `Confirm: ${seen.size} targets` : 'Confirm';
   const [[t, w]] = [...seen];
-  const d = Math.round(calcDmg(u, t, o) * w * hitsOf(o));
-  return d >= t.hp + t.shield ? `Confirm: KO ${t.name}` : `Confirm: ${t.name} −${d}`;
+  const d = Math.round(calcDmg(u, t, o) * w * hitsOf(o)), hc = hitChance(u, t, o), odds = hc < 100 ? ` (${hc}%)` : '';
+  return d >= t.hp + t.shield ? `Confirm: KO ${t.name}${odds}` : `Confirm: ${t.name} −${d}${odds}`;
 }
 function hintText() {
   const u = B.active;
@@ -2352,8 +2385,9 @@ export class BattleScene extends Phaser.Scene {
     const b = B;
     // the whole board is one canvas, repainted when terrain changes and on each animation tick
     this.ov = this.add.graphics().setDepth(5);
-    this.marks = Array.from({ length: 24 }, () => this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '16px', color: '#fff', stroke: '#000', strokeThickness: 5 })
-      .setOrigin(0.5).setDepth(950).setVisible(false));
+    // damage estimates sit small, just above a unit's head, so they hide little of the sprite
+    this.marks = Array.from({ length: 24 }, () => this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '11px', color: '#fff', stroke: '#000', strokeThickness: 4, align: 'center' })
+      .setOrigin(0.5, 1).setDepth(950).setVisible(false));
     this.bursts = {};
     for (const [k, cfg] of Object.entries(BURSTS)) this.bursts[k] = this.add.particles(0, 0, 'px', { ...cfg, emitting: false }).setDepth(800);
     for (const u of b.units) makeView(u);
@@ -2502,8 +2536,9 @@ export class BattleScene extends Phaser.Scene {
       if (po.kind !== 'phys' && po.kind !== 'mag') continue;
       for (const { t, w } of hitList(c, po, c.pending.tx, c.pending.ty, true)) {
         if (t === c) continue;
-        const e = threat.get(t) || { dmg: 0, words: [] };
+        const e = threat.get(t) || { dmg: 0, words: [], hc: 100 };
         e.dmg += Math.round(calcDmg(c, t, po) * w * hitsOf(po));
+        e.hc = Math.min(e.hc, hitChance(c, t, po));
         threat.set(t, e);
       }
     }
@@ -2520,9 +2555,9 @@ export class BattleScene extends Phaser.Scene {
       // a red tab over the foe's head: it has something coming
       g.fillStyle(0x120b18); g.fillRect(c.view.x + TS - 16, c.view.y + 2, 14, 14);
       g.fillStyle(help ? 0xa87ae0 : 0xe5463c); g.fillRect(c.view.x + TS - 14, c.view.y + 4, 10, 10);
-      for (const { t, dmg } of I.hits) {
-        const e = threat.get(t) || { dmg: 0, words: [] };
-        if (dmg) e.dmg += dmg;
+      for (const { t, dmg, hc } of I.hits) {
+        const e = threat.get(t) || { dmg: 0, words: [], hc: 100 };
+        if (dmg) { e.dmg += dmg; e.hc = Math.min(e.hc, hc); }
         else if (I.o.kind === 'heal') e.words.push('+' + Math.round(Math.max(0, Math.min(healRoom(t), powerVal(c, I.o)))));
         else if (I.o.kind === 'shield') e.words.push('+' + Math.round(powerVal(c, I.o)));
         else if (I.o.kind === 'buff') e.words.push(buffWord(I.o, t));
@@ -2544,10 +2579,10 @@ export class BattleScene extends Phaser.Scene {
     if (!preview) for (const [t, e] of threat) {
       if (mi >= this.marks.length || !t.view) break;
       const ko = e.dmg && e.dmg >= t.hp + t.shield;
-      const label = e.dmg ? (ko ? 'KO' : '-' + e.dmg) : e.words[0];
+      const label = e.dmg ? (ko ? 'KO' : '-' + e.dmg) + (e.hc < 100 ? ` ${e.hc}%` : '') : e.words[0];
       if (!label) continue;
       const col = e.dmg ? '#ff6a5a' : homeSide(t) === 'foe' ? '#c8a8f4' : '#ff9a8a';
-      this.marks[mi++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 18).setVisible(true);
+      this.marks[mi++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 2).setVisible(true);
     }
     if (preview) {
       const totals = new Map();
@@ -2565,9 +2600,11 @@ export class BattleScene extends Phaser.Scene {
           const d = Math.round(calcDmg(u, t, o) * (randomPick(o) ? 1 : w) * hitsOf(o));
           label = o.gamble ? '?' : d >= t.hp + t.shield ? 'KO' : '-' + d;
           if (o.knock && !t.anchored && t !== u) { const [dx, dy] = knockDir(u, t); if ((dx || dy) && isPit(t, t.x + dx, t.y + dy)) label = 'FALL'; }
+          const hc = hitChance(u, t, o);
+          if (hc < 100 && !o.gamble) label += ` ${hc}%`;
           col = t.side === u.side ? '#ff9a9a' : '#ffe14d';
         }
-        this.marks[i++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 18).setVisible(true);
+        this.marks[i++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 2).setVisible(true);
       }
     }
   }

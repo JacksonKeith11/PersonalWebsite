@@ -49,7 +49,8 @@ Keep it that way.
   - Lifesteal was too strong and was cut: drains are 15–45% of damage, Leech Jar 25%, Vampire Fang
     10%, Leech Seed heals half the poison, and `leech()` caps what one skill (echoes included) can
     drink at 20% of max HP.
-  - Inns heal 25% for 45g (40% in the shops just before a boss), and event heals are 10–25%.
+  - Inns heal 25% for 45g (40% in the shops just before a boss), and event heals are 10–25%. Every act
+    also ends with a campfire before the boss (rest heals 30%).
   - A new act fully heals.
   - Don't add easy healing back.
 - **No stalling.** After about 9 rounds (`CALM_TURNS` hero turns) foes gain +10% damage per round.
@@ -69,6 +70,30 @@ Keep it that way.
   level, `every` [n, stats] on multiples of n, and `at` one-offs such as +2 SPD. Classes should feel
   different as they grow; tanks gain DEF and HP, casters MAG and RES, skirmishers SPD and CRIT.
   New classes need a `GROWTH` entry.
+- **Attacks can miss** (the owner asked for hit chance and dodge interplay). `hitChance(a, t, o)` in
+  battle.js: 100 plus the attacker's accuracy (`acc` from artifacts, the skill's `acc` from Sharp Eye,
+  +5 per level of height above), minus the target's EVA (`evaOf`: the `eva` stat from classes,
+  promotions, foes and artifacts, Blurring Boots), plus half the SPD gap if the target is faster (up to
+  15). Side blows face half the EVA, back blows none, magic half; stunned, asleep or frozen targets
+  can't dodge; Blind is −50. Floor 5%. Only damaging skills roll it, against the other side. `o.sure`,
+  Focus Beads and Eye of the Storm never miss. A dodge calls `onDodge` (Matador's Cape, Phantom Step,
+  Parrying Dagger). The aim preview, Confirm button, foe forecasts and charges show the odds ("−12
+  85%"), and the AI scales each hit's value by them. The Oracle's old 20% dodge is now +20 EVA, and
+  Blade Grasp Gloves +25 EVA against physical attacks. EVA: Rogue 10, Assassin and Trickster +5, Ninja
+  +10, Oracle +20; fast or flying foes 5-20 (bats 20). Evasion archetype artifacts: Mist Cloak, Hawkeye
+  Charm, Rabbit's Foot, Matador's Cape, Phantom Step, Parrying Dagger, Blurring Boots, Arrowbane Veil,
+  Glass Wings (cursed: +35 EVA, hits deal +50%), Eye of the Storm; skill artifacts Sharp Eye and True
+  Strike.
+- **Damage estimates sit small above the head** (11px, at the top of the unit's view), so they hide
+  little of the sprite.
+- **The map screen** (`mapscene.js`): medallion nodes (the type's colour, a lit rim, a tick once
+  passed, a pulsing halo when you can go there), gently curved dotted trails (gold where walked,
+  marching where you can go next), the act's name on a fixed banner, and the boss's own sprite on its
+  node. The side panel lists the next steps as buttons with a line about each (`NODE_ABOUT`); hovering
+  one points at its node (`mapEnv.hover`), and the legend folds away.
+- **A campfire before every boss.** `genMap` adds a `camp` node (a normal `rest`) that every path's
+  last row leads to, then the boss. Older saves have no camp and still work (`nodePos`, the HUD's
+  floor count).
 - **Ranges are short for the 8×8 board** (the owner asked: ranged foes could hit anyone, anywhere).
   Hostile skills lost reach (a 4 became 3, a 5 became 4, a 6 became 4 or, for charged and lobbed
   area skills, 5, a 7 became 5), and the foes' own attacks were set by hand to 3-4 (charged boss
@@ -86,8 +111,8 @@ Keep it that way.
   one random pick from the rest of `start` plus `pool`. They learn only from their
   current class (`skillPool` in rules.js): `start` plus `pool` before the first promotion, then the
   latest class's `skill` plus `pool`, up to `MAX_SKILLS` = 4. Skills already known stay. Learning a fifth means forgetting one.
-- **Archetypes give builds a direction.** Seventeen tags in `ARCHES` (poison, elemental, shield, thorns,
-  blood, time, plus hex, carnage and fortune borrowed from other roguelikes, bleed, summoner, momentum, frost, bounty, geomancy, echo and martyr) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
+- **Archetypes give builds a direction.** Eighteen tags in `ARCHES` (poison, elemental, shield, thorns,
+  blood, time, plus hex, carnage and fortune borrowed from other roguelikes, bleed, summoner, momentum, frost, bounty, geomancy, echo, martyr and evasion) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
   how much of each archetype the party has (`partyArches`), so a build snowballs without being
   forced. Every archetype needs payoff artifacts that reward stacking it (detonate poison, damage vs
   shocked, scale with shield or thorns), not just more of the same status.

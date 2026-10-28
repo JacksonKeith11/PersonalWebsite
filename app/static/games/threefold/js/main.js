@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=54';
+import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, FOES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=56';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=54';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=54';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=54';
-import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=54';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=54';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=54';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=54';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=56';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=56';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=56';
+import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=56';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=56';
+import { MapScene, mapEnv, mapHeight, NODE_NAMES } from './mapscene.js?v=56';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=56';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -76,9 +76,11 @@ function hud(inBattle) {
     hud(inBattle);
   } }, small ? `${SPEED}×` : `Speed ${SPEED}×`));
   if (!run) { el.replaceChildren(...audio); return; }
-  const floor = run.pos === 'boss' ? ROWS_PER_ACT + 1 : run.pos ? run.map[run.pos].r + 1 : 1;
+  // older saves have no campfire row before the boss, and the boss on row ROWS_PER_ACT
+  const rows = run.map.camp ? ROWS_PER_ACT + 2 : ROWS_PER_ACT + 1;
+  const floor = run.pos === 'boss' ? rows : run.pos ? run.map[run.pos].r + 1 : 1;
   el.replaceChildren(
-    h('span', { class: 'hud-item' }, `Act ${run.act + 1} `, h('b', {}, `${floor}/${ROWS_PER_ACT + 1}`)),
+    h('span', { class: 'hud-item' }, `Act ${run.act + 1} `, h('b', {}, `${floor}/${rows}`)),
     h('span', { class: 'hud-item' }, 'Gold ', h('b', {}, run.gold)),
     ...(run.asc ? [h('span', { class: 'hud-item', title: ASCENTS.slice(0, run.asc).join(' ') }, small ? 'A' : 'Ascent ', h('b', {}, run.asc))] : []),
     ...run.party.map(p => h('span', { class: 'hud-hero', title: heroTitle(p) }, sprImg(heroSprite(p)), `${p.hp}/${heroStats(p, run.gold).maxHp}`)),
@@ -131,12 +133,14 @@ function genMap() {
     }
   }
   for (const n of Object.values(nodes)) {
-    if (n.r === R - 1) { n.next.push('boss'); n.type = 'shop'; continue; }
+    if (n.r === R - 1) { n.next.push('camp'); n.type = 'shop'; continue; }
     if (n.r === 0) { n.type = 'battle'; continue; }
     const roll = Math.random();
     n.type = n.r >= 3 && roll < 0.17 ? 'elite' : n.r >= 2 && roll < 0.29 ? 'shop' : n.r >= 2 && roll < 0.41 ? 'rest' : roll < 0.62 ? 'event' : 'battle';
   }
-  nodes.boss = { id: 'boss', r: R, c: 2, type: 'boss', next: [], jx: 0, jy: 0 };
+  // every path meets at a campfire just before the boss
+  nodes.camp = { id: 'camp', r: R, c: 2.5, type: 'rest', next: ['boss'], jx: 0, jy: 0 };
+  nodes.boss = { id: 'boss', r: R + 1, c: 2.5, type: 'boss', next: [], jx: 0, jy: 0 };
   return nodes;
 }
 function newRun(ascent = 0) {
@@ -177,22 +181,36 @@ function actIntro() {
 }
 
 // ---------- map ----------
+const NODE_LEGEND = { battle: 'Battle', elite: 'Elite battle (two artifacts)', event: 'Unknown event', shop: 'Shop (rest, lessons, artifacts)', rest: 'Campfire (heal, temper or train)' };
+const NODE_ABOUT = {
+  battle: 'A fight. Win artifacts, gold and a level.',
+  elite: 'A harder fight. Two artifact picks, better odds of rare ones.',
+  event: 'Something unknown waits: a deal, a trap or a gift.',
+  shop: 'Buy artifacts and lessons, or rest at the inn.',
+  rest: 'Rest, temper a skill for good, or train a new one.',
+};
 function showMap() {
   save();
   hud();
   music('m_map');
-  const legend = h('div', { class: 'panel legend' }, h('h3', {}, curAct().name),
-    ...['battle', 'elite', 'event', 'shop', 'rest', 'boss'].map(t => {
-      const c = h('canvas', { width: 24, height: 24 });
-      const x = c.getContext('2d');
-      x.imageSmoothingEnabled = false;
-      x.fillStyle = NODE_COLORS[t]; x.fillRect(0, 0, 24, 24);
-      x.drawImage(iconCanvas(t), 4, 4, 16, 16);
-      return h('div', {}, c, t === 'boss' ? curAct().boss : { battle: 'Battle', elite: 'Elite battle (two artifacts)', event: 'Unknown event', shop: 'Shop (rest, lessons, artifacts)', rest: 'Campfire (heal, temper or train)' }[t]);
-    }),
-    h('p', { class: 'muted' }, 'Pick a glowing node. Drag or scroll the map to look ahead. Healing is rare: wounds carry between fights, and only a new act restores everyone fully.'));
-  showStage('map', [legend]);
-  Object.assign(mapEnv, { run, available, pick: enterNode, actName: `Act ${run.act + 1}: ${curAct().name}`, theme: curAct().theme, leader: heroSprite(run.party[0]) });
+  const act = curAct(), bossKind = act.bossParty.find(k => FOES[k].boss);
+  const icon = (t, size = 24) => {
+    const c = h('canvas', { width: size, height: size, class: 'node-icon' });
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    x.fillStyle = NODE_COLORS[t]; x.beginPath(); x.arc(size / 2, size / 2, size / 2, 0, 7); x.fill();
+    x.drawImage(iconCanvas(t), size / 6, size / 6, size * 2 / 3, size * 2 / 3);
+    return c;
+  };
+  const about = n => n.id === 'boss' ? `${act.boss}. Win to end the act.` : n.id === 'camp' ? 'The last campfire before the boss: rest, temper a skill or train.' : NODE_ABOUT[n.type];
+  const choices = h('div', { class: 'panel choices' }, h('h3', {}, available().length > 1 ? 'Choose your path' : 'Next'),
+    available().map(n => h('button', { class: 'choice', onclick: () => enterNode(n), onmouseenter: () => { mapEnv.hover = n.id; }, onmouseleave: () => { mapEnv.hover = null; }, onfocus: () => { mapEnv.hover = n.id; }, onblur: () => { mapEnv.hover = null; } },
+      icon(n.type, 30), h('span', {}, h('b', {}, n.id === 'boss' ? act.boss : n.id === 'camp' ? 'Last campfire' : NODE_NAMES[n.type]), h('small', {}, about(n))))));
+  const legend = h('details', { class: 'panel legend', open: window.innerWidth > 920 }, h('summary', {}, 'Map key'),
+    ...['battle', 'elite', 'event', 'shop', 'rest', 'boss'].map(t => h('div', {}, icon(t), t === 'boss' ? act.boss : NODE_LEGEND[t])),
+    h('p', { class: 'muted' }, 'Drag or scroll the map to look ahead. Healing is rare: wounds carry between fights, and only a new act restores everyone fully.'));
+  showStage('map', [choices, legend]);
+  Object.assign(mapEnv, { run, available, pick: enterNode, actName: `Act ${run.act + 1}: ${act.name}`, theme: act.theme, leader: heroSprite(run.party[0]), boss: bossKind, bossName: act.boss, hover: null });
   game.scene.start('map');
   auto(() => {
     enterNode(pickNode(run.party, available(), run.gold));
@@ -703,7 +721,7 @@ function showParty() {
       const st = heroStats(p, run.gold), src = heroSrc(p, run.gold);
       return h('div', { class: 'hero-card' },
         h('div', { class: 'card-head' }, sprImg(heroSprite(p), 'big'), h('div', { class: 'who' }, h('b', {}, heroTitle(p)), bar(p.hp, st.maxHp, false), `${p.hp}/${st.maxHp} HP`)),
-        h('div', { class: 'stats' }, `ATK ${st.atk} · MAG ${st.mag} · DEF ${st.def} · RES ${st.res} · SPD ${st.spd} · MOV ${st.mov} · CRIT ${st.crit}%`),
+        h('div', { class: 'stats' }, `ATK ${st.atk} · MAG ${st.mag} · DEF ${st.def} · RES ${st.res} · SPD ${st.spd} · MOV ${st.mov} · CRIT ${st.crit}%${st.eva ? ` · EVA ${st.eva}` : ""}${st.acc ? ` · ACC +${st.acc}` : ""}`),
         h('div', { class: 'desc' }, h('b', { class: 'inline' }, `Lv ${p.lvl || 1} `), `Growth: ${growthText(growthClass(p))}`,
           nextBreakpoint(p) ? h('span', { class: 'next-bp' }, ` · next ${nextBreakpoint(p)}`) : null),
         ...(p.line || []).map(c => h('div', { class: 'desc' }, h('b', { class: 'inline' }, PROMOS[c].name + ' '), PROMOS[c].passive)),
@@ -747,6 +765,7 @@ function showTitle() {
         h('li', {}, 'In battle, units take turns by speed (the "Next" strip). On a hero\'s turn, move once and act once, in either order.'),
         h('li', {}, 'Walls block movement and line of sight: bolts and arrows can\'t pass them, but lobbed skills can. Lava burns, brambles cut and cover cuts damage. Tap any tile to read it.'),
         h('li', {}, 'Height: hills and summits rise 1 and 2 levels. Climbing a level costs 1 extra movement, and nobody climbs two at once. Each level above your target adds 10% damage (each below takes 10% off), each level you stand on adds 1 to ranged skills\' reach, and a foe knocked off a ledge takes fall damage.'),
+        h('li', {}, 'Attacks can miss. Hit chance is 100% plus accuracy, minus the target\'s EVA (evasion), and a faster target dodges more. Blows from the side face half its EVA and from behind none, magic faces half, and a stunned or sleeping unit can\'t dodge. Previews and foe forecasts show the odds next to the damage.'),
         h('li', {}, 'Pits are bottomless: nobody can walk in, but a unit knocked or pulled into one falls to its death. Push foes in, and keep your heroes off the edge.'),
         h('li', {}, 'Foes show what they plan to do next: red tiles, a line from where they\'ll stand, and the damage on your heroes. Plans update after each move and action, so dodging works only if the foe has nothing better to hit.'),
         h('li', {}, 'Flank: hitting a foe that another hero stands next to deals 25% more (the Rogue gets 50%).'),

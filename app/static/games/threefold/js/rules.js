@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=54';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=56';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -27,14 +27,14 @@ export const artPrice = id => RARITY[artRarity(id)].price;
 
 export function newHero(cls) {
   const c = CLASSES[cls];
-  return { cls, promo: null, maxHp: c.hp, hp: c.hp, atk: c.atk, mag: c.mag, def: c.def, res: c.res, spd: c.spd, mov: c.mov, crit: c.crit, items: [], line: [], lvl: 1,
+  return { cls, promo: null, maxHp: c.hp, hp: c.hp, atk: c.atk, mag: c.mag, def: c.def, res: c.res, spd: c.spd, mov: c.mov, crit: c.crit, eva: c.eva || 0, items: [], line: [], lvl: 1,
     // the class's basic attack plus one random skill from the rest of its kit
     skills: [c.start[0], pick([...c.start.slice(1), ...c.pool])].map(id => ({ id, mods: [] })) };
 }
 
 // Stats with hero artifacts applied. gold feeds the Gold Tooth.
 export function heroStats(p, gold = 0) {
-  const o = { maxHp: p.maxHp, atk: p.atk, mag: p.mag, def: p.def, res: p.res, spd: p.spd, mov: p.mov, crit: p.crit };
+  const o = { maxHp: p.maxHp, atk: p.atk, mag: p.mag, def: p.def, res: p.res, spd: p.spd, mov: p.mov, crit: p.crit, eva: p.eva || 0, acc: 0 };
   for (const id of p.items) for (const [k, v] of Object.entries(ITEMS[id].stats || {})) o[k] += v;
   for (const id of p.team || []) for (const [k, v] of Object.entries(TEAM[id].stats || {})) o[k] += v;
   if (p.items.includes('anklet')) o.maxHp = Math.round(o.maxHp * 0.75);
@@ -52,7 +52,7 @@ export const startShield = (p, maxHp) => has(p, 'voidheart') ? 0 : Math.round(ma
 export const heroSrc = (p, gold) => { const st = heroStats(p, gold); return { ...st, hp: p.hp, items: p.items, skills: p.skills, team: p.team, line: p.line, shield: startShield(p, st.maxHp) }; };
 
 // ---------- levels ----------
-const GROWTH_NAMES = { maxHp: 'HP', atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', mov: 'MOV', crit: 'CRIT' };
+const GROWTH_NAMES = { maxHp: 'HP', atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', mov: 'MOV', crit: 'CRIT', eva: 'EVA' };
 const statsText = st => Object.entries(st).map(([k, v]) => `+${v} ${GROWTH_NAMES[k]}`).join(', ');
 // Growth follows the hero's current class: their latest promotion, else their base class.
 export const growthClass = p => (p.line && p.line.length ? p.line[p.line.length - 1] : p.cls);
@@ -98,7 +98,7 @@ export function promoOptions(p) {
 export function promote(p, id) {
   p.promo = id;
   p.line = [...(p.line || []), id];
-  for (const [k, v] of Object.entries(PROMOS[id].stats)) { p[k] += v; if (k === 'maxHp') p.hp += v; }
+  for (const [k, v] of Object.entries(PROMOS[id].stats)) { p[k] = (p[k] || 0) + v; if (k === 'maxHp') p.hp += v; } // older saves have no eva
 }
 
 // The skill as it stands after its artifacts and the holder's hero artifacts.

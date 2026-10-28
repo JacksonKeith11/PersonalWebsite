@@ -1,7 +1,7 @@
 // The branching path for the current act, drawn and made clickable with Phaser.
-import { ROWS_PER_ACT } from './data.js?v=34';
-import { NODE_COLORS } from './art.js?v=34';
-import { groundTile, TP } from './tiles.js?v=34';
+import { ROWS_PER_ACT } from './data.js?v=35';
+import { NODE_COLORS } from './art.js?v=35';
+import { groundTile, TP } from './tiles.js?v=35';
 
 export const MAP = { W: 640, TOP: 70, STEP: 70, COLS: 6 };
 export const mapHeight = () => MAP.TOP * 2 + ROWS_PER_ACT * MAP.STEP;

@@ -1,6 +1,6 @@
 // Sprites and map icons as canvases for Phaser and the DOM. The sprites themselves are generated into
 // sprites.js by tools/threefold-art (see docs/game-art.md); flat32() gives them their outline and matte shading.
-import { SPRITES } from './sprites.js?v=34';
+import { SPRITES } from './sprites.js?v=35';
 
 const K = '#1b1226';
 export const ICONS = {
@@ -8,10 +8,11 @@ export const ICONS = {
   elite: { pal: { w: '#f1ead8', k: K }, rows: ['..wwww..', '.wwwwww.', '.wkwwkw.', '.wkwwkw.', '.wwwwww.', '..wkkw..', '..wwww..', '..w..w..'] },
   event: { pal: { y: '#ffe680' }, rows: ['..yyyy..', '.yy..yy.', '.....yy.', '....yy..', '...yy...', '...yy...', '........', '...yy...'] },
   shop: { pal: { k: '#6a4a1a', y: '#f2c94c', Y: '#fff0a0' }, rows: ['...kk...', '..kyyk..', '...kk...', '..yyyy..', '.yyYyyy.', '.yYyyyy.', '.yyyyyy.', '..yyyy..'] },
+  rest: { pal: { r: '#e04820', o: '#ff9a2a', y: '#ffe14d', k: '#7a5232' }, rows: ['....r...', '...ror..', '..royor.', '..oyyyo.', '...oyo..', '.kk..kk.', '...kk...', '.kk..kk.'] },
   boss: { pal: { y: '#f2c94c', r: '#e04848' }, rows: ['........', 'y..y..y.', 'yy.y.yy.', 'yyyyyyy.', 'yryyryy.', 'yyyyyyy.', 'yyyyyyy.', '........'] },
 };
 
-export const NODE_COLORS = { battle: '#8e3a35', elite: '#6a2f9a', event: '#2f5f99', shop: '#94701c', boss: '#5a1d2a' };
+export const NODE_COLORS = { battle: '#8e3a35', elite: '#6a2f9a', event: '#2f5f99', shop: '#94701c', rest: '#3d6b3a', boss: '#5a1d2a' };
 
 // Map icons are 8×8 letter grids drawn as-is.
 export function paint(art) {

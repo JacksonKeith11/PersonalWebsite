@@ -1,13 +1,13 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=34';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=35';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=34';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=34';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=34';
-import { env, startBattle, BattleScene } from './battle.js?v=34';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=34';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=34';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=35';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=35';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=35';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=35';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=35';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=35';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -68,6 +68,7 @@ function hud(inBattle) {
   el.replaceChildren(
     h('span', { class: 'hud-item' }, `Act ${run.act + 1} `, h('b', {}, `${floor}/${ROWS_PER_ACT + 1}`)),
     h('span', { class: 'hud-item' }, 'Gold ', h('b', {}, run.gold)),
+    ...(run.asc ? [h('span', { class: 'hud-item', title: ASCENTS.slice(0, run.asc).join(' ') }, small ? 'A' : 'Ascent ', h('b', {}, run.asc))] : []),
     ...run.party.map(p => h('span', { class: 'hud-hero', title: heroTitle(p) }, sprImg(heroSprite(p)), `${p.hp}/${heroStats(p, run.gold).maxHp}`)),
     ...(inBattle ? [] : [h('button', { class: 'btn tiny', onclick: showParty }, 'Party')]),
     ...audio,
@@ -76,6 +77,11 @@ function hud(inBattle) {
 
 // ---------- saving ----------
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(run)); } catch (e) { /* storage unavailable */ } }
+// The difficulty ladder: the highest ascent unlocked, and the one last chosen, kept per browser.
+const ascMax = () => { try { return Math.min(ASCENTS.length, +localStorage.getItem('threefold-ascent') || 0); } catch (e) { return 0; } };
+const ascPicked = () => { try { return Math.min(ascMax(), +localStorage.getItem('threefold-ascent-pick') || 0); } catch (e) { return 0; } };
+const setAsc = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } };
+const asc = () => (run && run.asc) || 0;
 function load() {
   try {
     const s = localStorage.getItem(SAVE_KEY), r = s ? JSON.parse(s) : null;
@@ -110,13 +116,13 @@ function genMap() {
     if (n.r === R - 1) { n.next.push('boss'); n.type = 'shop'; continue; }
     if (n.r === 0) { n.type = 'battle'; continue; }
     const roll = Math.random();
-    n.type = n.r >= 3 && roll < 0.17 ? 'elite' : n.r >= 2 && roll < 0.31 ? 'shop' : roll < 0.58 ? 'event' : 'battle';
+    n.type = n.r >= 3 && roll < 0.17 ? 'elite' : n.r >= 2 && roll < 0.29 ? 'shop' : n.r >= 2 && roll < 0.41 ? 'rest' : roll < 0.62 ? 'event' : 'battle';
   }
   nodes.boss = { id: 'boss', r: R, c: 2, type: 'boss', next: [], jx: 0, jy: 0 };
   return nodes;
 }
-function newRun() {
-  run = { party: ['warrior', 'mage', 'rogue'].map(newHero), gold: 60, act: 0, acts: ACT_SLOTS.map(slot => pick(slot)), map: genMap(), pos: null, visited: [], seen: [], stash: [], stats: { kills: 0, battles: 0 } };
+function newRun(ascent = 0) {
+  run = { party: ['warrior', 'mage', 'rogue'].map(newHero), asc: ascent, team: [], gold: ascent >= 2 ? 30 : 60, act: 0, acts: ACT_SLOTS.map(slot => pick(slot)), map: genMap(), pos: null, visited: [], seen: [], stash: [], stats: { kills: 0, battles: 0 } };
   env.run = run;
   if (AUTO && params.has('chaos')) {
     // stress test: promoted heroes with four random skills, every slot filled with random artifacts
@@ -158,13 +164,13 @@ function showMap() {
   hud();
   music('m_map');
   const legend = h('div', { class: 'panel legend' }, h('h3', {}, curAct().name),
-    ...['battle', 'elite', 'event', 'shop', 'boss'].map(t => {
+    ...['battle', 'elite', 'event', 'shop', 'rest', 'boss'].map(t => {
       const c = h('canvas', { width: 24, height: 24 });
       const x = c.getContext('2d');
       x.imageSmoothingEnabled = false;
       x.fillStyle = NODE_COLORS[t]; x.fillRect(0, 0, 24, 24);
       x.drawImage(iconCanvas(t), 4, 4, 16, 16);
-      return h('div', {}, c, t === 'boss' ? curAct().boss : { battle: 'Battle', elite: 'Elite battle (two artifacts)', event: 'Unknown event', shop: 'Shop (rest, lessons, artifacts)' }[t]);
+      return h('div', {}, c, t === 'boss' ? curAct().boss : { battle: 'Battle', elite: 'Elite battle (two artifacts)', event: 'Unknown event', shop: 'Shop (rest, lessons, artifacts)', rest: 'Campfire (heal, temper or train)' }[t]);
     }),
     h('p', { class: 'muted' }, 'Pick a glowing node. Drag or scroll the map to look ahead. Healing is rare: wounds carry between fights, and only a new act restores everyone fully.'));
   showStage('map', [legend]);
@@ -183,6 +189,7 @@ function enterNode(n) {
   else if (n.type === 'elite') battle('elite');
   else if (n.type === 'boss') battle('boss');
   else if (n.type === 'event') showEvent();
+  else if (n.type === 'rest') showRest(n);
   else showShop(n);
 }
 
@@ -194,7 +201,18 @@ function battle(kind) {
   hud(true);
   music(kind === 'boss' ? 'm_boss' : act.music);
   showStage('battle');
-  startBattle({ kind, level: lvl, act, list, party: run.party });
+  startBattle({ kind, level: lvl, act, list, party: run.party, asc: asc(), team: run.team || [], obj: kind === 'boss' ? null : makeObjective(kind, lvl, list) });
+}
+// One optional goal per normal or elite battle, with its reward named up front.
+function makeObjective(kind, lvl, list) {
+  const alive = run.party.filter(p => p.hp > 0);
+  const ids = ['swift', 'nofall'];
+  if (alive.every(p => p.hp >= heroStats(p, run.gold).maxHp * 0.6)) ids.push('unhurt');
+  if (list.length >= 2) ids.push('first');
+  if (list.length >= 3) ids.push('combo');
+  const id = pick(ids), n = 5 * alive.length; // about five rounds
+  const artifact = chance(kind === 'elite' ? 0.6 : 0.3), gold = 25 + lvl * 3;
+  return { id, n, text: OBJECTIVES[id].replace('{n}', n), reward: artifact ? 'artifact' : 'gold', gold, rewardText: artifact ? '+1 artifact pick' : `+${gold} gold` };
 }
 env.onEnd = (b, win) => {
   if (AUTO) (window.__log ||= []).push({ act: run.act + 1, kind: b.kind, lvl: b.level, win, heroes: b.units.filter(u => u.ref).map(u => u.dead ? 0 : u.hp).join('/'),
@@ -209,12 +227,14 @@ env.onEnd = (b, win) => {
     const gains = levelUp(p);
     levels.push({ p, gains });
     // no healing after a fight: wounds carry over (the new max HP comes filled), and the fallen get up with 10% HP
-    p.hp = u.dead ? Math.ceil(heroStats(p, run.gold).maxHp * 0.1) : Math.min(u.hp + (gains.maxHp || 0), heroStats(p, run.gold).maxHp);
+    p.hp = u.dead ? (asc() >= 6 ? 1 : Math.ceil(heroStats(p, run.gold).maxHp * 0.1)) : Math.min(u.hp + (gains.maxHp || 0), heroStats(p, run.gold).maxHp);
   }
   run.stats.battles++;
   const tooth = run.party.some(p => p.items.includes('goldtooth')) ? 1.4 : 1;
   const base = b.kind === 'boss' ? rnd(90, 110) : b.kind === 'elite' ? rnd(55, 70) + b.level * 3 : rnd(20, 30) + b.level * 2;
-  showRewards({ gold: Math.round(base * tooth), kind: b.kind, levels });
+  const fever = (run.team || []).includes('goldfever') ? 1.5 : 1;
+  const bonus = b.obj ? { ...b.obj, met: objectiveMet(b) } : null;
+  showRewards({ gold: Math.round(base * tooth * fever), kind: b.kind, levels, bonus });
 };
 
 // ---------- cards ----------
@@ -233,7 +253,8 @@ function artCard(id, extra, onpick, disabled) {
   return h('button', { class: 'pick ' + (skill ? 'skillart' : 'heroart'), disabled, onclick: () => { sfx('select'); onpick(); } },
     h('div', { class: 'pick-head' }, h('b', {}, artName(id)), extra),
     h('div', { class: 'kind' }, skill ? (MODS[id].only ? `Skill artifact · ${SKILLS[MODS[id].only].name} only` : 'Skill artifact') : 'Hero artifact', archChips(artTags(id))),
-    h('div', { class: 'desc' }, artText(id)),
+    h('div', { class: 'desc' }, artUp(id)),
+    artDown(id) ? h('div', { class: 'desc down' }, `Downside: ${artDown(id)}`) : null,
     skill && run ? fitsLine(id) : null);
 }
 function skillCard(p, id, extra, onpick, disabled) {
@@ -314,11 +335,14 @@ function learnFlow(hi, id, next, show = setScreen, back = null) {
 
 // ---------- rewards, promotion, acts ----------
 function showRewards(info) {
+  const bonus = info.bonus, extra = bonus && bonus.met && bonus.reward === 'artifact' ? 1 : 0;
+  if (bonus && bonus.met && bonus.reward === 'gold') info.gold += bonus.gold;
   run.gold += info.gold;
   hud();
   sfx('coin');
-  const picks = info.kind === 'elite' ? 2 : 1;
-  let offers = artifactPool(run, info.kind === 'normal' ? 3 : 4);
+  if (info.kind === 'boss') { teamReward(info); return; }
+  const picks = (info.kind === 'elite' ? 2 : 1) + extra;
+  let offers = artifactPool(run, (info.kind === 'normal' ? 3 : 4) - (asc() >= 7 ? 1 : 0) + extra);
   let taken = 0;
   const after = () => {
     if (info.kind === 'boss') { if (run.act >= ACT_SLOTS.length - 1) victory(); else promotionScreen(nextAct); return; }
@@ -340,6 +364,7 @@ function showRewards(info) {
     setScreen(h('div', { class: 'panel' },
       h('h2', {}, taken ? 'Take one more' : info.kind === 'boss' ? `${curAct().boss} is defeated!` : 'Victory!'),
       taken ? null : h('p', {}, `+${info.gold} gold. Wounds stay until you rest.`),
+      taken || !bonus ? null : h('p', { class: bonus.met ? 'bonus met' : 'bonus failed' }, bonus.met ? `✓ Bonus objective met (${bonus.text}): ${bonus.rewardText}.` : `✗ Bonus objective missed: ${bonus.text}.`),
       taken || !info.levels ? null : h('div', { class: 'levels' }, info.levels.map(({ p, gains }) => h('div', {}, sprImg(heroSprite(p)),
         h('b', {}, `${heroTitle(p)} Lv ${p.lvl}`), ` ${gainsText(gains)}`))),
       h('h3', {}, picks > 1 ? `Spoils: choose ${picks - taken}` : 'Spoils: choose one'),
@@ -348,6 +373,33 @@ function showRewards(info) {
     auto(() => { taken++; const id = offers.shift(); equipFlow(id, spoils); });
   };
   spoils();
+}
+// After an act boss: no artifact or skill spoils; the party picks one of three team artifacts instead.
+function teamReward(info) {
+  const owned = run.team || [];
+  const offers = shuffle(Object.keys(TEAM).filter(id => !owned.includes(id))).slice(0, 3);
+  const take = id => {
+    run.team = [...owned, id];
+    run.party.forEach(p => { p.team = run.team; });
+    sfx('promote');
+    promotionScreen(nextAct);
+  };
+  setScreen(h('div', { class: 'panel' },
+    h('h2', {}, `${curAct().boss} is defeated!`),
+    h('p', {}, `+${info.gold} gold.`),
+    info.levels ? h('div', { class: 'levels' }, info.levels.map(({ p, gains }) => h('div', {}, sprImg(heroSprite(p)), h('b', {}, `${heroTitle(p)} Lv ${p.lvl}`), ` ${gainsText(gains)}`))) : null,
+    h('h3', {}, 'Claim a team artifact'),
+    h('p', { class: 'muted' }, 'Every hero carries it for the rest of the run.'),
+    h('div', { class: 'cards' }, offers.map(id => teamCard(id, () => take(id)))),
+    owned.length ? h('p', { class: 'muted' }, `Already carried: ${owned.map(id => TEAM[id].name).join(', ')}.`) : null));
+  auto(() => take(offers[0]));
+}
+function teamCard(id, onpick) {
+  return h('button', { class: 'pick teamart', onclick: () => { sfx('select'); onpick(); } },
+    h('div', { class: 'pick-head' }, h('b', {}, TEAM[id].name)),
+    h('div', { class: 'kind' }, 'Team artifact'),
+    h('div', { class: 'desc' }, TEAM[id].txt),
+    TEAM[id].down ? h('div', { class: 'desc down' }, `Downside: ${TEAM[id].down}`) : null);
 }
 function promoCard(p, id, sig, onpick) {
   const pr = PROMOS[id], o = skStats(p, { id: sig, mods: [] });
@@ -535,9 +587,54 @@ function showEvent() {
 
 // ---------- shop ----------
 const TUTOR = 60, INN = 45;
-const innHeal = n => n.r === ROWS_PER_ACT - 1 ? 0.4 : 0.25; // the shops just before a boss have proper beds
+// the shops just before a boss have proper beds; the ascent ladder and the Blood Oath cut healing
+const innHeal = n => (run.team || []).includes('bloodoath') ? 0 : (n.r === ROWS_PER_ACT - 1 ? 0.4 : 0.25) - (asc() >= 4 ? 0.1 : 0);
+const priceUp = () => ((run.team || []).includes('goldfever') ? 1.3 : 1);
+// Campfire: one choice per visit. Rest (heal), temper a skill for good, or train a new skill.
+const campHeal = () => (run.team || []).includes('bloodoath') ? 0 : 0.3 - (asc() >= 4 ? 0.1 : 0);
+function showRest(n) {
+  hud();
+  music('m_map');
+  const done = text => { n.used = true; save(); setScreen(h('div', { class: 'panel' }, h('h2', {}, 'Campfire'), h('p', {}, text), btn('Onward', showMap, 'big go'))); auto(showMap); };
+  if (n.used) { done('The fire has burned down to embers.'); return; }
+  const temperable = run.party.flatMap((p, hi) => p.skills.map((s, si) => ({ p, hi, s, si }))).filter(t => !t.s.tempered);
+  const temper = () => {
+    setScreen(h('div', { class: 'panel' },
+      h('h2', {}, 'Temper a skill'), h('p', { class: 'muted' }, 'It gains 25% power and a 1-turn shorter cooldown, for good. Each skill can be tempered once.'),
+      h('div', { class: 'cards' }, temperable.map(t => {
+        const before = skStats(t.p, t.s), after = skStats(t.p, { ...t.s, tempered: true });
+        return h('button', { class: 'pick', onclick: () => { t.s.tempered = true; sfx('promote'); done(`The ${heroTitle(t.p)}'s ${before.name} is tempered into ${after.name}.`); } },
+          h('div', { class: 'pick-head' }, sprImg(heroSprite(t.p)), h('b', {}, after.name)),
+          h('div', { class: 'desc' }, skillText(after, heroSrc(t.p, run.gold))));
+      })),
+      btn('Back', () => showRest(n))));
+    auto(() => { const t = temperable[0]; t.s.tempered = true; done('Tempered.'); });
+  };
+  const train = () => {
+    const offers = skillOffers(run.party, 3);
+    setScreen(h('div', { class: 'panel' },
+      h('h2', {}, 'Train by the fire'), h('p', { class: 'muted' }, `One hero learns a skill from their class. Each can know ${MAX_SKILLS}.`),
+      h('div', { class: 'cards' }, offers.map(c => skillCard(run.party[c.hi], c.id, skillsFull(run.party[c.hi]) ? h('span', { class: 'price' }, 'Replaces one') : null,
+        () => learnFlow(c.hi, c.id, () => done(`The ${heroTitle(run.party[c.hi])} practises ${SKILLS[c.id].name} until the fire dies.`), setScreen, () => showRest(n))))),
+      btn('Back', () => showRest(n))));
+    auto(() => learnFlow(offers[0].hi, offers[0].id, () => done('Trained.')));
+  };
+  const heal = campHeal();
+  setScreen(h('div', { class: 'panel' },
+    h('h2', {}, 'Campfire'),
+    h('p', {}, 'A ring of stones, still warm. There is time for one thing before you move on.'),
+    h('div', { class: 'choices' },
+      btn(heal > 0 ? `Rest: everyone heals ${Math.round(heal * 100)}%` : 'Rest (the Blood Oath allows none)', () => { healAll(heal); sfx('heal'); done('You sleep by the fire and wake stronger.'); }, '', heal <= 0),
+      btn('Temper: make one skill stronger for good', temper, '', !temperable.length),
+      btn('Train: a hero learns a new skill', train, '', !skillOffers(run.party, 1).length)),
+    btn('Leave', showMap)));
+  auto(() => {
+    const hurt = run.party.some(p => p.hp < heroStats(p, run.gold).maxHp * 0.6);
+    if (hurt && heal > 0) { healAll(heal); done('Rested.'); } else if (temperable.length) temper(); else showMap();
+  });
+}
 function showShop(n) {
-  n.shop ||= { items: artifactPool(run, 6, 0.5).map(id => ({ id, price: artPrice(id) + rnd(-5, 10), sold: false })),
+  n.shop ||= { items: artifactPool(run, 6, 0.5).map(id => ({ id, price: Math.round((artPrice(id) + rnd(-5, 10)) * priceUp()), sold: false })),
     lessons: skillOffers(run.party, 2).map(c => ({ ...c, sold: false })), inn: false };
   const shop = n.shop;
   hud();
@@ -556,13 +653,13 @@ function showShop(n) {
       h('div', { class: 'cards' }, shop.lessons.map(c => skillCard(run.party[c.hi], c.id, h('span', { class: 'price' }, c.sold ? 'Learned' : `${TUTOR}g`), () => lesson(c),
         c.sold || run.gold < TUTOR || run.party[c.hi].skills.some(s => s.id === c.id)))),
       h('h3', {}, 'Inn'),
-      btn(shop.inn ? 'Rested' : `Rest: heal ${innHeal(n) * 100}% (${INN}g)`, rest, '', shop.inn || run.gold < INN),
+      innHeal(n) > 0 ? btn(shop.inn ? 'Rested' : `Rest: heal ${Math.round(innHeal(n) * 100)}% (${INN}g)`, rest, '', shop.inn || run.gold < INN) : h('p', { class: 'muted' }, 'The Blood Oath allows no rest.'),
     ),
     btn('Leave shop', showMap, 'big go'),
   ));
   auto(() => {
     const hurt = run.party.some(p => p.hp < heroStats(p, run.gold).maxHp * 0.65);
-    if (hurt && !shop.inn && run.gold >= INN) { rest(); return; }
+    if (hurt && !shop.inn && run.gold >= INN && innHeal(n) > 0) { rest(); return; }
     const it = shop.items.find(i => !i.sold && run.gold >= i.price);
     if (it) { buy(it); return; }
     showMap();
@@ -620,7 +717,8 @@ function showTitle() {
     h('div', { class: 'title-art' }, sprImg('warrior', 'huge'), sprImg('mage', 'huge'), sprImg('rogue', 'huge')),
     h('p', {}, 'Three heroes. Three acts, each drawn from two lands, each with its own boss.'),
     saved ? btn('Continue run', () => { run = saved; env.run = run; showMap(); }, 'big go') : null,
-    btn(saved ? 'New run' : 'Start run', () => { clearSave(); newRun(); }, 'big'),
+    btn(saved ? 'New run' : 'Start run', () => { clearSave(); newRun(ascPicked()); }, 'big'),
+    ascMax() ? ascentPicker() : null,
     h('details', { class: 'howto', open: !saved && window.innerWidth > 640 },
       h('summary', {}, h('h3', {}, 'How to play')),
       h('ul', {},
@@ -631,12 +729,26 @@ function showTitle() {
         h('li', {}, 'Flank: hitting a foe that another hero stands next to deals 25% more (the Rogue gets 50%).'),
         h('li', {}, 'Battles pay out in artifacts. Skill artifacts socket into a skill and rewrite it: swap the stat it uses, turn bolts into ricochets or shields, make attacks leap or melt the floor. Hero artifacts are worn and change the hero.'),
         h('li', {}, `Artifacts and classes share archetypes (${Object.values(ARCHES).map(a => a.name.toLowerCase()).join(', ')}). Stack one and rewards start leaning toward it. Tap an underlined word to read what it does.`),
+        h('li', {}, 'Most battles come with a bonus objective (win quickly, keep everyone up, take down a certain foe first...). Meet it for extra gold or an extra artifact.'),
+        h('li', {}, 'After each act boss, instead of the usual spoils the party claims a team artifact that every hero carries. Some come with a downside, as do a few cursed artifacts; the cost is shown in red.'),
+        h('li', {}, 'Campfires (green nodes) offer one choice: rest, temper a skill for good, or train a new one.'),
         h('li', {}, 'After a fight a hero can learn a new skill from their class. Each knows at most 4, so learning may mean forgetting.'),
         h('li', {}, 'Healing is scarce. Wounds carry between fights, there\'s no healing after a battle, and the fallen get up with 10% HP. Each new act restores everyone. Dawdle in a fight and the enemy grows furious.'),
         h('li', {}, 'On touch screens, tap a target once to preview, again to confirm.'),
       )),
   ));
-  auto(() => { clearSave(); newRun(); });
+  auto(() => { clearSave(); newRun(+(params.get('asc') || 0)); });
+}
+// Ascent 0 (the plain game) up to the highest unlocked; each adds a rule on top of the ones below.
+function ascentPicker() {
+  const cur = ascPicked(), box = h('div', { class: 'ascent' });
+  const draw = k => {
+    box.replaceChildren(
+      h('div', {}, 'Ascent: ', ...Array.from({ length: ascMax() + 1 }, (_, i) => h('button', { class: 'btn tiny' + (i === k ? ' sel' : ''), onclick: () => { setAsc('threefold-ascent-pick', i); sfx('click'); draw(i); } }, i))),
+      k ? h('ol', { class: 'muted' }, ASCENTS.slice(0, k).map(t => h('li', {}, t))) : h('p', { class: 'muted' }, 'The plain game. Win to unlock the next ascent.'));
+  };
+  draw(cur);
+  return box;
 }
 // How each hero did over the run (counted in battle.js as p.tally).
 function heroStatsTable() {
@@ -657,7 +769,7 @@ function gameOver() {
     h('div', { class: 'title-name' }, 'Defeat'),
     h('p', {}, `Your party fell in Act ${run.act + 1}. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
     heroStatsTable(),
-    btn('Try again', newRun, 'big go'), btn('Title', showTitle, 'big')));
+    btn('Try again', () => newRun(asc()), 'big go'), btn('Title', showTitle, 'big')));
   if (AUTO) window.__result = { win: false, act: run.act + 1, ...run.stats };
 }
 function victory() {
@@ -669,8 +781,10 @@ function victory() {
     h('div', { class: 'title-name' }, 'Victory!'),
     h('div', { class: 'title-art' }, run.party.map(p => sprImg(heroSprite(p), 'huge'))),
     h('p', {}, `${curAct().boss} falls and the path goes quiet. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
+    asc() >= ascMax() && asc() < ASCENTS.length ? h('p', { class: 'bonus met' }, `Ascent ${asc() + 1} unlocked: ${ASCENTS[asc()]}`) : null,
     heroStatsTable(),
-    btn('New run', newRun, 'big go')));
+    btn('New run', () => newRun(ascPicked()), 'big go')));
+  if (asc() >= ascMax()) { setAsc('threefold-ascent', Math.min(ASCENTS.length, asc() + 1)); setAsc('threefold-ascent-pick', Math.min(ASCENTS.length, asc() + 1)); }
   if (AUTO) window.__result = { win: true, act: 3, ...run.stats };
 }
 

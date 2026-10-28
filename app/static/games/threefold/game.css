@@ -285,3 +285,20 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .run-stats thead th div { font-size: 16px; color: var(--muted); }
 .run-stats td.lead { color: var(--gold); }
 @media (max-width: 640px) { .run-stats { font-size: 16px; } .run-stats th, .run-stats td { padding: 3px 5px; } }
+
+/* bonus objectives, downsides, team artifacts, the ascent ladder */
+.objective { font-size: 18px; padding: 6px 8px; margin: 6px 0; border: 2px solid var(--line); background: rgba(0, 0, 0, 0.2); }
+.objective b { color: var(--gold); font-weight: normal; }
+.objective.met { border-color: #4f8a4a; }
+.objective.met b { color: #7dff8a; }
+.objective.failed { opacity: 0.6; }
+.objective.failed b { color: #ff8a7a; }
+.objective .dim { color: var(--muted); }
+.desc.down { color: #ff8a7a; }
+.bonus.met { color: #7dff8a; }
+.bonus.failed { color: var(--muted); }
+.pick.teamart { border-color: var(--gold); }
+.ascent { margin: 12px auto; max-width: 520px; }
+.ascent .btn.tiny { margin: 2px; min-width: 34px; }
+.ascent .btn.sel { background: var(--gold); color: #1b1226; }
+.ascent ol { text-align: left; margin: 8px 0 0; padding-left: 24px; font-size: 17px; }

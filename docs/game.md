@@ -113,6 +113,31 @@ Keep it that way.
   of your DEF", "40% of a turn"); `describeParts` prints delays and hastes as a share of a turn.
 - **Removed:** the Swapstone (ATK and MAG trade places) and the Mirror Pool event that did the same,
   since no class wants it. `load()` drops artifact ids that no longer exist from old saves.
+- **Team artifacts replace the spoils after act bosses 1 and 2.** `TEAM` in data.js; the party
+  picks one of three (`teamReward` in main.js) and it goes in `run.team` and on every hero as
+  `p.team` (the same list). `has(u, id)` checks `u.items` and `u.team`, so team effects are written
+  like hero artifacts (`heroStats` adds their `stats`; battle.js reads the rest). Several have a
+  downside (`down`). Team ids must not collide with `ITEMS` ids, since `has` can't tell them apart
+  (the hourglass and blood pact team artifacts are `kingsglass` and `bloodoath` for that reason).
+- **Rewards with a downside.** Any artifact may have a `down` string: cards show it in red under
+  the upside (`artUp`/`artDown` in rules.js; `artText` joins both for tooltips). The cursed hero
+  artifacts (Berserker Mask, Hollow Heart, Reckless Greaves, Gambler's Bone Die, Lodestone Heart)
+  and the older Glass Monocle, Tortoise Shell, Featherweight Anklet and Cursed Crown use it.
+- **Bonus objectives.** Every normal and elite battle gets one (`makeObjective` in main.js, texts in
+  `OBJECTIVES`): win within 5 rounds' worth of hero turns, no hero below half HP (only offered when
+  everyone starts at 60%+), nobody knocked out, defeat the toughest foe first, or two kills from one
+  action. The reward (gold, or one extra artifact offer and pick) is named up front. battle.js
+  tracks it in `B.obj` (`objFail` makes a failure final; `objectiveMet` reads the result on a win),
+  shows it under the turn strip and announces it at the start.
+- **The ascent ladder.** `ASCENTS` in data.js, cumulative. The title screen offers every unlocked
+  ascent once one is unlocked (`localStorage` `threefold-ascent` is the highest unlocked,
+  `threefold-ascent-pick` the last chosen); winning at the highest unlocked unlocks the next. The
+  run keeps `run.asc` and battles get `B.asc`. Where each rule lives: elite/boss and all-foe HP and
+  boss CT in `foeUnit`, foe and boss damage in `dmgMult`, start gold in `newRun`, healing in
+  `innHeal`/`campHeal`, fallen HP and artifact offers in main.js. `?auto&asc=N` plays at ascent N.
+- **Campfires** (map node `rest`, about 12% of nodes from the third row on): one choice of resting (30%
+  heal), tempering a skill (`s.tempered`: +25% power, 1 shorter cooldown, a "+" on the name, applied
+  in `skStats`; once per skill) or training (learn a class skill).
 - **Skill text is laid out, not run on.** `describeParts()` splits a description into `head`
   (reach, power, cooldown), `fx` and `cost`; `skillText()` in ui.js renders them as a line, chips
   (costs in red) and italic flavour. `describe()` still gives the joined string for `title`s.

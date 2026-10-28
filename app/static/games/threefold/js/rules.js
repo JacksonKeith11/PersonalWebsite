@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=34';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=35';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -9,7 +9,8 @@ export function shuffle(a) {
   return a;
 }
 
-export const has = (u, id) => !!(u.items && u.items.includes(id));
+// Worn artifacts, plus the party's team artifacts (u.team, kept on every hero).
+export const has = (u, id) => !!((u.items && u.items.includes(id)) || (u.team && u.team.includes(id)));
 // u.line lists the classes a hero has promoted into, oldest first; their passives all apply.
 export const isClass = (u, id) => !!(u.line && u.line.includes(id));
 export const artTags = id => (MODS[id] || ITEMS[id]).tags || [];
@@ -17,7 +18,10 @@ export const heroSprite = p => p.promo || p.cls;
 export const heroTitle = p => p.promo ? PROMOS[p.promo].name : CLASSES[p.cls].name;
 export const isSkillArt = id => !!MODS[id];
 export const artName = id => (MODS[id] || ITEMS[id]).name;
-export const artText = id => MODS[id] ? MODS[id].note : ITEMS[id].txt;
+export const artUp = id => MODS[id] ? MODS[id].note : (ITEMS[id] || TEAM[id]).txt;
+export const artDown = id => (MODS[id] || ITEMS[id] || TEAM[id]).down || '';
+// The whole description, downside included (tooltips and one-line lists).
+export const artText = id => artUp(id) + (artDown(id) ? ` Downside: ${artDown(id)}` : '');
 export const artPrice = id => (MODS[id] || ITEMS[id]).price;
 
 export function newHero(cls) {
@@ -31,15 +35,18 @@ export function newHero(cls) {
 export function heroStats(p, gold = 0) {
   const o = { maxHp: p.maxHp, atk: p.atk, mag: p.mag, def: p.def, res: p.res, spd: p.spd, mov: p.mov, crit: p.crit };
   for (const id of p.items) for (const [k, v] of Object.entries(ITEMS[id].stats || {})) o[k] += v;
+  for (const id of p.team || []) for (const [k, v] of Object.entries(TEAM[id].stats || {})) o[k] += v;
   if (p.items.includes('anklet')) o.maxHp = Math.round(o.maxHp * 0.75);
+  if (has(p, 'glasscrown')) o.maxHp = Math.round(o.maxHp * 0.8);
+  if (has(p, 'leadheart')) o.spd = Math.round(o.spd * 0.7);
   if (p.items.includes('goldtooth')) { const b = Math.floor(gold / 100); o.atk += b; o.mag += b; }
   o.mov = Math.max(1, o.mov); o.spd = Math.max(1, o.spd);
   return o;
 }
 // The shield a hero starts each battle with.
-export const startShield = (p, maxHp) => Math.round(maxHp * ((isClass(p, 'juggernaut') ? 0.4 : 0) + (p.items.includes('capacitor') ? 0.25 : 0)));
+export const startShield = (p, maxHp) => Math.round(maxHp * ((isClass(p, 'juggernaut') ? 0.4 : 0) + (has(p, 'capacitor') ? 0.25 : 0) + (has(p, 'aegis') ? 0.25 : 0) + (has(p, 'leadheart') ? 0.5 : 0)));
 // What describe() and the damage numbers read stats from, for a hero outside battle.
-export const heroSrc = (p, gold) => { const st = heroStats(p, gold); return { ...st, hp: p.hp, items: p.items, line: p.line, shield: startShield(p, st.maxHp) }; };
+export const heroSrc = (p, gold) => { const st = heroStats(p, gold); return { ...st, hp: p.hp, items: p.items, team: p.team, line: p.line, shield: startShield(p, st.maxHp) }; };
 
 // ---------- levels ----------
 const GROWTH_NAMES = { maxHp: 'HP', atk: 'ATK', mag: 'MAG', def: 'DEF', res: 'RES', spd: 'SPD', mov: 'MOV', crit: 'CRIT' };
@@ -103,6 +110,9 @@ export function skStats(u, s) {
   if (has(u, 'hourglass') && o.cd > 1) o.cd -= 1;
   if (has(u, 'bloodpact') && o.cd > 0) { o.cd = 0; o.bloodpact = true; }
   if (has(u, 'aegisheart') && o.kind === 'shield') o.pow *= 1.4;
+  if (has(u, 'overclock') && o.cd > 0) o.cd -= 1;
+  // tempered at a campfire: stronger and quicker, for good
+  if (s.tempered) { o.name += '+'; if (o.pow) o.pow *= 1.25; if (o.cd > 0) o.cd -= 1; }
   const dmg = o.kind === 'phys' || o.kind === 'mag';
   if (isClass(u, 'ninja') && dmg && o.tgt === 'foe' && o.range[1] === 1 && !o.shape && !o.aoe && !o.times && !o.double) { o.double = true; o.pow *= 0.6; }
   if (isClass(u, 'warlock') && dmg) { o.hpCost = (o.hpCost || 0) + 0.06; o.pow *= 1.35; }
@@ -129,7 +139,7 @@ export function statVal(u, stat) {
 
 // Damage multipliers from worn artifacts that always apply. Situational ones (Hermit's Lantern,
 // Berserker's Torc and the like) only show up in the battle previews.
-export const itemMult = u => (has(u, 'monocle') ? 1.5 : 1) * (has(u, 'crown') ? 1.4 : 1);
+export const itemMult = u => (has(u, 'monocle') ? 1.5 : 1) * (has(u, 'crown') ? 1.4 : 1) * (has(u, 'glasscrown') ? 1.35 : 1) * (has(u, 'bloodoath') ? 1.3 : 1);
 const isDmg = o => o.kind === 'phys' || o.kind === 'mag';
 // Burn and poison a skill leaves, as battle.js applyStatus computes them: { turns, n (per turn) }.
 export function burnOf(o, src) {

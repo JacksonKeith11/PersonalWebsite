@@ -727,9 +727,15 @@ export const ITEMS = {
   heart: { name: 'Heartstone', price: 55, stats: { maxHp: 15 }, txt: '+15 max HP' },
   feather: { name: 'Quick Feather', tags: ['time'], price: 50, stats: { spd: 4 }, txt: '+4 SPD: takes turns more often' },
 
-  monocle: { name: 'Glass Monocle', price: 70, unique: true, txt: 'Deal 50% more damage. Take 50% more damage.' },
-  tortoise: { name: 'Tortoise Shell', tags: ['shield'], price: 60, unique: true, stats: { def: 7, spd: -3, mov: -1 }, txt: '+7 DEF, −3 SPD, −1 MOV' },
-  anklet: { name: 'Featherweight Anklet', price: 65, unique: true, stats: { mov: 2, spd: 3 }, txt: '+2 MOV and +3 SPD, but −25% max HP' },
+  monocle: { name: 'Glass Monocle', price: 70, unique: true, txt: 'Deal 50% more damage.', down: 'Take 50% more damage.' },
+  tortoise: { name: 'Tortoise Shell', tags: ['shield'], price: 60, unique: true, stats: { def: 7, spd: -3, mov: -1 }, txt: '+7 DEF.', down: '−3 SPD and −1 MOV.' },
+  anklet: { name: 'Featherweight Anklet', price: 65, unique: true, stats: { mov: 2, spd: 3 }, txt: '+2 MOV and +3 SPD.', down: '−25% max HP.' },
+  // cursed: a strong upside with a real cost (`down`, shown in red)
+  berserkmask: { name: 'Berserker Mask', tags: ['carnage'], price: 60, unique: true, stats: { atk: 6, mag: 6, def: -4, res: -4 }, txt: '+6 ATK and +6 MAG.', down: '−4 DEF and −4 RES.' },
+  hollowheart: { name: 'Hollow Heart', tags: ['blood'], price: 60, unique: true, stats: { maxHp: 25 }, txt: '+25 max HP.', down: 'Can\'t be healed or drain HP in battle.' },
+  reckless: { name: 'Reckless Greaves', price: 60, unique: true, stats: { mov: 2 }, txt: '+2 MOV.', down: 'Take 20% more damage.' },
+  bonedie: { name: "Gambler's Bone Die", tags: ['fortune'], price: 65, unique: true, txt: '+15% crit chance, and crits deal triple damage.', down: 'Hits that don\'t crit deal 25% less.' },
+  leadheart: { name: 'Lodestone Heart', tags: ['shield'], price: 60, unique: true, txt: 'Start every battle with a shield worth 50% of max HP.', down: 'Your turns come 30% less often (−30% SPD).' },
   phoenix: { name: 'Phoenix Feather', tags: ['blood'], price: 110, unique: true, txt: 'Once per battle, rise again at 50% HP when knocked out.' },
   spite: { name: 'Spite Doll', tags: ['thorns'], price: 70, unique: true, txt: 'When you\'re knocked out, every foe loses 30% of its max HP.' },
   bees: { name: 'Bag of Bees', price: 60, unique: true, txt: 'Whenever you use a skill, a bee stings a random foe.' },
@@ -738,7 +744,7 @@ export const ITEMS = {
   lavawalkers: { name: 'Lava Walkers', tags: ['elemental'], price: 75, unique: true, txt: 'Immune to lava. Every tile you walk off turns to lava.' },
   magnet: { name: 'Magnet Gauntlet', price: 60, unique: true, txt: 'Your hits drag targets 1 tile toward you.' },
   clockwork: { name: 'Clockwork Heart', tags: ['time'], price: 90, unique: true, txt: 'Every third turn, your next turn comes 60 sooner.' },
-  crown: { name: 'Cursed Crown', tags: ['blood'], price: 70, unique: true, txt: '+40% damage, but lose 5% of max HP every turn.' },
+  crown: { name: 'Cursed Crown', tags: ['blood'], price: 70, unique: true, txt: '+40% damage.', down: 'Lose 5% of max HP at the start of every turn.' },
   mirror: { name: 'Mirror Shard', tags: ['thorns'], price: 75, unique: true, txt: 'Attackers take 35% of the damage they deal you, at any range.' },
   blink: { name: 'Blink Boots', price: 80, unique: true, txt: 'You teleport instead of walking: terrain and bodies don\'t slow you.' },
   thornseed: { name: 'Thornseed Pouch', price: 45, unique: true, txt: 'Ground you hit sprouts brambles, which cut anyone who enters for 3 (more in later fights).' },
@@ -860,4 +866,43 @@ export const FOES = {
   colossus: { name: 'The Brass Colossus', hp: 140, atk: 14, mag: 10, def: 7, res: 5, spd: 7, mov: 2, boss: true, plating: 0.2, overdrive: true, skills: ['e_piston', 'e_steamvent', 'e_rivetgun'], scale: 1.7,
     info: 'Rebuilds its plating every third turn, and speeds up below half HP.' },
   wyrm: { name: 'The Cinder Wyrm', hp: 125, atk: 13, mag: 14, def: 6, res: 5, spd: 9, mov: 3, fly: true, fireproof: true, skills: ['e_breath', 'e_tailsweep', 'e_firerain', 'e_flamebite'], boss: true, scale: 1.6 },
+};
+
+// Team artifacts: after each act boss (except the last) the party picks one of three in place of the
+// usual spoils, and every hero has it from then on. Powerful; some carry a downside (`down`).
+export const TEAM = {
+  warbanner: { name: 'War Banner', stats: { mov: 1 }, txt: 'Every hero gets +1 MOV.' },
+  phalanx: { name: 'Phalanx Sigil', txt: 'Heroes take 25% less damage while standing next to another hero.' },
+  kingsglass: { name: "King's Hourglass", txt: 'Heroes start every battle half a turn ahead.' },
+  aegis: { name: 'Aegis Standard', txt: 'Every hero starts each battle with a shield worth 25% of max HP.' },
+  warhorn: { name: "Warlord's Horn", txt: 'Each kill makes the killer deal 12% more damage for the rest of the battle.' },
+  packtotem: { name: 'Pack Totem', txt: 'Every hero deals 25% more when flanking, on top of the usual bonus.' },
+  echostone: { name: 'Echo Stone', txt: 'Every hero\'s skills have a 20% chance to go off twice.' },
+  glasscrown: { name: 'Glass Crown', txt: 'Heroes deal 35% more damage.', down: 'Every hero has 20% less max HP.' },
+  bloodoath: { name: 'Blood Oath', txt: 'Heroes deal 30% more damage, and each kill heals the killer 6% of max HP.', down: 'Inns and campfires no longer heal.' },
+  overclock: { name: 'Overclock Core', txt: 'Every skill\'s cooldown is 1 turn shorter.', down: 'Heroes take 15% more damage.' },
+  goldfever: { name: 'Gold Fever', txt: 'Each kill drops 6 gold, and battles pay 50% more gold.', down: 'Shop prices are 30% higher.' },
+  leaden: { name: 'Leaden Mantle', stats: { def: 5, res: 5, mov: -1 }, txt: 'Every hero gets +5 DEF and +5 RES.', down: 'Every hero gets −1 MOV.' },
+  lichbargain: { name: "Lich's Bargain", txt: 'Once per battle, each hero who falls rises again with 30% HP.', down: 'Foes have 15% more HP.' },
+};
+
+// The difficulty ladder. Winning a run unlocks the next ascent; each one keeps the rules before it.
+export const ASCENTS = [
+  'Elites and bosses have 20% more HP.',
+  'Start with 30 gold instead of 60.',
+  'Foes deal 10% more damage.',
+  'Inns and campfires heal 10% less.',
+  'Every foe has 10% more HP.',
+  'Fallen heroes get up with 1 HP instead of 10%.',
+  'One fewer artifact to choose from after each battle.',
+  'Bosses hit 15% harder and act sooner.',
+];
+
+// Bonus objectives: an optional goal for a normal or elite battle, paid on a win if it was met.
+export const OBJECTIVES = {
+  swift: 'Win within {n} hero turns',
+  unhurt: 'No hero drops below half HP',
+  nofall: 'No hero is knocked out',
+  first: 'Defeat the {foe} first',
+  combo: 'Knock out two foes with one action',
 };

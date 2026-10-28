@@ -195,16 +195,16 @@ the browser can't reach cdnjs.
   (0.01 under autopilot). Use them rather than raw `setTimeout` or tweens, or the autopilot slows
   to a crawl.
 - **Audio rules:**
-  - Browsers start audio only after a tap. Phaser unlocks on the first input, and `audio.js` also
-    resumes the context on any tap.
+  - Browsers start audio only after a tap; `audio.js` resumes its context on any tap.
   - iPhones mute web audio with the silent switch unless `navigator.audioSession.type = 'playback'`.
   - Render at 44.1 kHz; older Safari rejects lower offline rates.
-  - `audio.js` alone pauses and resumes audio; Phaser's `pauseOnBlur` is off. Phaser suspended the
-    context on window blur and resumed only on a matching focus event, which Safari doesn't reliably
-    send, leaving the game silent after a tab switch. Now: suspend while hidden; resume on return,
-    focus, any tap, and from a once-a-second watchdog; then restart the music, since Safari can leave
-    a looping track silent even once the context says it's running. Chromium shows none of this, so
-    test audio changes on an iPhone or Mac Safari.
+  - **Phaser's sound manager is off** (`audio: { noAudio: true }`). `audio.js` plays the rendered
+    buffers on its own `AudioContext`, because iOS Safari, after the page has been in the background,
+    can leave a context "interrupted" or "running" but silent, and resuming it doesn't help. So: on
+    hide, stop the music and suspend; on return, try to resume (enough on desktop); and on iOS, the
+    first tap after returning closes the old context, makes a new one and restarts the music.
+    AudioBuffers aren't tied to a context, so nothing re-renders. Chromium shows none of this, so
+    test audio changes on an iPhone.
   - Buffers are normalized after rendering, so a new sound's synth `vol` only sets its internal
     balance, not its loudness.
 - **Check class passives with `isClass(u, id)`**, never `u.promo === id`: a tier-2 hero keeps

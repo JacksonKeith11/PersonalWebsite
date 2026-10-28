@@ -1,8 +1,8 @@
-// Chiptune audio, synthesized at startup with OfflineAudioContext and handed to Phaser's sound manager.
+// Chiptune audio, synthesized at startup with OfflineAudioContext and played on our own AudioContext.
 // Nothing is downloaded: every effect and music loop is built from oscillators and noise here.
 
 const SR = 44100; // older Safari can't render offline audio at lower rates
-const A = { game: null, ready: false, music: true, sfx: true, wanted: null, playing: null, playingKey: null };
+const A = { ready: false, music: true, sfx: true, track: null, ctx: null, out: null, src: null, stale: false };
 try {
   const s = JSON.parse(localStorage.getItem('threefold-audio') || '{}');
   if (s.music === false) A.music = false;
@@ -149,82 +149,99 @@ function saveSettings() {
   try { localStorage.setItem('threefold-audio', JSON.stringify({ music: A.music, sfx: A.sfx })); } catch (e) { /* storage unavailable */ }
 }
 
-export async function initAudio(game) {
-  A.game = game;
-  if (!game.sound || !game.sound.context || typeof OfflineAudioContext === 'undefined') return;
+// iOS Safari can hand back a context that says "running" but plays nothing, or stays "interrupted",
+// after the page has been in the background. Resuming it isn't enough; the reliable fix is a brand
+// new context, which iOS only lets a page start inside a tap. So this module plays the rendered
+// buffers on its own context (Phaser's sound manager is off) and swaps in a new one on the first tap
+// after coming back. AudioBuffers aren't tied to a context, so nothing needs rendering again.
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const bufs = new Map();
+function newContext() {
+  const C = window.AudioContext || window.webkitAudioContext;
+  if (A.ctx) { try { A.ctx.close(); } catch (e) { /* already closed */ } }
+  A.ctx = new C();
+  A.out = A.ctx.createGain();
+  A.out.connect(A.ctx.destination);
+  A.src = null;
+}
+function stopMusic() {
+  if (A.src) { try { A.src.stop(); } catch (e) { /* never started */ } A.src.disconnect(); A.src = null; }
+}
+function startMusic() {
+  stopMusic();
+  const key = A.track;
+  if (!A.ready || !A.music || !key || !bufs.has(key) || !A.ctx || document.hidden) return;
+  const src = A.ctx.createBufferSource(), g = A.ctx.createGain();
+  src.buffer = bufs.get(key);
+  src.loop = true;
+  g.gain.value = 0.45;
+  src.connect(g); g.connect(A.out);
+  src.start();
+  A.src = src;
+}
+
+export async function initAudio() {
+  if (typeof OfflineAudioContext === 'undefined' || !(window.AudioContext || window.webkitAudioContext)) return;
   // iPhones mute web audio with the silent switch unless the page asks for playback audio
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* unsupported */ }
-  // This module alone pauses and resumes audio. Phaser's own pause-on-blur suspends the context on
-  // window blur and resumes only on a matching focus event, which browsers (Safari especially) don't
-  // reliably deliver, so audio could stay suspended after a tab switch. Instead: suspend while the tab
-  // is hidden; on return, focus, any tap, and every second while visible, resume if needed; and once
-  // running again, restart the music, since Safari can leave a looping track silent.
-  game.sound.pauseOnBlur = false;
-  const ctx = game.sound.context;
-  const wake = () => {
-    if (document.hidden || ctx.state === 'closed') return;
-    const restart = () => { if (A.stale && ctx.state === 'running') { A.stale = false; restartMusic(); } };
-    if (ctx.state !== 'running') ctx.resume().then(restart).catch(() => {});
-    else restart();
+  newContext();
+  // A tap is the only moment iOS lets audio start: resume the context, or after a trip to the
+  // background (on iOS) replace it outright, then restart the music on it.
+  const unlock = () => {
+    if (document.hidden) return;
+    if (A.stale && IOS) { A.stale = false; newContext(); A.ctx.resume().catch(() => {}); startMusic(); return; }
+    if (A.ctx.state !== 'running') A.ctx.resume().then(() => { if (A.stale || !A.src) { A.stale = false; startMusic(); } }).catch(() => {});
   };
-  for (const ev of ['pointerdown', 'touchend', 'keydown', 'click']) document.addEventListener(ev, wake, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { A.stale = true; if (ctx.state === 'running') ctx.suspend().catch(() => {}); }
-    else wake();
-  });
-  window.addEventListener('pagehide', () => { A.stale = true; });
-  window.addEventListener('pageshow', wake);
-  window.addEventListener('focus', wake);
-  setInterval(() => { if (A.ready && (ctx.state !== 'running' || A.stale)) wake(); }, 1000);
+  for (const ev of ['touchend', 'pointerup', 'click', 'keydown']) document.addEventListener(ev, unlock, { capture: true, passive: true });
+  const hide = () => { A.stale = true; stopMusic(); if (A.ctx.state === 'running') A.ctx.suspend().catch(() => {}); };
+  // Coming back without a tap: try to resume (enough everywhere but iOS, and sometimes there too).
+  const show = () => {
+    if (document.hidden) return;
+    A.ctx.resume().then(() => { if (A.ctx.state === 'running') { if (!IOS) A.stale = false; if (!A.src) startMusic(); } }).catch(() => {});
+  };
+  document.addEventListener('visibilitychange', () => (document.hidden ? hide() : show()));
+  window.addEventListener('pagehide', hide);
+  window.addEventListener('pageshow', show);
+  window.addEventListener('focus', show);
+  setInterval(() => { if (A.ready && !document.hidden && A.ctx.state !== 'running') show(); }, 1000);
   const jobs = [];
-  for (const [key, [len, build]] of Object.entries(SFX)) jobs.push(render(len, build, key === 'step' || key === 'click' ? 0.45 : 0.85).then(b => game.cache.audio.add(key, b)));
+  for (const [key, [len, build]] of Object.entries(SFX)) jobs.push(render(len, build, key === 'step' || key === 'click' ? 0.45 : 0.85).then(b => bufs.set(key, b)));
   await Promise.all(jobs);
   A.ready = true;
-  if (A.wanted) { const w = A.wanted; A.wanted = null; music(w); }
   // tracks render one at a time, so render whichever one is wanted right now first
   const left = new Set(Object.keys(TRACKS));
   while (left.size) {
-    const key = left.has(A.wanted) ? A.wanted : left.values().next().value;
+    const key = left.has(A.track) ? A.track : left.values().next().value;
     left.delete(key);
     const [len, build] = track(TRACKS[key]);
-    game.cache.audio.add(key, await render(len, build, 0.8));
-    if (A.wanted === key && !A.playing) { A.wanted = null; music(key); }
+    bufs.set(key, await render(len, build, 0.8));
+    if (A.track === key && !A.src) startMusic();
   }
 }
 
 export function sfx(name, vol = 1) {
-  if (!A.ready || !A.sfx || !A.game.cache.audio.exists(name)) return;
-  try { A.game.sound.play(name, { volume: 0.7 * vol, detune: Math.round((Math.random() - 0.5) * 120) }); } catch (e) { /* sound unavailable */ }
+  if (!A.ready || !A.sfx || !bufs.has(name) || !A.ctx || A.ctx.state !== 'running') return;
+  try {
+    const src = A.ctx.createBufferSource(), g = A.ctx.createGain();
+    src.buffer = bufs.get(name);
+    src.playbackRate.value = Math.pow(2, (Math.random() - 0.5) * 120 / 1200); // ±60 cents, for variety
+    g.gain.value = 0.7 * vol;
+    src.connect(g); g.connect(A.out);
+    src.start();
+  } catch (e) { /* sound unavailable */ }
 }
 
-function restartMusic() {
-  const k = A.playingKey || A.wanted;
-  if (A.playing) { A.playing.stop(); A.playing.destroy(); A.playing = null; A.playingKey = null; }
-  if (k) music(k);
-}
 export function music(key) {
-  const ctx = A.game && A.game.sound && A.game.sound.context;
-  // keep a track that's really playing; restart one that only thinks it is
-  if (A.playingKey === key && A.playing && A.playing.isPlaying && !A.stale && (!ctx || ctx.state === 'running')) return;
-  if (A.playing) { A.playing.stop(); A.playing.destroy(); A.playing = null; A.playingKey = null; }
-  A.wanted = key;
-  if (!A.ready || !A.music || !key || !A.game.cache.audio.exists(key)) return;
-  try {
-    A.playing = A.game.sound.add(key, { loop: true, volume: 0.45 });
-    A.playing.play();
-    A.playingKey = key;
-    A.wanted = null;
-    if (ctx && ctx.state === 'running') A.stale = false;
-  } catch (e) { A.playing = null; }
+  if (A.track === key && A.src) return;
+  A.track = key;
+  startMusic();
 }
 
 export function audioState() { return { music: A.music, sfx: A.sfx }; }
 export function toggleMusic() {
   A.music = !A.music;
   saveSettings();
-  const k = A.playingKey || A.wanted;
-  if (!A.music && A.playing) { A.playing.stop(); A.playing.destroy(); A.playing = null; A.playingKey = null; A.wanted = k; }
-  else if (A.music && k) music(k);
+  if (A.music) startMusic(); else stopMusic();
 }
 export function toggleSfx() { A.sfx = !A.sfx; saveSettings(); }
-export const audioDebug = () => ({ ready: A.ready, playing: A.playingKey, isPlaying: !!(A.playing && A.playing.isPlaying), paused: !!(A.playing && A.playing.isPaused), wanted: A.wanted, state: A.game && A.game.sound.context && A.game.sound.context.state });
+export const audioDebug = () => ({ ready: A.ready, track: A.track, playing: !!A.src, stale: !!A.stale, state: A.ctx && A.ctx.state });

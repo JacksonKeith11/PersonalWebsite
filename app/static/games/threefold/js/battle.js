@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=27';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=27';
-import { spriteURL } from './art.js?v=27';
-import { TP, drawBoard } from './tiles.js?v=27';
-import { sfx } from './audio.js?v=27';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=27';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=28';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=28';
+import { spriteURL } from './art.js?v=28';
+import { TP, drawBoard } from './tiles.js?v=28';
+import { sfx } from './audio.js?v=28';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=28';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];

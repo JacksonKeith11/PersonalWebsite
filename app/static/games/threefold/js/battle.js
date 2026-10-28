@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=38';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=38';
-import { spriteURL } from './art.js?v=38';
-import { TP, drawBoard } from './tiles.js?v=38';
-import { sfx } from './audio.js?v=38';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=38';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=39';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=39';
+import { spriteURL } from './art.js?v=39';
+import { TP, drawBoard } from './tiles.js?v=39';
+import { sfx } from './audio.js?v=39';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=39';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -435,7 +435,7 @@ function dmgMult(a, t, o) {
   if (o.momentum) m *= 1 + o.momentum * dist(a, t);
   if (o.onLava && B.grid[t.y][t.x] === T.LAVA && !t.fly) m *= 1.6;
   if (t.side !== a.side && alive().some(x => x !== t && x.rampart && x.side === t.side && dist(x, t) === 1)) m *= 0.75; // Phalanx
-  if (t.heads && alive().some(x => x.kind === t.heads && x.side === t.side)) m *= 0.6; // the Hydra's heads shield it
+  if (t.heads && alive().some(x => x.kind === t.heads && x.side === t.side)) m *= 0.7; // the Hydra's heads shield it
   return m;
 }
 function calcDmg(a, t, o) {

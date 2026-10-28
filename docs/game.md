@@ -209,11 +209,18 @@ Keep it that way.
 
 ## Testing
 
-`node tools/threefold-autoplay.js [runs] [--chaos]` plays whole runs headlessly with the heroes
-on autopilot and fails on any page error. Its header comment explains how to supply Phaser when
-the browser can't reach cdnjs.
+`node tools/threefold-autoplay.js [runs] [--chaos] [--asc N] [--par K] [--json FILE]` plays whole
+runs headlessly with the heroes on autopilot and fails on any page error. Its header comment explains
+how to supply Phaser when the browser can't reach cdnjs. `--par 6` plays six runs at once (the cloud
+box has 4 cores; about 2 runs a minute), and `--json` logs each run's result and final build.
+`node tools/threefold-balance.js FILE` then prints win rates by ascent, where runs end, and the act-3
+win rate of runs holding each class line, team artifact and artifact (artifacts are what the party
+ended with, so comparing within runs that reached act 3 evens out "found late"; it still needs
+100+ runs before single artifacts mean much).
 
-- `?auto` in the URL makes the heroes use the enemy AI and makes every menu choose for itself.
+- `?auto` in the URL makes the heroes use the enemy AI and makes every menu choose for itself
+  through `bot.js` (synergy-minded picks; see its header). Autopilot heroes also weigh how much foes
+  could hit them on each tile (`threatMap` in battle.js), scaled by how hurt they are.
   It runs at 1/100 speed for animation waits and sets `window.__result` and `window.__log`.
 - `&chaos` starts every hero promoted with four random skills and full artifact slots, to stress
   the odd mechanics.

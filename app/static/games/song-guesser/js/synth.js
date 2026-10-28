@@ -180,18 +180,20 @@ export function arrange(song) {
     if (!groove) throw new Error(`unknown groove "${song.drums}"`);
     const hits = [];
     const band = groove.s || groove.c;
+    const span = meter * (groove.bars || 1); // a transcribed groove can run several bars
+    const lanes = Object.entries(groove).filter(([drum]) => drum !== 'bars');
     const hit = (at, drum, v) => { if (at < beats) hits.push({ t: Math.max(0, time(at) + jit(0.005)), drum, v: v * (1 + jit(0.1)) }); };
-    for (let bar = 0; bar * meter < beats; bar++) {
+    for (let start = 0, bar = 0; start < beats; start += span, bar += groove.bars || 1) {
       const fill = band && song.fill !== false && bar % 4 === 3;
-      for (const [drum, pat] of Object.entries(groove)) {
-        const step = meter / pat.length;
+      for (const [drum, pat] of lanes) {
+        const step = span / pat.length;
         [...pat].forEach((c, i) => {
-          const at = bar * meter + i * step;
-          if (fill && at >= bar * meter + meter - 1 && drum !== 'k') return; // the fill owns the last beat
+          const at = start + i * step;
+          if (fill && at >= start + meter - 1 && drum !== 'k') return; // the fill owns the last beat
           if (c !== '.') hit(at, drum, c === 'X' ? 1.25 : c === 'g' ? 0.4 : 1);
         });
       }
-      if (fill) for (let i = 0; i < 4; i++) hit(bar * meter + meter - 1 + i / 4, i < 2 ? 's' : 't', 0.55 + i * 0.15);
+      if (fill) for (let i = 0; i < 4; i++) hit(start + meter - 1 + i / 4, i < 2 ? 's' : 't', 0.55 + i * 0.15);
     }
     if (band && song.crash !== false) {
       for (let bar = 0; bar * meter < beats; bar += 8) hit(bar * meter, 'y', 1);
@@ -216,7 +218,13 @@ export function arrange(song) {
     parts.bass = { label: 'Bass', inst: 'bass', notes };
   }
 
-  if (chords && song.guitar !== null) {
+  if (song.guitar && song.guitar.notes) {
+    // chords written out note by note (transcribed from MIDI), strummed as written
+    const spec = { inst: 'guitar', ...song.guitar };
+    const notes = [];
+    for (const e of looped(parseSeq(spec.notes, notesOf), beats)) notes.push(note(e.at, e.len * 0.95, e.item, 0.9));
+    parts.chords = { label: spec.label || CHORD_LABEL[spec.inst] || 'Chords', inst: spec.inst, strum: STRUMMED.has(spec.inst), notes };
+  } else if (chords && song.guitar !== null) {
     const spec = { inst: 'guitar', style: 'strum', ...song.guitar };
     const power = spec.inst === 'dist' && !spec.full;
     const voicing = c => {

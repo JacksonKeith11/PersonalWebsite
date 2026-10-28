@@ -53,6 +53,7 @@ const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
         lens[p] = seq.total;
         lines[p] = seq;
       }
+      if (song.guitar && song.guitar.notes) lens.guitar = parseSeq(song.guitar.notes, notesOf).total;
     } catch (e) { err(song, e.message); continue; }
     for (const [p, len] of Object.entries(lens)) {
       if (Math.abs(len / meter - Math.round(len / meter)) > 1e-9) err(song, `${p} is ${len} beats, not whole bars of ${meter}`);

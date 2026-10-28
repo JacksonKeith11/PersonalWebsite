@@ -27,7 +27,8 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/static/games/song-guesser/`: Song Guesser, a name-that-tune game with synthesized arrangements at
   `/games/song-guesser`
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
-  sprites, and `song-guesser-check.js`, which checks Song Guesser's arrangements)
+  sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
+  turns MIDI transcriptions into Song Guesser choruses)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
 ## Area docs
@@ -41,7 +42,7 @@ up front. Read the matching one before you change something in that area:
 | `app/serials/` | `docs/serials.md` |
 | `app/books/`, `app/static/books/` | `docs/books.md` |
 | `app/static/games/threefold/`, `tools/threefold-autoplay.js`, `tools/threefold-art/` | `docs/game.md` |
-| `app/static/games/song-guesser/`, `tools/song-guesser-check.js` | `docs/song-guesser.md` |
+| `app/static/games/song-guesser/`, `tools/song-guesser-check.js`, `tools/song-guesser-midi/` | `docs/song-guesser.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

@@ -1,0 +1,165 @@
+{
+ "Buddy Holly": {
+  "BAR": 44,
+  "MEL": 3
+ },
+ "Say It Ain't So": {
+  "BAR": 28,
+  "MEL": 7
+ },
+ "Island in the Sun": {
+  "BAR": 20,
+  "MEL": 6
+ },
+ "Undone \u2013 The Sweater Song": {
+  "BAR": 32,
+  "MEL": 6
+ },
+ "Mr. Brightside": {
+  "BAR": 56,
+  "MEL": 4
+ },
+ "Beverly Hills": {
+  "BAR": 16,
+  "MEL": 1,
+  "SEMIS": 0
+ },
+ "Hash Pipe": {
+  "BAR": 16,
+  "MEL": 5
+ },
+ "Reptilia": {
+  "BAR": 48,
+  "MEL": 3,
+  "label": "Lead guitar (vocal line)"
+ },
+ "Electric Feel": {
+  "BAR": 36,
+  "MEL": 1
+ },
+ "Time to Pretend": {
+  "BAR": 44,
+  "MEL": 5,
+  "inst": "square",
+  "label": "Synth lead"
+ },
+ "Creep": {
+  "BAR": 22,
+  "MEL": 3
+ },
+ "Smells Like Teen Spirit": {
+  "BAR": 32,
+  "MEL": 0
+ },
+ "Wonderwall": {
+  "BAR": 32,
+  "MEL": 0
+ },
+ "Losing My Religion": {
+  "BAR": 24,
+  "MEL": 3,
+  "SEMIS": 0
+ },
+ "Just Like Heaven": {
+  "BAR": 92,
+  "MEL": 6
+ },
+ "Clocks": {
+  "BAR": 56,
+  "MEL": 7
+ },
+ "Song 2": {
+  "BAR": 24,
+  "MEL": 7
+ },
+ "Karma Police": {
+  "BAR": 48,
+  "MEL": 13,
+  "SEMIS": 0
+ },
+ "Basket Case": {
+  "BAR": 16,
+  "MEL": 2
+ },
+ "Umbrella": {
+  "BAR": 24,
+  "MEL": 2,
+  "CH": 1
+ },
+ "...Baby One More Time": {
+  "BAR": 20,
+  "MEL": 0
+ },
+ "Toxic": {
+  "BAR": 36,
+  "MEL": 3
+ },
+ "Royals": {
+  "BAR": 19,
+  "MEL": 3
+ },
+ "Another One Bites the Dust": {
+  "BAR": 24,
+  "MEL": 0
+ },
+ "Billie Jean": {
+  "BAR": 44,
+  "MEL": 0
+ },
+ "Take On Me": {
+  "BAR": 36,
+  "MEL": 6
+ },
+ "Stand by Me": {
+  "BAR": 24,
+  "MEL": 4
+ },
+ "Three Little Birds": {
+  "BAR": 8,
+  "MEL": 3
+ },
+ "Never Gonna Give You Up": {
+  "BAR": 26,
+  "MEL": 3
+ },
+ "Every Breath You Take": {
+  "BAR": 12,
+  "MEL": 3
+ },
+ "Dreams": {
+  "BAR": 36,
+  "MEL": 3
+ },
+ "Jolene": {
+  "BAR": 8,
+  "MEL": 9
+ },
+ "All Star": {
+  "BAR": 40,
+  "MEL": 8
+ },
+ "Ain't No Sunshine": {
+  "BAR": 0,
+  "MEL": 0
+ },
+ "Eye of the Tiger": {
+  "BAR": 40,
+  "MEL": 0
+ },
+ "Africa": {
+  "BAR": 30,
+  "MEL": 0
+ },
+ "Hey Ya!": {
+  "BAR": 24,
+  "MEL": 4
+ },
+ "Don't Stop Me Now": {
+  "BAR": 35,
+  "MEL": 1
+ },
+ "Hey Jude": {
+  "BAR": 64,
+  "MEL": 0
+ }
+}

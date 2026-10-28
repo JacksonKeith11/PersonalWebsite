@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=50';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=51';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];

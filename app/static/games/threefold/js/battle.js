@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=50';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=50';
-import { spriteURL } from './art.js?v=50';
-import { TP, drawBoard, drawIsoBoard, ISO, isoHeight } from './tiles.js?v=50';
-import { sfx } from './audio.js?v=50';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=50';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=51';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=51';
+import { spriteURL } from './art.js?v=51';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight } from './tiles.js?v=51';
+import { sfx } from './audio.js?v=51';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=51';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -2213,37 +2213,62 @@ function refreshView(u) {
   pips.forEach((col, i) => { g.fillStyle(0x000000); g.fillRect(2 + i * 13, 2, 12, 12); g.fillStyle(col); g.fillRect(4 + i * 13, 4, 8, 8); });
 }
 
-// The isometric board's camera: it starts framing the whole board, the board can be dragged around,
-// and the wheel, a pinch or the buttons over the board zoom (up to 3× the framing zoom).
-function isoCamera(sc) {
-  const cam = sc.cameras.main, w = cam.width, ht = cam.height;
-  const bw = (GW + GH) * ISO.HW, bh = (GW + GH) * ISO.HH;
-  const cx = ISO.OX + (GW - GH) / 2 * ISO.HW, cy = ISO.OY + bh / 2 - 24;
-  const fit = Math.min(w / (bw + 40), ht / (bh + 120));
+// The view can switch between flat and isometric at any time (`setView`): `applyView` rebuilds the
+// board picture, the camera and the zoom buttons, and moves every unit's view; the battle carries on.
+// Flat: the 8×8 board centred in the 640×512 frame. Isometric: the camera frames the board, a drag
+// pans it, and the wheel, a pinch or the buttons over the board zoom (up to 3× the framing zoom).
+function applyView(sc) {
+  const b = B, cam = sc.cameras.main, w = cam.width, ht = cam.height;
+  if (sc.boardImg) sc.boardImg.destroy();
+  if (sc.gridG) { sc.gridG.destroy(); sc.gridG = null; }
+  if (sc.zoomBar) { sc.zoomBar.remove(); sc.zoomBar = null; }
+  if (sc.textures.exists('board')) sc.textures.remove('board');
   cam.setBackgroundColor('#100b17');
-  cam.setBounds(cx - bw / 2 - 60, cy - bh / 2 - 90, bw + 120, bh + 170);
-  const zoomAt = (sx, sy, z) => {
-    z = Math.max(fit, Math.min(fit * 3, z));
-    const wx = cam.scrollX + w / 2 + (sx - w / 2) / cam.zoom, wy = cam.scrollY + ht / 2 + (sy - ht / 2) / cam.zoom;
-    cam.setZoom(z);
-    cam.setScroll(wx - w / 2 - (sx - w / 2) / z, wy - ht / 2 - (sy - ht / 2) / z);
-  };
-  const reset = () => { cam.setZoom(fit); cam.centerOn(cx, cy); };
-  reset();
-  sc.input.addPointer(1);
-  sc.input.on('wheel', (p, over, dx, dy) => zoomAt(p.x, p.y, cam.zoom * (dy > 0 ? 1 / 1.15 : 1.15)));
-  // the page mustn't scroll or zoom while the board is being dragged, pinched or wheeled
-  const canvas = sc.game.canvas, stop = e => e.preventDefault();
-  canvas.style.touchAction = 'none';
-  canvas.addEventListener('wheel', stop, { passive: false });
-  const host = document.getElementById('game');
-  const bar = h('div', { class: 'zoombar' },
-    h('button', { class: 'btn', title: 'Zoom in (or scroll, or pinch)', onclick: () => zoomAt(w / 2, ht / 2, cam.zoom * 1.3) }, '+'),
-    h('button', { class: 'btn', title: 'Zoom out', onclick: () => zoomAt(w / 2, ht / 2, cam.zoom / 1.3) }, '−'),
-    h('button', { class: 'btn', title: 'Show the whole board', onclick: reset }, '⤢'));
-  host.append(bar);
-  sc.events.once('shutdown', () => { bar.remove(); canvas.style.touchAction = ''; canvas.removeEventListener('wheel', stop); });
-  return { zoomAt };
+  if (env.iso) { // the flat board is composed off-screen, then laid out as diamonds at full size
+    if (!b.flat) { b.flat = document.createElement('canvas'); b.flat.width = GW * TP; b.flat.height = GH * TP; }
+    b.board = sc.textures.createCanvas('board', ISO.W, ISO.H);
+    sc.boardImg = sc.add.image(0, 0, 'board').setOrigin(0);
+    const bw = (GW + GH) * ISO.HW, bh = (GW + GH) * ISO.HH;
+    const cx = ISO.OX + (GW - GH) / 2 * ISO.HW, cy = ISO.OY + bh / 2 - 24;
+    const fit = Math.min(w / (bw + 40), ht / (bh + 120));
+    cam.setBounds(cx - bw / 2 - 60, cy - bh / 2 - 90, bw + 120, bh + 170);
+    const zoomAt = (sx, sy, z) => {
+      z = Math.max(fit, Math.min(fit * 3, z));
+      const wx = cam.scrollX + w / 2 + (sx - w / 2) / cam.zoom, wy = cam.scrollY + ht / 2 + (sy - ht / 2) / cam.zoom;
+      cam.setZoom(z);
+      cam.setScroll(wx - w / 2 - (sx - w / 2) / z, wy - ht / 2 - (sy - ht / 2) / z);
+    };
+    const reset = () => { cam.setZoom(fit); cam.centerOn(cx, cy); };
+    reset();
+    sc.camCtl = { zoomAt };
+    sc.zoomBar = h('div', { class: 'zoombar' },
+      h('button', { class: 'btn', title: 'Zoom in (or scroll, or pinch)', onclick: () => zoomAt(w / 2, ht / 2, cam.zoom * 1.3) }, '+'),
+      h('button', { class: 'btn', title: 'Zoom out', onclick: () => zoomAt(w / 2, ht / 2, cam.zoom / 1.3) }, '−'),
+      h('button', { class: 'btn', title: 'Show the whole board', onclick: reset }, '⤢'));
+    document.getElementById('game').append(sc.zoomBar);
+  } else {
+    b.board = sc.textures.createCanvas('board', GW * TP, GH * TP);
+    sc.boardImg = sc.add.image(0, 0, 'board').setOrigin(0).setScale(S);
+    sc.camCtl = null;
+    cam.setZoom(1); cam.removeBounds(); cam.setScroll(-(w - GW * TS) / 2, -(ht - GH * TS) / 2);
+    const grid = sc.gridG = sc.add.graphics().setDepth(1);
+    grid.fillStyle(0x000000, 0.1);
+    for (let x = 1; x < GW; x++) grid.fillRect(x * TS - 1, 0, 2, GH * TS);
+    for (let y = 1; y < GH; y++) grid.fillRect(0, y * TS - 1, GW * TS, 2);
+  }
+  // in isometric the page mustn't scroll while the board is dragged or pinched
+  sc.game.canvas.style.touchAction = env.iso ? 'none' : '';
+  redrawBoard();
+  for (const u of b.units) if (u.view) {
+    if (u.face) u.view.list[1].flipX = faceFlip(u.face);
+    placeView(u); refreshView(u);
+  }
+  sc.sig = null; // redraw the overlay
+}
+// Switch view (from the HUD button); in a battle the board is rebuilt in place.
+export function setView(iso) {
+  env.iso = iso;
+  if (scene && B && B.board) applyView(scene);
 }
 export class BattleScene extends Phaser.Scene {
   constructor() { super('battle'); }
@@ -2251,37 +2276,28 @@ export class BattleScene extends Phaser.Scene {
     scene = this;
     const b = B;
     // the whole board is one canvas, repainted when terrain changes and on each animation tick
-    if (this.textures.exists('board')) this.textures.remove('board');
-    if (env.iso) { // the flat board is composed off-screen, then laid out as diamonds at full size
-      b.flat = document.createElement('canvas'); b.flat.width = GW * TP; b.flat.height = GH * TP;
-      b.board = this.textures.createCanvas('board', ISO.W, ISO.H);
-      this.add.image(0, 0, 'board').setOrigin(0);
-    } else {
-      b.board = this.textures.createCanvas('board', GW * TP, GH * TP);
-      this.add.image(0, 0, 'board').setOrigin(0).setScale(S);
-    }
-    redrawBoard();
-    if (!env.iso) {
-      const grid = this.add.graphics().setDepth(1);
-      grid.fillStyle(0x000000, 0.1);
-      for (let x = 1; x < GW; x++) grid.fillRect(x * TS - 1, 0, 2, GH * TS);
-      for (let y = 1; y < GH; y++) grid.fillRect(0, y * TS - 1, GW * TS, 2);
-    }
     this.ov = this.add.graphics().setDepth(5);
     this.marks = Array.from({ length: 24 }, () => this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '16px', color: '#fff', stroke: '#000', strokeThickness: 5 })
       .setOrigin(0.5).setDepth(950).setVisible(false));
     this.bursts = {};
     for (const [k, cfg] of Object.entries(BURSTS)) this.bursts[k] = this.add.particles(0, 0, 'px', { ...cfg, emitting: false }).setDepth(800);
     for (const u of b.units) makeView(u);
+    this.boardImg = null; this.gridG = null; this.zoomBar = null;
+    applyView(this);
     this.time.addEvent({ delay: 450, loop: true, callback: () => {
       if (!B || B !== b) return;
       b.frame++;
       redrawBoard();
     } });
     const cell = p => cellAt(p.worldX, p.worldY);
-    const cam = this.cameras.main, iso = env.iso && isoCamera(this);
+    const cam = this.cameras.main;
+    this.input.addPointer(1);
+    this.input.on('wheel', (p, over, dx, dy) => { if (this.camCtl) this.camCtl.zoomAt(p.x, p.y, cam.zoom * (dy > 0 ? 1 / 1.15 : 1.15)); });
+    const canvas = this.game.canvas, stopWheel = e => { if (env.iso) e.preventDefault(); };
+    canvas.addEventListener('wheel', stopWheel, { passive: false });
     this.input.on('pointermove', p => {
       if (B && !p.wasTouch) B.hover = cell(p);
+      const iso = this.camCtl;
       if (!iso || !down) return;
       const [p1, p2] = [this.input.pointer1, this.input.pointer2];
       if (p1.isDown && p2.isDown) { // pinch: zoom about the middle of the two fingers
@@ -2306,7 +2322,11 @@ export class BattleScene extends Phaser.Scene {
       if (d && (p.upTime || performance.now()) - d.t > 450) { const g = cell(p); if (B && g && !B.busy) { B.inspect = unitAt(g.x, g.y) || { tile: g }; renderPanel(); buzz(8); } return; }
       onTap(cell(p), p.wasTouch);
     });
-    this.events.once('shutdown', () => { if (scene === this) scene = null; });
+    this.events.once('shutdown', () => {
+      if (scene === this) scene = null;
+      if (this.zoomBar) this.zoomBar.remove();
+      canvas.style.touchAction = ''; canvas.removeEventListener('wheel', stopWheel);
+    });
     battleLoop(b);
   }
   update(time) {

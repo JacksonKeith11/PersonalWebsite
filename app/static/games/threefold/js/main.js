@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GH, ISO_VIEW, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=50';
+import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=51';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=50';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=50';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=50';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=50';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=50';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=50';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=50';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=51';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=51';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=51';
+import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=51';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=51';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=51';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=51';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -23,9 +23,12 @@ env.auto = AUTO;
 let SPEED = 1;
 try { SPEED = Math.min(3, Math.max(1, +localStorage.getItem('threefold-speed') || 1)); } catch (e) { /* storage unavailable */ }
 env.speed = AUTO ? 0.01 : 1 / SPEED;
-// The isometric board (a prototype of a Tactics Ogre-style view): data.js reads ?iso; remember it here.
-env.iso = ISO_VIEW;
-try { if (params.has('iso')) localStorage.setItem('threefold-iso', ISO_VIEW ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+// The board view, flat or isometric (Tactics Ogre style): the HUD button switches it at any time,
+// even mid-battle, and it's remembered. ?iso and ?iso=0 set it from the URL (the autoplay tests use them).
+try {
+  if (params.has('iso')) localStorage.setItem('threefold-iso', params.get('iso') === '0' ? '0' : '1');
+  env.iso = localStorage.getItem('threefold-iso') === '1';
+} catch (e) { env.iso = params.has('iso') && params.get('iso') !== '0'; }
 
 let run = null;
 let game = null;
@@ -60,6 +63,11 @@ function hud(inBattle) {
   const audio = [
     h('button', { class: 'btn tiny', title: 'Music', onclick: () => { toggleMusic(); hud(inBattle); } }, small ? (a.music ? '♪ on' : '♪ off') : a.music ? 'Music on' : 'Music off'),
     h('button', { class: 'btn tiny', title: 'Sound effects', onclick: () => { toggleSfx(); hud(inBattle); } }, small ? (a.sfx ? 'SFX on' : 'SFX off') : a.sfx ? 'Sound on' : 'Sound off'),
+    h('button', { class: 'btn tiny', title: 'Switch the board between top-down and isometric', onclick: () => {
+      setView(!env.iso);
+      try { localStorage.setItem('threefold-iso', env.iso ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+      hud(inBattle);
+    } }, small ? (env.iso ? 'Iso' : '2D') : env.iso ? 'View: iso' : 'View: top-down'),
   ];
   if (inBattle && !AUTO) audio.unshift(h('button', { class: 'btn tiny', title: 'Battle animation speed', onclick: () => {
     SPEED = SPEED % 3 + 1;
@@ -819,7 +827,7 @@ initTips();
 game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
-  width: 10 * TS, // the flat board's 10×8; the isometric board moves its camera instead
+  width: 10 * TS, // wider than the 8×8 board: the battle camera centres it (and pans it in isometric)
   height: GH * TS,
   pixelArt: true,
   backgroundColor: '#000000',

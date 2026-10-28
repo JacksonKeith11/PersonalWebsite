@@ -7,8 +7,9 @@ Read this before changing anything in `app/static/games/threefold/` or `tools/th
 A pixel-art tactical roguelike: a Warrior, Mage and Rogue climb three acts, each drawn per run
 from two (Greenwood or Drowned Marsh, Sunken Crypt or Rime Halls, Ember Peaks or Clockwork
 Foundry). Each act is a branching map of battles, elites, events and shops ending in a
-boss. Battles are grid tactics on a 10×8 board, with speed-based turn order, terrain, height,
-facing, flanking, charged skills, statuses and line of sight. Runs save to `localStorage`.
+boss. Battles are grid tactics on an 8×8 board (10×8 until the isometric view arrived), shown
+top-down or isometric, with speed-based turn order, terrain, height, facing, flanking, charged
+skills, statuses and line of sight. Runs save to `localStorage`.
 
 ## Code map (`app/static/games/threefold/`)
 
@@ -223,15 +224,17 @@ Keep it that way.
     board shows the damage a charge would do over the heads in it, the turn strip rings the caster, and
     every AI unit steps out of a hostile charge (`chargeDanger`) and discounts its own charged hits on
     targets that can walk away. The Hydra was left out on purpose: it already ends the most runs.
-- **Isometric board (stage 1 prototype, off by default).** The owner asked how hard a Tactics Ogre /
-  Into the Breach style view would be, then for a first stage. `?iso` turns it on and `?iso=0` off;
-  `localStorage` `threefold-iso` remembers the choice (`ISO_VIEW` in data.js, read at load, then
-  `env.iso`). The owner asked for an 8×8 board there, so `GW` is 8 in the isometric view and 10 in the
-  flat one (spawns, generation and everything else follow `GW`); otherwise only drawing and tapping
-  change. The owner also asked for a more top-down angle (`ISO.HH` 22 to `HW` 32, flatter than 2:1)
-  and a movable camera: `isoCamera` in battle.js frames the board, a drag pans it, and the wheel, a
-  pinch or the + / − / ⤢ buttons over the board zoom (up to 3×). While it's on, the canvas has
-  `touch-action: none`, so a drag on the board can't scroll the page. `drawIsoBoard` in tiles.js paints the flat board off-screen
+- **Two board views, switchable at any time.** The owner asked how hard a Tactics Ogre / Into the
+  Breach style view would be, then for it in stages. The HUD's View button switches between top-down
+  and isometric whenever it's shown, mid-battle included (`setView` in battle.js, which calls
+  `applyView` to rebuild the board picture, camera and zoom buttons and move every unit's view; the
+  battle itself carries on). `localStorage` `threefold-iso` remembers the choice; `?iso` and `?iso=0`
+  set it from the URL. Only drawing and tapping differ, never the rules, so both views share one
+  8×8 board (`GW`; the owner asked for 8×8, and switching mid-battle rules out a size per view). The
+  640×512 canvas is wider than the flat board, so the flat camera centres it. The owner asked for a
+  more top-down isometric angle (`ISO.HH` 22 to `HW` 32, flatter than 2:1) and a movable camera: in
+  isometric a drag pans the board, and the wheel, a pinch or the + / − / ⤢ buttons over it zoom (up to
+  3×). The canvas has `touch-action: none` there, so a drag on the board can't scroll the page. `drawIsoBoard` in tiles.js paints the flat board off-screen
   (`drawBoard(..., iso = true)` skips the flat cliffs and wall shadows), then maps each tile's square
   onto a 64×44 diamond, back to front, raised by `isoHeight` (hills 1, summits 2, walls 1.5 as blocks,
   water sunk) with side faces in the theme's cliff or wall colours and a slab under the board's edge.

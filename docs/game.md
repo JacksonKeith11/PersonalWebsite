@@ -94,7 +94,9 @@ Keep it that way.
   planning (shove, pull, swap), is disarmed, or the skill was silenced, the attack is lost and it
   only moves. Taunt makes it plan again. Stun, sleep, confusion, charm and death clear it straight away (the
   board and card stop showing it; the card says "Next: skips its turn"). A foe with no intent decides
-  when it acts. The board draws red tiles, a line through where it will stand and the summed damage
+  when it acts. A hero's move can make foes show new intents, so `doMove` snapshots them
+  (`B.intentsBefore`) and Undo move restores it; otherwise moving and undoing would bait foes into
+  locked attacks on empty tiles. The board draws red tiles, a line through where it will stand and the summed damage
   on each target (`intentView`); the foe's card says "Next: Skill → Target −N". This makes dodging
   and displacement strong, so watch whether enemies need more bite. It was added for the owner to
   try out: reverting the commit removes it cleanly.

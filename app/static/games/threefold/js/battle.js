@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=53';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=53';
-import { spriteURL } from './art.js?v=53';
-import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=53';
-import { sfx } from './audio.js?v=53';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=53';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=54';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=54';
+import { spriteURL } from './art.js?v=54';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=54';
+import { sfx } from './audio.js?v=54';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=54';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -294,7 +294,9 @@ function reach(u) {
       const o = occ.get(key(nx, ny));
       if (o && o.side !== u.side && !u.fly && !u.slip && !u.phase) continue;
       const nc = c + moveCost(u, nx, ny, x, y);
-      if (nc > mov) continue;
+      // a unit can always take one step, even one that costs more than its MOV (a climb, a thicket):
+      // otherwise a 1-MOV unit could be stuck below a ledge for good
+      if (nc > mov && !(c === 0 && nc < Infinity && mov > 0)) continue;
       const k = key(nx, ny), nr = cur.risk + hazard(u, nx, ny), list = labels.get(k) || [];
       if (list.some(l => l.c <= nc && l.risk <= nr)) continue;
       for (const l of list) if (l.c >= nc && l.risk >= nr) l.dead = true;
@@ -321,6 +323,14 @@ function los(x0, y0, x1, y1) {
   }
   return true;
 }
+// How far a target is for a skill's range: Manhattan distance, but along a straight line only for
+// `aim: 'line'`, and in diagonal steps (off the diagonals: out of reach) for `aim: 'diag'`.
+function aimDist(o, dx, dy) {
+  dx = Math.abs(dx); dy = Math.abs(dy);
+  if (o.aim === 'line' && dx && dy) return Infinity;
+  if (o.aim === 'diag') return dx === dy ? dx : Infinity;
+  return dx + dy;
+}
 const needsLos = o => !o.lob && o.range[1] > 1 && o.tgt !== 'self' && o.shape !== 'line';
 function rangeOf(u, o) {
   const [a, b] = o.range;
@@ -346,7 +356,7 @@ function validTarget(u, o, x, y) {
   if (!inb(x, y)) return false;
   if (o.tgt === 'self') return x === u.x && y === u.y;
   const [a, b] = rangeOf(u, o);
-  const d = Math.abs(u.x - x) + Math.abs(u.y - y);
+  const d = aimDist(o, u.x - x, u.y - y);
   if (d < a || d > b) return false;
   if (o.shape === 'line' && x !== u.x && y !== u.y) return false;
   if (needsLos(o) && !los(u.x, u.y, x, y)) return false;
@@ -1653,7 +1663,7 @@ function rangeTiles(u, o) {
   }
   const [a, b] = rangeOf(u, o), out = [];
   for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-    const d = Math.abs(u.x - x) + Math.abs(u.y - y);
+    const d = aimDist(o, u.x - x, u.y - y);
     if (d < Math.max(a, 1) || d > b) continue;
     if (o.shape === 'line' && x !== u.x && y !== u.y) continue;
     if (o.shape === 'line' && !lineTiles(u, o, x, y).some(([tx, ty]) => tx === x && ty === y)) continue;
@@ -1763,7 +1773,7 @@ function threatMap(u) {
       const o = effective(f, s);
       if (o.kind !== 'phys' && o.kind !== 'mag') continue;
       dmg = Math.max(dmg, calcDmg(f, u, o) * hitsOf(o));
-      far = Math.max(far, rangeOf(f, o)[1]);
+      far = Math.max(far, rangeOf(f, o)[1] * (o.aim === 'diag' ? 2 : 1));
     }
     return { f, dmg, r: (f.st.root > 0 ? 0 : f.mov) + far };
   }).filter(e => e.dmg > 0);
@@ -1800,7 +1810,7 @@ function planAI(u, ahead) {
     if (!v.stop) continue;
     u.x = v.x; u.y = v.y;
     const dd = Math.min(30, near[v.y][v.x]);
-    let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8 - danger(v.x, v.y) - (u.ai === 'ranged' ? Math.max(0, dd - 4) : dd) * 0.15;
+    let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - (v.risk * 1.2 + hazard(u, v.x, v.y) * 0.8) * (B.rage ? 0.3 : 1) - danger(v.x, v.y) - (u.ai === 'ranged' ? Math.max(0, dd - 4) : dd) * 0.15;
     pos += elev(u) * (u.ai === 'ranged' ? 1.5 : 0.4) - charged(v.x, v.y);
     if (u.ai === 'ranged') pos += (Math.min(...hostile.map(t => dist(t, v))) >= 2 ? 3 : -2);
     for (const { s, o } of usable) {

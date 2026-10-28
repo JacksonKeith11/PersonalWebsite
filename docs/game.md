@@ -69,6 +69,15 @@ Keep it that way.
   level, `every` [n, stats] on multiples of n, and `at` one-offs such as +2 SPD. Classes should feel
   different as they grow; tanks gain DEF and HP, casters MAG and RES, skirmishers SPD and CRIT.
   New classes need a `GROWTH` entry.
+- **Ranges are short for the 8×8 board** (the owner asked: ranged foes could hit anyone, anywhere).
+  Hostile skills lost reach (a 4 became 3, a 5 became 4, a 6 became 4 or, for charged and lobbed
+  area skills, 5, a 7 became 5), and the foes' own attacks were set by hand to 3-4 (charged boss
+  spells 5, the immobile Arc Turret's beam 5). Some skills keep more reach but a stricter aim
+  instead (`aim` in SKILLS): `'line'` fires only along straight lines (Arcane Bolt, Frost Lance,
+  Shoot, Death Bolt, Deadeye...), and `'diag'` only along diagonals, its range counted in diagonal
+  steps (Throwing Knives, Lucky Shot, Coin Toss, Rot Dart, Thorn Lash, Frost Arrow). `aimDist` in
+  battle.js applies it to targeting; an artifact that reshapes a skill (a beam, a volley, around
+  you, point-blank) drops the aim (`skStats`). Keep new ranged skills at 3-4, or longer with an aim.
 - **Movement is kept short for the 8×8 board** (the owner asked for a movement nerf when the board
   shrank). Heroes no longer gain MOV from levels (those one-offs became +1 SPD), so they stay at their
   base 3 (Rogue 4) plus class bonuses (Trickster, Dragoon) and artifacts. Every foe that had 4 or 5
@@ -462,6 +471,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
 - **Board overlays are regions.** Draw tile highlights with `region()` in `BattleScene.update`
   (fill every tile, outline only the region's outer edge) in the soft palette there; per-tile
   outlines double up where tiles touch.
+- **A unit can always take one step** (`reach`), even one that costs more than its MOV: a 1-MOV
+  Hoplite (Titan's Shackle) below a ledge, with lava the only other way to an immobile Arc Turret,
+  stalled a battle forever. Enraged foes also make the AI weigh hazards less, so it pushes through.
 - **`moveCost(u, x, y, fx, fy)`** includes climbing only when given the tile moved from; `standable`
   calls it without one. Anything new that walks a unit tile by tile (pathing, distance fields) should
   pass the previous tile, or units will walk up cliffs.

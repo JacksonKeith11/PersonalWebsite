@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=53';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=54';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -108,6 +108,8 @@ export function skStats(u, s) {
   o.stat = d.stat || (d.kind === 'phys' ? 'atk' : 'mag');
   if (!o.hits) o.hits = o.kind === 'heal' || o.kind === 'shield' ? 'allies' : 'foes';
   for (const id of o.mods) MODS[id].apply(o);
+  // an artifact that reshapes the skill (a beam, a volley, around you, point-blank) frees its aim
+  if (o.aim && (o.shape || o.tgt === 'self' || o.range[1] <= 1)) delete o.aim;
   if ((has(u, 'scope') || has(u, 'worldstone')) && o.range[1] > 1 && o.tgt !== 'self') o.range = [o.range[0], o.range[1] + 1];
   if ((has(u, 'belt') || has(u, 'worldstone')) && o.aoe) o.aoe += 1;
   if (has(u, 'hourglass') && o.cd > 1) o.cd -= 1;
@@ -187,7 +189,8 @@ export function describeParts(o, src) {
   else if (o.mimic) parts.push('Copies the last skill an ally used');
   else if (o.shape === 'multi') parts.push(`${o.multiN} random foes within ${b}`);
   else if (o.tgt === 'self') parts.push(o.aoe ? `Around you, radius ${o.aoe}${o.diag ? ' (diagonals too)' : ''}` : 'Self');
-  else parts.push(`${o.shape === 'line' ? 'Line, ' : ''}Range ${a === b ? a : a + '–' + b}`);
+  else if (o.aim === 'diag') parts.push(`Diagonals only, ${a === b ? a : a + '–' + b} steps`);
+  else parts.push(`${o.shape === 'line' ? 'Line, ' : o.aim === 'line' ? 'Straight lines, ' : ''}Range ${a === b ? a : a + '–' + b}`);
   if (o.aoe && o.tgt !== 'self') parts.push(`Area ${o.aoe}`);
   const n = src ? ` = ${Math.round(statVal(src, o.stat) * o.pow * (isDmg(o) ? itemMult(src) : 1))}` : '';
   const pct = `${Math.round(o.pow * 100)}% ${STAT_NAMES[o.stat]}${n}`;

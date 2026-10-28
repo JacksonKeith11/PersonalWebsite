@@ -315,3 +315,7 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .pick.rar-l b, .pick.rar-l .rar { color: #ffb347; }
 .pick.rar-l { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px #ffb347, 0 0 14px 2px rgba(255, 179, 71, 0.45); }
 .pick.rar-l:hover:not(:disabled) { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px var(--gold), 0 0 18px 4px rgba(255, 179, 71, 0.6); }
+
+/* Set bonus progress on the Party screen */
+.sets { margin-top: 8px; font-size: 17px; color: var(--muted); }
+.sets .set.on { color: var(--gold); }

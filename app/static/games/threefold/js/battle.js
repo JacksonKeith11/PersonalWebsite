@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=45';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=45';
-import { spriteURL } from './art.js?v=45';
-import { TP, drawBoard } from './tiles.js?v=45';
-import { sfx } from './audio.js?v=45';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=45';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT, ARCHES } from './data.js?v=46';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle, setsOf, inSet } from './rules.js?v=46';
+import { spriteURL } from './art.js?v=46';
+import { TP, drawBoard } from './tiles.js?v=46';
+import { sfx } from './audio.js?v=46';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=46';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -54,6 +54,8 @@ function heroUnit(p) {
     flank: CLASSES[p.cls].flank || 1.25, items: p.items, team: p.team || [], skills: p.skills.map(s => ({ id: s.id, mods: s.mods, cd: 0, tempered: s.tempered })), st: {}, shield: 0,
     ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee' };
   u.fireproof = isClass(u, 'pyromancer') || has(u, 'lavawalkers') || has(u, 'magmaheart');
+  u.sets = setsOf(p);
+  if (u.sets.has('time')) u.ct += 25;
   u.anchored = isClass(u, 'juggernaut');
   u.slip = isClass(u, 'trickster');
   u.rampart = isClass(u, 'hoplite');
@@ -84,6 +86,7 @@ function foeUnit(kind, lvl) {
   if (d.items) u.items = [...d.items];
   if (d.stealth) u.st.stealth = 1;
   if (d.boss && B.asc >= 8) u.ct += 40;
+  u.sets = setsOf(u);
   return u;
 }
 
@@ -173,7 +176,7 @@ const HEX_MAX = 9;
 // Bleed: stacks (up to 5) that hurt the unit per tile it moves; see stepTo.
 function bleedUnit(t, n, by) {
   if (t.dead || n <= 0) return;
-  t.st.bleed = Math.min(5, (t.st.bleed || 0) + n);
+  t.st.bleed = Math.min(inSet(by, 'bleed') ? 7 : 5, (t.st.bleed || 0) + n);
   t.st.bleedDmg = Math.max(t.st.bleedDmg || 0, Math.round(2 + statVal(by, 'atk') * 0.1));
   t.st.bleedBy = by;
   fxText(t, 'Bleed', '#c0303a', true);
@@ -182,10 +185,19 @@ function bleedUnit(t, n, by) {
 function chillUnit(t, n, by, spread = true) {
   if (t.dead || n <= 0) return;
   t.st.chill = (t.st.chill || 0) + n;
-  if (t.st.chill < 3) { refreshView(t); return; }
+  if (t.st.chill < (inSet(by, 'frost') ? 2 : 3)) { refreshView(t); return; }
   t.st.chill = 0; t.st.frozen = 1; stun(t);
+  if (by && has(by, 'permafrost') && !t.boss) t.st.deepfreeze = 1;
   fxText(t, 'Frozen!', '#a8e4ff'); burst('shield', t, 14);
   if (spread && by && has(by, 'winterheart')) for (const x of alive().filter(x => x !== t && x.side === t.side && dist(x, t) === 1)) chillUnit(x, 1, by, false);
+  refreshView(t);
+}
+// Bounty: one wanted foe at a time; its killer collects (see ko).
+function markBounty(t) {
+  if (t.dead) return;
+  for (const x of B.units) if (x.st && x.st.bounty) { x.st.bounty = 0; refreshView(x); }
+  t.st.bounty = 1;
+  fxText(t, 'Wanted!', '#e8b84a', true);
   refreshView(t);
 }
 function addHex(t, n) { if (!t.dead && n > 0) { t.st.hex = Math.min(HEX_MAX, (t.st.hex || 0) + n); refreshView(t); } }
@@ -443,6 +455,22 @@ function dmgMult(a, t, o) {
   if (t.st.frozen > 0 && o.coldsnap) m *= 2;
   if (t.st.frozen > 0 && alive().some(x => x.side !== t.side && has(x, 'winterheart'))) m *= 1.5;
   if (has(a, 'windsash')) m *= 1 + 0.08 * (a.walked || 0);
+  if (t.st.bounty && alive().some(x => x.side !== t.side && has(x, 'noose'))) m *= 1.6;
+  if (a.bountyBuff) m *= 1 + 0.2 * a.bountyBuff;
+  if (has(a, 'ledger') && a.ref) m *= 1 + 0.03 * (a.ref.ledger || 0);
+  if (has(a, 'mossboots') && inCover(a)) m *= 1.2;
+  if (has(a, 'stonerod') && (o.terrain != null || o.walls)) m *= 1.5;
+  if (has(a, 'practiced') && o.id && o.id === (a.casting ? a.prevSkill : a.lastSkill)) m *= 1.3;
+  if (a.echoing && has(a, 'resonator')) m *= 1.5;
+  if (has(a, 'lastrites')) m *= 1 + 0.3 * B.units.filter(x => x.dead && x.ref && homeSide(x) === homeSide(a)).length;
+  if (has(a, 'abyssal')) m *= 2;
+  if (has(t, 'chronodebt')) m *= 1.4;
+  if (a.carnage) m *= 1 + 0.1 * a.carnage;
+  if (a.sets && a.sets.size) {
+    if (a.sets.has('elemental') && (t.st.burn > 0 || t.st.slow > 0 || t.st.shock > 0)) m *= 1.15;
+    if (a.sets.has('terrain') && (inCover(a) || onHill(a))) m *= 1.15;
+    if (a.sets.has('martyr') && alive().some(x => x !== a && x.side === a.side && x.hp * 2 < x.maxHp)) m *= 1.15;
+  }
   if (a.owner && has(a.owner, 'packhorn')) m *= 1.4;
   if (a.st.poison > 0 && alive().some(x => x.side !== a.side && has(x, 'censer'))) m *= 0.8;
   if (o.ironbark) m *= 1 + o.ironbark * a.def;
@@ -486,6 +514,10 @@ function damage(t, amount, src, opts = {}) {
   if (!opts.redirected) {
     const m = alive().find(x => x !== t && x.side === t.side && has(x, 'martyr') && dist(x, t) === 1);
     if (m) { fxText(t, 'Guarded', '#ddd'); return damage(m, Math.max(1, Math.round(amount / 2)), src, { ...opts, redirected: true }); }
+    if (has(t, 'sharedpain') && src && src.side !== t.side && amount > 1) {
+      const o = alive().filter(x => x !== t && x.side === t.side && x.ref).sort((a, b) => b.hp / b.maxHp - a.hp / a.maxHp)[0];
+      if (o) { const half = Math.floor(amount / 2); damage(o, half, src, { quiet: true, redirected: true, reflected: true }); amount -= half; }
+    }
   }
   if (src && src.side !== t.side && t.st.ward > 0 && !opts.reflected) {
     t.st.ward--;
@@ -512,6 +544,7 @@ function damage(t, amount, src, opts = {}) {
       for (const f of alive().filter(x => x.side !== t.side && dist(x, t) === 1)) damage(f, Math.ceil(s / 2), t, { reflected: true, quiet: true });
     }
   }
+  if (left > 0 && has(t, 'voidheart')) left = Math.min(left, Math.ceil(t.maxHp * 0.15));
   if (left > 0) {
     if (t.st.sleep > 0) { t.st.sleep = 0; fxText(t, 'Wakes', '#c9f7ff', true); }
     t.hp = Math.max(0, t.hp - left);
@@ -542,6 +575,7 @@ function damage(t, amount, src, opts = {}) {
     damage(src, th, t, { reflected: true, quiet: true });
     if (has(t, 'rose')) { poisonUnit(src, 2, Math.ceil(th / 3), t); refreshView(src); }
   }
+  if (src && opts.melee && src.side !== t.side && !opts.reflected && !src.dead && has(t, 'glacialarmor')) chillUnit(src, 1, t);
   if (src && src.side !== t.side && !opts.reflected && !opts.counter && !t.dead && has(t, 'bramblecrown')) {
     const n = thornsNow(t);
     if (n > 0) for (const f of alive().filter(x => x.side !== t.side && dist(x, t) === 1 && !(th > 0 && x === src))) damage(f, n, t, { reflected: true, quiet: true });
@@ -570,6 +604,14 @@ function ko(t, killer) {
     log(`${t.name} rises from the ashes!`);
     return;
   }
+  if (!B.saintUsed && alive().some(x => x !== t && x.side === t.side && has(x, 'saintrelic'))) {
+    B.saintUsed = true;
+    t.hp = t.maxHp; t.st.stun = 1;
+    fxText(t, 'Saved!', '#f0e0b0'); burst('heal', t, 24); sfx('heal');
+    log(`The Saint's Relic will not let ${t.name} fall.`);
+    refreshView(t);
+    return;
+  }
   if (has(t, 'paradox') && !t.paradoxUsed) {
     t.paradoxUsed = true;
     t.hp = Math.max(1, t.turnHp || Math.ceil(t.maxHp / 2));
@@ -587,6 +629,7 @@ function ko(t, killer) {
     refreshView(t);
     return;
   }
+  const wanted = !!t.st.bounty;
   const bled = t.st.bleed > 0 ? { n: t.st.bleed, by: t.st.bleedBy } : null;
   const venom = t.st.poison > 0 ? { n: t.st.poison, dmg: t.st.poisonDmg, by: t.st.poisonBy } : null, hexes = t.st.hex || 0;
   if (t.origSide) { t.side = t.origSide; t.origSide = null; }
@@ -639,7 +682,7 @@ function ko(t, killer) {
     if (n) { addHex(n, hexes); fxText(n, 'Hexes jump', '#e070c0', true); }
   }
   if (killer && !killer.dead && killer.side !== t.side) {
-    const f = (isClass(killer, 'warlock') ? 0.08 : 0) + (has(killer, 'chalice') ? 0.07 : 0);
+    const f = (isClass(killer, 'warlock') ? 0.08 : 0) + (has(killer, 'chalice') ? 0.07 : 0) + (killer.sets && killer.sets.has('blood') ? 0.05 : 0);
     if (f) heal(killer, killer.maxHp * f);
   }
   if (venom && venom.by && (isClass(venom.by, 'plaguebringer') || has(venom.by, 'spores'))) {
@@ -658,9 +701,28 @@ function ko(t, killer) {
     log(`${t.name}'s blood spills onto its allies.`);
   }
   if (t.owner && !t.owner.dead && has(t.owner, 'soullantern')) addShield(t.owner, t.owner.maxHp * 0.15);
+  if (t.owner && has(t.owner, 'necropact')) {
+    fxText(t, 'Boom!', '#9a8cff', true); burst('dark', t, 20);
+    for (const n of alive().filter(x => homeSide(x) !== homeSide(t) && dist(x, t) === 1)) damage(n, Math.round(t.maxHp * 0.3), t.owner, { quiet: true, reflected: true });
+  }
+  if (wanted) {
+    const hunter = killer && !killer.dead && homeSide(killer) !== homeSide(t) ? killer : null;
+    if (hunter && homeSide(hunter) === 'hero') {
+      const g = 15 * (inSet(hunter, 'bounty') ? 2 : 1);
+      env.run.gold += g; fxText(t, `Bounty +${g}g`, '#e8b84a'); sfx('coin');
+      hunter.bountyBuff = (hunter.bountyBuff || 0) + 1;
+      if (has(hunter, 'ledger') && hunter.ref) hunter.ref.ledger = (hunter.ref.ledger || 0) + 1;
+      log(`${hunter.name} collects the bounty on ${t.name}.`);
+    }
+    if (alive().some(x => homeSide(x) !== homeSide(t) && has(x, 'noose'))) {
+      const n = alive().filter(x => x.side === t.side).sort((a, b) => dist(a, t) - dist(b, t))[0];
+      if (n) markBounty(n);
+    }
+  }
+  if (killer && !killer.dead && homeSide(killer) !== homeSide(t) && killer.sets && killer.sets.has('carnage')) killer.carnage = (killer.carnage || 0) + 1;
 }
 function heal(t, n, overflow) {
-  if (t.dead || has(t, 'hollowheart')) return 0;
+  if (t.dead || has(t, 'hollowheart') || has(t, 'voidheart')) return 0;
   n = Math.max(0, Math.round(n));
   const a = Math.max(0, Math.min(n, healRoom(t)));
   t.hp += a;
@@ -691,7 +753,7 @@ const tally = u => u && u.ref ? (u.ref.tally ||= { dmg: 0, best: 0, kills: 0, ta
 // Shields come in pieces that each fade at the start of the holder's second turn after they were
 // gained (about 2 rounds), so they can't be stacked up over a long fight. Hits eat the oldest first.
 function addShield(t, n) {
-  if (t.dead) return;
+  if (t.dead || has(t, 'voidheart')) return;
   n = Math.max(0, Math.min(Math.round(n), t.maxHp - t.shield));
   if (!n) return;
   t.shield += n;
@@ -714,7 +776,8 @@ function applyStatus(u, t, o) {
   const ext = isClass(u, 'bard') ? 1 : 0; // Encore
   if (o.stun) stun(t);
   if (o.stunLow && t.hp * 2 < t.maxHp) stun(t);
-  if (o.hex && foe) addHex(t, o.hex);
+  if (o.hex && foe) addHex(t, o.hex + (inSet(u, 'hex') ? 1 : 0));
+  if (o.bounty && foe) markBounty(t);
   if (o.bleed && foe) bleedUnit(t, o.bleed, u);
   if (o.chill && foe) chillUnit(t, o.chill, u);
   if (o.slow) t.st.slow = Math.max(t.st.slow || 0, o.slow + ext);
@@ -722,7 +785,7 @@ function applyStatus(u, t, o) {
     const dose = Math.max(1, Math.round(statVal(u, o.stat) * (o.poisonPow || 0.3)));
     const stack = (isClass(u, 'plaguebringer') || has(u, 'toxicheart')) && t.st.poison > 0;
     t.st.poisonDmg = stack ? Math.min(t.st.poisonDmg + dose, Math.round(t.maxHp * 0.2) + dose) : Math.max(t.st.poison > 0 ? t.st.poisonDmg || 0 : 0, dose);
-    t.st.poison = Math.max(t.st.poison || 0, o.poison);
+    t.st.poison = Math.max(t.st.poison || 0, o.poison + (inSet(u, 'poison') ? 1 : 0));
     t.st.poisonBy = u; t.st.leech = !!o.leech;
   }
   const burn = o.burn || (isClass(u, 'pyromancer') && o.kind === 'mag' ? 2 : 0);
@@ -842,6 +905,7 @@ async function stepTo(u, x, y, ms = 95) {
   if ((u.trail || has(u, 'lavawalkers')) && floorish(B.grid[py][px]) && !unitAt(px, py)) setTile(px, py, T.LAVA);
   if (u.st.bleed > 0 && !u.dead) damage(u, u.st.bleed * u.st.bleedDmg, null, { quiet: true, by: u.st.bleedBy });
   if (u.dead) return;
+  for (const x of alive().filter(x => has(x, 'razorwire') && homeSide(x) !== homeSide(u) && dist(x, u) === 1)) bleedUnit(u, 1, x);
   await enterTile(u);
 }
 async function moveUnit(u, path, blink) {
@@ -859,8 +923,11 @@ async function moveUnit(u, path, blink) {
       await stepTo(u, path[i].x, path[i].y);
     }
   }
-  u.walked = (u.walked || 0) + path.length - 1;
+  const tiles = path.length - 1;
+  u.walked = (u.walked || 0) + tiles;
   u.moved = true;
+  if (has(u, 'kineticshield') && tiles > 0 && !u.dead) addShield(u, u.maxHp * 0.02 * tiles);
+  if (has(u, 'afterburner') && tiles >= 3 && !u.dead) for (const f of alive().filter(x => x.side !== u.side && dist(x, u) === 1 && !x.fireproof)) { burnUnit(f, 2, statVal(u, 'atk') * 0.3 + 1, u); burst('fire', f, 8); refreshView(f); }
   if (has(u, 'cometboots') && path.length >= 5 && !u.dead) {
     const f = alive().find(x => x.side !== u.side && dist(x, u) === 1 && targetable(u, x));
     if (f) {
@@ -873,6 +940,7 @@ async function moveUnit(u, path, blink) {
 // Push t n tiles directly away from `from` (the attacker, or the centre of an area); a blocked push hurts.
 async function knock(u, t, n = 1, from = u) {
   if (t.anchored || t.dead) return;
+  if (has(u, 'bloodkit') && t.side !== u.side) bleedUnit(t, 1, u);
   let dx = Math.sign(t.x - from.x), dy = Math.sign(t.y - from.y);
   if (dx && dy) { if (Math.abs(t.x - from.x) >= Math.abs(t.y - from.y)) dy = 0; else dx = 0; }
   if (!dx && !dy) return;
@@ -884,6 +952,7 @@ async function knock(u, t, n = 1, from = u) {
 }
 async function pull(u, t, n) {
   if (t.anchored || t.dead) return;
+  if (has(u, 'bloodkit') && t.side !== u.side) bleedUnit(t, 1, u);
   for (let i = 0; i < n && !t.dead && dist(u, t) > 1; i++) {
     const dx = u.x - t.x, dy = u.y - t.y, opts = [];
     if (dx) opts.push([t.x + Math.sign(dx), t.y, Math.abs(dx)]);
@@ -916,7 +985,7 @@ async function hopAway(u, n) {
 function spawn(kind, side, x, y, ally, owner = null) {
   const sk = foeUnit(kind, B.level);
   Object.assign(sk, { x, y, side, summoned: true, ct: 0, owner });
-  if (owner && has(owner, 'bonewhistle')) sk.hp = sk.maxHp = Math.round(sk.maxHp * 1.5);
+  if (owner) sk.hp = sk.maxHp = Math.round(sk.maxHp * (has(owner, 'bonewhistle') ? 1.5 : 1) * (inSet(owner, 'summon') ? 1.25 : 1));
   if (ally && kind === 'skeleton') { sk.spr = 'skeleton_ally'; sk.name = 'Risen Skeleton'; }
   else if (ally) sk.name = `Allied ${sk.name}`;
   B.units.push(sk);
@@ -992,7 +1061,13 @@ async function useSkill(u, s, tx, ty, echoed) {
   let o = effective(u, s);
   if (o.mimic && !o.mimicked) { s.cd = o.cd; u.acted = true; fxText(u, 'Nothing to copy', '#aaaaaa', true); await sleep(300); return; }
   if (o.mimicked) { s.cd = o.cd; u.acted = true; return useSkill(u, { id: o.mimicked.id, mods: o.mimicked.mods, cd: 0 }, tx, ty, 'mimic'); }
-  if (!echoed) { B.leeched = 0; B.actKills = 0; }
+  if (!echoed) {
+    B.leeched = 0; B.actKills = 0;
+    u.prevSkill = u.lastSkill; u.lastSkill = s.id;
+    u.repeat = u.prevSkill === s.id ? (u.repeat || 1) + 1 : 1;
+  }
+  u.casting = true;
+  if (echoed === true) u.echoing = true;
   if (!echoed) { s.cd = o.cd; u.acted = true; B.lastCast = { ...(B.lastCast || {}), [homeSide(u)]: { id: s.id, mods: s.mods } }; }
   B.mode = null; B.pending = null;
   renderPanel();
@@ -1196,7 +1271,7 @@ async function useSkill(u, s, tx, ty, echoed) {
   if (o.selfHaste && !u.dead) hasteUnit(u, o.selfHaste);
   if (o.selfShieldHp && !u.dead) addShield(u, u.maxHp * o.selfShieldHp);
   if ((o.leap || o.land) && isClass(u, 'dragoon') && !u.dead) { u.st.airborne = 1; fxText(u, 'Airborne', '#c9f7ff', true); refreshView(u); }
-  if (o.kind === 'summon') summon(u, o.summon, o.summonN || 2);
+  if (o.kind === 'summon') summon(u, o.summon, (o.summonN || 2) + (has(u, 'swarmbanner') ? 1 : 0));
   if (o.ctCost) u.ctDebt = (u.ctDebt || 0) + o.ctCost;
   if (o.slipstream && u.moved && !u.extraMove && !u.dead) { u.moved = false; u.extraMove = true; fxText(u, 'Move again', '#5fd0c0', true); }
   if (!echoed && has(u, 'bees') && !u.dead) {
@@ -1204,10 +1279,22 @@ async function useSkill(u, s, tx, ty, echoed) {
     if (f) { sfx('bee'); fxText(f, 'Bzz', '#ffe14d'); damage(f, 3 + Math.floor(B.level / 2), u, { quiet: true }); }
   }
   refreshView(u);
-  if (!echoed && !u.dead && !B.over && ((o.echo && chance(o.echo)) || (has(u, 'echo') && chance(0.25)) || (has(u, 'echostone') && chance(0.2)))) {
+  const echoChance = 1 - (1 - (o.echo || 0)) * (has(u, 'echo') ? 0.75 : 1) * (has(u, 'echostone') ? 0.8 : 1) * (has(u, 'mantra') ? 0.85 : 1) * (inSet(u, 'echo') ? 0.9 : 1);
+  if (!echoed && !u.dead && !B.over && chance(echoChance)) {
     await sleep(250);
     if (o.tgt === 'self' || o.shape || validTarget(u, o, tx, ty)) await useSkill(u, s, tx, ty, true);
   }
+  // Infinite Loop: a third use running fires twice more
+  if (!echoed && has(u, 'infloop') && u.repeat >= 3) {
+    u.repeat = 0;
+    fxText(u, 'Loop!', '#80c8ff');
+    for (let i = 0; i < 2 && !u.dead && !B.over; i++) {
+      await sleep(250);
+      if (o.tgt === 'self' || o.shape || validTarget(u, o, tx, ty)) await useSkill(u, s, tx, ty, true);
+    }
+  }
+  if (echoed === true) u.echoing = false;
+  if (!echoed) u.casting = false;
   await sleep(320);
   checkEnd();
 }
@@ -1293,6 +1380,24 @@ async function startTurn(u) {
   for (const s of u.skills) if (s.cd > 0) s.cd = Math.max(0, s.cd - (has(u, 'timecrown') ? 2 : 1));
   u.turnHp = u.hp;
   if (has(u, 'gravebanner') && !u.bannerUsed) { u.bannerUsed = true; summon(u, 'skeleton', 2); }
+  if (has(u, 'poster') && !B.posted) {
+    B.posted = true;
+    const f = alive().filter(x => x.side !== u.side && !x.summoned).sort((a, b) => b.maxHp - a.maxHp)[0];
+    if (f) markBounty(f);
+  }
+  if (has(u, 'earthcrown') && u.turns % 3 === 1) {
+    const a = alive().filter(x => x.side === u.side && x.ref).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp)[0];
+    const foes = alive().filter(x => x.side !== u.side);
+    if (a && foes.length) {
+      const near = (x, y) => Math.min(...foes.map(f => Math.abs(f.x - x) + Math.abs(f.y - y)));
+      const spots = DIRS.map(([dx, dy]) => [a.x + dx, a.y + dy]).filter(([x, y]) => inb(x, y) && floorish(B.grid[y][x]) && !unitAt(x, y)).sort((p, q) => near(...p) - near(...q)).slice(0, 2);
+      // the last crown's walls crumble first, so walls never pile up into a stalemate
+      for (const [x, y] of B.crownWalls || []) if (B.grid[y][x] === T.WALL) setTile(x, y, T.FLOOR);
+      B.crownWalls = spots;
+      for (const [x, y] of spots) { setTile(x, y, T.WALL); burst('dust', { x, y }, 8); }
+      if (spots.length) { sfx('hit'); fxText(a, 'Earthen wall', '#a08060', true); }
+    }
+  }
   if (has(u, 'familiar')) { const f = pick(alive().filter(x => x.side !== u.side)); if (f) addHex(f, 1); }
   if (has(u, 'bloodhound') && alive().some(x => x.side !== u.side && x.hp * 2 < x.maxHp)) u.st.movUp = Math.max(u.st.movUp || 0, 1);
   if (has(u, 'magmaheart') && B.grid[u.y][u.x] === T.LAVA) heal(u, u.maxHp * 0.05);
@@ -1350,6 +1455,7 @@ async function startTurn(u) {
   }
   if (u.st.stun) {
     u.st.stun = 0; u.st.steady = 2;
+    if (u.st.deepfreeze) { u.st.deepfreeze = 0; u.st.stun = 1; u.st.steady = 0; u.st.frozen = 1; }
     fxText(u, 'Stunned', '#ffd23f');
     sfx('stun');
     log(`${u.name} is stunned.`);
@@ -1362,7 +1468,7 @@ async function startTurn(u) {
 function endTurn(u) {
   if (u.dead) return;
   u.ct -= 100 - (u.moved || u.extraMove ? 0 : 20) - (u.acted ? 0 : 20) + (u.ctDebt || 0);
-  u.st.timeworn = 0; u.st.hasted = 0;
+  u.st.timeworn = 0; u.st.hasted = 0; u.casting = false;
   u.lastMoved = !!(u.moved || u.extraMove);
   if (u.st.bleed > 0 && !(u.st.bleedBy && has(u.st.bleedBy, 'openveins'))) u.st.bleed--;
   u.ctDebt = 0;
@@ -1564,11 +1670,15 @@ function planAI(u, ahead) {
   const hostile = alive().filter(t => t.side !== u.side);
   const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;
   const usable = u.st.disarm > 0 ? [] : u.skills.filter(s => s.cd <= (ahead ? 1 : 0)).map(s => ({ s, o: effective(u, s) })).filter(({ o }) => !(o.mimic && !o.mimicked));
+  // a small pull toward the foe, so a unit whose only useful actions are self-buffs still closes
+  // in instead of standing still forever (an immobile turret out of reach stalled a battle)
+  const near = distField(u, hostile.filter(t => targetable(u, t)).length ? hostile.filter(t => targetable(u, t)) : hostile);
   let best = null;
   for (const v of R.values()) {
     if (!v.stop) continue;
     u.x = v.x; u.y = v.y;
-    let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8 - danger(v.x, v.y);
+    const dd = Math.min(30, near[v.y][v.x]);
+    let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8 - danger(v.x, v.y) - (u.ai === 'ranged' ? Math.max(0, dd - 4) : dd) * 0.15;
     if (u.ai === 'ranged') pos += (Math.min(...hostile.map(t => dist(t, v))) >= 2 ? 3 : -2) + (onHill(u) ? 1.5 : 0);
     for (const { s, o } of usable) {
       const cands = [];
@@ -1686,6 +1796,7 @@ function statusText(u) {
   if (st.imbue > 0) out.push(tip(`Imbued: ${st.imbueKind} (${st.imbue})`, 'imbue'));
   if (u.pending) out.push(tip(`Charging ${SKILLS[u.pending.s.id].name}`, 'pending'));
   if (st.bleed > 0) out.push(tip(`Bleeding ×${st.bleed} (${st.bleed * st.bleedDmg}/tile)`, 'bleed'));
+  if (st.bounty) out.push(tip('Wanted', 'bounty'));
   if (st.chill > 0) out.push(tip(`Chilled ${st.chill}/3`, 'chill'));
   if (st.frozen > 0) out.push(tip('Frozen', 'frozen'));
   if (st.hex > 0) out.push(tip(`Hexed ×${st.hex} (+${st.hex * 5}%)`, 'hex'));
@@ -1704,7 +1815,7 @@ function statusText(u) {
   return out.flatMap((x, i) => i ? [' · ', x] : [x]);
 }
 function unitCard(u, withSkills) {
-  const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info].filter(Boolean).join(' · ');
+  const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info, u.sets && u.sets.size ? `Sets: ${[...u.sets].map(t => ARCHES[t].name).join(', ')}` : null].filter(Boolean).join(' · ');
   return h('div', { class: 'card' },
     h('div', { class: 'card-head' }, sprImg(u.spr, u.side === 'foe' ? 'flip' : ''),
       h('div', { class: 'who' }, h('b', {}, u.name), bar(u.hp, u.maxHp, u.side === 'foe', u.shield), `${u.hp}/${u.maxHp} HP${u.shield ? ` +${u.shield} shield` : ''}`)),

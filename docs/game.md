@@ -72,8 +72,8 @@ Keep it that way.
   one random pick from the rest of `start` plus `pool`. They learn only from their
   current class (`skillPool` in rules.js): `start` plus `pool` before the first promotion, then the
   latest class's `skill` plus `pool`, up to `MAX_SKILLS` = 4. Skills already known stay. Learning a fifth means forgetting one.
-- **Archetypes give builds a direction.** Thirteen tags in `ARCHES` (poison, elemental, shield, thorns,
-  blood, time, plus hex, carnage and fortune borrowed from other roguelikes, and bleed, summoner, momentum and frost) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
+- **Archetypes give builds a direction.** Seventeen tags in `ARCHES` (poison, elemental, shield, thorns,
+  blood, time, plus hex, carnage and fortune borrowed from other roguelikes, bleed, summoner, momentum, frost, bounty, geomancy, echo and martyr) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
   how much of each archetype the party has (`partyArches`), so a build snowballs without being
   forced. Every archetype needs payoff artifacts that reward stacking it (detonate poison, damage vs
   shocked, scale with shield or thorns), not just more of the same status.
@@ -174,6 +174,23 @@ Keep it that way.
   Reflecting Plate, Bramble Crown, Second Hand, Paradox Gem, Witch's Familiar, Crown of Curses,
   Bloodhound Collar, Executioner's Axe, Lucky Coin, Jester's Hat, Fate's Thread) and common stat
   items. Bastion Ring is the one exception to two-round shields (three for its wearer).
+- **Four more archetypes, then set bonuses and cursed legendaries** (all approved by the owner):
+  - Bounty (Assassin, Trickster): one foe at a time is wanted (`st.bounty`, `markBounty`); its
+    killer collects 15 gold and +20% damage for the battle (`bountyBuff`). Wanted Poster, Bounty
+    Brand, Price on Their Head (an Assassin skill), Bounty Ledger (+3% per bounty for the run, on
+    `p.ledger`), Gilded Noose.
+  - Geomancy (`terrain`; Pyromancer, Hoplite): Mossy Boots, Stonecaller's Rod, Earthen Crown, plus the
+    terrain artifacts. Earthen Crown's walls crumble when it raises the next pair: piling up walls
+    could wall both sides apart for good.
+  - Echo (Bard, Stormcaller): `u.lastSkill`/`prevSkill`/`repeat` track repeats, `u.casting` and
+    `u.echoing` flag what's being cast. Practiced Form, Mantra Beads, Resonance Crystal, Infinite
+    Loop. Echo chances combine as independent rolls (`echoChance`).
+  - Martyr (Oracle, Juggernaut): Last Rites, Shared Pain, Saint's Relic (once per battle, `B.saintUsed`).
+  - Set bonuses: `SETS` in data.js, `SET_SIZE` = 3 artifacts of one archetype on one hero (worn plus
+    socketed). `setsOf`/`inSet` in rules.js; battle units cache theirs in `u.sets`. Shown on the Party
+    screen ("Poison 2/3") and the battle unit card. Each archetype's bonus lives where that mechanic
+    does (heroStats, startShield, thornsOf, applyStatus, dmgMult, ko, spawn).
+  - Cursed legendaries (rarity `l` with a `down`): Abyssal Crown, Titan's Shackle, Void Heart, Chrono Debt.
 - **Skill pass two:** the owner asked for more skills and for the worst to go. Removed: Throw Stone,
   Heave, Switcheroo, Pocket Sand, Garrote, Oil Flask, Bulldoze, Gust, White Square, Antidote, Break
   Legs, Sea Shanty (filler, or duplicates of better skills). Added 25 (Overhead Smash, Guard Break,
@@ -389,5 +406,11 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   wrong-length row draws garbage silently. Recolors reuse rows through `recolor()`.
 - **`skStats` is called constantly**, by the AI (every reachable tile × skill × target) and by
   preview drawing every frame. Keep it cheap and side-effect free.
+- **The AI drifts toward foes.** `planAI` subtracts 0.15 per step of distance to the nearest foe
+  from every tile's score, so a unit whose only useful actions are self-buffs still closes in. Without
+  it a 1-MOV Hoplite and a Bard with no damage skill buffed forever beside an immobile turret.
+- **Finding a hung autoplay run:** a stalemate shows only as "timed out". Temporarily set
+  `window.__B = b` in `battleLoop`, rerun the chaos runs with a Playwright script that dumps
+  `__B.units` and `__B.log` on timeout, then take the hook out again.
 - **The AI is shared:** enemies, allied summons and autopilot heroes all use `planAI`. A new skill
   flag that should matter to the AI needs a term in `scoreAction`.

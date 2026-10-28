@@ -1,6 +1,6 @@
 // Song Guesser: picks a song, plays its clip one instrument at a time, and takes guesses.
-import { SONGS, EXTRA } from './songs.js?v=10';
-import { arrange, renderPart, mix, CLIP } from './synth.js?v=10';
+import { SONGS, EXTRA } from './songs.js?v=11';
+import { arrange, renderPart, mix, CLIP } from './synth.js?v=11';
 
 const STORE = 'song-guesser';
 const WEIGHT = { indie: 4, alt: 2, pop: 2, other: 1 };

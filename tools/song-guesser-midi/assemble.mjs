@@ -1,6 +1,8 @@
 // Merges choruses pulled out by extract.py into songs.js, replacing each song's arrangement
 // fields and keeping its title, year, genre, tier and section.
-// usage: node assemble.mjs DONE.json, where DONE.json maps song titles to extract.py outputs
+// usage: node assemble.mjs DONE.json, where DONE.json maps song titles to extract.py outputs. A song
+// not in songs.js yet is added at the end of SONGS (and dropped from EXTRA): map its title to
+// { out, artist, year, genre, tier, section } instead of a path.
 import fs from 'fs';
 const file = new URL('../../app/static/games/song-guesser/js/songs.js', import.meta.url).pathname;
 const { SONGS } = await import('file://' + file + '?t=' + Date.now());
@@ -24,8 +26,10 @@ const q = v => JSON.stringify(v).replace(/"([a-zA-Z]+)":/g, '$1: ').replace(/"/g
 const str = s => (s.includes("'") ? JSON.stringify(s) : `'${s}'`);
 let text = fs.readFileSync(file, 'utf8');
 let n = 0;
-for (const [title, out] of Object.entries(done)) {
-  const old = SONGS.find(s => s.title === title);
+const added = [];
+for (const [title, entry] of Object.entries(done)) {
+  const out = typeof entry === 'string' ? entry : entry.out;
+  const old = SONGS.find(s => s.title === title) || { title, section: 'Chorus', ...entry };
   const { song: m } = JSON.parse(fs.readFileSync(out, 'utf8'));
   const lines = [];
   lines.push(`    title: ${str(old.title)}, artist: ${str(old.artist)}, year: ${old.year}, genre: ${str(old.genre)}, tier: '${old.tier}', section: '${old.section}', source: 'midi',`);
@@ -45,10 +49,26 @@ for (const [title, out] of Object.entries(done)) {
   const block = `  {\n${lines.join('\n')}\n  },\n`;
   const key = `  {\n    title: ${str(old.title)}`;
   const a = text.indexOf(key);
-  if (a < 0) { console.log('not found', title); continue; }
+  if (a < 0) {
+    if (typeof entry === 'string') { console.log('not found', title); continue; }
+    added.push(block);
+    // a title that only padded the guess list is a real song now
+    text = text.split('\n').map(line => {
+      const m2 = /^(  (['"])(.*?)\2: )(\[.*\]),$/.exec(line);
+      if (!m2 || m2[3] !== old.artist) return line;
+      const titles = Function(`return ${m2[4]}`)().filter(t => t !== title);
+      return `${m2[1]}[${titles.map(str).join(', ')}],`;
+    }).join('\n');
+    n++;
+    continue;
+  }
   const b = text.indexOf('\n  },\n', a) + '\n  },\n'.length;
   text = text.slice(0, a) + block + text.slice(b);
   n++;
 }
+if (added.length) {
+  const end = text.indexOf('\n];\n');
+  text = text.slice(0, end + 1) + '\n  // Added from MIDI transcriptions, chosen for a clear vocal track and a record to check against\n' + added.join('') + text.slice(end + 1);
+}
 fs.writeFileSync(file, text);
-console.log('replaced', n);
+console.log(`replaced or added ${n} (${added.length} new)`);

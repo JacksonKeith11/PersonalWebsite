@@ -3,7 +3,8 @@
 usage: extract.py OUT.json TITLE ARTIST MIDI [PREVIEW.wav]
 Writes the arrangement (in songs.js notation) plus diagnostics. Optional environment overrides,
 for when the automatic picks are wrong (see overrides.json): BAR (the chorus's first bar), MEL
-(the melody's track index), CH (the chords' track index), SEMIS (transpose by this many semitones).
+(the melody's track index), CH (the chords' track index), SEMIS (transpose by this many semitones),
+BARS (how many bars to take, when the chorus is shorter than the clip; it loops).
 Needs pretty_midi and librosa.
 """
 import json, math, os, re, sys, warnings
@@ -115,7 +116,14 @@ if wav:
     f0, voiced, _ = librosa.pyin(y, fmin=80, fmax=900, sr=sr, frame_length=2048, hop_length=512)
     f0_times = librosa.times_like(f0, sr=sr, hop_length=512)
     f0 = np.where(voiced, f0, np.nan)
-    tempo = float(np.atleast_1d(librosa.beat.beat_track(y=y, sr=sr)[0])[0])
+    # librosa's tempo estimate snaps to coarse steps (112.3, 117.5, 123...): fit a line through the
+    # beats it tracked instead, on a finer hop
+    oenv = librosa.onset.onset_strength(y=y, sr=sr, hop_length=128)
+    tempo, beat_frames = librosa.beat.beat_track(onset_envelope=oenv, sr=sr, hop_length=128)
+    tempo = float(np.atleast_1d(tempo)[0])
+    bt = librosa.frames_to_time(beat_frames, sr=sr, hop_length=128)
+    if len(bt) > 8:
+        tempo = 60.0 / float(np.polyfit(np.arange(len(bt)), bt, 1)[0])
     if os.environ.get('SEMIS'): semis = int(os.environ['SEMIS'])
     align['audio_tempo'] = round(tempo, 1)
 
@@ -234,6 +242,8 @@ if align and align.get('audio_tempo'):
         if abs(at * k - bpm) / bpm < 0.10:
             bpm = at * k
 bars = math.ceil(CLIP * bpm / 60 / bar_len)
+if os.environ.get('BARS'):
+    bars = int(os.environ['BARS'])  # a short chorus: take just its bars and let the clip loop them
 n_beats = bars * bar_len
 semis = align['transpose'] if align and align['cost'] < 0.5 else 0
 if os.environ.get('SEMIS'):
@@ -246,9 +256,9 @@ def notes_in(ins):
     res = []
     for n in ins.notes:
         b = beat_of(n.start) - b_start
-        if -0.01 <= b < n_beats - 0.01:
+        if -0.1 <= b < n_beats - 0.01:  # a note a hair before the bar line still belongs to it
             e = min(beat_of(n.end) - b_start, n_beats)
-            q0 = round(b * 4) / 4
+            q0 = max(0.0, round(b * 4) / 4)
             if q0 >= n_beats:
                 continue  # rounds onto the next bar, past the clip
             q1 = min(n_beats, max(q0 + 0.25, round(e * 4) / 4))
@@ -367,7 +377,11 @@ poly = sorted([i for i in others if mono(i) < 0.75 and in_win(i) >= 4], key=in_w
 if os.environ.get('CH'):
     poly = [pm.instruments[int(os.environ['CH'])]]  # set by hand
 short = lambda ins: np.mean([l for _, l, _, _ in notes_in(ins)] or [9]) <= 1.0  # a riff moves; held notes are pads
-lines = sorted([i for i in others if mono(i) >= 0.75 and in_win(i) >= 12 and short(i) and i not in poly[:1]], key=in_win, reverse=True)
+is_bass = lambda ins: 32 <= ins.program <= 39 or re.search(r'bass|bas\b|basgit', (ins.name or '').lower())
+mel_hits = {(b, p % 12) for b, _, p, _ in notes_in(melody)} if melody else set()
+# a second vocal or a harmony line that shadows the melody isn't a riff
+doubles = lambda ins: np.mean([(b, p % 12) in mel_hits or any((b, (p + k) % 12) in mel_hits for k in (3, 4, 8, 9)) for b, _, p, _ in notes_in(ins)] or [0]) > 0.5
+lines = sorted([i for i in others if not is_bass(i) and not doubles(i) and mono(i) >= 0.75 and in_win(i) >= 12 and short(i) and i not in poly[:1]], key=in_win, reverse=True)
 if poly and 'bass' not in song:
     # no bass track: the bottom of the chords stands in for one
     line, n = to_line(notes_in(poly[0]), pick=min, lo=28, hi=50)

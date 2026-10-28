@@ -1,6 +1,6 @@
 // Song Guesser: picks a song, plays its clip one instrument at a time, and takes guesses.
-import { SONGS, EXTRA } from './songs.js?v=7';
-import { arrange, renderPart, mix, CLIP } from './synth.js?v=7';
+import { SONGS, EXTRA } from './songs.js?v=8';
+import { arrange, renderPart, mix, CLIP } from './synth.js?v=8';
 
 const STORE = 'song-guesser';
 const WEIGHT = { indie: 4, alt: 2, pop: 2, other: 1 };
@@ -117,7 +117,7 @@ function newRound() {
   $('sg-genre').textContent = song.genre;
   $('sg-year').textContent = song.year;
   $('sg-input').value = '';
-  $('sg-msg').textContent = '';
+  say('');
   $('sg-result').hidden = true;
   $('sg-form').hidden = false;
   closeList();
@@ -190,6 +190,12 @@ function draw() {
     const li = document.createElement('li');
     li.textContent = g.skip ? 'Skipped' : g.label;
     if (g.skip) li.className = 'skip';
+    if (g.band) {
+      li.className = 'band';
+      const tag = document.createElement('small');
+      tag.textContent = 'right band';
+      li.append(' ', tag);
+    }
     hist.appendChild(li);
   }
   $('sg-skip').textContent = r.stage === lastStage() ? 'Give up' : 'Skip';
@@ -197,6 +203,17 @@ function draw() {
   $('sg-stats').textContent = stats.played
     ? `Played ${stats.played} · won ${pct}% · streak ${stats.streak} (best ${stats.best})`
     : '';
+}
+
+// Same band, ignoring featured artists ("Rihanna ft. Jay-Z" counts as Rihanna).
+const leadArtist = a => fold(a.split(/\s+(?:ft|feat)\.\s+/i)[0]);
+const sameBand = (a, b) => leadArtist(a) === leadArtist(b);
+
+// A status line under the guess box: a nudge in green, a problem in red.
+function say(text, good = false) {
+  const m = $('sg-msg');
+  m.textContent = text;
+  m.classList.toggle('good', good);
 }
 
 function wrong(guess) {
@@ -254,7 +271,7 @@ function closeList() {
 function showList() {
   list.textContent = '';
   // with no matches, say so below the box rather than in a dropdown covering the buttons
-  $('sg-msg').textContent = input.value.trim() && !results.length ? 'No songs match.' : '';
+  say(input.value.trim() && !results.length ? 'No songs match.' : '');
   if (!results.length) return closeList();
   results.forEach((c, i) => {
     const li = document.createElement('li');
@@ -280,7 +297,7 @@ function choose(c) {
   chosen = c;
   input.value = c.label;
   closeList();
-  $('sg-msg').textContent = '';
+  say('');
 }
 
 input.addEventListener('input', () => {
@@ -309,16 +326,18 @@ $('sg-form').addEventListener('submit', e => {
   if (!round || round.over) return;
   const typed = fold(input.value.replace('—', ' '));
   const c = chosen || CHOICES.find(x => x.key === typed) || (search(input.value).length === 1 ? search(input.value)[0] : null);
-  if (!c) { $('sg-msg').textContent = input.value.trim() ? 'Pick a song from the list.' : 'Type a song or artist to search.'; return; }
+  if (!c) { say(input.value.trim() ? 'Pick a song from the list.' : 'Type a song or artist to search.'); return; }
   input.value = '';
   chosen = null;
-  $('sg-msg').textContent = '';
-  if (c.key === round.key) finish(true);
-  else wrong({ label: c.label });
+  say('');
+  if (c.key === round.key) return finish(true);
+  const band = sameBand(c.artist, round.song.artist);
+  wrong({ label: c.label, band });
+  if (band && !round.over) say('Right band, wrong song.', true);
 });
 $('sg-skip').addEventListener('click', () => { if (round && !round.over) wrong({ skip: true }); });
 function safePlay() {
-  play().catch(err => { console.error(err); stop(); $('sg-msg').textContent = 'The audio didn\'t start; try Play again.'; });
+  play().catch(err => { console.error(err); stop(); say('The audio didn\'t start; try Play again.'); });
 }
 $('sg-play').addEventListener('click', safePlay);
 

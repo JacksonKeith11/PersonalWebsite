@@ -140,6 +140,9 @@
 .sg-history li { padding: 4px 0; border-bottom: 1px solid var(--rule); color: var(--muted); }
 .sg-history li::before { content: "✗ "; color: #a4452c; }
 .sg-history li.skip::before { content: "↷ "; color: var(--muted); }
+.sg-history li.band::before { content: "≈ "; color: #3f7a3a; }
+.sg-history li small { padding: 0 6px; border-radius: 3px; background: #e3efdc; color: #3f7a3a; font-weight: 600; }
+.sg-msg.good { color: #3f7a3a; }
 
 .sg-result { margin: 18px 0 8px; padding: 18px 20px; border-radius: 4px; background: #f4ecdc; border-left: 4px solid var(--accent); }
 .sg-result.lost { border-left-color: #a4452c; }

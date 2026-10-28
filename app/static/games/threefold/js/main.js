@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, SETS, SET_SIZE, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=46';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=47';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, setCounts, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=46';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=46';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=46';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=46';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=46';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=46';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=46';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=47';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=47';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=47';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=47';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=47';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=47';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=47';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -256,13 +256,6 @@ function fitsLine(id) {
     .filter(g => g.names.length);
   if (!groups.length) return h('div', { class: 'fits none' }, 'Fits none of your skills right now.');
   return h('div', { class: 'fits' }, 'Fits: ', groups.map(g => `${g.names.join(', ')} (${heroTitle(g.p)})`).join(' · '));
-}
-// Set bonus progress: each archetype the hero carries, "Poison 2/3", lit once complete.
-function setLine(p) {
-  const c = Object.entries(setCounts(p)).sort((a, b) => b[1] - a[1]);
-  if (!c.length) return null;
-  return h('div', { class: 'sets' }, 'Sets: ', c.map(([t, n], i) => [i ? ' · ' : '',
-    h('span', { class: n >= SET_SIZE ? 'set on' : 'set' }, tipNote(`${ARCHES[t].name} ${Math.min(n, SET_SIZE)}/${SET_SIZE}`, `${SET_SIZE} ${ARCHES[t].name} artifacts on one hero: ${SETS[t]}`))]));
 }
 function artCard(id, extra, onpick, disabled) {
   const skill = isSkillArt(id);
@@ -712,7 +705,6 @@ function showParty() {
         })),
         h('h3', { style: 'margin-top:10px' }, `Worn ${p.items.length}/${MAX_RELICS}`),
         p.items.length ? h('ul', {}, p.items.map((id, i) => h('li', {}, `${artName(id)}: ${artText(id)} `, x('remove', () => unwear(p, i))))) : h('div', { class: 'muted' }, 'Nothing'),
-        setLine(p),
       );
     })),
     h('div', { class: 'panel', style: 'margin-top:16px' }, h('h3', {}, 'Archetypes'),

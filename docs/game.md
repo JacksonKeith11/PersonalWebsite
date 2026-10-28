@@ -174,7 +174,7 @@ Keep it that way.
   Reflecting Plate, Bramble Crown, Second Hand, Paradox Gem, Witch's Familiar, Crown of Curses,
   Bloodhound Collar, Executioner's Axe, Lucky Coin, Jester's Hat, Fate's Thread) and common stat
   items. Bastion Ring is the one exception to two-round shields (three for its wearer).
-- **Four more archetypes, then set bonuses and cursed legendaries** (all approved by the owner):
+- **Four more archetypes, and cursed legendaries** (all approved by the owner):
   - Bounty (Assassin, Trickster): one foe at a time is wanted (`st.bounty`, `markBounty`); its
     killer collects 15 gold and +20% damage for the battle (`bountyBuff`). Wanted Poster, Bounty
     Brand, Price on Their Head (an Assassin skill), Bounty Ledger (+3% per bounty for the run, on
@@ -186,10 +186,9 @@ Keep it that way.
     `u.echoing` flag what's being cast. Practiced Form, Mantra Beads, Resonance Crystal, Infinite
     Loop. Echo chances combine as independent rolls (`echoChance`).
   - Martyr (Oracle, Juggernaut): Last Rites, Shared Pain, Saint's Relic (once per battle, `B.saintUsed`).
-  - Set bonuses: `SETS` in data.js, `SET_SIZE` = 3 artifacts of one archetype on one hero (worn plus
-    socketed). `setsOf`/`inSet` in rules.js; battle units cache theirs in `u.sets`. Shown on the Party
-    screen ("Poison 2/3") and the battle unit card. Each archetype's bonus lives where that mechanic
-    does (heroStats, startShield, thornsOf, applyStatus, dmgMult, ko, spawn).
+  - No set bonuses: the owner tried a 3-piece bonus per archetype and removed it, preferring the
+    synergy to come from the artifacts themselves working together. Don't add a reward for simply
+    collecting a tag.
   - Cursed legendaries (rarity `l` with a `down`): Abyssal Crown, Titan's Shackle, Void Heart, Chrono Debt.
 - **Skill pass two:** the owner asked for more skills and for the worst to go. Removed: Throw Stone,
   Heave, Switcheroo, Pocket Sand, Garrote, Oil Flask, Bulldoze, Gust, White Square, Antidote, Break

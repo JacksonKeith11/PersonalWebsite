@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT, ARCHES } from './data.js?v=46';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle, setsOf, inSet } from './rules.js?v=46';
-import { spriteURL } from './art.js?v=46';
-import { TP, drawBoard } from './tiles.js?v=46';
-import { sfx } from './audio.js?v=46';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=46';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=47';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=47';
+import { spriteURL } from './art.js?v=47';
+import { TP, drawBoard } from './tiles.js?v=47';
+import { sfx } from './audio.js?v=47';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=47';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -54,8 +54,6 @@ function heroUnit(p) {
     flank: CLASSES[p.cls].flank || 1.25, items: p.items, team: p.team || [], skills: p.skills.map(s => ({ id: s.id, mods: s.mods, cd: 0, tempered: s.tempered })), st: {}, shield: 0,
     ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee' };
   u.fireproof = isClass(u, 'pyromancer') || has(u, 'lavawalkers') || has(u, 'magmaheart');
-  u.sets = setsOf(p);
-  if (u.sets.has('time')) u.ct += 25;
   u.anchored = isClass(u, 'juggernaut');
   u.slip = isClass(u, 'trickster');
   u.rampart = isClass(u, 'hoplite');
@@ -86,7 +84,6 @@ function foeUnit(kind, lvl) {
   if (d.items) u.items = [...d.items];
   if (d.stealth) u.st.stealth = 1;
   if (d.boss && B.asc >= 8) u.ct += 40;
-  u.sets = setsOf(u);
   return u;
 }
 
@@ -176,7 +173,7 @@ const HEX_MAX = 9;
 // Bleed: stacks (up to 5) that hurt the unit per tile it moves; see stepTo.
 function bleedUnit(t, n, by) {
   if (t.dead || n <= 0) return;
-  t.st.bleed = Math.min(inSet(by, 'bleed') ? 7 : 5, (t.st.bleed || 0) + n);
+  t.st.bleed = Math.min(5, (t.st.bleed || 0) + n);
   t.st.bleedDmg = Math.max(t.st.bleedDmg || 0, Math.round(2 + statVal(by, 'atk') * 0.1));
   t.st.bleedBy = by;
   fxText(t, 'Bleed', '#c0303a', true);
@@ -185,7 +182,7 @@ function bleedUnit(t, n, by) {
 function chillUnit(t, n, by, spread = true) {
   if (t.dead || n <= 0) return;
   t.st.chill = (t.st.chill || 0) + n;
-  if (t.st.chill < (inSet(by, 'frost') ? 2 : 3)) { refreshView(t); return; }
+  if (t.st.chill < 3) { refreshView(t); return; }
   t.st.chill = 0; t.st.frozen = 1; stun(t);
   if (by && has(by, 'permafrost') && !t.boss) t.st.deepfreeze = 1;
   fxText(t, 'Frozen!', '#a8e4ff'); burst('shield', t, 14);
@@ -465,12 +462,6 @@ function dmgMult(a, t, o) {
   if (has(a, 'lastrites')) m *= 1 + 0.3 * B.units.filter(x => x.dead && x.ref && homeSide(x) === homeSide(a)).length;
   if (has(a, 'abyssal')) m *= 2;
   if (has(t, 'chronodebt')) m *= 1.4;
-  if (a.carnage) m *= 1 + 0.1 * a.carnage;
-  if (a.sets && a.sets.size) {
-    if (a.sets.has('elemental') && (t.st.burn > 0 || t.st.slow > 0 || t.st.shock > 0)) m *= 1.15;
-    if (a.sets.has('terrain') && (inCover(a) || onHill(a))) m *= 1.15;
-    if (a.sets.has('martyr') && alive().some(x => x !== a && x.side === a.side && x.hp * 2 < x.maxHp)) m *= 1.15;
-  }
   if (a.owner && has(a.owner, 'packhorn')) m *= 1.4;
   if (a.st.poison > 0 && alive().some(x => x.side !== a.side && has(x, 'censer'))) m *= 0.8;
   if (o.ironbark) m *= 1 + o.ironbark * a.def;
@@ -682,7 +673,7 @@ function ko(t, killer) {
     if (n) { addHex(n, hexes); fxText(n, 'Hexes jump', '#e070c0', true); }
   }
   if (killer && !killer.dead && killer.side !== t.side) {
-    const f = (isClass(killer, 'warlock') ? 0.08 : 0) + (has(killer, 'chalice') ? 0.07 : 0) + (killer.sets && killer.sets.has('blood') ? 0.05 : 0);
+    const f = (isClass(killer, 'warlock') ? 0.08 : 0) + (has(killer, 'chalice') ? 0.07 : 0);
     if (f) heal(killer, killer.maxHp * f);
   }
   if (venom && venom.by && (isClass(venom.by, 'plaguebringer') || has(venom.by, 'spores'))) {
@@ -708,7 +699,7 @@ function ko(t, killer) {
   if (wanted) {
     const hunter = killer && !killer.dead && homeSide(killer) !== homeSide(t) ? killer : null;
     if (hunter && homeSide(hunter) === 'hero') {
-      const g = 15 * (inSet(hunter, 'bounty') ? 2 : 1);
+      const g = 15;
       env.run.gold += g; fxText(t, `Bounty +${g}g`, '#e8b84a'); sfx('coin');
       hunter.bountyBuff = (hunter.bountyBuff || 0) + 1;
       if (has(hunter, 'ledger') && hunter.ref) hunter.ref.ledger = (hunter.ref.ledger || 0) + 1;
@@ -719,7 +710,6 @@ function ko(t, killer) {
       if (n) markBounty(n);
     }
   }
-  if (killer && !killer.dead && homeSide(killer) !== homeSide(t) && killer.sets && killer.sets.has('carnage')) killer.carnage = (killer.carnage || 0) + 1;
 }
 function heal(t, n, overflow) {
   if (t.dead || has(t, 'hollowheart') || has(t, 'voidheart')) return 0;
@@ -776,7 +766,7 @@ function applyStatus(u, t, o) {
   const ext = isClass(u, 'bard') ? 1 : 0; // Encore
   if (o.stun) stun(t);
   if (o.stunLow && t.hp * 2 < t.maxHp) stun(t);
-  if (o.hex && foe) addHex(t, o.hex + (inSet(u, 'hex') ? 1 : 0));
+  if (o.hex && foe) addHex(t, o.hex);
   if (o.bounty && foe) markBounty(t);
   if (o.bleed && foe) bleedUnit(t, o.bleed, u);
   if (o.chill && foe) chillUnit(t, o.chill, u);
@@ -785,7 +775,7 @@ function applyStatus(u, t, o) {
     const dose = Math.max(1, Math.round(statVal(u, o.stat) * (o.poisonPow || 0.3)));
     const stack = (isClass(u, 'plaguebringer') || has(u, 'toxicheart')) && t.st.poison > 0;
     t.st.poisonDmg = stack ? Math.min(t.st.poisonDmg + dose, Math.round(t.maxHp * 0.2) + dose) : Math.max(t.st.poison > 0 ? t.st.poisonDmg || 0 : 0, dose);
-    t.st.poison = Math.max(t.st.poison || 0, o.poison + (inSet(u, 'poison') ? 1 : 0));
+    t.st.poison = Math.max(t.st.poison || 0, o.poison);
     t.st.poisonBy = u; t.st.leech = !!o.leech;
   }
   const burn = o.burn || (isClass(u, 'pyromancer') && o.kind === 'mag' ? 2 : 0);
@@ -985,7 +975,7 @@ async function hopAway(u, n) {
 function spawn(kind, side, x, y, ally, owner = null) {
   const sk = foeUnit(kind, B.level);
   Object.assign(sk, { x, y, side, summoned: true, ct: 0, owner });
-  if (owner) sk.hp = sk.maxHp = Math.round(sk.maxHp * (has(owner, 'bonewhistle') ? 1.5 : 1) * (inSet(owner, 'summon') ? 1.25 : 1));
+  if (owner) sk.hp = sk.maxHp = Math.round(sk.maxHp * (has(owner, 'bonewhistle') ? 1.5 : 1));
   if (ally && kind === 'skeleton') { sk.spr = 'skeleton_ally'; sk.name = 'Risen Skeleton'; }
   else if (ally) sk.name = `Allied ${sk.name}`;
   B.units.push(sk);
@@ -1279,7 +1269,7 @@ async function useSkill(u, s, tx, ty, echoed) {
     if (f) { sfx('bee'); fxText(f, 'Bzz', '#ffe14d'); damage(f, 3 + Math.floor(B.level / 2), u, { quiet: true }); }
   }
   refreshView(u);
-  const echoChance = 1 - (1 - (o.echo || 0)) * (has(u, 'echo') ? 0.75 : 1) * (has(u, 'echostone') ? 0.8 : 1) * (has(u, 'mantra') ? 0.85 : 1) * (inSet(u, 'echo') ? 0.9 : 1);
+  const echoChance = 1 - (1 - (o.echo || 0)) * (has(u, 'echo') ? 0.75 : 1) * (has(u, 'echostone') ? 0.8 : 1) * (has(u, 'mantra') ? 0.85 : 1);
   if (!echoed && !u.dead && !B.over && chance(echoChance)) {
     await sleep(250);
     if (o.tgt === 'self' || o.shape || validTarget(u, o, tx, ty)) await useSkill(u, s, tx, ty, true);
@@ -1815,7 +1805,7 @@ function statusText(u) {
   return out.flatMap((x, i) => i ? [' · ', x] : [x]);
 }
 function unitCard(u, withSkills) {
-  const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info, u.sets && u.sets.size ? `Sets: ${[...u.sets].map(t => ARCHES[t].name).join(', ')}` : null].filter(Boolean).join(' · ');
+  const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info].filter(Boolean).join(' · ');
   return h('div', { class: 'card' },
     h('div', { class: 'card-head' }, sprImg(u.spr, u.side === 'foe' ? 'flip' : ''),
       h('div', { class: 'who' }, h('b', {}, u.name), bar(u.hp, u.maxHp, u.side === 'foe', u.shield), `${u.hp}/${u.maxHp} HP${u.shield ? ` +${u.shield} shield` : ''}`)),

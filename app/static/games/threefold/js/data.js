@@ -180,29 +180,6 @@ export const ARCHES = {
   echo: { name: 'Echo', color: '#80c8ff' },
   martyr: { name: 'Martyr', color: '#f0e0b0' },
 };
-// Set bonuses: a hero carrying SET_SIZE artifacts of one archetype (worn plus socketed in their
-// skills) gets that archetype's bonus. `setsOf` in rules.js counts them; battle units keep the
-// result in u.sets.
-export const SET_SIZE = 3;
-export const SETS = {
-  poison: 'Poison you apply lasts a turn longer.',
-  elemental: '+15% damage against burning, slowed or shocked foes.',
-  shield: 'Start every battle with a shield worth 10% of max HP.',
-  thorns: 'Your thorns are 25% stronger.',
-  blood: 'Each kill restores 5% of max HP.',
-  time: 'Start every battle a quarter of a turn ahead.',
-  hex: 'Your hexing hits lay one extra hex.',
-  carnage: 'Each kill gives +10% damage for the rest of the battle.',
-  fortune: '+10 CRIT.',
-  bleed: 'Your bleed can stack to 7 instead of 5.',
-  summon: 'Your summons have 25% more HP.',
-  momentum: '+1 MOV.',
-  frost: 'Your chill freezes at 2 stacks instead of 3.',
-  bounty: 'Bounties you collect pay double gold.',
-  terrain: '+15% damage while in cover or on high ground.',
-  echo: '+10% chance for any skill to echo.',
-  martyr: '+15% damage while any ally is under half HP.',
-};
 
 // ---------- classes ----------
 // Every hero promotes after each act boss: tier 1 (promos) after act 1, tier 2 (next) after act 2.

@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, SET_SIZE, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=46';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=47';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -14,15 +14,6 @@ export const has = (u, id) => !!((u.items && u.items.includes(id)) || (u.team &&
 // u.line lists the classes a hero has promoted into, oldest first; their passives all apply.
 export const isClass = (u, id) => !!(u.line && u.line.includes(id));
 export const artTags = id => (MODS[id] || ITEMS[id]).tags || [];
-// Set bonuses: how many artifacts of each archetype a hero carries (worn plus socketed), and the
-// archetypes that reach SET_SIZE. Battle units cache the active ones in u.sets.
-export function setCounts(u) {
-  const c = {};
-  for (const id of [...(u.items || []), ...(u.skills || []).flatMap(s => s.mods || [])]) for (const t of artTags(id)) c[t] = (c[t] || 0) + 1;
-  return c;
-}
-export const setsOf = u => new Set(Object.entries(setCounts(u)).filter(([, n]) => n >= SET_SIZE).map(([t]) => t));
-export const inSet = (u, tag) => !!u && (u.sets || setsOf(u)).has(tag);
 export const heroSprite = p => p.promo || p.cls;
 export const heroTitle = p => p.promo ? PROMOS[p.promo].name : CLASSES[p.cls].name;
 export const isSkillArt = id => !!MODS[id];
@@ -51,15 +42,12 @@ export function heroStats(p, gold = 0) {
   if (has(p, 'leadheart')) o.spd = Math.round(o.spd * 0.7);
   if (has(p, 'chronodebt')) o.spd = Math.round(o.spd * 1.6);
   if (has(p, 'abyssal')) o.maxHp = Math.round(o.maxHp * 0.5);
-  const sets = setsOf(p);
-  if (sets.has('fortune')) o.crit += 10;
-  if (sets.has('momentum')) o.mov += 1;
   if (p.items.includes('goldtooth')) { const b = Math.floor(gold / 100); o.atk += b; o.mag += b; }
   o.mov = Math.max(1, o.mov); o.spd = Math.max(1, o.spd);
   return o;
 }
 // The shield a hero starts each battle with.
-export const startShield = (p, maxHp) => has(p, 'voidheart') ? 0 : Math.round(maxHp * ((inSet(p, 'shield') ? 0.1 : 0) + (isClass(p, 'juggernaut') ? 0.4 : 0) + (has(p, 'capacitor') ? 0.15 : 0) + (has(p, 'aegis') ? 0.15 : 0) + (has(p, 'leadheart') ? 0.35 : 0)));
+export const startShield = (p, maxHp) => has(p, 'voidheart') ? 0 : Math.round(maxHp * ((isClass(p, 'juggernaut') ? 0.4 : 0) + (has(p, 'capacitor') ? 0.15 : 0) + (has(p, 'aegis') ? 0.15 : 0) + (has(p, 'leadheart') ? 0.35 : 0)));
 // What describe() and the damage numbers read stats from, for a hero outside battle.
 export const heroSrc = (p, gold) => { const st = heroStats(p, gold); return { ...st, hp: p.hp, items: p.items, skills: p.skills, team: p.team, line: p.line, shield: startShield(p, st.maxHp) }; };
 
@@ -144,7 +132,7 @@ export function thornsOf(u) {
   if (has(u, 'brand')) v += u.maxHp * 0.15;
   if (has(u, 'thornmail')) v += 5 + u.def * 0.5;
   if (u.st && u.st.thorns > 0) v += 6 + u.def * 0.5;
-  return Math.round(v * (v && inSet(u, 'thorns') ? 1.25 : 1));
+  return Math.round(v);
 }
 export function statVal(u, stat) {
   let v = stat === 'missing' ? (u.maxHp - u.hp) * 0.6 + 3 : stat === 'heft' ? u.maxHp * 0.3 : stat === 'shield' ? (u.shield || 0) : stat === 'thorns' ? thornsOf(u) : u[stat];
@@ -166,7 +154,7 @@ export function burnOf(o, src) {
 export function poisonOf(o, src) {
   if (!o.poison) return null;
   const pow = o.poisonPow || 0.3;
-  return { turns: o.poison + (inSet(src, 'poison') ? 1 : 0), n: Math.max(1, Math.round(statVal(src, o.stat) * pow)), pct: Math.round(pow * 100) };
+  return { turns: o.poison, n: Math.max(1, Math.round(statVal(src, o.stat) * pow)), pct: Math.round(pow * 100) };
 }
 // The headline numbers of a skill for src, e.g. "18 physical ×2, burn 4/turn for 2". Used for before/after.
 export function outputOf(o, src) {

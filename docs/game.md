@@ -66,9 +66,13 @@ Keep it that way.
   runtime, so grep for the id.
 - **Levels grow by class.** Every win levels each hero up (`levelUp` in `rules.js`) using
   `GROWTH` for their current class (latest promotion, else base class): HP and `each` stats every
-  level, `every` [n, stats] on multiples of n, and `at` one-offs such as +1 MOV. Classes should feel
-  different as they grow; tanks gain DEF and HP, casters MAG and RES, skirmishers SPD, CRIT and MOV.
+  level, `every` [n, stats] on multiples of n, and `at` one-offs such as +2 SPD. Classes should feel
+  different as they grow; tanks gain DEF and HP, casters MAG and RES, skirmishers SPD and CRIT.
   New classes need a `GROWTH` entry.
+- **Movement is kept short for the 8×8 board** (the owner asked for a movement nerf when the board
+  shrank). Heroes no longer gain MOV from levels (those one-offs became +1 SPD), so they stay at their
+  base 3 (Rogue 4) plus class bonuses (Trickster, Dragoon) and artifacts. Every foe that had 4 or 5
+  MOV lost 1. Don't add MOV growth back; reach comes from skills, artifacts and classes.
 - **Skills come from class pools.** Heroes start with 2: their basic attack (`CLASSES.start[0]`) and
   one random pick from the rest of `start` plus `pool`. They learn only from their
   current class (`skillPool` in rules.js): `start` plus `pool` before the first promotion, then the

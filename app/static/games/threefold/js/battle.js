@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=30';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=30';
-import { spriteURL } from './art.js?v=30';
-import { TP, drawBoard } from './tiles.js?v=30';
-import { sfx } from './audio.js?v=30';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=30';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=31';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=31';
+import { spriteURL } from './art.js?v=31';
+import { TP, drawBoard } from './tiles.js?v=31';
+import { sfx } from './audio.js?v=31';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=31';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1226,8 +1226,6 @@ async function doMove(u, k) {
   const v = B.reach.get(k);
   B.busy = true;
   B.startPos = v.risk ? null : { x: u.x, y: u.y };
-  // the move can make foes show new attacks; undo puts back the ones shown before it
-  B.intentsBefore = new Map(B.units.map(t => [t, t.intent || null]));
   B.mode = null;
   renderPanel();
   await moveUnit(u, pathTo(B.reach, k), v.blink);
@@ -1238,7 +1236,6 @@ function undoMove(u) {
   if (!B.startPos || u.acted || B.busy) return;
   u.x = B.startPos.x; u.y = B.startPos.y;
   placeView(u);
-  if (B.intentsBefore) for (const [t, it] of B.intentsBefore) t.intent = it;
   u.moved = false; B.startPos = null;
   afterHeroStep(u);
 }
@@ -1399,8 +1396,7 @@ async function aiTurn(u) {
   B.busy = true;
   renderPanel();
   await sleep(300);
-  if (u.intent && u.side === 'foe') await followIntent(u, u.intent);
-  else await runPlan(u, planAI(u));
+  await runPlan(u, planAI(u));
   if (B) B.busy = false;
 }
 async function runPlan(u, plan) {
@@ -1413,16 +1409,16 @@ async function runPlan(u, plan) {
 }
 
 // ---------- intents ----------
-// Foes show their attack before they make it (Into the Breach): the red tiles, the damage, and a
-// line from where they'll stand. It's locked in when shown. Step out of the red and it misses;
-// shove or pull the foe, disarm or silence it, stun it, put it to sleep or kill it, and it never
-// comes. Taunt makes it pick again. A foe with nothing shown decides when it acts.
+// Foes show what they'd do if they acted now (in the spirit of Into the Breach): the tiles they'd
+// hit, the damage, and a line from where they'd stand. It's a forecast, not a promise: it's planned
+// again after every hero's move or action and every turn, and a foe plans afresh when its turn
+// comes, so stepping out of the red only helps if it still leaves the foe nothing better to do.
 const canPlan = u => !u.dead && u.side === 'foe' && !(u.st.stun || u.st.sleep > 0 || u.st.confuse > 0);
-// Plan for every foe that acts before the next hero's next turn and hasn't shown an attack yet.
+// Forecast every foe that acts before the next hero's next turn; everyone else shows nothing.
 function refreshIntents() {
-  if (!B || B.over) return;
-  // a foe that's been stunned, put to sleep, confused or charmed since it planned won't make that move
-  for (const f of B.units) if (f.intent && !canPlan(f)) f.intent = null;
+  if (!B) return;
+  for (const f of B.units) f.intent = null;
+  if (B.over) return;
   const order = predictOrder(16), hi = order.findIndex(isHero);
   if (hi < 0) return;
   for (let i = 0; i < order.length; i++) {
@@ -1432,7 +1428,7 @@ function refreshIntents() {
     const p = planAI(f, true);
     if (!p.skill) continue;
     const end = p.path && p.path.length ? p.path[p.path.length - 1] : f;
-    f.intent = { s: p.skill, x0: f.x, y0: f.y, dx: end.x, dy: end.y, tx: p.tx, ty: p.ty };
+    f.intent = { s: p.skill, dx: end.x, dy: end.y, tx: p.tx, ty: p.ty };
   }
 }
 // What a shown intent would do right now: its tiles and who's in them, worked out from where the
@@ -1449,30 +1445,6 @@ function intentView(u) {
   }
   u.x = ox; u.y = oy;
   return { o, area, hits, tx, ty };
-}
-async function followIntent(u, it) {
-  const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;
-  if (taunter) { await runPlan(u, planAI(u)); return; }
-  const lost = u.x !== it.x0 || u.y !== it.y0 ? 'knocked off balance' : u.st.disarm > 0 ? 'disarmed' : it.s.cd > 0 ? 'silenced' : null;
-  if (lost) {
-    fxText(u, 'Attack lost', '#b0b0b0', true);
-    log(`${u.name} loses its attack (${lost}).`);
-    const p = planAI(u);
-    await runPlan(u, { path: p.path, blink: p.blink });
-    return;
-  }
-  const R = reach(u), v = R.get(key(it.dx, it.dy));
-  if (v && v.stop && (it.dx !== u.x || it.dy !== u.y)) await moveUnit(u, pathTo(R, key(it.dx, it.dy)), v.blink);
-  if (B.over || u.dead) return;
-  const o = effective(u, it.s), tx = o.tgt === 'self' ? u.x : it.tx, ty = o.tgt === 'self' ? u.y : it.ty;
-  if (validTarget(u, o, tx, ty)) { await useSkill(u, it.s, tx, ty); return; }
-  // the target stepped away (or something got in the way): the blow lands on nothing
-  it.s.cd = o.cd; u.acted = true;
-  if (u.view && dist(u, { x: tx, y: ty }) === 1) await lunge(u, tx, ty);
-  fxText(u, 'Missed!', '#b0b0b0', true);
-  sfx('miss');
-  log(`${u.name}'s ${o.name} hits nothing.`);
-  await sleep(300);
 }
 
 // ---------- side panel ----------
@@ -1556,7 +1528,7 @@ function confirmLabel(u) {
 }
 function hintText() {
   const u = B.active;
-  if (B.mode === 'move') return B.units.some(t => t.intent && canPlan(t)) ? 'Tap a blue tile to move. Red tiles are where foes will strike: step out to dodge.' : 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
+  if (B.mode === 'move') return B.units.some(t => t.intent && canPlan(t)) ? 'Tap a blue tile to move. Red tiles show where foes plan to strike; their plans change as you act.' : 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
   if (B.mode === 'skill') {
     const o = B.selO;
     if (!B.targets.size) return `${o.name}: no targets in range${needsLos(o) ? ' or line of sight' : ''}. Move first, or pick another action.`;

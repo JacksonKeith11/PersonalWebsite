@@ -1,13 +1,13 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=30';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=31';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=30';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=30';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=30';
-import { env, startBattle, BattleScene } from './battle.js?v=30';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=30';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=30';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=31';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=31';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=31';
+import { env, startBattle, BattleScene } from './battle.js?v=31';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=31';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=31';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -618,7 +618,7 @@ function showTitle() {
         h('li', {}, 'Each act is a branching map of battles, events (?) and shops, ending in a boss. Beating a boss promotes every hero: each picks one of two advanced classes after Act 1, then one of two master classes after Act 2. Passives stack.'),
         h('li', {}, 'In battle, units take turns by speed (the "Next" strip). On a hero\'s turn, move once and act once, in either order.'),
         h('li', {}, 'Walls block movement and line of sight: bolts and arrows can\'t pass them, but lobbed skills can. Lava burns, brambles cut, high ground extends range, and cover cuts damage. Tap any tile to read it.'),
-        h('li', {}, 'Foes show their next attack before they make it: red tiles, a line from where they\'ll stand, and the damage on your heroes. It\'s locked in. Step out of the red and it misses; shove, pull, stun, disarm or kill the foe to stop it.'),
+        h('li', {}, 'Foes show what they plan to do next: red tiles, a line from where they\'ll stand, and the damage on your heroes. Plans update after each move and action, so dodging works only if the foe has nothing better to hit.'),
         h('li', {}, 'Flank: hitting a foe that another hero stands next to deals 25% more (the Rogue gets 50%).'),
         h('li', {}, 'Battles pay out in artifacts. Skill artifacts socket into a skill and rewrite it: swap the stat it uses, turn bolts into ricochets or shields, make attacks leap or melt the floor. Hero artifacts are worn and change the hero.'),
         h('li', {}, `Artifacts and classes share archetypes (${Object.values(ARCHES).map(a => a.name.toLowerCase()).join(', ')}). Stack one and rewards start leaning toward it. Tap an underlined word to read what it does.`),

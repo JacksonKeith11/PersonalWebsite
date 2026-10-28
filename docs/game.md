@@ -85,21 +85,16 @@ Keep it that way.
   of −50 CT) and every haste through `hasteUnit` (capped at "acts next", never a double turn;
   repeats do half). A stun leaves the unit Steady (`st.steady`) so it can't be stunned again until
   its next turn ends. Slow cuts SPD by a third. Don't write `t.ct` directly for a new effect.
-- **Foes telegraph their attacks (Into the Breach).** `refreshIntents()` in battle.js plans
+- **Foes show a forecast of their next move.** `refreshIntents()` in battle.js plans
   (`planAI(f, true)`, which counts skills one turn off cooldown) for every foe that acts before the
-  next hero's next turn, at the start of each hero turn, after every hero step and after every
-  turn. The plan is stored as `u.intent` (skill, start tile, where it will stand, target tile) and
-  is **locked in**: `followIntent` walks to the spot and fires at the same tile. If the target
-  has stepped away the blow hits nothing ("Missed!", cooldown spent). If the foe was moved since
-  planning (shove, pull, swap), is disarmed, or the skill was silenced, the attack is lost and it
-  only moves. Taunt makes it plan again. Stun, sleep, confusion, charm and death clear it straight away (the
-  board and card stop showing it; the card says "Next: skips its turn"). A foe with no intent decides
-  when it acts. A hero's move can make foes show new intents, so `doMove` snapshots them
-  (`B.intentsBefore`) and Undo move restores it; otherwise moving and undoing would bait foes into
-  locked attacks on empty tiles. The board draws red tiles, a line through where it will stand and the summed damage
-  on each target (`intentView`); the foe's card says "Next: Skill → Target −N". This makes dodging
-  and displacement strong, so watch whether enemies need more bite. It was added for the owner to
-  try out: reverting the commit removes it cleanly.
+  next hero's next turn, and stores it as `u.intent` (skill, where it will stand, target tile). It's
+  recomputed from scratch at the start of each hero turn, after every hero step (move, undo, action)
+  and after every turn; a foe still plans afresh with `planAI` when its turn comes. So the intent is
+  what the foe would do if things stayed as they are, **not a commitment**. The owner first tried
+  locked-in attacks (Into the Breach style) and dropped them: heroes could kite forever and never
+  be hit. Stun, sleep, confusion, charm and death clear it (the card says "Next: skips its turn").
+  The board draws red tiles, a line through where it will stand and the summed damage on each
+  target (`intentView`); the foe's card says "Next: Skill → Target −N".
 - **Skill text is laid out, not run on.** `describeParts()` splits a description into `head`
   (reach, power, cooldown), `fx` and `cost`; `skillText()` in ui.js renders them as a line, chips
   (costs in red) and italic flavour. `describe()` still gives the joined string for `title`s.

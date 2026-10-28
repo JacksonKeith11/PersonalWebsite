@@ -185,8 +185,17 @@ Keep it that way.
     then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under
     high ground, shadows below walls, lava glow. The board is one canvas texture, repainted when
     terrain changes and every animation tick. A new theme is one `THEME_ART` entry.
-- **Later acts scale harder** (`foeUnit`: +12% HP and +8% ATK/MAG per act on top of the per-level
-  curve) to answer every hero promoting after each boss. Foe SPD scales too (`foeSpd`: +2% per level
+- **Later acts scale harder** (`foeUnit`: +30% HP and +20% ATK/MAG per act on top of the per-level
+  curve) to answer every hero promoting after each boss, plus team artifacts and tempering.
+- **Normal fights bring reinforcements** (`battle()` in main.js): one extra copy of a member of the
+  encounter, two in the second half of acts 2 and 3. The owner found normal fights too easy (the bot
+  won 98%+ of them); keep encounter lists in data.js at their base size and let this add the rest.
+- **Defensive artifacts are kept modest.** The owner had them nerfed after balance runs showed the
+  defence and shield builds winning most: Iron Sigil +15% (was +50%), Tower Crest 100% of shield
+  (was 150%), Kite Shield Boss half the damage, Bulwark Plate equal to the damage, Bracing Rivet
+  +20%, Oak Heart 6%, Butcher's Hook 10%, Capacitor Plate and Aegis Standard 15%, Lodestone Heart
+  35%, Aegis Heart +20%, Shrapnel Shell half the shield, Spiked Bulwark +50% thorns, Iron Buckler
+  +2 DEF, Tortoise Shell +5 DEF, Ironbark Plate +3 DEF/+6 HP, Phalanx Sigil 15%, Leaden Mantle +3/+3. Foe SPD scales too (`foeSpd`: +2% per level
   plus 1 every 6 levels), and the fastest hero lines grow SPD every 3 levels rather than 2: before
   that, act-3 foes sat at 4–12 SPD while Tricksters reached 34, so heroes outsped the endgame. Now
   endgame heroes land around 10–27 and late foes around 10–22.
@@ -300,9 +309,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   battle. Anything new that asks "is this a foe?" for bookkeeping (kills, rewards) should do the same.
   A unit that snaps out of a charm can't be charmed again for 2 turns (`st.resolve`), and the AI
   won't charm the last foe standing; without both, a hero with no cooldowns could stall forever.
-- **Thorns** are computed, not stored: `thornsOf(u)` (class, items, the `st.thorns` buff), doubled
-  by `thornsNow` in `battle.js` while shielded (Spiked Bulwark) or, for the Briar Knight, shielded
-  or bracing. They fire inside `damage()` for melee hits (any range with the Retribution Idol),
+- **Thorns** are computed, not stored: `thornsOf(u)` (class, items, the `st.thorns` buff), raised
+  by `thornsNow` in `battle.js`: +50% while shielded (Spiked Bulwark), and doubled for the Briar
+  Knight while shielded or bracing. They fire inside `damage()` for melee hits (any range with the Retribution Idol),
   with `reflected` set so they can't bounce. The thorns archetype is about toughness (DEF, max HP,
   shields, taunts, bracing), not brambles: the owner removed the bramble synergies, so don't add
   terrain payoffs back to it.

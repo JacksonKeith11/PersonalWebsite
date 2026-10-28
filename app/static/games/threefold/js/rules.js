@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=39';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=40';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -44,7 +44,7 @@ export function heroStats(p, gold = 0) {
   return o;
 }
 // The shield a hero starts each battle with.
-export const startShield = (p, maxHp) => Math.round(maxHp * ((isClass(p, 'juggernaut') ? 0.4 : 0) + (has(p, 'capacitor') ? 0.25 : 0) + (has(p, 'aegis') ? 0.25 : 0) + (has(p, 'leadheart') ? 0.5 : 0)));
+export const startShield = (p, maxHp) => Math.round(maxHp * ((isClass(p, 'juggernaut') ? 0.4 : 0) + (has(p, 'capacitor') ? 0.15 : 0) + (has(p, 'aegis') ? 0.15 : 0) + (has(p, 'leadheart') ? 0.35 : 0)));
 // What describe() and the damage numbers read stats from, for a hero outside battle.
 export const heroSrc = (p, gold) => { const st = heroStats(p, gold); return { ...st, hp: p.hp, items: p.items, team: p.team, line: p.line, shield: startShield(p, st.maxHp) }; };
 
@@ -109,7 +109,7 @@ export function skStats(u, s) {
   if (has(u, 'belt') && o.aoe) o.aoe += 1;
   if (has(u, 'hourglass') && o.cd > 1) o.cd -= 1;
   if (has(u, 'bloodpact') && o.cd > 0) { o.cd = 0; o.bloodpact = true; }
-  if (has(u, 'aegisheart') && o.kind === 'shield') o.pow *= 1.4;
+  if (has(u, 'aegisheart') && o.kind === 'shield') o.pow *= 1.2;
   if (has(u, 'overclock') && o.cd > 0) o.cd -= 1;
   // tempered at a campfire: stronger and quicker, for good
   if (s.tempered) { o.name += '+'; if (o.pow) o.pow *= 1.25; if (o.cd > 0) o.cd -= 1; }
@@ -122,7 +122,7 @@ export function skStats(u, s) {
 }
 
 // Thorns: damage dealt back to melee attackers. They scale with toughness (DEF and max HP); battle.js
-// doubles them while shielded (Spiked Bulwark) or, for the Briar Knight, while shielded or bracing.
+// raises them while shielded (Spiked Bulwark, +50%) and, for the Briar Knight, doubles them while shielded or bracing.
 export function thornsOf(u) {
   let v = 0;
   if (isClass(u, 'briarknight')) v += 8 + u.def * 0.5 + u.maxHp * 0.1;

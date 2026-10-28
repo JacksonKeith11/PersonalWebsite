@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=39';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=39';
-import { spriteURL } from './art.js?v=39';
-import { TP, drawBoard } from './tiles.js?v=39';
-import { sfx } from './audio.js?v=39';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=39';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=40';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=40';
+import { spriteURL } from './art.js?v=40';
+import { TP, drawBoard } from './tiles.js?v=40';
+import { sfx } from './audio.js?v=40';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=40';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -72,7 +72,7 @@ function foeUnit(kind, lvl) {
   const d = FOES[kind];
   // later acts climb faster, since every hero promotes after each boss
   const act = Math.floor((lvl - 1) / 9);
-  const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.22 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.14 * act), dp = Math.floor((lvl - 1) / 5);
+  const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.3 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.2 * act), dp = Math.floor((lvl - 1) / 5);
   // the ascent ladder and Lich's Bargain toughen foes
   const tough = (B.asc >= 1 && (d.boss || B.kind === 'elite') ? 1.2 : 1) * (B.asc >= 5 ? 1.1 : 1) * (B.team.includes('lichbargain') ? 1.15 : 1);
   const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm) * tough);
@@ -388,7 +388,7 @@ function mathRule(rule, t) {
 // ---------- damage ----------
 const powerVal = (u, o) => statVal(u, o.stat) * o.pow * (o.still && !u.moved ? 1.5 : 1);
 const missingFrac = u => Math.max(0, 1 - u.hp / u.maxHp);
-const thornsNow = u => thornsOf(u) * ((has(u, 'briarboots') && u.shield > 0) || (isClass(u, 'briarknight') && (u.shield > 0 || u.st.guard)) ? 2 : 1);
+const thornsNow = u => thornsOf(u) * (isClass(u, 'briarknight') && (u.shield > 0 || u.st.guard) ? 2 : 1) * (has(u, 'briarboots') && u.shield > 0 ? 1.5 : 1);
 const hitsOf = o => o.times || (o.double ? 2 : 1);
 function flanked(a, t) { return B.units.some(o => !o.dead && o !== a && o.side === a.side && dist(o, t) === 1); }
 function dmgMult(a, t, o) {
@@ -406,7 +406,7 @@ function dmgMult(a, t, o) {
   if (has(a, 'bloodoath')) m *= 1.3;
   if (has(a, 'warhorn')) m *= 1 + 0.12 * (a.kills || 0);
   if (has(a, 'packtotem') && t.side !== a.side && flanked(a, t)) m *= 1.25;
-  if (has(t, 'phalanx') && alive().some(x => x !== t && x.ref && x.side === t.side && dist(x, t) === 1)) m *= 0.75;
+  if (has(t, 'phalanx') && alive().some(x => x !== t && x.ref && x.side === t.side && dist(x, t) === 1)) m *= 0.85;
   if (has(t, 'overclock')) m *= 1.15;
   if (has(t, 'reckless')) m *= 1.2;
   if (o.execute && t.hp * 2 < t.maxHp) m *= 2;
@@ -475,7 +475,7 @@ function damage(t, amount, src, opts = {}) {
     if (s) fxText(t, `-${s}`, '#9fd8ff');
     if (s && t.shield === 0 && has(t, 'shrapnel')) {
       fxText(t, 'Shrapnel!', '#9fd8ff');
-      for (const f of alive().filter(x => x.side !== t.side && dist(x, t) === 1)) damage(f, s, t, { reflected: true, quiet: true });
+      for (const f of alive().filter(x => x.side !== t.side && dist(x, t) === 1)) damage(f, Math.ceil(s / 2), t, { reflected: true, quiet: true });
     }
   }
   if (left > 0) {
@@ -908,7 +908,7 @@ function effective(u, s) {
 // What a skill does when it finishes a foe off (carnage): spill, cooldown reset, shield, a second move.
 async function onKill(u, s, o, t, excess) {
   if (o.reset && s.cd > 0) { s.cd = 0; fxText(u, 'Ready!', '#d8d0c0', true); }
-  if (o.butcher) addShield(u, u.maxHp * 0.15);
+  if (o.butcher) addShield(u, u.maxHp * 0.1);
   if ((o.frenzy || has(u, 'spurs')) && u.moved && !u.extraMove) { u.moved = false; u.extraMove = true; fxText(u, 'Move again', '#d8d0c0', true); }
   if (o.overkill && excess > 0) {
     const n = alive().filter(x => x.side === t.side && dist(x, t) <= 2).sort((a, b) => dist(a, t) - dist(b, t))[0];

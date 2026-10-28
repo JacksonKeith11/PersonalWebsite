@@ -67,12 +67,26 @@ as an ES module.
   guitar tabs where one was found: Undone, Island in the Sun, Do I Wanna Know?, Mr. Brightside,
   Take Me Out, Float On and A-Punk (Ultimate Guitar tabs, read through the pg.zachmanson.com
   mirror). Tabs for Weezer and The Killers are written a half step up from how they sound, so
-  subtract a semitone. Vocal melodies are still written from memory and are the weakest part.
-  Don't scrape Hooktheory's data API.
+  subtract a semitone. Don't scrape Hooktheory's data API.
+- **Real transcriptions where they exist** (the owner asked for MIDI transcriptions compared with
+  the real chorus). 77 songs, marked `source: 'midi'`, were pulled from MIDI files (Lakh MIDI
+  dataset, BitMidi) by `tools/song-guesser-midi/`, which also compares each with a 30-second preview
+  of the record (iTunes or Deezer) to fix the key and tempo; its README has the steps. YouTube can't
+  be used: it refuses downloads from cloud machines. The chorus and the vocal track were picked by
+  hand for every song (`overrides.json`). The first 39 replaced hand-written arrangements; the other
+  38 are very popular songs added because their MIDI has a clear vocal track (most with lyrics, so
+  the chorus could be found by its words), when the owner asked for songs that could be copied
+  accurately. The 46 hand-written songs' keys and tempos were checked against previews too and
+  mostly agree.
+- **No vocal melody unless it was transcribed.** The hand-written songs' melodies were written from
+  memory and the owner found them too far off; they couldn't be checked against the records (the
+  previews are full mixes), so they were removed. Those songs play 3–4 instruments. The check script
+  rejects a melody on a song without `source: 'midi'`.
 
 ## Adding a song
 
-1. Add it to `SONGS` in `js/songs.js`. Write its chorus, 2–8 bars, that loops to fill the clip.
+1. If a MIDI transcription exists, use `tools/song-guesser-midi/` (see its README). Otherwise add it
+   to `SONGS` in `js/songs.js` by hand: write its chorus (no vocal melody), 2–8 bars, that loops to fill the clip.
    Every part loops on its own length, so keep each a whole number of bars and a multiple or
    divisor of the chord loop.
 2. If it was in `EXTRA`, take it out there (the check flags duplicates).

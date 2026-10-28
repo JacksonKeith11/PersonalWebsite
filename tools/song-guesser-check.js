@@ -23,7 +23,10 @@ const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
     const key = `${song.title}|${song.artist}`.toLowerCase();
     if (seen.has(key)) err(song, 'listed twice');
     seen.add(key);
-    for (const f of ['title', 'artist', 'year', 'genre', 'tier', 'section', 'bpm', 'melody']) if (!song[f]) err(song, `missing ${f}`);
+    for (const f of ['title', 'artist', 'year', 'genre', 'tier', 'section', 'bpm']) if (!song[f]) err(song, `missing ${f}`);
+    // only transcribed songs have a vocal line; the hand-written ones were dropped as unreliable
+    if (song.source === 'midi' && !song.melody) err(song, 'missing melody');
+    if (song.source !== 'midi' && song.melody) err(song, 'hand-written melody (only MIDI songs carry one)');
     if (!['indie', 'alt', 'pop', 'other'].includes(song.tier)) err(song, `bad tier ${song.tier}`);
     // the clip is the chorus; songs without one use their refrain
     if (song.section && !['Chorus', 'Refrain'].includes(song.section)) err(song, `section is "${song.section}", not Chorus or Refrain`);
@@ -53,6 +56,7 @@ const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
         lens[p] = seq.total;
         lines[p] = seq;
       }
+      if (song.guitar && song.guitar.notes) lens.guitar = parseSeq(song.guitar.notes, notesOf).total;
     } catch (e) { err(song, e.message); continue; }
     for (const [p, len] of Object.entries(lens)) {
       if (Math.abs(len / meter - Math.round(len / meter)) > 1e-9) err(song, `${p} is ${len} beats, not whole bars of ${meter}`);

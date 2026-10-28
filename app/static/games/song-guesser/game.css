@@ -1,0 +1,113 @@
+/* Song Guesser, on top of the site's style.css. */
+.sg [hidden] { display: none !important; }
+.sg-back { display: inline-block; margin: -24px 0 16px; color: var(--muted); }
+.sg-intro { margin: 0; }
+.sg { margin-top: 28px; }
+.sg-k {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.sg-clues { display: flex; flex-wrap: wrap; gap: 4px 28px; }
+.sg-clues b { font-family: "Source Serif 4", Georgia, serif; font-size: 1.15rem; margin-left: 4px; }
+
+.sg-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 18px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: stage;
+}
+.sg-stages li {
+  counter-increment: stage;
+  padding: 8px 10px;
+  border: 1px dashed var(--rule);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.sg-stages li::before {
+  content: counter(stage);
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+.sg-stages li.on { border-style: solid; border-color: var(--accent); color: var(--fg); background: #f4ecdc; }
+.sg-stages li.new { box-shadow: 0 0 0 2px var(--accent); }
+.sg-stages li.miss span { text-decoration: line-through; text-decoration-color: #a4452c; }
+
+.sg-player { display: flex; align-items: center; gap: 14px; }
+.sg-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; }
+.sg-fill { width: 0; height: 100%; background: var(--accent); }
+.sg-now { min-width: 3.2em; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+
+.sg-btn {
+  padding: 8px 18px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  font: 600 1rem "Source Sans 3", system-ui, sans-serif;
+  cursor: pointer;
+}
+.sg-btn:hover { background: #654a26; }
+.sg-btn:disabled { opacity: 0.5; cursor: default; }
+.sg-btn.sg-quiet { background: transparent; color: var(--accent); }
+.sg-btn.sg-quiet:hover { background: #f4ecdc; }
+.sg-play { min-width: 92px; }
+
+.sg-guess { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 22px; }
+.sg-combo { position: relative; flex: 1 1 300px; }
+.sg-combo label { display: block; margin-bottom: 2px; }
+.sg-combo input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--fg);
+  font: 1rem "Source Sans 3", system-ui, sans-serif;
+}
+.sg-combo input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.sg-actions { display: flex; gap: 10px; }
+.sg-list {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  max-height: 290px;
+  overflow-y: auto;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(60, 40, 15, 0.18);
+}
+.sg-list li { padding: 6px 12px; cursor: pointer; }
+.sg-list li small { color: var(--muted); }
+.sg-list li[aria-selected="true"], .sg-list li:hover { background: #f4ecdc; }
+.sg-msg { flex-basis: 100%; min-height: 1.6em; margin: 0; color: #a4452c; }
+
+.sg-history { margin: 4px 0 0; padding: 0; list-style: none; }
+.sg-history li { padding: 4px 0; border-bottom: 1px solid var(--rule); color: var(--muted); }
+.sg-history li::before { content: "✗ "; color: #a4452c; }
+.sg-history li.skip::before { content: "↷ "; color: var(--muted); }
+
+.sg-result { margin: 18px 0 8px; padding: 18px 20px; border-radius: 4px; background: #f4ecdc; border-left: 4px solid var(--accent); }
+.sg-result.lost { border-left-color: #a4452c; }
+.sg-result h2 { margin: 0 0 4px; padding: 0; border: 0; text-transform: none; letter-spacing: 0; font-size: 1.4rem; color: var(--fg); }
+.sg-result p { margin: 4px 0 12px; }
+.sg-stats { color: var(--muted); font-size: 0.95rem; }
+
+@media (max-width: 640px) {
+  .sg-back { margin-top: 0; }
+  .sg-stages { grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 6px; }
+  .sg-stages li { padding: 6px 7px; font-size: 0.85rem; line-height: 1.3; }
+  .sg-actions { flex: 1 1 100%; }
+  .sg-actions .sg-btn { flex: 1; }
+}

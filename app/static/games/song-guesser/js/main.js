@@ -1,9 +1,9 @@
 // Song Guesser: picks a song, plays its clip one instrument at a time, and takes guesses.
-import { SONGS, EXTRA } from './songs.js?v=5';
-import { arrange, renderPart, mix, CLIP } from './synth.js?v=5';
+import { SONGS, EXTRA } from './songs.js?v=6';
+import { arrange, renderPart, mix, CLIP } from './synth.js?v=6';
 
 const STORE = 'song-guesser';
-const WEIGHT = { indie: 4, alt: 2, other: 1 };
+const WEIGHT = { indie: 4, alt: 2, pop: 2, other: 1 };
 const RECENT = 15; // songs not repeated until this many others have been played
 const $ = id => document.getElementById(id);
 
@@ -36,20 +36,29 @@ function search(text) {
 
 // --- audio ------------------------------------------------------------------------------------
 // pos: where in the clip playback is or will resume, in seconds; dragging: the slider is held
-const audio = { ctx: null, src: null, startedAt: 0, raf: 0, token: 0, pos: 0, dragging: false };
+// out: the volume control every clip plays through
+const audio = { ctx: null, out: null, src: null, startedAt: 0, raf: 0, token: 0, pos: 0, dragging: false };
+const volume = () => (stats.volume ?? 80) / 100;
+
+function newContext() {
+  audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  audio.out = audio.ctx.createGain();
+  audio.out.gain.value = volume() ** 2; // squared, so the slider feels even to the ear
+  audio.out.connect(audio.ctx.destination);
+}
 
 async function context() {
   if (!audio.ctx || audio.ctx.state === 'closed') {
     // iPhones mute web audio with the silent switch unless the session says it's playback
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* older Safari */ }
-    audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    newContext();
   }
   if (audio.ctx.state !== 'running') {
     try { await audio.ctx.resume(); } catch (e) { /* replaced below */ }
     if (audio.ctx.state !== 'running') {
       // iOS can leave a context stuck after the page was in the background; start a fresh one
       try { audio.ctx.close(); } catch (e) { /* already closed */ }
-      audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      newContext();
       await audio.ctx.resume();
     }
   }
@@ -149,7 +158,7 @@ async function play() {
   if (token !== audio.token) return;
   const src = ctx.createBufferSource();
   src.buffer = buf;
-  src.connect(ctx.destination);
+  src.connect(audio.out);
   src.loop = stats.loop !== false;
   src.loopStart = 0;
   src.loopEnd = CLIP;
@@ -170,7 +179,7 @@ function draw() {
     const li = document.createElement('li');
     const shown = i <= r.stage || r.over;
     const span = document.createElement('span');
-    span.textContent = shown ? r.arr.parts[name].label : '?';
+    span.textContent = r.arr.parts[name].label; // every instrument is listed; dim until it plays
     li.appendChild(span);
     li.className = [shown && 'on', i === r.stage && !r.over && i > 0 && 'new', r.guesses[i] && 'miss'].filter(Boolean).join(' ');
     stages.appendChild(li);
@@ -312,6 +321,17 @@ function safePlay() {
   play().catch(err => { console.error(err); stop(); $('sg-msg').textContent = 'The audio didn\'t start; try Play again.'; });
 }
 $('sg-play').addEventListener('click', safePlay);
+
+// Volume, remembered between visits.
+const vol = $('sg-volume');
+vol.value = Math.round(volume() * 100);
+vol.style.setProperty('--pos', `${vol.value}%`);
+vol.addEventListener('input', () => {
+  stats.volume = +vol.value;
+  vol.style.setProperty('--pos', `${vol.value}%`);
+  if (audio.out) audio.out.gain.setTargetAtTime(volume() ** 2, audio.ctx.currentTime, 0.02);
+});
+vol.addEventListener('change', save);
 
 // Looping is on unless turned off, and remembered. Switching mid-play changes the playing clip.
 const loopBtn = $('sg-loop');

@@ -1,7 +1,15 @@
 // Game data: terrain, acts, classes, skills, upgrades, items and enemies.
 // Every import in this folder carries the same ?v= so Cloudflare serves fresh copies; bump them together.
 
-export const GW = 10, GH = 8;
+// The isometric view (?iso, a prototype; ?iso=0 turns it off, and the choice is remembered) plays
+// on an 8×8 board; the flat view on 10×8.
+export const ISO_VIEW = (() => {
+  try {
+    const q = new URLSearchParams(location.search);
+    return q.has('iso') ? q.get('iso') !== '0' : localStorage.getItem('threefold-iso') === '1';
+  } catch (e) { return false; }
+})();
+export const GW = ISO_VIEW ? 8 : 10, GH = 8;
 export const ROWS_PER_ACT = 6;   // map rows before each act's boss (was 8; the owner wanted shorter acts)
 export const MAX_SKILLS = 4;     // skills a hero can know
 export const MAX_MODS = 2;       // artifacts a single skill can hold

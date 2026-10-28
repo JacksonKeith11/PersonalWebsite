@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=49';
+import { T, GW, GH } from './data.js?v=50';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -454,7 +454,9 @@ export function drawBoard(ctx, theme, grid, vari, frame, iso = false) {
 // ---------- the isometric board (prototype, ?iso) ----------
 // Each tile's square from the composed flat board is mapped onto a 64×32 diamond, raised by its
 // height, with side faces down to the tile in front (or the board's base). Tiles go back to front.
-export const ISO = { HW: 32, HH: 16, LIFT: 12, OX: GH * 32 + 32, OY: 112, BASE: 10 };
+// HH / HW sets the angle: 22/32 looks further down onto the board than the classic 2:1.
+export const ISO = { HW: 32, HH: 22, LIFT: 10, OX: GH * 32 + 64, OY: 100, BASE: 8 };
+ISO.W = (GW + GH) * ISO.HW + 128; ISO.H = ISO.OY + (GW + GH) * ISO.HH + 60; // the board canvas
 // How high a tile is drawn, in levels: hills and summits as in play, walls as blocks, water sunk.
 export const isoHeight = t => (t === T.PEAK ? 2 : t === T.HILL ? 1 : t === T.WALL ? 1.5 : t === T.WATER ? -0.3 : t === T.LAVA ? -0.15 : 0);
 export function drawIsoBoard(ctx, flat, theme, grid) {

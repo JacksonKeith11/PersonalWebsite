@@ -225,14 +225,19 @@ Keep it that way.
     targets that can walk away. The Hydra was left out on purpose: it already ends the most runs.
 - **Isometric board (stage 1 prototype, off by default).** The owner asked how hard a Tactics Ogre /
   Into the Breach style view would be, then for a first stage. `?iso` turns it on and `?iso=0` off;
-  `localStorage` `threefold-iso` remembers the choice (`env.iso`, set in main.js). Only drawing and
-  tapping change, never the rules. `drawIsoBoard` in tiles.js paints the flat board off-screen
+  `localStorage` `threefold-iso` remembers the choice (`ISO_VIEW` in data.js, read at load, then
+  `env.iso`). The owner asked for an 8×8 board there, so `GW` is 8 in the isometric view and 10 in the
+  flat one (spawns, generation and everything else follow `GW`); otherwise only drawing and tapping
+  change. The owner also asked for a more top-down angle (`ISO.HH` 22 to `HW` 32, flatter than 2:1)
+  and a movable camera: `isoCamera` in battle.js frames the board, a drag pans it, and the wheel, a
+  pinch or the + / − / ⤢ buttons over the board zoom (up to 3×). While it's on, the canvas has
+  `touch-action: none`, so a drag on the board can't scroll the page. `drawIsoBoard` in tiles.js paints the flat board off-screen
   (`drawBoard(..., iso = true)` skips the flat cliffs and wall shadows), then maps each tile's square
-  onto a 64×32 diamond, back to front, raised by `isoHeight` (hills 1, summits 2, walls 1.5 as blocks,
+  onto a 64×44 diamond, back to front, raised by `isoHeight` (hills 1, summits 2, walls 1.5 as blocks,
   water sunk) with side faces in the theme's cliff or wall colours and a slab under the board's edge.
   Planned next stages: overlays and effects polish, occlusion (fading what hides a unit), terrain art
-  drawn for the diamonds (trees and rocks are squashed flat for now), and zoom for phones, where
-  the 64px diamonds come out small.
+  drawn for the diamonds (trees and rocks are squashed flat for now), and phone layout (the camera
+  zooms, but the board starts small on a phone).
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
 - **Movement avoids hazards when it can.** `reach()` keeps every route to a tile that isn't beaten
@@ -364,6 +369,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   `grep -rn "?v=" app/static/games/threefold` finds them.
 - **Bump `SAVE_KEY` in `main.js`** when the run or hero format changes. Old saves are then ignored
   instead of crashing the new code.
+- **Phaser swallows errors thrown in a scene's `create()`:** no page error, the board may still draw,
+  but the battle never starts (no side panel). If that happens, wrap `create` in a try/catch that
+  logs the stack. (A local `h` shadowing the `h()` DOM helper did this once.)
 - **Hidden canvas.** `#stage` (the canvas and side panel) is `display: none` while an HTML screen
   shows. When it reappears, `showStage` must call `game.scale.getParentBounds()` before
   `game.scale.refresh()`, or Phaser leaves the canvas 0px wide and the screen goes black.

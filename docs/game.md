@@ -30,6 +30,7 @@ loads Phaser 3.80.1 from cdnjs, then `js/main.js` as an ES module.
 | `js/sprites.js` | **Generated**: every hero and monster as a 32×32 grid of flat colour regions. Never edit it; change `tools/threefold-art/` and run `build.py`. |
 | `js/tiles.js` | Terrain at 32px, painted procedurally per theme (`THEME_ART`), and `drawBoard`, which composes a whole battle board including neighbour-aware touches. |
 | `js/audio.js` | Every sound effect and music loop, synthesized at startup with `OfflineAudioContext` and played through Phaser's sound manager. |
+| `js/bot.js` | The autopilot's choices outside battle (only with `?auto`): artifact picks and where they go, lessons, classes, team artifacts, map nodes, campfires, shops. |
 | `js/ui.js` | DOM helpers `h()`, `sprImg()`, `bar()`, and the status tooltips (`tip`, `tipText`, `initTips`). |
 | `game.css` | Styling for the HTML screens and panels. |
 
@@ -129,9 +130,9 @@ Keep it that way.
   action. The reward (gold, or one extra artifact offer and pick) is named up front. battle.js
   tracks it in `B.obj` (`objFail` makes a failure final; `objectiveMet` reads the result on a win),
   shows it under the turn strip and announces it at the start.
-- **The ascent ladder.** `ASCENTS` in data.js, cumulative. The title screen offers every unlocked
-  ascent once one is unlocked (`localStorage` `threefold-ascent` is the highest unlocked,
-  `threefold-ascent-pick` the last chosen); winning at the highest unlocked unlocks the next. The
+- **The ascent ladder.** `ASCENTS` in data.js, cumulative. Every ascent is open from the start (the
+  owner asked); the title screen picks one, and `localStorage` `threefold-ascent-pick` remembers the
+  last choice. Winning a run moves the pick up one. The
   run keeps `run.asc` and battles get `B.asc`. Where each rule lives: elite/boss and all-foe HP and
   boss CT in `foeUnit`, foe and boss damage in `dmgMult`, start gold in `newRun`, healing in
   `innHeal`/`campHeal`, fallen HP and artifact offers in main.js. `?auto&asc=N` plays at ascent N.

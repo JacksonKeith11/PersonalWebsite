@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=35';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=35';
-import { spriteURL } from './art.js?v=35';
-import { TP, drawBoard } from './tiles.js?v=35';
-import { sfx } from './audio.js?v=35';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=35';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=38';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=38';
+import { spriteURL } from './art.js?v=38';
+import { TP, drawBoard } from './tiles.js?v=38';
+import { sfx } from './audio.js?v=38';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=38';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -72,7 +72,7 @@ function foeUnit(kind, lvl) {
   const d = FOES[kind];
   // later acts climb faster, since every hero promotes after each boss
   const act = Math.floor((lvl - 1) / 9);
-  const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.12 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.08 * act), dp = Math.floor((lvl - 1) / 5);
+  const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.22 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.14 * act), dp = Math.floor((lvl - 1) / 5);
   // the ascent ladder and Lich's Bargain toughen foes
   const tough = (B.asc >= 1 && (d.boss || B.kind === 'elite') ? 1.2 : 1) * (B.asc >= 5 ? 1.1 : 1) * (B.team.includes('lichbargain') ? 1.15 : 1);
   const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm) * tough);
@@ -1443,8 +1443,27 @@ function distField(u, targets) {
   }
   return d;
 }
+// For an AI-run hero (autoplay, confusion): roughly how much damage foes could deal to u standing on
+// each tile next round, from how far each foe can move and reach plus its best hit on u.
+function threatMap(u) {
+  const foes = alive().filter(f => homeSide(f) !== homeSide(u) && !(f.st.stun || f.st.sleep > 0));
+  const per = foes.map(f => {
+    let dmg = 0, far = 1;
+    for (const s of f.skills) {
+      const o = effective(f, s);
+      if (o.kind !== 'phys' && o.kind !== 'mag') continue;
+      dmg = Math.max(dmg, calcDmg(f, u, o) * hitsOf(o));
+      far = Math.max(far, rangeOf(f, o)[1]);
+    }
+    return { f, dmg, r: (f.st.root > 0 ? 0 : f.mov) + far };
+  }).filter(e => e.dmg > 0);
+  return (x, y) => per.reduce((t, e) => t + (Math.abs(e.f.x - x) + Math.abs(e.f.y - y) <= e.r ? e.dmg : 0), 0);
+}
 function planAI(u, ahead) {
   const R = reach(u);
+  // heroes on autopilot keep out of reach when hurt; a wound that would be fatal weighs most
+  const threat = isHero(u) ? threatMap(u) : null;
+  const danger = (x, y) => { if (!threat) return 0; const t = threat(x, y); return Math.min(18, (t / Math.max(1, u.hp + u.shield)) * 10) + (t >= u.hp + u.shield ? 6 : 0); };
   const ox = u.x, oy = u.y;
   const hostile = alive().filter(t => t.side !== u.side);
   const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;
@@ -1453,7 +1472,7 @@ function planAI(u, ahead) {
   for (const v of R.values()) {
     if (!v.stop) continue;
     u.x = v.x; u.y = v.y;
-    let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8;
+    let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8 - danger(v.x, v.y);
     if (u.ai === 'ranged') pos += (Math.min(...hostile.map(t => dist(t, v))) >= 2 ? 3 : -2) + (onHill(u) ? 1.5 : 0);
     for (const { s, o } of usable) {
       const cands = [];
@@ -1481,7 +1500,7 @@ function planAI(u, ahead) {
   for (const v of R.values()) {
     if (!v.stop) continue;
     const dd = df[v.y][v.x];
-    const sc = (u.ai === 'ranged' ? Math.abs(dd - 3) : dd) - (B.grid[v.y][v.x] === T.COVER ? 0.3 : 0) + v.c * 0.01 + v.risk + hazard(u, v.x, v.y);
+    const sc = (u.ai === 'ranged' ? Math.abs(dd - 3) : dd) - (B.grid[v.y][v.x] === T.COVER ? 0.3 : 0) + v.c * 0.01 + v.risk + hazard(u, v.x, v.y) + danger(v.x, v.y) * 0.4;
     if (sc < bs) { bs = sc; bv = v; }
   }
   return { path: bv ? pathTo(R, key(bv.x, bv.y)) : null, blink: bv && bv.blink };

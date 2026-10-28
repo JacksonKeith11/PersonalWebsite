@@ -1,13 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=35';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=38';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=35';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=35';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=35';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=35';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=35';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=35';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=38';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=38';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=38';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=38';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=38';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=38';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=38';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -77,8 +78,8 @@ function hud(inBattle) {
 
 // ---------- saving ----------
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(run)); } catch (e) { /* storage unavailable */ } }
-// The difficulty ladder: the highest ascent unlocked, and the one last chosen, kept per browser.
-const ascMax = () => { try { return Math.min(ASCENTS.length, +localStorage.getItem('threefold-ascent') || 0); } catch (e) { return 0; } };
+// The difficulty ladder: every ascent is open; the one last chosen is kept per browser.
+const ascMax = () => ASCENTS.length;
 const ascPicked = () => { try { return Math.min(ascMax(), +localStorage.getItem('threefold-ascent-pick') || 0); } catch (e) { return 0; } };
 const setAsc = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } };
 const asc = () => (run && run.asc) || 0;
@@ -177,8 +178,7 @@ function showMap() {
   Object.assign(mapEnv, { run, available, pick: enterNode, actName: `Act ${run.act + 1}: ${curAct().name}`, theme: curAct().theme, leader: heroSprite(run.party[0]) });
   game.scene.start('map');
   auto(() => {
-    const opts = available(), low = run.party.some(p => p.hp < heroStats(p, run.gold).maxHp * 0.45);
-    enterNode((low && opts.find(n => n.type === 'shop' || n.type === 'event')) || pick(opts));
+    enterNode(pickNode(run.party, available(), run.gold));
   });
 }
 function enterNode(n) {
@@ -287,7 +287,7 @@ function equipFlow(id, next, show = setScreen, back = null) {
           h('div', { class: 'desc' }, after ? skillText({ ...after, txt: '' }, heroSrc(t.p, run.gold)) : t.s.mods.length >= MAX_MODS ? 'No free slot' : 'Doesn\'t fit this skill'));
       })),
       btn('Keep in pack', keep), backBtn()));
-    auto(() => { const t = targets.find(t => t.ok); if (t) socket(t); else keep(); });
+    auto(() => { const pl = bestPlacement(run.party, id), t = pl && targets.find(t => t.ok && t.s === pl.s); if (t) socket(t); else keep(); });
   } else {
     const wear = p => { p.items.push(id); const it = ITEMS[id]; if (it.stats && it.stats.maxHp > 0) p.hp += it.stats.maxHp; clampHp(); sfx('coin'); next(); };
     show(h('div', { class: 'panel' },
@@ -297,7 +297,7 @@ function equipFlow(id, next, show = setScreen, back = null) {
         h('div', { class: 'desc' }, p.items.length ? `Wearing ${p.items.map(artName).join(', ')}` : 'Nothing worn yet'),
         ...(canWear(p, id) ? wearPreview(p, id) : [])))),
       btn('Keep in pack', keep), backBtn()));
-    auto(() => { const p = run.party.find(p => canWear(p, id)); if (p) wear(p); else keep(); });
+    auto(() => { const pl = bestPlacement(run.party, id); if (pl && pl.score > 0) wear(pl.p); else keep(); });
   }
 }
 // "Strike: 12 physical → 15 physical" lines for what an artifact would change.
@@ -330,7 +330,7 @@ function learnFlow(hi, id, next, show = setScreen, back = null) {
     h('h3', {}, 'Forget'),
     h('div', { class: 'cards' }, p.skills.map((s, i) => skillCard(p, s.id, s.mods.length ? h('span', { class: 'price' }, `${s.mods.length} art.`) : null, () => forget(i)))),
     back ? btn('Back: choose a different skill', back) : btn(`Don't learn ${SKILLS[id].name}`, next)));
-  auto(() => chance(0.5) ? forget(rnd(0, p.skills.length - 1)) : next());
+  auto(() => { const i = weakestSkill(p); if (skillValue(p, { id, mods: [] }) > skillValue(p, p.skills[i]) + p.skills[i].mods.length * 4) forget(i); else next(); });
 }
 
 // ---------- rewards, promotion, acts ----------
@@ -357,7 +357,7 @@ function showRewards(info) {
       h('div', { class: 'cards' }, opts.map(c => skillCard(run.party[c.hi], c.id, skillsFull(run.party[c.hi]) ? h('span', { class: 'price' }, 'Replaces one') : null,
         () => learnFlow(c.hi, c.id, after, setScreen, learn)))),
       btn('Skip', after)));
-    auto(() => learnFlow(opts[0].hi, opts[0].id, after));
+    auto(() => { const c = pickLesson(run.party, opts, MAX_SKILLS); if (c) learnFlow(c.hi, c.id, after); else after(); });
   };
   const spoils = () => {
     if (taken >= picks || !offers.length) { learn(); return; }
@@ -370,7 +370,7 @@ function showRewards(info) {
       h('h3', {}, picks > 1 ? `Spoils: choose ${picks - taken}` : 'Spoils: choose one'),
       h('div', { class: 'cards' }, offers.map(id => artCard(id, null, () => equipFlow(id, () => { taken++; offers = offers.filter(x => x !== id); spoils(); }, setScreen, spoils)))),
       btn('Leave them', learn)));
-    auto(() => { taken++; const id = offers.shift(); equipFlow(id, spoils); });
+    auto(() => { const b = pickArtifact(run.party, offers); if (!b) { learn(); return; } taken++; offers = offers.filter(x => x !== b.id); equipFlow(b.id, spoils); });
   };
   spoils();
 }
@@ -392,7 +392,7 @@ function teamReward(info) {
     h('p', { class: 'muted' }, 'Every hero carries it for the rest of the run.'),
     h('div', { class: 'cards' }, offers.map(id => teamCard(id, () => take(id)))),
     owned.length ? h('p', { class: 'muted' }, `Already carried: ${owned.map(id => TEAM[id].name).join(', ')}.`) : null));
-  auto(() => take(offers[0]));
+  auto(() => take(pickTeam(offers)));
 }
 function teamCard(id, onpick) {
   return h('button', { class: 'pick teamart', onclick: () => { sfx('select'); onpick(); } },
@@ -426,7 +426,7 @@ function promotionScreen(next) {
       h('h2', {}, `The ${heroTitle(p)} can become...`),
       h('p', { class: 'muted' }, p.line && p.line.length ? 'A master class. The old passive stays and the new one stacks on top; new skills now come from the master class.' : 'Victory sharpens every hero. Each gains stats, a passive and a new skill pool, which replaces the old one.'),
       h('div', { class: 'cards' }, opts.map(id => promoCard(p, id, sig[id], () => become(id))))));
-    auto(() => become(pick(opts)));
+    auto(() => become(pickClass(p, opts)));
   };
   step();
 }
@@ -549,7 +549,7 @@ function chooseArtifact(title, ids, next) {
   if (!ids.length) { next(); return; }
   setScreen(h('div', { class: 'panel' }, h('h2', {}, title),
     h('div', { class: 'cards' }, ids.map(id => artCard(id, null, () => equipFlow(id, next, setScreen, () => chooseArtifact(title, ids, next))))), btn('Take nothing', next)));
-  auto(() => equipFlow(ids[0], next));
+  auto(() => { const b = pickArtifact(run.party, ids); if (b) equipFlow(b.id, next); else next(); });
 }
 function showEvent() {
   hud();
@@ -574,7 +574,7 @@ function showEvent() {
         const offer = () => setScreen(h('div', { class: 'panel' }, h('h2', {}, 'Choose a technique'),
           h('div', { class: 'cards' }, opts.map(c => skillCard(run.party[c.hi], c.id, null, () => learnFlow(c.hi, c.id, showMap, setScreen, offer)))), btn('Skip', showMap)));
         offer();
-        auto(() => opts.length ? learnFlow(opts[0].hi, opts[0].id, showMap) : showMap());
+        auto(() => { const c = pickLesson(run.party, opts, MAX_SKILLS); if (c) learnFlow(c.hi, c.id, showMap); else showMap(); });
       } else showMap();
     };
     setScreen(h('div', { class: 'panel' }, h('h2', {}, ev.title), h('p', {}, res.text), btn('Continue', next, 'go')));
@@ -608,7 +608,7 @@ function showRest(n) {
           h('div', { class: 'desc' }, skillText(after, heroSrc(t.p, run.gold))));
       })),
       btn('Back', () => showRest(n))));
-    auto(() => { const t = temperable[0]; t.s.tempered = true; done('Tempered.'); });
+    auto(() => { const t = [...temperable].sort((a, b) => skillValue(b.p, b.s) - skillValue(a.p, a.s))[0]; t.s.tempered = true; done('Tempered.'); });
   };
   const train = () => {
     const offers = skillOffers(run.party, 3);
@@ -617,7 +617,7 @@ function showRest(n) {
       h('div', { class: 'cards' }, offers.map(c => skillCard(run.party[c.hi], c.id, skillsFull(run.party[c.hi]) ? h('span', { class: 'price' }, 'Replaces one') : null,
         () => learnFlow(c.hi, c.id, () => done(`The ${heroTitle(run.party[c.hi])} practises ${SKILLS[c.id].name} until the fire dies.`), setScreen, () => showRest(n))))),
       btn('Back', () => showRest(n))));
-    auto(() => learnFlow(offers[0].hi, offers[0].id, () => done('Trained.')));
+    auto(() => { const c = pickLesson(run.party, offers, MAX_SKILLS) || offers[0]; learnFlow(c.hi, c.id, () => done('Trained.')); });
   };
   const heal = campHeal();
   setScreen(h('div', { class: 'panel' },
@@ -629,8 +629,7 @@ function showRest(n) {
       btn('Train: a hero learns a new skill', train, '', !skillOffers(run.party, 1).length)),
     btn('Leave', showMap)));
   auto(() => {
-    const hurt = run.party.some(p => p.hp < heroStats(p, run.gold).maxHp * 0.6);
-    if (hurt && heal > 0) { healAll(heal); done('Rested.'); } else if (temperable.length) temper(); else showMap();
+    if (partyHp(run.party, run.gold) < 0.65 && heal > 0) { healAll(heal); done('Rested.'); } else if (temperable.length) temper(); else showMap();
   });
 }
 function showShop(n) {
@@ -658,10 +657,11 @@ function showShop(n) {
     btn('Leave shop', showMap, 'big go'),
   ));
   auto(() => {
-    const hurt = run.party.some(p => p.hp < heroStats(p, run.gold).maxHp * 0.65);
-    if (hurt && !shop.inn && run.gold >= INN && innHeal(n) > 0) { rest(); return; }
-    const it = shop.items.find(i => !i.sold && run.gold >= i.price);
-    if (it) { buy(it); return; }
+    if (partyHp(run.party, run.gold) < 0.7 && !shop.inn && run.gold >= INN && innHeal(n) > 0) { rest(); return; }
+    const best = pickArtifact(run.party, shop.items.filter(i => !i.sold && run.gold >= i.price).map(i => i.id));
+    if (best && best.pl.score > 3) { buy(shop.items.find(i => i.id === best.id)); return; }
+    const c = run.gold >= TUTOR && pickLesson(run.party, shop.lessons.filter(l => !l.sold), MAX_SKILLS);
+    if (c) { lesson(shop.lessons.find(l => l.hi === c.hi && l.id === c.id)); return; }
     showMap();
   });
 }
@@ -718,7 +718,7 @@ function showTitle() {
     h('p', {}, 'Three heroes. Three acts, each drawn from two lands, each with its own boss.'),
     saved ? btn('Continue run', () => { run = saved; env.run = run; showMap(); }, 'big go') : null,
     btn(saved ? 'New run' : 'Start run', () => { clearSave(); newRun(ascPicked()); }, 'big'),
-    ascMax() ? ascentPicker() : null,
+    ascentPicker(),
     h('details', { class: 'howto', open: !saved && window.innerWidth > 640 },
       h('summary', {}, h('h3', {}, 'How to play')),
       h('ul', {},
@@ -745,7 +745,7 @@ function ascentPicker() {
   const draw = k => {
     box.replaceChildren(
       h('div', {}, 'Ascent: ', ...Array.from({ length: ascMax() + 1 }, (_, i) => h('button', { class: 'btn tiny' + (i === k ? ' sel' : ''), onclick: () => { setAsc('threefold-ascent-pick', i); sfx('click'); draw(i); } }, i))),
-      k ? h('ol', { class: 'muted' }, ASCENTS.slice(0, k).map(t => h('li', {}, t))) : h('p', { class: 'muted' }, 'The plain game. Win to unlock the next ascent.'));
+      k ? h('ol', { class: 'muted' }, ASCENTS.slice(0, k).map(t => h('li', {}, t))) : h('p', { class: 'muted' }, 'The plain game. Each ascent adds a rule on top of the ones before it.'));
   };
   draw(cur);
   return box;
@@ -761,6 +761,8 @@ function heroStatsTable() {
       return h('tr', {}, h('th', {}, label), run.party.map(p => h('td', { class: k !== 'taken' && k !== 'falls' && top > 0 && v(p, k) === top ? 'lead' : '' }, v(p, k).toLocaleString())));
     })));
 }
+// What the party ended with, for the autoplay's balance numbers.
+const buildOf = () => ({ asc: asc(), team: run.team || [], heroes: run.party.map(p => ({ cls: p.cls, line: p.line || [], items: p.items, skills: p.skills.map(s => ({ id: s.id, mods: s.mods, tempered: !!s.tempered })) })) });
 function gameOver() {
   clearSave();
   hud();
@@ -770,7 +772,7 @@ function gameOver() {
     h('p', {}, `Your party fell in Act ${run.act + 1}. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
     heroStatsTable(),
     btn('Try again', () => newRun(asc()), 'big go'), btn('Title', showTitle, 'big')));
-  if (AUTO) window.__result = { win: false, act: run.act + 1, ...run.stats };
+  if (AUTO) window.__result = { win: false, act: run.act + 1, ...run.stats, build: buildOf() };
 }
 function victory() {
   clearSave();
@@ -781,11 +783,11 @@ function victory() {
     h('div', { class: 'title-name' }, 'Victory!'),
     h('div', { class: 'title-art' }, run.party.map(p => sprImg(heroSprite(p), 'huge'))),
     h('p', {}, `${curAct().boss} falls and the path goes quiet. Battles won: ${run.stats.battles}. Foes slain: ${run.stats.kills}.`),
-    asc() >= ascMax() && asc() < ASCENTS.length ? h('p', { class: 'bonus met' }, `Ascent ${asc() + 1} unlocked: ${ASCENTS[asc()]}`) : null,
+    asc() < ASCENTS.length ? h('p', { class: 'muted' }, `Next ascent up: ${ASCENTS[asc()]}`) : null,
     heroStatsTable(),
     btn('New run', () => newRun(ascPicked()), 'big go')));
-  if (asc() >= ascMax()) { setAsc('threefold-ascent', Math.min(ASCENTS.length, asc() + 1)); setAsc('threefold-ascent-pick', Math.min(ASCENTS.length, asc() + 1)); }
-  if (AUTO) window.__result = { win: true, act: 3, ...run.stats };
+  if (asc() < ASCENTS.length && asc() >= ascPicked()) setAsc('threefold-ascent-pick', asc() + 1);
+  if (AUTO) window.__result = { win: true, act: 3, ...run.stats, build: buildOf() };
 }
 
 // ---------- boot ----------

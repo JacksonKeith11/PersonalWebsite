@@ -2,7 +2,7 @@
 // Every import in this folder carries the same ?v= so Cloudflare serves fresh copies; bump them together.
 
 export const GW = 10, GH = 8;
-export const ROWS_PER_ACT = 8;   // map rows before each act's boss
+export const ROWS_PER_ACT = 6;   // map rows before each act's boss (was 8; the owner wanted shorter acts)
 export const MAX_SKILLS = 4;     // skills a hero can know
 export const MAX_MODS = 2;       // artifacts a single skill can hold
 export const MAX_RELICS = 3;     // hero artifacts a hero can wear

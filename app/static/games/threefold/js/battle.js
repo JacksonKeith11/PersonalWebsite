@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=41';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=41';
-import { spriteURL } from './art.js?v=41';
-import { TP, drawBoard } from './tiles.js?v=41';
-import { sfx } from './audio.js?v=41';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=41';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=42';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=42';
+import { spriteURL } from './art.js?v=42';
+import { TP, drawBoard } from './tiles.js?v=42';
+import { sfx } from './audio.js?v=42';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=42';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -71,7 +71,7 @@ const foeSpd = (spd, lvl) => Math.round(spd * (1 + 0.02 * (lvl - 1)) + Math.floo
 function foeUnit(kind, lvl) {
   const d = FOES[kind];
   // later acts climb faster, since every hero promotes after each boss
-  const act = Math.floor((lvl - 1) / 9);
+  const act = Math.floor((lvl - 1) / (ROWS_PER_ACT + 1));
   const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.26 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.17 * act), dp = Math.floor((lvl - 1) / 5);
   // the ascent ladder and Lich's Bargain toughen foes
   const tough = (B.asc >= 1 && (d.boss || B.kind === 'elite') ? 1.2 : 1) * (B.asc >= 5 ? 1.1 : 1) * (B.team.includes('lichbargain') ? 1.15 : 1);

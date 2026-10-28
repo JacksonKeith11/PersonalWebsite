@@ -2,8 +2,8 @@
 // stacks a hero's archetypes (shield and thorns on the tank, elemental and hex on the mage, poison
 // and fortune on the rogue), puts skill artifacts where they add the most, learns stronger skills,
 // rests when hurt and takes elites when healthy. Battles still use the enemy AI in battle.js.
-import { CLASSES, PROMOS, MODS, ITEMS } from './data.js?v=41';
-import { heroStats, heroSrc, skStats, statVal, canSocket, canWear, artTags, artPrice, itemMult } from './rules.js?v=41';
+import { CLASSES, PROMOS, MODS, ITEMS } from './data.js?v=42';
+import { heroStats, heroSrc, skStats, statVal, canSocket, canWear, artTags, artPrice, itemMult } from './rules.js?v=42';
 
 // What a hero leans toward: class archetypes count most, then what they already carry.
 export function heroTags(p) {

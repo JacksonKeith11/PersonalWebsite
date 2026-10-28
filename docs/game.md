@@ -187,6 +187,10 @@ Keep it that way.
     terrain changes and every animation tick. A new theme is one `THEME_ART` entry.
 - **Later acts scale harder** (`foeUnit`: +26% HP and +17% ATK/MAG per act on top of the per-level
   curve) to answer every hero promoting after each boss, plus team artifacts and tempering.
+- **Acts are short: `ROWS_PER_ACT` = 6 map rows, then the boss** (was 8; the owner wanted shorter
+  acts). Levels run 1–7, 8–14 and 15–21, and `foeUnit` derives the act from `ROWS_PER_ACT`, so change
+  the constant rather than hard-coding 9. Row thresholds that assume the length: elites from row 3,
+  shops and campfires from row 2, "late" encounters and two-foe reinforcements from row 3.
 - **Normal fights bring reinforcements** (`battle()` in main.js): extra copies of members of the
   encounter, none in act 1's first two rows, one in the rest of act 1 and early in acts 2 and 3, two
   in their second half. (One everywhere plus +30%/+20% act scaling took the bot to 0 wins in 39.) The owner found normal fights too easy (the bot
@@ -203,6 +207,8 @@ Keep it that way.
 - **Difficulty should be hard but winnable, and a person should do clearly better than the bot.**
   The owner found the game very easy, so it was calibrated against the synergy-minded autopilot
   (`bot.js` plus threat-aware hero moves): about 20% wins at ascent 0 (143 runs) and 5% at ascent 8.
+  The owner then asked for harder normal fights, harder later acts and weaker defence items, and
+  shorter acts; after that the bot won 1 in 6 small-batch runs at ascent 0.
   Normal fights are nearly always won (98%+); runs are decided by attrition and the bosses, which
   the bot passes about two times in three in every act. Before acts 2 and 3 were toughened, a party
   that reached act 3 won it 82% of the time. Measured and adjusted: act scaling, the Bog Hydra
@@ -243,7 +249,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   the odd mechanics.
 - For a quick syntax check use `node --experimental-default-type=module --check js/<file>.js`. Plain
   `node --check` parses the files as CommonJS and misses errors that stop the game loading.
-- Run a few `--chaos` runs after mechanic changes, and about 10 normal runs after balance changes.
+- **Keep test batches small** (the owner asked): about 6 normal runs with `--par 6` and 3 chaos runs
+  after a change, a few minutes in all. Save long batches (100+ runs) for an explicit balance study.
+- Run a few `--chaos` runs after mechanic changes, and a small normal batch after balance changes.
   Then check a real click-through in a browser: autopilot skips the player-control code (move,
   undo, skill buttons, confirm).
 

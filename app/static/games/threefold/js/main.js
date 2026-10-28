@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=41';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=42';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=41';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=41';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=41';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=41';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=41';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=41';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=41';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=42';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=42';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=42';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=42';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=42';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=42';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=42';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -197,9 +197,9 @@ function enterNode(n) {
 function battle(kind) {
   const act = curAct(), n = run.map[run.pos];
   const lvl = level(n);
-  let list = kind === 'boss' ? act.bossParty : kind === 'elite' ? pick(act.elite) : pick(n.r < 4 ? act.early : act.late);
+  let list = kind === 'boss' ? act.bossParty : kind === 'elite' ? pick(act.elite) : pick(n.r < 3 ? act.early : act.late);
   // normal fights bring reinforcements of their own kind: none in act 1's opening rows, one after, two late in acts 2 and 3
-  if (kind === 'normal') { const extra = run.act >= 1 ? (n.r >= 4 ? 2 : 1) : n.r >= 2 ? 1 : 0; list = [...list, ...Array.from({ length: extra }, () => pick(list))]; }
+  if (kind === 'normal') { const extra = run.act >= 1 ? (n.r >= 3 ? 2 : 1) : n.r >= 2 ? 1 : 0; list = [...list, ...Array.from({ length: extra }, () => pick(list))]; }
   hud(true);
   music(kind === 'boss' ? 'm_boss' : act.music);
   showStage('battle');

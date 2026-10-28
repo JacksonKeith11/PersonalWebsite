@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=25';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=25';
-import { spriteURL } from './art.js?v=25';
-import { TP, drawBoard } from './tiles.js?v=25';
-import { sfx } from './audio.js?v=25';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=25';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=26';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=26';
+import { spriteURL } from './art.js?v=26';
+import { TP, drawBoard } from './tiles.js?v=26';
+import { sfx } from './audio.js?v=26';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=26';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -488,7 +488,7 @@ function ko(t, killer) {
   }
   const venom = t.st.poison > 0 ? { n: t.st.poison, dmg: t.st.poisonDmg, by: t.st.poisonBy } : null, hexes = t.st.hex || 0;
   if (t.origSide) { t.side = t.origSide; t.origSide = null; }
-  t.pending = null;
+  t.pending = null; t.intent = null;
   t.hp = 0; t.dead = true; t.st = {}; t.shield = 0;
   log(`${t.name} falls.`);
   sfx('death');
@@ -1084,6 +1084,7 @@ async function battleLoop(b) {
     const u = nextActor();
     b.active = u; b.inspect = null; b.startPos = null;
     u.moved = false; u.acted = false; u.extraMove = false;
+    if (isHero(u)) refreshIntents();
     renderPanel();
     const skip = await startTurn(u);
     if (B !== b || checkEnd()) return;
@@ -1098,7 +1099,9 @@ async function battleLoop(b) {
       else await aiTurn(u);
     }
     if (B !== b || b.over) return;
+    u.intent = null;
     endTurn(u);
+    refreshIntents();
   }
 }
 const CALM_TURNS = 27; // hero turns (about 9 rounds) before the enemy starts to rage
@@ -1216,6 +1219,7 @@ function afterHeroStep(u) {
   B.mode = u.moved ? null : 'move';
   if (B.mode) B.reach = reach(u);
   B.sel = null; B.pending = null;
+  refreshIntents();
   renderPanel();
 }
 async function doMove(u, k) {
@@ -1345,12 +1349,12 @@ function distField(u, targets) {
   }
   return d;
 }
-function planAI(u) {
+function planAI(u, ahead) {
   const R = reach(u);
   const ox = u.x, oy = u.y;
   const hostile = alive().filter(t => t.side !== u.side);
   const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;
-  const usable = u.st.disarm > 0 ? [] : u.skills.filter(s => s.cd <= 0).map(s => ({ s, o: effective(u, s) })).filter(({ o }) => !(o.mimic && !o.mimicked));
+  const usable = u.st.disarm > 0 ? [] : u.skills.filter(s => s.cd <= (ahead ? 1 : 0)).map(s => ({ s, o: effective(u, s) })).filter(({ o }) => !(o.mimic && !o.mimicked));
   let best = null;
   for (const v of R.values()) {
     if (!v.stop) continue;
@@ -1392,14 +1396,78 @@ async function aiTurn(u) {
   B.busy = true;
   renderPanel();
   await sleep(300);
-  const plan = planAI(u);
+  if (u.intent && u.side === 'foe') await followIntent(u, u.intent);
+  else await runPlan(u, planAI(u));
+  if (B) B.busy = false;
+}
+async function runPlan(u, plan) {
   if (plan.path && plan.path.length > 1) await moveUnit(u, plan.path, plan.blink);
   if (plan.skill && !B.over && !u.dead) {
     // the plan was made from the destination; re-check in case the walk changed things
     const o = effective(u, plan.skill);
     if (validTarget(u, o, plan.tx, plan.ty)) await useSkill(u, plan.skill, plan.tx, plan.ty);
   } else await sleep(150);
-  if (B) B.busy = false;
+}
+
+// ---------- intents ----------
+// Foes show their attack before they make it (Into the Breach): the red tiles, the damage, and a
+// line from where they'll stand. It's locked in when shown. Step out of the red and it misses;
+// shove or pull the foe, disarm or silence it, stun it, put it to sleep or kill it, and it never
+// comes. Taunt makes it pick again. A foe with nothing shown decides when it acts.
+const canPlan = u => !u.dead && u.side === 'foe' && !(u.st.stun || u.st.sleep > 0 || u.st.confuse > 0);
+// Plan for every foe that acts before the next hero's next turn and hasn't shown an attack yet.
+function refreshIntents() {
+  if (!B || B.over) return;
+  const order = predictOrder(16), hi = order.findIndex(isHero);
+  if (hi < 0) return;
+  for (let i = 0; i < order.length; i++) {
+    const f = order[i];
+    if (i > hi && f === order[hi]) break;
+    if (f.intent || !canPlan(f) || f === B.active) continue;
+    const p = planAI(f, true);
+    if (!p.skill) continue;
+    const end = p.path && p.path.length ? p.path[p.path.length - 1] : f;
+    f.intent = { s: p.skill, x0: f.x, y0: f.y, dx: end.x, dy: end.y, tx: p.tx, ty: p.ty };
+  }
+}
+// What a shown intent would do right now: its tiles and who's in them, worked out from where the
+// foe will stand.
+function intentView(u) {
+  const it = u.intent, ox = u.x, oy = u.y;
+  u.x = it.dx; u.y = it.dy;
+  const o = effective(u, it.s), tx = o.tgt === 'self' ? u.x : it.tx, ty = o.tgt === 'self' ? u.y : it.ty;
+  const area = o.kind === 'summon' ? [[tx, ty]] : areaTiles(u, o, tx, ty);
+  const hits = [];
+  for (const { t, w } of hitList(u, o, tx, ty, true)) {
+    if (t === u && o.tgt !== 'self') continue;
+    hits.push({ t, w, dmg: o.kind === 'phys' || o.kind === 'mag' ? Math.round(calcDmg(u, t, o) * w * hitsOf(o)) : 0 });
+  }
+  u.x = ox; u.y = oy;
+  return { o, area, hits, tx, ty };
+}
+async function followIntent(u, it) {
+  const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;
+  if (taunter) { await runPlan(u, planAI(u)); return; }
+  const lost = u.x !== it.x0 || u.y !== it.y0 ? 'knocked off balance' : u.st.disarm > 0 ? 'disarmed' : it.s.cd > 0 ? 'silenced' : null;
+  if (lost) {
+    fxText(u, 'Attack lost', '#b0b0b0', true);
+    log(`${u.name} loses its attack (${lost}).`);
+    const p = planAI(u);
+    await runPlan(u, { path: p.path, blink: p.blink });
+    return;
+  }
+  const R = reach(u), v = R.get(key(it.dx, it.dy));
+  if (v && v.stop && (it.dx !== u.x || it.dy !== u.y)) await moveUnit(u, pathTo(R, key(it.dx, it.dy)), v.blink);
+  if (B.over || u.dead) return;
+  const o = effective(u, it.s), tx = o.tgt === 'self' ? u.x : it.tx, ty = o.tgt === 'self' ? u.y : it.ty;
+  if (validTarget(u, o, tx, ty)) { await useSkill(u, it.s, tx, ty); return; }
+  // the target stepped away (or something got in the way): the blow lands on nothing
+  it.s.cd = o.cd; u.acted = true;
+  if (u.view && dist(u, { x: tx, y: ty }) === 1) await lunge(u, tx, ty);
+  fxText(u, 'Missed!', '#b0b0b0', true);
+  sfx('miss');
+  log(`${u.name}'s ${o.name} hits nothing.`);
+  await sleep(300);
 }
 
 // ---------- side panel ----------
@@ -1454,10 +1522,17 @@ function unitCard(u, withSkills) {
     h('div', { class: 'stats' }, `ATK ${u.atk} · MAG ${u.mag} · DEF ${u.def} · RES ${u.res} · SPD ${spdOf(u)} · MOV ${u.mov}`),
     extra ? h('div', { class: 'stats' }, extra) : null,
     h('div', { class: 'status' }, statusText(u)),
+    u.side === 'foe' && !u.dead ? intentLine(u) : null,
     withSkills ? h('div', { class: 'skill-list' }, u.skills.map(s => {
       const o = skStats(u, s);
       return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, skillText(o, u));
     })) : null);
+}
+function intentLine(u) {
+  if (!u.intent) return u.st.stun || u.st.sleep > 0 ? h('div', { class: 'intent' }, tip('Next: skips its turn', 'intent')) : null;
+  const I = intentView(u);
+  const who = I.hits.filter(e => e.t !== u).map(e => e.dmg ? `${e.t.name} ${e.dmg >= e.t.hp + e.t.shield ? 'KO' : '−' + e.dmg}` : e.t.name);
+  return h('div', { class: 'intent' }, tip(`Next: ${I.o.name}`, 'intent'), who.length ? ` → ${who.join(', ')}` : ' (nobody in the red now)');
 }
 function tileCard(x, y) {
   const t = B.grid[y][x];
@@ -1476,7 +1551,7 @@ function confirmLabel(u) {
 }
 function hintText() {
   const u = B.active;
-  if (B.mode === 'move') return 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
+  if (B.mode === 'move') return B.units.some(t => t.intent && !t.dead) ? 'Tap a blue tile to move. Red tiles are where foes will strike: step out to dodge.' : 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
   if (B.mode === 'skill') {
     const o = B.selO;
     if (!B.targets.size) return `${o.name}: no targets in range${needsLos(o) ? ' or line of sight' : ''}. Move first, or pick another action.`;
@@ -1529,6 +1604,7 @@ function counter(ms, fn) {
     scene.tweens.addCounter({ from: 0, to: 1, duration: Math.max(1, ms * env.speed), onUpdate: t => fn(t.getValue()), onComplete: () => { fn(1); res(); } });
   });
 }
+const buffWord = (o, t) => o.sleep ? 'SLEEP' : o.confuse ? 'CONFUSE' : o.root ? 'ROOT' : o.disarm ? 'DISARM' : o.weak ? 'WEAKEN' : o.dispel ? 'DISPEL' : o.purify ? 'PURIFY' : o.focus ? 'FOCUS' : o.imbue ? 'IMBUE' : o.push ? 'PUSH' : o.charm ? (t.boss ? 'IMMUNE' : 'CHARM') : o.doom ? 'DOOM' : o.cdLock ? 'SILENCE' : o.ward ? 'WARD' : o.taunt ? 'TAUNT' : o.blind ? 'BLIND' : o.vuln ? 'MARK' : o.rally ? 'RALLY' : o.ctGive ? 'HASTE' : o.slow ? 'SLOW' : 'OK';
 const viewAlpha = u => u.st.stealth || u.st.airborne ? 0.45 : u.spr === 'ghost' ? 0.8 : 1;
 function placeView(u) {
   if (!u.view) return;
@@ -1669,7 +1745,7 @@ export class BattleScene extends Phaser.Scene {
     for (let x = 1; x < GW; x++) grid.fillRect(x * TS - 1, 0, 2, GH * TS);
     for (let y = 1; y < GH; y++) grid.fillRect(0, y * TS - 1, GW * TS, 2);
     this.ov = this.add.graphics().setDepth(5);
-    this.marks = Array.from({ length: 14 }, () => this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '16px', color: '#fff', stroke: '#000', strokeThickness: 5 })
+    this.marks = Array.from({ length: 24 }, () => this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '16px', color: '#fff', stroke: '#000', strokeThickness: 5 })
       .setOrigin(0.5).setDepth(950).setVisible(false));
     this.bursts = {};
     for (const [k, cfg] of Object.entries(BURSTS)) this.bursts[k] = this.add.particles(0, 0, 'px', { ...cfg, emitting: false }).setDepth(800);
@@ -1703,7 +1779,7 @@ export class BattleScene extends Phaser.Scene {
     const charging = b && b.units.some(c => c.pending && !c.dead);
     const sig = b ? [b.mode, b.sel, mine, b.busy, b.over, b.hover && key(b.hover.x, b.hover.y), b.pending && key(b.pending.x, b.pending.y),
       b.inspect && (b.inspect.tile ? 't' : b.inspect.id), b.targets && b.targets.size, b.reach && b.reach.size, b.traps && b.traps.size, b.panelGen,
-      u && u.view && `${u.view.x},${u.view.y}`, b.units.map(x => x.dead ? '' : x.x * 8 + x.y).join(), Math.floor(time / (charging ? 100 : 250))].join('|') : '';
+      u && u.view && `${u.view.x},${u.view.y}`, b.units.map(x => x.dead ? '' : x.x * 8 + x.y + (x.intent ? `>${x.intent.tx},${x.intent.ty}` : '')).join(), Math.floor(time / (charging ? 100 : 250))].join('|') : '';
     if (sig === this.sig) return;
     this.sig = sig;
     g.clear();
@@ -1765,6 +1841,30 @@ export class BattleScene extends Phaser.Scene {
       const po = skStats(c, c.pending.s);
       region(areaTiles(c, po, c.pending.tx, c.pending.ty), 0xe08a4a, 0.12, 0xf0a870, 0.45 + 0.25 * Math.sin(time / 150));
     }
+    // foe intents: red tiles where the blow lands, a line from where the foe will stand
+    const threat = new Map();
+    if (!b.over) for (const c of b.units) {
+      if (c.dead || !c.intent || c.side !== 'foe' || !c.view) continue;
+      const I = intentView(c), focus = insp === c, help = I.o.kind === 'heal' || I.o.kind === 'shield' || I.o.kind === 'summon' || I.o.hits === 'allies' || I.o.tgt === 'ally';
+      region(I.area, help ? 0x8a5ad6 : 0xd03a3a, focus ? 0.32 : 0.2, help ? 0xc8a8f4 : 0xff9080, focus ? 0.95 : 0.65);
+      const cx = X => X * TS + TS / 2, sx = c.view.x + TS / 2, sy = c.view.y + TS / 2;
+      g.lineStyle(focus ? 4 : 3, help ? 0xc8a8f4 : 0xff7060, focus ? 0.95 : 0.6);
+      g.beginPath(); g.moveTo(sx, sy);
+      if (c.intent.dx !== c.x || c.intent.dy !== c.y) g.lineTo(cx(c.intent.dx), cx(c.intent.dy));
+      g.lineTo(cx(I.tx), cx(I.ty)); g.strokePath();
+      if (c.intent.dx !== c.x || c.intent.dy !== c.y) { g.fillStyle(help ? 0xc8a8f4 : 0xff7060, 0.85); g.fillCircle(cx(c.intent.dx), cx(c.intent.dy), 5); }
+      // a red tab over the foe's head: it has something coming
+      g.fillStyle(0x120b18); g.fillRect(c.view.x + TS - 16, c.view.y + 2, 14, 14);
+      g.fillStyle(help ? 0xa87ae0 : 0xe5463c); g.fillRect(c.view.x + TS - 14, c.view.y + 4, 10, 10);
+      for (const { t, dmg } of I.hits) {
+        const e = threat.get(t) || { dmg: 0, words: [] };
+        if (dmg) e.dmg += dmg;
+        else if (I.o.kind === 'heal') e.words.push('+' + Math.round(Math.max(0, Math.min(healRoom(t), powerVal(c, I.o)))));
+        else if (I.o.kind === 'shield') e.words.push('+' + Math.round(powerVal(c, I.o)));
+        else if (I.o.kind === 'buff') e.words.push(buffWord(I.o, t));
+        threat.set(t, e);
+      }
+    }
     if (b.hover && mine) line(b.hover.x, b.hover.y, 0xffffff, 0.5, 2);
     if (u && !u.dead && !b.over && u.view) {
       const pl = Math.floor(time / 250) % 2 ? 4 : 2, L = 14, px = u.view.x, py = u.view.y;
@@ -1773,6 +1873,15 @@ export class BattleScene extends Phaser.Scene {
         g.fillRect(cx - (sx < 0 ? L : 0), cy - (sy < 0 ? pl : 0), L, pl);
         g.fillRect(cx - (sx < 0 ? pl : 0), cy - (sy < 0 ? L : 0), pl, L);
       }
+    }
+    let mi = 0;
+    if (!preview) for (const [t, e] of threat) {
+      if (mi >= this.marks.length || !t.view) break;
+      const ko = e.dmg && e.dmg >= t.hp + t.shield;
+      const label = e.dmg ? (ko ? 'KO' : '-' + e.dmg) : e.words[0];
+      if (!label) continue;
+      const col = e.dmg ? '#ff6a5a' : homeSide(t) === 'foe' ? '#c8a8f4' : '#ff9a8a';
+      this.marks[mi++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 18).setVisible(true);
     }
     if (preview) {
       const totals = new Map();
@@ -1784,7 +1893,7 @@ export class BattleScene extends Phaser.Scene {
         let label, col;
         if (o.kind === 'heal') { if (t.side !== u.side) continue; label = '+' + Math.round(Math.max(0, Math.min(healRoom(t), powerVal(u, o) * w))); col = '#7dff8a'; }
         else if (o.kind === 'shield') { if (t.side !== u.side) continue; label = '+' + Math.round(powerVal(u, o) * w); col = '#9fd8ff'; }
-        else if (o.kind === 'buff') { label = o.sleep ? 'SLEEP' : o.confuse ? 'CONFUSE' : o.root ? 'ROOT' : o.disarm ? 'DISARM' : o.weak ? 'WEAKEN' : o.dispel ? 'DISPEL' : o.purify ? 'PURIFY' : o.focus ? 'FOCUS' : o.imbue ? 'IMBUE' : o.push ? 'PUSH' : o.charm ? (t.boss ? 'IMMUNE' : 'CHARM') : o.doom ? 'DOOM' : o.cdLock ? 'SILENCE' : o.ward ? 'WARD' : o.taunt ? 'TAUNT' : o.blind ? 'BLIND' : o.vuln ? 'MARK' : o.rally ? 'RALLY' : o.ctGive ? 'HASTE' : o.slow ? 'SLOW' : 'OK'; col = t.side === u.side ? '#7dff8a' : '#ff8080'; }
+        else if (o.kind === 'buff') { label = buffWord(o, t); col = t.side === u.side ? '#7dff8a' : '#ff8080'; }
         else {
           const d = Math.round(calcDmg(u, t, o) * w * hitsOf(o));
           label = o.gamble ? '?' : d >= t.hp + t.shield ? 'KO' : (w < 1 && (o.shape === 'random' || o.shape === 'multi') ? '~' : '-') + d;

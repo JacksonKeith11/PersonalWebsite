@@ -123,6 +123,7 @@ img.spr.flip { transform: scaleX(-1); }
 .card-head b { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .stats { color: var(--muted); font-size: 19px; margin-top: 4px; }
 .status { color: var(--gold); font-size: 19px; }
+.intent { color: #ff9a8a; font-size: 19px; margin-top: 2px; }
 .skill-list { margin-top: 6px; font-size: 19px; }
 .skill-list div { margin-bottom: 4px; }
 .skill-list b { color: var(--text); font-weight: normal; }

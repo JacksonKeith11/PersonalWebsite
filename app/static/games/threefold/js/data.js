@@ -59,6 +59,7 @@ export const STATUS_HELP = {
   focus: 'Focused: its next attack deals 60% more damage.',
   movUp: '+1 MOV: moves one tile farther.',
   imbue: 'Imbued: its attacks add an element (burn, poison, shock or slow).',
+  intent: 'Intent: the foe\'s next attack, shown as red tiles and numbers. It\'s locked in. Step out of the red and it misses; shove or pull the foe, disarm or silence it, stun it, put it to sleep or kill it, and it never comes. Taunt makes it pick again.',
   pending: 'Charging: the skill goes off at the start of its next turn. Kill it or move away.',
   doom: 'Doomed: when the count reaches 0 it loses 45% of max HP (15% for bosses).',
   ward: 'Ward: completely blocks the next enemy hit, once per stack.',

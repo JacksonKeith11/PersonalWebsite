@@ -302,3 +302,7 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 .ascent .btn.tiny { margin: 2px; min-width: 34px; }
 .ascent .btn.sel { background: var(--gold); color: #1b1226; }
 .ascent ol { text-align: left; margin: 8px 0 0; padding-left: 24px; font-size: 17px; }
+
+/* Keyboard shortcut hints on the battle buttons; hidden where there's no mouse (phones, tablets) */
+.btn kbd { font: inherit; font-size: 7px; color: #a99bc4; margin-left: 5px; vertical-align: 1px; }
+@media (hover: none) { .btn kbd { display: none; } }

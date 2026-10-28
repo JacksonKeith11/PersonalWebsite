@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=42';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=42';
-import { spriteURL } from './art.js?v=42';
-import { TP, drawBoard } from './tiles.js?v=42';
-import { sfx } from './audio.js?v=42';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=42';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=43';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=43';
+import { spriteURL } from './art.js?v=43';
+import { TP, drawBoard } from './tiles.js?v=43';
+import { sfx } from './audio.js?v=43';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=43';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1658,6 +1658,25 @@ function hintText() {
   if (u.moved && u.acted) return '';
   return u.acted ? 'Move, or end your turn.' : 'Choose an action, or end your turn.';
 }
+// Keyboard shortcuts for the hero's turn (desktop): M move, 1-9 skills, Enter or Space confirms,
+// U undoes the move, E ends the turn, Esc backs out of aiming. Each key presses the panel button
+// carrying its data-key, so a shortcut can only do what a click could right now.
+const kbd = k => h('kbd', {}, String(k));
+document.addEventListener('keydown', e => {
+  if (!B || !env.side || e.ctrlKey || e.metaKey || e.altKey || e.repeat || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const k = e.key === ' ' ? 'enter' : e.key.toLowerCase();
+  if (k === 'escape') {
+    const u = B.active;
+    if (!u || !isHero(u) || !B.resolveTurn || B.busy || env.auto || B.mode !== 'skill') return;
+    e.preventDefault();
+    if (B.pending && B.selO.tgt !== 'self' && B.targets.size > 1) { B.pending = null; renderPanel(); } else afterHeroStep(u);
+    return;
+  }
+  const btn = env.side.querySelector(`.actions button[data-key="${CSS.escape(k)}"]`);
+  if (!btn || btn.disabled) return;
+  e.preventDefault();
+  btn.click();
+});
 function renderPanel() {
   if (!B || !env.side) return;
   B.panelGen = (B.panelGen || 0) + 1;
@@ -1673,15 +1692,15 @@ function renderPanel() {
   if (shown && !shown.tile && shown !== u) kids.push(h('div', { class: 'hint' }, `Shaded tiles: where ${shown.name} can move this turn${shown.st.root > 0 ? ' (rooted)' : ''}.`));
   if (mine) {
     kids.push(h('div', { class: 'actions' },
-      h('button', { class: 'btn' + (B.mode === 'move' ? ' sel' : ''), disabled: u.moved, onclick: () => { sfx('click'); if (B.mode === 'move') { B.mode = null; renderPanel(); } else afterHeroStep(u); } }, 'Move'),
-      u.moved && !u.acted && B.startPos ? h('button', { class: 'btn', onclick: () => undoMove(u) }, 'Undo move') : null,
+      h('button', { class: 'btn' + (B.mode === 'move' ? ' sel' : ''), 'data-key': 'm', disabled: u.moved, onclick: () => { sfx('click'); if (B.mode === 'move') { B.mode = null; renderPanel(); } else afterHeroStep(u); } }, 'Move', kbd('M')),
+      u.moved && !u.acted && B.startPos ? h('button', { class: 'btn', 'data-key': 'u', onclick: () => undoMove(u) }, 'Undo move', kbd('U')) : null,
       u.skills.map((s, i) => {
         const o = effective(u, s);
-        return h('button', { class: 'btn' + (B.mode === 'skill' && B.sel === i ? ' sel' : ''), disabled: u.acted || s.cd > 0 || u.st.disarm > 0, title: `${o.name}: ${describe(o, u)}`, onclick: () => selectSkill(i) },
-          o.name, s.cd > 0 ? h('span', { class: 'cd' }, ` ${s.cd}`) : null);
+        return h('button', { class: 'btn' + (B.mode === 'skill' && B.sel === i ? ' sel' : ''), disabled: u.acted || s.cd > 0 || u.st.disarm > 0, title: `${o.name}: ${describe(o, u)}`, 'data-key': String(i + 1), onclick: () => selectSkill(i) },
+          o.name, s.cd > 0 ? h('span', { class: 'cd' }, ` ${s.cd}`) : null, kbd(i + 1));
       }),
-      B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, confirmLabel(u)) : null,
-      h('button', { class: 'btn', onclick: () => { sfx('click'); finishTurn(); } }, 'End turn'),
+      B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', 'data-key': 'enter', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, confirmLabel(u), kbd('↵')) : null,
+      h('button', { class: 'btn', 'data-key': 'e', onclick: () => { sfx('click'); finishTurn(); } }, 'End turn', kbd('E')),
       h('div', { class: 'hint' }, hintText()),
     ));
   } else kids.push(h('div', { class: 'actions waiting' }, h('div', { class: 'hint' }, u && !B.over ? `${u.name} is acting…` : '')));

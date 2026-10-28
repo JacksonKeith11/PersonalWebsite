@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=42';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=43';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=42';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=42';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=42';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=42';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=42';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=42';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=42';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=43';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=43';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=43';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=43';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=43';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=43';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=43';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance

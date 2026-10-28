@@ -160,6 +160,11 @@ Keep it that way.
   average share of the volley.
 - **Socketed artifacts explain themselves.** On the Party screen, the socketing screen and the
   battle unit card, a skill's artifacts are tooltips (`tipNote` in ui.js) showing the artifact's text.
+- **Desktop keyboard shortcuts on the hero's turn**: M move, 1-9 skills, Enter or Space confirms
+  the aimed skill, U undoes the move, E ends the turn, Esc backs out of aiming. The keydown handler
+  in battle.js presses the action-panel button carrying the matching `data-key`, so a key can only
+  do what a click could at that moment; new panel buttons that should have a key need a `data-key`
+  and a `kbd()` hint. The hints are hidden on touch screens (`@media (hover: none)`).
 - **The final boss ends the run at once**: no level-ups or rewards, straight to the victory screen.
 - **Show the numbers.** `describe(o, src)` prints the result next to the scaling ("75% MAG = 9"),
   including burn and poison per turn ("Burns 2 turns (30% MAG = 5/turn)"). Pass a source wherever a

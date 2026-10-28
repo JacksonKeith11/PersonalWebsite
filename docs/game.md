@@ -1,6 +1,6 @@
 # Roguelike Tactics (the game at /games/roguelike-tactics)
 
-Read this before changing anything in `app/static/games/` or `tools/threefold-autoplay.js`.
+Read this before changing anything in `app/static/games/threefold/` or `tools/threefold-autoplay.js`.
 
 ## What it is
 

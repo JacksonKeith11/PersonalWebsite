@@ -47,7 +47,7 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   `recipes.html`, `games.html`, and the `NAV` string in `app/books/pages.py`. Each copy marks its
   own page with `aria-current="page"`. Add or rename links in all of them.
 - **Cloudflare caches `/static`.** After changing `style.css`, bump `?v=` on every link to it: the
-  five public pages, and `STYLE` in `app/books/pages.py`. The books service worker caches `STYLE`
+  five public pages, Song Guesser's `index.html`, and `STYLE` in `app/books/pages.py`. The books service worker caches `STYLE`
   too, so changing that also needs a bump of `ASSET_VERSION` there.
 - **The serials route is registered at import time.** It's only registered if `SERIALS_PATH` was
   set when the app started. Changing `.env` needs a restart.

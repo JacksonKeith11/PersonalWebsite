@@ -65,6 +65,11 @@ def roguelike_tactics():
     return FileResponse(STATIC_DIR / "games" / "threefold" / "index.html")
 
 
+@app.get("/games/song-guesser", include_in_schema=False)
+def song_guesser():
+    return FileResponse(STATIC_DIR / "games" / "song-guesser" / "index.html")
+
+
 @app.get("/games/threefold-path", include_in_schema=False)
 def threefold_path():
     # the game's old name; keep old links working

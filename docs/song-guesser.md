@@ -10,7 +10,10 @@ of one section, rebuilt with the browser's synthesizer. Stage 1 is a single inst
 skip adds the next instrument and replays the clip, until the whole arrangement is playing; a wrong
 guess then loses. The genre and release year show from the start. Guesses come from a search box
 over every arranged song plus a few hundred more titles, so the list doesn't give the answer away.
-Stats and the last 15 songs (not repeated) are kept in `localStorage` under `song-guesser`.
+The seek slider jumps anywhere in the clip, playing or paused; Pause keeps the spot, a wrong guess
+replays the bigger mix from the same spot, and the clip running out (or the end-of-round reveal)
+starts again from 0. Stats and the last 15 songs (not repeated) are kept in `localStorage` under
+`song-guesser`.
 
 ## Code map (`app/static/games/song-guesser/`)
 

@@ -40,8 +40,44 @@
 .sg-stages li.miss span { text-decoration: line-through; text-decoration-color: #a4452c; }
 
 .sg-player { display: flex; align-items: center; gap: 14px; }
-.sg-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; }
-.sg-fill { width: 0; height: 100%; background: var(--accent); }
+/* the seek slider: a filled track up to the thumb (--pos is set from main.js) */
+.sg-seek {
+  --pos: 0%;
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.sg-seek::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, var(--accent) var(--pos), var(--rule) var(--pos));
+}
+.sg-seek::-moz-range-track { height: 8px; border-radius: 4px; background: var(--rule); }
+.sg-seek::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--accent); }
+.sg-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -5px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 3px rgba(60, 40, 15, 0.35);
+}
+.sg-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 3px rgba(60, 40, 15, 0.35);
+}
+.sg-seek:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .sg-now { min-width: 3.2em; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 
 .sg-btn {

@@ -1,6 +1,6 @@
 // Song Guesser: picks a song, plays its clip one instrument at a time, and takes guesses.
-import { SONGS, EXTRA } from './songs.js?v=2';
-import { arrange, renderPart, mix, CLIP } from './synth.js?v=2';
+import { SONGS, EXTRA } from './songs.js?v=3';
+import { arrange, renderPart, mix, CLIP } from './synth.js?v=3';
 
 const STORE = 'song-guesser';
 const WEIGHT = { indie: 4, alt: 2, other: 1 };
@@ -35,7 +35,8 @@ function search(text) {
 }
 
 // --- audio ------------------------------------------------------------------------------------
-const audio = { ctx: null, src: null, startedAt: 0, raf: 0, token: 0 };
+// pos: where in the clip playback is or will resume, in seconds; dragging: the slider is held
+const audio = { ctx: null, src: null, startedAt: 0, raf: 0, token: 0, pos: 0, dragging: false };
 
 async function context() {
   if (!audio.ctx || audio.ctx.state === 'closed') {
@@ -55,7 +56,22 @@ async function context() {
   return audio.ctx;
 }
 
-function stop() {
+const seek = $('sg-seek');
+seek.max = CLIP;
+const clock = t => `0:${String(Math.floor(t)).padStart(2, '0')}`;
+
+// Moves the slider and time to t seconds; `remember` also makes it where Play starts.
+function show(t, remember = true) {
+  t = Math.max(0, Math.min(CLIP, t));
+  if (remember) audio.pos = t;
+  if (!audio.dragging) seek.value = t;
+  seek.style.setProperty('--pos', `${(t / CLIP) * 100}%`);
+  seek.setAttribute('aria-valuetext', `${Math.floor(t)} seconds`);
+  $('sg-now').textContent = clock(t);
+}
+
+// Pauses where it is; `rewind` goes back to the start instead.
+function stop(rewind = false) {
   audio.token++; // a play() still waiting on its clip won't start
   if (audio.src) {
     audio.src.onended = null;
@@ -63,16 +79,14 @@ function stop() {
     audio.src = null;
   }
   cancelAnimationFrame(audio.raf);
-  $('sg-fill').style.width = '0';
-  $('sg-now').textContent = '';
+  if (rewind) show(0);
   $('sg-play').textContent = 'Play';
 }
 
 function tick() {
-  const t = Math.min(CLIP, audio.ctx.currentTime - audio.startedAt);
-  $('sg-fill').style.width = `${(t / CLIP) * 100}%`;
-  $('sg-now').textContent = `0:${String(Math.floor(t)).padStart(2, '0')}`;
-  if (audio.src) audio.raf = requestAnimationFrame(tick);
+  if (!audio.src) return;
+  if (!audio.dragging) show(audio.ctx.currentTime - audio.startedAt);
+  audio.raf = requestAnimationFrame(tick);
 }
 
 // --- a round ------------------------------------------------------------------------------------
@@ -87,7 +101,7 @@ function pick() {
 }
 
 function newRound() {
-  stop();
+  stop(true);
   const song = pick();
   round = { song, key: keyOf(song.title, song.artist), arr: arrange(song), stage: 0, guesses: [], over: false, won: false, parts: {}, mixes: {} };
   $('sg-genre').textContent = song.genre;
@@ -126,6 +140,7 @@ const lastStage = () => round.arr.order.length - 1;
 async function play() {
   if (audio.src) { stop(); return; }
   const r = round, token = ++audio.token;
+  const from = audio.pos >= CLIP - 0.1 ? 0 : audio.pos;
   const n = r.over ? lastStage() : r.stage;
   $('sg-play').textContent = '…';
   const ctx = await context();
@@ -134,11 +149,12 @@ async function play() {
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.connect(ctx.destination);
-  src.onended = () => { if (audio.src === src) stop(); };
+  src.onended = () => { if (audio.src === src) stop(true); };
   audio.src = src;
-  audio.startedAt = ctx.currentTime + 0.05;
-  src.start(audio.startedAt);
-  $('sg-play').textContent = 'Stop';
+  const at = ctx.currentTime + 0.05;
+  audio.startedAt = at - from;
+  src.start(at, from, CLIP + 0.6 - from);
+  $('sg-play').textContent = 'Pause';
   tick();
 }
 
@@ -206,7 +222,7 @@ function finish(won) {
   $('sg-form').hidden = true;
   closeList();
   draw();
-  stop();
+  stop(true);
   safePlay();
   next.focus();
 }
@@ -292,6 +308,17 @@ function safePlay() {
   play().catch(err => { console.error(err); stop(); $('sg-msg').textContent = 'The audio didn\'t start; try Play again.'; });
 }
 $('sg-play').addEventListener('click', safePlay);
+
+// Dragging previews the time; letting go (or a click or arrow key) jumps there, playing or not.
+seek.addEventListener('input', () => {
+  audio.dragging = true;
+  show(+seek.value, false);
+});
+seek.addEventListener('change', () => {
+  audio.dragging = false;
+  show(+seek.value);
+  if (audio.src) { stop(); safePlay(); }
+});
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
 

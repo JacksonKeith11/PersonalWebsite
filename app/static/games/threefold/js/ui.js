@@ -1,7 +1,7 @@
 // Small DOM helpers shared by the menus and the battle side panel.
-import { spriteURL } from './art.js?v=44';
-import { STATUS_HELP, STATUS_WORDS } from './data.js?v=44';
-import { describeParts } from './rules.js?v=44';
+import { spriteURL } from './art.js?v=45';
+import { STATUS_HELP, STATUS_WORDS } from './data.js?v=45';
+import { describeParts } from './rules.js?v=45';
 
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);

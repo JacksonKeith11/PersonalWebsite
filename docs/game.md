@@ -72,8 +72,8 @@ Keep it that way.
   one random pick from the rest of `start` plus `pool`. They learn only from their
   current class (`skillPool` in rules.js): `start` plus `pool` before the first promotion, then the
   latest class's `skill` plus `pool`, up to `MAX_SKILLS` = 4. Skills already known stay. Learning a fifth means forgetting one.
-- **Archetypes give builds a direction.** Nine tags in `ARCHES` (poison, elemental, shield, thorns,
-  blood, time, plus hex, carnage and fortune borrowed from other roguelikes) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
+- **Archetypes give builds a direction.** Thirteen tags in `ARCHES` (poison, elemental, shield, thorns,
+  blood, time, plus hex, carnage and fortune borrowed from other roguelikes, and bleed, summoner, momentum and frost) sit on classes (`arch`) and artifacts (`tags`). `artifactPool` weights its order by
   how much of each archetype the party has (`partyArches`), so a build snowballs without being
   forced. Every archetype needs payoff artifacts that reward stacking it (detonate poison, damage vs
   shocked, scale with shield or thorns), not just more of the same status.
@@ -160,6 +160,20 @@ Keep it that way.
   point per act, +1 for elites, +0.5 in shops) shifts weight from common to rare and legendary (act 3
   elites: 26/32/34/8). A tier with nothing left falls to the nearest one. A new artifact needs a
   rarity judged by strength, not by how interesting it is.
+- **Four newer archetypes** (the owner approved them from a proposal):
+  - Bleed (Blademaster, Samurai): `st.bleed` stacks (up to 5) hurt the unit for `bleedDmg` (2 + 10% of
+    the applier's ATK) per stack for every tile it moves, pushed or pulled included (`stepTo`); one
+    stack wears off per turn unless the applier wears Open Veins. Skills: Lacerate, Cross Cut.
+  - Summoner (Warlock, Trickster, Mesmer): summons remember `owner` (`spawn`/`summon`), which Bone
+    Whistle, Pack Leader's Horn, Soul Lantern and Grave Banner read.
+  - Momentum (Rogue, Dragoon, Ninja): `u.walked` counts tiles moved this turn (`moveUnit`; reset with
+    `moved`). Windrunner Sash, Comet Boots, Slipstream (move again after the skill), Racing Spurs.
+  - Frost (Mage, Chronomancer): `chillUnit`; 3 chill freezes (`st.frozen`, a stun bosses ignore).
+    Frost Lance and Frost Nova chill. Rime Shard, Cold Snap, Winter's Heart.
+  Plus new payoffs for the old archetypes (Plague Censer, Conductor's Rod, Magma Heart, Bastion Ring,
+  Reflecting Plate, Bramble Crown, Second Hand, Paradox Gem, Witch's Familiar, Crown of Curses,
+  Bloodhound Collar, Executioner's Axe, Lucky Coin, Jester's Hat, Fate's Thread) and common stat
+  items. Bastion Ring is the one exception to two-round shields (three for its wearer).
 - **Skill pass two:** the owner asked for more skills and for the worst to go. Removed: Throw Stone,
   Heave, Switcheroo, Pocket Sand, Garrote, Oil Flask, Bulldoze, Gust, White Square, Antidote, Break
   Legs, Sea Shanty (filler, or duplicates of better skills). Added 25 (Overhead Smash, Guard Break,
@@ -323,7 +337,8 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
     balance, not its loudness.
 - **Check class passives with `isClass(u, id)`**, never `u.promo === id`: a tier-2 hero keeps
   their tier-1 passive. Foes have `line: []`.
-- **Status vocabulary** (all on `u.st`, counted down in `endTurn` unless noted): poison, burn,
+- **Status vocabulary** (all on `u.st`, counted down in `endTurn` unless noted): bleed, chill (never
+  counts down; freezing resets it), frozen, poison, burn,
   slow, stun, blind, vuln, shock, doom (counts down at turn start), sleep (skips turns, ends when
   hit), confuse, root (no movement), disarm (no skills), weak (−30% damage), oil (fire ignites it),
   wet (lightning or frost on a wet target stuns it), focus (next damaging skill +60%), ward, guard,

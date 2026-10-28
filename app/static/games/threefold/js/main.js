@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=44';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=45';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=44';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=44';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=44';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=44';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=44';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=44';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=44';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=45';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=45';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=45';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=45';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=45';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=45';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=45';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -239,10 +239,11 @@ env.onEnd = (b, win) => {
   }
   run.stats.battles++;
   const tooth = run.party.some(p => p.items.includes('goldtooth')) ? 1.4 : 1;
+  const coin = run.party.some(p => p.items.includes('luckycoin')) ? 1.1 : 1;
   const base = b.kind === 'boss' ? rnd(90, 110) : b.kind === 'elite' ? rnd(55, 70) + b.level * 3 : rnd(20, 30) + b.level * 2;
   const fever = (run.team || []).includes('goldfever') ? 1.5 : 1;
   const bonus = b.obj ? { ...b.obj, met: objectiveMet(b) } : null;
-  showRewards({ gold: Math.round(base * tooth * fever), kind: b.kind, levels, bonus });
+  showRewards({ gold: Math.round(base * tooth * coin * fever), kind: b.kind, levels, bonus });
 };
 
 // ---------- cards ----------

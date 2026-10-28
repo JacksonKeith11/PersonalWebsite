@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=44';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=45';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -210,7 +210,8 @@ export function describeParts(o, src) {
     ['recoilDmg', 'Hurts you too'], ['sure', 'Can\'t miss'], ['stealShield', 'Steals shields'], ['spread', 'Spreads debuffs'],
     ['trap', 'Lays traps'], ['onLava', '+60% vs targets on lava'], ['delay', 'Lands next turn'], ['counter', 'Readies a counter'],
     ['hexBurst', 'Bursts hexes'], ['overkill', 'Overkill spills over'], ['reset', 'A kill resets its cooldown'], ['frenzy', 'A kill lets you move again'],
-    ['butcher', 'A kill shields you 15%'], ['alwaysCrit', 'Always crits'], ['jackpot', 'Crits pay 10 gold']];
+    ['butcher', 'A kill shields you 10%'], ['hamhook', '+40% vs bleeding foes that moved'], ['coldsnap', '×2 vs frozen'], ['conduct', 'Arcs through wet foes'],
+    ['killHaste', 'A kill hastes you'], ['execaxe', 'A kill cleaves the victim\'s neighbours'], ['slipstream', 'Move again after'], ['alwaysCrit', 'Always crits'], ['jackpot', 'Crits pay 10 gold']];
   // damage over time, with its scaling and (given a source) the number per turn
   const sName = STAT_NAMES[o.stat];
   const burn = src ? burnOf(o, src) : o.burn ? { turns: o.burn, pct: 30 } : null;
@@ -221,6 +222,8 @@ export function describeParts(o, src) {
   if (o.selfShield) fx.push(`Shields you for ${Math.round(o.selfShield * 100)}% of damage dealt`);
   if (o.drain) fx.push(`Heals you ${Math.round(o.drain * 100)}% of damage dealt`);
   if (o.hex) fx.push(`Hexes ${o.hex}`);
+  if (o.bleed) fx.push(`Bleeds ${o.bleed} (${src ? Math.round(2 + statVal(src, 'atk') * 0.1) : '2 + 10% ATK'} per tile moved, per stack)`);
+  if (o.chill) fx.push(`Chills ${o.chill} (3 freezes)`);
   if (o.critUp) fx.push(`+${o.critUp}% crit`);
   // bonuses whose size depends on the skill or artifact
   const per = (k, what) => { if (o[k]) fx.push(`+${Math.round(o[k] * 100)}% ${what}`); };

@@ -72,6 +72,9 @@ export const STATUS_HELP = {
   timeworn: 'Time-worn: already pushed back once since its last turn, so further delays do half as much (and nothing goes below a floor).',
   hasted: 'Hasted: already sped up once since its last turn, so more haste does half as much. Haste can make a unit next, never give it two turns in a row.',
   steady: 'Steady: just shook off a stun, so it can\'t be stunned again until its next turn ends.',
+  bleed: 'Bleeding: every tile it moves, pushed or not, costs it the bleed damage once per stack (up to 5). Loses a stack at the end of each of its turns.',
+  chill: 'Chilled: at 3 chill it freezes, losing its next turn (bosses just count as frozen).',
+  frozen: 'Frozen: loses its next turn. Some artifacts hit frozen targets harder.',
   hill: 'High ground: ranged skills reach 1 farther and hit 15% harder.',
 };
 // Words in skill text that name a status, mapped to its STATUS_HELP key.
@@ -79,7 +82,7 @@ export const STATUS_WORDS = {
   Stuns: 'stun', Slows: 'slow', Taunts: 'taunt', Rallies: 'rally', Blinds: 'blind', Exposes: 'vuln', Shocks: 'shock',
   Charms: 'charm', Dooms: 'doom', Wards: 'ward', Guards: 'guard', Braces: 'guard', Roots: 'root', Disarms: 'disarm',
   Weakens: 'weak', Oils: 'oil', Soaks: 'wet', Sleep: 'sleep', Confuses: 'confuse', Focus: 'focus', Burns: 'burn',
-  Poisons: 'poison', Hexes: 'hex', Stealth: 'stealth', Riposte: 'riposte', 'Readies a counter': 'riposte', 'Grows thorns': 'thorns', Imbues: 'imbue', 'Delays target': 'delay', Hastes: 'haste',
+  Poisons: 'poison', Bleeds: 'bleed', Chills: 'chill', Hexes: 'hex', Stealth: 'stealth', Riposte: 'riposte', 'Readies a counter': 'riposte', 'Grows thorns': 'thorns', Imbues: 'imbue', 'Delays target': 'delay', Hastes: 'haste',
 };
 export const THEMES = {
   wood: ['Grass', 'Forest', 'Boulder', 'Water', 'Ruined wall', 'Lava', 'Hill', 'Brambles'],
@@ -167,6 +170,10 @@ export const ARCHES = {
   hex: { name: 'Hex', color: '#e070c0' },
   carnage: { name: 'Carnage', color: '#d8d0c0' },
   fortune: { name: 'Fortune', color: '#ffd23f' },
+  bleed: { name: 'Bleed', color: '#c0303a' },
+  summon: { name: 'Summoner', color: '#9a8cff' },
+  momentum: { name: 'Momentum', color: '#5fd0c0' },
+  frost: { name: 'Frost', color: '#a8e4ff' },
 };
 
 // ---------- classes ----------
@@ -203,29 +210,29 @@ export const GROWTH = {
 export const CLASSES = {
   warrior: { name: 'Warrior', hp: 50, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, promos: ['blademaster', 'juggernaut'], arch: ['thorns', 'shield', 'carnage'],
     start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder', 'ironhide', 'bide', 'rallycry', 'revenge', 'carve', 'overhead', 'guardbreak', 'shakeitoff'] },
-  mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, promos: ['pyromancer', 'chronomancer'], arch: ['elemental', 'hex'],
+  mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, promos: ['pyromancer', 'chronomancer'], arch: ['elemental', 'hex', 'frost'],
     start: ['bolt', 'fireball', 'frost'], pool: ['chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'frostnova', 'missiles2', 'manalance'] },
-  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison', 'fortune'],
+  rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison', 'fortune', 'momentum'],
     start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'toxicbomb', 'tripup', 'luckyshot', 'jackpot', 'lowblow', 'bounceknife', 'eviscerate', 'cointoss'] },
 };
 export const PROMOS = {
   // tier 1
-  blademaster: { name: 'Blademaster', tier: 1, stats: { atk: 4, spd: 3 }, skill: 'whirldash', pool: ['thousandcuts', 'crimson', 'iaido', 'bladestorm', 'swordwave', 'perfectstrike', 'kiku', 'counterstance', 'pincer', 'reap', 'carve', 'bloodedge'], next: ['samurai', 'dragoon'], arch: ['blood', 'carnage'],
+  blademaster: { name: 'Blademaster', tier: 1, stats: { atk: 4, spd: 3 }, skill: 'whirldash', pool: ['thousandcuts', 'crimson', 'iaido', 'bladestorm', 'swordwave', 'perfectstrike', 'kiku', 'counterstance', 'pincer', 'reap', 'carve', 'bloodedge', 'lacerate'], next: ['samurai', 'dragoon'], arch: ['blood', 'carnage', 'bleed'],
     passive: 'Riposte: strikes back at anyone who hits them in melee (60% ATK).' },
   juggernaut: { name: 'Juggernaut', tier: 1, stats: { maxHp: 20, def: 3, res: 3 }, skill: 'aegis', pool: ['quake', 'shieldslam', 'fortress', 'mightyblock', 'breakarms', 'ruinshock', 'impair', 'avalanche', 'unbreakable', 'groundpound'], next: ['hoplite', 'briarknight'], arch: ['shield'],
     passive: 'Bulwark: starts every battle with a shield worth 40% of max HP, and can\'t be knocked around.' },
   pyromancer: { name: 'Pyromancer', tier: 1, stats: { mag: 4 }, skill: 'eruption', pool: ['wreath', 'combustion', 'firewall', 'oiledge', 'pyre', 'cinderstorm', 'wildfire', 'inferno', 'fireimbue', 'magmasurge', 'scorch'], next: ['stormcaller', 'warlock'], arch: ['elemental'],
     passive: 'Ember Soul: immune to lava and burning; every magic hit sets the target alight.' },
-  chronomancer: { name: 'Chronomancer', tier: 1, stats: { mag: 2, spd: 4 }, skill: 'quicken', pool: ['timestop', 'slowga', 'hasteaura', 'stop', 'graviga', 'immobilize', 'stall', 'comet', 'tailwind', 'masterstroke', 'chronobolt'], next: ['arithmetician', 'oracle'], arch: ['time'],
+  chronomancer: { name: 'Chronomancer', tier: 1, stats: { mag: 2, spd: 4 }, skill: 'quicken', pool: ['timestop', 'slowga', 'hasteaura', 'stop', 'graviga', 'immobilize', 'stall', 'comet', 'tailwind', 'masterstroke', 'chronobolt'], next: ['arithmetician', 'oracle'], arch: ['time', 'frost'],
     passive: 'Time Sense: acts early in every battle, and magic hits shove the target back in the turn order.' },
   assassin: { name: 'Assassin', tier: 1, stats: { atk: 4, crit: 10 }, skill: 'shadowstep', pool: ['deathmark', 'nightshade', 'vanish', 'cull', 'shiftstab', 'doomfist', 'toxinsalve', 'hamstring', 'shadowsnap', 'pressurepoint', 'frenzy', 'deathblossom'], next: ['ninja', 'plaguebringer'], arch: ['poison', 'carnage'],
     passive: 'Shadow: always crits targets under half HP; a kill cloaks them in stealth.' },
-  trickster: { name: 'Trickster', tier: 1, stats: { spd: 3, mov: 1 }, skill: 'smokebomb', pool: ['mug', 'misdirect', 'redspring', 'bluespring', 'greenspring', 'stealshield', 'stealtime', 'juggle', 'mimic', 'decoy', 'flaretrap', 'jackpot', 'snakeeyes', 'swipe', 'wildcard'], next: ['bard', 'mesmer'], arch: ['time', 'fortune'],
+  trickster: { name: 'Trickster', tier: 1, stats: { spd: 3, mov: 1 }, skill: 'smokebomb', pool: ['mug', 'misdirect', 'redspring', 'bluespring', 'greenspring', 'stealshield', 'stealtime', 'juggle', 'mimic', 'decoy', 'flaretrap', 'jackpot', 'snakeeyes', 'swipe', 'wildcard'], next: ['bard', 'mesmer'], arch: ['time', 'fortune', 'summon'],
     passive: 'Slippery: walks straight through enemies, and every hit pockets 3 gold.' },
   // tier 2
-  samurai: { name: 'Samurai', tier: 2, stats: { atk: 5, maxHp: 10 }, skill: 'ashura', pool: ['kiyomori', 'masamune', 'muramasa', 'murakumo', 'chirijiraden', 'bizen', 'shirahadori', 'bonecrusher', 'kotetsu', 'frenzy'], arch: ['blood', 'carnage'],
+  samurai: { name: 'Samurai', tier: 2, stats: { atk: 5, maxHp: 10 }, skill: 'ashura', pool: ['kiyomori', 'masamune', 'muramasa', 'murakumo', 'chirijiraden', 'bizen', 'shirahadori', 'bonecrusher', 'kotetsu', 'frenzy', 'crosscut'], arch: ['blood', 'carnage', 'bleed'],
     passive: 'Bushido: deals up to 60% more damage the more HP they\'re missing.' },
-  dragoon: { name: 'Dragoon', tier: 2, stats: { atk: 4, def: 2, mov: 1 }, skill: 'jump', pool: ['lancet', 'dragonbreath', 'highjump', 'impale', 'arclance', 'spiral', 'skyfall', 'dragonheart', 'reap', 'windlance'], arch: ['time', 'elemental', 'carnage'],
+  dragoon: { name: 'Dragoon', tier: 2, stats: { atk: 4, def: 2, mov: 1 }, skill: 'jump', pool: ['lancet', 'dragonbreath', 'highjump', 'impale', 'arclance', 'spiral', 'skyfall', 'dragonheart', 'reap', 'windlance'], arch: ['time', 'elemental', 'carnage', 'momentum'],
     passive: 'Skyborne: after a leap or a jump they stay airborne, out of reach, until their next turn.' },
   hoplite: { name: 'Hoplite', tier: 2, stats: { def: 4, res: 2, maxHp: 15 }, skill: 'phalanx', pool: ['spearwall', 'shieldrush', 'blockade', 'barricade', 'holdline', 'testudo', 'pikeset', 'shieldthrow', 'aegislance'], arch: ['shield'],
     passive: 'Rampart: foes must stop when they step next to them, and allies beside them take 25% less damage.' },
@@ -233,19 +240,19 @@ export const PROMOS = {
     passive: 'Thornbound: anyone who hits them in melee takes 8 + 50% DEF + 10% max HP damage, doubled while they\'re bracing or shielded.' },
   stormcaller: { name: 'Stormcaller', tier: 2, stats: { mag: 5, spd: 1 }, skill: 'thunder', pool: ['balllightning', 'tempest', 'cyclone', 'windslash', 'staticfield', 'skyfury', 'stormimbue', 'arcflash', 'downpour', 'overload'], arch: ['elemental'],
     passive: 'Static: magic hits shock (+30% magic damage taken), and hitting a shocked foe arcs half the damage to another foe nearby.' },
-  warlock: { name: 'Warlock', tier: 2, stats: { mag: 6, maxHp: -4 }, skill: 'doom', pool: ['lifetap', 'ruin', 'decay', 'wither', 'ruintouch', 'sacrifice', 'bloodmoon', 'callbats', 'raisedead', 'soulrend', 'jinx', 'witchinghour'], arch: ['blood', 'hex'],
+  warlock: { name: 'Warlock', tier: 2, stats: { mag: 6, maxHp: -4 }, skill: 'doom', pool: ['lifetap', 'ruin', 'decay', 'wither', 'ruintouch', 'sacrifice', 'bloodmoon', 'callbats', 'raisedead', 'soulrend', 'jinx', 'witchinghour'], arch: ['blood', 'hex', 'summon'],
     passive: 'Dark Pact: damaging skills cost 6% HP and hit 35% harder; every kill restores 8% max HP.' },
   arithmetician: { name: 'Arithmetician', tier: 2, stats: { mag: 4, res: 2 }, skill: 'primeholy', pool: ['evenflare', 'gridthree', 'oddquake', 'squareroot', 'fibonacci', 'halving', 'primeshield', 'probability', 'snakeeyes', 'evenodds'], arch: ['time', 'fortune'],
     passive: 'Prime Insight: always crits a target whose HP is a prime number.' },
   oracle: { name: 'Oracle', tier: 2, stats: { mag: 3, res: 4, spd: 2 }, skill: 'silence', pool: ['petrify', 'foresee', 'umbra', 'repose', 'harmony', 'trepidation', 'invigoration', 'grandprophecy', 'sanctity', 'malediction', 'witchinghour'], arch: ['time', 'shield', 'hex'],
     passive: 'Foresight: dodges 20% of attacks.' },
-  ninja: { name: 'Ninja', tier: 2, stats: { atk: 3, spd: 3, crit: 5 }, skill: 'shuriken', pool: ['shadowbind', 'utsusemi', 'smokestep', 'kunairain', 'shadowclone', 'fuma', 'katon', 'suiton', 'raiton', 'pressurepoint', 'luckyshot'], arch: ['poison', 'time', 'fortune'],
+  ninja: { name: 'Ninja', tier: 2, stats: { atk: 3, spd: 3, crit: 5 }, skill: 'shuriken', pool: ['shadowbind', 'utsusemi', 'smokestep', 'kunairain', 'shadowclone', 'fuma', 'katon', 'suiton', 'raiton', 'pressurepoint', 'luckyshot'], arch: ['poison', 'time', 'fortune', 'momentum'],
     passive: 'Dual Wield: single-target melee skills strike twice at 60%.' },
   plaguebringer: { name: 'Plaguebringer', tier: 2, stats: { atk: 3, mag: 3, maxHp: 8 }, skill: 'pandemic', pool: ['blight', 'rotdart', 'viral', 'epidemic', 'ooze', 'miasmatrap', 'fester', 'noxious', 'contagion'], arch: ['poison'],
     passive: 'Virulence: their poison stacks instead of refreshing, and a poisoned foe that dies spreads it to its neighbours.' },
   bard: { name: 'Bard', tier: 2, stats: { spd: 3, res: 3, maxHp: 8 }, skill: 'battlehymn', pool: ['lullaby', 'ballad', 'minuet', 'slowdance', 'polka', 'lastwaltz', 'virelai', 'warballad', 'requiem', 'crescendo'], arch: ['time', 'shield'],
     passive: 'Encore: their buffs and debuffs last a turn longer, and allies within 2 tiles gain a little speed whenever the Bard\'s turn starts.' },
-  mesmer: { name: 'Mesmer', tier: 2, stats: { spd: 2, mag: 4, atk: 2 }, skill: 'charm', pool: ['mindblast', 'masquerade', 'hesitation', 'delirium', 'entrance', 'mirrorimage', 'puppet', 'glamour', 'malediction', 'jinx'], arch: ['time', 'hex'],
+  mesmer: { name: 'Mesmer', tier: 2, stats: { spd: 2, mag: 4, atk: 2 }, skill: 'charm', pool: ['mindblast', 'masquerade', 'hesitation', 'delirium', 'entrance', 'mirrorimage', 'puppet', 'glamour', 'malediction', 'jinx'], arch: ['time', 'hex', 'summon'],
     passive: 'Enthrall: foes they charm stay charmed a turn longer.' },
 };
 
@@ -261,7 +268,7 @@ export const SKILLS = {
 
   bolt: { name: 'Arcane Bolt', kind: 'mag', tgt: 'foe', range: [2, 4], pow: 0.75, cd: 0, txt: 'A bolt of force.' },
   fireball: { name: 'Fireball', kind: 'mag', tgt: 'tile', range: [2, 5], aoe: 1, hits: 'all', pow: 1.15, cd: 3, lob: true, txt: 'Lobbed over walls. Burns friend and foe alike.' },
-  frost: { name: 'Frost Lance', kind: 'mag', tgt: 'foe', range: [1, 4], pow: 0.9, cd: 2, slow: 2, txt: 'The target acts at half speed for 2 turns.' },
+  frost: { name: 'Frost Lance', kind: 'mag', tgt: 'foe', range: [1, 4], pow: 0.9, cd: 2, slow: 2, chill: 1, txt: 'The target acts at half speed for 2 turns.' },
   mend: { name: 'Mend', kind: 'heal', tgt: 'ally', range: [0, 3], pow: 1.0, cd: 3, cleanse: true, lob: true, txt: 'Restores HP and cures poison and burns.' },
 
   stab: { name: 'Stab', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.0, cd: 0, txt: 'Quick dagger work.' },
@@ -511,7 +518,7 @@ export const SKILLS = {
   overhead: { name: 'Overhead Smash', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.5, stunLow: true, cd: 3, txt: 'Both hands, all your weight. Stuns a target already under half HP.' },
   guardbreak: { name: 'Guard Break', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.9, dispel: true, cd: 2, txt: 'Hits, then knocks away the target\'s shield and every boon it had.' },
   shakeitoff: { name: 'Shake It Off', kind: 'buff', tgt: 'self', range: [0, 0], purify: true, selfShieldHp: 0.15, cd: 4, txt: 'Clear every ailment and shrug on a shield.' },
-  frostnova: { name: 'Frost Nova', kind: 'mag', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 0.6, slow: 2, cd: 3, txt: 'A ring of frost bursts out from you.' },
+  frostnova: { name: 'Frost Nova', kind: 'mag', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 0.6, slow: 2, chill: 1, cd: 3, txt: 'A ring of frost bursts out from you.' },
   missiles2: { name: 'Magic Missiles', kind: 'mag', tgt: 'self', range: [0, 5], shape: 'multi', multiN: 3, pow: 0.45, lob: true, cd: 1, txt: 'Three seeking darts at random foes within 5 tiles.' },
   manalance: { name: 'Mana Lance', kind: 'mag', tgt: 'tile', shape: 'line', range: [1, 5], hits: 'foes', pow: 0.85, cd: 2, txt: 'A beam that pierces everything in a line.' },
   lowblow: { name: 'Low Blow', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.8, weak: 2, cd: 2, txt: 'Dirty, effective: the target deals 30% less damage for 2 turns.' },
@@ -533,6 +540,8 @@ export const SKILLS = {
   evenodds: { name: 'Even Odds', kind: 'buff', tgt: 'self', range: [0, 0], shape: 'math', rule: 'even', hits: 'foes', weak: 2, slow: 1, cd: 3, txt: 'Every foe with even HP is weakened and slowed.' },
   contagion: { name: 'Contagion', kind: 'phys', tgt: 'foe', range: [1, 4], pow: 0.4, poison: 3, poisonPow: 0.35, spread: true, lob: true, cd: 3, txt: 'Poisons the target, then its ailments leap to its neighbours.' },
   crescendo: { name: 'Crescendo', kind: 'buff', tgt: 'self', range: [0, 0], aoe: 3, hits: 'allies', focus: true, cd: 4, txt: 'Allies within 3 tiles: the next damaging skill hits 60% harder.' },
+  lacerate: { name: 'Lacerate', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.7, bleed: 3, cd: 2, txt: 'A long shallow cut that opens with every step the target takes.' },
+  crosscut: { name: 'Cross Cut', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 1, diag: true, hits: 'foes', pow: 0.8, bleed: 2, cd: 3, txt: 'An X of steel around you; everything it touches bleeds.' },
   e_slam: { name: 'Slam', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.0, cd: 0 },
   e_stab: { name: 'Stab', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 1.0, cd: 0 },
   e_shoot: { name: 'Shoot', kind: 'phys', tgt: 'foe', range: [2, 5], pow: 0.9, cd: 0 },
@@ -679,6 +688,14 @@ export const MODS = {
   chronoshock: { name: 'Broken Pocketwatch', tags: ['time'], note: 'Targets are shoved 20 back in the turn order', ok: dmg, apply: o => { o.ctTake = 20; } },
 
   grip: { name: 'Balanced Grip', note: '+10% power and +10% crit chance', ok: dmg, apply: o => { o.pow *= 1.1; o.critUp = (o.critUp || 0) + 10; } },
+  serrated: { name: 'Serrated Edge', tags: ['bleed'], note: 'Hits add 2 bleed: the target takes damage for every tile it moves', ok: o => dmg(o) && !o.bleed, apply: o => { o.bleed = 2; } },
+  hamhook: { name: 'Hamstring Hook', tags: ['bleed'], note: '+40% damage against bleeding foes that moved on their last turn', ok: o => dmg(o) && !o.hamhook, apply: o => { o.hamhook = true; } },
+  slipstream: { name: 'Slipstream', tags: ['momentum'], note: 'After using it, you can move again this turn', group: 'move', ok: o => o.kind !== 'summon' && !o.slipstream && !o.frenzy, apply: o => { o.slipstream = true; } },
+  rimeshard: { name: 'Rime Shard', tags: ['frost'], note: 'Hits add 1 chill; at 3 chill a foe freezes and loses its next turn', ok: o => dmg(o) && !o.chill, apply: o => { o.chill = 1; } },
+  coldsnap: { name: 'Cold Snap', tags: ['frost'], note: 'Double damage against frozen targets', ok: o => dmg(o) && !o.coldsnap, apply: o => { o.coldsnap = true; } },
+  conductor: { name: "Conductor's Rod", tags: ['elemental'], note: 'Shocks; on a wet target the shock also arcs to 2 more foes within 3 (50% damage)', ok: o => dmg(o) && !o.conduct, apply: o => { o.conduct = true; o.shock = Math.max(o.shock || 0, 1); } },
+  secondhand: { name: 'Second Hand', tags: ['time'], note: 'A kill moves your next turn a third of a turn sooner', ok: o => dmg(o) && !o.killHaste, apply: o => { o.killHaste = 35; } },
+  execaxe: { name: "Executioner's Axe", tags: ['carnage'], note: 'A kill deals 30% of this skill\'s damage to every foe next to the victim', ok: o => dmg(o) && !o.execaxe, apply: o => { o.execaxe = true; } },
   // legendary: rare and far stronger than the rest
   godforge: { name: 'Godforge Hammer', note: '+80% power', ok: powered, apply: o => { o.pow *= 1.8; } },
   twinsoul: { name: 'Twin Soul', note: 'Always fires twice, but cooldown 1 longer', group: 'echo', ok: o => o.kind !== 'summon', apply: o => { o.echo = 1; o.cd += 1; } },
@@ -789,7 +806,33 @@ export const ITEMS = {
   wraps: { name: "Runner's Wraps", stats: { spd: 2, maxHp: 5 }, txt: '+2 SPD, +5 max HP' },
   huntcharm: { name: "Hunter's Charm", tags: ['fortune'], stats: { atk: 2, crit: 5 }, txt: '+2 ATK, +5 CRIT' },
   wardstone: { name: 'Ward Stone', stats: { def: 2, res: 2 }, txt: '+2 DEF, +2 RES' },
+  greaves: { name: 'Steel Greaves', stats: { def: 2, spd: 1 }, txt: '+2 DEF, +1 SPD' },
+  tome: { name: "Scholar's Tome", stats: { mag: 3, def: -1 }, txt: '+3 MAG, −1 DEF' },
+  brawlwraps: { name: "Brawler's Wraps", stats: { atk: 3, res: -1 }, txt: '+3 ATK, −1 RES' },
+  luckycoin: { name: 'Lucky Coin', tags: ['fortune'], stats: { crit: 8 }, txt: '+8 CRIT, and the party finds 10% more gold' },
+  racingspurs: { name: 'Racing Spurs', tags: ['momentum'], stats: { mov: 1, spd: 1 }, txt: '+1 MOV, +1 SPD' },
+  // new archetypes and their payoffs
+  openveins: { name: 'Open Veins', tags: ['bleed'], unique: true, txt: 'Bleed you apply never wears off.' },
+  windsash: { name: 'Windrunner Sash', tags: ['momentum'], unique: true, txt: '+8% damage for every tile you moved this turn.' },
+  bonewhistle: { name: 'Bone Whistle', tags: ['summon'], unique: true, txt: 'Your summons have 50% more HP.' },
+  packhorn: { name: "Pack Leader's Horn", tags: ['summon'], unique: true, txt: 'Your summons deal 40% more damage.' },
+  soullantern: { name: 'Soul Lantern', tags: ['summon', 'shield'], unique: true, txt: 'When one of your summons dies, you gain a shield worth 15% of your max HP.' },
+  censer: { name: 'Plague Censer', tags: ['poison'], unique: true, txt: 'Poisoned foes deal 20% less damage.' },
+  magmaheart: { name: 'Magma Heart', tags: ['elemental'], unique: true, txt: 'Immune to lava and burning; standing on lava heals 5% of max HP when your turn starts.' },
+  bastion: { name: 'Bastion Ring', tags: ['shield'], unique: true, txt: 'Shields you gain last a round longer.' },
+  reflplate: { name: 'Reflecting Plate', tags: ['shield', 'thorns'], unique: true, txt: 'A hit your shield fully absorbs sends 30% of it back at the attacker.' },
+  familiar: { name: "Witch's Familiar", tags: ['hex'], unique: true, txt: 'When your turn starts, a random foe gains a hex.' },
+  bloodhound: { name: 'Bloodhound Collar', tags: ['carnage'], unique: true, txt: '+1 MOV on turns when any foe is under half HP.' },
+  jesterhat: { name: "Jester's Hat", tags: ['fortune'], unique: true, txt: 'Every crit you land takes 1 turn off all your cooldowns.' },
   // legendary
+  crimsontide: { name: 'Crimson Tide', tags: ['bleed'], unique: true, txt: 'When a foe you made bleed dies, its bleed doubles and spreads to every foe within 2 tiles.' },
+  gravebanner: { name: 'Grave Banner', tags: ['summon'], unique: true, txt: 'On your first turn of every battle, two skeletons rise to fight for you.' },
+  cometboots: { name: 'Comet Boots', tags: ['momentum'], unique: true, txt: 'Ending a move of 4+ tiles next to a foe slams it for 50% ATK and knocks it back.' },
+  winterheart: { name: "Winter's Heart", tags: ['frost'], unique: true, txt: 'Frozen foes take 50% more damage from everyone, and a foe you freeze chills its neighbours.' },
+  bramblecrown: { name: 'Bramble Crown', tags: ['thorns'], unique: true, txt: 'Whenever a foe hits you, from any range, your thorns also hit every foe next to you.' },
+  paradox: { name: 'Paradox Gem', tags: ['time'], unique: true, txt: 'Once per battle, the first blow that would knock you out instead rewinds your HP to what it was when your last turn started.' },
+  cursecrown: { name: 'Crown of Curses', tags: ['hex'], unique: true, txt: 'Bursting a foe\'s hexes bursts every hexed foe on the board.' },
+  fate: { name: "Fate's Thread", tags: ['fortune'], unique: true, txt: 'Once per battle, a hit that would knock you out misses instead, and your next attack is sure to crit.' },
   sunblade: { name: 'Sunforged Blade', unique: true, stats: { atk: 6, mag: 6, crit: 10 }, txt: '+6 ATK, +6 MAG and +10 CRIT.' },
   mountain: { name: 'Heart of the Mountain', tags: ['shield'], unique: true, stats: { maxHp: 30, def: 3, res: 3 }, txt: '+30 max HP, +3 DEF and +3 RES.' },
   worldstone: { name: 'Worldstone', unique: true, txt: '+15% damage; area skills grow 1 tile in radius and ranged skills reach 1 tile farther.' },
@@ -851,11 +894,11 @@ export const RARITY = {
   l: { name: 'Legendary', price: 140, w: 2, luck: 2.5 },
 };
 const RARE_IDS = {
-  c: 'honed reach frostbite venomous kindling copper keen arcing barbed hexing taunting gamble shove pointblank grip ' +
-    'band ring shield cloak heart lensmaker ironbark gauntlet wand jerkin wraps huntcharm wardstone',
-  r: 'ironclad ricochet splash wild barrage aegisconv vampiric bloodprice echoing timedebt burstgland flashpowder prism towercrest bulwark missiles starfall pressure reaper ace markdeath ' +
-    'monocle crown spite lavawalkers clockwork mirror blink frostlocket goldtooth fang scope stormcrown tricore idol chalice laststand stopwatch bladegrasp evileye hexlantern wisp trophy spurs clover loadeddice midas',
-  l: 'godforge twinsoul chronoshard starcore phoenix echo bloodpact phylactery hourglass belt sunblade mountain worldstone hydrafang philstone scythe timecrown dawnaegis',
+  c: 'honed reach frostbite venomous kindling copper keen arcing barbed hexing taunting gamble shove pointblank grip serrated rimeshard ' +
+    'band ring shield cloak heart lensmaker ironbark gauntlet wand jerkin wraps huntcharm wardstone greaves tome brawlwraps luckycoin',
+  r: 'ironclad ricochet splash wild barrage aegisconv vampiric bloodprice echoing timedebt burstgland flashpowder prism towercrest bulwark missiles starfall pressure reaper ace markdeath slipstream coldsnap execaxe ' +
+    'monocle crown spite lavawalkers clockwork mirror blink frostlocket goldtooth fang scope stormcrown tricore idol chalice laststand stopwatch bladegrasp evileye hexlantern wisp trophy spurs clover loadeddice midas openveins soullantern censer magmaheart reflplate jesterhat',
+  l: 'godforge twinsoul chronoshard starcore phoenix echo bloodpact phylactery hourglass belt sunblade mountain worldstone hydrafang philstone scythe timecrown dawnaegis crimsontide gravebanner cometboots winterheart bramblecrown paradox cursecrown fate',
 };
 // everything not listed is uncommon
 for (const a of [...Object.values(MODS), ...Object.values(ITEMS)]) a.rar = 'u';

@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=48';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=48';
-import { spriteURL } from './art.js?v=48';
-import { TP, drawBoard } from './tiles.js?v=48';
-import { sfx } from './audio.js?v=48';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=48';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=49';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=49';
+import { spriteURL } from './art.js?v=49';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight } from './tiles.js?v=49';
+import { sfx } from './audio.js?v=49';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=49';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -455,6 +455,8 @@ function hitSide(a, t) {
   return fwd > across ? 'front' : -fwd > across ? 'back' : 'side';
 }
 const FACING_MULT = { front: 1, side: 1.1, back: 1.3 };
+// Sprites are drawn facing right; on the isometric board +y runs down-left and -x up-left.
+const faceFlip = f => (env.iso ? f[0] - f[1] < 0 : f[0] < 0);
 // Turn toward a tile (the longer axis wins; a tie keeps left or right).
 function turnTo(u, x, y) {
   const dx = x - u.x, dy = y - u.y;
@@ -463,7 +465,7 @@ function turnTo(u, x, y) {
 }
 function setFace(u, f, manual = false) {
   u.face = f; u.faced = manual;
-  if (u.view && f[0]) u.view.list[1].flipX = f[0] < 0;
+  if (u.view && (f[0] || env.iso)) u.view.list[1].flipX = faceFlip(f);
   refreshView(u);
 }
 // At the end of a turn a unit turns to show its back to as little danger as it can: each foe
@@ -2028,24 +2030,68 @@ function counter(ms, fn) {
 const randomPick = o => o.shape === 'random' || o.shape === 'multi';
 const buffWord = (o, t) => o.sleep ? 'SLEEP' : o.confuse ? 'CONFUSE' : o.root ? 'ROOT' : o.disarm ? 'DISARM' : o.weak ? 'WEAKEN' : o.dispel ? 'DISPEL' : o.purify ? 'PURIFY' : o.focus ? 'FOCUS' : o.imbue ? 'IMBUE' : o.push ? 'PUSH' : o.charm ? (t.boss ? 'IMMUNE' : 'CHARM') : o.doom ? 'DOOM' : o.cdLock ? 'SILENCE' : o.ward ? 'WARD' : o.taunt ? 'TAUNT' : o.blind ? 'BLIND' : o.vuln ? 'MARK' : o.rally ? 'RALLY' : o.ctGive ? 'HASTE' : o.slow ? 'SLOW' : 'OK';
 const viewAlpha = u => u.st.stealth || u.st.airborne ? 0.45 : u.spr === 'ghost' ? 0.8 : 1;
+// ---------- board projection ----------
+// Flat top-down, or isometric with env.iso (?iso; the stage 1 prototype of a Tactics Ogre-style
+// view). Rules never see this: only where things are drawn and which tile a tap lands on.
+const isoLift = (x, y) => (B && inb(x, y) ? isoHeight(B.grid[y][x]) * ISO.LIFT : 0);
+// The screen point of grid corner (gx, gy), which may be fractional, raised by `lift` pixels.
+const isoPt = (gx, gy, lift = 0) => ({ x: ISO.OX + (gx - gy) * ISO.HW, y: ISO.OY + (gx + gy) * ISO.HH - lift });
+// The middle of a tile on screen, where effects, numbers and projectiles aim (a unit's body in iso).
+function mid(x, y) {
+  if (!env.iso) return { x: x * TS + TS / 2, y: y * TS + TS / 2 };
+  const p = isoPt(x + 0.5, y + 0.5, isoLift(x, y));
+  return { x: p.x, y: p.y - 14 };
+}
+// A tile's top face as four corners: top-left, top-right, bottom-right, bottom-left in grid terms.
+function quad(x, y) {
+  if (!env.iso) { const X = x * TS, Y = y * TS; return [{ x: X, y: Y }, { x: X + TS, y: Y }, { x: X + TS, y: Y + TS }, { x: X, y: Y + TS }]; }
+  const l = isoLift(x, y);
+  return [isoPt(x, y, l), isoPt(x + 1, y, l), isoPt(x + 1, y + 1, l), isoPt(x, y + 1, l)];
+}
+// Where a unit's container sits at grid position (gx, gy) raised by `lift`, and its draw depth
+// (nearer the viewer draws on top).
+function viewAt(gx, gy, lift) {
+  if (!env.iso) return { x: gx * TS, y: gy * TS, d: 10 + gy * 10 };
+  const p = isoPt(gx + 0.5, gy + 0.5, lift);
+  return { x: p.x - TS / 2, y: p.y - TS + 6, d: 10 + (gx + gy) * 10 };
+}
+// A unit's middle on screen from where its view is right now (it may be mid-tween).
+const viewMid = u => ({ x: u.view.x + TS / 2, y: u.view.y + (env.iso ? TS - 20 : TS / 2) });
+// Which tile a screen point is on: front-most first in iso, and a tap on a unit's body picks its tile.
+function cellAt(wx, wy) {
+  if (!env.iso) { const x = Math.floor(wx / TS), y = Math.floor(wy / TS); return inb(x, y) ? { x, y } : null; }
+  for (const u of alive().filter(u => u.view && u.view.visible).sort((a, b) => b.x + b.y - (a.x + a.y))) {
+    if (wx >= u.view.x + 14 && wx <= u.view.x + TS - 14 && wy >= u.view.y + 8 && wy <= u.view.y + TS - 4) return { x: u.x, y: u.y };
+  }
+  for (let s = GW + GH - 2; s >= 0; s--) for (let x = Math.min(GW - 1, s); x >= 0 && s - x < GH; x--) {
+    const y = s - x, top = isoPt(x, y, isoLift(x, y));
+    if (Math.abs(wx - top.x) / ISO.HW + Math.abs(wy - top.y - ISO.HH) / ISO.HH <= 1) return { x, y };
+  }
+  return null;
+}
 function placeView(u) {
   if (!u.view) return;
-  u.view.setPosition(u.x * TS, u.y * TS);
-  u.view.setDepth(10 + u.y * 10);
+  const v = viewAt(u.x, u.y, isoLift(u.x, u.y));
+  u.view.setPosition(v.x, v.y);
+  u.view.setDepth(v.d);
+  u.view.at = { x: u.x, y: u.y, l: isoLift(u.x, u.y) };
 }
 async function tweenView(u, ms, hop) {
   if (!u.view) return;
-  const sx = u.view.x, sy = u.view.y, ex = u.x * TS, ey = u.y * TS;
+  const s = u.view.at || { x: u.x, y: u.y, l: 0 }, e = { x: u.x, y: u.y, l: isoLift(u.x, u.y) };
   await counter(ms, p => {
-    u.view.x = sx + (ex - sx) * p;
-    u.view.y = sy + (ey - sy) * p - (hop ? Math.sin(p * Math.PI) * 30 : 0);
-    u.view.setDepth(10 + (u.view.y / TS) * 10);
+    const v = viewAt(s.x + (e.x - s.x) * p, s.y + (e.y - s.y) * p, s.l + (e.l - s.l) * p);
+    u.view.x = v.x;
+    u.view.y = v.y - (hop ? Math.sin(p * Math.PI) * 30 : 0);
+    u.view.setDepth(v.d);
   });
   placeView(u);
 }
 async function lunge(u, x, y) {
-  const dx = Math.sign(x - u.x) * TS * 0.35, dy = Math.sign(y - u.y) * TS * 0.35;
-  await counter(180, p => { const k = p < 0.5 ? p * 2 : (1 - p) * 2; u.view.x = u.x * TS + dx * k; u.view.y = u.y * TS + dy * k; });
+  const a = mid(u.x, u.y), b = mid(x, y), n = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const dx = (env.iso ? (b.x - a.x) / n : Math.sign(x - u.x)) * TS * 0.35, dy = (env.iso ? (b.y - a.y) / n : Math.sign(y - u.y)) * TS * 0.35;
+  const v = viewAt(u.x, u.y, isoLift(u.x, u.y));
+  await counter(180, p => { const k = p < 0.5 ? p * 2 : (1 - p) * 2; u.view.x = v.x + dx * k; u.view.y = v.y + dy * k; });
   placeView(u);
 }
 async function pulse(u) {
@@ -2055,9 +2101,10 @@ async function pulse(u) {
   sp.setScale(s0);
 }
 function projectile(u, x, y, color, arc) {
-  const img = scene.add.image(u.x * TS + TS / 2, u.y * TS + TS / 2, 'px').setScale(3).setTint(color).setDepth(900);
+  const a = mid(u.x, u.y), b = mid(x, y);
+  const img = scene.add.image(a.x, a.y, 'px').setScale(3).setTint(color).setDepth(900);
   const trail = scene.add.particles(0, 0, 'px', { follow: img, lifespan: 220, scale: { start: 1.2, end: 0 }, tint: color, frequency: 20, alpha: { start: 0.8, end: 0 } }).setDepth(899);
-  const sx = img.x, sy = img.y, ex = x * TS + TS / 2, ey = y * TS + TS / 2;
+  const sx = img.x, sy = img.y, ex = b.x, ey = b.y;
   const d = Math.abs(u.x - x) + Math.abs(u.y - y);
   return counter(60 * d + 90, p => {
     img.x = sx + (ex - sx) * p;
@@ -2067,7 +2114,7 @@ function projectile(u, x, y, color, arc) {
 function areaFlash(tiles, color) {
   const g = scene.add.graphics().setDepth(6);
   g.fillStyle(color, 0.55);
-  for (const [x, y] of tiles) g.fillRect(x * TS, y * TS, TS, TS);
+  for (const [x, y] of tiles) g.fillPoints(quad(x, y), true);
   scene.tweens.add({ targets: g, alpha: 0, duration: 420 * env.speed + 1, onComplete: () => g.destroy() });
 }
 function flash(t) {
@@ -2078,7 +2125,7 @@ function flash(t) {
 }
 function fxText(t, text, color, small) {
   if (!scene || !t.view && t.x == null) return;
-  const x = t.x * TS + TS / 2, y = t.y * TS + 10;
+  const m = mid(t.x, t.y), x = m.x, y = m.y - (env.iso ? 26 : 22);
   const txt = scene.add.text(x, y, text, { fontFamily: '"Press Start 2P", monospace', fontSize: small || text.length > 7 ? '12px' : '18px', color, stroke: '#000', strokeThickness: 5 })
     .setOrigin(0.5).setDepth(1000);
   scene.tweens.add({ targets: txt, y: y - 30, alpha: { from: 1, to: 0 }, ease: 'Cubic.easeIn', duration: 1000 * Math.max(env.speed, 0.05), onComplete: () => txt.destroy() });
@@ -2094,7 +2141,8 @@ const BURSTS = {
 };
 function burst(kind, at, n) {
   if (!scene || !scene.bursts || env.speed < 0.05) return;
-  scene.bursts[kind].explode(n, at.x * TS + TS / 2, at.y * TS + TS / 2);
+  const m = mid(at.x, at.y);
+  scene.bursts[kind].explode(n, m.x, m.y);
 }
 function banner(text, size = 28) {
   const t = scene.add.text(GW * TS / 2, GH * TS / 2, text, { fontFamily: '"Press Start 2P", monospace', fontSize: size + 'px', align: 'center', wordWrap: { width: GW * TS - 40 }, color: '#f2c94c', stroke: '#000', strokeThickness: 8 })
@@ -2104,14 +2152,17 @@ function banner(text, size = 28) {
 
 function redrawBoard() {
   if (!B || !B.board) return;
-  drawBoard(B.board.context, B.theme, B.grid, B.vari, B.frame);
+  if (env.iso) {
+    drawBoard(B.flat.getContext('2d'), B.theme, B.grid, B.vari, B.frame, true);
+    drawIsoBoard(B.board.context, B.flat, B.theme, B.grid);
+  } else drawBoard(B.board.context, B.theme, B.grid, B.vari, B.frame);
   B.board.refresh();
 }
 function makeView(u) {
-  const c = scene.add.container(u.x * TS, u.y * TS);
+  const c = scene.add.container(0, 0);
   const shadow = scene.add.ellipse(TS / 2, TS - 6, 34 * Math.min(u.scale || 1, 1.4), 10, 0x0a0614, 0.32);
   const sp = scene.add.image(TS / 2, TS - 2, 's_' + u.spr).setOrigin(0.5, 1).setScale(S * (u.scale || 1));
-  sp.flipX = u.face ? u.face[0] < 0 : u.side === 'foe';
+  sp.flipX = u.face ? faceFlip(u.face) : u.side === 'foe';
   const g = scene.add.graphics();
   c.add([shadow, sp, g]);
   u.view = c;
@@ -2132,8 +2183,12 @@ function refreshView(u) {
   g.fillStyle(u.side === 'hero' ? 0x74d65e : 0xe5574f); g.fillRect(bx, by, Math.round(bw * u.hp / total), 4);
   if (u.shield > 0) { g.fillStyle(0x9fd8ff); g.fillRect(bx + Math.round(bw * u.hp / total), by, Math.round(bw * u.shield / total), 4); }
   if (u.face) { // a small arrow at the tile's edge: the way the unit faces (its back is the other way)
-    const [fx, fy] = u.face, cx = fx ? (fx > 0 ? TS - 8 : 8) : TS / 2, cy = fy ? (fy > 0 ? TS - 19 : 8) : TS / 2 + 6;
-    const tri = (r, col) => g.fillStyle(col).fillTriangle(cx + fx * r, cy + fy * r, cx - fx * r * 0.6 + fy * r, cy - fy * r * 0.6 + fx * r, cx - fx * r * 0.6 - fy * r, cy - fy * r * 0.6 - fx * r);
+    let [fx, fy] = u.face, cx = fx ? (fx > 0 ? TS - 8 : 8) : TS / 2, cy = fy ? (fy > 0 ? TS - 19 : 8) : TS / 2 + 6;
+    if (env.iso) { // on the ground in front of its feet, along the board's diagonals
+      const vx = (u.face[0] - u.face[1]) * ISO.HW, vy = (u.face[0] + u.face[1]) * ISO.HH, n = Math.hypot(vx, vy);
+      fx = vx / n; fy = vy / n; cx = TS / 2 + fx * 22; cy = TS - 6 + fy * 22;
+    }
+    const tri = (r, col) => g.fillStyle(col).fillTriangle(cx + fx * r, cy + fy * r, cx - fx * r * 0.6 - fy * r, cy - fy * r * 0.6 + fx * r, cx - fx * r * 0.6 + fy * r, cy - fy * r * 0.6 - fx * r);
     tri(7, 0x120b18); tri(4.5, u.side === 'hero' ? 0x9ad8d0 : 0xff9080);
   }
   const pips = [];
@@ -2164,13 +2219,21 @@ export class BattleScene extends Phaser.Scene {
     const b = B;
     // the whole board is one canvas, repainted when terrain changes and on each animation tick
     if (this.textures.exists('board')) this.textures.remove('board');
-    b.board = this.textures.createCanvas('board', GW * TP, GH * TP);
-    this.add.image(0, 0, 'board').setOrigin(0).setScale(S);
+    if (env.iso) { // the flat board is composed off-screen, then laid out as diamonds at full size
+      b.flat = document.createElement('canvas'); b.flat.width = GW * TP; b.flat.height = GH * TP;
+      b.board = this.textures.createCanvas('board', GW * TS, GH * TS);
+      this.add.image(0, 0, 'board').setOrigin(0);
+    } else {
+      b.board = this.textures.createCanvas('board', GW * TP, GH * TP);
+      this.add.image(0, 0, 'board').setOrigin(0).setScale(S);
+    }
     redrawBoard();
-    const grid = this.add.graphics().setDepth(1);
-    grid.fillStyle(0x000000, 0.1);
-    for (let x = 1; x < GW; x++) grid.fillRect(x * TS - 1, 0, 2, GH * TS);
-    for (let y = 1; y < GH; y++) grid.fillRect(0, y * TS - 1, GW * TS, 2);
+    if (!env.iso) {
+      const grid = this.add.graphics().setDepth(1);
+      grid.fillStyle(0x000000, 0.1);
+      for (let x = 1; x < GW; x++) grid.fillRect(x * TS - 1, 0, 2, GH * TS);
+      for (let y = 1; y < GH; y++) grid.fillRect(0, y * TS - 1, GW * TS, 2);
+    }
     this.ov = this.add.graphics().setDepth(5);
     this.marks = Array.from({ length: 24 }, () => this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '16px', color: '#fff', stroke: '#000', strokeThickness: 5 })
       .setOrigin(0.5).setDepth(950).setVisible(false));
@@ -2182,7 +2245,7 @@ export class BattleScene extends Phaser.Scene {
       b.frame++;
       redrawBoard();
     } });
-    const cell = p => { const x = Math.floor(p.worldX / TS), y = Math.floor(p.worldY / TS); return inb(x, y) ? { x, y } : null; };
+    const cell = p => cellAt(p.worldX, p.worldY);
     this.input.on('pointermove', p => { if (B && !p.wasTouch) B.hover = cell(p); });
     this.input.on('gameout', () => { if (B) B.hover = null; });
     // a drag isn't a tap; a long press only inspects, so it can never move or attack by accident
@@ -2213,12 +2276,26 @@ export class BattleScene extends Phaser.Scene {
     this.marks.forEach(m => m.setVisible(false));
     if (!b) return;
     const fill = (x, y, col, a) => { g.fillStyle(col, a); g.fillRect(x * TS, y * TS, TS, TS); };
-    const line = (x, y, col, a, w) => { g.lineStyle(w, col, a); g.strokeRect(x * TS + w / 2, y * TS + w / 2, TS - w, TS - w); };
+    const line = (x, y, col, a, w) => {
+      g.lineStyle(w, col, a);
+      if (env.iso) g.strokePoints(quad(x, y), true, true); else g.strokeRect(x * TS + w / 2, y * TS + w / 2, TS - w, TS - w);
+    };
     // A set of tiles drawn as one soft region: each tile filled, but only the region's outer edge
     // outlined, so neighbouring tiles don't double their borders.
     const region = (tiles, col, a, edge, ea, w = 2) => {
       if (!tiles.length) return;
       const set = new Set(tiles.map(([x, y]) => key(x, y)));
+      if (env.iso) { // diamonds, outlined along the region's outer edges
+        g.fillStyle(col, a);
+        for (const [x, y] of tiles) g.fillPoints(quad(x, y), true);
+        if (!ea) return;
+        g.lineStyle(w, edge, ea);
+        for (const [x, y] of tiles) {
+          const [tl, tr, br, bl] = quad(x, y);
+          for (const [nx, ny, p, q] of [[x, y - 1, tl, tr], [x, y + 1, bl, br], [x - 1, y, tl, bl], [x + 1, y, tr, br]]) if (!set.has(key(nx, ny))) g.lineBetween(p.x, p.y, q.x, q.y);
+        }
+        return;
+      }
       g.fillStyle(col, a);
       for (const [x, y] of tiles) g.fillRect(x * TS, y * TS, TS, TS);
       if (!ea) return;
@@ -2262,7 +2339,8 @@ export class BattleScene extends Phaser.Scene {
     if (b.traps) for (const [k, tr] of b.traps) {
       const [x, y] = k.split(',').map(Number);
       g.lineStyle(3, tr.side === 'hero' ? 0xffd23f : 0xff4646, 0.8);
-      g.strokeCircle(x * TS + TS / 2, y * TS + TS / 2, 10);
+      const m = mid(x, y);
+      if (env.iso) g.strokeEllipse(m.x, m.y + 14, 26, 13); else g.strokeCircle(m.x, m.y, 10);
     }
     for (const c of b.units) if (c.pending && !c.dead) {
       const po = skStats(c, c.pending.s);
@@ -2285,12 +2363,12 @@ export class BattleScene extends Phaser.Scene {
       if (!c.intent || !canPlan(c) || !c.view) continue;
       const I = intentView(c), focus = insp === c, help = I.o.kind === 'heal' || I.o.kind === 'shield' || I.o.kind === 'summon' || I.o.hits === 'allies' || I.o.tgt === 'ally';
       region(I.area, help ? 0x8a5ad6 : 0xd03a3a, focus ? 0.32 : 0.2, help ? 0xc8a8f4 : 0xff9080, focus ? 0.95 : 0.65);
-      const cx = X => X * TS + TS / 2, sx = c.view.x + TS / 2, sy = c.view.y + TS / 2;
+      const { x: sx, y: sy } = viewMid(c), stand = mid(c.intent.dx, c.intent.dy), aim = mid(I.tx, I.ty);
       g.lineStyle(focus ? 4 : 3, help ? 0xc8a8f4 : 0xff7060, focus ? 0.95 : 0.6);
       g.beginPath(); g.moveTo(sx, sy);
-      if (c.intent.dx !== c.x || c.intent.dy !== c.y) g.lineTo(cx(c.intent.dx), cx(c.intent.dy));
-      g.lineTo(cx(I.tx), cx(I.ty)); g.strokePath();
-      if (c.intent.dx !== c.x || c.intent.dy !== c.y) { g.fillStyle(help ? 0xc8a8f4 : 0xff7060, 0.85); g.fillCircle(cx(c.intent.dx), cx(c.intent.dy), 5); }
+      if (c.intent.dx !== c.x || c.intent.dy !== c.y) g.lineTo(stand.x, stand.y);
+      g.lineTo(aim.x, aim.y); g.strokePath();
+      if (c.intent.dx !== c.x || c.intent.dy !== c.y) { g.fillStyle(help ? 0xc8a8f4 : 0xff7060, 0.85); g.fillCircle(stand.x, stand.y, 5); }
       // a red tab over the foe's head: it has something coming
       g.fillStyle(0x120b18); g.fillRect(c.view.x + TS - 16, c.view.y + 2, 14, 14);
       g.fillStyle(help ? 0xa87ae0 : 0xe5463c); g.fillRect(c.view.x + TS - 14, c.view.y + 4, 10, 10);
@@ -2306,10 +2384,12 @@ export class BattleScene extends Phaser.Scene {
     if (b.hover && mine) line(b.hover.x, b.hover.y, 0xffffff, 0.5, 2);
     if (u && !u.dead && !b.over && u.view) {
       const pl = Math.floor(time / 250) % 2 ? 4 : 2, L = 14, px = u.view.x, py = u.view.y;
+      if (env.iso) { g.lineStyle(pl, 0xffe14d, 1); g.strokePoints(quad(u.x, u.y), true, true); } else {
       g.fillStyle(0xffe14d, 1);
       for (const [cx, cy, sx, sy] of [[px, py, 1, 1], [px + TS, py, -1, 1], [px, py + TS, 1, -1], [px + TS, py + TS, -1, -1]]) {
         g.fillRect(cx - (sx < 0 ? L : 0), cy - (sy < 0 ? pl : 0), L, pl);
         g.fillRect(cx - (sx < 0 ? pl : 0), cy - (sy < 0 ? L : 0), pl, L);
+      }
       }
     }
     let mi = 0;

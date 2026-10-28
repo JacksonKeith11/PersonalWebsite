@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=48';
+import { T, GW, GH } from './data.js?v=49';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -388,7 +388,7 @@ function patchMask(vari) {
 const hex3 = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 
 // Paint the whole board: each tile's art, then the touches that depend on neighbours.
-export function drawBoard(ctx, theme, grid, vari, frame) {
+export function drawBoard(ctx, theme, grid, vari, frame, iso = false) {
   const P = THEME_ART[theme];
   const at = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? null : grid[y][x]);
   ctx.clearRect(0, 0, GW * TP, GH * TP);
@@ -427,7 +427,7 @@ export function drawBoard(ctx, theme, grid, vari, frame) {
         if (dx === 1) ctx.fillRect(X + 31, Y, 1, 32); else if (dx === -1) ctx.fillRect(X, Y, 1, 32); else ctx.fillRect(X, Y + 31, 32, 1);
       }
     }
-    const lv = level(t);
+    const lv = iso ? 0 : level(t); // the isometric board draws real faces instead
     if (lv > 0) { // a plateau: lit rim where it starts, a cliff face wherever the ground is lower
       const ledge = 'rgba(255,248,220,0.35)', lower = n => n == null || level(n) < lv;
       if (lower(at(x, y - 1))) px(ctx, ledge, X, Y, 32, 1);
@@ -441,12 +441,43 @@ export function drawBoard(ctx, theme, grid, vari, frame) {
         if (P.g) for (let i = 0; i < 32; i += 3) px(ctx, P.g[2], X + i, top, 2, 1 + (i % 2));
       }
     }
-    if (t === T.WALL && at(x, y + 1) != null && at(x, y + 1) !== T.WALL && !isHole(at(x, y + 1))) { ctx.fillStyle = 'rgba(10,6,20,0.32)'; ctx.fillRect(X, Y + 32, 32, 6); }
+    if (!iso && t === T.WALL && at(x, y + 1) != null && at(x, y + 1) !== T.WALL && !isHole(at(x, y + 1))) { ctx.fillStyle = 'rgba(10,6,20,0.32)'; ctx.fillRect(X, Y + 32, 32, 6); }
     if (t === T.LAVA) for (const [dx, dy] of DIR4) {
       const n = at(x + dx, y + dy);
       if (n == null || n === T.LAVA) continue;
       ctx.fillStyle = 'rgba(255,120,40,0.22)';
       ctx.fillRect(X + (dx === 1 ? 32 : dx === -1 ? -3 : 0), Y + (dy === 1 ? 32 : dy === -1 ? -3 : 0), dx ? 3 : 32, dy ? 3 : 32);
     }
+  }
+}
+
+// ---------- the isometric board (prototype, ?iso) ----------
+// Each tile's square from the composed flat board is mapped onto a 64×32 diamond, raised by its
+// height, with side faces down to the tile in front (or the board's base). Tiles go back to front.
+export const ISO = { HW: 32, HH: 16, LIFT: 12, OX: GH * 32 + 32, OY: 112, BASE: 10 };
+// How high a tile is drawn, in levels: hills and summits as in play, walls as blocks, water sunk.
+export const isoHeight = t => (t === T.PEAK ? 2 : t === T.HILL ? 1 : t === T.WALL ? 1.5 : t === T.WATER ? -0.3 : t === T.LAVA ? -0.15 : 0);
+export function drawIsoBoard(ctx, flat, theme, grid) {
+  const P = THEME_ART[theme], { HW, HH, LIFT, OX, OY, BASE } = ISO;
+  const ht = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? null : isoHeight(grid[y][x]) * LIFT);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = P.backdrop || '#100b17'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.imageSmoothingEnabled = false;
+  const poly = (col, pts) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill(); };
+  const order = [];
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) order.push([x, y]);
+  order.sort((a, b) => a[0] + a[1] - b[0] - b[1]);
+  for (const [x, y] of order) {
+    const h = ht(x, y), t = grid[y][x], tx = OX + (x - y) * HW, ty = OY + (x + y) * HH - h;
+    const front = (nx, ny) => h - (ht(nx, ny) == null ? -BASE : Math.min(h, ht(nx, ny)));
+    const fl = front(x, y + 1), fr = front(x + 1, y);
+    const [cl, cr, rim] = t === T.WALL ? [P.wall[1], P.wall[0], P.wall[2]] : [P.cliff[1], P.cliff[0], P.cliff[0]];
+    const L = [tx - HW, ty + HH], Bt = [tx, ty + 2 * HH], R = [tx + HW, ty + HH];
+    if (fl > 0) { poly(cl, [L, Bt, [Bt[0], Bt[1] + fl], [L[0], L[1] + fl]]); poly(rim, [L, Bt, [Bt[0], Bt[1] + 1], [L[0], L[1] + 1]]); }
+    if (fr > 0) poly(cr, [Bt, R, [R[0], R[1] + fr], [Bt[0], Bt[1] + fr]]);
+    ctx.save();
+    ctx.setTransform(HW / TP, HH / TP, -HW / TP, HH / TP, tx, ty);
+    ctx.drawImage(flat, x * TP, y * TP, TP, TP, 0, 0, TP, TP);
+    ctx.restore();
   }
 }

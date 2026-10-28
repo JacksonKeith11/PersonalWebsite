@@ -223,6 +223,16 @@ Keep it that way.
     board shows the damage a charge would do over the heads in it, the turn strip rings the caster, and
     every AI unit steps out of a hostile charge (`chargeDanger`) and discounts its own charged hits on
     targets that can walk away. The Hydra was left out on purpose: it already ends the most runs.
+- **Isometric board (stage 1 prototype, off by default).** The owner asked how hard a Tactics Ogre /
+  Into the Breach style view would be, then for a first stage. `?iso` turns it on and `?iso=0` off;
+  `localStorage` `threefold-iso` remembers the choice (`env.iso`, set in main.js). Only drawing and
+  tapping change, never the rules. `drawIsoBoard` in tiles.js paints the flat board off-screen
+  (`drawBoard(..., iso = true)` skips the flat cliffs and wall shadows), then maps each tile's square
+  onto a 64×32 diamond, back to front, raised by `isoHeight` (hills 1, summits 2, walls 1.5 as blocks,
+  water sunk) with side faces in the theme's cliff or wall colours and a slab under the board's edge.
+  Planned next stages: overlays and effects polish, occlusion (fading what hides a unit), terrain art
+  drawn for the diamonds (trees and rocks are squashed flat for now), and zoom for phones, where
+  the 64px diamonds come out small.
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
 - **Movement avoids hazards when it can.** `reach()` keeps every route to a tile that isn't beaten
@@ -324,6 +334,8 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   could hit them on each tile (`threatMap` in battle.js), scaled by how hurt they are. They drop
   that caution once the foe rages, or they can stall forever against foes that can't move.
   It runs at 1/100 speed for animation waits and sets `window.__result` and `window.__log`.
+- `--iso` plays on the isometric board; it only changes drawing, so use it to catch errors after
+  touching the projection.
 - `&chaos` starts every hero promoted with four random skills and full artifact slots, to stress
   the odd mechanics.
 - For a quick syntax check use `node --experimental-default-type=module --check js/<file>.js`. Plain
@@ -428,6 +440,10 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
 - **`moveCost(u, x, y, fx, fy)`** includes climbing only when given the tile moved from; `standable`
   calls it without one. Anything new that walks a unit tile by tile (pathing, distance fields) should
   pass the previous tile, or units will walk up cliffs.
+- **Never place anything on the board with `x * TS`.** Go through the projection helpers in
+  battle.js: `mid(x, y)` (a tile's middle: effects, numbers, projectiles), `quad(x, y)` (a tile's
+  corners: overlays), `viewAt`/`placeView`/`tweenView` (unit containers and their depth) and
+  `cellAt` (taps). They work in both the flat and the isometric view.
 - **Line of sight** applies to ranged skills unless they have `lob`. `describe` prints "Needs line of
   sight" from the same rule (`needsLos` in `battle.js`); keep the two in step.
 - **Sprite rows must be exactly 16 characters** (8 for icons), with `.` for transparent. A

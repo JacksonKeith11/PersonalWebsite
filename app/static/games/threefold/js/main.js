@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=48';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=49';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=48';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=48';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=48';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=48';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=48';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=48';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=48';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=49';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=49';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=49';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=49';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=49';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=49';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=49';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -23,6 +23,12 @@ env.auto = AUTO;
 let SPEED = 1;
 try { SPEED = Math.min(3, Math.max(1, +localStorage.getItem('threefold-speed') || 1)); } catch (e) { /* storage unavailable */ }
 env.speed = AUTO ? 0.01 : 1 / SPEED;
+// The isometric board (a prototype of a Tactics Ogre-style view): ?iso turns it on, ?iso=0 off,
+// and the choice is remembered.
+try {
+  if (params.has('iso')) localStorage.setItem('threefold-iso', params.get('iso') === '0' ? '0' : '1');
+  env.iso = localStorage.getItem('threefold-iso') === '1';
+} catch (e) { env.iso = params.has('iso') && params.get('iso') !== '0'; }
 
 let run = null;
 let game = null;

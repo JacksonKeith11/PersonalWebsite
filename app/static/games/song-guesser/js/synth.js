@@ -588,7 +588,8 @@ export async function renderPart(name, part) {
 }
 
 // Mixes rendered parts into one stereo buffer made on ctx: each part at an even loudness, its
-// FX.mix level and pan, then gently saturated like a mastered record, with fades at both ends.
+// FX.mix level and pan, then gently saturated like a mastered record. It fades in briefly and
+// fades out to silence exactly at CLIP, so a looping clip restarts without a click.
 export function mix(ctx, rendered) {
   const len = Math.ceil((CLIP + TAIL) * SR);
   const buf = ctx.createBuffer(2, len, SR);
@@ -604,13 +605,13 @@ export function mix(ctx, rendered) {
   let peak = 0;
   for (let ch = 0; ch < 2; ch++) for (const x of buf.getChannelData(ch)) peak = Math.max(peak, Math.abs(x));
   const drive = 1.6, k = peak > 0 ? drive / peak : 1, norm = 0.92 / Math.tanh(drive);
-  const fadeIn = 0.01 * SR, fadeFrom = (CLIP - 0.4) * SR;
+  const fadeIn = 0.01 * SR, fadeFrom = (CLIP - 0.35) * SR, fadeTo = CLIP * SR;
   for (let ch = 0; ch < 2; ch++) {
     const d = buf.getChannelData(ch);
     for (let i = 0; i < len; i++) {
       let g = 1;
       if (i < fadeIn) g *= i / fadeIn;
-      if (i > fadeFrom) g *= Math.max(0, 1 - (i - fadeFrom) / (len - fadeFrom));
+      if (i > fadeFrom) g *= Math.max(0, 1 - (i - fadeFrom) / (fadeTo - fadeFrom));
       d[i] = Math.tanh(d[i] * k) * norm * g;
     }
   }

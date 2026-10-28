@@ -77,6 +77,9 @@
   background: var(--accent);
   box-shadow: 0 1px 3px rgba(60, 40, 15, 0.35);
 }
+.sg-loop { padding: 8px 12px; }
+.sg-loop[aria-pressed="true"] { background: #f4ecdc; box-shadow: inset 0 0 0 1px var(--accent); }
+.sg-loop[aria-pressed="false"] { border-color: var(--rule); color: var(--muted); }
 .sg-seek:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .sg-now { min-width: 3.2em; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 
@@ -144,6 +147,9 @@
   .sg-back { margin-top: 0; }
   .sg-stages { grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 6px; }
   .sg-stages li { padding: 6px 7px; font-size: 0.85rem; line-height: 1.3; }
+  .sg-player { flex-wrap: wrap; gap: 10px 12px; }
+  .sg-seek { order: 3; flex: 1 1 100%; }
+  .sg-now { margin-left: auto; }
   .sg-actions { flex: 1 1 100%; }
   .sg-actions .sg-btn { flex: 1; }
 }

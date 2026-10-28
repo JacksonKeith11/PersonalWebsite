@@ -1,6 +1,6 @@
 // Song Guesser: picks a song, plays its clip one instrument at a time, and takes guesses.
-import { SONGS, EXTRA } from './songs.js?v=3';
-import { arrange, renderPart, mix, CLIP } from './synth.js?v=3';
+import { SONGS, EXTRA } from './songs.js?v=4';
+import { arrange, renderPart, mix, CLIP } from './synth.js?v=4';
 
 const STORE = 'song-guesser';
 const WEIGHT = { indie: 4, alt: 2, other: 1 };
@@ -85,7 +85,8 @@ function stop(rewind = false) {
 
 function tick() {
   if (!audio.src) return;
-  if (!audio.dragging) show(audio.ctx.currentTime - audio.startedAt);
+  const t = audio.ctx.currentTime - audio.startedAt;
+  if (!audio.dragging) show(audio.src.loop ? t % CLIP : t);
   audio.raf = requestAnimationFrame(tick);
 }
 
@@ -149,11 +150,14 @@ async function play() {
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.connect(ctx.destination);
+  src.loop = stats.loop !== false;
+  src.loopStart = 0;
+  src.loopEnd = CLIP;
   src.onended = () => { if (audio.src === src) stop(true); };
   audio.src = src;
   const at = ctx.currentTime + 0.05;
   audio.startedAt = at - from;
-  src.start(at, from, CLIP + 0.6 - from);
+  src.start(at, from); // no duration: it would also cut a loop short
   $('sg-play').textContent = 'Pause';
   tick();
 }
@@ -308,6 +312,22 @@ function safePlay() {
   play().catch(err => { console.error(err); stop(); $('sg-msg').textContent = 'The audio didn\'t start; try Play again.'; });
 }
 $('sg-play').addEventListener('click', safePlay);
+
+// Looping is on unless turned off, and remembered. Switching mid-play changes the playing clip.
+const loopBtn = $('sg-loop');
+loopBtn.setAttribute('aria-pressed', String(stats.loop !== false));
+loopBtn.addEventListener('click', () => {
+  stats.loop = stats.loop === false;
+  save();
+  loopBtn.setAttribute('aria-pressed', String(stats.loop));
+  const src = audio.src;
+  if (src) {
+    // count from the current lap, so the slider stays right once the clip stops wrapping
+    const now = audio.ctx.currentTime;
+    audio.startedAt = now - ((now - audio.startedAt) % CLIP);
+    src.loop = stats.loop;
+  }
+});
 
 // Dragging previews the time; letting go (or a click or arrow key) jumps there, playing or not.
 seek.addEventListener('input', () => {

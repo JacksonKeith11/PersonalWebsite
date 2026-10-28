@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css?v=10">
-  <link rel="stylesheet" href="/static/games/song-guesser/game.css?v=3">
+  <link rel="stylesheet" href="/static/games/song-guesser/game.css?v=4">
 </head>
 <body>
   <main class="paper">
@@ -33,6 +33,8 @@
         <input type="range" class="sg-seek" id="sg-seek" min="0" max="15" step="0.1" value="0"
                aria-label="Position in the clip" aria-valuetext="0 seconds">
         <span class="sg-now" id="sg-now">0:00</span>
+        <button type="button" class="sg-btn sg-quiet sg-loop" id="sg-loop" aria-pressed="true"
+                title="Play the clip over and over">Loop</button>
       </div>
 
       <form class="sg-guess" id="sg-form" autocomplete="off">
@@ -56,6 +58,6 @@
 
     <p class="aside">The arrangements are written by ear and played by your browser, so expect some liberties.</p>
   </main>
-  <script type="module" src="/static/games/song-guesser/js/main.js?v=3"></script>
+  <script type="module" src="/static/games/song-guesser/js/main.js?v=4"></script>
 </body>
 </html>

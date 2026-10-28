@@ -11,10 +11,12 @@ skip adds the next instrument and replays the clip, until the whole arrangement 
 guess then loses. The genre and release year show from the start. Guesses come from a search box
 over every arranged song plus a few hundred more titles, so the list doesn't give the answer away.
 The seek slider jumps anywhere in the clip, playing or paused; Pause keeps the spot, a wrong guess
-replays the bigger mix from the same spot, and the end-of-round reveal starts from 0. The clip loops
+replays the bigger mix from the start, as does the end-of-round reveal. The clip loops
 by default (the Loop button turns it off, remembered as `loop` in the saved stats); `mix()` fades
 to silence exactly at `CLIP` so the loop point doesn't click. Without looping, the clip running out
-rewinds to 0. Stats and the last 15 songs (not repeated) are kept in `localStorage` under
+rewinds to 0. A wrong guess by the right band says so (green "right band" tag; featured artists are ignored,
+so Rihanna matches "Rihanna ft. Jay-Z"). Every instrument is listed from the start, dimmed until it plays. A volume slider (remembered as
+`volume`, 0–100) feeds a gain node all clips play through. Stats and the last 15 songs (not repeated) are kept in `localStorage` under
 `song-guesser`.
 
 ## Code map (`app/static/games/song-guesser/`)
@@ -51,8 +53,8 @@ as an ES module.
 - **Synthesized, not recorded.** The owner chose hand-written arrangements over real audio split
   into stems: no copyrighted recordings, no new service, and the abstraction makes it harder, which
   is the point. Don't add audio files or a server side.
-- **Biased toward indie rock.** `tier: 'indie'` songs are picked 4× as often as `'other'`, `'alt'`
-  2×. The owner named Weezer, Neutral Milk Hotel and Interpol; keep them well represented.
+- **Biased toward indie rock.** `tier: 'indie'` songs are picked 4× as often as `'other'`; `'alt'`
+  and `'pop'` (the big pop hits the owner asked for) 2×. The owner named Weezer, Neutral Milk Hotel and Interpol; keep them well represented.
 - **The clip is the chorus.** The owner asked for every clip to be the chorus, the part people
   know. Songs without one (In the Aeroplane Over the Sea, Every Breath You Take, Ain't No Sunshine,
   Hey Jude's na-na-na coda) use their main refrain and say `section: 'Refrain'`; the check script

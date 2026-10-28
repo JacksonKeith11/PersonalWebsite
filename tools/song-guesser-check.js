@@ -24,7 +24,7 @@ const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
     if (seen.has(key)) err(song, 'listed twice');
     seen.add(key);
     for (const f of ['title', 'artist', 'year', 'genre', 'tier', 'section', 'bpm', 'melody']) if (!song[f]) err(song, `missing ${f}`);
-    if (!['indie', 'alt', 'other'].includes(song.tier)) err(song, `bad tier ${song.tier}`);
+    if (!['indie', 'alt', 'pop', 'other'].includes(song.tier)) err(song, `bad tier ${song.tier}`);
     // the clip is the chorus; songs without one use their refrain
     if (song.section && !['Chorus', 'Refrain'].includes(song.section)) err(song, `section is "${song.section}", not Chorus or Refrain`);
     if (typeof song.drums === 'string' && !GROOVES[song.drums]) err(song, `unknown groove ${song.drums}`);

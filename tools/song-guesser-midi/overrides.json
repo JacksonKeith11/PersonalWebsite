@@ -355,5 +355,168 @@
   "midi": "clean_midi/Oasis/Don't Look Back in Anger.mid",
   "BAR": 24,
   "MEL": 7
+ },
+ "Beautiful Day": {
+  "midi": "clean_midi/U2/Beautiful Day.mid",
+  "BAR": 32,
+  "MEL": 3
+ },
+ "California Dreamin'": {
+  "midi": "clean_midi/The Mamas & The Papas/California Dreamin'.2.mid",
+  "BAR": 12,
+  "MEL": 2,
+  "SEMIS": 0,
+  "BPM": 112
+ },
+ "Good Vibrations": {
+  "midi": "clean_midi/The Beach Boys/Good Vibrations.mid",
+  "BAR": 17,
+  "MEL": 3
+ },
+ "High and Dry": {
+  "midi": "clean_midi/Radiohead/High and Dry.mid",
+  "BAR": 26,
+  "MEL": 4
+ },
+ "Hold My Hand": {
+  "midi": "clean_midi/Hootie & the Blowfish/Hold My Hand.mid",
+  "BAR": 27,
+  "MEL": 1
+ },
+ "Hungry Like the Wolf": {
+  "midi": "clean_midi/Duran Duran/Hungry Like The Wolf (Night Version).mid",
+  "BAR": 22,
+  "MEL": 4
+ },
+ "I Don't Want to Miss a Thing": {
+  "midi": "clean_midi/Aerosmith/I Don't Want to Miss a Thing.mid",
+  "BAR": 21,
+  "MEL": 6,
+  "SEMIS": 0
+ },
+ "I Still Haven't Found What I'm Looking For": {
+  "midi": "clean_midi/U2/I Still Haven't Found What I'm Looking For.3.mid",
+  "BAR": 20,
+  "MEL": 3,
+  "BPM": 101
+ },
+ "Jailhouse Rock": {
+  "midi": "clean_midi/Elvis Presley/Jailhouse Rock.1.mid",
+  "BAR": 13,
+  "MEL": 4
+ },
+ "Johnny B. Goode": {
+  "midi": "clean_midi/Chuck Berry/Johnny B Goode.6.mid",
+  "BAR": 25,
+  "MEL": 0,
+  "SEMIS": 0
+ },
+ "Light My Fire": {
+  "midi": "clean_midi/The Doors/Light My Fire.10.mid",
+  "BAR": 13,
+  "MEL": 5,
+  "SEMIS": 0
+ },
+ "Linger": {
+  "midi": "clean_midi/The Cranberries/Linger.mid",
+  "BAR": 46,
+  "MEL": 8
+ },
+ "Macarena": {
+  "midi": "clean_midi/Los Del Rio/Macarena.4.mid",
+  "BAR": 15,
+  "MEL": 5
+ },
+ "My Heart Will Go On": {
+  "midi": "clean_midi/Celine Dion/My Heart Will Go On.2.mid",
+  "BAR": 24,
+  "MEL": 0
+ },
+ "One More Time": {
+  "midi": "clean_midi/Daft Punk/One More Time.1.mid",
+  "BAR": 34,
+  "MEL": 5
+ },
+ "One": {
+  "midi": "clean_midi/U2/One.2.mid",
+  "BAR": 14,
+  "MEL": 4
+ },
+ "Waterloo": {
+  "midi": "clean_midi/ABBA/Waterloo.1.mid",
+  "BAR": 19,
+  "MEL": 0
+ },
+ "You Give Love a Bad Name": {
+  "midi": "clean_midi/Bon Jovi/You Give Love a Bad Name.5.mid",
+  "BAR": 33,
+  "MEL": 3
+ },
+ "Hound Dog": {
+  "midi": "clean_midi/Elvis Presley/Hound Dog.4.mid",
+  "BAR": 2,
+  "MEL": 1
+ },
+ "Save Tonight": {
+  "midi": "clean_midi/Eagle-Eye Cherry/Save Tonight.1.mid",
+  "BAR": 26,
+  "MEL": 10
+ },
+ "Back in Black": {
+  "midi": "clean_midi/AC DC/Back In Black.1.mid",
+  "BAR": 16,
+  "MEL": 3,
+  "BARS": 4,
+  "CH": 0
+ },
+ "Black or White": {
+  "midi": "clean_midi/Michael Jackson/Black or White.mid",
+  "BAR": 12,
+  "MEL": 0
+ },
+ "Karma Chameleon": {
+  "midi": "clean_midi/Culture Club/Karma Chameleon.mid",
+  "BAR": 36,
+  "MEL": 3
+ },
+ "What's Up?": {
+  "midi": "clean_midi/4 Non Blondes/What's Up.3.mid",
+  "BAR": 32,
+  "MEL": 3
+ },
+ "Lithium": {
+  "midi": "clean_midi/Nirvana/Lithium.5.mid",
+  "BAR": 20,
+  "MEL": 2
+ },
+ "Ob-La-Di, Ob-La-Da": {
+  "midi": "clean_midi/The Beatles/Ob-La-Di, Ob-La-Da.4.mid",
+  "BAR": 12,
+  "MEL": 1
+ },
+ "Twist and Shout": {
+  "midi": "clean_midi/The Beatles/Twist And Shout.3.mid",
+  "BAR": 8,
+  "MEL": 1
+ },
+ "Uptown Girl": {
+  "midi": "clean_midi/Billy Joel/Uptown Girl.4.mid",
+  "BAR": 20,
+  "MEL": 1
+ },
+ "Torn": {
+  "midi": "clean_midi/Natalie Imbruglia/Torn.1.mid",
+  "BAR": 19,
+  "MEL": 2
+ },
+ "Here Comes the Sun": {
+  "midi": "clean_midi/The Beatles/Here Comes the Sun.3.mid",
+  "BAR": 16,
+  "MEL": 3
+ },
+ "Help!": {
+  "midi": "clean_midi/The Beatles/Help!.2.mid",
+  "BAR": 16,
+  "MEL": 1
  }
 }

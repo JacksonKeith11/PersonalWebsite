@@ -4,7 +4,8 @@ usage: extract.py OUT.json TITLE ARTIST MIDI [PREVIEW.wav]
 Writes the arrangement (in songs.js notation) plus diagnostics. Optional environment overrides,
 for when the automatic picks are wrong (see overrides.json): BAR (the chorus's first bar), MEL
 (the melody's track index), CH (the chords' track index), SEMIS (transpose by this many semitones),
-BARS (how many bars to take, when the chorus is shorter than the clip; it loops).
+BARS (how many bars to take, when the chorus is shorter than the clip; it loops), BPM (the
+record's tempo).
 Needs pretty_midi and librosa.
 """
 import json, math, os, re, sys, warnings
@@ -241,6 +242,8 @@ if align and align.get('audio_tempo'):
     for k in (0.5, 1, 2):  # fan MIDIs are often a few percent off the record's tempo
         if abs(at * k - bpm) / bpm < 0.10:
             bpm = at * k
+if os.environ.get('BPM'):
+    bpm = float(os.environ['BPM'])  # the record's tempo, set by hand when the comparison gets it wrong
 bars = math.ceil(CLIP * bpm / 60 / bar_len)
 if os.environ.get('BARS'):
     bars = int(os.environ['BARS'])  # a short chorus: take just its bars and let the clip loop them
@@ -377,7 +380,7 @@ poly = sorted([i for i in others if mono(i) < 0.75 and in_win(i) >= 4], key=in_w
 if os.environ.get('CH'):
     poly = [pm.instruments[int(os.environ['CH'])]]  # set by hand
 short = lambda ins: np.mean([l for _, l, _, _ in notes_in(ins)] or [9]) <= 1.0  # a riff moves; held notes are pads
-is_bass = lambda ins: 32 <= ins.program <= 39 or re.search(r'bass|bas\b|basgit', (ins.name or '').lower())
+is_bass = lambda ins: 32 <= ins.program <= 39 or re.search(r'bass|bas\b|basgit|fretless|drum|perc', (ins.name or '').lower())
 mel_hits = {(b, p % 12) for b, _, p, _ in notes_in(melody)} if melody else set()
 # a second vocal or a harmony line that shadows the melody isn't a riff
 doubles = lambda ins: np.mean([(b, p % 12) in mel_hits or any((b, (p + k) % 12) in mel_hits for k in (3, 4, 8, 9)) for b, _, p, _ in notes_in(ins)] or [0]) > 0.5

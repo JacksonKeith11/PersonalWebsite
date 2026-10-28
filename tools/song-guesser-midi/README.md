@@ -18,7 +18,9 @@ Python with `pretty_midi` and `librosa`, plus Node.
 3. **Look before trusting the automatic picks.** `python report.py SONG.mid` prints every 4-bar
    block: the top line of the three likeliest melody tracks and any lyrics, so you can spot where
    the chorus starts and which track carries the vocal. With lyrics, the track whose notes start
-   on the syllables is the vocal, but check it: a bass playing eighths can line up as well.
+   on the syllables is the vocal, but check it: a bass playing eighths can line up as well, and
+   some files are a different version (a Spanish-language Hero, a live Lola). Files whose tracks are
+   all program 0 get mislabelled instruments: fix `inst` in `songs.js` afterwards.
 4. **Extract.** `BAR=44 MEL=3 python extract.py out.json "Buddy Holly" Weezer song.mid preview.wav`.
    It transposes to the record's key (comparing pitch-class profiles; Weezer and others tune down a
    half step, which this catches), takes the record's tempo when the MIDI's is within 10% (from a
@@ -28,7 +30,8 @@ Python with `pretty_midi` and `librosa`, plus Node.
    busy single-line track is left that isn't a bass or a second vocal shadowing the melody.
    `BARS=4` takes fewer bars when the chorus is shorter than the clip (it loops). When the record
    matches the MIDI poorly (the `sim` it prints under about 0.6), its key guess is unreliable: check
-   the MIDI's key yourself and set `SEMIS`.
+   the MIDI's key yourself and set `SEMIS`; `BPM` sets the tempo when the detected one is off, and
+   `CH` picks the chords track when the automatic pick is a backing vocal.
 5. **Merge.** `node assemble.mjs done.json` rewrites those songs in `songs.js`, centring each vocal
    line in a singable octave; done.json maps titles to outputs. A song that isn't in `songs.js` yet
    maps to `{ out, artist, year, genre, tier, section }` and is added at the end of `SONGS` (and taken

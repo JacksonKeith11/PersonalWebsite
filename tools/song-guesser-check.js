@@ -1,5 +1,6 @@
 // Checks Song Guesser's arrangements without a browser: every song parses and arranges, parts
-// loop in whole bars and line up with the chords, and the guess list has no duplicates.
+// loop in whole bars and line up with the chords, every clip is a chorus (or refrain), and the
+// guess list has no duplicates.
 // Notes outside the key the chords imply are listed too; those are often typos, sometimes real.
 // Usage: node tools/song-guesser-check.js
 const path = require('path');
@@ -24,6 +25,8 @@ const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
     seen.add(key);
     for (const f of ['title', 'artist', 'year', 'genre', 'tier', 'section', 'bpm', 'melody']) if (!song[f]) err(song, `missing ${f}`);
     if (!['indie', 'alt', 'other'].includes(song.tier)) err(song, `bad tier ${song.tier}`);
+    // the clip is the chorus; songs without one use their refrain
+    if (song.section && !['Chorus', 'Refrain'].includes(song.section)) err(song, `section is "${song.section}", not Chorus or Refrain`);
     if (typeof song.drums === 'string' && !GROOVES[song.drums]) err(song, `unknown groove ${song.drums}`);
     for (const p of ['guitar', 'riff', 'melody']) {
       const inst = song[p] && song[p].inst;

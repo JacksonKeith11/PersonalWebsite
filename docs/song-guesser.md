@@ -53,6 +53,10 @@ as an ES module.
   is the point. Don't add audio files or a server side.
 - **Biased toward indie rock.** `tier: 'indie'` songs are picked 4× as often as `'other'`, `'alt'`
   2×. The owner named Weezer, Neutral Milk Hotel and Interpol; keep them well represented.
+- **The clip is the chorus.** The owner asked for every clip to be the chorus, the part people
+  know. Songs without one (In the Aeroplane Over the Sea, Every Breath You Take, Ain't No Sunshine,
+  Hey Jude's na-na-na coda) use their main refrain and say `section: 'Refrain'`; the check script
+  rejects anything else. New Slang has no chorus or refrain hook, so it's only in the guess list.
 - **Hardest instrument first.** The default order is drums, bass, chords, riff, melody. When a
   song's identity lives in one part (the Seven Nation Army or Billie Jean bass, the Clocks piano),
   set `order` so that part comes last.
@@ -66,7 +70,7 @@ as an ES module.
 
 ## Adding a song
 
-1. Add it to `SONGS` in `js/songs.js`. Write one section, 2–8 bars, that loops to fill the clip.
+1. Add it to `SONGS` in `js/songs.js`. Write its chorus, 2–8 bars, that loops to fill the clip.
    Every part loops on its own length, so keep each a whole number of bars and a multiple or
    divisor of the chord loop.
 2. If it was in `EXTRA`, take it out there (the check flags duplicates).

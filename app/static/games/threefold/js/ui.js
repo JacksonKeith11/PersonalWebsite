@@ -1,7 +1,7 @@
 // Small DOM helpers shared by the menus and the battle side panel.
-import { spriteURL } from './art.js?v=33';
-import { STATUS_HELP, STATUS_WORDS } from './data.js?v=33';
-import { describeParts } from './rules.js?v=33';
+import { spriteURL } from './art.js?v=34';
+import { STATUS_HELP, STATUS_WORDS } from './data.js?v=34';
+import { describeParts } from './rules.js?v=34';
 
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -29,6 +29,8 @@ export function bar(v, max, foe, shield = 0) {
 // ---------- status tooltips ----------
 // Any element with data-tip shows it in one floating box: on hover with a mouse, on tap on a phone.
 export const tip = (label, key) => STATUS_HELP[key] ? h('span', { class: 'tip', tabindex: 0, 'data-tip': STATUS_HELP[key] }, label) : label;
+// The same, with the text given directly (an artifact's description, say).
+export const tipNote = (label, text) => text ? h('span', { class: 'tip', tabindex: 0, 'data-tip': text }, label) : label;
 
 // Skill text with the status words in it ("Slows", "Shocks") made hoverable.
 const WORD_RE = new RegExp(`\\b(${Object.keys(STATUS_WORDS).join('|')})\\b`, 'g');

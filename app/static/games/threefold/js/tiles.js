@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=33';
+import { T, GW, GH } from './data.js?v=34';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];

@@ -1,13 +1,13 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=33';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=34';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=33';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=33';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=33';
-import { env, startBattle, BattleScene } from './battle.js?v=33';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=33';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=33';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=34';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=34';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=34';
+import { env, startBattle, BattleScene } from './battle.js?v=34';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=34';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=34';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -200,6 +200,8 @@ env.onEnd = (b, win) => {
   if (AUTO) (window.__log ||= []).push({ act: run.act + 1, kind: b.kind, lvl: b.level, win, heroes: b.units.filter(u => u.ref).map(u => u.dead ? 0 : u.hp).join('/'),
     foes: win ? '' : b.units.filter(u => u.side === 'foe' && !u.dead).map(u => `${u.name}:${u.hp}`).join(' ') });
   if (!win) { gameOver(); return; }
+  // the final boss ends the run: straight to the victory screen, no level-ups or rewards
+  if (b.kind === 'boss' && run.act >= ACT_SLOTS.length - 1) { run.stats.battles++; victory(); return; }
   const levels = [];
   for (const u of b.units) {
     if (!u.ref) continue;
@@ -259,7 +261,7 @@ function equipFlow(id, next, show = setScreen, back = null) {
         const src = heroSrc(t.p, run.gold), a = outputOf(skStats(t.p, t.s), src), b = after ? outputOf(after, src) : '';
         return h('button', { class: 'pick', disabled: !t.ok, onclick: () => socket(t) },
           h('div', { class: 'pick-head' }, sprImg(heroSprite(t.p)), h('b', {}, SKILLS[t.s.id].name)),
-          t.s.mods.length ? h('div', { class: 'kind' }, t.s.mods.map(artName).join(', ')) : null,
+          t.s.mods.length ? h('div', { class: 'kind' }, t.s.mods.map((m, i) => [i ? ', ' : '', tipNote(artName(m), artText(m))])) : null,
           after && a !== b ? delta('', a, b) : null,
           h('div', { class: 'desc' }, after ? skillText({ ...after, txt: '' }, heroSrc(t.p, run.gold)) : t.s.mods.length >= MAX_MODS ? 'No free slot' : 'Doesn\'t fit this skill'));
       })),
@@ -591,7 +593,7 @@ function showParty() {
         h('div', { class: 'skill-list' }, p.skills.map(s => {
           const o = skStats(p, s);
           return h('div', {}, h('b', {}, o.name), skillText(o, src),
-            h('div', { class: 'mods' }, s.mods.map((id, i) => h('span', { class: 'mod' }, `◆ ${artName(id)} `, x('remove', () => unsocket(s, i)))),
+            h('div', { class: 'mods' }, s.mods.map((id, i) => h('span', { class: 'mod' }, tipNote(`◆ ${artName(id)}`, artText(id)), ' ', x('remove', () => unsocket(s, i)))),
               s.mods.length < MAX_MODS ? h('span', { class: 'mod empty' }, `◇ empty slot`) : null));
         })),
         h('h3', { style: 'margin-top:10px' }, `Worn ${p.items.length}/${MAX_RELICS}`),

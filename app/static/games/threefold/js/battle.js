@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=33';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=33';
-import { spriteURL } from './art.js?v=33';
-import { TP, drawBoard } from './tiles.js?v=33';
-import { sfx } from './audio.js?v=33';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=33';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=34';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=34';
+import { spriteURL } from './art.js?v=34';
+import { TP, drawBoard } from './tiles.js?v=34';
+import { sfx } from './audio.js?v=34';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=34';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -58,6 +58,9 @@ function heroUnit(p) {
   if (has(u, 'stopwatch')) u.ct += 150;
   return u;
 }
+// Foes speed up as the run goes on (about +2% and +1 every 6 levels), so promoted heroes don't
+// leave them taking one turn for every three of theirs.
+const foeSpd = (spd, lvl) => Math.round(spd * (1 + 0.02 * (lvl - 1)) + Math.floor((lvl - 1) / 6));
 function foeUnit(kind, lvl) {
   const d = FOES[kind];
   // later acts climb faster, since every hero promotes after each boss
@@ -65,7 +68,7 @@ function foeUnit(kind, lvl) {
   const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.12 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.08 * act), dp = Math.floor((lvl - 1) / 5);
   const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm));
   const u = { id: ++B.uid, side: 'foe', kind, spr: kind, name: d.name, hp, maxHp: hp, atk: Math.round(d.atk * sm), mag: Math.round((d.mag || 0) * sm),
-    def: d.def + dp, res: d.res + dp, spd: d.spd, mov: d.mov, crit: 5, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
+    def: d.def + dp, res: d.res + dp, spd: foeSpd(d.spd, lvl), mov: d.mov, crit: 5, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, lure: !!d.lure, regen: d.regen || 0, scale: d.scale || 1, info: d.info,
     swim: !!d.swim, rampart: !!d.rampart, split: d.split, burst: !!d.burst, heads: d.heads, chill: !!d.chill, plating: d.plating || 0, overdrive: !!d.overdrive, loot: 0,
     skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30) };
@@ -204,32 +207,38 @@ function reach(u) {
   }
   const occ = new Map(alive().map(o => [key(o.x, o.y), o]));
   const ramparts = alive().filter(o => o.rampart && o.side !== u.side);
-  const q = [[u.x, u.y, 0]];
+  // Each tile keeps every route that isn't beaten on both cost and hazard (lava, brambles) by
+  // another, so a longer safe route still counts when it fits in the unit's movement. Each tile
+  // then takes its safest route, cheapest among equals.
+  const start = res.get(key(u.x, u.y)), labels = new Map([[key(u.x, u.y), [start]]]);
+  const q = [start];
   while (q.length) {
-    q.sort((a, b) => a[2] - b[2]);
-    const [x, y, c] = q.shift();
-    const cur = res.get(key(x, y));
-    if (c > cur.c) continue;
+    q.sort((a, b) => a.risk - b.risk || a.c - b.c);
+    const cur = q.shift();
+    if (cur.dead) continue;
+    const { x, y, c } = cur;
     if (c > 0 && !u.fly && ramparts.some(o => Math.abs(o.x - x) + Math.abs(o.y - y) === 1)) continue; // Rampart: stop here
     for (const [dx, dy] of DIRS) {
       const nx = x + dx, ny = y + dy;
-      if (!inb(nx, ny)) continue;
+      if (!inb(nx, ny) || (nx === u.x && ny === u.y)) continue;
       const o = occ.get(key(nx, ny));
       if (o && o.side !== u.side && !u.fly && !u.slip && !u.phase) continue;
       const nc = c + moveCost(u, nx, ny);
       if (nc > mov) continue;
-      const k = key(nx, ny), ex = res.get(k);
-      if (!ex || nc < ex.c) {
-        res.set(k, { x: nx, y: ny, c: nc, prev: key(x, y), stop: !o && standable(u, nx, ny), risk: cur.risk + hazard(u, nx, ny) });
-        q.push([nx, ny, nc]);
-      }
+      const k = key(nx, ny), nr = cur.risk + hazard(u, nx, ny), list = labels.get(k) || [];
+      if (list.some(l => l.c <= nc && l.risk <= nr)) continue;
+      for (const l of list) if (l.c >= nc && l.risk >= nr) l.dead = true;
+      const lab = { x: nx, y: ny, c: nc, prev: key(x, y), from: cur, stop: !o && standable(u, nx, ny), risk: nr };
+      labels.set(k, [...list.filter(l => !l.dead), lab]);
+      q.push(lab);
     }
   }
+  for (const [k, list] of labels) if (k !== key(u.x, u.y)) res.set(k, list.reduce((a, b) => (b.risk < a.risk || (b.risk === a.risk && b.c < a.c) ? b : a)));
   return res;
 }
 function pathTo(res, k) {
   const out = [];
-  for (let v = res.get(k); v; v = v.prev ? res.get(v.prev) : null) out.unshift({ x: v.x, y: v.y });
+  for (let v = res.get(k); v; v = v.from || (v.prev ? res.get(v.prev) : null)) out.unshift({ x: v.x, y: v.y });
   return out;
 }
 
@@ -1480,7 +1489,7 @@ function intentView(u) {
   const hits = [];
   for (const { t, w } of hitList(u, o, tx, ty, true)) {
     if (t === u && o.tgt !== 'self') continue;
-    hits.push({ t, w, dmg: o.kind === 'phys' || o.kind === 'mag' ? Math.round(calcDmg(u, t, o) * w * hitsOf(o)) : 0 });
+    hits.push({ t, w, dmg: o.kind === 'phys' || o.kind === 'mag' ? Math.round(calcDmg(u, t, o) * (randomPick(o) ? 1 : w) * hitsOf(o)) : 0 });
   }
   u.x = ox; u.y = oy;
   return { o, area, hits, tx, ty };
@@ -1541,7 +1550,8 @@ function unitCard(u, withSkills) {
     u.side === 'foe' && !u.dead ? intentLine(u) : null,
     withSkills ? h('div', { class: 'skill-list' }, u.skills.map(s => {
       const o = skStats(u, s);
-      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, skillText(o, u));
+      return h('div', {}, h('b', {}, o.name), s.cd > 0 ? h('span', {}, ` (ready in ${s.cd})`) : null, skillText(o, u),
+        s.mods && s.mods.length ? h('div', { class: 'mods' }, s.mods.map(id => h('span', { class: 'mod' }, tipNote(`◆ ${MODS[id].name}`, MODS[id].note)))) : null);
     })) : null);
 }
 function intentLine(u) {
@@ -1620,6 +1630,7 @@ function counter(ms, fn) {
     scene.tweens.addCounter({ from: 0, to: 1, duration: Math.max(1, ms * env.speed), onUpdate: t => fn(t.getValue()), onComplete: () => { fn(1); res(); } });
   });
 }
+const randomPick = o => o.shape === 'random' || o.shape === 'multi';
 const buffWord = (o, t) => o.sleep ? 'SLEEP' : o.confuse ? 'CONFUSE' : o.root ? 'ROOT' : o.disarm ? 'DISARM' : o.weak ? 'WEAKEN' : o.dispel ? 'DISPEL' : o.purify ? 'PURIFY' : o.focus ? 'FOCUS' : o.imbue ? 'IMBUE' : o.push ? 'PUSH' : o.charm ? (t.boss ? 'IMMUNE' : 'CHARM') : o.doom ? 'DOOM' : o.cdLock ? 'SILENCE' : o.ward ? 'WARD' : o.taunt ? 'TAUNT' : o.blind ? 'BLIND' : o.vuln ? 'MARK' : o.rally ? 'RALLY' : o.ctGive ? 'HASTE' : o.slow ? 'SLOW' : 'OK';
 const viewAlpha = u => u.st.stealth || u.st.airborne ? 0.45 : u.spr === 'ghost' ? 0.8 : 1;
 function placeView(u) {
@@ -1911,8 +1922,9 @@ export class BattleScene extends Phaser.Scene {
         else if (o.kind === 'shield') { if (t.side !== u.side) continue; label = '+' + Math.round(powerVal(u, o) * w); col = '#9fd8ff'; }
         else if (o.kind === 'buff') { label = buffWord(o, t); col = t.side === u.side ? '#7dff8a' : '#ff8080'; }
         else {
-          const d = Math.round(calcDmg(u, t, o) * w * hitsOf(o));
-          label = o.gamble ? '?' : d >= t.hp + t.shield ? 'KO' : (w < 1 && (o.shape === 'random' || o.shape === 'multi') ? '~' : '-') + d;
+          // random picks: show what one hit would do to each, not an average split between them
+          const d = Math.round(calcDmg(u, t, o) * (randomPick(o) ? 1 : w) * hitsOf(o));
+          label = o.gamble ? '?' : d >= t.hp + t.shield ? 'KO' : '-' + d;
           col = t.side === u.side ? '#ff9a9a' : '#ffe14d';
         }
         this.marks[i++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 18).setVisible(true);

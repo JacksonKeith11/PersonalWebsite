@@ -125,6 +125,16 @@ Keep it that way.
   - Unequipped ones wait in `run.stash`, the pack.
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
+- **Movement avoids hazards when it can.** `reach()` keeps every route to a tile that isn't beaten
+  on both movement cost and hazard (lava, brambles), then gives each tile its safest route, cheapest
+  among equals, so a longer route around brambles is taken when it fits in MOV. Each entry's `from`
+  points at the route's previous step; `pathTo` follows it.
+- **Random-target skills preview one hit per target.** For `shape: 'random'` and `'multi'` the aim
+  preview and intents show what a single hit would do to each possible target (`randomPick`), not the
+  average share of the volley.
+- **Socketed artifacts explain themselves.** On the Party screen, the socketing screen and the
+  battle unit card, a skill's artifacts are tooltips (`tipNote` in ui.js) showing the artifact's text.
+- **The final boss ends the run at once**: no level-ups or rewards, straight to the victory screen.
 - **Show the numbers.** `describe(o, src)` prints the result next to the scaling ("75% MAG = 9"),
   including burn and poison per turn ("Burns 2 turns (30% MAG = 5/turn)"). Pass a source wherever a
   skill is described. Equipping an artifact shows what it changes: `outputOf` before → after for
@@ -150,7 +160,10 @@ Keep it that way.
     high ground, shadows below walls, lava glow. The board is one canvas texture, repainted when
     terrain changes and every animation tick. A new theme is one `THEME_ART` entry.
 - **Later acts scale harder** (`foeUnit`: +12% HP and +8% ATK/MAG per act on top of the per-level
-  curve) to answer every hero promoting after each boss.
+  curve) to answer every hero promoting after each boss. Foe SPD scales too (`foeSpd`: +2% per level
+  plus 1 every 6 levels), and the fastest hero lines grow SPD every 3 levels rather than 2: before
+  that, act-3 foes sat at 4–12 SPD while Tricksters reached 34, so heroes outsped the endgame. Now
+  endgame heroes land around 10–27 and late foes around 10–22.
 - **Difficulty should be hard but winnable.** The random-choice autopilot currently wins about 1 run
   in 6, losing mostly to bosses across all three acts. A person managing HP should do clearly
   better.

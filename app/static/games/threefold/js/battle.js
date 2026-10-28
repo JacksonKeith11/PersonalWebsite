@@ -1,17 +1,17 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=47';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=47';
-import { spriteURL } from './art.js?v=47';
-import { TP, drawBoard } from './tiles.js?v=47';
-import { sfx } from './audio.js?v=47';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=47';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=48';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=48';
+import { spriteURL } from './art.js?v=48';
+import { TP, drawBoard } from './tiles.js?v=48';
+import { sfx } from './audio.js?v=48';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=48';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const key = (x, y) => x + ',' + y;
 const inb = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH;
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-const floorish = t => t === T.FLOOR || t === T.COVER || t === T.HILL || t === T.THORN;
+const floorish = t => t === T.FLOOR || t === T.COVER || t === T.HILL || t === T.THORN || t === T.PEAK;
 
 // Set by main.js: game, run, speed, autoplay flag and the end-of-battle callback.
 export const env = { game: null, run: null, speed: 1, auto: false, onEnd: null, side: null };
@@ -52,7 +52,7 @@ function heroUnit(p) {
   const st = heroStats(p, env.run.gold);
   const u = { id: ++B.uid, side: 'hero', ref: p, spr: heroSprite(p), name: heroTitle(p), promo: p.promo, line: p.line || [], ...st, hp: Math.min(p.hp, st.maxHp),
     flank: CLASSES[p.cls].flank || 1.25, items: p.items, team: p.team || [], skills: p.skills.map(s => ({ id: s.id, mods: s.mods, cd: 0, tempered: s.tempered })), st: {}, shield: 0,
-    ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee' };
+    ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee', face: [1, 0] };
   u.fireproof = isClass(u, 'pyromancer') || has(u, 'lavawalkers') || has(u, 'magmaheart');
   u.anchored = isClass(u, 'juggernaut');
   u.slip = isClass(u, 'trickster');
@@ -80,7 +80,7 @@ function foeUnit(kind, lvl) {
     def: d.def + dp, res: d.res + dp, spd: foeSpd(d.spd, lvl), mov: d.mov, crit: 5, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, lure: !!d.lure, regen: d.regen || 0, scale: d.scale || 1, info: d.info,
     swim: !!d.swim, rampart: !!d.rampart, split: d.split, burst: !!d.burst, heads: d.heads, chill: !!d.chill, plating: d.plating || 0, overdrive: !!d.overdrive, loot: 0,
-    skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30) };
+    skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30), face: [-1, 0] };
   if (d.items) u.items = [...d.items];
   if (d.stealth) u.st.stealth = 1;
   if (d.boss && B.asc >= 8) u.ct += 40;
@@ -97,7 +97,12 @@ function genGrid(rc) {
       const c = { x: rnd(1, GW - 2), y: rnd(0, GH - 1) };
       for (const [dx, dy] of [[0, 0], ...DIRS, [1, 1], [-1, -1]]) if (chance(0.55)) set(c.x + dx, c.y + dy, T.COVER);
     }
-    for (let i = span(rc.hill); i > 0; i--) { const c = { x: rnd(0, GW - 1), y: rnd(0, GH - 1) }; set(c.x, c.y, T.HILL); if (chance(0.5)) set(c.x + 1, c.y, T.HILL); }
+    // mounds of high ground; some rise to a summit, ringed by height 1 so it can be climbed
+    for (let i = span(rc.hill); i > 0; i--) {
+      const c = { x: rnd(1, GW - 2), y: rnd(1, GH - 2) };
+      for (const [dx, dy] of [[0, 0], ...DIRS, [1, 1], [-1, -1], [1, -1], [-1, 1]]) if ((!dx && !dy) || chance(0.6)) set(c.x + dx, c.y + dy, T.HILL);
+      if (chance(rc.peak == null ? 0.5 : rc.peak)) { for (const [dx, dy] of DIRS) set(c.x + dx, c.y + dy, T.HILL); set(c.x, c.y, T.PEAK); }
+    }
     for (let i = span(rc.rock); i > 0; i--) { const c = mid(); set(c.x, c.y, T.ROCK); }
     for (let p = rc.pools ? span(rc.pools) : chance(rc.water) ? 1 : 0; p > 0; p--) {
       let { x, y } = mid();
@@ -116,19 +121,26 @@ function genGrid(rc) {
       let { x, y } = mid();
       for (let j = rnd(1, 3); j > 0; j--) { set(x, y, T.THORN); const [dx, dy] = pick(DIRS); x += dx; y += dy; }
     }
-    for (let y = 0; y < GH; y++) for (const x of [0, 1, GW - 3, GW - 2, GW - 1]) if (![T.FLOOR, T.COVER, T.HILL].includes(g[y][x])) g[y][x] = T.FLOOR;
-    const walk = (x, y) => TERRAIN[g[y][x]].cost < Infinity;
+    for (let y = 0; y < GH; y++) for (const x of [0, 1, GW - 3, GW - 2, GW - 1]) if (![T.FLOOR, T.COVER, T.HILL, T.PEAK].includes(g[y][x])) g[y][x] = T.FLOOR;
+    // every open tile must be reachable from the corner and able to get back, climbing at most one
+    // level per step (dropping down is fine)
+    const walk = (x, y) => TERRAIN[g[y][x]].cost < Infinity, ht = (x, y) => TERRAIN[g[y][x]].h || 0;
     let open = 0;
     for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (walk(x, y)) open++;
-    const seen = new Set([key(0, 0)]), q = [[0, 0]];
-    while (q.length) {
-      const [x, y] = q.pop();
-      for (const [dx, dy] of DIRS) {
-        const nx = x + dx, ny = y + dy;
-        if (inb(nx, ny) && walk(nx, ny) && !seen.has(key(nx, ny))) { seen.add(key(nx, ny)); q.push([nx, ny]); }
+    const flood = back => {
+      const seen = new Set([key(0, 0)]), q = [[0, 0]];
+      while (q.length) {
+        const [x, y] = q.pop();
+        for (const [dx, dy] of DIRS) {
+          const nx = x + dx, ny = y + dy;
+          if (!inb(nx, ny) || !walk(nx, ny) || seen.has(key(nx, ny))) continue;
+          if ((back ? ht(x, y) - ht(nx, ny) : ht(nx, ny) - ht(x, y)) > 1) continue;
+          seen.add(key(nx, ny)); q.push([nx, ny]);
+        }
       }
-    }
-    if (seen.size === open) return g;
+      return seen.size;
+    };
+    if (flood(false) === open && flood(true) === open) return g;
   }
   return Array.from({ length: GH }, () => Array(GW).fill(T.FLOOR));
 }
@@ -155,7 +167,14 @@ function hasteUnit(t, n, cap = t === B.active ? 200 : 100) {
   t.st.hasted = (t.st.hasted || 0) + 1;
 }
 // A stun can't land on a unit that is still Steady from the last one.
-function stun(t) { if (!t.boss && !(t.st.steady > 0)) t.st.stun = 1; }
+function stun(t) { if (!t.boss && !(t.st.steady > 0)) { t.st.stun = 1; breakCharge(t); } }
+// A charging skill (u.pending) fizzles if the caster is stunned, put to sleep, charmed or knocked back.
+function breakCharge(t) {
+  if (!t.pending || t.dead) return;
+  t.pending = null;
+  fxText(t, 'Charge broken', '#ffd23f', true);
+  log(`${t.name}'s spell is broken.`);
+}
 // Burning and poison keep the longer duration and the stronger tick (an expired one's tick doesn't linger).
 function burnUnit(t, turns, dmg, by) {
   if (t.dead || t.fireproof) return;
@@ -204,7 +223,15 @@ function leech(u, n) {
   const room = Math.max(0, u.maxHp * 0.2 - (B.leeched || 0));
   B.leeched = (B.leeched || 0) + heal(u, Math.min(n, room));
 }
-const onHill = u => B.grid[u.y][u.x] === T.HILL && !u.fly;
+// Height: 0 for most ground, 1 on hills, 2 on summits. Flyers count the height of the tile below.
+const hgt = (x, y) => TERRAIN[B.grid[y][x]].h || 0;
+const elev = u => hgt(u.x, u.y);
+// Walkers climb at most one level per step, paying 1 extra for it; dropping down is free.
+function climb(u, fx, fy, x, y) {
+  if (u.fly || fx == null) return 0;
+  const dh = hgt(x, y) - hgt(fx, fy);
+  return dh > 1 ? Infinity : dh === 1 ? 1 : 0;
+}
 const inCover = u => B.grid[u.y][u.x] === T.COVER && !u.fly;
 const targetable = (u, t) => !((t.st.stealth || t.st.airborne) && t.side !== u.side);
 const isHero = u => u.side === 'hero' && u.ref;
@@ -215,12 +242,13 @@ const BUFFS = ['ward', 'guard', 'rally', 'focus', 'stealth', 'thorns', 'movUp', 
 const debuffCount = t => DEBUFFS.filter(k => t.st[k] > 0).length;
 function log(s) { B.log.push(s); if (B.log.length > 40) B.log.shift(); }
 
-function moveCost(u, x, y) {
+// The cost of entering (x, y); with a tile to come from, climbing counts too.
+function moveCost(u, x, y, fx, fy) {
   const t = terr(x, y);
   if (t.los) return u.phase ? 1 : Infinity;
   if (u.fly) return 1;
   if (u.swim && B.grid[y][x] === T.WATER) return 2;
-  return t.cost;
+  return t.cost + climb(u, fx, fy, x, y);
 }
 const standable = (u, x, y) => inb(x, y) && !terr(x, y).los && moveCost(u, x, y) < Infinity;
 function hazard(u, x, y) {
@@ -260,7 +288,7 @@ function reach(u) {
       if (!inb(nx, ny) || (nx === u.x && ny === u.y)) continue;
       const o = occ.get(key(nx, ny));
       if (o && o.side !== u.side && !u.fly && !u.slip && !u.phase) continue;
-      const nc = c + moveCost(u, nx, ny);
+      const nc = c + moveCost(u, nx, ny, x, y);
       if (nc > mov) continue;
       const k = key(nx, ny), nr = cur.risk + hazard(u, nx, ny), list = labels.get(k) || [];
       if (list.some(l => l.c <= nc && l.risk <= nr)) continue;
@@ -291,7 +319,7 @@ function los(x0, y0, x1, y1) {
 const needsLos = o => !o.lob && o.range[1] > 1 && o.tgt !== 'self' && o.shape !== 'line';
 function rangeOf(u, o) {
   const [a, b] = o.range;
-  return o.tgt !== 'self' && b > 1 && onHill(u) ? [a, b + 1] : [a, b];
+  return o.tgt !== 'self' && b > 1 ? [a, b + elev(u)] : [a, b];
 }
 function inArea(cx, cy, x, y, r, diag) {
   const dx = Math.abs(cx - x), dy = Math.abs(cy - y);
@@ -418,11 +446,47 @@ const missingFrac = u => Math.max(0, 1 - u.hp / u.maxHp);
 const thornsNow = u => thornsOf(u) * (isClass(u, 'briarknight') && (u.shield > 0 || u.st.guard) ? 2 : 1) * (has(u, 'briarboots') && u.shield > 0 ? 1.5 : 1);
 const hitsOf = o => o.times || (o.double ? 2 : 1);
 function flanked(a, t) { return B.units.some(o => !o.dead && o !== a && o.side === a.side && dist(o, t) === 1); }
+// Facing: every unit faces one of the four directions (u.face, [dx, dy]). Where a blow comes from,
+// relative to the target's facing: 'front', 'side' or 'back' (diagonals count as the side).
+function hitSide(a, t) {
+  if (!t.face || a === t) return 'front';
+  const ax = a.x - t.x, ay = a.y - t.y, fwd = ax * t.face[0] + ay * t.face[1], across = Math.abs(ax * t.face[1] - ay * t.face[0]);
+  if (!ax && !ay) return 'front';
+  return fwd > across ? 'front' : -fwd > across ? 'back' : 'side';
+}
+const FACING_MULT = { front: 1, side: 1.1, back: 1.3 };
+// Turn toward a tile (the longer axis wins; a tie keeps left or right).
+function turnTo(u, x, y) {
+  const dx = x - u.x, dy = y - u.y;
+  if (!dx && !dy) return;
+  setFace(u, Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
+}
+function setFace(u, f, manual = false) {
+  u.face = f; u.faced = manual;
+  if (u.view && f[0]) u.view.list[1].flipX = f[0] < 0;
+  refreshView(u);
+}
+// At the end of a turn a unit turns to show its back to as little danger as it can: each foe
+// counts by how near it is, more if it would be behind than beside.
+function autoFace(u) {
+  const foes = alive().filter(f => homeSide(f) !== homeSide(u) && f.side !== u.side);
+  if (!foes.length) return;
+  const keep = u.face, cost = f => {
+    u.face = f;
+    return foes.reduce((t, x) => { const sd = hitSide(x, u); return t + (sd === 'back' ? 2.5 : sd === 'side' ? 1 : 0) / Math.max(1, dist(x, u) - 1); }, 0);
+  };
+  let best = keep, bc = cost(keep) - 0.01;
+  for (const f of DIRS) { const c = cost(f); if (c < bc) { bc = c; best = f; } }
+  u.face = keep;
+  if (best !== keep) setFace(u, best);
+}
 function dmgMult(a, t, o) {
   let m = 1;
-  if (t.side !== a.side && flanked(a, t)) m *= o.backstab ? 2 : a.flank;
+  const from = t.side !== a.side ? hitSide(a, t) : 'front';
+  if (t.side !== a.side && (flanked(a, t) || (o.backstab && from === 'back'))) m *= o.backstab ? 2 : a.flank;
+  if (!o.backstab) m *= FACING_MULT[from];
   if (inCover(t) && !has(a, 'concentrate')) m *= 0.8;
-  if (onHill(a) && o.range[1] > 1) m *= 1.15;
+  if (a !== t) m *= 1 + 0.1 * (elev(a) - elev(t));
   if (t.st.guard) m *= 0.6;
   if (t.st.vuln > 0) m *= 1 + (t.st.vulnAmt || 0.3);
   if (a.st.rally > 0) m *= 1.3;
@@ -571,7 +635,7 @@ function damage(t, amount, src, opts = {}) {
     const n = thornsNow(t);
     if (n > 0) for (const f of alive().filter(x => x.side !== t.side && dist(x, t) === 1 && !(th > 0 && x === src))) damage(f, n, t, { reflected: true, quiet: true });
   }
-  if (src && opts.melee && !opts.counter && !t.dead && !src.dead && src.side !== t.side && (t.st.riposte || isClass(t, 'blademaster') || has(t, 'countertackle')) && dist(t, src) === 1) {
+  if (src && opts.melee && !opts.counter && !t.dead && !src.dead && src.side !== t.side && (t.st.riposte || isClass(t, 'blademaster') || has(t, 'countertackle')) && dist(t, src) === 1 && hitSide(src, t) !== 'back') {
     fxText(t, 'Riposte', '#ffd23f');
     damage(src, Math.round(calcDmg(t, src, { kind: 'phys', stat: 'atk', pow: 0.6, range: [1, 1] })), t, { counter: true });
   }
@@ -794,6 +858,7 @@ function applyStatus(u, t, o) {
   if (o.cdLock && foe) for (const s of t.skills) if (SKILLS[s.id].cd > 0) s.cd = Math.max(s.cd, o.cdLock + ext);
   if (o.charm && foe && !t.boss && !(t.st.resolve > 0)) {
     t.st.charm = o.charm + (isClass(u, 'mesmer') ? 1 : 0);
+    breakCharge(t);
     if (!t.origSide) t.origSide = t.side;
     t.side = u.side;
     t.st.taunt = 0; t.st.tauntBy = null;
@@ -805,7 +870,7 @@ function applyStatus(u, t, o) {
   if (o.weak && foe) t.st.weak = Math.max(t.st.weak || 0, o.weak + ext);
   if (o.oil && foe) { t.st.oil = Math.max(t.st.oil || 0, o.oil); fxText(t, 'Oiled', '#c8a040', true); }
   if (o.wet && foe) { t.st.wet = Math.max(t.st.wet || 0, o.wet); if (t.st.burn > 0) t.st.burn = 0; }
-  if (o.sleep && foe && !t.boss) { t.st.sleep = Math.max(t.st.sleep || 0, o.sleep + ext); fxText(t, 'Zzz', '#c9f7ff'); }
+  if (o.sleep && foe && !t.boss) { t.st.sleep = Math.max(t.st.sleep || 0, o.sleep + ext); fxText(t, 'Zzz', '#c9f7ff'); breakCharge(t); }
   if (o.confuse && foe && !t.boss) { t.st.confuse = Math.max(t.st.confuse || 0, o.confuse + ext); fxText(t, 'Confused', '#ffd23f', true); }
   if (o.ctZero && foe) delayUnit(t, Math.max(0, t.ct));
   if (o.dispel && foe) {
@@ -903,6 +968,7 @@ async function moveUnit(u, path, blink) {
     sfx('blink');
     await tw({ targets: u.view, alpha: 0, duration: 120 });
     const end = path[path.length - 1];
+    turnTo(u, end.x, end.y);
     u.x = end.x; u.y = end.y;
     placeView(u);
     await tw({ targets: u.view, alpha: viewAlpha(u), duration: 120 });
@@ -910,6 +976,7 @@ async function moveUnit(u, path, blink) {
   } else {
     for (let i = 1; i < path.length && !u.dead; i++) {
       if (i % 2) sfx('step', 0.5);
+      turnTo(u, path[i].x, path[i].y);
       await stepTo(u, path[i].x, path[i].y);
     }
   }
@@ -936,8 +1003,20 @@ async function knock(u, t, n = 1, from = u) {
   if (!dx && !dy) return;
   for (let i = 0; i < n && !t.dead; i++) {
     const nx = t.x + dx, ny = t.y + dy;
-    if (standable(t, nx, ny) && !unitAt(nx, ny)) await stepTo(t, nx, ny, 110);
+    // nobody is shoved up a ledge: higher ground stops the push like a wall
+    if (standable(t, nx, ny) && !unitAt(nx, ny) && (t.fly || hgt(nx, ny) <= elev(t))) await shove(u, t, nx, ny, 110);
     else { log(`${t.name} slams into an obstacle.`); damage(t, Math.max(1, Math.round(u.atk * 0.3)), u, { quiet: true }); return; }
+  }
+}
+// One tile of knockback or pull: it breaks a charge, and a drop off high ground hurts (10% of max HP per level).
+async function shove(u, t, x, y, ms) {
+  const drop = t.fly ? 0 : elev(t) - hgt(x, y);
+  await stepTo(t, x, y, ms);
+  breakCharge(t);
+  if (drop > 0 && !t.dead) {
+    fxText(t, 'Fall!', '#d8d0c0', true); burst('dust', t, 10);
+    log(`${t.name} falls from the high ground.`);
+    damage(t, Math.max(1, Math.round(t.maxHp * 0.1 * drop)), null, { quiet: true, by: u });
   }
 }
 async function pull(u, t, n) {
@@ -948,9 +1027,9 @@ async function pull(u, t, n) {
     if (dx) opts.push([t.x + Math.sign(dx), t.y, Math.abs(dx)]);
     if (dy) opts.push([t.x, t.y + Math.sign(dy), Math.abs(dy)]);
     opts.sort((a, b) => b[2] - a[2]);
-    const next = opts.find(([x, y]) => standable(t, x, y) && !unitAt(x, y));
+    const next = opts.find(([x, y]) => standable(t, x, y) && !unitAt(x, y) && (t.fly || hgt(x, y) <= elev(t)));
     if (!next) break;
-    await stepTo(t, next[0], next[1], 80);
+    await shove(u, t, next[0], next[1], 80);
   }
 }
 async function dashAlong(u, o, x, y) {
@@ -974,7 +1053,7 @@ async function hopAway(u, n) {
 }
 function spawn(kind, side, x, y, ally, owner = null) {
   const sk = foeUnit(kind, B.level);
-  Object.assign(sk, { x, y, side, summoned: true, ct: 0, owner });
+  Object.assign(sk, { x, y, side, summoned: true, ct: 0, owner, face: side === 'hero' ? [1, 0] : [-1, 0] });
   if (owner) sk.hp = sk.maxHp = Math.round(sk.maxHp * (has(owner, 'bonewhistle') ? 1.5 : 1));
   if (ally && kind === 'skeleton') { sk.spr = 'skeleton_ally'; sk.name = 'Risen Skeleton'; }
   else if (ally) sk.name = `Allied ${sk.name}`;
@@ -1070,6 +1149,7 @@ async function useSkill(u, s, tx, ty, echoed) {
     fxText(u, '-' + cost, '#ff6a6a');
     refreshView(u);
   }
+  if (o.tgt !== 'self') turnTo(u, tx, ty);
   if (o.delay && echoed !== 'delayed') {
     // charge now, land at the start of the caster's next turn
     u.pending = { s: { id: s.id, mods: s.mods, cd: 0 }, tx, ty };
@@ -1106,6 +1186,7 @@ async function useSkill(u, s, tx, ty, echoed) {
     await enterTile(u);
     if (u.dead) { await sleep(300); checkEnd(); return; }
   }
+  if (o.tgt !== 'self') turnTo(u, tx, ty);
   const list = hitList(u, o, tx, ty, false);
   const tiles = areaTiles(u, o, tx, ty);
   const ranged = o.tgt !== 'self' && Math.abs(u.x - tx) + Math.abs(u.y - ty) > 1;
@@ -1332,7 +1413,7 @@ async function battleLoop(b) {
   while (B === b && !b.over) {
     const u = nextActor();
     b.active = u; b.inspect = null; b.startPos = null;
-    u.moved = false; u.acted = false; u.extraMove = false; u.walked = 0;
+    u.moved = false; u.acted = false; u.extraMove = false; u.walked = 0; u.faced = false;
     if (isHero(u)) refreshIntents();
     renderPanel();
     const skip = await startTurn(u);
@@ -1349,6 +1430,8 @@ async function battleLoop(b) {
     }
     if (B !== b || b.over) return;
     u.intent = null;
+    // a unit that acted turns its back on as little as it can, unless the player chose a facing
+    if (!skip && !u.dead && !u.faced) autoFace(u);
     endTurn(u);
     // the turn is over: forecast with nobody active, so the unit that just acted (often the foe
     // that just attacked) is forecast for its next turn too
@@ -1604,6 +1687,8 @@ function scoreAction(u, o, list) {
     }
     if (!foe && has(t, 'hollow') && t !== u) continue;
     let d = calcDmg(u, t, o) * w * hitsOf(o);
+    // a charged skill lands next turn: a target that can walk away probably will
+    if (o.delay && foe && !(t.st.root > 0 || t.st.stun || t.st.sleep > 0 || t.mov === 0)) d *= 0.6;
     if (t.lure && foe) s += 6;
     const kills = d + 0.5 >= t.hp + t.shield || (o.cull && !t.boss && t.hp - d <= t.maxHp * o.cull);
     d = Math.min(d, t.hp + t.shield);
@@ -1628,7 +1713,7 @@ function distField(u, targets) {
     for (const [dx, dy] of DIRS) {
       const nx = x + dx, ny = y + dy;
       if (!inb(nx, ny)) continue;
-      const nc = c + moveCost(u, nx, ny) + (hazard(u, nx, ny) ? 4 : 0);
+      const nc = c + moveCost(u, nx, ny) + climb(u, nx, ny, x, y) + (hazard(u, nx, ny) ? 4 : 0);
       if (nc < d[ny][nx]) { d[ny][nx] = nc; q.push([nx, ny, nc]); }
     }
   }
@@ -1650,6 +1735,18 @@ function threatMap(u) {
   }).filter(e => e.dmg > 0);
   return (x, y) => per.reduce((t, e) => t + (Math.abs(e.f.x - x) + Math.abs(e.f.y - y) <= e.r ? e.dmg : 0), 0);
 }
+// Tiles where a charging skill will land on u: everyone steps out of the marked area if they can.
+function chargeDanger(u) {
+  const bad = new Map();
+  for (const c of alive()) {
+    if (!c.pending || c === u) continue;
+    const o = skStats(c, c.pending.s);
+    if (!(o.hits === 'all' || homeSide(c) !== homeSide(u))) continue;
+    const pen = Math.min(20, calcDmg(c, u, o) / Math.max(1, u.hp + u.shield) * 12 + 5);
+    for (const [x, y] of areaTiles(c, o, c.pending.tx, c.pending.ty)) bad.set(key(x, y), (bad.get(key(x, y)) || 0) + pen);
+  }
+  return (x, y) => bad.get(key(x, y)) || 0;
+}
 function planAI(u, ahead) {
   const R = reach(u);
   // heroes on autopilot keep out of reach when hurt; a wound that would be fatal weighs most
@@ -1663,13 +1760,15 @@ function planAI(u, ahead) {
   // a small pull toward the foe, so a unit whose only useful actions are self-buffs still closes
   // in instead of standing still forever (an immobile turret out of reach stalled a battle)
   const near = distField(u, hostile.filter(t => targetable(u, t)).length ? hostile.filter(t => targetable(u, t)) : hostile);
+  const charged = chargeDanger(u);
   let best = null;
   for (const v of R.values()) {
     if (!v.stop) continue;
     u.x = v.x; u.y = v.y;
     const dd = Math.min(30, near[v.y][v.x]);
     let pos = (inCover(u) ? 1 : 0) - v.c * 0.05 - v.risk * 1.2 - hazard(u, v.x, v.y) * 0.8 - danger(v.x, v.y) - (u.ai === 'ranged' ? Math.max(0, dd - 4) : dd) * 0.15;
-    if (u.ai === 'ranged') pos += (Math.min(...hostile.map(t => dist(t, v))) >= 2 ? 3 : -2) + (onHill(u) ? 1.5 : 0);
+    pos += elev(u) * (u.ai === 'ranged' ? 1.5 : 0.4) - charged(v.x, v.y);
+    if (u.ai === 'ranged') pos += (Math.min(...hostile.map(t => dist(t, v))) >= 2 ? 3 : -2);
     for (const { s, o } of usable) {
       const cands = [];
       if (o.tgt === 'self') cands.push([u.x, u.y]);
@@ -1696,7 +1795,7 @@ function planAI(u, ahead) {
   for (const v of R.values()) {
     if (!v.stop) continue;
     const dd = df[v.y][v.x];
-    const sc = (u.ai === 'ranged' ? Math.abs(dd - 3) : dd) - (B.grid[v.y][v.x] === T.COVER ? 0.3 : 0) + v.c * 0.01 + v.risk + hazard(u, v.x, v.y) + danger(v.x, v.y) * 0.4;
+    const sc = (u.ai === 'ranged' ? Math.abs(dd - 3) : dd) - (B.grid[v.y][v.x] === T.COVER ? 0.3 : 0) + v.c * 0.01 + v.risk + hazard(u, v.x, v.y) + danger(v.x, v.y) * 0.4 + charged(v.x, v.y);
     if (sc < bs) { bs = sc; bv = v; }
   }
   return { path: bv ? pathTo(R, key(bv.x, bv.y)) : null, blink: bv && bv.blink };
@@ -1801,9 +1900,11 @@ function statusText(u) {
   if (st.guard) out.push(tip('Guarding', 'guard'));
   if (st.riposte) out.push(tip('Riposte ready', 'riposte'));
   if (inCover(u)) out.push(tip('In cover', 'cover'));
-  if (onHill(u)) out.push(tip('High ground', 'hill'));
+  if (elev(u)) out.push(tip(`Height ${elev(u)}`, 'hill'));
+  if (u.face && !u.dead) out.push(tip(`Facing ${FACE_NAMES[u.face.join()]}`, 'facing'));
   return out.flatMap((x, i) => i ? [' · ', x] : [x]);
 }
+const FACE_NAMES = { '1,0': 'right', '-1,0': 'left', '0,1': 'down', '0,-1': 'up' };
 function unitCard(u, withSkills) {
   const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info].filter(Boolean).join(' · ');
   return h('div', { class: 'card' },
@@ -1882,7 +1983,8 @@ function renderPanel() {
   const u = B.active;
   const mine = u && isHero(u) && B.resolveTurn && !B.busy && !env.auto;
   const kids = [h('div', { class: 'order' }, h('span', { class: 'lbl' }, 'NEXT'),
-    predictOrder(9).map((t, i) => h('img', { class: `spr ${t.side}${i === 0 ? ' now' : ''}${t.side === 'foe' ? ' flip' : ''}`, src: spriteURL(t.spr), title: t.name, alt: t.name })))];
+    predictOrder(9).map((t, i) => h('img', { class: `spr ${t.side}${i === 0 ? ' now' : ''}${t.side === 'foe' ? ' flip' : ''}${t.pending ? ' charging' : ''}`, src: spriteURL(t.spr),
+      title: t.pending ? `${t.name}: ${SKILLS[t.pending.s.id].name} lands at the start of this turn` : t.name, alt: t.name })))];
   if (B.obj) kids.push(objectiveLine(B.obj));
   const shown = B.inspect && !B.inspect.dead ? B.inspect : u;
   if (shown && shown.tile) kids.push(tileCard(shown.tile.x, shown.tile.y));
@@ -1900,6 +2002,9 @@ function renderPanel() {
       }),
       B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', 'data-key': 'enter', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, confirmLabel(u), kbd('↵')) : null,
       h('button', { class: 'btn', 'data-key': 'e', onclick: () => { sfx('click'); finishTurn(); } }, 'End turn', kbd('E')),
+      h('div', { class: 'facing' }, tip('Face', 'facing'), [['←', [-1, 0], 'arrowleft'], ['↑', [0, -1], 'arrowup'], ['↓', [0, 1], 'arrowdown'], ['→', [1, 0], 'arrowright']].map(([label, f, k]) =>
+        h('button', { class: 'btn face' + (u.faced && u.face.join() === f.join() ? ' sel' : ''), 'data-key': k, title: `Face ${FACE_NAMES[f.join()]} (arrow key)`, onclick: () => { sfx('click'); setFace(u, f, true); refreshIntents(); renderPanel(); } }, label)),
+        h('span', { class: 'dim' }, u.faced ? ' chosen' : ' auto at end of turn')),
       h('div', { class: 'hint' }, hintText()),
     ));
   } else kids.push(h('div', { class: 'actions waiting' }, h('div', { class: 'hint' }, u && !B.over ? `${u.name} is acting…` : '')));
@@ -2006,7 +2111,7 @@ function makeView(u) {
   const c = scene.add.container(u.x * TS, u.y * TS);
   const shadow = scene.add.ellipse(TS / 2, TS - 6, 34 * Math.min(u.scale || 1, 1.4), 10, 0x0a0614, 0.32);
   const sp = scene.add.image(TS / 2, TS - 2, 's_' + u.spr).setOrigin(0.5, 1).setScale(S * (u.scale || 1));
-  sp.flipX = u.side === 'foe';
+  sp.flipX = u.face ? u.face[0] < 0 : u.side === 'foe';
   const g = scene.add.graphics();
   c.add([shadow, sp, g]);
   u.view = c;
@@ -2026,6 +2131,11 @@ function refreshView(u) {
   g.fillStyle(0x120b18); g.fillRect(bx - 2, by - 2, bw + 4, 8);
   g.fillStyle(u.side === 'hero' ? 0x74d65e : 0xe5574f); g.fillRect(bx, by, Math.round(bw * u.hp / total), 4);
   if (u.shield > 0) { g.fillStyle(0x9fd8ff); g.fillRect(bx + Math.round(bw * u.hp / total), by, Math.round(bw * u.shield / total), 4); }
+  if (u.face) { // a small arrow at the tile's edge: the way the unit faces (its back is the other way)
+    const [fx, fy] = u.face, cx = fx ? (fx > 0 ? TS - 8 : 8) : TS / 2, cy = fy ? (fy > 0 ? TS - 19 : 8) : TS / 2 + 6;
+    const tri = (r, col) => g.fillStyle(col).fillTriangle(cx + fx * r, cy + fy * r, cx - fx * r * 0.6 + fy * r, cy - fy * r * 0.6 + fx * r, cx - fx * r * 0.6 - fy * r, cy - fy * r * 0.6 - fx * r);
+    tri(7, 0x120b18); tri(4.5, u.side === 'hero' ? 0x9ad8d0 : 0xff9080);
+  }
   const pips = [];
   if (u.st.poison > 0) pips.push(0x8be04e);
   if (u.st.burn > 0) pips.push(0xff8a3d);
@@ -2160,6 +2270,17 @@ export class BattleScene extends Phaser.Scene {
     }
     // foe intents: red tiles where the blow lands, a line from where the foe will stand
     const threat = new Map();
+    // what each charging skill would do if it landed now, so the numbers show over the heads in it
+    if (!b.over) for (const c of b.units) if (c.pending && !c.dead) {
+      const po = skStats(c, c.pending.s);
+      if (po.kind !== 'phys' && po.kind !== 'mag') continue;
+      for (const { t, w } of hitList(c, po, c.pending.tx, c.pending.ty, true)) {
+        if (t === c) continue;
+        const e = threat.get(t) || { dmg: 0, words: [] };
+        e.dmg += Math.round(calcDmg(c, t, po) * w * hitsOf(po));
+        threat.set(t, e);
+      }
+    }
     if (!b.over) for (const c of b.units) {
       if (!c.intent || !canPlan(c) || !c.view) continue;
       const I = intentView(c), focus = insp === c, help = I.o.kind === 'heal' || I.o.kind === 'shield' || I.o.kind === 'summon' || I.o.hits === 'allies' || I.o.tgt === 'ally';

@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=47';
+import { T, GW, GH } from './data.js?v=48';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -253,8 +253,13 @@ function wallTile(x, P, r) {
   if (P.moss) for (let i = 0; i < 7; i++) { const mx = ri(r, 0, 29); px(x, P.moss, mx, ri(r, 9, 13), ri(r, 2, 4), 1); }
   if (P.wallGlow && r() < 0.6) { const gx = ri(r, 4, 26); px(x, P.wallGlow, gx, 13, 1, 12); }
 }
-function hillTop(x, P) { // high ground: a lighter plateau
+function hillTop(x, P, level) { // high ground: a lighter plateau; a summit adds a second, smaller step on top
   x.fillStyle = 'rgba(255,244,210,0.2)'; x.fillRect(0, 0, 32, 32);
+  if (level < 2) return;
+  x.fillStyle = 'rgba(255,244,210,0.28)'; x.fillRect(3, 2, 26, 18);
+  px(x, 'rgba(255,248,220,0.5)', 3, 2, 26, 1); px(x, 'rgba(255,248,220,0.5)', 3, 2, 1, 18);
+  px(x, P.cliff[1], 3, 20, 26, 4); px(x, P.cliff[0], 3, 20, 26, 1); px(x, P.cliff[2], 28, 2, 1, 22);
+  for (let i = 5; i < 28; i += 4) px(x, P.cliff[2], i, 21 + (i % 2), 1, 2);
 }
 function thornTile(x, P, r) {
   const style = P.thorn;
@@ -331,6 +336,7 @@ export const THEME_KEYS = Object.keys(THEME_ART);
 export function addThemes(more) { Object.assign(THEME_ART, more); THEME_KEYS.splice(0, THEME_KEYS.length, ...Object.keys(THEME_ART)); }
 
 const isHole = t => t === T.WATER;
+const level = t => (t === T.PEAK ? 2 : t === T.HILL ? 1 : 0);
 const solidish = t => t === T.WALL || t === T.ROCK || t === T.COVER;
 const cache = new Map();
 // One tile's own art, cached per theme, type, variant and animation frame.
@@ -353,7 +359,7 @@ function tileArt(theme, type, v, frame) {
     }
     if (type === T.COVER) PROP[P.cover](x, P, rng(seed + 11));
     else if (type === T.ROCK) PROP[P.rock](x, P, rng(seed + 13));
-    else if (type === T.HILL) hillTop(x, P);
+    else if (type === T.HILL || type === T.PEAK) hillTop(x, P, type === T.PEAK ? 2 : 1);
     else if (type === T.THORN) thornTile(x, P, rng(seed + 17));
   }
   cache.set(k, c);
@@ -421,15 +427,18 @@ export function drawBoard(ctx, theme, grid, vari, frame) {
         if (dx === 1) ctx.fillRect(X + 31, Y, 1, 32); else if (dx === -1) ctx.fillRect(X, Y, 1, 32); else ctx.fillRect(X, Y + 31, 32, 1);
       }
     }
-    if (t === T.HILL) { // a plateau: lit rim where it starts, a cliff face where it drops away
-      const ledge = 'rgba(255,248,220,0.35)';
-      if (at(x, y - 1) !== T.HILL) px(ctx, ledge, X, Y, 32, 1);
-      if (at(x - 1, y) !== T.HILL) { px(ctx, ledge, X, Y, 1, 24); px(ctx, P.cliff[1], X - (at(x - 1, y) == null ? 0 : 2), Y + 2, 2, 24); }
-      if (at(x + 1, y) !== T.HILL) { px(ctx, P.cliff[0], X + 31, Y, 1, 24); }
-      if (at(x, y + 1) !== T.HILL) {
-        px(ctx, P.cliff[1], X, Y + 23, 32, 9); px(ctx, P.cliff[0], X, Y + 23, 32, 1); px(ctx, P.cliff[2], X, Y + 31, 32, 1);
-        for (let i = 1; i < 32; i += 4) px(ctx, P.cliff[2], X + i, Y + 25 + (i % 3), 1, 3);
-        if (P.g) for (let i = 0; i < 32; i += 3) px(ctx, P.g[2], X + i, Y + 23, 2, 1 + (i % 2));
+    const lv = level(t);
+    if (lv > 0) { // a plateau: lit rim where it starts, a cliff face wherever the ground is lower
+      const ledge = 'rgba(255,248,220,0.35)', lower = n => n == null || level(n) < lv;
+      if (lower(at(x, y - 1))) px(ctx, ledge, X, Y, 32, 1);
+      if (lower(at(x - 1, y))) { px(ctx, ledge, X, Y, 1, 24); px(ctx, P.cliff[1], X - (at(x - 1, y) == null ? 0 : 2), Y + 2, 2, 24); }
+      if (lower(at(x + 1, y))) { px(ctx, P.cliff[0], X + 31, Y, 1, 24); }
+      const below = at(x, y + 1);
+      if (lower(below)) { // a taller face where it drops two levels
+        const f = below == null ? 9 : 9 + 4 * (lv - level(below) - 1), top = Y + 32 - f;
+        px(ctx, P.cliff[1], X, top, 32, f); px(ctx, P.cliff[0], X, top, 32, 1); px(ctx, P.cliff[2], X, Y + 31, 32, 1);
+        for (let i = 1; i < 32; i += 4) px(ctx, P.cliff[2], X + i, top + 2 + (i % 3), 1, 3 + (f > 9 ? 4 : 0));
+        if (P.g) for (let i = 0; i < 32; i += 3) px(ctx, P.g[2], X + i, top, 2, 1 + (i % 2));
       }
     }
     if (t === T.WALL && at(x, y + 1) != null && at(x, y + 1) !== T.WALL && !isHole(at(x, y + 1))) { ctx.fillStyle = 'rgba(10,6,20,0.32)'; ctx.fillRect(X, Y + 32, 32, 6); }

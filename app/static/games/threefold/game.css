@@ -116,6 +116,7 @@ img.spr.flip { transform: scaleX(-1); }
 .order img.spr { width: 30px; height: 30px; background: #000; border-bottom: 3px solid var(--blue); }
 .order img.spr.foe { border-bottom-color: var(--red); }
 .order img.spr.now { outline: 2px solid var(--gold); }
+.order img.spr.charging { box-shadow: 0 0 0 2px #e08a4a; }  /* a charged skill lands on this turn */
 .card { background: var(--panel); box-shadow: 0 0 0 3px #000, inset 0 0 0 3px var(--line); padding: 10px; margin: 3px 3px 12px; }
 .card-head { display: flex; gap: 8px; align-items: center; }
 .card-head img.spr { width: 40px; height: 40px; }
@@ -136,6 +137,8 @@ img.spr.flip { transform: scaleX(-1); }
 .actions { margin: 0 0 10px; }
 .actions .hint { margin: 6px 3px 0; min-height: 0; }
 .actions.waiting .hint { margin: 0 3px; }
+.actions .facing { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 6px 3px 0; font-size: 17px; color: var(--muted); }
+.actions .facing .btn.face { padding: 2px 10px; margin: 0; font-family: system-ui, sans-serif; font-size: 18px; line-height: 1.2; }
 #stage, #hud { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 button, #game { -webkit-tap-highlight-color: transparent; }
 /* Phones: the action bar is pinned to the bottom of the screen during battle, so the skill

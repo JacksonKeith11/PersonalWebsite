@@ -7,8 +7,8 @@ Read this before changing anything in `app/static/games/threefold/` or `tools/th
 A pixel-art tactical roguelike: a Warrior, Mage and Rogue climb three acts, each drawn per run
 from two (Greenwood or Drowned Marsh, Sunken Crypt or Rime Halls, Ember Peaks or Clockwork
 Foundry). Each act is a branching map of battles, elites, events and shops ending in a
-boss. Battles are grid tactics on a 10×8 board, with speed-based turn order, terrain, flanking,
-statuses and line of sight. Runs save to `localStorage`.
+boss. Battles are grid tactics on a 10×8 board, with speed-based turn order, terrain, height,
+facing, flanking, charged skills, statuses and line of sight. Runs save to `localStorage`.
 
 ## Code map (`app/static/games/threefold/`)
 
@@ -199,6 +199,30 @@ Keep it that way.
   existing effect flags; `vsShock` is new. `load()` drops removed skills from saves and moves their
   artifacts to the pack. Bonus labels that depend on the amount (fester, ironbark, pincer, momentum,
   perDebuff, vsShock, selfShieldHp) print the real number now.
+- **Height, facing and charged skills** (the owner asked for these three from Final Fantasy Tactics
+  and Tactics Ogre):
+  - Height: `TERRAIN[t].h`; hills (`T.HILL`) are 1 and summits (`T.PEAK`) 2. `hgt`/`elev` read it.
+    `genGrid` raises mounds (`rc.hill` of them per board, each a summit with chance `rc.peak`, default
+    0.5) ringed by height 1, and its flood check climbs at most one level per step in both directions,
+    so every open tile can be reached and left. Walkers pay 1 extra per level climbed and can't climb two
+    at once (`climb`; flyers ignore it); dropping is free. Each level above the target is +10% damage
+    and each below −10% (`dmgMult`, every attack, melee too), and ranged skills reach 1 farther per level
+    the caster stands on (`rangeOf`). Knockback and pulls can't push a unit up a ledge (it slams as into
+    a wall), and a push off one deals 10% of max HP per level (`shove`). Summits draw as a plateau
+    with a second step on top (`hillTop` in tiles.js), with taller cliff faces where they drop two levels.
+  - Facing: `u.face` is [dx, dy]. Units turn as they walk and toward what they target (`turnTo`), and
+    at the end of a turn that wasn't skipped they turn to show their back to as little danger as they
+    can (`autoFace`), unless the player chose a facing with the arrow buttons or keys (`u.faced`).
+    `hitSide(a, t)` says where a blow lands: side hits +10%, back +30% (`FACING_MULT`); backstab skills
+    double on a back hit as well as when flanked (and skip the facing bonus). Counters (riposte, the
+    Blademaster, Counter Strap) don't answer blows from behind. A small arrow at the tile edge shows it.
+  - Charged skills: `delay: true` (see Gotchas) now also on Titan Swing, Deadeye and Starfall (one per
+    base class), every boss but the Hydra (Thorn Bloom, Death Knell, Hailstorm, Siege Cannon, Meteor)
+    and the Cultist, Ash Priest and Ogre Warlord. A stun, sleep, charm or knockback breaks a charge
+    (`breakCharge`); bosses can't be stunned or moved, so theirs can only be dodged or delayed. The
+    board shows the damage a charge would do over the heads in it, the turn strip rings the caster, and
+    every AI unit steps out of a hostile charge (`chargeDanger`) and discounts its own charged hits on
+    targets that can walk away. The Hydra was left out on purpose: it already ends the most runs.
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
 - **Movement avoids hazards when it can.** `reach()` keeps every route to a tile that isn't beaten
@@ -362,7 +386,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   `battle.js` drive purify, dispel, Ruin Touch and Viral; add new statuses there too.
 - **Odd skill machinery** in `useSkill`:
   - `delay`: the skill charges and goes off at the start of the caster's next turn (`u.pending`,
-    drawn as pulsing tiles). Use `tgt: 'tile'` so it has somewhere to land.
+    drawn as pulsing orange tiles), before a stun or sleep would skip that turn; `breakCharge` clears it.
+    Use `tgt: 'tile'` so it has somewhere to land (a `tgt: 'self'` charge lands around the caster). A
+    single-tile charge with no `aoe` hits whoever stands there, either side.
   - `mimic`: `effective(u, s)` swaps in the last skill the caster's side used (`B.lastCast`). Call
     `effective`, not `skStats`, wherever a skill is about to be targeted or used.
   - `shape: 'coin'`: every foe or every ally, decided by `B.coin` when it's used.
@@ -399,6 +425,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
 - **Board overlays are regions.** Draw tile highlights with `region()` in `BattleScene.update`
   (fill every tile, outline only the region's outer edge) in the soft palette there; per-tile
   outlines double up where tiles touch.
+- **`moveCost(u, x, y, fx, fy)`** includes climbing only when given the tile moved from; `standable`
+  calls it without one. Anything new that walks a unit tile by tile (pathing, distance fields) should
+  pass the previous tile, or units will walk up cliffs.
 - **Line of sight** applies to ranged skills unless they have `lob`. `describe` prints "Needs line of
   sight" from the same rule (`needsLos` in `battle.js`); keep the two in step.
 - **Sprite rows must be exactly 16 characters** (8 for icons), with `.` for transparent. A

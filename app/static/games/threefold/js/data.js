@@ -8,7 +8,7 @@ export const MAX_MODS = 2;       // artifacts a single skill can hold
 export const MAX_RELICS = 3;     // hero artifacts a hero can wear
 
 // ---------- terrain ----------
-export const T = { FLOOR: 0, COVER: 1, ROCK: 2, WATER: 3, WALL: 4, LAVA: 5, HILL: 6, THORN: 7 };
+export const T = { FLOOR: 0, COVER: 1, ROCK: 2, WATER: 3, WALL: 4, LAVA: 5, HILL: 6, THORN: 7, PEAK: 8 };
 export const TERRAIN = [
   { cost: 1 },
   { cost: 2, cover: true },
@@ -16,8 +16,9 @@ export const TERRAIN = [
   { cost: Infinity, fly: true },
   { cost: Infinity, los: true, phase: true },
   { cost: 1, lava: true },
-  { cost: 2, hill: true },
+  { cost: 1, h: 1 },
   { cost: 2, thorn: true },
+  { cost: 1, h: 2 },
 ];
 export const TERRAIN_HELP = [
   'Open ground.',
@@ -26,8 +27,9 @@ export const TERRAIN_HELP = [
   'Only flyers can cross (swimmers wade through).',
   'Blocks movement and line of sight. Ghosts drift through.',
   'Deals 12% of max HP and sets burning when entered, or when a turn starts here.',
-  'High ground: costs 2 movement; ranged skills from here reach 1 farther and hit 15% harder.',
+  'High ground (height 1). Climbing up a level costs 1 extra movement. Attacks hit 10% harder per level above the target (10% weaker per level below), and ranged skills reach 1 farther per level you stand on.',
   'Cuts anyone who walks in. Costs 2 movement.',
+  'Summit (height 2): only reachable from height 1, since nobody climbs two levels in one step. Attacks hit 10% harder per level above the target, and ranged skills reach 2 farther. Knocked off, a unit takes 10% of its max HP per level it falls.',
 ];
 // What each status does, for the hover/tap tooltips. A number in brackets is turns left;
 // those count down at the end of the unit's own turn.
@@ -61,7 +63,7 @@ export const STATUS_HELP = {
   movUp: '+1 MOV: moves one tile farther.',
   imbue: 'Imbued: its attacks add an element (burn, poison, shock or slow).',
   intent: 'Intent: what the foe plans to do on its next turn, from where things stand now: red tiles and the damage. It\'s replanned after every move and action, so a foe that loses its target will look for another.',
-  pending: 'Charging: the skill goes off at the start of its next turn. Kill it or move away.',
+  pending: 'Charging: the skill lands on the marked tiles at the start of its next turn. Step out of them, kill the caster, or break the charge: stun it, put it to sleep, charm it or knock it back. Delaying the caster holds the spell back too.',
   doom: 'Doomed: when the count reaches 0 it loses 45% of max HP (15% for bosses).',
   ward: 'Ward: completely blocks the next enemy hit, once per stack.',
   thorns: 'Thorns: melee attackers take this much damage back.',
@@ -76,7 +78,8 @@ export const STATUS_HELP = {
   bleed: 'Bleeding: every tile it moves, pushed or not, costs it the bleed damage once per stack (up to 5). Loses a stack at the end of each of its turns.',
   chill: 'Chilled: at 3 chill it freezes, losing its next turn (bosses just count as frozen).',
   frozen: 'Frozen: loses its next turn. Some artifacts hit frozen targets harder.',
-  hill: 'High ground: ranged skills reach 1 farther and hit 15% harder.',
+  hill: 'Height: attacks hit 10% harder per level above the target (10% weaker per level below), and ranged skills reach 1 farther per level the attacker stands on.',
+  facing: 'Facing: hits from the side deal 10% more and hits from behind 30% more, and counters only answer blows from the front or side. Units turn toward where they move and what they attack.',
 };
 // Words in skill text that name a status, mapped to its STATUS_HELP key.
 export const STATUS_WORDS = {
@@ -86,12 +89,12 @@ export const STATUS_WORDS = {
   Poisons: 'poison', Bleeds: 'bleed', 'Marks a bounty': 'bounty', Chills: 'chill', Hexes: 'hex', Stealth: 'stealth', Riposte: 'riposte', 'Readies a counter': 'riposte', 'Grows thorns': 'thorns', Imbues: 'imbue', 'Delays target': 'delay', Hastes: 'haste',
 };
 export const THEMES = {
-  wood: ['Grass', 'Forest', 'Boulder', 'Water', 'Ruined wall', 'Lava', 'Hill', 'Brambles'],
-  crypt: ['Flagstones', 'Rubble', 'Sarcophagus', 'Pit', 'Crypt wall', 'Lava', 'Dais', 'Bone spikes'],
-  ember: ['Basalt', 'Ash drift', 'Obsidian', 'Chasm', 'Obsidian wall', 'Lava', 'Ridge', 'Glass shards'],
-  marsh: ['Mud', 'Reeds', 'Stump', 'Bog water', 'Sunken wall', 'Lava', 'Hummock', 'Brambles'],
-  frost: ['Snow', 'Snowdrift', 'Ice block', 'Frozen pool', 'Ice wall', 'Lava', 'Ridge', 'Icicles'],
-  foundry: ['Iron floor', 'Crates', 'Gear pile', 'Molten pit', 'Iron wall', 'Molten metal', 'Catwalk', 'Blades'],
+  wood: ['Grass', 'Forest', 'Boulder', 'Water', 'Ruined wall', 'Lava', 'Hill', 'Brambles', 'Hilltop'],
+  crypt: ['Flagstones', 'Rubble', 'Sarcophagus', 'Pit', 'Crypt wall', 'Lava', 'Dais', 'Bone spikes', 'High dais'],
+  ember: ['Basalt', 'Ash drift', 'Obsidian', 'Chasm', 'Obsidian wall', 'Lava', 'Ridge', 'Glass shards', 'Crag'],
+  marsh: ['Mud', 'Reeds', 'Stump', 'Bog water', 'Sunken wall', 'Lava', 'Hummock', 'Brambles', 'Knoll'],
+  frost: ['Snow', 'Snowdrift', 'Ice block', 'Frozen pool', 'Ice wall', 'Lava', 'Ridge', 'Icicles', 'Peak'],
+  foundry: ['Iron floor', 'Crates', 'Gear pile', 'Molten pit', 'Iron wall', 'Molten metal', 'Catwalk', 'Blades', 'Upper catwalk'],
 };
 
 // ---------- acts ----------
@@ -112,7 +115,7 @@ export const ACTS = {
   marsh: {
     name: 'The Drowned Marsh', theme: 'marsh', music: 'm_marsh', boss: 'The Bog Hydra',
     intro: 'Fog lies over the drowned marsh. Out in the deep water, something with many heads is waking.',
-    terrain: { cover: [2, 4], rock: [1, 2], water: 1, pools: [2, 3], walls: [0, 1], lava: [0, 0], hill: [0, 1], thorn: [0, 2] },
+    terrain: { cover: [2, 4], rock: [1, 2], water: 1, pools: [2, 3], walls: [0, 1], lava: [0, 0], hill: [1, 1], peak: 0.3, thorn: [0, 2] },
     early: [['toad', 'toad', 'leech'], ['lizard', 'lizard', 'wisp'], ['leech', 'leech', 'bloat'], ['toad', 'lizard', 'wisp'], ['slime', 'slime', 'leech']],
     late: [['lizard', 'lizard', 'toad', 'wisp'], ['bloat', 'bloat', 'leech', 'wisp'], ['toad', 'toad', 'lizard', 'shaman'], ['leech', 'leech', 'lizard', 'cutpurse']],
     elite: [['croc', 'leech', 'leech'], ['croc', 'toad', 'wisp']],
@@ -121,7 +124,7 @@ export const ACTS = {
   crypt: {
     name: 'The Sunken Crypt', theme: 'crypt', music: 'm_crypt', boss: 'The Hollow King',
     intro: 'Below the old city, the Hollow King hoards the dead.',
-    terrain: { cover: [1, 2], rock: [1, 2], water: 0.4, walls: [2, 4], lava: [0, 0], hill: [0, 1], thorn: [0, 2] },
+    terrain: { cover: [1, 2], rock: [1, 2], water: 0.4, walls: [2, 4], lava: [0, 0], hill: [1, 1], thorn: [0, 2] },
     early: [['skeleton', 'skeleton', 'cultist'], ['ghost', 'ghost', 'bat'], ['spider', 'spider', 'skeleton'], ['cultist', 'shaman', 'skeleton'], ['bulwark', 'skeleton', 'cultist'], ['shade', 'ghost', 'skeleton']],
     late: [['skeleton', 'skeleton', 'ghost', 'cultist'], ['spider', 'spider', 'ghost', 'shaman'], ['skeleton', 'cultist', 'cultist', 'bat'], ['ghost', 'ghost', 'spider', 'skeleton'],
       ['wight', 'bulwark', 'cultist', 'skeleton'], ['shade', 'shade', 'spider', 'wight']],
@@ -140,7 +143,7 @@ export const ACTS = {
   ember: {
     name: 'The Ember Peaks', theme: 'ember', music: 'm_ember', boss: 'The Cinder Wyrm',
     intro: 'At the top of the burning peaks, the Cinder Wyrm waits.',
-    terrain: { cover: [1, 2], rock: [1, 3], water: 0.3, walls: [1, 2], lava: [2, 4], hill: [1, 2], thorn: [0, 1] },
+    terrain: { cover: [1, 2], rock: [1, 3], water: 0.3, walls: [1, 2], lava: [2, 4], hill: [1, 2], peak: 0.7, thorn: [0, 1] },
     early: [['imp', 'imp', 'orc'], ['salamander', 'salamander', 'orc'], ['orc', 'orc', 'shaman'], ['imp', 'salamander', 'firecultist'], ['kobold', 'kobold', 'orc'], ['lavaworm', 'imp', 'salamander']],
     late: [['orc', 'orc', 'imp', 'firecultist', 'imp'], ['salamander', 'salamander', 'imp', 'imp', 'orc'], ['magmagolem', 'imp', 'imp', 'firecultist'], ['orc', 'salamander', 'firecultist', 'shaman', 'imp'],
       ['brazier', 'orc', 'orc', 'firecultist'], ['lavaworm', 'lavaworm', 'kobold', 'imp']],
@@ -214,11 +217,11 @@ export const GROWTH = {
 
 export const CLASSES = {
   warrior: { name: 'Warrior', hp: 50, atk: 10, mag: 2, def: 5, res: 2, spd: 8, mov: 3, crit: 5, promos: ['blademaster', 'juggernaut'], arch: ['thorns', 'shield', 'carnage'],
-    start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder', 'ironhide', 'bide', 'rallycry', 'revenge', 'carve', 'overhead', 'guardbreak', 'shakeitoff'] },
+    start: ['strike', 'cleave', 'bash'], pool: ['warcry', 'charge', 'hook', 'earthsplit', 'shieldwall', 'sunder', 'ironhide', 'bide', 'rallycry', 'revenge', 'carve', 'overhead', 'guardbreak', 'shakeitoff', 'titanswing'] },
   mage: { name: 'Mage', hp: 32, atk: 3, mag: 11, def: 1, res: 5, spd: 7, mov: 3, crit: 5, promos: ['pyromancer', 'chronomancer'], arch: ['elemental', 'hex', 'frost'],
-    start: ['bolt', 'fireball', 'frost'], pool: ['chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'frostnova', 'missiles2', 'manalance'] },
+    start: ['bolt', 'fireball', 'frost'], pool: ['chain', 'blink', 'barrier', 'meteor', 'hexbolt', 'spark', 'condensate', 'gravity', 'frostnova', 'missiles2', 'manalance', 'starfall'] },
   rogue: { name: 'Rogue', hp: 36, atk: 9, mag: 2, def: 2, res: 2, spd: 11, mov: 4, crit: 15, flank: 1.5, promos: ['assassin', 'trickster'], arch: ['poison', 'fortune', 'momentum'],
-    start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'toxicbomb', 'tripup', 'luckyshot', 'jackpot', 'lowblow', 'bounceknife', 'eviscerate', 'cointoss'] },
+    start: ['stab', 'knives', 'venom'], pool: ['assassinate', 'caltrops', 'fan', 'pounce', 'toxicbomb', 'tripup', 'luckyshot', 'jackpot', 'lowblow', 'bounceknife', 'eviscerate', 'cointoss', 'deadeye'] },
 };
 export const PROMOS = {
   // tier 1
@@ -410,7 +413,7 @@ export const SKILLS = {
   masterstroke: { name: 'Masterstroke', kind: 'buff', tgt: 'self', range: [0, 0], shape: 'math', rule: 'all', hits: 'allies', ctGive: 50, cd: 6, txt: 'Every ally on the board gets half a turn sooner.' },
   // assassin
   cull: { name: 'Destroy', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.6, cull: 0.25, cd: 3, txt: 'Anything left under 25% HP after the hit dies. Not bosses.' },
-  shiftstab: { name: 'Shift Stab', kind: 'phys', tgt: 'foe', range: [2, 4], leap: true, backstab: true, pow: 0.9, cd: 2, txt: 'Slip in beside the target. Double damage if it\'s flanked.' },
+  shiftstab: { name: 'Shift Stab', kind: 'phys', tgt: 'foe', range: [2, 4], leap: true, backstab: true, pow: 0.9, cd: 2, txt: 'Slip in beside the target. Double damage if it\'s flanked or struck from behind.' },
   doomfist: { name: 'Doom Fist', kind: 'buff', tgt: 'foe', range: [1, 1], doom: 3, cd: 4, txt: 'Pressure points: in 3 turns the target loses 45% of its max HP.' },
   toxinsalve: { name: 'Toxin Salve', kind: 'buff', tgt: 'ally', range: [0, 3], imbue: 'poison', lob: true, cd: 3, txt: 'For 3 turns the ally\'s hits poison.' },
   hamstring: { name: 'Hamstring', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.6, root: 2, slow: 2, cd: 3, txt: 'The target can\'t move, then moves at half speed.' },
@@ -545,6 +548,10 @@ export const SKILLS = {
   evenodds: { name: 'Even Odds', kind: 'buff', tgt: 'self', range: [0, 0], shape: 'math', rule: 'even', hits: 'foes', weak: 2, slow: 1, cd: 3, txt: 'Every foe with even HP is weakened and slowed.' },
   contagion: { name: 'Contagion', kind: 'phys', tgt: 'foe', range: [1, 4], pow: 0.4, poison: 3, poisonPow: 0.35, spread: true, lob: true, cd: 3, txt: 'Poisons the target, then its ailments leap to its neighbours.' },
   crescendo: { name: 'Crescendo', kind: 'buff', tgt: 'self', range: [0, 0], aoe: 3, hits: 'allies', focus: true, cd: 4, txt: 'Allies within 3 tiles: the next damaging skill hits 60% harder.' },
+  // charged skills: they land at the start of the caster's next turn (see `delay` in battle.js)
+  titanswing: { name: 'Titan Swing', kind: 'phys', tgt: 'tile', range: [1, 1], aoe: 1, hits: 'foes', pow: 1.9, knock: true, delay: true, cd: 4, txt: 'Wind up a colossal blow: it lands on the spot and around it at the start of your next turn, throwing foes back.' },
+  deadeye: { name: 'Deadeye', kind: 'phys', tgt: 'tile', range: [2, 6], pow: 2.4, critUp: 25, delay: true, cd: 3, txt: 'Take aim at a tile. Whoever stands there at the start of your next turn takes the shot.' },
+  starfall: { name: 'Starfall', kind: 'mag', tgt: 'tile', range: [2, 6], aoe: 2, hits: 'foes', pow: 1.25, lob: true, delay: true, cd: 4, txt: 'Call down the stars: they land on a wide circle at the start of your next turn.' },
   lacerate: { name: 'Lacerate', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.7, bleed: 3, cd: 2, txt: 'A long shallow cut that opens with every step the target takes.' },
   crosscut: { name: 'Cross Cut', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 1, diag: true, hits: 'foes', pow: 0.8, bleed: 2, cd: 3, txt: 'An X of steel around you; everything it touches bleeds.' },
   pricehead: { name: 'Price on Their Head', kind: 'buff', tgt: 'foe', range: [1, 5], bounty: true, vuln: 2, vulnAmt: 0.2, lob: true, cd: 3, txt: 'Puts a bounty on the target and points out its weak spots. Collect by killing it.' },
@@ -621,6 +628,15 @@ export const SKILLS = {
   e_breath: { name: 'Flame Breath', kind: 'mag', tgt: 'tile', shape: 'line', range: [1, 5], hits: 'foes', pow: 1.0, burn: 2, cd: 2 },
   e_tailsweep: { name: 'Tail Sweep', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 1, diag: true, hits: 'foes', pow: 0.9, knock: true, cd: 2 },
   e_firerain: { name: 'Fire Rain', kind: 'mag', tgt: 'tile', range: [2, 6], aoe: 1, hits: 'foes', pow: 0.9, terrain: T.LAVA, lob: true, cd: 3 },
+  // charged foe skills: marked on the board a turn ahead, so heroes can step out (or break the charge)
+  e_bloom: { name: 'Thorn Bloom', kind: 'mag', tgt: 'tile', range: [2, 6], aoe: 2, hits: 'foes', pow: 1.1, poison: 2, lob: true, delay: true, cd: 4, txt: 'Lands at the start of its next turn.' },
+  e_knell: { name: 'Death Knell', kind: 'mag', tgt: 'tile', range: [2, 6], aoe: 1, hits: 'foes', pow: 1.6, lob: true, delay: true, cd: 4, txt: 'Lands at the start of its next turn.' },
+  e_hail: { name: 'Hailstorm', kind: 'mag', tgt: 'tile', range: [2, 6], aoe: 2, hits: 'foes', pow: 1.0, chill: 2, lob: true, delay: true, cd: 4, txt: 'Lands at the start of its next turn.' },
+  e_cannon: { name: 'Siege Cannon', kind: 'phys', tgt: 'tile', range: [3, 7], aoe: 1, hits: 'all', pow: 1.7, push: 1, lob: true, delay: true, cd: 4, txt: 'Lands at the start of its next turn and hits everyone there.' },
+  e_meteor: { name: 'Meteor', kind: 'mag', tgt: 'tile', range: [2, 7], aoe: 1, hits: 'foes', pow: 1.7, burn: 2, lob: true, delay: true, cd: 4, txt: 'Lands at the start of its next turn.' },
+  e_ritual: { name: 'Dark Ritual', kind: 'mag', tgt: 'tile', range: [2, 5], aoe: 1, hits: 'foes', pow: 1.3, lob: true, delay: true, cd: 4, txt: 'Lands at the start of its next turn.' },
+  e_pillar: { name: 'Pillar of Flame', kind: 'mag', tgt: 'tile', range: [2, 5], pow: 1.9, burn: 3, lob: true, delay: true, cd: 3, txt: 'Erupts under one tile at the start of its next turn.' },
+  e_quake: { name: 'Earthquake', kind: 'phys', tgt: 'self', range: [0, 0], aoe: 2, hits: 'foes', pow: 1.2, stun: 1, delay: true, cd: 4, txt: 'Raises its club; the ground splits around it at the start of its next turn.' },
 };
 
 // ---------- skill artifacts ----------
@@ -746,7 +762,7 @@ export const MODS = {
   starfall: { name: 'Starfall Stone', tags: ['elemental'], only: 'fireball', group: 'shape', note: 'Range 3–8, radius 2, +40% power, cooldown +2', ok: o => o.aoe > 0,
     apply: o => { o.range = [3, 8]; o.aoe += 1; o.pow *= 1.4; o.cd += 2; } },
   deepfreeze: { name: 'Glacier Heart', tags: ['elemental'], only: 'frost', note: 'Freezes the target solid: stunned, but takes half damage', ok: () => true, apply: o => { o.stun = 1; o.pow *= 0.5; } },
-  backstab: { name: 'Backstabber', tags: ['poison'], only: 'stab', note: 'Flanked targets take double damage', ok: () => true, apply: o => { o.backstab = true; } },
+  backstab: { name: 'Backstabber', tags: ['poison'], only: 'stab', note: 'Flanked targets, and blows from behind, take double damage', ok: () => true, apply: o => { o.backstab = true; } },
   fanning: { name: 'Knife Fan', only: 'knives', group: 'shape', note: 'Hits every foe within 2 tiles of you (70%)', ok: single,
     apply: o => { o.tgt = 'self'; o.range = [0, 0]; o.aoe = 2; o.hits = 'foes'; o.pow *= 1.0; } },
   plague: { name: 'Plague Rat', tags: ['poison'], only: 'venom', group: 'shape', note: 'Splashes onto foes around the target at 70% power, poisoning them too', ok: single, apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.7; } },
@@ -949,19 +965,19 @@ export const FOES = {
   bat: { name: 'Bat', hp: 10, atk: 5, def: 0, res: 1, spd: 13, mov: 5, fly: true, skills: ['e_drain'] },
   shaman: { name: 'Shaman', hp: 18, atk: 3, mag: 8, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_mend', 'e_zap'], ai: 'ranged' },
   golem: { name: 'Stone Golem', hp: 75, atk: 13, def: 8, res: 2, spd: 4, mov: 2, skills: ['e_pound', 'e_rock', 'e_slam'], scale: 1.2 },
-  ogre: { name: 'Ogre Warlord', hp: 70, atk: 14, def: 4, res: 1, spd: 5, mov: 3, skills: ['e_boulder', 'e_stomp', 'e_smash'], scale: 1.25 },
-  treant: { name: 'The Thornmother', hp: 95, atk: 10, mag: 9, def: 4, res: 3, spd: 6, mov: 2, skills: ['e_roots', 'e_thornburst', 'e_overgrow', 'e_slam'], boss: true, regen: 0.025, scale: 1.5,
+  ogre: { name: 'Ogre Warlord', hp: 70, atk: 14, def: 4, res: 1, spd: 5, mov: 3, skills: ['e_boulder', 'e_stomp', 'e_smash', 'e_quake'], scale: 1.25 },
+  treant: { name: 'The Thornmother', hp: 95, atk: 10, mag: 9, def: 4, res: 3, spd: 6, mov: 2, skills: ['e_roots', 'e_thornburst', 'e_overgrow', 'e_slam', 'e_bloom'], boss: true, regen: 0.025, scale: 1.5,
     info: 'Regrows a little HP every turn.' },
   skeleton: { name: 'Skeleton', hp: 24, atk: 8, def: 4, res: 0, spd: 6, mov: 3, skills: ['e_slash'] },
-  cultist: { name: 'Cultist', hp: 17, atk: 3, mag: 9, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_flame', 'e_hex'], ai: 'ranged' },
+  cultist: { name: 'Cultist', hp: 17, atk: 3, mag: 9, def: 1, res: 3, spd: 7, mov: 3, skills: ['e_flame', 'e_hex', 'e_ritual'], ai: 'ranged' },
   ghost: { name: 'Ghost', hp: 16, atk: 3, mag: 8, def: 1, res: 6, spd: 9, mov: 4, fly: true, phase: true, skills: ['e_wail'], ai: 'ranged', info: 'Drifts through walls.' },
   spider: { name: 'Crypt Spider', hp: 16, atk: 7, def: 2, res: 1, spd: 11, mov: 4, skills: ['e_web', 'e_spiderbite'] },
   knight: { name: 'Dark Knight', hp: 60, atk: 12, def: 6, res: 3, spd: 7, mov: 3, skills: ['e_kcleave', 'e_slash'], scale: 1.1 },
-  lich: { name: 'The Hollow King', hp: 110, atk: 4, mag: 12, def: 3, res: 6, spd: 8, mov: 3, skills: ['e_raise', 'e_nova', 'e_deathbolt'], ai: 'ranged', boss: true, scale: 1.4 },
+  lich: { name: 'The Hollow King', hp: 110, atk: 4, mag: 12, def: 3, res: 6, spd: 8, mov: 3, skills: ['e_raise', 'e_nova', 'e_deathbolt', 'e_knell'], ai: 'ranged', boss: true, scale: 1.4 },
   imp: { name: 'Imp', hp: 14, atk: 3, mag: 9, def: 1, res: 3, spd: 12, mov: 4, fly: true, fireproof: true, skills: ['e_firebolt'], ai: 'ranged' },
   salamander: { name: 'Salamander', hp: 26, atk: 10, def: 3, res: 2, spd: 8, mov: 4, fireproof: true, trail: true, skills: ['e_flamebite'], info: 'Leaves lava where it walks.' },
   orc: { name: 'Orc Brute', hp: 36, atk: 11, def: 3, res: 1, spd: 5, mov: 3, skills: ['e_stomp', 'e_smash'] },
-  firecultist: { name: 'Ash Priest', hp: 20, atk: 3, mag: 11, def: 1, res: 4, spd: 7, mov: 3, skills: ['e_flame', 'e_firebolt'], ai: 'ranged' },
+  firecultist: { name: 'Ash Priest', hp: 20, atk: 3, mag: 11, def: 1, res: 4, spd: 7, mov: 3, skills: ['e_flame', 'e_firebolt', 'e_pillar'], ai: 'ranged' },
   magmagolem: { name: 'Magma Golem', hp: 85, atk: 14, def: 8, res: 3, spd: 4, mov: 2, fireproof: true, skills: ['e_magmaslam', 'e_pound', 'e_rock'], scale: 1.2 },
   // ---- added with the alternative acts. Flags: split (becomes two of a kind on death), burst (explodes on
   // death), rampart, items (worn artifacts), stealth (starts hidden), swim (wades through water), heads
@@ -992,7 +1008,7 @@ export const FOES = {
   frostarcher: { name: 'Frost Archer', hp: 15, atk: 8, def: 1, res: 2, spd: 8, mov: 3, skills: ['e_frostshot'], ai: 'ranged' },
   snowwolf: { name: 'Snow Wolf', hp: 19, atk: 8, def: 1, res: 2, spd: 12, mov: 5, skills: ['e_bite'] },
   icegolem: { name: 'Ice Golem', hp: 80, atk: 13, def: 7, res: 4, spd: 4, mov: 2, chill: true, skills: ['e_pound', 'e_slam'], scale: 1.2, info: 'Anyone beside it when its turn starts is slowed.' },
-  frostqueen: { name: 'The Frost Queen', hp: 115, atk: 6, mag: 13, def: 4, res: 7, spd: 8, mov: 3, boss: true, chill: true, skills: ['e_blizzard', 'e_icelance', 'e_icewall'], ai: 'ranged', scale: 1.45,
+  frostqueen: { name: 'The Frost Queen', hp: 115, atk: 6, mag: 13, def: 4, res: 7, spd: 8, mov: 3, boss: true, chill: true, skills: ['e_blizzard', 'e_icelance', 'e_icewall', 'e_hail'], ai: 'ranged', scale: 1.45,
     info: 'Anyone beside her when her turn starts is slowed. Her lance shatters the slowed.' },
   automaton: { name: 'Brass Automaton', hp: 40, atk: 11, def: 6, res: 2, spd: 6, mov: 3, plating: 0.15, skills: ['e_slash'], info: 'Rebuilds a shield every third turn.' },
   turret: { name: 'Arc Turret', hp: 26, atk: 0, mag: 11, def: 5, res: 3, spd: 7, mov: 0, skills: ['e_arcbeam'], ai: 'ranged', info: 'Can\'t move. Its beam shocks everything in a line.' },
@@ -1000,9 +1016,9 @@ export const FOES = {
   tinker: { name: 'Tinkerer', hp: 20, atk: 4, mag: 9, def: 2, res: 4, spd: 8, mov: 3, skills: ['e_repair', 'e_zap'], ai: 'ranged', info: 'Shields its machines.' },
   clocksoldier: { name: 'Clockwork Soldier', hp: 36, atk: 12, def: 5, res: 3, spd: 8, mov: 3, plating: 0.12, skills: ['e_kcleave', 'e_slash'], info: 'Rebuilds a shield every third turn.' },
   steamjugg: { name: 'Steam Juggernaut', hp: 85, atk: 14, mag: 8, def: 8, res: 3, spd: 4, mov: 2, plating: 0.15, skills: ['e_piston', 'e_steamvent', 'e_pound'], scale: 1.25, info: 'Rebuilds a shield every third turn.' },
-  colossus: { name: 'The Brass Colossus', hp: 155, atk: 14, mag: 10, def: 7, res: 5, spd: 7, mov: 2, boss: true, plating: 0.2, overdrive: true, skills: ['e_piston', 'e_steamvent', 'e_rivetgun'], scale: 1.7,
+  colossus: { name: 'The Brass Colossus', hp: 155, atk: 14, mag: 10, def: 7, res: 5, spd: 7, mov: 2, boss: true, plating: 0.2, overdrive: true, skills: ['e_piston', 'e_steamvent', 'e_rivetgun', 'e_cannon'], scale: 1.7,
     info: 'Rebuilds its plating every third turn, and speeds up below half HP.' },
-  wyrm: { name: 'The Cinder Wyrm', hp: 125, atk: 13, mag: 14, def: 6, res: 5, spd: 9, mov: 3, fly: true, fireproof: true, skills: ['e_breath', 'e_tailsweep', 'e_firerain', 'e_flamebite'], boss: true, scale: 1.6 },
+  wyrm: { name: 'The Cinder Wyrm', hp: 125, atk: 13, mag: 14, def: 6, res: 5, spd: 9, mov: 3, fly: true, fireproof: true, skills: ['e_breath', 'e_tailsweep', 'e_firerain', 'e_flamebite', 'e_meteor'], boss: true, scale: 1.6 },
 };
 
 // Team artifacts: after each act boss (except the last) the party picks one of three in place of the

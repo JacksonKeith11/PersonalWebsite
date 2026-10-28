@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=43';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=44';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=43';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=43';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=43';
-import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=43';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=43';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=43';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=43';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=44';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=44';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=44';
+import { env, startBattle, BattleScene, objectiveMet } from './battle.js?v=44';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=44';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=44';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=44';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -90,7 +90,13 @@ function load() {
     if (r) {
       const ok = id => MODS[id] || ITEMS[id];
       r.stash = (r.stash || []).filter(ok);
-      for (const p of r.party) { p.items = p.items.filter(id => ITEMS[id]); for (const sk of p.skills) sk.mods = (sk.mods || []).filter(id => MODS[id]); }
+      // ...and so do removed skills (their artifacts go to the pack), from heroes and shop lessons
+      for (const p of r.party) {
+        p.items = p.items.filter(id => ITEMS[id]);
+        for (const sk of p.skills) { sk.mods = (sk.mods || []).filter(id => MODS[id]); if (!SKILLS[sk.id]) r.stash.push(...sk.mods); }
+        p.skills = p.skills.filter(sk => SKILLS[sk.id]);
+      }
+      for (const n of Object.values(r.map || {})) if (n.shop) n.shop.lessons = n.shop.lessons.filter(c => SKILLS[c.id]);
     }
     return r;
   } catch (e) { return null; }
@@ -252,9 +258,10 @@ function fitsLine(id) {
 }
 function artCard(id, extra, onpick, disabled) {
   const skill = isSkillArt(id);
-  return h('button', { class: 'pick ' + (skill ? 'skillart' : 'heroart'), disabled, onclick: () => { sfx('select'); onpick(); } },
+  const rar = artRarity(id);
+  return h('button', { class: `pick ${skill ? 'skillart' : 'heroart'} rar-${rar}`, disabled, onclick: () => { sfx('select'); onpick(); } },
     h('div', { class: 'pick-head' }, h('b', {}, artName(id)), extra),
-    h('div', { class: 'kind' }, skill ? (MODS[id].only ? `Skill artifact · ${SKILLS[MODS[id].only].name} only` : 'Skill artifact') : 'Hero artifact', archChips(artTags(id))),
+    h('div', { class: 'kind' }, h('span', { class: 'rar' }, RARITY[rar].name), ' ', skill ? (MODS[id].only ? `skill artifact · ${SKILLS[MODS[id].only].name} only` : 'skill artifact') : 'hero artifact', archChips(artTags(id))),
     h('div', { class: 'desc' }, artUp(id)),
     artDown(id) ? h('div', { class: 'desc down' }, `Downside: ${artDown(id)}`) : null,
     skill && run ? fitsLine(id) : null);
@@ -344,7 +351,7 @@ function showRewards(info) {
   sfx('coin');
   if (info.kind === 'boss') { teamReward(info); return; }
   const picks = (info.kind === 'elite' ? 2 : 1) + extra;
-  let offers = artifactPool(run, (info.kind === 'normal' ? 3 : 4) - (asc() >= 7 ? 1 : 0) + extra);
+  let offers = artifactPool(run, (info.kind === 'normal' ? 3 : 4) - (asc() >= 7 ? 1 : 0) + extra, 0.55, null, info.kind === 'elite' ? 1 : 0);
   let taken = 0;
   const after = () => {
     if (info.kind === 'boss') { if (run.act >= ACT_SLOTS.length - 1) victory(); else promotionScreen(nextAct); return; }
@@ -635,7 +642,7 @@ function showRest(n) {
   });
 }
 function showShop(n) {
-  n.shop ||= { items: artifactPool(run, 6, 0.5).map(id => ({ id, price: Math.round((artPrice(id) + rnd(-5, 10)) * priceUp()), sold: false })),
+  n.shop ||= { items: artifactPool(run, 6, 0.5, null, 0.5).map(id => ({ id, price: Math.round((artPrice(id) + rnd(-5, 10)) * priceUp()), sold: false })),
     lessons: skillOffers(run.party, 2).map(c => ({ ...c, sold: false })), inn: false };
   const shop = n.shop;
   hud();

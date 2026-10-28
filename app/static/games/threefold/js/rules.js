@@ -1,5 +1,5 @@
 // Rules shared by the battle and the menus: hero stats, skill stats after artifacts, descriptions, reward pools.
-import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=43';
+import { CLASSES, PROMOS, GROWTH, SKILLS, MODS, ITEMS, TEAM, ARCHES, RARITY, MAX_MODS, MAX_SKILLS, MAX_RELICS } from './data.js?v=44';
 
 export const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 export const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -22,7 +22,8 @@ export const artUp = id => MODS[id] ? MODS[id].note : (ITEMS[id] || TEAM[id]).tx
 export const artDown = id => (MODS[id] || ITEMS[id] || TEAM[id]).down || '';
 // The whole description, downside included (tooltips and one-line lists).
 export const artText = id => artUp(id) + (artDown(id) ? ` Downside: ${artDown(id)}` : '');
-export const artPrice = id => (MODS[id] || ITEMS[id]).price;
+export const artRarity = id => (MODS[id] || ITEMS[id]).rar;
+export const artPrice = id => RARITY[artRarity(id)].price;
 
 export function newHero(cls) {
   const c = CLASSES[cls];
@@ -105,8 +106,8 @@ export function skStats(u, s) {
   o.stat = d.stat || (d.kind === 'phys' ? 'atk' : 'mag');
   if (!o.hits) o.hits = o.kind === 'heal' || o.kind === 'shield' ? 'allies' : 'foes';
   for (const id of o.mods) MODS[id].apply(o);
-  if (has(u, 'scope') && o.range[1] > 1 && o.tgt !== 'self') o.range = [o.range[0], o.range[1] + 1];
-  if (has(u, 'belt') && o.aoe) o.aoe += 1;
+  if ((has(u, 'scope') || has(u, 'worldstone')) && o.range[1] > 1 && o.tgt !== 'self') o.range = [o.range[0], o.range[1] + 1];
+  if ((has(u, 'belt') || has(u, 'worldstone')) && o.aoe) o.aoe += 1;
   if (has(u, 'hourglass') && o.cd > 1) o.cd -= 1;
   if (has(u, 'bloodpact') && o.cd > 0) { o.cd = 0; o.bloodpact = true; }
   if (has(u, 'aegisheart') && o.kind === 'shield') o.pow *= 1.2;
@@ -139,7 +140,7 @@ export function statVal(u, stat) {
 
 // Damage multipliers from worn artifacts that always apply. Situational ones (Hermit's Lantern,
 // Berserker's Torc and the like) only show up in the battle previews.
-export const itemMult = u => (has(u, 'monocle') ? 1.5 : 1) * (has(u, 'crown') ? 1.4 : 1) * (has(u, 'glasscrown') ? 1.35 : 1) * (has(u, 'bloodoath') ? 1.3 : 1);
+export const itemMult = u => (has(u, 'monocle') ? 1.5 : 1) * (has(u, 'crown') ? 1.4 : 1) * (has(u, 'glasscrown') ? 1.35 : 1) * (has(u, 'bloodoath') ? 1.3 : 1) * (has(u, 'worldstone') ? 1.15 : 1);
 const isDmg = o => o.kind === 'phys' || o.kind === 'mag';
 // Burn and poison a skill leaves, as battle.js applyStatus computes them: { turns, n (per turn) }.
 export function burnOf(o, src) {
@@ -179,7 +180,7 @@ export function describeParts(o, src) {
   const parts = [], fx = [], cost = [];
   const [a, b] = o.range;
   if (o.shape === 'random') parts.push('A random foe anywhere');
-  else if (o.shape === 'math') parts.push(o.hits === 'allies' ? RULES_ALLY[o.rule] || RULES[o.rule] : o.hits === 'all' && o.rule === 'all' ? 'Every unit on the board' : RULES[o.rule]);
+  else if (o.shape === 'math') parts.push(o.hits === 'allies' ? RULES_ALLY[o.rule] || RULES[o.rule] : o.hits === 'all' && o.rule === 'all' ? 'Every unit on the board' : o.rule === 'even' && o.hits === 'foes' ? 'Every foe with even HP' : RULES[o.rule]);
   else if (o.shape === 'coin') parts.push('Coin flip: every foe, or every ally');
   else if (o.mimic) parts.push('Copies the last skill an ally used');
   else if (o.shape === 'multi') parts.push(`${o.multiN} random foes within ${b}`);
@@ -202,11 +203,11 @@ export function describeParts(o, src) {
     ['gamble', 'Random damage'], ['stealth', 'Stealth'], ['riposte', 'Riposte'], ['vortex', 'Pulls foes in'],
     ['selfShield', 'Shields you'], ['overflow', 'Overflow shields'], ['backstab', 'Backstab'], ['recoil', 'Hops away'],
     ['shock', 'Shocks'], ['charm', 'Charms'], ['doom', 'Dooms'], ['cdLock', 'Silences'], ['ward', 'Wards'], ['land', 'Jumps'],
-    ['steal', 'Steals gold'], ['still', '+50% if you stayed put'], ['fester', '+15% per poison turn'], ['shatter', '+60% vs slowed'], ['ironbark', '+3% per DEF'], ['selfShieldHp', 'Shields you 10% max HP'],
+    ['steal', 'Steals gold'], ['still', '+50% if you stayed put'], ['shatter', '+60% vs slowed'], 
     ['sanguine', '+1% per 1% HP missing'], ['leech', 'Poison heals you'], ['brace', 'Braces'], ['guard', 'Guards'],
     ['root', 'Roots'], ['disarm', 'Disarms'], ['weak', 'Weakens'], ['oil', 'Oils'], ['wet', 'Soaks'], ['sleep', 'Sleep'], ['confuse', 'Confuses'], ['purify', 'Purifies'],
-    ['dispel', 'Dispels'], ['movUp', '+1 MOV'], ['focus', 'Focus'], ['ctZero', 'Resets their turn'], ['pincer', '+40% per ally beside the target'], ['momentum', '+8% per tile away'],
-    ['perDebuff', '+30% per debuff on the target'], ['recoilDmg', 'Hurts you too'], ['sure', 'Can\'t miss'], ['stealShield', 'Steals shields'], ['spread', 'Spreads debuffs'],
+    ['dispel', 'Dispels'], ['movUp', '+1 MOV'], ['focus', 'Focus'], ['ctZero', 'Resets their turn'], 
+    ['recoilDmg', 'Hurts you too'], ['sure', 'Can\'t miss'], ['stealShield', 'Steals shields'], ['spread', 'Spreads debuffs'],
     ['trap', 'Lays traps'], ['onLava', '+60% vs targets on lava'], ['delay', 'Lands next turn'], ['counter', 'Readies a counter'],
     ['hexBurst', 'Bursts hexes'], ['overkill', 'Overkill spills over'], ['reset', 'A kill resets its cooldown'], ['frenzy', 'A kill lets you move again'],
     ['butcher', 'A kill shields you 15%'], ['alwaysCrit', 'Always crits'], ['jackpot', 'Crits pay 10 gold']];
@@ -221,6 +222,11 @@ export function describeParts(o, src) {
   if (o.drain) fx.push(`Heals you ${Math.round(o.drain * 100)}% of damage dealt`);
   if (o.hex) fx.push(`Hexes ${o.hex}`);
   if (o.critUp) fx.push(`+${o.critUp}% crit`);
+  // bonuses whose size depends on the skill or artifact
+  const per = (k, what) => { if (o[k]) fx.push(`+${Math.round(o[k] * 100)}% ${what}`); };
+  per('fester', 'per poison turn on the target'); per('ironbark', 'per point of DEF'); per('pincer', 'per ally beside the target');
+  per('momentum', 'per tile away'); per('perDebuff', 'per debuff on the target'); per('vsShock', 'vs shocked targets');
+  if (o.selfShieldHp) fx.push(`Shields you ${Math.round(o.selfShieldHp * 100)}% max HP${src ? ` = ${Math.round(src.maxHp * o.selfShieldHp)}` : ''}`);
   for (const [k, label] of flags) if (o[k] && k !== 'drain' && k !== 'selfShield') (k === 'recoilDmg' ? cost : fx).push(label);
   // turn-order shifts, as a share of a turn (100 CT)
   if (o.ctTake) fx.push(`Delays target ${o.ctTake}% of a turn`);
@@ -273,16 +279,24 @@ function leanShuffle(ids, arches) {
   const weight = id => 1 + Math.min(4, artTags(id).reduce((t, a) => t + (arches[a] || 0), 0)) * 0.6;
   return ids.map(id => ({ id, k: Math.random() ** (1 / weight(id)) })).sort((a, b) => b.k - a.k).map(e => e.id);
 }
-export function artifactPool(run, n, skillShare = 0.55, tag = null) {
+// n artifact offers. Each rolls a rarity first (RARITY weights, shifted by luck: half a point per
+// act, plus `luck` for elites and shops), then takes the next artifact of that rarity from a
+// shuffle that leans toward the party's archetypes; a rarity with nothing left falls to the nearest.
+export function artifactPool(run, n, skillShare = 0.55, tag = null, luck = 0) {
   const owned = new Set([...run.party.flatMap(p => [...p.items, ...p.skills.flatMap(s => s.mods)]), ...run.stash]);
   const arches = partyArches(run), tagged = id => !tag || artTags(id).includes(tag);
   const skillArts = leanShuffle(Object.keys(MODS).filter(id => tagged(id) && (MODS[id].repeat || !owned.has(id)) && fitsParty(run.party, id)), arches);
   const heroArts = leanShuffle(Object.keys(ITEMS).filter(id => tagged(id) && !(ITEMS[id].unique && owned.has(id))), arches);
-  const odd = heroArts.filter(id => ITEMS[id].unique), plain = heroArts.filter(id => !ITEMS[id].unique);
+  const L = (run.act || 0) * 0.5 + luck, tiers = Object.keys(RARITY);
+  const weights = tiers.map(r => Math.max(1, RARITY[r].w + RARITY[r].luck * L));
   const out = [];
-  while (out.length < n && (skillArts.length || odd.length || plain.length)) {
-    const from = (chance(skillShare) && skillArts.length) || (!odd.length && !plain.length) ? skillArts : chance(0.75) && odd.length ? odd : plain.length ? plain : odd;
-    out.push(from.shift());
+  while (out.length < n && (skillArts.length || heroArts.length)) {
+    const from = (chance(skillShare) && skillArts.length) || !heroArts.length ? skillArts : heroArts;
+    let roll = Math.random() * weights.reduce((a, b) => a + b), ti = 0;
+    while (roll > weights[ti]) roll -= weights[ti++];
+    const order = tiers.map((r, i) => ({ r, d: Math.abs(i - ti) + i * 0.01 })).sort((a, b) => a.d - b.d).map(e => e.r);
+    const r = order.find(r => from.some(id => artRarity(id) === r));
+    out.push(from.splice(from.findIndex(id => artRarity(id) === r), 1)[0]);
   }
   return out;
 }

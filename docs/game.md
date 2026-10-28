@@ -147,8 +147,28 @@ Keep it that way.
 - **Skill modifiers are artifacts, and artifacts are the main battle reward.**
   - Skill artifacts (`MODS`) socket into a skill (`MAX_MODS` = 2) and rewrite it: the stat it
     scales with, its targeting, its effect.
-  - Hero artifacts (`ITEMS`) are worn (`MAX_RELICS` = 3) and change stats or add passives.
+  - Hero artifacts (`ITEMS`) are worn (`MAX_RELICS` = 3) and change stats or add passives. Each has a rarity (see below).
   - Unequipped ones wait in `run.stash`, the pack.
+- **Artifacts have a rarity, and the stronger one is, the rarer** (`RARITY` and `RARE_IDS` in data.js;
+  anything not listed is uncommon). Commons are mostly plain stats (Power Band, Iron Gauntlet, Ward
+  Stone, Whetstone, the status shards); legendaries are few and far stronger (Godforge Hammer +80%,
+  Twin Soul, Chrono Shard, Star Core, Sunforged Blade, Worldstone, Hydra Fang, Philosopher's Stone,
+  Reaper's Scythe, Crown of Ages, Dawn Aegis, plus the old Echo Bell, Blood Pact, Phoenix Feather,
+  Lich's Phylactery, Cracked Hourglass, Giant's Belt). Rarity sets the price (45/65/90/140g; artifacts
+  no longer carry their own `price`) and the card colour (grey, green, blue, glowing orange).
+  `artifactPool` rolls a rarity per offer, weighted 55/30/13/2 in act 1 normal fights; `luck` (half a
+  point per act, +1 for elites, +0.5 in shops) shifts weight from common to rare and legendary (act 3
+  elites: 26/32/34/8). A tier with nothing left falls to the nearest one. A new artifact needs a
+  rarity judged by strength, not by how interesting it is.
+- **Skill pass two:** the owner asked for more skills and for the worst to go. Removed: Throw Stone,
+  Heave, Switcheroo, Pocket Sand, Garrote, Oil Flask, Bulldoze, Gust, White Square, Antidote, Break
+  Legs, Sea Shanty (filler, or duplicates of better skills). Added 25 (Overhead Smash, Guard Break,
+  Shake It Off, Frost Nova, Magic Missiles, Mana Lance, Low Blow, Ricochet Knife, Eviscerate, Coin
+  Toss, Blood Edge, Unbreakable, Ground Pound, Scorch, Chrono Bolt, Death Blossom, Swipe, Wild Card,
+  Wind Lance, Aegis Lance, Thorn Lash, Overload, Even Odds, Contagion, Crescendo), mostly from
+  existing effect flags; `vsShock` is new. `load()` drops removed skills from saves and moves their
+  artifacts to the pack. Bonus labels that depend on the amount (fester, ironbark, pincer, momentum,
+  perDebuff, vsShock, selfShieldHp) print the real number now.
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
 - **Movement avoids hazards when it can.** `reach()` keeps every route to a tile that isn't beaten

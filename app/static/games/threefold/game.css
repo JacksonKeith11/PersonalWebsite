@@ -306,3 +306,12 @@ b.px { font-family: var(--px); font-size: 10px; font-weight: normal; }
 /* Keyboard shortcut hints on the battle buttons; hidden where there's no mouse (phones, tablets) */
 .btn kbd { font: inherit; font-size: 7px; color: #a99bc4; margin-left: 5px; vertical-align: 1px; }
 @media (hover: none) { .btn kbd { display: none; } }
+
+/* Artifact rarity: the name and the rarity word take the tier's colour; legendaries glow */
+.pick .rar { font-weight: bold; }
+.pick.rar-c .rar { color: #b8b0c8; }
+.pick.rar-u b, .pick.rar-u .rar { color: #7dd87d; }
+.pick.rar-r b, .pick.rar-r .rar { color: #6aa8ff; }
+.pick.rar-l b, .pick.rar-l .rar { color: #ffb347; }
+.pick.rar-l { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px #ffb347, 0 0 14px 2px rgba(255, 179, 71, 0.45); }
+.pick.rar-l:hover:not(:disabled) { box-shadow: 0 0 0 3px #000, inset 0 0 0 3px var(--gold), 0 0 18px 4px rgba(255, 179, 71, 0.6); }

@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=43';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=43';
-import { spriteURL } from './art.js?v=43';
-import { TP, drawBoard } from './tiles.js?v=43';
-import { sfx } from './audio.js?v=43';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=43';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=44';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=44';
+import { spriteURL } from './art.js?v=44';
+import { TP, drawBoard } from './tiles.js?v=44';
+import { sfx } from './audio.js?v=44';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=44';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -403,6 +403,7 @@ function dmgMult(a, t, o) {
   if (homeSide(a) === 'foe' && B.asc >= 3) m *= 1.1;
   if (a.boss && B.asc >= 8) m *= 1.15;
   if (has(a, 'glasscrown')) m *= 1.35;
+  if (has(a, 'worldstone')) m *= 1.15;
   if (has(a, 'bloodoath')) m *= 1.3;
   if (has(a, 'warhorn')) m *= 1 + 0.12 * (a.kills || 0);
   if (has(a, 'packtotem') && t.side !== a.side && flanked(a, t)) m *= 1.25;
@@ -419,6 +420,7 @@ function dmgMult(a, t, o) {
   if (t.st.shock > 0 && o.kind === 'mag') m *= 1.3;
   if (o.fester && t.st.poison > 0) m *= 1 + o.fester * t.st.poison;
   if (o.shatter && t.st.slow > 0) m *= 1.6;
+  if (o.vsShock && t.st.shock > 0) m *= 1 + o.vsShock;
   if (o.ironbark) m *= 1 + o.ironbark * a.def;
   if (o.sanguine) m *= 1 + missingFrac(a);
   if (isClass(a, 'samurai')) m *= 1 + Math.min(0.6, missingFrac(a) * 0.9);
@@ -575,6 +577,10 @@ function ko(t, killer) {
     killer.kills = (killer.kills || 0) + 1;
     if (killer.ref && homeSide(t) === 'foe' && ++B.actKills >= 2 && B.obj && B.obj.id === 'combo' && !B.obj.met) { B.obj.met = true; banner('Bonus objective met!', 18); }
     if (has(killer, 'bloodoath')) heal(killer, killer.maxHp * 0.06);
+    if (has(killer, 'philstone') && killer.ref && (killer.ref.phil || 0) < 10) {
+      killer.ref.phil = (killer.ref.phil || 0) + 1; killer.ref.atk++; killer.ref.mag++; killer.atk++; killer.mag++;
+      fxText(killer, '+1 ATK/MAG', '#ffd23f', true);
+    }
     if (has(killer, 'goldfever') && killer.ref) { env.run.gold += 6; fxText(t, '+6g', '#ffd23f', true); }
     const near = alive().filter(x => x.side === t.side && dist(x, t) === 1);
     if (has(killer, 'wisp')) { burst('fire', t, 24); sfx('fire'); for (const n of near) damage(n, Math.round(t.maxHp * 0.25), killer, { quiet: true, reflected: true }); }
@@ -1023,7 +1029,12 @@ async function useSkill(u, s, tx, ty, echoed) {
         const arc = alive().filter(x => x !== t && x.side === t.side && dist(x, t) <= 2).sort((a, b) => dist(a, t) - dist(b, t))[0];
         if (arc) { projectile(t, arc.x, arc.y, 0xffe14d); damage(arc, Math.max(1, Math.round(r.dmg * 0.5)), u, { quiet: true }); }
       }
-      if (o.cull && !t.dead && !t.boss && t.hp <= t.maxHp * o.cull) { fxText(t, 'Culled', '#ff6a6a'); damage(t, t.hp + t.shield, u, { quiet: true }); }
+      if (has(u, 'hydrafang') && o.tgt === 'foe' && !o.aoe && !o.shape && t.side !== u.side && !u.dead) {
+        const bite = alive().filter(x => x !== t && x.side === t.side && dist(x, t) <= 2).sort((a, b) => dist(a, t) - dist(b, t))[0];
+        if (bite) { projectile(t, bite.x, bite.y, 0x7dd87d); damage(bite, Math.max(1, Math.round(r.dmg * 0.5)), u, { quiet: true }); }
+      }
+      const cull = Math.max(o.cull || 0, has(u, 'scythe') && t.side !== u.side ? 0.2 : 0);
+      if (cull && !t.dead && !t.boss && t.hp <= t.maxHp * cull) { fxText(t, 'Culled', '#ff6a6a'); damage(t, t.hp + t.shield, u, { quiet: true }); }
       if (o.recoilDmg && !u.dead) damage(u, Math.max(1, Math.round(r.dmg * o.recoilDmg)), null, { quiet: true });
       if (!u.dead) {
         if (o.drain) leech(u, r.dmg * o.drain);
@@ -1203,9 +1214,10 @@ async function startTurn(u) {
       if (!B.ragedAnnounced) { B.ragedAnnounced = true; banner('The foe grows furious!'); sfx('roar'); log('The enemy grows furious: +10% damage every round from now on.'); }
     }
   }
-  for (const s of u.skills) if (s.cd > 0) s.cd--;
+  for (const s of u.skills) if (s.cd > 0) s.cd = Math.max(0, s.cd - (has(u, 'timecrown') ? 2 : 1));
   u.st.guard = 0; u.st.riposte = 0; u.st.airborne = 0;
   if (isClass(u, 'bard')) for (const a of alive().filter(x => x !== u && x.side === u.side && dist(x, u) <= 2)) a.ct = Math.max(a.ct, Math.min(100, a.ct + 12));
+  if (has(u, 'dawnaegis')) for (const a of alive().filter(x => x.side === u.side && dist(x, u) <= 2)) { addShield(a, a.maxHp * 0.08); refreshView(a); }
   if (has(u, 'hexlantern')) for (const f of alive().filter(x => x.side !== u.side && dist(x, u) <= 2)) addHex(f, 1);
   if (has(u, 'goad')) for (const f of alive().filter(x => x.side !== u.side && dist(x, u) <= 2)) { f.st.taunt = Math.max(f.st.taunt || 0, 1); f.st.tauntBy = u; refreshView(f); }
   u.tmp = null;

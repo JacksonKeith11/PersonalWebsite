@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=52';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=52';
-import { spriteURL } from './art.js?v=52';
-import { TP, drawBoard, drawIsoBoard, ISO, isoHeight } from './tiles.js?v=52';
-import { sfx } from './audio.js?v=52';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=52';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=53';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=53';
+import { spriteURL } from './art.js?v=53';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=53';
+import { sfx } from './audio.js?v=53';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=53';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -116,6 +116,11 @@ function genGrid(rc) {
     for (let i = span(rc.lava); i > 0; i--) {
       let { x, y } = mid();
       for (let j = rnd(1, 3); j > 0; j--) { set(x, y, T.LAVA); const [dx, dy] = pick(DIRS); x += dx; y += dy; }
+    }
+    // chasms (1-3 tiles) in the middle columns: nobody walks in, but a push in is fatal
+    for (let i = rc.pits ? span(rc.pits) : 0; i > 0; i--) {
+      let { x, y } = mid();
+      for (let j = rnd(1, 3); j > 0; j--) { if (x >= 2 && x < GW - 2) set(x, y, T.PIT); const [dx, dy] = pick(DIRS); x += dx; y += dy; }
     }
     for (let i = span(rc.thorn); i > 0; i--) {
       let { x, y } = mid();
@@ -465,7 +470,7 @@ function turnTo(u, x, y) {
 }
 function setFace(u, f, manual = false) {
   u.face = f; u.faced = manual;
-  if (u.view && (f[0] || env.iso)) u.view.list[1].flipX = faceFlip(f);
+  if (u.view && (f[0] || env.iso)) u.view.sp.flipX = faceFlip(f);
   refreshView(u);
 }
 // At the end of a turn a unit turns to show its back to as little danger as it can: each foe
@@ -644,15 +649,16 @@ function damage(t, amount, src, opts = {}) {
   refreshView(t);
   return left;
 }
-function ko(t, killer) {
-  if (has(t, 'laststand') && !t.lastStandUsed) {
+// fell: knocked into a pit, which nothing saves from (a rescue would leave it standing in the pit).
+function ko(t, killer, fell) {
+  if (fell) { /* no saves */ } else if (has(t, 'laststand') && !t.lastStandUsed) {
     t.lastStandUsed = true;
     t.hp = 1;
     fxText(t, 'Last stand!', '#ff6a6a');
     log(`${t.name} refuses to fall!`);
     return;
   }
-  if (has(t, 'phoenix') && !t.phoenixUsed) {
+  if (!fell && has(t, 'phoenix') && !t.phoenixUsed) {
     t.phoenixUsed = true;
     t.hp = Math.ceil(t.maxHp / 2);
     fxText(t, 'Rebirth!', '#ffb03b');
@@ -661,7 +667,7 @@ function ko(t, killer) {
     log(`${t.name} rises from the ashes!`);
     return;
   }
-  if (!B.saintUsed && alive().some(x => x !== t && x.side === t.side && has(x, 'saintrelic'))) {
+  if (!fell && !B.saintUsed && alive().some(x => x !== t && x.side === t.side && has(x, 'saintrelic'))) {
     B.saintUsed = true;
     t.hp = t.maxHp; t.st.stun = 1;
     fxText(t, 'Saved!', '#f0e0b0'); burst('heal', t, 24); sfx('heal');
@@ -669,7 +675,7 @@ function ko(t, killer) {
     refreshView(t);
     return;
   }
-  if (has(t, 'paradox') && !t.paradoxUsed) {
+  if (!fell && has(t, 'paradox') && !t.paradoxUsed) {
     t.paradoxUsed = true;
     t.hp = Math.max(1, t.turnHp || Math.ceil(t.maxHp / 2));
     fxText(t, 'Rewind!', '#c9a0ff'); burst('dark', t, 20);
@@ -677,7 +683,7 @@ function ko(t, killer) {
     refreshView(t);
     return;
   }
-  if (has(t, 'lichbargain') && t.ref && !t.lichUsed) {
+  if (!fell && has(t, 'lichbargain') && t.ref && !t.lichUsed) {
     t.lichUsed = true;
     t.hp = Math.ceil(t.maxHp * 0.3);
     fxText(t, 'Bargain kept', '#b48aff');
@@ -705,11 +711,11 @@ function ko(t, killer) {
     for (const f of alive().filter(x => x.side !== t.side)) damage(f, Math.round(f.maxHp * 0.3), null, { quiet: true });
   }
   if (t.loot > 0) { env.run.gold += t.loot; fxText(t, `+${t.loot}g`, '#ffd23f', true); sfx('coin'); log(`${t.name} drops the stolen gold.`); t.loot = 0; }
-  if (t.burst) {
+  if (t.burst && !fell) {
     fxText(t, 'Boom!', '#ff8a3d', true); burst('fire', t, 30); sfx('fire');
     for (const n of alive().filter(x => dist(x, t) === 1)) damage(n, Math.round(t.atk * 1.2 + 4), null, { quiet: true });
   }
-  if (t.split) {
+  if (t.split && !fell) {
     const { x, y } = t, kind = t.split, side = t.side;
     setTimeout(() => {
       if (!B || B.over) return;
@@ -751,7 +757,7 @@ function ko(t, killer) {
   }
   if (killer && !killer.dead && has(killer, 'phylactery') && t.side !== killer.side && !t.boss) {
     const x = t.x, y = t.y;
-    setTimeout(() => { if (B && !B.over && !unitAt(x, y)) spawn('skeleton', killer.side, x, y, true, killer); }, 500 * env.speed);
+    setTimeout(() => { if (B && !B.over && !unitAt(x, y) && standable({}, x, y)) spawn('skeleton', killer.side, x, y, true, killer); }, 500 * env.speed);
   }
   if (bled && bled.by && has(bled.by, 'crimsontide')) {
     for (const n of alive().filter(x => x.side === t.side && dist(x, t) <= 2)) { bleedUnit(n, bled.n * 2, bled.by); burst('hit', n, 8); refreshView(n); }
@@ -1000,15 +1006,35 @@ async function moveUnit(u, path, blink) {
 async function knock(u, t, n = 1, from = u) {
   if (t.anchored || t.dead) return;
   if (has(u, 'bloodkit') && t.side !== u.side) bleedUnit(t, 1, u);
-  let dx = Math.sign(t.x - from.x), dy = Math.sign(t.y - from.y);
-  if (dx && dy) { if (Math.abs(t.x - from.x) >= Math.abs(t.y - from.y)) dy = 0; else dx = 0; }
+  const [dx, dy] = knockDir(from, t);
   if (!dx && !dy) return;
   for (let i = 0; i < n && !t.dead; i++) {
     const nx = t.x + dx, ny = t.y + dy;
+    if (isPit(t, nx, ny)) { await plunge(u, t, nx, ny); return; }
     // nobody is shoved up a ledge: higher ground stops the push like a wall
     if (standable(t, nx, ny) && !unitAt(nx, ny) && (t.fly || hgt(nx, ny) <= elev(t))) await shove(u, t, nx, ny, 110);
     else { log(`${t.name} slams into an obstacle.`); damage(t, Math.max(1, Math.round(u.atk * 0.3)), u, { quiet: true }); return; }
   }
+}
+// Which way a knockback from `from` sends t: straight away along the longer axis.
+function knockDir(from, t) {
+  let dx = Math.sign(t.x - from.x), dy = Math.sign(t.y - from.y);
+  if (dx && dy) { if (Math.abs(t.x - from.x) >= Math.abs(t.y - from.y)) dy = 0; else dx = 0; }
+  return [dx, dy];
+}
+// A pit tile that would swallow t if it were pushed in: flyers float over, and pits only take the ground-bound.
+const isPit = (t, x, y) => inb(x, y) && B.grid[y][x] === T.PIT && !t.fly && !unitAt(x, y);
+// Knocked or pulled into a pit: it drops out of sight, and nothing saves it.
+async function plunge(u, t, x, y) {
+  t.x = x; t.y = y;
+  await tweenView(t, 120);
+  fxText(t, 'Falls!', '#d8d0c0'); sfx('death');
+  log(`${t.name} plunges into the depths!`);
+  if (t.view) await tw({ targets: t.view, y: t.view.y + 40, scale: 0.4, alpha: 0, duration: 380 });
+  { const a = homeSide(u) !== homeSide(t) ? tally(u) : null; if (a) a.dmg += t.hp + t.shield; }
+  t.hp = 0;
+  ko(t, u, true);
+  checkEnd();
 }
 // One tile of knockback or pull: it breaks a charge, and a drop off high ground hurts (10% of max HP per level).
 async function shove(u, t, x, y, ms) {
@@ -1029,8 +1055,9 @@ async function pull(u, t, n) {
     if (dx) opts.push([t.x + Math.sign(dx), t.y, Math.abs(dx)]);
     if (dy) opts.push([t.x, t.y + Math.sign(dy), Math.abs(dy)]);
     opts.sort((a, b) => b[2] - a[2]);
-    const next = opts.find(([x, y]) => standable(t, x, y) && !unitAt(x, y) && (t.fly || hgt(x, y) <= elev(t)));
+    const next = opts.find(([x, y]) => isPit(t, x, y) || (standable(t, x, y) && !unitAt(x, y) && (t.fly || hgt(x, y) <= elev(t))));
     if (!next) break;
+    if (isPit(t, next[0], next[1])) { await plunge(u, t, next[0], next[1]); return; }
     await shove(u, t, next[0], next[1], 80);
   }
 }
@@ -1674,6 +1701,11 @@ function scoreAction(u, o, list) {
   let s = 0;
   for (const { t, w } of list) {
     const foe = t.side !== u.side;
+    // a knockback that drops the target into a pit is a kill (or a disaster, for a friend)
+    if ((o.knock || (o.push && o.tgt !== 'tile')) && !t.anchored && t !== u) {
+      const [dx, dy] = knockDir(u, t);
+      if ((dx || dy) && isPit(t, t.x + dx, t.y + dy)) s += (foe ? 1 : -1.5) * (30 + t.hp * 0.5);
+    }
     if (o.kind === 'heal') { if (!foe) s += Math.min(healRoom(t), powerVal(u, o) * w) * 1.2 + (o.cleanse && (t.st.poison || t.st.burn) ? 3 : 0); continue; }
     if (o.kind === 'shield') { if (!foe) s += Math.min(powerVal(u, o) * w, t.maxHp - t.shield) * (t.hp < t.maxHp * 0.85 ? 0.7 : 0.35); continue; }
     if (o.kind === 'buff') {
@@ -2095,7 +2127,7 @@ async function lunge(u, x, y) {
   placeView(u);
 }
 async function pulse(u) {
-  const sp = u.view.list[1];
+  const sp = u.view.sp;
   const s0 = sp.scaleX;
   await counter(220, p => sp.setScale(s0 * (1 + Math.sin(p * Math.PI) * 0.15)));
   sp.setScale(s0);
@@ -2119,7 +2151,7 @@ function areaFlash(tiles, color) {
 }
 function flash(t) {
   if (!t.view) return;
-  const sp = t.view.list[1];
+  const sp = t.view.sp;
   sp.setTintFill(0xffffff);
   scene.time.delayedCall(140 * Math.max(env.speed, 0.1), () => sp.active && sp.clearTint());
 }
@@ -2158,23 +2190,64 @@ function redrawBoard() {
     drawIsoBoard(B.board.context, B.flat, B.theme, B.grid);
   } else drawBoard(B.board.context, B.theme, B.grid, B.vari, B.frame);
   B.board.refresh();
+  if (scene) syncOccluders(scene);
+}
+// On the isometric board trees, rocks and walls stand up as their own images, sorted with the units
+// (just behind anything on the same diagonal), so they hide what's behind them. Kept in step with the
+// terrain, which can change mid-battle; the flat view has none.
+function syncOccluders(sc) {
+  const b = B;
+  b.occ = b.occ || new Map();
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+    const t = b.grid[y][x], want = env.iso && (t === T.COVER || t === T.ROCK || t === T.WALL) ? t : null, k = key(x, y), cur = b.occ.get(k);
+    if (cur && cur.t === want) continue;
+    if (cur) { cur.img.destroy(); b.occ.delete(k); }
+    if (want == null) continue;
+    const v = b.vari[y][x] % 4, tex = `iso_${want}_${b.theme}_${v}`;
+    if (!sc.textures.exists(tex)) sc.textures.addCanvas(tex, want === T.WALL ? isoWall(b.theme, v) : isoProp(b.theme, want, v));
+    let img;
+    if (want === T.WALL) { const p = isoPt(x, y, ISO.WALL); img = sc.add.image(p.x, p.y, tex).setOrigin(0.5, 0); }
+    else { const p = isoPt(x + 0.5, y + 0.5, isoLift(x, y)); img = sc.add.image(p.x, p.y + 12, tex).setOrigin(0.5, 1); }
+    b.occ.set(k, { img: img.setDepth(10 + (x + y) * 10 - 2), t: want, x, y });
+  }
 }
 function makeView(u) {
   const c = scene.add.container(0, 0);
   const shadow = scene.add.ellipse(TS / 2, TS - 6, 34 * Math.min(u.scale || 1, 1.4), 10, 0x0a0614, 0.32);
   const sp = scene.add.image(TS / 2, TS - 2, 's_' + u.spr).setOrigin(0.5, 1).setScale(S * (u.scale || 1));
   sp.flipX = u.face ? faceFlip(u.face) : u.side === 'foe';
-  const g = scene.add.graphics();
-  c.add([shadow, sp, g]);
+  const g = scene.add.graphics(), gr = scene.add.graphics();
+  c.add([gr, shadow, sp, g]);
+  Object.assign(c, { sp, g, gr }); // gr: on the ground under the sprite (facing); g: over it (bars, pips)
   u.view = c;
   if (u.fly) scene.tweens.add({ targets: sp, y: TS - 10, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   if (u.dead) c.setVisible(false);
   placeView(u);
   refreshView(u);
 }
+// Facing: a soft wedge on the ground from the unit's feet to the edge of its tile it faces, with a lit
+// edge and a notch pointing out, under the sprite (teal for heroes, red for foes).
+function drawFacing(u) {
+  const gr = u.view.gr;
+  gr.clear();
+  if (!u.face || u.dead) return;
+  const iso = env.iso, cx = TS / 2, cy = iso ? TS - 6 : TS / 2;
+  const corner = (i, j) => (iso ? { x: cx + (i - j) * ISO.HW, y: cy - ISO.HH + (i + j) * ISO.HH } : { x: i * TS, y: j * TS });
+  const [fx, fy] = u.face;
+  const [a0, b0] = fx > 0 ? [corner(1, 0), corner(1, 1)] : fx < 0 ? [corner(0, 0), corner(0, 1)] : fy > 0 ? [corner(0, 1), corner(1, 1)] : [corner(0, 0), corner(1, 0)];
+  const k = 0.82, a = { x: cx + (a0.x - cx) * k, y: cy + (a0.y - cy) * k }, b = { x: cx + (b0.x - cx) * k, y: cy + (b0.y - cy) * k };
+  const col = u.side === 'hero' ? 0x7fe0d4 : 0xff7a6a;
+  gr.fillStyle(col, 0.22).fillTriangle(cx, cy, a.x, a.y, b.x, b.y);
+  gr.lineStyle(5, 0x120b18, 0.7).lineBetween(a.x, a.y, b.x, b.y);
+  gr.lineStyle(3, col, 0.95).lineBetween(a.x, a.y, b.x, b.y);
+  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, ox = m.x - cx, oy = m.y - cy, n = Math.hypot(ox, oy) || 1;
+  const ux = ox / n, uy = oy / n, ex = (b.x - a.x) / Math.hypot(b.x - a.x, b.y - a.y), ey = (b.y - a.y) / Math.hypot(b.x - a.x, b.y - a.y);
+  gr.fillStyle(0x120b18, 0.8).fillTriangle(m.x + ux * 9, m.y + uy * 9, m.x + ex * 7 - ux, m.y + ey * 7 - uy, m.x - ex * 7 - ux, m.y - ey * 7 - uy);
+  gr.fillStyle(col, 1).fillTriangle(m.x + ux * 6.5, m.y + uy * 6.5, m.x + ex * 4.5, m.y + ey * 4.5, m.x - ex * 4.5, m.y - ey * 4.5);
+}
 function refreshView(u) {
   if (!u.view || !scene) return;
-  const g = u.view.list[2];
+  const g = u.view.g;
   g.clear();
   u.view.setAlpha(u.dead ? u.view.alpha : viewAlpha(u));
   if (u.dead) return;
@@ -2183,15 +2256,7 @@ function refreshView(u) {
   g.fillStyle(0x120b18); g.fillRect(bx - 2, by - 2, bw + 4, 8);
   g.fillStyle(u.side === 'hero' ? 0x74d65e : 0xe5574f); g.fillRect(bx, by, Math.round(bw * u.hp / total), 4);
   if (u.shield > 0) { g.fillStyle(0x9fd8ff); g.fillRect(bx + Math.round(bw * u.hp / total), by, Math.round(bw * u.shield / total), 4); }
-  if (u.face) { // a small arrow at the tile's edge: the way the unit faces (its back is the other way)
-    let [fx, fy] = u.face, cx = fx ? (fx > 0 ? TS - 8 : 8) : TS / 2, cy = fy ? (fy > 0 ? TS - 19 : 8) : TS / 2 + 6;
-    if (env.iso) { // on the ground in front of its feet, along the board's diagonals
-      const vx = (u.face[0] - u.face[1]) * ISO.HW, vy = (u.face[0] + u.face[1]) * ISO.HH, n = Math.hypot(vx, vy);
-      fx = vx / n; fy = vy / n; cx = TS / 2 + fx * 22; cy = TS - 6 + fy * 22;
-    }
-    const tri = (r, col) => g.fillStyle(col).fillTriangle(cx + fx * r, cy + fy * r, cx - fx * r * 0.6 - fy * r, cy - fy * r * 0.6 + fx * r, cx - fx * r * 0.6 + fy * r, cy - fy * r * 0.6 - fx * r);
-    tri(7, 0x120b18); tri(4.5, u.side === 'hero' ? 0x9ad8d0 : 0xff9080);
-  }
+  drawFacing(u);
   const pips = [];
   if (u.st.poison > 0) pips.push(0x8be04e);
   if (u.st.burn > 0) pips.push(0xff8a3d);
@@ -2260,7 +2325,7 @@ function applyView(sc) {
   sc.game.canvas.style.touchAction = env.iso ? 'none' : '';
   redrawBoard();
   for (const u of b.units) if (u.view) {
-    if (u.face) u.view.list[1].flipX = faceFlip(u.face);
+    if (u.face) u.view.sp.flipX = faceFlip(u.face);
     placeView(u); refreshView(u);
   }
   sc.sig = null; // redraw the overlay
@@ -2341,6 +2406,10 @@ export class BattleScene extends Phaser.Scene {
       u && u.view && `${u.view.x},${u.view.y}`, b.units.map(x => x.dead ? '' : x.x * 8 + x.y + (x.intent ? `>${x.intent.tx},${x.intent.ty}` : '')).join(), Math.floor(time / (charging ? 100 : 250))].join('|') : '';
     if (sig === this.sig) return;
     this.sig = sig;
+    if (b && b.occ && b.occ.size) { // see-through where it stands in front of a unit
+      const at = new Set(b.units.filter(x => !x.dead).map(x => key(x.x, x.y)));
+      for (const o of b.occ.values()) o.img.setAlpha(at.has(key(o.x - 1, o.y)) || at.has(key(o.x, o.y - 1)) || at.has(key(o.x - 1, o.y - 1)) ? 0.4 : 1);
+    }
     g.clear();
     this.marks.forEach(m => m.setVisible(false));
     if (!b) return;
@@ -2485,6 +2554,7 @@ export class BattleScene extends Phaser.Scene {
           // random picks: show what one hit would do to each, not an average split between them
           const d = Math.round(calcDmg(u, t, o) * (randomPick(o) ? 1 : w) * hitsOf(o));
           label = o.gamble ? '?' : d >= t.hp + t.shield ? 'KO' : '-' + d;
+          if (o.knock && !t.anchored && t !== u) { const [dx, dy] = knockDir(u, t); if ((dx || dy) && isPit(t, t.x + dx, t.y + dy)) label = 'FALL'; }
           col = t.side === u.side ? '#ff9a9a' : '#ffe14d';
         }
         this.marks[i++].setText(label).setColor(col).setPosition(t.view.x + TS / 2, t.view.y + 18).setVisible(true);

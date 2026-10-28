@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=52';
+import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=53';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=52';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=52';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=52';
-import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=52';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=52';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=52';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=52';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=53';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=53';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=53';
+import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=53';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=53';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=53';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=53';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -747,6 +747,7 @@ function showTitle() {
         h('li', {}, 'In battle, units take turns by speed (the "Next" strip). On a hero\'s turn, move once and act once, in either order.'),
         h('li', {}, 'Walls block movement and line of sight: bolts and arrows can\'t pass them, but lobbed skills can. Lava burns, brambles cut and cover cuts damage. Tap any tile to read it.'),
         h('li', {}, 'Height: hills and summits rise 1 and 2 levels. Climbing a level costs 1 extra movement, and nobody climbs two at once. Each level above your target adds 10% damage (each below takes 10% off), each level you stand on adds 1 to ranged skills\' reach, and a foe knocked off a ledge takes fall damage.'),
+        h('li', {}, 'Pits are bottomless: nobody can walk in, but a unit knocked or pulled into one falls to its death. Push foes in, and keep your heroes off the edge.'),
         h('li', {}, 'Foes show what they plan to do next: red tiles, a line from where they\'ll stand, and the damage on your heroes. Plans update after each move and action, so dodging works only if the foe has nothing better to hit.'),
         h('li', {}, 'Flank: hitting a foe that another hero stands next to deals 25% more (the Rogue gets 50%).'),
         h('li', {}, 'Facing: every unit faces a way (the small arrow by its feet). Hits from the side deal 10% more and from behind 30% more, and counters don\'t answer blows from behind. Units turn as they move and attack, and at the end of a turn turn toward danger. Pick a hero\'s facing yourself with the arrow buttons or arrow keys.'),

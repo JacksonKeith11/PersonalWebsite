@@ -241,10 +241,20 @@ Keep it that way.
   3×). The canvas has `touch-action: none` there, so a drag on the board can't scroll the page. `drawIsoBoard` in tiles.js paints the flat board off-screen
   (`drawBoard(..., iso = true)` skips the flat cliffs and wall shadows), then maps each tile's square
   onto a 64×44 diamond, back to front, raised by `isoHeight` (hills 1, summits 2, walls 1.5 as blocks,
-  water sunk) with side faces in the theme's cliff or wall colours and a slab under the board's edge.
-  Planned next stages: overlays and effects polish, occlusion (fading what hides a unit), terrain art
-  drawn for the diamonds (trees and rocks are squashed flat for now), and phone layout (the camera
-  zooms, but the board starts small on a phone).
+  water sunk, pits deep) with textured cliff faces (strata, a lit lip, fading to black down a pit) and a
+  slab under the board's edge. Trees, shrubs, rocks and crates (`isoProp`, the flat prop alone at 2×)
+  and walls (`isoWall`, a brick block) stand up as their own images (`syncOccluders` in battle.js),
+  depth-sorted with the units so they hide what's behind them; one turns see-through when a unit stands
+  just behind it. Planned next: phone layout (the camera zooms, but the board starts small on a phone).
+- **Facing is a ground wedge** (`drawFacing`): a soft fan from the unit's feet to the edge of its tile it
+  faces, with a lit edge and a notch, on the `gr` graphics under the sprite. A unit view is a container
+  `[gr, shadow, sp, g]`; use `view.sp` and `view.g`, not list indexes.
+- **Pits** (`T.PIT`; Sinkhole, Abyss, Crevasse, Shaft): impassable to walkers (flyers cross), and a
+  unit knocked or pulled into one (`isPit`, `plunge`) dies outright: `ko(t, killer, true)` skips every
+  save (Last Stand, Phoenix, Saint's Relic and the rest) and death effects that would land in the pit
+  (split, burst, a raised skeleton). Bosses are anchored, so they can't be pushed in. The AI scores a
+  push into a pit as a kill (`knockDir`), and the aim preview says FALL. Acts roll `pits` clusters in
+  the middle columns (none or one in act 1, one or two later), and every act now raises 2-3 mounds.
 - **Upgrades should be strange.** New artifacts should change how a skill or hero plays, not just
   add numbers.
 - **Movement avoids hazards when it can.** `reach()` keeps every route to a tile that isn't beaten

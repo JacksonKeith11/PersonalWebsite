@@ -9,7 +9,7 @@ export const MAX_MODS = 2;       // artifacts a single skill can hold
 export const MAX_RELICS = 3;     // hero artifacts a hero can wear
 
 // ---------- terrain ----------
-export const T = { FLOOR: 0, COVER: 1, ROCK: 2, WATER: 3, WALL: 4, LAVA: 5, HILL: 6, THORN: 7, PEAK: 8 };
+export const T = { FLOOR: 0, COVER: 1, ROCK: 2, WATER: 3, WALL: 4, LAVA: 5, HILL: 6, THORN: 7, PEAK: 8, PIT: 9 };
 export const TERRAIN = [
   { cost: 1 },
   { cost: 2, cover: true },
@@ -20,6 +20,7 @@ export const TERRAIN = [
   { cost: 1, h: 1 },
   { cost: 2, thorn: true },
   { cost: 1, h: 2 },
+  { cost: Infinity, fly: true, pit: true },
 ];
 export const TERRAIN_HELP = [
   'Open ground.',
@@ -31,6 +32,7 @@ export const TERRAIN_HELP = [
   'High ground (height 1). Climbing up a level costs 1 extra movement. Attacks hit 10% harder per level above the target (10% weaker per level below), and ranged skills reach 1 farther per level you stand on.',
   'Cuts anyone who walks in. Costs 2 movement.',
   'Summit (height 2): only reachable from height 1, since nobody climbs two levels in one step. Attacks hit 10% harder per level above the target, and ranged skills reach 2 farther. Knocked off, a unit takes 10% of its max HP per level it falls.',
+  'A sheer drop. Nobody can walk in (flyers cross it), but a unit knocked or pulled in falls to its death. Bosses are too heavy to push.',
 ];
 // What each status does, for the hover/tap tooltips. A number in brackets is turns left;
 // those count down at the end of the unit's own turn.
@@ -90,12 +92,12 @@ export const STATUS_WORDS = {
   Poisons: 'poison', Bleeds: 'bleed', 'Marks a bounty': 'bounty', Chills: 'chill', Hexes: 'hex', Stealth: 'stealth', Riposte: 'riposte', 'Readies a counter': 'riposte', 'Grows thorns': 'thorns', Imbues: 'imbue', 'Delays target': 'delay', Hastes: 'haste',
 };
 export const THEMES = {
-  wood: ['Grass', 'Forest', 'Boulder', 'Water', 'Ruined wall', 'Lava', 'Hill', 'Brambles', 'Hilltop'],
-  crypt: ['Flagstones', 'Rubble', 'Sarcophagus', 'Pit', 'Crypt wall', 'Lava', 'Dais', 'Bone spikes', 'High dais'],
-  ember: ['Basalt', 'Ash drift', 'Obsidian', 'Chasm', 'Obsidian wall', 'Lava', 'Ridge', 'Glass shards', 'Crag'],
-  marsh: ['Mud', 'Reeds', 'Stump', 'Bog water', 'Sunken wall', 'Lava', 'Hummock', 'Brambles', 'Knoll'],
-  frost: ['Snow', 'Snowdrift', 'Ice block', 'Frozen pool', 'Ice wall', 'Lava', 'Ridge', 'Icicles', 'Peak'],
-  foundry: ['Iron floor', 'Crates', 'Gear pile', 'Molten pit', 'Iron wall', 'Molten metal', 'Catwalk', 'Blades', 'Upper catwalk'],
+  wood: ['Grass', 'Forest', 'Boulder', 'Water', 'Ruined wall', 'Lava', 'Hill', 'Brambles', 'Hilltop', 'Sinkhole'],
+  crypt: ['Flagstones', 'Rubble', 'Sarcophagus', 'Pit', 'Crypt wall', 'Lava', 'Dais', 'Bone spikes', 'High dais', 'Abyss'],
+  ember: ['Basalt', 'Ash drift', 'Obsidian', 'Chasm', 'Obsidian wall', 'Lava', 'Ridge', 'Glass shards', 'Crag', 'Abyss'],
+  marsh: ['Mud', 'Reeds', 'Stump', 'Bog water', 'Sunken wall', 'Lava', 'Hummock', 'Brambles', 'Knoll', 'Sinkhole'],
+  frost: ['Snow', 'Snowdrift', 'Ice block', 'Frozen pool', 'Ice wall', 'Lava', 'Ridge', 'Icicles', 'Peak', 'Crevasse'],
+  foundry: ['Iron floor', 'Crates', 'Gear pile', 'Molten pit', 'Iron wall', 'Molten metal', 'Catwalk', 'Blades', 'Upper catwalk', 'Shaft'],
 };
 
 // ---------- acts ----------
@@ -106,7 +108,7 @@ export const ACTS = {
   greenwood: {
     name: 'The Greenwood', theme: 'wood', music: 'm_wood', boss: 'The Thornmother',
     intro: 'The road climbs through the Greenwood toward the Thornmother\'s grove.',
-    terrain: { cover: [2, 4], rock: [1, 3], water: 0.5, walls: [0, 1], lava: [0, 0], hill: [1, 2], thorn: [0, 2] },
+    terrain: { cover: [2, 4], rock: [1, 3], water: 0.5, walls: [0, 1], lava: [0, 0], hill: [2, 3], thorn: [0, 2], pits: [0, 1] },
     early: [['slime', 'slime', 'goblin'], ['goblin', 'goblin', 'archer'], ['wolf', 'wolf'], ['slime', 'archer', 'goblin'], ['bat', 'bat', 'goblin'], ['boar', 'goblin', 'goblin'], ['cutpurse', 'goblin', 'archer']],
     late: [['wolf', 'wolf', 'archer', 'goblin'], ['goblin', 'goblin', 'archer', 'archer'], ['slime', 'slime', 'shaman', 'wolf'], ['wolf', 'bat', 'bat', 'archer'],
       ['sapper', 'sapper', 'goblin', 'archer'], ['totem', 'goblin', 'goblin', 'wolf'], ['bloat', 'slime', 'archer'], ['boar', 'boar', 'cutpurse']],
@@ -116,7 +118,7 @@ export const ACTS = {
   marsh: {
     name: 'The Drowned Marsh', theme: 'marsh', music: 'm_marsh', boss: 'The Bog Hydra',
     intro: 'Fog lies over the drowned marsh. Out in the deep water, something with many heads is waking.',
-    terrain: { cover: [2, 4], rock: [1, 2], water: 1, pools: [2, 3], walls: [0, 1], lava: [0, 0], hill: [1, 1], peak: 0.3, thorn: [0, 2] },
+    terrain: { cover: [2, 4], rock: [1, 2], water: 1, pools: [2, 3], walls: [0, 1], lava: [0, 0], hill: [2, 3], peak: 0.4, thorn: [0, 2], pits: [0, 1] },
     early: [['toad', 'toad', 'leech'], ['lizard', 'lizard', 'wisp'], ['leech', 'leech', 'bloat'], ['toad', 'lizard', 'wisp'], ['slime', 'slime', 'leech']],
     late: [['lizard', 'lizard', 'toad', 'wisp'], ['bloat', 'bloat', 'leech', 'wisp'], ['toad', 'toad', 'lizard', 'shaman'], ['leech', 'leech', 'lizard', 'cutpurse']],
     elite: [['croc', 'leech', 'leech'], ['croc', 'toad', 'wisp']],
@@ -125,7 +127,7 @@ export const ACTS = {
   crypt: {
     name: 'The Sunken Crypt', theme: 'crypt', music: 'm_crypt', boss: 'The Hollow King',
     intro: 'Below the old city, the Hollow King hoards the dead.',
-    terrain: { cover: [1, 2], rock: [1, 2], water: 0.4, walls: [2, 4], lava: [0, 0], hill: [1, 1], thorn: [0, 2] },
+    terrain: { cover: [1, 2], rock: [1, 2], water: 0.4, walls: [2, 4], lava: [0, 0], hill: [2, 3], thorn: [0, 2], pits: [1, 2] },
     early: [['skeleton', 'skeleton', 'cultist'], ['ghost', 'ghost', 'bat'], ['spider', 'spider', 'skeleton'], ['cultist', 'shaman', 'skeleton'], ['bulwark', 'skeleton', 'cultist'], ['shade', 'ghost', 'skeleton']],
     late: [['skeleton', 'skeleton', 'ghost', 'cultist'], ['spider', 'spider', 'ghost', 'shaman'], ['skeleton', 'cultist', 'cultist', 'bat'], ['ghost', 'ghost', 'spider', 'skeleton'],
       ['wight', 'bulwark', 'cultist', 'skeleton'], ['shade', 'shade', 'spider', 'wight']],
@@ -135,7 +137,7 @@ export const ACTS = {
   rime: {
     name: 'The Rime Halls', theme: 'frost', music: 'm_frost', boss: 'The Frost Queen',
     intro: 'The road climbs into halls of ice where the Frost Queen holds court.',
-    terrain: { cover: [1, 3], rock: [1, 3], water: 0.6, walls: [1, 3], lava: [0, 0], hill: [1, 2], thorn: [0, 2] },
+    terrain: { cover: [1, 3], rock: [1, 3], water: 0.6, walls: [1, 3], lava: [0, 0], hill: [2, 3], thorn: [0, 2], pits: [1, 2] },
     early: [['snowwolf', 'snowwolf', 'frostarcher'], ['icewight', 'skeleton', 'frostarcher'], ['yeti', 'snowwolf'], ['bulwark', 'frostarcher', 'icewight']],
     late: [['yeti', 'icewight', 'frostarcher', 'frostarcher'], ['snowwolf', 'snowwolf', 'snowwolf', 'icewight'], ['bulwark', 'bulwark', 'frostarcher', 'shaman'], ['yeti', 'shade', 'icewight', 'snowwolf']],
     elite: [['icegolem', 'frostarcher', 'frostarcher'], ['yeti', 'yeti', 'icewight']],
@@ -144,7 +146,7 @@ export const ACTS = {
   ember: {
     name: 'The Ember Peaks', theme: 'ember', music: 'm_ember', boss: 'The Cinder Wyrm',
     intro: 'At the top of the burning peaks, the Cinder Wyrm waits.',
-    terrain: { cover: [1, 2], rock: [1, 3], water: 0.3, walls: [1, 2], lava: [2, 4], hill: [1, 2], peak: 0.7, thorn: [0, 1] },
+    terrain: { cover: [1, 2], rock: [1, 3], water: 0.3, walls: [1, 2], lava: [2, 4], hill: [2, 3], peak: 0.7, thorn: [0, 1], pits: [1, 2] },
     early: [['imp', 'imp', 'orc'], ['salamander', 'salamander', 'orc'], ['orc', 'orc', 'shaman'], ['imp', 'salamander', 'firecultist'], ['kobold', 'kobold', 'orc'], ['lavaworm', 'imp', 'salamander']],
     late: [['orc', 'orc', 'imp', 'firecultist', 'imp'], ['salamander', 'salamander', 'imp', 'imp', 'orc'], ['magmagolem', 'imp', 'imp', 'firecultist'], ['orc', 'salamander', 'firecultist', 'shaman', 'imp'],
       ['brazier', 'orc', 'orc', 'firecultist'], ['lavaworm', 'lavaworm', 'kobold', 'imp']],
@@ -154,7 +156,7 @@ export const ACTS = {
   foundry: {
     name: 'The Clockwork Foundry', theme: 'foundry', music: 'm_foundry', boss: 'The Brass Colossus',
     intro: 'Smoke and hammering ahead: the Brass Colossus guards the foundry at the end of the road.',
-    terrain: { cover: [1, 3], rock: [1, 2], water: 0.5, walls: [1, 3], lava: [1, 2], hill: [1, 1], thorn: [0, 1] },
+    terrain: { cover: [1, 3], rock: [1, 2], water: 0.5, walls: [1, 3], lava: [1, 2], hill: [2, 3], thorn: [0, 1], pits: [1, 2] },
     early: [['clocksoldier', 'sparkbot', 'sparkbot'], ['automaton', 'turret', 'tinker'], ['sparkbot', 'sparkbot', 'sparkbot', 'tinker'], ['clocksoldier', 'clocksoldier', 'turret']],
     late: [['automaton', 'automaton', 'turret', 'tinker', 'sparkbot'], ['clocksoldier', 'clocksoldier', 'sparkbot', 'sparkbot', 'turret'], ['steamjugg', 'sparkbot', 'tinker', 'turret'], ['automaton', 'clocksoldier', 'turret', 'turret', 'tinker']],
     elite: [['steamjugg', 'automaton', 'tinker'], ['clocksoldier', 'clocksoldier', 'clocksoldier', 'tinker']],

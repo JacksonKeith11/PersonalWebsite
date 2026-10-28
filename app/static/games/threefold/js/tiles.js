@@ -1,7 +1,7 @@
 // Terrain at 32px per tile, painted procedurally per theme and composed into one canvas per battle,
 // so tiles can react to their neighbours: shorelines, cliff edges under high ground, shadows below
 // walls and trees, lava glow on the ground beside it.
-import { T, GW, GH } from './data.js?v=52';
+import { T, GW, GH } from './data.js?v=53';
 
 export const TP = 32;
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -229,6 +229,11 @@ function pitTile(x, P, r, frame) {
   speckle(x, r, [P.pit[1]], 6, 2);
   if (P.glow) for (let i = 0; i < 3; i++) px(x, P.glow[0], (ri(r, 0, 30) + frame * 5) % 31, ri(r, 4, 30));
 }
+function chasmTile(x, P, r, frame) { // a bottomless drop: near-black, with faint motes drifting far below
+  px(x, '#050308', 0, 0, 32, 32);
+  speckle(x, r, ['#0c0812'], 10, 3);
+  for (let i = 0; i < 3; i++) px(x, i ? '#241a36' : '#3a2a5a', (ri(r, 2, 28) + frame * (i + 1)) % 30, (ri(r, 4, 28) + frame * 2) % 30);
+}
 function lavaTile(x, P, r, frame) {
   const L = ['#7a1e10', '#c8401a', '#ff7a1a', '#ffd23f'];
   px(x, L[1], 0, 0, 32, 32);
@@ -339,10 +344,12 @@ const isHole = t => t === T.WATER;
 const level = t => (t === T.PEAK ? 2 : t === T.HILL ? 1 : 0);
 const solidish = t => t === T.WALL || t === T.ROCK || t === T.COVER;
 const cache = new Map();
-// One tile's own art, cached per theme, type, variant and animation frame.
-function tileArt(theme, type, v, frame) {
-  const animated = type === T.WATER || type === T.LAVA || (type === T.FLOOR && theme === 'ember');
-  const k = `${theme}|${type}|${v}|${animated ? frame % 3 : 0}`;
+// One tile's own art, cached per theme, type, variant and animation frame. `bare` (the isometric
+// board) leaves out what stands up off the ground: trees, rocks and walls are drawn upright there.
+function tileArt(theme, type, v, frame, bare = false) {
+  const animated = type === T.WATER || type === T.LAVA || type === T.PIT || (type === T.FLOOR && theme === 'ember');
+  bare = bare && (type === T.COVER || type === T.ROCK || type === T.WALL);
+  const k = `${theme}|${type}|${v}|${animated ? frame % 3 : 0}${bare ? '|bare' : ''}`;
   if (cache.has(k)) return cache.get(k);
   const P = THEME_ART[theme], c = document.createElement('canvas');
   c.width = c.height = TP;
@@ -350,14 +357,17 @@ function tileArt(theme, type, v, frame) {
   const ground = () => GROUND[P.ground](x, P, rng(seed + 1), v, f);
   if (type === T.WATER) (P.hole === 'water' ? waterTile : pitTile)(x, P, rng(seed + 3), f);
   else if (type === T.LAVA) lavaTile(x, P, rng(seed + 5), f);
-  else if (type === T.WALL) wallTile(x, P, rng(seed + 7));
+  else if (type === T.PIT) chasmTile(x, P, rng(seed + 19), f);
+  else if (type === T.WALL && !bare) wallTile(x, P, rng(seed + 7));
+  else if (type === T.WALL) ground();
   else {
     ground();
     if (P.under && (type === T.COVER || type === T.ROCK)) { // darker grass gathered under trees and rocks
       const r = rng(seed + 9);
       for (let y = 20; y < 32; y++) for (let X = 2; X < 30; X++) { const dx = (X - 16) / 14, dy = (y - 26) / 5.5; if (dx * dx + dy * dy < 1 - r() * 0.25) px(x, P.under, X, y); }
     }
-    if (type === T.COVER) PROP[P.cover](x, P, rng(seed + 11));
+    if (bare) { /* the prop stands on the isometric board as its own image */ }
+    else if (type === T.COVER) PROP[P.cover](x, P, rng(seed + 11));
     else if (type === T.ROCK) PROP[P.rock](x, P, rng(seed + 13));
     else if (type === T.HILL || type === T.PEAK) hillTop(x, P, type === T.PEAK ? 2 : 1);
     else if (type === T.THORN) thornTile(x, P, rng(seed + 17));
@@ -395,7 +405,7 @@ export function drawBoard(ctx, theme, grid, vari, frame, iso = false) {
   // plain ground gets eight variants (mixed with position so neighbours rarely match); other tiles four
   for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
     const t = grid[y][x], v = t === T.FLOOR ? (vari[y][x] * 3 + x * 5 + y * 7) % 8 : vari[y][x] % 4;
-    ctx.drawImage(tileArt(theme, t, v, frame + vari[y][x]), x * TP, y * TP);
+    ctx.drawImage(tileArt(theme, t, v, frame + vari[y][x], iso), x * TP, y * TP);
   }
   if (P.patch) { // only bare base-colour ground changes, so props and tufts are untouched
     const W = GW * TP, img = ctx.getImageData(0, 0, W, GH * TP), d = img.data, m = patchMask(vari);
@@ -427,6 +437,12 @@ export function drawBoard(ctx, theme, grid, vari, frame, iso = false) {
         if (dx === 1) ctx.fillRect(X + 31, Y, 1, 32); else if (dx === -1) ctx.fillRect(X, Y, 1, 32); else ctx.fillRect(X, Y + 31, 32, 1);
       }
     }
+    if (t === T.PIT && !iso) { // the ground breaks off into the drop: a rock face below the far edge, dark lips at the sides
+      const up = at(x, y - 1);
+      if (up !== T.PIT) { px(ctx, P.cliff[1], X, Y, 32, 9); px(ctx, P.cliff[0], X, Y, 32, 2); for (let i = 2; i < 32; i += 5) px(ctx, P.cliff[2], X + i, Y + 3 + (i % 3), 1, 5); }
+      if (at(x - 1, y) !== T.PIT) px(ctx, P.cliff[2], X, Y, 2, 32);
+      if (at(x + 1, y) !== T.PIT) px(ctx, P.cliff[2], X + 30, Y, 2, 32);
+    }
     const lv = iso ? 0 : level(t); // the isometric board draws real faces instead
     if (lv > 0) { // a plateau: lit rim where it starts, a cliff face wherever the ground is lower
       const ledge = 'rgba(255,248,220,0.35)', lower = n => n == null || level(n) < lv;
@@ -451,35 +467,95 @@ export function drawBoard(ctx, theme, grid, vari, frame, iso = false) {
   }
 }
 
-// ---------- the isometric board (prototype, ?iso) ----------
-// Each tile's square from the composed flat board is mapped onto a 64×32 diamond, raised by its
-// height, with side faces down to the tile in front (or the board's base). Tiles go back to front.
-// HH / HW sets the angle: 22/32 looks further down onto the board than the classic 2:1.
+// ---------- the isometric board ----------
+// Each tile's square from the composed flat board (props left out) is mapped onto a 64×44 diamond,
+// raised or sunk by its height, with textured side faces down to the tile in front (or the board's
+// base); drops into pits fade to black. Tiles go back to front. Trees, rocks and walls stand up as
+// separate images (`isoProp`, `isoWall`) that battle.js sorts with the units, so they hide what's
+// behind them. HH / HW sets the angle: 22/32 looks further down onto the board than the classic 2:1.
 export const ISO = { HW: 32, HH: 22, LIFT: 10, OX: GH * 32 + 64, OY: 100, BASE: 8 };
 ISO.W = (GW + GH) * ISO.HW + 128; ISO.H = ISO.OY + (GW + GH) * ISO.HH + 60; // the board canvas
-// How high a tile is drawn, in levels: hills and summits as in play, walls as blocks, water sunk.
-export const isoHeight = t => (t === T.PEAK ? 2 : t === T.HILL ? 1 : t === T.WALL ? 1.5 : t === T.WATER ? -0.3 : t === T.LAVA ? -0.15 : 0);
+ISO.WALL = 16; // a wall block's height in pixels
+// How high a tile is drawn, in levels: hills and summits as in play, walls as blocks, water sunk, pits deep.
+export const isoHeight = t => (t === T.PEAK ? 2 : t === T.HILL ? 1 : t === T.WALL ? ISO.WALL / ISO.LIFT : t === T.WATER ? -0.3 : t === T.LAVA ? -0.15 : t === T.PIT ? -4 : 0);
+const shade = (hex, k) => { const [r, g, b] = hex3(hex); return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`; };
+const isoCache = new Map();
+// A tree, shrub, rock or crate standing up: the flat tile's prop on its own, at the board's 2×.
+export function isoProp(theme, type, v) {
+  const k = `prop|${theme}|${type}|${v}`;
+  if (isoCache.has(k)) return isoCache.get(k);
+  const P = THEME_ART[theme], seed = THEME_KEYS.indexOf(theme) * 7919 + v * 131;
+  const a = document.createElement('canvas'); a.width = a.height = TP;
+  PROP[type === T.COVER ? P.cover : P.rock](a.getContext('2d'), P, rng(seed + (type === T.COVER ? 11 : 13)));
+  const c = document.createElement('canvas'); c.width = c.height = TP * 2;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(a, 0, 0, TP * 2, TP * 2);
+  isoCache.set(k, c);
+  return c;
+}
+// A wall as a block: a stone top and two brick faces, its top corner at (HW, 0).
+export function isoWall(theme, v) {
+  const k = `wall|${theme}|${v}`;
+  if (isoCache.has(k)) return isoCache.get(k);
+  const P = THEME_ART[theme], W = P.wall, { HW, HH } = ISO, Hh = ISO.WALL, r = rng(THEME_KEYS.indexOf(theme) * 7919 + v * 131 + 7);
+  const c = document.createElement('canvas'); c.width = HW * 2; c.height = HH * 2 + Hh + 1;
+  const x = c.getContext('2d');
+  const poly = (col, pts) => { x.fillStyle = col; x.beginPath(); pts.forEach(([X, Y], i) => (i ? x.lineTo(X, Y) : x.moveTo(X, Y))); x.closePath(); x.fill(); };
+  const T0 = [HW, 0], L = [0, HH], B0 = [HW, HH * 2], R = [HW * 2, HH];
+  poly(W[1], [L, B0, [B0[0], B0[1] + Hh], [L[0], L[1] + Hh]]);
+  poly(W[0], [B0, R, [R[0], R[1] + Hh], [B0[0], B0[1] + Hh]]);
+  for (let k2 = 5; k2 < Hh; k2 += 5) { // brick courses following each face, joints staggered
+    x.strokeStyle = 'rgba(0,0,0,0.35)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(L[0], L[1] + k2 + 0.5); x.lineTo(B0[0], B0[1] + k2 + 0.5); x.lineTo(R[0], R[1] + k2 + 0.5); x.stroke();
+    for (let j = (k2 / 5) % 2 ? 4 : 8; j < HW * 2; j += 8) {
+      const y0 = (j <= HW ? L[1] + (j / HW) * HH : B0[1] - ((j - HW) / HW) * HH) + k2 - 5;
+      px(x, 'rgba(0,0,0,0.3)', j, Math.round(y0) + 1, 1, 4);
+    }
+  }
+  poly(W[2], [T0, R, B0, L]);
+  for (let i = 0; i < 14; i++) { const X = ri(r, 10, 54), Y = ri(r, 6, 38); if (Math.abs(X - HW) / HW + Math.abs(Y - HH) / HH < 0.85) px(x, i % 2 ? W[3] : W[1], X, Y, ri(r, 2, 4), 1); }
+  x.strokeStyle = W[3]; x.lineWidth = 1; x.beginPath(); x.moveTo(L[0], L[1]); x.lineTo(T0[0], T0[1] + 0.5); x.lineTo(R[0], R[1]); x.stroke();
+  if (P.moss) for (let i = 0; i < 5; i++) px(x, P.moss, ri(r, 4, 60), HH * 2 - ri(r, 0, 6), ri(r, 2, 4), 1);
+  isoCache.set(k, c);
+  return c;
+}
 export function drawIsoBoard(ctx, flat, theme, grid) {
   const P = THEME_ART[theme], { HW, HH, LIFT, OX, OY, BASE } = ISO;
-  const ht = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? null : isoHeight(grid[y][x]) * LIFT);
+  // walls stand as their own blocks, so the board treats their tiles as plain ground
+  const ht = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? null : grid[y][x] === T.WALL ? 0 : isoHeight(grid[y][x]) * LIFT);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = P.backdrop || '#100b17'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.imageSmoothingEnabled = false;
   const poly = (col, pts) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill(); };
+  // a rock face from edge a→b down d pixels: strata, a lit lip, and darkness the deeper it drops
+  const face = (a, b, d, col) => {
+    poly(col, [a, b, [b[0], b[1] + d], [a[0], a[1] + d]]);
+    const sl = (b[1] - a[1]) / (b[0] - a[0]);
+    for (let X = Math.min(a[0], b[0]) + 3; X < Math.max(a[0], b[0]) - 1; X += 5) {
+      const y = a[1] + (X - a[0]) * sl, len = Math.min(d - 2, 4 + ((X * 7) % 9));
+      if (len > 1) px(ctx, shade(P.cliff[2], 1), X, Math.round(y) + 2 + ((X * 3) % 4), 1, len);
+    }
+    for (let k = 7; k < d - 2; k += 9) { ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a[0], a[1] + k + 0.5); ctx.lineTo(b[0], b[1] + k + 0.5); ctx.stroke(); }
+    if (d > LIFT * 2) { // a deep drop: fade to the dark of the pit below
+      const top = Math.min(a[1], b[1]), g = ctx.createLinearGradient(0, top + LIFT * 1.5, 0, Math.max(a[1], b[1]) + d);
+      g.addColorStop(0, 'rgba(5,3,8,0)'); g.addColorStop(1, 'rgba(5,3,8,0.95)');
+      poly(g, [a, b, [b[0], b[1] + d], [a[0], a[1] + d]]);
+    }
+    poly(P.g ? P.g[2] : shade(col, 1.35), [a, b, [b[0], b[1] + 2], [a[0], a[1] + 2]]);
+  };
   const order = [];
   for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) order.push([x, y]);
   order.sort((a, b) => a[0] + a[1] - b[0] - b[1]);
   for (const [x, y] of order) {
-    const h = ht(x, y), t = grid[y][x], tx = OX + (x - y) * HW, ty = OY + (x + y) * HH - h;
+    const h = ht(x, y), tx = OX + (x - y) * HW, ty = OY + (x + y) * HH - h;
     const front = (nx, ny) => h - (ht(nx, ny) == null ? -BASE : Math.min(h, ht(nx, ny)));
     const fl = front(x, y + 1), fr = front(x + 1, y);
-    const [cl, cr, rim] = t === T.WALL ? [P.wall[1], P.wall[0], P.wall[2]] : [P.cliff[1], P.cliff[0], P.cliff[0]];
     const L = [tx - HW, ty + HH], Bt = [tx, ty + 2 * HH], R = [tx + HW, ty + HH];
-    if (fl > 0) { poly(cl, [L, Bt, [Bt[0], Bt[1] + fl], [L[0], L[1] + fl]]); poly(rim, [L, Bt, [Bt[0], Bt[1] + 1], [L[0], L[1] + 1]]); }
-    if (fr > 0) poly(cr, [Bt, R, [R[0], R[1] + fr], [Bt[0], Bt[1] + fr]]);
+    if (fl > 0) face(L, Bt, fl, P.cliff[1]);
+    if (fr > 0) face(Bt, R, fr, P.cliff[0]);
     ctx.save();
     ctx.setTransform(HW / TP, HH / TP, -HW / TP, HH / TP, tx, ty);
     ctx.drawImage(flat, x * TP, y * TP, TP, TP, 0, 0, TP, TP);
     ctx.restore();
+    if (grid[y][x] === T.PIT && P.glow) { ctx.fillStyle = 'rgba(255,120,40,0.18)'; ctx.beginPath(); ctx.moveTo(tx, ty + 4); ctx.lineTo(R[0] - 6, R[1]); ctx.lineTo(Bt[0], Bt[1] - 4); ctx.lineTo(L[0] + 6, L[1]); ctx.closePath(); ctx.fill(); }
   }
 }

@@ -190,9 +190,15 @@ Keep it that way.
   plus 1 every 6 levels), and the fastest hero lines grow SPD every 3 levels rather than 2: before
   that, act-3 foes sat at 4–12 SPD while Tricksters reached 34, so heroes outsped the endgame. Now
   endgame heroes land around 10–27 and late foes around 10–22.
-- **Difficulty should be hard but winnable.** The random-choice autopilot currently wins about 1 run
-  in 6, losing mostly to bosses across all three acts. A person managing HP should do clearly
-  better.
+- **Difficulty should be hard but winnable, and a person should do clearly better than the bot.**
+  The owner found the game very easy, so it was calibrated against the synergy-minded autopilot
+  (`bot.js` plus threat-aware hero moves): about 20% wins at ascent 0 (143 runs) and 5% at ascent 8.
+  Normal fights are nearly always won (98%+); runs are decided by attrition and the bosses, which
+  the bot passes about two times in three in every act. Before acts 2 and 3 were toughened, a party
+  that reached act 3 won it 82% of the time. Measured and adjusted: act scaling, the Bog Hydra
+  (softened; it ended twice as many runs as the Thornmother) and the Brass Colossus (toughened). The
+  Hydra still ends more runs than the other bosses, partly because the bot doesn't prioritise its
+  heads the way a person would.
 
 - **Phones are a first-class target for combat.** Below 920px the battle's action bar (skills,
   Confirm, End turn, hint) is pinned to the bottom of the screen (`body.in-battle`), the HUD uses

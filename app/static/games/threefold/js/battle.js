@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=31';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=31';
-import { spriteURL } from './art.js?v=31';
-import { TP, drawBoard } from './tiles.js?v=31';
-import { sfx } from './audio.js?v=31';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=31';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=32';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=32';
+import { spriteURL } from './art.js?v=32';
+import { TP, drawBoard } from './tiles.js?v=32';
+import { sfx } from './audio.js?v=32';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=32';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1101,6 +1101,9 @@ async function battleLoop(b) {
     if (B !== b || b.over) return;
     u.intent = null;
     endTurn(u);
+    // the turn is over: forecast with nobody active, so the unit that just acted (often the foe
+    // that just attacked) is forecast for its next turn too
+    b.active = null;
     refreshIntents();
   }
 }
@@ -1424,7 +1427,7 @@ function refreshIntents() {
   for (let i = 0; i < order.length; i++) {
     const f = order[i];
     if (i > hi && f === order[hi]) break;
-    if (f.intent || !canPlan(f) || f === B.active) continue;
+    if (f.intent || !canPlan(f)) continue;
     const p = planAI(f, true);
     if (!p.skill) continue;
     const end = p.path && p.path.length ? p.path[p.path.length - 1] : f;

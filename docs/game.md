@@ -89,7 +89,8 @@ Keep it that way.
   (`planAI(f, true)`, which counts skills one turn off cooldown) for every foe that acts before the
   next hero's next turn, and stores it as `u.intent` (skill, where it will stand, target tile). It's
   recomputed from scratch at the start of each hero turn, after every hero step (move, undo, action)
-  and after every turn; a foe still plans afresh with `planAI` when its turn comes. So the intent is
+  and after every turn (with `B.active` cleared first, so the unit that just acted is forecast too;
+  otherwise a foe that just attacked showed nothing until the next hero's turn); a foe still plans afresh with `planAI` when its turn comes. So the intent is
   what the foe would do if things stayed as they are, **not a commitment**. The owner first tried
   locked-in attacks (Into the Breach style) and dropped them: heroes could kite forever and never
   be hit. Stun, sleep, confusion, charm and death clear it (the card says "Next: skips its turn").

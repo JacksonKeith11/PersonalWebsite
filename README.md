@@ -8,7 +8,7 @@ Cloudflare Tunnel.
 | Path | What | Access |
 |---|---|---|
 | `/`, `/resume`, `/projects`, `/recipes` | Static pages (`app/static/`) | Public |
-| `/games` | Games list; `/games/threefold-path` is Threefold Path, a Phaser tactics roguelike | Public |
+| `/games` | Games list; `/games/roguelike-tactics` is Roguelike Tactics, a Phaser tactics roguelike (the old `/games/threefold-path` redirects) | Public |
 | `/<SERIALS_PATH>` | New chapters of followed web serials, from notification emails (Royal Road, AO3, fiction.live) and forum threadmarks (SpaceBattles, Sufficient Velocity, Questionable Questing) | Unlisted, password |
 | `/books` | EPUB library and reader with a story importer and Kokoro audiobook narration | Per-username |
 | `/healthz` | Health check for the deploy job | Public |

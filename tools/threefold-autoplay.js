@@ -1,4 +1,4 @@
-// Plays Threefold Path headlessly with the heroes on autopilot, to catch errors and gauge balance.
+// Plays Roguelike Tactics headlessly with the heroes on autopilot, to catch errors and gauge balance.
 //
 //   node tools/threefold-autoplay.js [runs=3] [--chaos]
 //

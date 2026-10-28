@@ -1,4 +1,4 @@
-# Threefold Path (the game at /games/threefold-path)
+# Roguelike Tactics (the game at /games/roguelike-tactics)
 
 Read this before changing anything in `app/static/games/` or `tools/threefold-autoplay.js`.
 
@@ -12,7 +12,11 @@ statuses and line of sight. Runs save to `localStorage`.
 
 ## Code map (`app/static/games/threefold/`)
 
-The game is static files with no build step. `/games/threefold-path` serves `index.html`, which
+The game was called Threefold Path at first. Its folders, tools, `localStorage` keys and save key
+still say `threefold`; leave them, since renaming the keys would wipe players' saves and settings.
+`/games/threefold-path` redirects to the new URL.
+
+The game is static files with no build step. `/games/roguelike-tactics` serves `index.html`, which
 loads Phaser 3.80.1 from cdnjs, then `js/main.js` as an ES module.
 
 | File | Holds |

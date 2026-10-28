@@ -22,7 +22,8 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   XenForo "What's New" threadmarks for SpaceBattles, Sufficient Velocity, Questionable Questing)
 - `app/books/` and `app/static/books/`: EPUB library, reader, story importer and Kokoro narration
   at `/books`, behind a username
-- `app/static/games/threefold/`: Threefold Path, a Phaser tactics roguelike at `/games/threefold-path`
+- `app/static/games/threefold/`: Roguelike Tactics (formerly Threefold Path, hence the folder names), a Phaser tactics
+  roguelike at `/games/roguelike-tactics`
 - `tools/`: dev scripts (the game's headless autoplay test, and `threefold-art/`, the Python that draws its sprites)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 

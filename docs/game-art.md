@@ -1,4 +1,4 @@
-# Threefold Path: art direction
+# Roguelike Tactics: art direction
 
 The look of the game's characters, what each hero class looks like, and how to draw new sprites so
 they match. Read it before drawing or changing a sprite. Terrain is covered in `docs/game.md`

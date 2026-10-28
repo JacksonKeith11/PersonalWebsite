@@ -60,9 +60,15 @@ def games():
     return FileResponse(STATIC_DIR / "games.html")
 
 
+@app.get("/games/roguelike-tactics", include_in_schema=False)
+def roguelike_tactics():
+    return FileResponse(STATIC_DIR / "games" / "threefold" / "index.html")
+
+
 @app.get("/games/threefold-path", include_in_schema=False)
 def threefold_path():
-    return FileResponse(STATIC_DIR / "games" / "threefold" / "index.html")
+    # the game's old name; keep old links working
+    return RedirectResponse("/games/roguelike-tactics", status_code=301)
 
 
 @app.get("/healthz")

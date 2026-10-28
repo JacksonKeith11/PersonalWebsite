@@ -1,13 +1,13 @@
-// Threefold Path: run flow, menus, events, shops and saving. Phaser draws the map and battles;
+// Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=26';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=27';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=26';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=26';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=26';
-import { env, startBattle, BattleScene } from './battle.js?v=26';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=26';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=26';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=27';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=27';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=27';
+import { env, startBattle, BattleScene } from './battle.js?v=27';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=27';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=27';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -607,7 +607,7 @@ function showTitle() {
   music('m_map');
   const saved = load();
   setScreen(h('div', { class: 'panel center' },
-    h('div', { class: 'title-name' }, 'Threefold Path'),
+    h('div', { class: 'title-name' }, 'Roguelike Tactics'),
     h('div', { class: 'title-art' }, sprImg('warrior', 'huge'), sprImg('mage', 'huge'), sprImg('rogue', 'huge')),
     h('p', {}, 'Three heroes. Three acts, each drawn from two lands, each with its own boss.'),
     saved ? btn('Continue run', () => { run = saved; env.run = run; showMap(); }, 'big go') : null,

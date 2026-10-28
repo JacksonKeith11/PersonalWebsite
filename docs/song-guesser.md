@@ -74,13 +74,16 @@ as an ES module.
   iTunes preview to fix the key and tempo; its README has the steps. YouTube can't be used: it
   refuses downloads from cloud machines. The chorus and the vocal track were picked by hand for
   every song (`overrides.json`). The other 46 keep hand-written parts; their keys and tempos were
-  checked against the previews too and mostly agree. Their vocal melodies, from memory, are now
-  the weakest part of the game.
+  checked against the previews too and mostly agree.
+- **No vocal melody unless it was transcribed.** The hand-written songs' melodies were written from
+  memory and the owner found them too far off; they couldn't be checked against the records (the
+  previews are full mixes), so they were removed. Those songs play 3–4 instruments. The check script
+  rejects a melody on a song without `source: 'midi'`.
 
 ## Adding a song
 
 1. If a MIDI transcription exists, use `tools/song-guesser-midi/` (see its README). Otherwise add it
-   to `SONGS` in `js/songs.js` by hand: write its chorus, 2–8 bars, that loops to fill the clip.
+   to `SONGS` in `js/songs.js` by hand: write its chorus (no vocal melody), 2–8 bars, that loops to fill the clip.
    Every part loops on its own length, so keep each a whole number of bars and a multiple or
    divisor of the chord loop.
 2. If it was in `EXTRA`, take it out there (the check flags duplicates).

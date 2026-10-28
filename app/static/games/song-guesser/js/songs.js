@@ -1,7 +1,8 @@
 // Song Guesser's songs, each the chorus of a song as notes, played by synth.js. Songs marked
 // source: 'midi' were transcribed from a MIDI file and checked against the record
 // (tools/song-guesser-midi/); the rest are hand-written: keys and progressions from chord charts,
-// riffs from guitar tabs where one was found, vocal melodies from memory (docs/song-guesser.md).
+// riffs from guitar tabs where one was found, and no vocal melody: the ones written from memory
+// were too far off, so only transcribed songs have one (docs/song-guesser.md).
 //
 // Fields:
 //   tier     'indie' (picked 4x as often), 'alt' and 'pop' (2x) or 'other' (1x)
@@ -20,7 +21,7 @@
 //            inst: guitar, dist (power chords), clean, piano, organ, synth, strings, mandolin.
 //            style: strum, eighths, sixteenths, quarters, pulse, whole, offbeat, stabs, arp.
 //   riff     an extra line (lead guitar, synth, horns...): notes, or { notes, inst, label }
-//   melody   the vocal line: notes, or { notes, inst, label }
+//   melody   the vocal line: notes, or { notes, inst, label }; only on source: 'midi' songs
 //   order    the order instruments are added, default drums, bass, chords, riff, melody
 //
 // Notes are "E4:.5 G4 -:1 C3+G3:2": a pitch (or pitches joined by +, or - for a rest), then
@@ -70,7 +71,6 @@ export const SONGS = [
     chords: 'Em:6 C:6 G:6 D:6',
     guitar: { rhythm: 'x-xx-x', step: 1 },
     riff: { inst: 'saw', notes: 'B4:6 C5 B4 A4' },
-    melody: '-:1 B4:1 B4 B4 C5 B4 | E5:3 D5:1 C5 B4 | B4:2 A4:1 G4:2 A4:1 | A4:3 -:3 | -:1 B4:1 B4 B4 C5 B4 | E5:3 D5:1 C5 B4 | B4:3 A4:1 G4:2 | F#4:3 -:3',
   },
   {
     title: 'Holland, 1945', artist: 'Neutral Milk Hotel', year: 1998, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
@@ -78,7 +78,6 @@ export const SONGS = [
     chords: 'C:8 G:8',
     guitar: { inst: 'dist', style: 'eighths' },
     riff: { inst: 'horn', notes: 'E4:4 G4 C5:8 D5:4 C5 B4:8' },
-    melody: 'C4:2 C4 E4 G4 | G4:4 E4 | D4:2 D4 B3 G3 | G3:8',
   },
 
   // Interpol
@@ -88,14 +87,12 @@ export const SONGS = [
     chords: 'Fmaj7:4 C:4 Am:4 C:4',
     guitar: { style: 'sixteenths' },
     riff: { notes: 'E5:.5 C5 A4 C5 E5 C5 A4 C5 | E5 C5 G4 C5 E5 C5 G4 C5 | E5 C5 A4 C5 E5 C5 A4 C5 | E5 C5 G4 C5 E5 C5 G4 C5' },
-    melody: '-:1 C4:.5 C4 C4 D4 C4:1 | B3:2 -:2 | -:1 B3:.5 C4 C4 D4 C4:1 | B3:3 -:1',
   },
   {
     title: 'Evil', artist: 'Interpol', year: 2004, genre: 'Post-punk revival', tier: 'indie', section: 'Chorus',
     bpm: 127, drums: 'rock', bass: 'octaves',
     chords: 'F:4 Am7:4 Bb:4 C:4',
     guitar: { style: 'stabs' },
-    melody: '-:.5 C4:.5 D4:1 C4 A3 | A3:2 -:2 | -:.5 D4:.5 D4 D4 C4 D4 C4:1 | Bb3:1 A3:2 -:1',
   },
 
   // More indie
@@ -104,7 +101,6 @@ export const SONGS = [
     bpm: 104, drums: 'motorik', bass: 'eighths',
     chords: 'F:4 G:4',
     guitar: { style: 'offbeat' },
-    melody: '-:.5 C5:.5 C5 C5 A4 G4 A4 C5 | B4 G4:1.5 -:2 | -:.5 C5:.5 C5 C5 A4 G4 A4 C5 | B4 G4:1.5 -:2',
   },
   {
     title: 'Float On', artist: 'Modest Mouse', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
@@ -115,8 +111,7 @@ export const SONGS = [
       inst: 'clean', label: 'Lead guitar',
       notes: '-:.25 F#4:1 A#4:1.25 C#5:1.5 | -:.75 A#4:.75 G#4:1 A#4:.75 A#4 | -:.5 A#4:.75 A#4:1 F4:1.75 | A#4:1 C#5 A#4:.75 G#4:1.25',
     },
-    melody: '-:.5 C#4:.5 C#4 C#4 A#3:1 F#3 | G#3:1 A#3:2 -:1 | -:.5 C#4:.5 C#4 C#4 A#3:1 F#3 | G#3:1 F#3:2 -:1',
-    order: ['drums', 'bass', 'chords', 'melody', 'riff'],
+    order: ['drums', 'bass', 'chords', 'riff'],
   },
   {
     title: 'Mr. Brightside', artist: 'The Killers', year: 2003, genre: 'Indie rock', tier: 'indie', section: 'Chorus', source: 'midi',
@@ -136,8 +131,7 @@ export const SONGS = [
       inst: 'dist', label: 'Guitar riff',
       notes: 'F2:.25 G2:1.25 A#2:1 G2:1.5 | F2:.25 G2:1.25 A#2:.75 F3:1 D#3:.75 | D3:.75 C3:1.25 A#2:.5 C3:.75 D3:.5 C3:.25 | A#2:.25 C3:1 D3:.75 D3 G2:1.25',
     },
-    melody: '-:1 Bb3:.5 Bb3 Bb3 A3 G3:1 | -:.5 G3:.5 G3 Bb3 A3 G3:1 -:.5 | F3:1 G3 -:2 | -:4',
-    order: ['drums', 'bass', 'melody', 'riff'],
+    order: ['drums', 'bass', 'riff'],
   },
   {
     title: 'Take Me Out', artist: 'Franz Ferdinand', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
@@ -148,8 +142,7 @@ export const SONGS = [
       inst: 'dist', label: 'Guitar riff',
       notes: '-:.25 D4:.25 D4 D4 D4 -:.5 D4:.25 D4 D4 E4 - D4 E4 E4 - | - D4 D4 D4 D4 -:.5 D4:.25 D4 D4 E4 - D4 E4 E4 - | - C4 C4 C4 C4 -:.5 C4:.25 C4 C4 C4 -:.5 C4:.25 C4 - | - D4 D4 D4 D4 D4 - D4 - B3 A3 - G3 G3 E3 -',
     },
-    melody: '-:.5 B3:.5 E4 E4 E4 G4:1 -:.5 | -:.5 B3:.5 E4 E4 E4 D4:1 -:.5',
-    order: ['drums', 'bass', 'melody', 'riff'],
+    order: ['drums', 'bass', 'riff'],
   },
   {
     title: 'Where Is My Mind?', artist: 'Pixies', year: 1988, genre: 'Alternative rock', tier: 'indie', section: 'Chorus',
@@ -157,7 +150,6 @@ export const SONGS = [
     chords: 'E:4 C#m:4 G#:4 A:4',
     guitar: { inst: 'dist', style: 'strum' },
     riff: { inst: 'voice', label: 'Backing vocal', notes: 'E5:3 B4:1 | C#5:4 | D#5:3 B4:1 | C#5:4' },
-    melody: '-:2 E4:1 E4 | G#4:1 E4 C#4:2 | -:2 E4:1 E4 | A4:1 G#4 E4:2',
   },
   {
     title: 'Seven Nation Army', artist: 'The White Stripes', year: 2003, genre: 'Garage rock', tier: 'indie', section: 'Chorus',
@@ -165,15 +157,13 @@ export const SONGS = [
     bass: 'E2:1.5 E2:.5 G2:.75 E2:.75 D2:.5 C2:2 B1:2',
     guitar: null,
     riff: { inst: 'dist', label: 'Guitar', notes: 'E3:1.5 E3:.5 G3:.75 E3:.75 D3:.5 C3:2 B2:2' },
-    melody: 'G3:.5 G3 G3 G3 A3 G3 E3:1 | -:.5 G3:.5 G3 G3 B3 A3 G3 E3',
-    order: ['drums', 'melody', 'bass', 'riff'],
+    order: ['drums', 'bass', 'riff'],
   },
   {
     title: 'A-Punk', artist: 'Vampire Weekend', year: 2008, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
     bpm: 176, drums: 'rock', bass: 'eighths',
     chords: 'D:8 Em7:8',
     guitar: { style: 'offbeat' },
-    melody: '-:1 F#4:.5 -:.5 F#4:.5 -:.5 F#4:1 | -:4 | -:1 G4:.5 -:.5 G4:.5 -:.5 G4:1 | -:4',
   },
   {
     title: 'Kids', artist: 'MGMT', year: 2007, genre: 'Indie pop', tier: 'indie', section: 'Chorus',
@@ -184,8 +174,7 @@ export const SONGS = [
       inst: 'square', label: 'Synth lead',
       notes: 'C#5:.5 E5 F#5:1 E5:.5 C#5 A4:1 | D5:.5 F#5 A5:1 F#5:.5 D5 A4:1 | C#5:.5 E5 A5:1 E5:.5 C#5 A4:1 | B4:.5 E5 G#5:1 E5:.5 B4 G#4:1',
     },
-    melody: '-:1 C#4:1 E4 C#4 | A3:2 -:2 | -:.5 C#4:.5 C#4 C#4 E4 C#4 B3:1 | B3:.5 A3:1.5 -:2',
-    order: ['drums', 'bass', 'chords', 'melody', 'riff'],
+    order: ['drums', 'bass', 'chords', 'riff'],
   },
   {
     title: 'Maps', artist: 'Yeah Yeah Yeahs', year: 2003, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
@@ -193,7 +182,6 @@ export const SONGS = [
     drums: { k: 'x.....x...x.....', s: '....x.......x...', t: '..x...x...x.xx.x', h: 'x.x.x.x.x.x.x.x.' },
     chords: 'Cmaj7:4 G:4 Em7:4 G:4',
     guitar: { inst: 'clean', style: 'arp' },
-    melody: 'D4:4 | -:.5 B3:.5 B3 A3 G3:1 B3 | A3:1 G3 E3:2 | -:4',
   },
   {
     title: 'Wake Up', artist: 'Arcade Fire', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
@@ -201,7 +189,6 @@ export const SONGS = [
     chords: 'C:4 Am:4 F:8',
     guitar: { inst: 'dist', style: 'eighths' },
     riff: { inst: 'strings', notes: 'G4:4 A4:4 A4:8' },
-    melody: { label: 'Vocal melody (choir)', notes: 'E4:2 G4:1 E4 | D4:1 C4 D4:2 | E4:2 G4:1 A4 | G4:2 E4:1 C4' },
   },
   {
     title: 'Pumped Up Kicks', artist: 'Foster the People', year: 2010, genre: 'Indie pop', tier: 'indie', section: 'Chorus',
@@ -209,8 +196,7 @@ export const SONGS = [
     chords: 'F:4 Ab:4 Eb:4 Bb:4',
     bass: 'F2:.75 F2:.25 -:.5 F2 A2 C3 F2:1 | Ab2:.75 Ab2:.25 -:.5 Ab2 C3 Eb3 Ab2:1 | Eb2:.75 Eb2:.25 -:.5 Eb2 G2 Bb2 Eb2:1 | Bb1:.75 Bb1:.25 -:.5 Bb1 D2 F2 Bb1:1',
     guitar: { inst: 'synth', style: 'whole' },
-    melody: '-:.5 C4:.5 C4 C4 C4 Bb3 A3 C4 | C4 C4 Eb4:1 -:2 | -:.5 Bb3:.5 Bb3 G3:1 Bb3:.5 G3:1 | -:.5 F3:.5 F3 G3 F3:2',
-    order: ['drums', 'chords', 'melody', 'bass'],
+    order: ['drums', 'chords', 'bass'],
   },
 
   // More indie
@@ -235,7 +221,6 @@ export const SONGS = [
     bpm: 106, drums: 'motorik', bass: 'eighths',
     chords: 'A:2 E7:2 F#m:2 D:2',
     guitar: { inst: 'clean', style: 'eighths' },
-    melody: '-:.5 E4:.5 E4 E4:1 C#4 -:.5 | -:.5 C#4:.5 C#4 C#4 E4 C#4 B3:1 | -:.5 A3:.5 C#4:1 -:.5 A3:.5 C#4:1 | B3:1 A3:3',
   },
   {
     title: 'Reptilia', artist: 'The Strokes', year: 2004, genre: 'Garage rock revival', tier: 'indie', section: 'Chorus', source: 'midi',
@@ -251,28 +236,24 @@ export const SONGS = [
     bpm: 103, drums: 'drive', bass: 'eighths',
     chords: 'F#m:4 A:2 E:2',
     guitar: { inst: 'dist', style: 'eighths' },
-    melody: '-:.5 C#4:.5 C#4 C#4 C#4 E4 C#4:1 | B3:.5 C#4 B3:1 A3:2 | -:.5 C#4:.5 C#4 C#4 E4 E4 F#4:1 | E4:.5 C#4 B3:1 A3:2',
   },
   {
     title: 'Somebody Told Me', artist: 'The Killers', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
     bpm: 138, drums: 'disco', bass: 'octaves',
     chords: 'Bbm:4 Gb:4 Ab:4 F:4',
     guitar: { inst: 'dist', style: 'eighths' },
-    melody: 'Db4:.5 Db4 Db4 Bb3 Db4 Db4 Bb3 Ab3 | Bb3 Bb3 Ab3 Gb3 Ab3:2 | Db4:.5 Db4 Db4 Bb3 Db4 Db4 Bb3 Ab3 | C4 C4 C4 Bb3 A3:2',
   },
   {
     title: 'When You Were Young', artist: 'The Killers', year: 2006, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
     bpm: 130, drums: 'drive', bass: 'eighths',
     chords: 'E:4 F#:4 G#m:4 B:4',
     guitar: { inst: 'dist', style: 'strum' },
-    melody: '-:.5 B3:.5 B3 B3 B3 C#4 D#4:1 | D#4:2 C#4 | -:.5 B3:.5 B3 B3 C#4 D#4 E4:1 | D#4:1 B3 -:2',
   },
   {
     title: 'Here Comes Your Man', artist: 'Pixies', year: 1989, genre: 'Alternative rock', tier: 'indie', section: 'Chorus',
     bpm: 128, drums: 'rock', bass: 'eighths',
     chords: 'Bm:4 G:4 A:4 D:2 G:2',
     guitar: { inst: 'clean', style: 'eighths' },
-    melody: '-:1 F#4:1 E4 D4 | D4:2 -:2 | -:1 E4:1 D4 C#4 | D4:2 -:2',
   },
   {
     title: 'Electric Feel', artist: 'MGMT', year: 2008, genre: 'Indie pop', tier: 'indie', section: 'Chorus', source: 'midi',
@@ -296,28 +277,24 @@ export const SONGS = [
     bpm: 132, drums: 'disco', bass: 'octaves',
     chords: 'E:4 D#:4 G#m:8',
     guitar: { inst: 'synth', style: 'pulse' },
-    melody: '-:.5 B4:.5 B4 G#4 B4:2 | -:.5 A#4:.5 A#4 F#4 A#4:2 | -:.5 B4:.5 B4 G#4 B4:2 | -:.5 C#5:.5 B4 G#4 F#4:2',
   },
   {
     title: 'Such Great Heights', artist: 'The Postal Service', year: 2003, genre: 'Indietronica', tier: 'indie', section: 'Chorus',
     bpm: 176, drums: 'motorik', bass: 'eighths',
     chords: 'F:4 C:4 Dm:4 Bb:4',
     guitar: { inst: 'synth', style: 'eighths' },
-    melody: '-:.5 A3:.5 A3 C4 C4 C4 A3 C4 | C4:1 D4 E4:2 | -:.5 F4:.5 E4 D4 C4 D4 C4:1 | Bb3:2 -:2',
   },
   {
     title: '1901', artist: 'Phoenix', year: 2009, genre: 'Indie pop', tier: 'indie', section: 'Chorus',
     bpm: 144, drums: 'drive', bass: 'eighths',
     chords: 'F:4 Am7:4 C:4 Am7:4',
     guitar: { inst: 'synth', style: 'eighths' },
-    melody: 'G4:1.5 E4:2.5 | G4:1.5 E4:2.5 | G4:1.5 E4:2.5 | G4:1.5 E4:1 C4:1.5',
   },
   {
     title: 'The Less I Know the Better', artist: 'Tame Impala', year: 2015, genre: 'Psychedelic pop', tier: 'indie', section: 'Chorus',
     bpm: 117, drums: 'disco', bass: 'octaves',
     chords: 'E:4 C#m:4 D:8',
     guitar: { inst: 'synth', style: 'whole' },
-    melody: 'B4:2 G#4:1 E4 | -:.5 E4:.5 E4 E4 G#4 E4 C#4:1 | F#4:2 D4 | -:4',
   },
 
   // Alternative
@@ -371,7 +348,6 @@ export const SONGS = [
     chords: 'Db:4 Eb:4 Ab:4 Fm:4',
     guitar: { inst: 'strings', style: 'pulse' },
     riff: { inst: 'bell', notes: 'Ab5:2 Ab5 Bb5 Bb5 C6 C6 C6 Ab5' },
-    melody: '-:.5 F4:.5 F4 F4 Eb4 Db4 Eb4:1 | Eb4:.5 Db4 C4:1 Bb3:2 | -:.5 F4:.5 F4 F4 Eb4 Db4 Eb4:1 | Eb4:.5 Db4 C4:1 Ab3:2',
   },
   {
     title: 'Clocks', artist: 'Coldplay', year: 2002, genre: 'Alternative rock', tier: 'alt', section: 'Chorus', source: 'midi',
@@ -421,15 +397,13 @@ export const SONGS = [
       inst: 'bell', label: 'Marimba',
       notes: 'C#5:.75 E5 C#5:.5 C#5:.75 E5 C#5:.5 | C#5:.75 F#5 C#5:.5 C#5:.75 F#5 C#5:.5 | C#5:.75 E5 A4:.5 C#5:.75 E5 A4:.5 | B4:.75 D#5 B4:.5 B4:.75 D#5 F#5:.5',
     },
-    melody: '-:.5 E4:.5 E4 E4 E4 C#4 E4 E4 | C#4:2 -:2 | -:.5 E4:.5 E4 E4 E4 C#4 E4 E4 | F#4:.5 E4:1.5 -:2',
-    order: ['drums', 'bass', 'melody', 'riff'],
+    order: ['drums', 'bass', 'riff'],
   },
   {
     title: 'Blinding Lights', artist: 'The Weeknd', year: 2019, genre: 'Synth-pop', tier: 'pop', section: 'Chorus',
     bpm: 171, drums: 'motorik', bass: 'octaves',
     chords: 'Fm:4 Cm:4 Eb:4 Bb:4',
     guitar: { inst: 'synth', style: 'eighths' },
-    melody: '-:1 Eb4:.5 F4 Ab4:2 | -:.5 G4:.5 G4 G4 G4 F4 Eb4:1 | -:.5 Eb4:.5 Eb4 Eb4 F4 G4 F4:1 | Eb4:1 C4:3',
   },
   {
     title: 'Uptown Funk', artist: 'Mark Ronson ft. Bruno Mars', year: 2014, genre: 'Funk pop', tier: 'pop', section: 'Chorus',
@@ -438,70 +412,60 @@ export const SONGS = [
     bass: 'D2:.75 D2:.25 -:.5 D3:.25 -:.25 C3:.5 A2 G2:1 | G2:.75 G2:.25 -:.5 G2:.5 B2 C3 B2:1',
     guitar: { inst: 'clean', rhythm: 'x.xx.x.xx.x.xx.x', step: 0.25 },
     riff: { inst: 'horn', label: 'Horns', notes: '-:4 | -:.5 D5+F5:.25 -:.25 D5+F5:.25 -:.75 C5+E5:.5 -:1.5' },
-    melody: '-:.5 F4:.5 F4 D4 F4 G4 A4:1 | -:4',
   },
   {
     title: 'bad guy', artist: 'Billie Eilish', year: 2019, genre: 'Electropop', tier: 'pop', section: 'Chorus',
     bpm: 135, drums: { k: 'x.......x.......', c: '....x.......x...' }, bass: 'octaves',
     chords: 'Gm:4 Cm:4 Gm:4 D7:4',
     guitar: { inst: 'synth', style: 'pulse' },
-    melody: '-:1 D4:.5 D4 Bb3 G3:1.5 | -:1 G3:1 -:2 | -:.5 Bb3:.5 Bb3 Bb3 A3 G3 A3:1 | F#3:2 -:2',
   },
   {
     title: 'Rolling in the Deep', artist: 'Adele', year: 2010, genre: 'Soul pop', tier: 'pop', section: 'Chorus',
     bpm: 105, drums: 'rock', bass: 'eighths',
     chords: 'Cm:4 Bb:4 Ab7:4 Bb:4',
     guitar: { inst: 'piano', style: 'quarters' },
-    melody: '-:.5 G4:.5 G4 G4 Bb4:1 C5 | C5:2 -:2 | -:.5 Eb5:.5 D5 C5 Bb4:1 G4 | -:4',
   },
   {
     title: 'Shake It Off', artist: 'Taylor Swift', year: 2014, genre: 'Pop', tier: 'pop', section: 'Chorus',
     bpm: 160, drums: 'disco', bass: 'eighths',
     chords: 'Am:4 C:4 G:8',
     guitar: { inst: 'synth', style: 'stabs' },
-    melody: '-:.5 B4:.5 B4 B4 B4 A4 G4:1 | G4:.5 G4 G4 G4 G4:2 | -:.5 B4:.5 B4 B4 B4 A4 G4:1 | G4:.5 G4 G4 G4 G4:2',
   },
   {
     title: 'Love Story', artist: 'Taylor Swift', year: 2008, genre: 'Country pop', tier: 'pop', section: 'Chorus',
     bpm: 119, drums: 'rock', bass: 'eighths',
     chords: 'D:4 A:4 Bm:4 G:4',
     guitar: { style: 'strum' },
-    melody: '-:.5 D4:.5 E4 F#4:1 -:.5 F#4:.5 G4 | F#4 E4 E4 D4 E4:2 | -:.5 D4:.5 E4 F#4 F#4:1 E4 | D4:2 -:2',
   },
   {
     title: 'Levitating', artist: 'Dua Lipa', year: 2020, genre: 'Disco-pop', tier: 'pop', section: 'Chorus',
     bpm: 103, drums: 'disco', bass: 'octaves',
     chords: 'Bm7:4 F#m7:4 Em7:4 F#m7:4',
     guitar: { inst: 'clean', rhythm: 'x.xx.x.xx.x.xx.x', step: 0.25 },
-    melody: '-:.5 F#4:.5 E4 D4 -:.5 F#4:.5 E4 D4 | -:.5 B3:.5 B3 D4 E4 F#4 E4 D4 | -:.5 D4:.5 E4 F#4 E4:1 D4 | B3:2 -:2',
   },
   {
     title: 'Bad Romance', artist: 'Lady Gaga', year: 2009, genre: 'Electropop', tier: 'pop', section: 'Chorus',
     bpm: 119, drums: 'disco', bass: 'octaves',
     chords: 'F:4 G:4 Am:4 C:4',
     guitar: { inst: 'synth', style: 'pulse' },
-    melody: '-:.5 A4:.5 A4 A4 G4 E4 G4:1 | G4:.5 E4 D4:1 -:2 | -:.5 A4:.5 A4 A4 G4 E4 G4:1 | E4:1 D4 C4:2',
   },
   {
     title: 'Poker Face', artist: 'Lady Gaga', year: 2008, genre: 'Electropop', tier: 'pop', section: 'Chorus',
     bpm: 119, drums: 'disco', bass: 'octaves',
     chords: 'G#m:4 E:4 B:4 F#:4',
     guitar: { inst: 'synth', style: 'eighths' },
-    melody: '-:.5 B4:.5 B4 G#4 -:.5 B4:.5 B4 G#4 | -:.5 B4:.5 B4 B4 G#4 B4 G#4:1 | F#4:1 F#4 E4:2 | -:4',
   },
   {
     title: 'Call Me Maybe', artist: 'Carly Rae Jepsen', year: 2012, genre: 'Pop', tier: 'pop', section: 'Chorus',
     bpm: 120, drums: 'disco', bass: 'eighths',
     chords: 'C:4 G:4 D:4 Em:4',
     guitar: { inst: 'strings', style: 'stabs' },
-    melody: 'E4:1 -:.5 E4:.5 D4 E4 G4:1 | -:.5 G4:.5 A4 G4 E4 D4:1 -:.5 | -:.5 D4:.5 D4 D4 E4 D4:1 -:.5 | -:.5 B3:.5 D4 E4 D4:1 B3',
   },
   {
     title: 'Happy', artist: 'Pharrell Williams', year: 2013, genre: 'Soul pop', tier: 'pop', section: 'Chorus',
     bpm: 160, drums: 'stomp', bass: 'octaves',
     chords: 'Dbmaj7:4 Cm7:4 F7:8',
     guitar: { inst: 'organ', style: 'offbeat' },
-    melody: '-:1 F4:.5 F4 Ab4:1 F4 | Eb4:1 -:1 C4:.5 C4 C4 C4 | Eb4 C4 Eb4 C4 Eb4 F4 Eb4 C4 | Eb4:1 C4 -:2',
   },
   {
     title: 'Umbrella', artist: 'Rihanna ft. Jay-Z', year: 2007, genre: 'R&B', tier: 'pop', section: 'Chorus', source: 'midi',
@@ -544,49 +508,42 @@ export const SONGS = [
     bpm: 89, drums: { k: 'x...x...x...x...', s: '...x..x....x..x.', h: 'x.x.x.x.x.x.x.x.' }, bass: 'halves',
     chords: 'Bm:4 G:4 D:4 A:4',
     guitar: { style: 'stabs' },
-    melody: '-:1 F#4:.5 E4 D4 B3:1.5 | -:.5 B3:.5 B3 B3 B3 D4 B3 D4 | -:1 F#4:.5 E4 D4 B3:1.5 | -:.5 A3:.5 C#4 C#4 C#4 E4 C#4:1',
   },
   {
     title: 'Watermelon Sugar', artist: 'Harry Styles', year: 2019, genre: 'Pop rock', tier: 'pop', section: 'Chorus',
     bpm: 96, drums: 'rock', bass: 'eighths',
     chords: 'Dm7:4 Am:4 C:4 G:4',
     guitar: { style: 'strum' },
-    melody: '-:.5 D4:.5 D4 C4 D4 D4 C4:1 | D4:2 -:2 | -:.5 D4:.5 D4 C4 D4 D4 C4:1 | C4:2 -:2',
   },
   {
     title: 'As It Was', artist: 'Harry Styles', year: 2022, genre: 'Synth-pop', tier: 'pop', section: 'Chorus',
     bpm: 174, drums: 'motorik', bass: 'octaves',
     chords: 'D6:4 Bm:4 E6:4 A7:4',
     guitar: { inst: 'synth', style: 'eighths' },
-    melody: '-:1 A4:1 F#4 E4 | -:1 F#4:1 D4 C#4 | -:.5 E4:.5 E4 E4 F#4 E4 C#4:1 | -:.5 C#4:.5 C#4:1 A3:2',
   },
   {
     title: 'Flowers', artist: 'Miley Cyrus', year: 2023, genre: 'Disco-pop', tier: 'pop', section: 'Chorus',
     bpm: 118, drums: 'disco', bass: 'octaves',
     chords: 'Am:4 Dm:4 G:4 C:4',
     guitar: { inst: 'clean', style: 'offbeat' },
-    melody: '-:.5 E4:.5 E4 E4 E4 D4 C4:1 | D4:1 -:3 | -:.5 D4:.5 D4 D4 D4 C4 B3:1 | C4:1 -:3',
   },
   {
     title: 'good 4 u', artist: 'Olivia Rodrigo', year: 2021, genre: 'Pop punk', tier: 'pop', section: 'Chorus',
     bpm: 167, drums: 'drive', bass: 'eighths',
     chords: 'D:4 A:4 E:4 F#m:2 E:2',
     guitar: { inst: 'dist', style: 'eighths' },
-    melody: '-:.5 A4:.5 A4 A4 A4:1 F#4 | -:.5 A4:.5 A4 A4 A4 B4 A4 F#4 | E4 E4 E4:1 -:2 | -:4',
   },
   {
     title: 'Cruel Summer', artist: 'Taylor Swift', year: 2019, genre: 'Synth-pop', tier: 'pop', section: 'Chorus',
     bpm: 85, drums: 'drive', bass: 'eighths',
     chords: 'A:4 C#m7:4 F#m7:4 Dadd9:4',
     guitar: { inst: 'synth', style: 'eighths' },
-    melody: '-:.5 C#5:.5 C#5 B4 A4:1 B4 | B4:1 -:1 A4 G#4 | -:1 C#5:1 B4 A4 | A4:2 -:2',
   },
   {
     title: 'Teenage Dream', artist: 'Katy Perry', year: 2010, genre: 'Pop', tier: 'pop', section: 'Chorus',
     bpm: 120, drums: 'rock', bass: 'eighths',
     chords: 'Eb:4 Gm:4 Fsus4:8',
     guitar: { inst: 'clean', style: 'eighths' },
-    melody: '-:.5 G4:.5 G4 G4 Bb4 C5 Bb4 G4 | Bb4 G4 Bb4:1 C5 D5 | C5:2 -:2 | -:4',
   },
 
   // Everything else
@@ -622,8 +579,7 @@ export const SONGS = [
     bpm: 121, drums: 'rock', bass: 'eighths',
     chords: 'E:4 B:4 C#m:4 A:4',
     guitar: { inst: 'piano', style: 'eighths' },
-    melody: '-:.5 E4:.5 E4 B4:1 G#4 -:.5 | -:.5 F#4:.5 F#4 B4:1 G#4 -:.5 | -:.5 G#4:.5 G#4 C#5:1 B4 -:.5 | A4:1 G#4 E4:2',
-    order: ['drums', 'bass', 'melody', 'chords'],
+    order: ['drums', 'bass', 'chords'],
   },
   {
     title: 'Stand by Me', artist: 'Ben E. King', year: 1961, genre: 'Soul', tier: 'other', section: 'Chorus', source: 'midi',
@@ -648,7 +604,6 @@ export const SONGS = [
     bpm: 116, drums: 'disco', bass: 'octaves',
     chords: 'Bm:4 D:4 F#m:4 E:4',
     guitar: { rhythm: 'x.xxx.x.x.xxx.xx', step: 0.25 },
-    melody: '-:.5 F#4:.5 F#4 F#4 D4 F#4 E4:1 | D4:.5 B3:1.5 -:2 | -:.5 F#4:.5 F#4 F#4 D4 F#4 E4:1 | D4:.5 B3:1.5 -:2',
   },
   {
     title: 'Never Gonna Give You Up', artist: 'Rick Astley', year: 1987, genre: 'Pop', tier: 'other', section: 'Chorus', source: 'midi',

@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=28';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=28';
-import { spriteURL } from './art.js?v=28';
-import { TP, drawBoard } from './tiles.js?v=28';
-import { sfx } from './audio.js?v=28';
-import { h, bar, sprImg, tip, skillText } from './ui.js?v=28';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS } from './data.js?v=29';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=29';
+import { spriteURL } from './art.js?v=29';
+import { TP, drawBoard } from './tiles.js?v=29';
+import { sfx } from './audio.js?v=29';
+import { h, bar, sprImg, tip, skillText } from './ui.js?v=29';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -1418,6 +1418,8 @@ const canPlan = u => !u.dead && u.side === 'foe' && !(u.st.stun || u.st.sleep > 
 // Plan for every foe that acts before the next hero's next turn and hasn't shown an attack yet.
 function refreshIntents() {
   if (!B || B.over) return;
+  // a foe that's been stunned, put to sleep, confused or charmed since it planned won't make that move
+  for (const f of B.units) if (f.intent && !canPlan(f)) f.intent = null;
   const order = predictOrder(16), hi = order.findIndex(isHero);
   if (hi < 0) return;
   for (let i = 0; i < order.length; i++) {
@@ -1529,7 +1531,7 @@ function unitCard(u, withSkills) {
     })) : null);
 }
 function intentLine(u) {
-  if (!u.intent) return u.st.stun || u.st.sleep > 0 ? h('div', { class: 'intent' }, tip('Next: skips its turn', 'intent')) : null;
+  if (!u.intent || !canPlan(u)) return u.st.stun || u.st.sleep > 0 ? h('div', { class: 'intent' }, tip('Next: skips its turn', 'intent')) : null;
   const I = intentView(u);
   const who = I.hits.filter(e => e.t !== u).map(e => e.dmg ? `${e.t.name} ${e.dmg >= e.t.hp + e.t.shield ? 'KO' : '−' + e.dmg}` : e.t.name);
   return h('div', { class: 'intent' }, tip(`Next: ${I.o.name}`, 'intent'), who.length ? ` → ${who.join(', ')}` : ' (nobody in the red now)');
@@ -1551,7 +1553,7 @@ function confirmLabel(u) {
 }
 function hintText() {
   const u = B.active;
-  if (B.mode === 'move') return B.units.some(t => t.intent && !t.dead) ? 'Tap a blue tile to move. Red tiles are where foes will strike: step out to dodge.' : 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
+  if (B.mode === 'move') return B.units.some(t => t.intent && canPlan(t)) ? 'Tap a blue tile to move. Red tiles are where foes will strike: step out to dodge.' : 'Tap a blue tile to move, or choose an action. Tap anything to inspect it.';
   if (B.mode === 'skill') {
     const o = B.selO;
     if (!B.targets.size) return `${o.name}: no targets in range${needsLos(o) ? ' or line of sight' : ''}. Move first, or pick another action.`;
@@ -1844,7 +1846,7 @@ export class BattleScene extends Phaser.Scene {
     // foe intents: red tiles where the blow lands, a line from where the foe will stand
     const threat = new Map();
     if (!b.over) for (const c of b.units) {
-      if (c.dead || !c.intent || c.side !== 'foe' || !c.view) continue;
+      if (!c.intent || !canPlan(c) || !c.view) continue;
       const I = intentView(c), focus = insp === c, help = I.o.kind === 'heal' || I.o.kind === 'shield' || I.o.kind === 'summon' || I.o.hits === 'allies' || I.o.tgt === 'ally';
       region(I.area, help ? 0x8a5ad6 : 0xd03a3a, focus ? 0.32 : 0.2, help ? 0xc8a8f4 : 0xff9080, focus ? 0.95 : 0.65);
       const cx = X => X * TS + TS / 2, sx = c.view.x + TS / 2, sy = c.view.y + TS / 2;

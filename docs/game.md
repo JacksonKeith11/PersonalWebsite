@@ -92,7 +92,8 @@ Keep it that way.
   is **locked in**: `followIntent` walks to the spot and fires at the same tile. If the target
   has stepped away the blow hits nothing ("Missed!", cooldown spent). If the foe was moved since
   planning (shove, pull, swap), is disarmed, or the skill was silenced, the attack is lost and it
-  only moves. Taunt makes it plan again; stun, sleep and death clear it. A foe with no intent decides
+  only moves. Taunt makes it plan again. Stun, sleep, confusion, charm and death clear it straight away (the
+  board and card stop showing it; the card says "Next: skips its turn"). A foe with no intent decides
   when it acts. The board draws red tiles, a line through where it will stand and the summed damage
   on each target (`intentView`); the foe's card says "Next: Skill → Target −N". This makes dodging
   and displacement strong, so watch whether enemies need more bite. It was added for the owner to

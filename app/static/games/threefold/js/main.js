@@ -1,13 +1,13 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=28';
+import { GW, GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, ARCHES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=29';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=28';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=28';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=28';
-import { env, startBattle, BattleScene } from './battle.js?v=28';
-import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=28';
-import { h, sprImg, bar, skillText, initTips } from './ui.js?v=28';
+  isSkillArt, artName, artText, artPrice, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=29';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=29';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=29';
+import { env, startBattle, BattleScene } from './battle.js?v=29';
+import { MapScene, mapEnv, mapHeight } from './mapscene.js?v=29';
+import { h, sprImg, bar, skillText, initTips } from './ui.js?v=29';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance

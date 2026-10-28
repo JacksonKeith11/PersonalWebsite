@@ -11,7 +11,7 @@ skip adds the next instrument and replays the clip, until the whole arrangement 
 guess then loses. The genre and release year show from the start. Guesses come from a search box
 over every arranged song plus a few hundred more titles, so the list doesn't give the answer away.
 The seek slider jumps anywhere in the clip, playing or paused; Pause keeps the spot, a wrong guess
-replays the bigger mix from the same spot, and the end-of-round reveal starts from 0. The clip loops
+replays the bigger mix from the start, as does the end-of-round reveal. The clip loops
 by default (the Loop button turns it off, remembered as `loop` in the saved stats); `mix()` fades
 to silence exactly at `CLIP` so the loop point doesn't click. Without looping, the clip running out
 rewinds to 0. Every instrument is listed from the start, dimmed until it plays. A volume slider (remembered as

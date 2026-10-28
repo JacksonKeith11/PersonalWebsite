@@ -185,10 +185,11 @@ Keep it that way.
     then `drawBoard` adds what depends on neighbours: banks and foam on water, cliff faces under
     high ground, shadows below walls, lava glow. The board is one canvas texture, repainted when
     terrain changes and every animation tick. A new theme is one `THEME_ART` entry.
-- **Later acts scale harder** (`foeUnit`: +30% HP and +20% ATK/MAG per act on top of the per-level
+- **Later acts scale harder** (`foeUnit`: +26% HP and +17% ATK/MAG per act on top of the per-level
   curve) to answer every hero promoting after each boss, plus team artifacts and tempering.
-- **Normal fights bring reinforcements** (`battle()` in main.js): one extra copy of a member of the
-  encounter, two in the second half of acts 2 and 3. The owner found normal fights too easy (the bot
+- **Normal fights bring reinforcements** (`battle()` in main.js): extra copies of members of the
+  encounter, none in act 1's first two rows, one in the rest of act 1 and early in acts 2 and 3, two
+  in their second half. (One everywhere plus +30%/+20% act scaling took the bot to 0 wins in 39.) The owner found normal fights too easy (the bot
   won 98%+ of them); keep encounter lists in data.js at their base size and let this add the rest.
 - **Defensive artifacts are kept modest.** The owner had them nerfed after balance runs showed the
   defence and shield builds winning most: Iron Sigil +15% (was +50%), Tower Crest 100% of shield
@@ -235,7 +236,8 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
 
 - `?auto` in the URL makes the heroes use the enemy AI and makes every menu choose for itself
   through `bot.js` (synergy-minded picks; see its header). Autopilot heroes also weigh how much foes
-  could hit them on each tile (`threatMap` in battle.js), scaled by how hurt they are.
+  could hit them on each tile (`threatMap` in battle.js), scaled by how hurt they are. They drop
+  that caution once the foe rages, or they can stall forever against foes that can't move.
   It runs at 1/100 speed for animation waits and sets `window.__result` and `window.__log`.
 - `&chaos` starts every hero promoted with four random skills and full artifact slots, to stress
   the odd mechanics.

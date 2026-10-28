@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=40';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=40';
-import { spriteURL } from './art.js?v=40';
-import { TP, drawBoard } from './tiles.js?v=40';
-import { sfx } from './audio.js?v=40';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=40';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS } from './data.js?v=41';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=41';
+import { spriteURL } from './art.js?v=41';
+import { TP, drawBoard } from './tiles.js?v=41';
+import { sfx } from './audio.js?v=41';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=41';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -72,7 +72,7 @@ function foeUnit(kind, lvl) {
   const d = FOES[kind];
   // later acts climb faster, since every hero promotes after each boss
   const act = Math.floor((lvl - 1) / 9);
-  const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.3 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.2 * act), dp = Math.floor((lvl - 1) / 5);
+  const hm = (1 + 0.065 * (lvl - 1)) * (1 + 0.26 * act), sm = (1 + 0.048 * (lvl - 1)) * (1 + 0.17 * act), dp = Math.floor((lvl - 1) / 5);
   // the ascent ladder and Lich's Bargain toughen foes
   const tough = (B.asc >= 1 && (d.boss || B.kind === 'elite') ? 1.2 : 1) * (B.asc >= 5 ? 1.1 : 1) * (B.team.includes('lichbargain') ? 1.15 : 1);
   const hp = Math.round(d.hp * (d.boss ? 1 + (hm - 1) * 0.75 : hm) * tough);
@@ -1463,7 +1463,8 @@ function planAI(u, ahead) {
   const R = reach(u);
   // heroes on autopilot keep out of reach when hurt; a wound that would be fatal weighs most
   const threat = isHero(u) ? threatMap(u) : null;
-  const danger = (x, y) => { if (!threat) return 0; const t = threat(x, y); return Math.min(18, (t / Math.max(1, u.hp + u.shield)) * 10) + (t >= u.hp + u.shield ? 6 : 0); };
+  // once the foe rages, press on rather than stall
+  const danger = (x, y) => { if (!threat || B.rage) return 0; const t = threat(x, y); return Math.min(18, (t / Math.max(1, u.hp + u.shield)) * 10) + (t >= u.hp + u.shield ? 6 : 0); };
   const ox = u.x, oy = u.y;
   const hostile = alive().filter(t => t.side !== u.side);
   const taunter = u.st.taunt > 0 && u.st.tauntBy && !u.st.tauntBy.dead ? u.st.tauntBy : null;

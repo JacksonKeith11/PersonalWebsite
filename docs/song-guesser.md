@@ -5,8 +5,8 @@ Read this before changing anything in `app/static/games/song-guesser/` or
 
 ## What it is
 
-A name-that-tune game. Each round picks a song and plays ten seconds of one section, rebuilt with
-the browser's synthesizer. Stage 1 is a single instrument (usually the drums). Every wrong guess or
+A name-that-tune game. Each round picks a song and plays fifteen seconds (`CLIP` in `synth.js`)
+of one section, rebuilt with the browser's synthesizer. Stage 1 is a single instrument (usually the drums). Every wrong guess or
 skip adds the next instrument and replays the clip, until the whole arrangement is playing; a wrong
 guess then loses. The genre and release year show from the start. Guesses come from a search box
 over every arranged song plus a few hundred more titles, so the list doesn't give the answer away.
@@ -20,9 +20,26 @@ as an ES module.
 | File | Holds |
 |---|---|
 | `js/songs.js` | `SONGS`, every arrangement as text (the format is documented at the top), and `EXTRA`, the titles that only pad out the guess list. Add songs here. |
-| `js/synth.js` | `arrange()` turns a song into timed notes per part (drums, bass, chords, riff, melody); `renderPart()` renders one part with `OfflineAudioContext`; `mix()` sums parts into one stereo buffer. Also the grooves, chord rhythms and instrument recipes. |
+| `js/synth.js` | `arrange()` turns a song into timed notes per part (drums, bass, chords, riff, melody); `renderPart()` renders one part with `OfflineAudioContext`; `mix()` sums parts into one stereo buffer. Also the grooves, chord rhythms and instrument recipes (`INST`). |
 | `js/main.js` | The round: picking a song, rendering and playing stages, the search box, guesses, stats. |
 | `game.css` | Page styling on top of the site's `style.css`. |
+
+## How it sounds like a band
+
+- **Strings are plucked, not oscillators.** Guitars, bass and mandolin use Karplus-Strong
+  (`pluck()`): a burst of noise circulating in a delay line one period long. Each pitch is made
+  once per page load. `INST.*.ks` sets how long a string rings and how bright it is.
+- **Distorted guitar** is plucked strings through a `tanh` drive and then a highpass and lowpass
+  acting as the speaker cabinet. Without the cabinet filter it fizzes.
+- **The voice** is two sawtooths through three bandpass formants that move between vowels note by
+  note, with vibrato and a short slide from the previous note.
+- **Drums**: cymbals and hats are six clashing square waves filtered high (the classic drum-machine
+  trick). Rock grooves get a crash on the first beat and every 8 bars, and a snare-and-tom fill on
+  the last beat of every 4th bar (`fill: false` or `crash: false` on a song turns them off).
+- **Feel**: `arrange()` nudges timing and loudness by a few milliseconds and percent, seeded by the
+  title so a song always plays the same way. Strums stagger the strings, upstrokes reversed.
+- **Mix**: the chords are widened by delaying their right channel 14 ms (like a double-tracked
+  guitar), and the master is softly saturated so the parts glue together.
 
 ## Design directives (agreed with the owner)
 
@@ -34,13 +51,17 @@ as an ES module.
 - **Hardest instrument first.** The default order is drums, bass, chords, riff, melody. When a
   song's identity lives in one part (the Seven Nation Army or Billie Jean bass, the Clocks piano),
   set `order` so that part comes last.
-- Rough is fine; wrong isn't. Arrangements are written from memory, checked against chord charts
-  where possible (keys and progressions came from Hooktheory's TheoryTab pages). Melodies are
-  approximations.
+- **As close to the record as the synth allows** (the owner asked for this after the first
+  version). Keys, tempos and progressions come from Hooktheory's TheoryTab pages. Riffs come from
+  guitar tabs where one was found: Undone, Island in the Sun, Do I Wanna Know?, Mr. Brightside,
+  Take Me Out, Float On and A-Punk (Ultimate Guitar tabs, read through the pg.zachmanson.com
+  mirror). Tabs for Weezer and The Killers are written a half step up from how they sound, so
+  subtract a semitone. Vocal melodies are still written from memory and are the weakest part.
+  Don't scrape Hooktheory's data API.
 
 ## Adding a song
 
-1. Add it to `SONGS` in `js/songs.js`. Write one section, 2–8 bars, that loops to fill ten seconds.
+1. Add it to `SONGS` in `js/songs.js`. Write one section, 2–8 bars, that loops to fill the clip.
    Every part loops on its own length, so keep each a whole number of bars and a multiple or
    divisor of the chord loop.
 2. If it was in `EXTRA`, take it out there (the check flags duplicates).

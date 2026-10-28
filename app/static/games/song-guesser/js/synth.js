@@ -1,9 +1,10 @@
 // Song Guesser's synthesizer. Every song in songs.js is a short text arrangement; arrange() turns
 // one into timed notes per instrument, and renderPart() plays a part into an AudioBuffer with
-// OfflineAudioContext. Nothing is downloaded: every sound is built from oscillators and noise here.
+// OfflineAudioContext. Nothing is downloaded: every sound is built here, guitars and basses as
+// plucked strings (Karplus-Strong), voices through vowel formants, drums from noise and oscillators.
 
 export const SR = 44100; // older Safari can't render offline audio at lower rates
-export const CLIP = 10; // seconds of each song the player hears
+export const CLIP = 15; // seconds of each song the player hears
 const TAIL = 0.6; // after the clip, for releases and reverb; faded out in mix()
 
 const LETTER = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -51,17 +52,18 @@ export function parseSeq(text, item) {
 const notesOf = name => name.split('+').map(midiOf);
 
 // One bar of drums per string: k kick, s snare, c clap, h closed hat, o open hat, t tom, r rim,
-// z shaker. x is a hit, X an accent and g a ghost note; a bar's steps share it evenly.
+// z shaker, y crash. x is a hit, X an accent and g a ghost note; a bar's steps share it evenly.
+// Grooves with a snare or clap also get a crash on the first beat and a snare fill every 4 bars.
 export const GROOVES = {
-  rock: { k: 'x.......x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
-  drive: { k: 'x.......x.x.....', s: '....x.......x...', h: 'XxxxXxxxXxxxXxxx' },
-  motorik: { k: 'x...x...x...x...', s: '....x.......x...', h: 'xxxxxxxxxxxxxxxx' },
+  rock: { k: 'x.......x.x.....', s: '....x.......x...', h: 'X.x.X.x.X.x.X.x.' },
+  drive: { k: 'x.......x.x.....', s: '....x.......x...', h: 'XxgxXxgxXxgxXxgx' },
+  motorik: { k: 'x...x...x...x...', s: '....x.......x...', h: 'Xxxxxxxxxxxxxxxx' },
   disco: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x...x...x...x...', o: '..x...x...x...x.' },
   four: { k: 'x...x...x...x...', s: '....g.......g...' },
-  half: { k: 'x.......x.......', s: '........x.......', h: 'x.x.x.x.x.x.x.x.' },
+  half: { k: 'x.......x.......', s: '........x.......', h: 'X.x.x.x.X.x.x.x.' },
   stomp: { k: 'x.....x.x.......', c: '....x.......x...', h: '..g...g...g...g.' },
   shaker: { k: 'x.......x.......', r: '....x.......x...', z: 'XxgxXxgxXxgxXxgx' },
-  onedrop: { k: '........x.......', r: '........x.......', h: 'x.x.x.x.x.x.x.x.' },
+  onedrop: { k: '........x.......', r: '........x.......', h: 'X.x.x.x.X.x.x.x.' },
   six8: { k: 'x...........', r: '......x.....', z: 'x.g.g.x.g.g.' },
 };
 
@@ -87,23 +89,26 @@ const RHYTHM = {
 };
 const ARP = [0, 1, 2, 3, 2, 1, 2, 1];
 
-// osc: [type, detune in cents, level]; lp: lowpass [from Hz, to Hz, over seconds];
-// env: [attack, decay, sustain level, release]; vib: [rate Hz, depth cents, delay].
+// ks: a plucked string [seconds to die away, brightness 0..1]; osc: [type, detune cents, level];
+// drive: distortion amount; hp/lp: highpass Hz and lowpass [from Hz, to Hz, over seconds], which
+// after a drive act as the speaker cabinet; env: [attack, decay, sustain level, release];
+// vib: [rate Hz, depth cents, delay]; vowels: sung through formant filters; double: a second
+// string detuned by this ratio, as on a mandolin.
 const INST = {
-  bass: { osc: [['sawtooth', 0, 0.45], ['sine', 0, 0.9]], lp: [1200, 380, 0.25], q: 2, env: [0.005, 0.35, 0.6, 0.06] },
-  guitar: { osc: [['sawtooth', 6, 0.35], ['square', -6, 0.18]], lp: [3400, 1100, 0.35], env: [0.003, 0.5, 0.3, 0.1] },
-  dist: { osc: [['sawtooth', 9, 0.4], ['sawtooth', -9, 0.4]], drive: 8, lp: [2600, 1700, 0.3], env: [0.003, 0.3, 0.75, 0.06] },
-  lead: { osc: [['sawtooth', 5, 0.4], ['square', -5, 0.2]], drive: 4, lp: [3200, 2200, 0.3], env: [0.004, 0.3, 0.8, 0.08], vib: [5.5, 14, 0.25] },
-  clean: { osc: [['triangle', 0, 0.6], ['sawtooth', 4, 0.2]], lp: [4200, 1400, 0.3], env: [0.002, 0.5, 0.15, 0.15] },
+  bass: { ks: [2.5, 0.35], osc: [['sine', 0, 0.25]], lp: [1500, 900, 0.3], env: [0.002, 9, 1, 0.05] },
+  guitar: { ks: [2.2, 0.6], hp: 90, lp: [6500, 6500, 1], env: [0.001, 9, 1, 0.08] },
+  clean: { ks: [3, 0.5], hp: 100, lp: [4200, 4200, 1], env: [0.001, 9, 1, 0.1] },
+  dist: { ks: [5, 0.85], drive: 30, hp: 110, lp: [3400, 3400, 1], env: [0.001, 9, 1, 0.05] },
+  lead: { ks: [5, 0.85], drive: 12, hp: 150, lp: [4200, 4200, 1], env: [0.001, 9, 1, 0.08] },
+  mandolin: { ks: [0.9, 0.85], double: 1.004, hp: 200, lp: [7000, 7000, 1], env: [0.001, 9, 1, 0.05] },
   piano: { osc: [['triangle', 0, 0.7], ['sine', 1200, 0.25], ['square', 0, 0.05]], lp: [4500, 1500, 0.6], env: [0.002, 0.9, 0, 0.25] },
-  organ: { osc: [['sine', 0, 0.5], ['sine', 1200, 0.3], ['sine', 1902, 0.15], ['sine', 2400, 0.1]], env: [0.01, 1, 1, 0.05] },
-  synth: { osc: [['sawtooth', 8, 0.3], ['sawtooth', -8, 0.3]], lp: [2600, 1400, 0.4], env: [0.01, 0.4, 0.6, 0.2] },
+  organ: { osc: [['sine', 0, 0.5], ['sine', 1200, 0.3], ['sine', 1902, 0.15], ['sine', 2400, 0.1]], env: [0.01, 1, 1, 0.05], vib: [6, 6, 0] },
+  synth: { osc: [['sawtooth', 8, 0.3], ['sawtooth', -8, 0.3], ['sawtooth', 0, 0.2]], lp: [2600, 1400, 0.4], env: [0.01, 0.4, 0.6, 0.2] },
   square: { osc: [['square', 0, 0.35], ['square', 1200, 0.08]], lp: [5000, 3000, 0.3], env: [0.004, 0.25, 0.55, 0.05] },
-  strings: { osc: [['sawtooth', 5, 0.25], ['sawtooth', -5, 0.25]], lp: [2400, 2400, 1], env: [0.08, 1, 0.9, 0.25], vib: [5, 8, 0.2] },
-  mandolin: { osc: [['triangle', 0, 0.5], ['sawtooth', 4, 0.2]], lp: [5200, 1700, 0.15], env: [0.002, 0.18, 0.05, 0.08] },
+  strings: { osc: [['sawtooth', 7, 0.2], ['sawtooth', -7, 0.2], ['sawtooth', 0, 0.2]], lp: [2400, 2400, 1], env: [0.08, 1, 0.9, 0.25], vib: [5, 8, 0.2] },
   horn: { osc: [['sawtooth', 0, 0.5], ['sawtooth', 7, 0.3]], lp: [700, 2200, 0.09], env: [0.04, 0.3, 0.85, 0.12], vib: [5, 10, 0.3] },
   saw: { osc: [['sine', 0, 0.8], ['triangle', 0, 0.2]], env: [0.15, 1, 1, 0.3], vib: [5.5, 30, 0.1] },
-  voice: { osc: [['triangle', 0, 0.7], ['sawtooth', 0, 0.12]], lp: [1900, 1900, 1], env: [0.035, 0.3, 0.85, 0.12], vib: [5, 16, 0.22] },
+  voice: { osc: [['sawtooth', 0, 0.6], ['sawtooth', 9, 0.3]], vowels: true, env: [0.04, 0.4, 0.85, 0.12], vib: [5.2, 22, 0.25] },
   bell: { osc: [['sine', 0, 0.6], ['sine', 2786, 0.2]], env: [0.002, 0.7, 0, 0.4] },
   whistle: { osc: [['sine', 0, 0.8]], env: [0.03, 1, 0.9, 0.08], vib: [6, 15, 0.15] },
 };
@@ -113,12 +118,29 @@ const CHORD_LABEL = { guitar: 'Guitar', dist: 'Guitar', clean: 'Guitar', piano: 
 const LINE_LABEL = { lead: 'Lead guitar', dist: 'Guitar riff', guitar: 'Guitar line', clean: 'Guitar line', piano: 'Piano', synth: 'Synth lead', square: 'Synth lead', horn: 'Horns', saw: 'Singing saw', voice: 'Backing vocal', bell: 'Bells', whistle: 'Whistle', strings: 'Strings', organ: 'Organ', mandolin: 'Mandolin' };
 const ORDER = ['drums', 'bass', 'chords', 'riff', 'melody'];
 
+// Vowel formants (Hz) for a tenor-ish voice; a melody cycles through them like made-up words.
+const VOWELS = [[650, 1080, 2650], [400, 800, 2600], [400, 1700, 2600], [650, 1080, 2650], [350, 600, 2700], [290, 1870, 2800]];
+const FORMANT_GAIN = [1, 0.55, 0.3];
+
 // Beats to seconds, with swing pushing each off-beat eighth later.
 function timer(song) {
   const spb = 60 / song.bpm, sw = song.swing || 0.5;
   return b => {
     const i = Math.floor(b), f = b - i;
     return spb * (i + (f < 0.5 ? (f / 0.5) * sw : sw + ((f - 0.5) / 0.5) * (1 - sw)));
+  };
+}
+
+// A small seeded random generator, so a song plays the same human-ish way every time.
+function rng(text) {
+  let a = 0;
+  for (const ch of text) a = (Math.imul(a ^ ch.charCodeAt(0), 2654435761) >>> 0);
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
@@ -137,9 +159,14 @@ const place = (pc, lo) => lo + ((pc - lo) % 12 + 12) % 12;
 // Turns a song into its parts: { order, parts: { name: { label, inst, notes | hits } } }.
 export function arrange(song) {
   const time = timer(song);
+  const rand = rng(song.title);
+  const jit = s => (rand() * 2 - 1) * s; // timing and loudness wobble, as a band plays
   const meter = song.meter || 4;
   const beats = (CLIP * song.bpm) / 60;
-  const note = (at, len, m, v = 1) => ({ t: time(at), d: time(at + len) - time(at), m, v });
+  const note = (at, len, m, v = 1, wobble = 0.004) => {
+    const t = Math.max(0, time(at) + jit(wobble));
+    return { t, d: time(at + len) - time(at), m, v: v * (1 + jit(0.08)) };
+  };
   const chords = song.chords ? parseSeq(song.chords, parseChord) : null;
   const chordAt = b => {
     if (!chords) return null;
@@ -152,14 +179,22 @@ export function arrange(song) {
     const groove = typeof song.drums === 'string' ? GROOVES[song.drums] : song.drums;
     if (!groove) throw new Error(`unknown groove "${song.drums}"`);
     const hits = [];
-    for (const [drum, pat] of Object.entries(groove)) {
-      const step = meter / pat.length;
-      for (let bar = 0; bar * meter < beats; bar++) {
+    const band = groove.s || groove.c;
+    const hit = (at, drum, v) => { if (at < beats) hits.push({ t: Math.max(0, time(at) + jit(0.005)), drum, v: v * (1 + jit(0.1)) }); };
+    for (let bar = 0; bar * meter < beats; bar++) {
+      const fill = band && song.fill !== false && bar % 4 === 3;
+      for (const [drum, pat] of Object.entries(groove)) {
+        const step = meter / pat.length;
         [...pat].forEach((c, i) => {
           const at = bar * meter + i * step;
-          if (c !== '.' && at < beats) hits.push({ t: time(at), drum, v: c === 'X' ? 1.25 : c === 'g' ? 0.4 : 1 });
+          if (fill && at >= bar * meter + meter - 1 && drum !== 'k') return; // the fill owns the last beat
+          if (c !== '.') hit(at, drum, c === 'X' ? 1.25 : c === 'g' ? 0.4 : 1);
         });
       }
+      if (fill) for (let i = 0; i < 4; i++) hit(bar * meter + meter - 1 + i / 4, i < 2 ? 's' : 't', 0.55 + i * 0.15);
+    }
+    if (band && song.crash !== false) {
+      for (let bar = 0; bar * meter < beats; bar += 8) hit(bar * meter, 'y', 1);
     }
     parts.drums = { label: 'Drums', drums: true, hits };
   }
@@ -172,7 +207,7 @@ export function arrange(song) {
       for (const c of looped(chords, beats)) {
         const m = place(c.item.bass, 31);
         for (let i = 0, at = c.at; at < c.at + c.len - 1e-9 && at < beats; i++, at += tpl.step) {
-          notes.push(note(at, Math.min(tpl.step, c.at + c.len - at) * tpl.len, [tpl.note(m, i)]));
+          notes.push(note(at, Math.min(tpl.step, c.at + c.len - at) * tpl.len, [tpl.note(m, i)], i ? 0.85 : 1));
         }
       }
     } else {
@@ -201,7 +236,7 @@ export function arrange(song) {
         const v = voicing(c.item);
         const tones = spec.arp ? spec.arp.map(x => v[0] + x) : [...v.slice(0, 3), v[0] + 12];
         const m = spec.arp ? tones[i % tones.length] : tones[ARP[i % ARP.length] % tones.length];
-        notes.push(note(at, step * 2, [m], 0.8));
+        notes.push(note(at, step * 2.5, [m], i % 2 ? 0.75 : 0.9));
       }
     } else {
       const [pat, step] = spec.rhythm ? [spec.rhythm, spec.step || 0.5] : RHYTHM[spec.style] || [];
@@ -212,8 +247,9 @@ export function arrange(song) {
         if (ch === '.' || !c) { cur = null; continue; }
         if (ch === '-' && cur && cur.chord === c) { cur.n.d = time(at + step) - cur.n.t; continue; }
         let v = voicing(c.item);
-        if (i % 2) v = [...v].reverse(); // upstrokes
-        cur = { chord: c, n: note(at, step, v, i % 2 ? 0.8 : 1) };
+        const up = i % 2 === 1;
+        if (up) v = [...v].reverse();
+        cur = { chord: c, n: { ...note(at, step, v, up ? 0.75 : 1), up } };
         notes.push(cur.n);
       }
     }
@@ -235,18 +271,19 @@ export function arrange(song) {
 }
 
 // Where each part sits in the stereo field, how much reverb it gets, and its level in the mix.
+// wide: the right channel is delayed this many seconds, like a double-tracked guitar.
 const FX = {
-  drums: { pan: 0, wet: 0.08, mix: 0.9 },
-  bass: { pan: 0, wet: 0, mix: 0.85 },
-  chords: { pan: -0.3, wet: 0.18, mix: 0.6 },
-  riff: { pan: 0.3, wet: 0.2, mix: 0.65 },
-  melody: { pan: 0, wet: 0.22, mix: 0.85 },
+  drums: { pan: 0, wet: 0.1, mix: 0.9 },
+  bass: { pan: 0, wet: 0, mix: 0.8 },
+  chords: { pan: -0.15, wet: 0.15, mix: 0.62, wide: 0.014 },
+  riff: { pan: 0.3, wet: 0.18, mix: 0.62 },
+  melody: { pan: 0, wet: 0.22, mix: 0.9 },
 };
 
 const curves = new Map();
 function driveCurve(k) {
   if (!curves.has(k)) {
-    const c = new Float32Array(1024);
+    const c = new Float32Array(2048);
     for (let i = 0; i < c.length; i++) {
       const x = (i / (c.length - 1)) * 2 - 1;
       c[i] = Math.tanh(k * x) / Math.tanh(k);
@@ -256,8 +293,35 @@ function driveCurve(k) {
   return curves.get(k);
 }
 
+// Karplus-Strong: a burst of noise circulating in a delay line one period long, softened a little
+// each pass, sounds like a plucked string. Each string is made once per page and reused.
+const strings = new Map();
+function pluck(m, [life, bright]) {
+  const key = `${m}:${life}:${bright}`;
+  if (!strings.has(key)) {
+    const period = SR / freq(m), n = Math.max(2, Math.floor(period));
+    const len = Math.ceil(Math.min(life, 4) * SR);
+    const out = new Float32Array(len), ring = new Float32Array(n);
+    let y = 0;
+    const soft = 0.15 + 0.85 * bright; // a darker pluck starts with smoother noise
+    for (let i = 0; i < n; i++) { y += soft * (Math.random() * 2 - 1 - y); ring[i] = y; }
+    const loss = Math.pow(10, -3 / (life * freq(m))); // reaches -60 dB after `life` seconds
+    const s = 0.5 - 0.35 * bright; // less averaging keeps a bright string's overtones longer
+    let peak = 0;
+    for (let i = 0; i < len; i++) {
+      const j = i % n, k = j + 1 === n ? 0 : j + 1;
+      out[i] = ring[j];
+      ring[j] = loss * ((1 - s) * ring[j] + s * ring[k]);
+      peak = Math.max(peak, Math.abs(out[i]));
+    }
+    for (let i = 0; i < len; i++) out[i] /= peak || 1;
+    strings.set(key, { data: out, rate: n / period }); // play slower by the period's fraction
+  }
+  return strings.get(key);
+}
+
 // Offline rendering keeps every node alive to the end, so filters and envelopes come from a
-// small pool of chains reused once their last note has died away; only oscillators are per note.
+// small pool of chains reused once their last note has died away; only sources are per note.
 function pool(make) {
   const chains = [];
   return (t, until) => {
@@ -272,6 +336,15 @@ function pool(make) {
 // shares one drive, filter and envelope, as strings through one amp would.
 function player(ctx, out, inst) {
   const [a, dec, sus, rel] = inst.env;
+  const buffers = new Map();
+  const bufferOf = m => {
+    if (!buffers.has(m)) {
+      const s = pluck(m, inst.ks), b = ctx.createBuffer(1, s.data.length, SR);
+      b.getChannelData(0).set(s.data);
+      buffers.set(m, { b, rate: s.rate });
+    }
+    return buffers.get(m);
+  };
   const chain = pool(() => {
     const c = { g: ctx.createGain() };
     c.g.gain.value = 0;
@@ -284,11 +357,35 @@ function player(ctx, out, inst) {
       c.fl.connect(c.head);
       c.head = c.fl;
     }
+    if (inst.hp) {
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = inst.hp;
+      hp.connect(c.head);
+      c.head = hp;
+    }
     if (inst.drive) {
       const ws = ctx.createWaveShaper();
       ws.curve = driveCurve(inst.drive);
+      ws.oversample = '2x';
       ws.connect(c.head);
       c.head = ws;
+    }
+    if (inst.vowels) {
+      // a voice: the source runs through three resonances that shape it into a vowel
+      const sum = ctx.createGain();
+      sum.connect(c.head);
+      c.formants = FORMANT_GAIN.map((level, i) => {
+        const bp = ctx.createBiquadFilter(), g = ctx.createGain();
+        bp.type = 'bandpass';
+        bp.Q.value = 6 + i * 3;
+        g.gain.value = level * (2 + i);
+        bp.connect(g);
+        g.connect(sum);
+        return bp;
+      });
+      c.head = ctx.createGain();
+      c.formants.forEach(bp => c.head.connect(bp));
     }
     if (inst.vib) {
       const lfo = ctx.createOscillator();
@@ -300,6 +397,7 @@ function player(ctx, out, inst) {
     }
     return c;
   });
+  let last = null, count = 0; // the previous sung note, to slide from
   return (ms, t, d, v, spread = 0) => {
     const end = t + Math.max(d, a + 0.01), stop = end + rel + 0.05;
     const c = chain(t, stop + 0.01);
@@ -315,33 +413,58 @@ function player(ctx, out, inst) {
       const [, depth, delay] = inst.vib;
       c.lg.gain.setValueAtTime(0, t);
       c.lg.gain.setValueAtTime(0, t + delay);
-      c.lg.gain.linearRampToValueAtTime(depth, t + delay + 0.25);
+      c.lg.gain.linearRampToValueAtTime(depth, t + delay + 0.3);
     }
+    if (c.formants) {
+      const vowel = VOWELS[count++ % VOWELS.length];
+      c.formants.forEach((bp, i) => bp.frequency.setTargetAtTime(vowel[i], t, 0.02));
+    }
+    const slide = inst.vowels && last && t - last.end < 0.12 ? last.f : 0;
     ms.forEach((m, i) => {
-      for (const [type, cents, level] of inst.osc) {
+      const at = t + i * spread;
+      if (inst.ks) {
+        const { b, rate } = bufferOf(m);
+        for (const detune of inst.double ? [1, inst.double] : [1]) {
+          const s = ctx.createBufferSource(), sg = ctx.createGain();
+          s.buffer = b;
+          s.playbackRate.value = rate * detune;
+          sg.gain.value = 1 / Math.sqrt(ms.length);
+          s.connect(sg);
+          sg.connect(c.head);
+          s.start(at);
+          s.stop(Math.min(stop, at + b.duration));
+        }
+      }
+      for (const [type, cents, level] of inst.osc || []) {
         const o = ctx.createOscillator(), og = ctx.createGain();
         o.type = type;
-        o.frequency.value = freq(m);
+        if (slide) {
+          o.frequency.setValueAtTime(slide, at);
+          o.frequency.exponentialRampToValueAtTime(freq(m), at + 0.06);
+        } else {
+          o.frequency.value = freq(m);
+        }
         o.detune.value = cents;
         og.gain.value = level / Math.sqrt(ms.length);
         if (c.lg) c.lg.connect(o.detune);
         o.connect(og);
         og.connect(c.head);
-        o.start(t + i * spread);
+        o.start(at);
         o.stop(stop);
       }
     });
+    last = { end, f: freq(ms[ms.length - 1]) };
   };
 }
 
 function drumKit(ctx, out) {
-  const nb = ctx.createBuffer(1, SR, SR);
+  const nb = ctx.createBuffer(1, SR * 2, SR);
   const nd = nb.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const chains = {};
+  const chainOf = (id, make) => (chains[id] = chains[id] || pool(make));
   const hit = (t, dur, vol, type, f, q = 1, attack = 0.001) => {
-    const id = `${type}${f}${q}`;
-    chains[id] = chains[id] || pool(() => {
+    const c = chainOf(`${type}${f}${q}`, () => {
       const fl = ctx.createBiquadFilter(), g = ctx.createGain();
       fl.type = type;
       fl.frequency.value = f;
@@ -350,8 +473,7 @@ function drumKit(ctx, out) {
       fl.connect(g);
       g.connect(out);
       return { fl, g };
-    });
-    const c = chains[id](t, t + dur + 0.03);
+    })(t, t + dur + 0.03);
     c.g.gain.setValueAtTime(0.0001, t);
     c.g.gain.linearRampToValueAtTime(vol, t + attack);
     c.g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -359,20 +481,20 @@ function drumKit(ctx, out) {
     const s = ctx.createBufferSource();
     s.buffer = nb;
     s.connect(c.fl);
-    s.start(t, Math.random() * 0.8);
+    s.start(t, Math.random() * 1.5);
     s.stop(t + dur + 0.02);
   };
-  const tone = (t, type, f, f2, dur, vol) => {
-    const c = (chains[type] = chains[type] || pool(() => {
+  const tone = (t, type, f, f2, dur, vol, drop = 0.4) => {
+    const c = chainOf(type, () => {
       const g = ctx.createGain();
       g.gain.value = 0;
       g.connect(out);
       return { g };
-    }))(t, t + dur + 0.03);
+    })(t, t + dur + 0.03);
     const o = ctx.createOscillator();
     o.type = type;
     o.frequency.setValueAtTime(f, t);
-    o.frequency.exponentialRampToValueAtTime(f2, t + dur * 0.4);
+    o.frequency.exponentialRampToValueAtTime(f2, t + dur * drop);
     c.g.gain.setValueAtTime(vol, t);
     c.g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     c.g.gain.setValueAtTime(0, t + dur + 0.01);
@@ -380,13 +502,47 @@ function drumKit(ctx, out) {
     o.start(t);
     o.stop(t + dur + 0.02);
   };
+  // cymbals: six square waves at clashing pitches, filtered high, as classic drum machines do
+  const METAL = [205.3, 304.4, 369.6, 522.7, 540, 800].map(f => f * 1.8);
+  const metal = (t, dur, vol) => {
+    const c = chainOf('metal', () => {
+      const bp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(), g = ctx.createGain();
+      bp.type = 'bandpass';
+      bp.frequency.value = 10000;
+      bp.Q.value = 0.8;
+      hp.type = 'highpass';
+      hp.frequency.value = 7000;
+      g.gain.value = 0;
+      bp.connect(hp);
+      hp.connect(g);
+      g.connect(out);
+      return { bp, g };
+    })(t, t + dur + 0.03);
+    c.g.gain.setValueAtTime(vol, t);
+    c.g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    c.g.gain.setValueAtTime(0, t + dur + 0.01);
+    for (const f of METAL) {
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = f;
+      o.connect(c.bp);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
+  };
   return {
-    k: (t, v) => { tone(t, 'sine', 150, 46, 0.32, v); hit(t, 0.02, v * 0.25, 'lowpass', 3000); },
-    s: (t, v) => { hit(t, 0.18, v * 0.6, 'highpass', 1400); tone(t, 'triangle', 200, 165, 0.09, v * 0.45); },
+    k: (t, v) => { tone(t, 'sine', 165, 48, 0.45, v * 1.1, 0.15); hit(t, 0.012, v * 0.35, 'lowpass', 5000); },
+    s: (t, v) => {
+      tone(t, 'triangle', 190, 170, 0.12, v * 0.5);
+      tone(t, 'sine', 330, 300, 0.07, v * 0.25);
+      hit(t, 0.22, v * 0.7, 'bandpass', 3500, 0.8);
+      hit(t, 0.12, v * 0.3, 'highpass', 6000);
+    },
     c: (t, v) => { for (const dt of [0, 0.011, 0.022]) hit(t + dt, 0.03, v * 0.5, 'bandpass', 1300, 1.5); hit(t + 0.03, 0.16, v * 0.5, 'bandpass', 1200, 1.2); },
-    h: (t, v) => hit(t, 0.045, v * 0.3, 'highpass', 7500),
-    o: (t, v) => hit(t, 0.28, v * 0.25, 'highpass', 6500),
-    t: (t, v) => { tone(t, 'sine', 125, 82, 0.38, v * 0.85); hit(t, 0.05, v * 0.12, 'lowpass', 900); },
+    h: (t, v) => { metal(t, 0.05, v * 0.12); hit(t, 0.04, v * 0.12, 'highpass', 8000); },
+    o: (t, v) => { metal(t, 0.3, v * 0.1); hit(t, 0.3, v * 0.12, 'highpass', 7000); },
+    y: (t, v) => { metal(t, 1.2, v * 0.08); hit(t, 1.6, v * 0.35, 'highpass', 4500); },
+    t: (t, v) => { tone(t, 'sine', 140, 85, 0.38, v * 0.85); hit(t, 0.05, v * 0.12, 'lowpass', 900); },
     r: (t, v) => { tone(t, 'triangle', 850, 820, 0.035, v * 0.35); hit(t, 0.03, v * 0.35, 'bandpass', 2600, 3); },
     z: (t, v) => hit(t, 0.07, v * 0.22, 'highpass', 5500, 1, 0.018),
   };
@@ -422,7 +578,7 @@ export async function renderPart(name, part) {
     const inst = INST[part.inst];
     if (!inst) throw new Error(`unknown instrument "${part.inst}"`);
     const play = player(ctx, bus, inst);
-    for (const n of part.notes) play(n.m, n.t, n.d, n.v * 0.5, part.strum ? 0.012 : 0);
+    for (const n of part.notes) play(n.m, n.t, n.d, n.v * 0.5, part.strum ? (n.up ? 0.008 : 0.013) : 0);
   }
   const buf = await ctx.startRendering();
   const d = buf.getChannelData(0);
@@ -432,29 +588,30 @@ export async function renderPart(name, part) {
 }
 
 // Mixes rendered parts into one stereo buffer made on ctx: each part at an even loudness, its
-// FX.mix level and pan, peak-normalized, with a short fade in and a fade out at the end.
+// FX.mix level and pan, then gently saturated like a mastered record, with fades at both ends.
 export function mix(ctx, rendered) {
   const len = Math.ceil((CLIP + TAIL) * SR);
   const buf = ctx.createBuffer(2, len, SR);
   for (const [name, r] of Object.entries(rendered)) {
     const fx = FX[name] || FX.riff, k = (fx.mix * 0.12) / r.rms;
     const angle = ((fx.pan + 1) * Math.PI) / 4, src = r.buf.getChannelData(0);
+    const lag = Math.round((fx.wide || 0) * SR);
     [Math.cos(angle), Math.sin(angle)].forEach((g, ch) => {
-      const dst = buf.getChannelData(ch);
-      for (let i = 0; i < len; i++) dst[i] += src[i] * k * g * Math.SQRT2;
+      const dst = buf.getChannelData(ch), shift = ch ? lag : 0, gain = k * g * Math.SQRT2;
+      for (let i = shift; i < len; i++) dst[i] += src[i - shift] * gain;
     });
   }
   let peak = 0;
   for (let ch = 0; ch < 2; ch++) for (const x of buf.getChannelData(ch)) peak = Math.max(peak, Math.abs(x));
-  const k = peak > 0 ? 0.9 / peak : 1;
+  const drive = 1.6, k = peak > 0 ? drive / peak : 1, norm = 0.92 / Math.tanh(drive);
   const fadeIn = 0.01 * SR, fadeFrom = (CLIP - 0.4) * SR;
   for (let ch = 0; ch < 2; ch++) {
     const d = buf.getChannelData(ch);
     for (let i = 0; i < len; i++) {
-      let g = k;
+      let g = 1;
       if (i < fadeIn) g *= i / fadeIn;
       if (i > fadeFrom) g *= Math.max(0, 1 - (i - fadeFrom) / (len - fadeFrom));
-      d[i] *= g;
+      d[i] = Math.tanh(d[i] * k) * norm * g;
     }
   }
   return buf;

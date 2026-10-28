@@ -1,5 +1,6 @@
 // Song Guesser's songs, each a short hand-written arrangement of one section, played by synth.js.
-// They're from memory and deliberately rough: the game is meant to be a bit hard.
+// Keys and progressions follow chord charts, riffs follow guitar tabs where one was found, and
+// vocal melodies are written from memory (see docs/song-guesser.md).
 //
 // Fields:
 //   tier     'indie' (picked 4x as often), 'alt' (2x) or 'other' (1x)
@@ -39,20 +40,24 @@ export const SONGS = [
     melody: '-:.5 G4:.5 G4 G4 Eb4:1 D4 | -:.5 Eb4:.5 Eb4 F4 G4 F4 Eb4 C4',
   },
   {
-    title: 'Island in the Sun', artist: 'Weezer', year: 2001, genre: 'Alternative rock', tier: 'indie', section: 'Chorus',
+    title: 'Island in the Sun', artist: 'Weezer', year: 2001, genre: 'Alternative rock', tier: 'indie', section: 'Intro and verse',
     bpm: 115, drums: 'rock', bass: 'quarters',
-    chords: 'Em:4 Am7:4 D:4 G:4',
-    guitar: { style: 'strum' },
-    melody: '-:1 B4:.5 B4 B4 A4 G4 A4 | B4:3 -:1 | -:1 A4:.5 A4 A4 G4 F#4 G4 | A4:3 -:1',
+    chords: 'Em:4 Am:4 D:4 G:4',
+    guitar: { rhythm: 'x-x-x-..' },
+    riff: {
+      inst: 'clean', label: 'Guitar riff',
+      notes: '-:.5 B3+E4+G4:.5 - B3+E4+G4 -:1 B3+E4+G4:1 | -:.5 C4+E4+A4:.5 - C4+E4+A4 -:1 C4+E4+A4:1 | -:.5 A3+D4+F#4:.5 - A3+D4+F#4 -:1 A3+D4+F#4:1 | -:.5 B3+D4+G4:.5 - B3+D4+G4 -:1 B3+D4+G4:1',
+    },
+    melody: '-:12 | -:1 B4:.5 -:.5 B4:.5 -:1.5 | -:.5 G4:.5 G4 G4 A4 B4 A4:1 | G4:1 E4 -:2 | -:.5 F#4:.5 F#4 F#4 G4 A4 G4:1 | F#4:1 D4 -:1 B4:.5 B4 | -:16',
   },
   {
     title: 'Undone – The Sweater Song', artist: 'Weezer', year: 1994, genre: 'Alternative rock', tier: 'indie', section: 'Chorus',
     bpm: 80, drums: 'rock', bass: 'eighths',
-    chords: 'F#:4 B:4 C#:4 B:4',
-    guitar: { inst: 'dist', style: 'strum' },
+    chords: 'F#:2 B:2 C#:2 B:2',
+    guitar: { inst: 'dist', style: 'eighths' },
     riff: {
       inst: 'clean', label: 'Clean guitar',
-      notes: 'F#3:.5 C#4 F#4 A#4 C#5 A#4 F#4 C#4 | B2 F#3 B3 D#4 F#4 D#4 B3 F#3 | C#3 G#3 C#4 F4 G#4 F4 C#4 G#3 | B2 F#3 B3 D#4 F#4 D#4 B3 F#3',
+      notes: 'F#2:.5 D#3 A3 A#3 B2 D#3 A3 A#3 | C#3 F3 B3 A#3 B2 D#3 A3 A#3',
     },
     melody: '-:.5 A#3:.5 C#4 C#4 C#4 C#4 D#4 C#4 | C#4:1 A#3:2 -:1 | -:.5 A#3:.5 C#4 C#4 D#4 C#4 A#3 C#4 | A#3:3 -:1',
   },
@@ -101,19 +106,28 @@ export const SONGS = [
     melody: 'G4:1 E4 E4 D4 | -:.5 E4:.5 G4 G4 A4 G4 E4:1 | D4:2 -:2 | -:.5 E4:.5 G4 G4 A4 G4 E4 D4',
   },
   {
-    title: 'Float On', artist: 'Modest Mouse', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
+    title: 'Float On', artist: 'Modest Mouse', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Intro and chorus',
     bpm: 101, drums: 'rock', bass: 'eighths',
-    chords: 'F#:4 A#m:4 B:4 A#m:4',
-    guitar: { style: 'stabs' },
+    chords: 'F#:8 D#m:8',
+    guitar: { inst: 'clean', rhythm: 'x...x..x.x..x.x.', step: 0.25 },
+    riff: {
+      inst: 'clean', label: 'Lead guitar',
+      notes: '-:.25 F#4:1 A#4:1.25 C#5:1.5 | -:.75 A#4:.75 G#4:1 A#4:.75 A#4 | -:.5 A#4:.75 A#4:1 F4:1.75 | A#4:1 C#5 A#4:.75 G#4:1.25',
+    },
     melody: '-:.5 C#4:.5 C#4 C#4 A#3:1 F#3 | G#3:1 A#3:2 -:1 | -:.5 C#4:.5 C#4 C#4 A#3:1 F#3 | G#3:1 F#3:2 -:1',
+    order: ['drums', 'bass', 'chords', 'melody', 'riff'],
   },
   {
-    title: 'Mr. Brightside', artist: 'The Killers', year: 2003, genre: 'Indie rock', tier: 'indie', section: 'Verse',
+    title: 'Mr. Brightside', artist: 'The Killers', year: 2003, genre: 'Indie rock', tier: 'indie', section: 'Intro and verse',
     bpm: 148, drums: 'drive', bass: 'eighths',
     chords: 'Db:8 Gbmaj7:8',
-    guitar: { style: 'eighths' },
-    riff: { notes: 'Db4:.5 Ab4 Db5 Ab4 Db4 Ab4 Db5 Ab4 Db4 Ab4 Db5 Ab4 Db4 Ab4 Db5 Ab4 | Gb3 Db4 F4 Db4 Gb3 Db4 F4 Db4 Gb3 Db4 F4 Db4 Gb3 Db4 F4 Db4' },
+    guitar: { style: 'eighths', inst: 'clean' },
+    riff: {
+      inst: 'lead', label: 'Lead guitar',
+      notes: 'Db4:.5 F4 Db5 F4 Eb4 Eb5 Db5 Db3 | C4 F4 Db5 F4 Eb4 Eb5 Db5 Db3 | Gb3 F4 Db5 F4 Eb4 Eb5 Db5 Db3 | Gb3 F4 Db5 F4 Eb4 Eb5 Db5 Db3',
+    },
     melody: 'Db4:.5 Db4 Db4 Db4 Db4 Db4 Eb4 Db4 | C4 Db4 C4 Db4 Ab3:2 | -:.5 Db4:.5 Db4 Db4 Db4 Eb4 Db4 C4 | Db4 C4 Ab3:1 -:2',
+    order: ['drums', 'bass', 'chords', 'melody', 'riff'],
   },
   {
     title: 'Do I Wanna Know?', artist: 'Arctic Monkeys', year: 2013, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
@@ -122,17 +136,22 @@ export const SONGS = [
     guitar: null,
     riff: {
       inst: 'dist', label: 'Guitar riff',
-      notes: 'G2:.75 G2:.25 -:.5 Bb2 A2 G2 -:1 | Eb2:.75 Eb2:.25 -:.5 G2 F2 Eb2 -:1 | C3:.75 C3:.25 -:.5 Eb3 D3 C3 -:1 | D3:.75 D3:.25 -:.5 F3 Eb3 D3 -:1',
+      notes: 'F2:.25 G2:1.25 A#2:1 G2:1.5 | F2:.25 G2:1.25 A#2:.75 F3:1 D#3:.75 | D3:.75 C3:1.25 A#2:.5 C3:.75 D3:.5 C3:.25 | A#2:.25 C3:1 D3:.75 D3 G2:1.25',
     },
     melody: '-:1 Bb3:.5 Bb3 Bb3 A3 G3:1 | -:.5 G3:.5 G3 Bb3 A3 G3:1 -:.5 | F3:1 G3 -:2 | -:4',
+    order: ['drums', 'bass', 'melody', 'riff'],
   },
   {
-    title: 'Take Me Out', artist: 'Franz Ferdinand', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Chorus',
+    title: 'Take Me Out', artist: 'Franz Ferdinand', year: 2004, genre: 'Indie rock', tier: 'indie', section: 'Main riff',
     bpm: 105, drums: 'disco', bass: 'eighths',
-    chords: 'Em:4 Am:4',
+    chords: 'Em:8 C:4 D:4',
     guitar: null,
-    riff: { inst: 'dist', label: 'Guitar riff', notes: 'E3:.5 E3 E3 E3 E3 E3 G3 E3 | A3 A3 A3 G3 E3 E3 D3 E3' },
+    riff: {
+      inst: 'dist', label: 'Guitar riff',
+      notes: '-:.25 D4:.25 D4 D4 D4 -:.5 D4:.25 D4 D4 E4 - D4 E4 E4 - | - D4 D4 D4 D4 -:.5 D4:.25 D4 D4 E4 - D4 E4 E4 - | - C4 C4 C4 C4 -:.5 C4:.25 C4 C4 C4 -:.5 C4:.25 C4 - | - D4 D4 D4 D4 D4 - D4 - B3 A3 - G3 G3 E3 -',
+    },
     melody: '-:.5 B3:.5 E4 E4 E4 G4:1 -:.5 | -:.5 B3:.5 E4 E4 E4 D4:1 -:.5',
+    order: ['drums', 'bass', 'melody', 'riff'],
   },
   {
     title: 'Where Is My Mind?', artist: 'Pixies', year: 1988, genre: 'Alternative rock', tier: 'indie', section: 'Chorus',
@@ -154,13 +173,14 @@ export const SONGS = [
   {
     title: 'A-Punk', artist: 'Vampire Weekend', year: 2008, genre: 'Indie rock', tier: 'indie', section: 'Verse',
     bpm: 176, drums: 'rock', bass: 'eighths',
-    chords: 'A:4 G:4 D:8',
+    chords: 'A:4 G:2 D:2',
     guitar: { style: 'offbeat' },
     riff: {
       inst: 'clean', label: 'Guitar riff',
-      notes: 'E5:.5 E5 C#5 A4 E5 E5 C#5 A4 | D5 D5 B4 G4 D5 D5 B4 G4 | F#5 F#5 D5 A4 F#5 F#5 D5 A4 | F#5 F#5 D5 A4 E5 D5 A4 F#4',
+      notes: '-:.5 C#5+A4:.5 C#5+A4 -:.5 E5+A4:.5 E5+A4 -:1 | B4+G4:.25 B4+G4 -:.5 D5+G4:.5 D5+G4 -:.5 F#4+D4:.5 F#4+D4 -:.5',
     },
     melody: '-:.5 A3:.5 D4 D4 D4 E4 F#4 E4 | D4 E4 D4 B3 -:2 | -:.5 A3:.5 D4 D4 E4 F#4 E4 D4 | D4:2 -:2',
+    order: ['drums', 'bass', 'chords', 'melody', 'riff'],
   },
   {
     title: 'Kids', artist: 'MGMT', year: 2007, genre: 'Indie pop', tier: 'indie', section: 'Verse',

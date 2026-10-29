@@ -96,8 +96,8 @@ Keep it that way.
   floor count).
 - **Ranges are short for the 8×8 board** (the owner asked: ranged foes could hit anyone, anywhere).
   Hostile skills lost reach (a 4 became 3, a 5 became 4, a 6 became 4 or, for charged and lobbed
-  area skills, 5, a 7 became 5), and the foes' own attacks were set by hand to 3-4 (charged boss
-  spells 5, the immobile Arc Turret's beam 5). Some skills keep more reach but a stricter aim
+  area skills, 5, a 7 became 5), and the foes' own attacks were set by hand to 2-3 (charged boss
+  spells 5, the immobile Arc Turret's beam 4). High ground adds at most +1 range, even from a summit. Some skills keep more reach but a stricter aim
   instead (`aim` in SKILLS): `'line'` fires only along straight lines (Arcane Bolt, Frost Lance,
   Shoot, Death Bolt, Deadeye...), and `'diag'` only along diagonals, its range counted in diagonal
   steps (Throwing Knives, Lucky Shot, Coin Toss, Rot Dart, Thorn Lash, Frost Arrow). `aimDist` in
@@ -106,7 +106,10 @@ Keep it that way.
 - **Movement is kept short for the 8×8 board** (the owner asked for a movement nerf when the board
   shrank). Heroes no longer gain MOV from levels (those one-offs became +1 SPD), so they stay at their
   base 3 (Rogue 4) plus class bonuses (Trickster, Dragoon) and artifacts. Every foe that had 4 or 5
-  MOV lost 1. Don't add MOV growth back; reach comes from skills, artifacts and classes.
+  MOV lost 1, and then (the owner: a Goblin Archer could still hit anyone on the board) fast foes were
+  capped at 3 and ranged foes, the Hollow King and the Frost Queen at 2. Keep a foe's MOV plus its
+  longest uncharged attack at about 5 or less (4-5 for normal foes); charged spells can reach further,
+  since they can be dodged. Don't add MOV growth back; reach comes from skills, artifacts and classes.
 - **Skills come from class pools.** Heroes start with 2: their basic attack (`CLASSES.start[0]`) and
   one random pick from the rest of `start` plus `pool`. They learn only from their
   current class (`skillPool` in rules.js): `start` plus `pool` before the first promotion, then the
@@ -245,8 +248,8 @@ Keep it that way.
     0.5) ringed by height 1, and its flood check climbs at most one level per step in both directions,
     so every open tile can be reached and left. Walkers pay 1 extra per level climbed and can't climb two
     at once (`climb`; flyers ignore it); dropping is free. Each level above the target is +10% damage
-    and each below −10% (`dmgMult`, every attack, melee too), and ranged skills reach 1 farther per level
-    the caster stands on (`rangeOf`). Knockback and pulls can't push a unit up a ledge (it slams as into
+    and each below −10% (`dmgMult`, every attack, melee too), and ranged skills reach 1 farther from high ground
+    (`rangeOf`; +1 at most, so a summit doesn't put the whole board in range). Knockback and pulls can't push a unit up a ledge (it slams as into
     a wall), and a push off one deals 10% of max HP per level (`shove`). Summits draw as a plateau
     with a second step on top (`hillTop` in tiles.js), with taller cliff faces where they drop two levels.
   - No facing: the owner tried FFT-style facing (side and back hits stronger, counters only from the

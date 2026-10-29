@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, FOES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=57';
+import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, FOES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=58';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=57';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=57';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=57';
-import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=57';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=57';
-import { MapScene, mapEnv, mapHeight, NODE_NAMES } from './mapscene.js?v=57';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=57';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=58';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=58';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=58';
+import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=58';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=58';
+import { MapScene, mapEnv, mapHeight, NODE_NAMES } from './mapscene.js?v=58';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=58';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -764,7 +764,7 @@ function showTitle() {
         h('li', {}, 'Each act is a branching map of battles, events (?) and shops, ending in a boss. Beating a boss promotes every hero: each picks one of two advanced classes after Act 1, then one of two master classes after Act 2. Passives stack.'),
         h('li', {}, 'In battle, units take turns by speed (the "Next" strip). On a hero\'s turn, move once and act once, in either order.'),
         h('li', {}, 'Walls block movement and line of sight: bolts and arrows can\'t pass them, but lobbed skills can. Lava burns, brambles cut and cover cuts damage. Tap any tile to read it.'),
-        h('li', {}, 'Height: hills and summits rise 1 and 2 levels. Climbing a level costs 1 extra movement, and nobody climbs two at once. Each level above your target adds 10% damage (each below takes 10% off), each level you stand on adds 1 to ranged skills\' reach, and a foe knocked off a ledge takes fall damage.'),
+        h('li', {}, 'Height: hills and summits rise 1 and 2 levels. Climbing a level costs 1 extra movement, and nobody climbs two at once. Each level above your target adds 10% damage (each below takes 10% off), high ground adds 1 to ranged skills\' reach, and a foe knocked off a ledge takes fall damage.'),
         h('li', {}, 'Attacks can miss. Hit chance is 100% plus accuracy, minus the target\'s EVA (evasion), and a faster target dodges more. Magic faces half the EVA, and a stunned or sleeping unit can\'t dodge. Previews and foe forecasts show the odds next to the damage.'),
         h('li', {}, 'Pits are bottomless: nobody can walk in, but a unit knocked or pulled into one falls to its death. Push foes in, and keep your heroes off the edge.'),
         h('li', {}, 'Foes show what they plan to do next: red tiles, a line from where they\'ll stand, and the damage on your heroes. Plans update after each move and action, so dodging works only if the foe has nothing better to hit.'),

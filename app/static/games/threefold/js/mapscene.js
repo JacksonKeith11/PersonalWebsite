@@ -1,7 +1,7 @@
 // The branching path for the current act, drawn and made clickable with Phaser.
-import { ROWS_PER_ACT } from './data.js?v=57';
-import { NODE_COLORS } from './art.js?v=57';
-import { groundTile, TP } from './tiles.js?v=57';
+import { ROWS_PER_ACT } from './data.js?v=58';
+import { NODE_COLORS } from './art.js?v=58';
+import { groundTile, TP } from './tiles.js?v=58';
 
 export const MAP = { W: 640, TOP: 78, STEP: 70, COLS: 6 };
 // Rows above the first: the act's rows, then (in newer runs) the campfire, then the boss.

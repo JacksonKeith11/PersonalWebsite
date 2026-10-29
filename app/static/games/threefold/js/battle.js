@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=57';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=57';
-import { spriteURL } from './art.js?v=57';
-import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=57';
-import { sfx } from './audio.js?v=57';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=57';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=58';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=58';
+import { spriteURL } from './art.js?v=58';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=58';
+import { sfx } from './audio.js?v=58';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=58';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -334,7 +334,7 @@ function aimDist(o, dx, dy) {
 const needsLos = o => !o.lob && o.range[1] > 1 && o.tgt !== 'self' && o.shape !== 'line';
 function rangeOf(u, o) {
   const [a, b] = o.range;
-  return o.tgt !== 'self' && b > 1 ? [a, b + elev(u)] : [a, b];
+  return o.tgt !== 'self' && b > 1 ? [a, b + Math.min(1, elev(u))] : [a, b]; // high ground: +1 at most
 }
 function inArea(cx, cy, x, y, r, diag) {
   const dx = Math.abs(cx - x), dy = Math.abs(cy - y);

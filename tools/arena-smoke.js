@@ -47,7 +47,7 @@ async function open(browser, name, problems) {
 
   const seen = await b.evaluate(() => [...window.arena.S.roster.values()].map(p => p.name));
   const remote = await b.evaluate(() => window.arena.view.players.size);
-  const ammo = await a.evaluate(() => window.arena.S.ammo[0]);
+  const fired = await a.evaluate(() => window.arena.S.ammo[0] < window.arena.S.weapons[0].start);
   const deaths = await a.evaluate(() => [...window.arena.S.roster.values()].reduce((n, p) => n + p.deaths, 0));
   await a.evaluate(() => window.arena.net.send({ t: 'bot', op: 'clear' }));
   await a.waitForTimeout(500);
@@ -57,7 +57,7 @@ async function open(browser, name, problems) {
   const checks = [
     ['Bob sees Alice and three bots', seen.includes('Alice') && seen.filter(n => !['Alice', 'Bob'].includes(n)).length === 3],
     ['Bob draws the other players', remote >= 4],
-    ['Alice fired the machine gun', ammo < 100 || deaths > 0],
+    ['Alice fired the machine gun', fired || deaths > 0],
     ['someone got fragged', deaths > 0],
     ['removing the bots worked', left === 0],
     ['no errors in either page', problems.length === 0],

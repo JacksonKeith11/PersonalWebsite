@@ -1,15 +1,14 @@
 // Frag Arena's client: input, your own movement (predicted here, reported to the server),
 // firing, the server's events, the camera and the HUD.
-import { Net } from './net.js?v=1';
-import { View } from './render.js?v=1';
-import { setWorld, move, rayWorld, rayBox, playerBox } from './physics.js?v=1';
-import { initAudio, sfx, setListener, setVolume } from './audio.js?v=1';
+import { Net } from './net.js?v=2';
+import { View, POWER_COLOR } from './render.js?v=2';
+import { setWorld, move, rayWorld, rayBox, playerBox } from './physics.js?v=2';
+import { initAudio, sfx, setListener, setVolume } from './audio.js?v=2';
 
 const $ = id => document.getElementById(id);
-const MG = 0, SG = 1, RL = 2, RG = 3;
+const MG = 0, RL = 2, BASE = [0, 1, 2];  // what everyone carries; the rest are power weapons
 const STEP = 1 / 125;
 const KEY = 'frag-arena';
-const WEAPON_SHORT = ['MG', 'SG', 'RL', 'RG'];
 
 function loadSettings() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
@@ -18,6 +17,16 @@ const settings = Object.assign({ name: '', sens: 2.5, fov: 100, volume: 70, inve
 function saveSettings() {
   try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* private mode */ }
 }
+const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+
+// Who this browser is (kept), and which tab (kept through reloads of that tab), so leaving and
+// coming back, or a reload, puts you back in as the same player.
+if (!settings.token) { settings.token = randomId(); saveSettings(); }
+let tab = '';
+try {
+  tab = sessionStorage.getItem(`${KEY}-tab`) || randomId();
+  sessionStorage.setItem(`${KEY}-tab`, tab);
+} catch { tab = randomId(); }
 
 const view = new View($('view'));
 view.setFov(settings.fov);
@@ -27,7 +36,7 @@ const canvas = view.renderer.domElement;
 const S = {
   id: 0, ready: false, weapons: null, knock: 0.15, limit: 20, eye: 1.6,
   body: { pos: [0, 0, 0], vel: [0, 0, 0], ground: false }, prev: [0, 0, 0],
-  yaw: 0, pitch: 0, alive: false, life: 0, hp: 0, armor: 0, ammo: [0, 0, 0, 0], weapon: MG,
+  yaw: 0, pitch: 0, alive: false, life: 0, warp: 0, hp: 0, armor: 0, ammo: [], weapon: MG,
   nextFire: 0, firedAt: -9, roster: new Map(), playing: false, wantPlay: false,
   diedAt: 0, killer: null, interUntil: 0, events: [], rockets: new Map(), nextLid: 1,
   sendAt: 0, acc: 0, bob: 0, stepSmooth: 0, landKick: 0, pain: 0, remote: new Map(),
@@ -63,16 +72,19 @@ const net = new Net({
   },
   onSnap(m) {
     for (const e of m.pv) privateEvent(e);
-    const [hp, armor, a0, a1, a2, a3, alive, life] = m.me;
+    const n = S.weapons.length;
+    const [hp, armor] = m.me, ammo = m.me.slice(2, 2 + n), [alive, life] = m.me.slice(2 + n);
     if (life === S.life) {
       S.hp = hp;
       S.armor = armor;
       const fresh = performance.now() / 1000 - S.firedAt < 0.3;
-      S.ammo = [a0, a1, a2, a3].map((a, i) => (fresh && i === S.weapon ? Math.min(a, S.ammo[i]) : a));
+      S.ammo = ammo.map((a, i) => (fresh && i === S.weapon ? Math.min(a, S.ammo[i] ?? a) : a));
+      if (!fresh && S.ammo[S.weapon] <= 0 && isPower(S.weapon)) pickWeapon(MG);
       if (S.alive && !alive) died();
       S.alive = !!alive;
     }
     view.setPickups(m.pk);
+    view.setPower(m.pw, w => S.weapons[w].key);
     for (const e of m.ev) S.events.push([m.ts, e]);
   },
 });
@@ -84,13 +96,20 @@ function privateEvent(e) {
     S.yaw = e.yaw;
     S.pitch = 0;
     S.life = e.life;
+    S.warp = e.warp;
     S.alive = true;
     S.hp = 100;
     S.killer = null;
-    S.weapon = MG;
-    view.setViewWeapon(MG);
+    S.weapon = e.w || MG;
+    view.setViewWeapon(S.weapon);
     sfx('spawn');
     setCenter('', 0);
+  } else if (e.k === 'tp') {
+    // swapped places: the server moved us
+    S.body = { pos: e.p.slice(), vel: [0, 0, 0], ground: false };
+    S.prev = e.p.slice();
+    S.warp = e.warp;
+    sfx('swap');
   } else if (e.k === 'knock') {
     const v = S.body.vel;
     v[0] += e.v[0]; v[1] += e.v[1]; v[2] += e.v[2];
@@ -105,10 +124,27 @@ function privateEvent(e) {
     h.classList.remove('on');
     void h.offsetWidth;
     h.classList.add('on');
+  } else if (e.k === 'got' && e.kind === 'power') {
+    sfx('power');
+    S.ammo[e.w] = S.weapons[e.w].charge;
+    pickWeapon(e.w);
+    setCenter(`${S.weapons[e.w].name}: ${S.weapons[e.w].blurb}`, 3.5);
   } else if (e.k === 'got') {
     sfx(e.kind);
     flashPickup(e.kind);
   }
+}
+
+const isPower = w => !!(S.weapons && S.weapons[w] && S.weapons[w].power);
+const heldPower = () => (S.weapons || []).findIndex((w, i) => w.power && S.ammo[i] > 0);
+
+// Draw a hitscan shot by weapon: rails, swap beams, yeet blasts, or plain tracers.
+function drawShot(w, o, end, color) {
+  const key = S.weapons[w].key;
+  if (key === 'rg') view.rail(o, end, color);
+  else if (key === 'sw') view.swapBeam(o, end);
+  else if (key === 'yt') view.yeet(o, end);
+  else view.tracer(o, end, w);
 }
 
 function worldEvent(e) {
@@ -116,24 +152,38 @@ function worldEvent(e) {
   const color = who ? who.color : '#ffffff';
   if (e.k === 'shot') {
     if (e.by === S.id) return;
-    for (const end of e.e) {
-      if (e.w === RG) view.rail(e.o, end, color);
-      else view.tracer(e.o, end, e.w);
-    }
-    sfx(WEAPON_SHORT[e.w].toLowerCase(), e.o);
-  } else if (e.k === 'rocket') {
-    if (e.by === S.id) return;
-    view.addRocket('S' + e.id, e.p, e.v, e.ts, color);
-    sfx('rl', e.p);
+    for (const end of e.e) drawShot(e.w, e.o, end, color);
+    sfx(S.weapons[e.w].key, e.o);
+  } else if (e.k === 'proj') {
+    const key = S.weapons[e.w].key;
+    if (e.by === S.id && key === 'rl') return;  // we're flying our own rockets
+    view.addRocket('S' + e.id, e.p, e.v, e.ts, key);
+    if (e.by !== S.id) sfx(key, e.p);
   } else if (e.k === 'boom') {
-    if (e.by === S.id) {
+    const key = S.weapons[e.w].key;
+    if (e.by === S.id && key === 'rl') {
       // our own rocket: we drew it already, unless the server saw it hit someone we didn't
       if (S.rockets.has(e.lid)) explodeLocal(e.lid, e.p);
       return;
     }
     view.removeRocket('S' + e.id);
-    view.explosion(e.p);
+    if (key === 'vx') return;  // it opens a black hole instead; see 'vortex'
+    view.explosion(e.p, key === 'io' ? POWER_COLOR.io : 0xffa040, key === 'io' ? 1.4 : 1);
     sfx('boom', e.p);
+  } else if (e.k === 'vortex') {
+    view.vortex('S' + e.id, e.p, e.t);
+    sfx('vortex', e.p);
+  } else if (e.k === 'vend') {
+    view.vortexEnd('S' + e.id, e.p);
+    sfx('boom', e.p);
+  } else if (e.k === 'zap') {
+    view.zap(e.a, e.b);
+    sfx('zap', e.b, 0.6);
+  } else if (e.k === 'swap') {
+    view.swapped(e.a, e.b);
+    if (e.by !== S.id) sfx('swap', e.a);
+  } else if (e.k === 'power') {
+    if (e.w !== null) sfx('powerup');
   } else if (e.k === 'kill') {
     const victim = S.roster.get(e.to), killer = S.roster.get(e.by);
     addFeed(killer, victim, e.w);
@@ -175,8 +225,9 @@ window.addEventListener('keydown', e => {
   if (!S.playing) return;
   keys.add(e.code);
   if (e.code.startsWith('Digit')) {
-    const w = Number(e.code.slice(5)) - 1;
-    if (w >= 0 && w < 4) selectWeapon(w);
+    const slot = Number(e.code.slice(5));
+    if (slot >= 1 && slot <= 3) selectWeapon(slot - 1);
+    if (slot === 4 && heldPower() >= 0) selectWeapon(heldPower());
   }
   if (e.code === 'KeyQ') cycleWeapon(-1);
   if (e.code === 'KeyE') cycleWeapon(1);
@@ -224,16 +275,22 @@ function play() {
 
 function selectWeapon(w) {
   if (w === S.weapon || !S.alive) return;
-  if (S.ammo[w] <= 0) { sfx('empty'); return; }
-  S.weapon = w;
-  view.setViewWeapon(w);
-  S.nextFire = Math.max(S.nextFire, performance.now() / 1000 + 0.2);
+  if (!(S.ammo[w] > 0)) { sfx('empty'); return; }
+  pickWeapon(w);
   sfx('switch', null, 0.6);
 }
 
+function pickWeapon(w) {
+  S.weapon = w;
+  view.setViewWeapon(w);
+  S.nextFire = Math.max(S.nextFire, performance.now() / 1000 + 0.2);
+}
+
 function cycleWeapon(dir) {
-  for (let i = 1; i < 4; i++) {
-    const w = (S.weapon + dir * i + 8) % 4;
+  const slots = heldPower() >= 0 ? [...BASE, heldPower()] : BASE;
+  const at = Math.max(0, slots.indexOf(S.weapon));
+  for (let i = 1; i < slots.length; i++) {
+    const w = slots[(at + dir * i + slots.length * 2) % slots.length];
     if (S.ammo[w] > 0) { selectWeapon(w); return; }
   }
 }
@@ -266,11 +323,11 @@ function eyePos() {
 }
 
 // Where a shot from o along d stops: the map, or another player as we see them now.
-function trace(o, d) {
+function trace(o, d, grow = 0.08) {
   let best = rayWorld(o, d, 300);
   for (const [id, s] of S.remote) {
     if (id === S.id || !s.alive) continue;
-    const t = rayBox(o, d, playerBox(s.x, s.y, s.z, 0.08), best);
+    const t = rayBox(o, d, playerBox(s.x, s.y, s.z, grow), best);
     if (t !== null && t < best) best = t;
   }
   return [o[0] + d[0] * best, o[1] + d[1] * best, o[2] + d[2] * best];
@@ -288,30 +345,36 @@ function tryFire(t) {
   S.nextFire = t + spec.cool;
   S.firedAt = t;
   S.ammo[w]--;
-  view.shoot(w);
+  view.shoot(w, spec.key);
   sfx(spec.key);
   const o = eyePos();
   const base = dirOf(S.yaw, S.pitch);
   const at = net.renderTime();
   const me = S.roster.get(S.id);
-  if (w === RL) {
+  if (spec.power && S.ammo[w] <= 0) pickWeapon(MG);  // that was its last charge
+  if (spec.kind === 'rocket') {
     const lid = S.nextLid++;
     const v = base.map(c => c * spec.speed);
     S.rockets.set(lid, { p: o, v, t0: t, last: o.slice() });
-    view.addRocket('L' + lid, o, v, t, '#ffffff');
+    view.addRocket('L' + lid, o, v, t, 'rl');
     net.send({ t: 'fire', w, o, d: [base], at, lid });
+    return;
+  }
+  if (spec.kind !== 'hitscan') {  // the server flies vortex shells and ion orbs
+    net.send({ t: 'fire', w, o, d: [base], at });
     return;
   }
   const n = spec.pellets || 1;
   const dirs = [];
   for (let i = 0; i < n; i++) {
-    dirs.push(w === RG ? base : norm(base.map(c => c + gauss() * spec.spread)));
+    dirs.push(spec.spread ? norm(base.map(c => c + gauss() * spec.spread)) : base);
   }
   const m = muzzle();
-  for (const d of dirs) {
-    const end = trace(o, d);
-    if (w === RG) view.rail(m, end, me ? me.color : '#60ffb0');
-    else view.tracer(m, end, w);
+  for (const d of dirs) drawShot(w, m, trace(o, d, spec.grow), me ? me.color : '#60ffb0');
+  if (spec.recoil) {  // the yeet cannon kicks you backwards
+    const v = S.body.vel;
+    v[0] -= base[0] * spec.recoil; v[1] -= base[1] * spec.recoil; v[2] -= base[2] * spec.recoil;
+    if (v[1] > 0.5) S.body.ground = false;
   }
   net.send({ t: 'fire', w, o, d: dirs, at });
 }
@@ -431,7 +494,7 @@ function frame() {
       S.sendAt = t + 1 / 30;
       const r3 = v => v.map(c => Math.round(c * 1000) / 1000);
       net.send({ t: 'st', p: r3(S.body.pos), v: r3(S.body.vel), yaw: Math.round(S.yaw * 1000) / 1000,
-        pitch: Math.round(S.pitch * 1000) / 1000, w: S.weapon, life: S.life });
+        pitch: Math.round(S.pitch * 1000) / 1000, w: S.weapon, life: S.life, warp: S.warp });
     }
   }
   if (S.weapons) stepRockets(t);
@@ -494,7 +557,7 @@ function nameSpan(p) {
 
 function addFeed(killer, victim, w) {
   const el = document.createElement('div');
-  if (killer && killer !== victim) el.append(nameSpan(killer), ` ${WEAPON_SHORT[w]} `);
+  if (killer && killer !== victim) el.append(nameSpan(killer), ` ${S.weapons[w].short} `);
   el.append(nameSpan(victim));
   if (!killer || killer === victim) el.append(' fragged themself');
   $('feed').appendChild(el);
@@ -543,12 +606,20 @@ function drawHud(t) {
     $('hp').textContent = Math.max(0, S.hp);
     $('hp').parentElement.classList.toggle('low', S.hp <= 25);
     $('armor').textContent = S.armor;
-    $('ammo').textContent = S.ammo[S.weapon];
+    $('ammo').textContent = S.ammo[S.weapon] ?? 0;
     $('ammo-name').textContent = S.weapons ? S.weapons[S.weapon].name : '';
+    const pw = heldPower();
     [...$('weapons').children].forEach((el, i) => {
-      el.classList.toggle('on', i === S.weapon);
-      el.classList.toggle('empty', S.ammo[i] <= 0);
-      el.querySelector('b').textContent = S.ammo[i];
+      const w = i < 3 ? i : pw;
+      el.hidden = w < 0;
+      if (w < 0) return;
+      el.classList.toggle('on', w === S.weapon);
+      el.classList.toggle('empty', !(S.ammo[w] > 0));
+      if (i === 3) {
+        el.querySelector('span').textContent = S.weapons[w].short;
+        el.style.color = `#${(POWER_COLOR[S.weapons[w].key] || 0xffffff).toString(16).padStart(6, '0')}`;
+      }
+      el.querySelector('b').textContent = S.ammo[w] ?? 0;
     });
     $('frags').textContent = me ? me.score : 0;
     $('limit').textContent = S.limit;
@@ -629,5 +700,5 @@ if (matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').ma
 if (new URLSearchParams(location.search).has('debug')) window.arena = { S, net, view, keys };
 
 $('play').disabled = true;
-net.connect(settings.name || '');
+net.connect(settings.name || '', { token: settings.token, tab });
 requestAnimationFrame(frame);

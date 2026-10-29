@@ -17,8 +17,11 @@ export class Net {
     this.retry = 1;
   }
 
-  connect(name) {
+  // `ident` is {token, tab}: who this browser is and which tab, so a reload or a dropped
+  // connection comes back as the same player.
+  connect(name, ident = this.ident) {
     this.name = name;
+    this.ident = ident;
     this.wanted = true;
     if (this.ws && this.ws.readyState <= 1) return;
     const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/games/frag-arena/ws`;
@@ -27,7 +30,7 @@ export class Net {
     this.h.onStatus('Connecting…');
     ws.onopen = () => {
       this.retry = 1;
-      ws.send(JSON.stringify({ t: 'hello', name: this.name }));
+      ws.send(JSON.stringify({ t: 'hello', name: this.name, ...this.ident }));
     };
     ws.onmessage = e => this.receive(JSON.parse(e.data));
     ws.onclose = () => {

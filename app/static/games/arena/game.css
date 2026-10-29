@@ -107,6 +107,7 @@ html, body {
 #weapons b { margin-left: auto; }
 #weapons div.on { background: rgba(255, 244, 226, 0.15); color: var(--hud); }
 #weapons div.empty { opacity: 0.35; }
+#weapons div.power { font-weight: 700; }
 
 #scores {
   position: absolute; left: 50%; top: 18%; transform: translateX(-50%);

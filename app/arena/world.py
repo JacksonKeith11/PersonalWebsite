@@ -7,14 +7,19 @@ centre of their feet.
 
 import math
 
-# Quake 3's movement, scaled from its units at 32 to the metre. Sent to the client in `welcome`.
+# Counter-Strike's movement (Half-Life's, inherited from Quake 1) at a quicker run speed.
+# In the air, the speed you can add toward where you're steering is capped at `air_cap`, but you
+# add it fast (`air_accel`): so W does almost nothing mid-air, while strafing with A or D and
+# turning the mouse the same way bends your path and builds speed. That's bunny-hopping and air
+# strafing. Sent to the client in `welcome`.
 PHYS = {
     "gravity": 25.0,
     "speed": 10.0,  # top run speed
-    "accel": 10.0,
-    "air_accel": 1.5,  # Q3 is 1.0; a little more air control for people new to strafe-jumping
-    "friction": 6.0,
-    "stop_speed": 3.1,
+    "accel": 6.0,  # CS: 5.5
+    "air_accel": 12.0,  # CS:GO: 12
+    "air_cap": 1.2,  # CS: 30 of 250 units/s, the same share of top speed
+    "friction": 5.2,  # CS:GO: 5.2
+    "stop_speed": 3.0,
     "jump": 8.4,
     "step": 0.5,  # highest ledge you walk up without jumping
     "radius": 0.4,
@@ -33,6 +38,7 @@ MATS: list[str] = []
 WALKABLE: list[tuple] = []  # the boxes whose tops get waypoints
 PADS: list[dict] = []  # jump pads: a disc on the floor that launches you at a target
 PICKUPS: list[dict] = []
+POWER_SPOTS: list[dict] = []  # where the rare power weapons appear
 SPAWNS: list[tuple] = []  # (x, y, z, yaw)
 LINKS: list[tuple] = []  # hand-made waypoint links: (a, b, one_way)
 
@@ -121,6 +127,13 @@ def build_map():
     pickup("ammo", 27, 4, 8)
     pickup("ammo", -27, 4, -8)
 
+    # Power weapon spots; `bots` says whether bots can walk there (the pillar takes a rocket jump).
+    POWER_SPOTS.append({"x": 12, "y": 7, "z": -12, "where": "on top of a pillar", "bots": False})
+    POWER_SPOTS.append({"x": 26, "y": 0, "z": 26, "where": "in a corner", "bots": True})
+    POWER_SPOTS.append({"x": -26, "y": 0, "z": -26, "where": "in a corner", "bots": True})
+    POWER_SPOTS.append({"x": 25, "y": 4, "z": 13, "where": "on the east ledge", "bots": True})
+    POWER_SPOTS.append({"x": -25, "y": 4, "z": -13, "where": "on the west ledge", "bots": True})
+
     for x, y, z in (
         (20, 0, 26), (-20, 0, -26), (-20, 0, 26), (20, 0, -26),
         (26, 4, -12), (-26, 4, 12), (-8, 0, 13), (8, 0, -13),
@@ -137,6 +150,7 @@ def map_payload():
         "boxes": [[*b, m] for b, m in zip(BOXES, MATS)],
         "pads": [[p["x"], p["y"], p["z"], p["r"], *p["v"]] for p in PADS],
         "pickups": [[p["kind"], p["x"], p["y"], p["z"]] for p in PICKUPS],
+        "power": [[s["x"], s["y"], s["z"]] for s in POWER_SPOTS],
     }
 
 
@@ -251,9 +265,10 @@ def _move_flat(cands, pos, dx, dz, ground):
     return bx, bz
 
 
-def _accelerate(vel, wx, wz, wishspeed, accel, dt):
+def _accelerate(vel, wx, wz, wishspeed, accel, dt, cap=None):
+    """Quake/Half-Life acceleration. `cap` limits the target speed but not the rate (air moves)."""
     current = vel[0] * wx + vel[2] * wz
-    add = wishspeed - current
+    add = (wishspeed if cap is None else min(wishspeed, cap)) - current
     if add <= 0:
         return
     a = min(accel * dt * wishspeed, add)
@@ -281,7 +296,7 @@ def move(body, wx, wz, jump, dt):
             v[2] *= scale
         _accelerate(v, wx, wz, wishspeed, PHYS["accel"], dt)
     else:
-        _accelerate(v, wx, wz, wishspeed, PHYS["air_accel"], dt)
+        _accelerate(v, wx, wz, wishspeed, PHYS["air_accel"], dt, PHYS["air_cap"])
         v[1] -= PHYS["gravity"] * dt
 
     dx, dy, dz = v[0] * dt, v[1] * dt, v[2] * dt
@@ -384,6 +399,9 @@ def build_graph():
                     _add_node(x, y, z)
     for p in PICKUPS:
         _add_node(p["x"], p["y"], p["z"])
+    for s in POWER_SPOTS:
+        if s["bots"]:
+            _add_node(s["x"], s["y"], s["z"])
     for p in PADS:
         _add_node(p["x"], p["y"], p["z"])
     special = []

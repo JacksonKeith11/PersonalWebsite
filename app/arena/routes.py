@@ -36,7 +36,9 @@ async def socket(ws: WebSocket):
     try:
         hello = json.loads(await asyncio.wait_for(ws.receive_text(), 10))
         queue = asyncio.Queue(maxsize=90)
-        player = GAME.join(queue, hello.get("name") if isinstance(hello, dict) else "")
+        if not isinstance(hello, dict):
+            return
+        player = GAME.join(queue, hello.get("name"), hello.get("token"), hello.get("tab"))
         if player is None:
             await ws.send_text(json.dumps({"t": "full"}))
             await ws.close()
@@ -55,6 +57,6 @@ async def socket(ws: WebSocket):
         pass
     finally:
         if player is not None:
-            GAME.leave(player)
+            GAME.leave(player, queue)
         if writer is not None:
             writer.cancel()

@@ -5,32 +5,60 @@ scripts.
 
 ## What it is
 
-A Quake 3-style deathmatch in the browser. Everyone who opens the page joins one shared arena (up
-to 12 players, bots included). Watchers who haven't pressed Play sit in the roster as "watching" and
+A Quake 3-style deathmatch in the browser, with Counter-Strike's bunny-hopping. Everyone who opens
+the page joins one shared arena (up to 12 players, bots included). Watchers who haven't pressed Play sit in the roster as "watching" and
 see an orbiting camera. First to 20 frags wins the round. Then there's an 8-second intermission with
 the scores up, everyone respawns, and scores reset. Bots can be added and removed from the menu by
 anyone. They're for testing and solo play, and the owner and friends are the intended players.
 
-- **Weapons** (all carried from spawn, with ammo): machine gun (hitscan, 7), shotgun (11 pellets of
-  8), rocket launcher (100 direct, 100 splash over 3.75 m, knockback, rocket jumps), railgun (100,
-  passes through players). One shared cooldown, as in Q3. The table is `WEAPONS` in `game.py` and
-  is sent to the client.
+- **Weapons everyone carries** (keys 1-3): machine gun (hitscan, 11 a bullet, 11 a second; the
+  owner asked for it stronger than Q3's), shotgun (11 pellets of 8), rocket launcher (100 direct,
+  100 splash over 3.75 m, knockback, rocket jumps). One shared cooldown, as in Q3. The table is
+  `WEAPONS` in `game.py` and is sent to the client.
+- **Power weapons** (key 4): rare, one at a time. See below.
 - **Pickups**: health +25 (to 100), mega health +100 (to 200, on the middle platform), armor +50
   (absorbs two thirds of damage), ammo boxes. Health and armor above 100 tick down 1 a second.
-- **Movement**: Q3's (`PHYS` in `world.py`): ground friction and acceleration, weak air control,
-  so strafe-jumping and bunny-hopping (hold Space) build speed. Steps up to 0.5 m are walked, jump
-  pads throw you onto the side ledges, and splash knockback is 0.15 m/s per point of damage, so a
-  rocket at your feet as you jump lifts you about 9-10 m.
+- **Movement** copies Counter-Strike's (`PHYS` in `world.py`; the owner asked for CS's
+  bunny-hopping): CS:GO's ground acceleration and friction, at a quicker 10 m/s run. In the air the
+  speed you can add toward where you're steering is capped (`air_cap`, CS's 30 of 250) but added
+  fast (`air_accel` 12). So W does nothing mid-air, and strafing with A or D while turning the mouse
+  the same way bends your path and builds speed: holding W and Space keeps 10 m/s, and good air
+  strafing reaches about 18 m/s in a few jumps. There's no friction on the tick you land if Space is
+  held, so hops keep their speed. Steps up to 0.5 m are walked, jump pads throw you onto the side
+  ledges, and splash knockback is 0.15 m/s per point of damage, so a rocket at your feet as you
+  jump lifts you about 9-10 m.
 - **The map** is built in code (`build_map()` in `world.py`) from axis-aligned boxes: a 60 × 60
   floor, a central platform with stairs north and south, two side ledges with stairs and pads, four
   pillars, crates. The client draws whatever boxes the server sends.
+
+## Power weapons
+
+One power weapon appears 15 s into a match, at a random spot in `world.POWER_SPOTS` (a corner, a
+ledge, or the top of a pillar that only a rocket jump reaches), and is announced. Whoever touches
+it gets its charges, and it goes into slot 4, replacing any other power weapon. It's lost on death
+or when its charges run out (you drop back to the machine gun). The next one appears 30-50 s after
+it's taken; one nobody takes vanishes after 45 s and turns up elsewhere 5-10 s later. The owner
+asked for the railgun to be one of these, and for others with weird effects:
+
+| Weapon | Charges | What it does |
+|---|---|---|
+| Railgun | 6 | Hitscan, 100, through every player in a line. |
+| Vortex | 3 | A shell that opens a black hole where it lands for 2.6 s: everyone within 9 m with line of sight is pulled in (the owner at half strength), hurt near the core, then thrown out by a 90 burst. |
+| Ion orb | 2 | A slow orb that zaps everyone within 9 m (not its owner) for 12 four times a second, then explodes for 110. |
+| Swapper | 5 | Hitscan, 15: you and whoever you hit trade places. |
+| Yeet cannon | 6 | A fat hitscan blast, 20: flings whoever it hits (26 m/s along the shot plus 9 up), and kicks you back 9 m/s, so it doubles as a jump. |
+
+Their projectiles fly on the server (`step_shots`); only rockets are also predicted in the browser.
+Pulls and flings reach a person as `knock` events and are applied by their browser. Swaps move
+both players on the server, and tell a person's browser with a `tp` event carrying `warp`, a count
+of teleports. Like `life`, it makes the server ignore position reports from before the move.
 
 ## Code map
 
 | File | Holds |
 |---|---|
 | `app/arena/world.py` | The map, box/ray geometry, the movement physics (`move`), and the bots' waypoint graph (`build_graph`, `path`). |
-| `app/arena/game.py` | `Game`: joining, the 30 Hz tick, messages from clients, hitscan with lag compensation, rockets, splash, damage, frags, pickups, respawns, intermission, and the bots' brains. `GAME` is the one room. |
+| `app/arena/game.py` | `Game`: joining and rejoining, the 30 Hz tick, messages from clients, hitscan with lag compensation, projectiles, black holes, splash, damage, frags, pickups, power weapons, respawns, intermission, and the bots' brains. `GAME` is the one room. |
 | `app/arena/routes.py` | `GET /games/frag-arena` (the page) and the WebSocket at `/games/frag-arena/ws`. |
 | `app/static/games/arena/index.html` | The page: HUD, the menu (name, Play, bots, settings, controls), and the import map for three.js. |
 | `js/main.js` | The client: input, your own movement, firing, server events, the camera, HUD and menu. |
@@ -66,6 +94,13 @@ three.js 0.170.0 comes from cdnjs through an import map. There's no build step.
   up, world events, and `me` (your health, armor, ammo, alive, life). `life` counts spawns, so
   reports from a past life are ignored. The roster (names, colors, scores, pings) goes out on change
   and every 2 s.
+- **Leaving and coming back keeps your place.** The browser keeps a random `token` in
+  localStorage and a `tab` id in sessionStorage, and sends both in `hello`. If the token's player is
+  still connected from the same tab (a reload, or a reconnect before the server noticed the old
+  socket die), the new socket takes the player over and the old one is closed. If they left, their
+  `Player` (id, colour, score, deaths) waits in `Game.away` for 20 minutes (`AWAY_KEEP`) and is
+  restored. A second tab of the same browser is a separate, unremembered player. `leave(p, queue)`
+  ignores a closing socket that no longer owns its player. A deploy still forgets everyone.
 - The clock: `net.js` pings at 4 Hz for the first seconds, then every 2 s, and takes the offset
   from the quickest round trips.
 
@@ -76,8 +111,10 @@ for the nearest enemy it can see (a ~145° view, unless that enemy is already it
 hit it). Seeing one, it turns toward it at a limited rate with some aim wobble (more with the
 railgun), waits a reaction delay, fires when its aim is close enough, strafes, and keeps a range
 that suits its weapon (picked by distance and ammo). Otherwise it walks the waypoint graph (A*) to
-a goal: health when hurt, armor or ammo sometimes, where it last saw someone, or anywhere. It
-jumps when stuck and replans after 2.5 s without progress.
+a goal: health when hurt, armor or ammo sometimes, a power weapon, where it last saw someone, or
+anywhere. Within 25 m of a power weapon it can reach (`POWER_SPOTS[...]["bots"]`), it runs for it
+even mid-fight, still shooting (`Brain.rush`). It jumps when stuck and replans after 2.5 s without
+progress. Bots don't air-strafe.
 
 The graph is built the first time a bot is added: nodes on a 3 m grid over every walkable box top,
 plus the pickups, the stairs' ends and the pads, linked when a player could walk straight between
@@ -90,7 +127,9 @@ and walking links never cross a pad.
   bots are an option for testing and solo play, never forced on. Anyone in the arena can add or
   remove them, and they're removed when the last person leaves.
 - **Quake, not a modern shooter**: fast movement, no reloading, no aim-down-sights, no loadouts,
-  pickups on the map, rocket jumping.
+  pickups on the map, rocket jumping. Movement is the exception: CS's air strafing, on request.
+- **Power weapons are rare and strange.** One on the map at a time, few charges, lost on death.
+  New ones should do something odd, not just more damage.
 - **No build step, no assets.** Textures are drawn on canvases, models are boxes, sounds are
   synthesized. Keep it that way.
 
@@ -117,4 +156,9 @@ and walking links never cross a pad.
   `tools/arena-smoke.js`, which plays two headless browsers against a running server (see its
   header). Headless rendering is software, a few frames a second, so test in a real browser for
   feel.
+- A new power spot needs `bots: False` if bots can't walk there, or the waypoint check fails (an
+  unreachable node). A new power weapon needs a `POWER_COLOR` and a `gunModel` case in `render.js`
+  (by index), sounds keyed by its `key` in `audio.js`, and handling in `bot_weapon` and the range
+  table in `bot_tick`.
+- Testing rejoins in one browser: two tabs are two players, but a reload is the same player.
 - `websockets` is pinned in `requirements.txt`; uvicorn's WebSocket support comes from it.

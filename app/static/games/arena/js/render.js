@@ -2,7 +2,7 @@
 // weapon in your hands, and effects. No lights are added or removed after startup (that makes
 // three.js recompile shaders); flashes borrow from a fixed pool of point lights.
 import * as THREE from 'three';
-import { rayWorld } from './physics.js?v=1';
+import { rayWorld } from './physics.js?v=2';
 
 const TEX_METRES = 2;  // one texture repeat covers 2 m
 
@@ -253,6 +253,10 @@ function labelSprite(text, color) {
 }
 
 const DARK = new THREE.MeshStandardMaterial({ color: 0x26282c, roughness: 0.7 });
+const glowMat = color => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.3 });
+
+// Each power weapon's colour, for its pickup, its shots and its effects.
+export const POWER_COLOR = { rg: 0x40ff90, vx: 0x9a50ff, io: 0x40c8ff, sw: 0xff50d0, yt: 0xff8a20 };
 
 function gunModel(w, scale = 1) {
   const g = new THREE.Group();
@@ -280,11 +284,30 @@ function gunModel(w, scale = 1) {
     add(tube(0.075, 0.75), olive, 0, 0, -0.15, Math.PI / 2);
     add(tube(0.09, 0.08), DARK, 0, 0, -0.52, Math.PI / 2);
     add(new THREE.BoxGeometry(0.05, 0.14, 0.08), DARK, 0, -0.12, 0.05);
-  } else {  // railgun
+  } else if (w === 3) {  // railgun
     const green = new THREE.MeshStandardMaterial({ color: 0x2d5a3a, roughness: 0.4, metalness: 0.4 });
-    const coil = new THREE.MeshStandardMaterial({ color: 0x60ffb0, emissive: 0x40ff90, emissiveIntensity: 1.2 });
+    const coil = glowMat(0x40ff90);
     add(new THREE.BoxGeometry(0.1, 0.12, 0.85), green, 0, 0, -0.2);
     for (let i = 0; i < 4; i++) add(new THREE.TorusGeometry(0.07, 0.015, 6, 16), coil, 0, 0, -0.1 - i * 0.14);
+  } else if (w === 4) {  // vortex
+    const purple = new THREE.MeshStandardMaterial({ color: 0x2a1840, roughness: 0.4, metalness: 0.5 });
+    add(new THREE.BoxGeometry(0.14, 0.14, 0.5), purple, 0, 0, -0.05);
+    add(new THREE.SphereGeometry(0.1, 16, 12), glowMat(0x9a50ff), 0, 0, -0.38);
+    add(new THREE.TorusGeometry(0.15, 0.02, 8, 24), glowMat(0xc080ff), 0, 0, -0.38);
+  } else if (w === 5) {  // ion orb
+    const teal = new THREE.MeshStandardMaterial({ color: 0x1e4a5a, roughness: 0.5, metalness: 0.4 });
+    add(tube(0.09, 0.45), teal, 0, 0, 0, Math.PI / 2);
+    add(new THREE.SphereGeometry(0.12, 16, 12), glowMat(0x40c8ff), 0, 0, -0.33);
+    for (const a of [0, 1, 2]) add(new THREE.BoxGeometry(0.02, 0.02, 0.3), DARK, Math.cos(a * 2.1) * 0.13, Math.sin(a * 2.1) * 0.13, -0.3);
+  } else if (w === 6) {  // swapper
+    add(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshStandardMaterial({ color: 0xff50d0, roughness: 0.4 }), -0.04, 0, -0.1);
+    add(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshStandardMaterial({ color: 0x40e0ff, roughness: 0.4 }), 0.04, 0, -0.15);
+    add(new THREE.OctahedronGeometry(0.07), glowMat(0xffffff), 0, 0.02, -0.45);
+  } else {  // yeet cannon
+    const orange = new THREE.MeshStandardMaterial({ color: 0xe0701a, roughness: 0.5, metalness: 0.3 });
+    add(new THREE.CylinderGeometry(0.2, 0.07, 0.55, 16, 1, true), orange, 0, 0, -0.3, -Math.PI / 2).material.side = THREE.DoubleSide;
+    add(new THREE.BoxGeometry(0.1, 0.1, 0.25), DARK, 0, 0, 0.08);
+    add(new THREE.BoxGeometry(0.05, 0.14, 0.08), DARK, 0, -0.12, 0.05);
   }
   return g;
 }
@@ -376,8 +399,7 @@ export class View {
     this.vgun = new THREE.Group();
     this.vgun.scale.setScalar(0.6);
     this.vscene.add(this.vgun);
-    this.vguns = [0, 1, 2, 3].map(w => gunModel(w, 1));
-    this.vguns.forEach(g => { g.visible = false; this.vgun.add(g); });
+    this.vguns = [];  // built the first time each weapon is held
     this.flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xffc070, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     this.flash.visible = false;
     this.vscene.add(this.flash);
@@ -454,6 +476,8 @@ export class View {
       this.pads.push(beam);
     }
     // pickups
+    this.powerSpots = map.power;
+    this.powerId = null;
     this.pickups = map.pickups.map(([kind, x, y, z]) => {
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.05, 24),
         new THREE.MeshStandardMaterial({ color: 0x222222, emissive: PICKUP_LOOK[kind].glow, emissiveIntensity: 0.4 }));
@@ -598,18 +622,134 @@ export class View {
     this.light(e, color, 25, 0.25);
   }
 
-  explosion(p) {
-    this.sprite(p, { color: 0xffa040, size: 1, grow: 14, life: 0.35 });
-    this.sprite(p, { color: 0xffe0a0, size: 0.5, grow: 6, life: 0.18 });
+  explosion(p, color = 0xffa040, scale = 1) {
+    this.sprite(p, { color, size: 1, grow: 14 * scale, life: 0.35 });
+    this.sprite(p, { color: 0xffe0a0, size: 0.5, grow: 6 * scale, life: 0.18 });
     for (let i = 0; i < 16; i++) {
-      const v = [(Math.random() - 0.5) * 14, Math.random() * 10, (Math.random() - 0.5) * 14];
-      this.sprite(p, { color: 0xffb050, size: 0.18, life: 0.5 + Math.random() * 0.3, vel: v, grav: 18 });
+      const v = [(Math.random() - 0.5) * 14 * scale, Math.random() * 10 * scale, (Math.random() - 0.5) * 14 * scale];
+      this.sprite(p, { color, size: 0.18, life: 0.5 + Math.random() * 0.3, vel: v, grav: 18 });
     }
     for (let i = 0; i < 8; i++) {
       const v = [(Math.random() - 0.5) * 2, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 2];
       this.sprite([p[0] + v[0] * 0.3, p[1] + 0.2, p[2] + v[2] * 0.3], { color: 0x55504a, size: 1, grow: 2.5, life: 1.4, vel: v, tex: this.smoke, additive: false, opacity: 0.7 });
     }
-    this.light(p, 0xff9040, 120, 0.45);
+    this.light(p, color, 120 * scale, 0.45);
+  }
+
+  // ---------------------------------------------------------------- power weapon effects
+
+  swapBeam(o, e) {
+    this.beam(o, e, { color: POWER_COLOR.sw, radius: 0.04, life: 0.45 });
+    this.beam(o, e, { color: 0x40e0ff, radius: 0.1, life: 0.3, opacity: 0.4 });
+    this.impact(e);
+  }
+
+  swapped(a, b) {
+    this.teleport(a, POWER_COLOR.sw);
+    this.teleport(b, 0x40e0ff);
+    this.light(a, POWER_COLOR.sw, 30, 0.4);
+  }
+
+  yeet(o, e) {
+    this.beam(o, e, { color: POWER_COLOR.yt, radius: 0.28, life: 0.22, opacity: 0.35 });
+    this.beam(o, e, { color: 0xffe0b0, radius: 0.06, life: 0.15 });
+    this.sprite(e, { color: POWER_COLOR.yt, size: 0.5, grow: 9, life: 0.3 });
+    this.impact(e);
+  }
+
+  // Lightning from an ion orb to a player: a jagged line that flickers out.
+  zap(a, b) {
+    const n = 7;
+    let prev = a;
+    for (let i = 1; i <= n; i++) {
+      const f = i / n, j = i === n ? 0 : 0.35;
+      const p = [a[0] + (b[0] - a[0]) * f + (Math.random() - 0.5) * j, a[1] + (b[1] - a[1]) * f + (Math.random() - 0.5) * j,
+        a[2] + (b[2] - a[2]) * f + (Math.random() - 0.5) * j];
+      this.beam(prev, p, { color: 0xb0f0ff, radius: 0.025, life: 0.14 });
+      this.beam(prev, p, { color: POWER_COLOR.io, radius: 0.08, life: 0.18, opacity: 0.5 });
+      prev = p;
+    }
+    this.sprite(b, { color: POWER_COLOR.io, size: 0.6, grow: 2, life: 0.2 });
+  }
+
+  // A black hole: a dark core with a ring, and sparks spiralling in, until vortexEnd.
+  vortex(key, p, secs) {
+    const g = new THREE.Group();
+    g.position.set(...p);
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 16), new THREE.MeshBasicMaterial({ color: 0x000000 })));
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: POWER_COLOR.vx, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.scale.setScalar(3.5);
+    g.add(halo);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.05, 8, 48), glowMat(0xc080ff));
+    g.add(ring);
+    this.scene.add(g);
+    const light = this.light(p, POWER_COLOR.vx, 40, secs + 1, g);
+    let t = 0;
+    const v = { g, light, done: false };
+    this.vortices = this.vortices || new Map();
+    this.vortices.set(key, v);
+    this.fx.push(dt => {
+      t += dt;
+      if (v.done || t > secs + 2) {
+        this.scene.remove(g);
+        if (light.follow === g) { light.follow = null; light.until = 0; }
+        return false;
+      }
+      ring.rotation.x = t * 3; ring.rotation.y = t * 2;
+      halo.scale.setScalar(3.5 + Math.sin(t * 20) * 0.3);
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.5) * 2, r = 5 + Math.random() * 3;
+        const from = [p[0] + Math.cos(a) * r, p[1] + e * 2, p[2] + Math.sin(a) * r];
+        const life = 0.6;
+        // aim a little to the side, so the sparks swirl
+        const vel = [(p[0] - from[0]) / life - Math.sin(a) * 4, (p[1] - from[1]) / life, (p[2] - from[2]) / life + Math.cos(a) * 4];
+        this.sprite(from, { color: 0xc080ff, size: 0.2, life, vel });
+      }
+      return true;
+    });
+  }
+
+  vortexEnd(key, p) {
+    const v = this.vortices && this.vortices.get(key);
+    if (v) { v.done = true; this.vortices.delete(key); }
+    this.explosion(p, POWER_COLOR.vx, 1.2);
+  }
+
+  // The power weapon waiting on the map, or none: [weapon, spot] or null.
+  setPower(pw, keyOf) {
+    const id = pw ? pw.join() : '';
+    if (id === this.powerId) return;
+    this.powerId = id;
+    if (this.powerGroup) {
+      this.scene.remove(this.powerGroup);
+      if (this.powerLight.follow === this.powerGroup) { this.powerLight.follow = null; this.powerLight.until = 0; }
+      this.powerGroup = this.powerGun = null;
+    }
+    if (!pw || !this.powerSpots) return;
+    const [w, spot] = pw;
+    const [x, y, z] = this.powerSpots[spot];
+    const color = POWER_COLOR[keyOf(w)] || 0xffffff;
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    const gun = gunModel(w, 1.8);
+    gun.position.y = 1;
+    g.add(gun);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.6 }));
+    glow.scale.setScalar(2.2);
+    glow.position.y = 1;
+    g.add(glow);
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 8, 24, 1, true),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+    column.position.y = 4;
+    g.add(column);
+    const base = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.06, 8, 32), glowMat(color));
+    base.rotation.x = Math.PI / 2;
+    base.position.y = 0.05;
+    g.add(base);
+    this.scene.add(g);
+    this.powerGroup = g;
+    this.powerGun = gun;
+    this.powerLight = this.light([x, y + 1.5, z], color, 30, 1e6, g);
   }
 
   gibs(p, color) {
@@ -644,20 +784,31 @@ export class View {
   }
 
   // Rockets fly on their own from where and when they were fired; `t0` is in the same clock as `now` in frame().
-  addRocket(key, p, v, t0, color) {
+  // `kind` is the weapon's key: rl draws a rocket, vx and io glowing orbs.
+  addRocket(key, p, v, t0, kind = 'rl') {
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.45, 8), DARK);
-    body.rotation.x = Math.PI / 2;
-    g.add(body);
-    const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: 0xffa040, blending: THREE.AdditiveBlending, depthWrite: false }));
-    flame.scale.setScalar(0.6);
-    flame.position.z = 0.3;
-    g.add(flame);
+    let lightColor = 0xff8030;
+    if (kind === 'rl') {
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.45, 8), DARK);
+      body.rotation.x = Math.PI / 2;
+      g.add(body);
+      const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: 0xffa040, blending: THREE.AdditiveBlending, depthWrite: false }));
+      flame.scale.setScalar(0.6);
+      flame.position.z = 0.3;
+      g.add(flame);
+    } else {
+      lightColor = POWER_COLOR[kind];
+      const size = kind === 'io' ? 0.45 : 0.25;
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(size, 16, 12), glowMat(lightColor)));
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: lightColor, blending: THREE.AdditiveBlending, depthWrite: false }));
+      halo.scale.setScalar(size * 6);
+      g.add(halo);
+    }
     g.position.set(...p);
     g.lookAt(p[0] - v[0], p[1] - v[1], p[2] - v[2]);
     this.scene.add(g);
-    const r = { g, p, v, t0, puff: 0, color };
-    r.light = this.light(p, 0xff8030, 18, 20, g);
+    const r = { g, p, v, t0, puff: 0, kind };
+    r.light = this.light(p, lightColor, kind === 'io' ? 40 : 18, 20, g);
     this.rockets.set(key, r);
   }
 
@@ -682,15 +833,19 @@ export class View {
 
   setViewWeapon(w) {
     if (w === this.vweapon) return;
-    this.vguns.forEach((g, i) => { g.visible = i === w; });
+    if (!this.vguns[w]) {
+      this.vguns[w] = gunModel(w, 1);
+      this.vgun.add(this.vguns[w]);
+    }
+    this.vguns.forEach((g, i) => { if (g) g.visible = i === w; });
     this.vweapon = w;
     this.switchT = 0.25;
   }
 
-  shoot(w) {
-    this.kick = w === 0 ? 0.04 : w === 3 ? 0.14 : 0.1;
-    this.flashUntil = this.time + (w === 3 ? 0.08 : 0.05);
-    this.flash.material.color.set(w === 3 ? 0x80ffc0 : 0xffc070);
+  shoot(w, key) {
+    this.kick = w === 0 ? 0.035 : w >= 3 ? 0.14 : 0.1;
+    this.flashUntil = this.time + (w >= 3 ? 0.08 : 0.05);
+    this.flash.material.color.set(POWER_COLOR[key] || 0xffc070);
   }
 
   frame(dt, cam, { bob = 0, speed = 0, showGun = true }) {
@@ -701,6 +856,10 @@ export class View {
     for (const p of this.pickups) {
       p.m.rotation.y = this.time * 1.5 + p.phase;
       p.m.position.y = p.y + Math.sin(this.time * 2 + p.phase) * 0.12;
+    }
+    if (this.powerGun) {
+      this.powerGun.rotation.y = this.time * 1.2;
+      this.powerGun.position.y = 1 + Math.sin(this.time * 2) * 0.15;
     }
     for (const b of this.pads || []) b.material.opacity = 0.14 + Math.sin(this.time * 4) * 0.06;
     for (const s of this.lights) {
@@ -715,9 +874,13 @@ export class View {
     this.fx = this.fx.filter(f => f(dt));
     for (const r of this.rockets.values()) {
       r.puff -= dt;
-      if (r.puff <= 0) {
+      if (r.puff <= 0 && r.kind === 'rl') {
         r.puff = 0.025;
         this.sprite(r.g.position.toArray(), { color: 0x8a8580, size: 0.25, grow: 1.4, life: 0.8, tex: this.smoke, additive: false, opacity: 0.5, vel: [0, 0.4, 0] });
+      } else if (r.puff <= 0) {
+        r.puff = 0.04;
+        const jit = () => (Math.random() - 0.5) * 0.4;
+        this.sprite(r.g.position.toArray().map(c => c + jit()), { color: POWER_COLOR[r.kind], size: 0.25, life: 0.5, vel: [jit(), jit(), jit()] });
       }
     }
 

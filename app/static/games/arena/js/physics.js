@@ -89,8 +89,9 @@ function moveFlat(cands, pos, dx, dz, ground) {
   return [bx, bz, 0];
 }
 
-function accelerate(v, wx, wz, wishspeed, accel, dt) {
-  const add = wishspeed - (v[0] * wx + v[2] * wz);
+// Quake/Half-Life acceleration. `cap` limits the target speed but not the rate (air moves).
+function accelerate(v, wx, wz, wishspeed, accel, dt, cap = Infinity) {
+  const add = Math.min(wishspeed, cap) - (v[0] * wx + v[2] * wz);
   if (add <= 0) return;
   const a = Math.min(accel * dt * wishspeed, add);
   v[0] += a * wx;
@@ -121,7 +122,7 @@ export function move(body, wx, wz, jump, dt) {
     }
     accelerate(v, wx, wz, wishspeed, P.accel, dt);
   } else {
-    accelerate(v, wx, wz, wishspeed, P.air_accel, dt);
+    accelerate(v, wx, wz, wishspeed, P.air_accel, dt, P.air_cap);
     v[1] -= P.gravity * dt;
   }
 

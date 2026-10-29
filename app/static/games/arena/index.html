@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/games/arena/game.css?v=1">
+  <link rel="stylesheet" href="/static/games/arena/game.css?v=2">
   <script type="importmap">
     { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.min.js" } }
   </script>
@@ -36,7 +36,7 @@
       <div><i>1</i> MG <b>0</b></div>
       <div><i>2</i> SG <b>0</b></div>
       <div><i>3</i> RL <b>0</b></div>
-      <div><i>4</i> RG <b>0</b></div>
+      <div class="power" hidden><i>4</i> <span></span> <b>0</b></div>
     </div>
     <div id="scores" hidden>
       <table>
@@ -78,7 +78,8 @@
             <dt>WASD</dt><dd>Move</dd>
             <dt>Space</dt><dd>Jump (hold to bunny-hop)</dd>
             <dt>Mouse</dt><dd>Aim, click to fire</dd>
-            <dt>1–4, wheel, Q/E</dt><dd>Machine gun, shotgun, rockets, railgun</dd>
+            <dt>1–3, wheel, Q/E</dt><dd>Machine gun, shotgun, rockets</dd>
+            <dt>4</dt><dd>Power weapon, if you've grabbed one</dd>
             <dt>Tab</dt><dd>Scores</dd>
             <dt>Esc</dt><dd>This menu</dd>
           </dl>
@@ -94,12 +95,14 @@
       </details>
 
       <p class="tips">
-        Tips: rocket the floor as you jump to fly. Strafe in the air while turning the mouse to build speed.
-        The mega health sits on the middle platform; the jump pads throw you up to the side ledges.
+        Bunny-hop like Counter-Strike: in the air, W does nothing; hold A or D and turn the mouse the same
+        way, swapping sides each jump, to steer and build speed. Rocket the floor as you jump to fly.
+        Every so often a power weapon appears somewhere (railgun, vortex, ion orb, swapper, yeet cannon):
+        go get it, and press 4. One sits on top of a pillar now and then; rocket jump up.
       </p>
     </div>
   </div>
 
-  <script type="module" src="/static/games/arena/js/main.js?v=1"></script>
+  <script type="module" src="/static/games/arena/js/main.js?v=2"></script>
 </body>
 </html>

@@ -144,6 +144,57 @@ const SOUNDS = {
     noise(d, t + 0.07, 0.04, { type: 'bandpass', f0: 1100, q: 3, peak: 0.3 });
   },
   msg(d, t) { tone(d, t, 0.1, { type: 'sine', f0: 700, peak: 0.12 }); },
+
+  // power weapons
+  vx(d, t) {
+    tone(d, t, 0.5, { type: 'sawtooth', f0: 90, f1: 400, peak: 0.3 });
+    tone(d, t, 0.5, { type: 'sine', f0: 300, f1: 60, peak: 0.4 });
+  },
+  vortex(d, t) {
+    // a low wobbling drone, as long as the black hole lasts
+    const o = ctx.createOscillator(), lfo = ctx.createOscillator(), depth = ctx.createGain(), env = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = 55;
+    lfo.frequency.value = 7;
+    depth.gain.value = 25;
+    lfo.connect(depth).connect(o.frequency);
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'lowpass';
+    flt.frequency.value = 500;
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.5, t + 0.3);
+    env.gain.setValueAtTime(0.5, t + 2.3);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 2.7);
+    o.connect(flt).connect(env).connect(d);
+    o.start(t); lfo.start(t); o.stop(t + 2.8); lfo.stop(t + 2.8);
+  },
+  io(d, t) {
+    tone(d, t, 0.6, { type: 'square', f0: 200, f1: 900, a: 0.05, peak: 0.15 });
+    noise(d, t, 0.5, { type: 'bandpass', f0: 3000, f1: 6000, q: 4, peak: 0.4 });
+  },
+  zap(d, t) {
+    for (let i = 0; i < 4; i++) noise(d, t + i * 0.02, 0.03, { type: 'highpass', f0: 2000 + Math.random() * 3000, peak: 0.5 });
+  },
+  sw(d, t) {
+    tone(d, t, 0.35, { type: 'sine', f0: 400, f1: 2400, peak: 0.3 });
+    tone(d, t + 0.05, 0.35, { type: 'triangle', f0: 2400, f1: 400, peak: 0.2 });
+  },
+  swap(d, t) {
+    noise(d, t, 0.4, { type: 'bandpass', f0: 6000, f1: 800, q: 3, peak: 0.5 });
+    tone(d, t, 0.4, { type: 'sine', f0: 1500, f1: 200, peak: 0.3 });
+  },
+  yt(d, t) {
+    tone(d, t, 0.35, { type: 'sine', f0: 140, f1: 35, peak: 1.0 });
+    noise(d, t, 0.3, { f0: 1500, f1: 100, peak: 1.0 });
+    tone(d, t + 0.05, 0.4, { type: 'square', f0: 900, f1: 1800, peak: 0.08 });  // the "yeet"
+  },
+  powerup(d, t) {
+    for (const [i, f] of [392, 523, 659, 784, 1047].entries()) tone(d, t + i * 0.07, 0.4, { type: 'square', f0: f, peak: 0.1 });
+  },
+  power(d, t) {
+    for (const [i, f] of [523, 784, 1047, 1568].entries()) tone(d, t + i * 0.05, 0.7, { type: 'sawtooth', f0: f, peak: 0.12 });
+    noise(d, t, 0.6, { type: 'bandpass', f0: 2000, f1: 8000, q: 2, peak: 0.3 });
+  },
 };
 
 // Play a sound; `pos` places it in the world, otherwise it plays in your head.

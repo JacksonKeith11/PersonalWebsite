@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frag Arena · Jackson Keith</title>
+  <meta name="description" content="A Quake-style arena shooter in the browser: rockets, rails, jump pads and strafe-jumping, with friends or bots.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/games/arena/game.css?v=1">
+  <script type="importmap">
+    { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <div id="view"></div>
+
+  <div id="hud" class="watching">
+    <div id="pain"></div>
+    <div id="pickflash"></div>
+    <div id="dmgdir"></div>
+    <div id="cross"></div>
+    <div id="hitmark"></div>
+    <div id="msgs"></div>
+    <div id="feed"></div>
+    <div id="center"></div>
+    <div id="respawn" hidden>Click to respawn</div>
+    <div id="fragline"><span>Frags <b id="frags">0</b> / <span id="limit">20</span></span> <span id="lead"></span> <span id="ping"></span></div>
+    <div id="stats">
+      <div class="stat"><span>Health</span><b id="hp">100</b></div>
+      <div class="stat armor"><span>Armor</span><b id="armor">0</b></div>
+      <div class="stat ammo"><span id="ammo-name">Ammo</span><b id="ammo">0</b></div>
+    </div>
+    <div id="weapons">
+      <div><i>1</i> MG <b>0</b></div>
+      <div><i>2</i> SG <b>0</b></div>
+      <div><i>3</i> RL <b>0</b></div>
+      <div><i>4</i> RG <b>0</b></div>
+    </div>
+    <div id="scores" hidden>
+      <table>
+        <thead><tr><th>Player</th><th>Frags</th><th>Deaths</th><th>Ping</th></tr></thead>
+        <tbody id="scores-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="menu">
+    <div class="panel">
+      <a class="back" href="/games">&larr; Games</a>
+      <h1>Frag Arena</h1>
+      <p class="intro">
+        Quake-style deathmatch for whoever's online. Everyone who opens this page lands in the same arena.
+        First to 20 frags takes the round.
+      </p>
+      <p id="touch-note" class="note" hidden>This one needs a keyboard and mouse.</p>
+      <div class="join">
+        <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false" aria-label="Your name">
+        <button id="play" type="button">Play</button>
+      </div>
+      <p id="status" role="status"></p>
+
+      <div class="cols">
+        <section>
+          <h2>In the arena</h2>
+          <ul id="who"></ul>
+          <div class="bots">
+            <span id="bot-count">No bots</span>
+            <button id="bot-add" type="button">Add bot</button>
+            <button id="bot-remove" type="button">Remove one</button>
+            <button id="bot-clear" type="button">Remove all</button>
+          </div>
+        </section>
+        <section>
+          <h2>Controls</h2>
+          <dl class="keys">
+            <dt>WASD</dt><dd>Move</dd>
+            <dt>Space</dt><dd>Jump (hold to bunny-hop)</dd>
+            <dt>Mouse</dt><dd>Aim, click to fire</dd>
+            <dt>1–4, wheel, Q/E</dt><dd>Machine gun, shotgun, rockets, railgun</dd>
+            <dt>Tab</dt><dd>Scores</dd>
+            <dt>Esc</dt><dd>This menu</dd>
+          </dl>
+        </section>
+      </div>
+
+      <details class="settings">
+        <summary>Settings</summary>
+        <label>Mouse sensitivity <input id="sens" type="range" min="0.3" max="10" step="0.1"> <output id="sens-val"></output></label>
+        <label>Field of view <input id="fov" type="range" min="70" max="120" step="1"> <output id="fov-val"></output></label>
+        <label>Volume <input id="volume" type="range" min="0" max="100" step="1"> <output id="volume-val"></output></label>
+        <label class="check"><input id="invert" type="checkbox"> Invert mouse</label>
+      </details>
+
+      <p class="tips">
+        Tips: rocket the floor as you jump to fly. Strafe in the air while turning the mouse to build speed.
+        The mega health sits on the middle platform; the jump pads throw you up to the side ledges.
+      </p>
+    </div>
+  </div>
+
+  <script type="module" src="/static/games/arena/js/main.js?v=1"></script>
+</body>
+</html>

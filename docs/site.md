@@ -14,6 +14,8 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   `serials_auth`, and `PRIVATE_HEADERS` (`noindex`, `no-store`) for every private response.
   `POST /login` belongs to the serials page. The books library has its own `/books/login`
   (a username, no password; see `docs/books.md`).
+- `app/arena/routes.py` adds Frag Arena's page and WebSocket (`docs/arena.md`). Its match lives in
+  the web process's memory, so uvicorn must keep running a single worker.
 - `data/` holds runtime state (`serials.db`, `books/`). It's mounted into both containers and is
   gitignored.
 

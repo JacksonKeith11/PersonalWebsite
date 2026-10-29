@@ -1,0 +1,185 @@
+/* Frag Arena: a full-window game. The menu borrows the site's paper card. */
+:root {
+  --paper: #fbf7ef;
+  --fg: #2b2620;
+  --muted: #6f6355;
+  --accent: #7a5a2f;
+  --rule: #dccfb8;
+  --hud: #fff4e2;
+  --hud-dim: rgba(255, 244, 226, 0.6);
+  --warn: #ff5a3c;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1410;
+  color: var(--hud);
+  font: 16px/1.5 "Source Sans 3", system-ui, -apple-system, sans-serif;
+}
+
+#view, #view canvas { position: fixed; inset: 0; display: block; }
+
+/* ---------------------------------------------------------------- HUD */
+
+#hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
+#hud.watching #stats, #hud.watching #weapons, #hud.watching #cross, #hud.watching #fragline { display: none; }
+#hud.dead #cross, #hud.dead #weapons { display: none; }
+
+#cross { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
+#cross::before {
+  content: ""; position: absolute; inset: 0; border: 2px solid var(--hud); border-radius: 50%; opacity: 0.55;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+#cross::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+  border-radius: 50%; background: var(--hud); box-shadow: 0 0 2px #000;
+}
+
+#hitmark {
+  position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%) rotate(45deg);
+  opacity: 0;
+  background:
+    linear-gradient(#fff, #fff) 50% 0 / 2px 9px no-repeat,
+    linear-gradient(#fff, #fff) 50% 100% / 2px 9px no-repeat,
+    linear-gradient(#fff, #fff) 0 50% / 9px 2px no-repeat,
+    linear-gradient(#fff, #fff) 100% 50% / 9px 2px no-repeat;
+}
+#hitmark.on { animation: hit 0.25s ease-out; }
+@keyframes hit { from { opacity: 1; } to { opacity: 0; } }
+
+#pain {
+  position: absolute; inset: 0; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(200, 0, 0, 0.75) 100%);
+}
+#pickflash { position: absolute; inset: 0; opacity: 0; }
+#pickflash.on { animation: pick 0.35s ease-out; }
+#pickflash[data-kind="health"] { background: rgba(255, 90, 90, 0.18); }
+#pickflash[data-kind="mega"] { background: rgba(80, 150, 255, 0.25); }
+#pickflash[data-kind="armor"] { background: rgba(255, 190, 40, 0.2); }
+#pickflash[data-kind="ammo"] { background: rgba(220, 230, 120, 0.15); }
+@keyframes pick { from { opacity: 1; } to { opacity: 0; } }
+
+#dmgdir {
+  position: absolute; left: 50%; top: 50%; width: 220px; height: 220px; opacity: 0;
+  border-radius: 50%; border-top: 6px solid var(--warn);
+  transform: translate(-50%, -50%);
+}
+#dmgdir.on { animation: hit 0.9s ease-out; }
+
+#msgs { position: absolute; left: 16px; top: 12px; font-size: 0.95rem; color: var(--hud-dim); }
+#feed { position: absolute; right: 16px; top: 12px; text-align: right; font-weight: 600; }
+#feed span, #msgs span { font-weight: 700; }
+
+#center {
+  position: absolute; left: 0; right: 0; top: 30%; text-align: center;
+  font: 700 1.8rem/1.2 "Source Serif 4", Georgia, serif;
+}
+#respawn {
+  position: absolute; left: 0; right: 0; top: 38%; text-align: center; font-size: 1.1rem; color: var(--hud-dim);
+}
+
+#fragline {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+  display: flex; gap: 18px; font-size: 0.95rem; color: var(--hud-dim); white-space: nowrap;
+}
+#fragline b { color: var(--hud); font-size: 1.15rem; }
+#lead:not(:empty)::before { content: "Leader "; }
+
+#stats {
+  position: absolute; left: 24px; bottom: 18px; display: flex; gap: 28px; align-items: flex-end;
+}
+.stat span { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--hud-dim); }
+.stat b { font: 700 2.6rem/1 "Source Sans 3", system-ui, sans-serif; }
+.stat.low b { color: var(--warn); }
+.stat.armor b { color: #ffc84a; }
+.stat.ammo { margin-left: 12px; }
+
+#weapons {
+  position: absolute; right: 20px; bottom: 18px; display: flex; flex-direction: column; gap: 4px; font-weight: 600;
+}
+#weapons div { padding: 2px 10px; border-radius: 3px; color: var(--hud-dim); min-width: 108px; display: flex; gap: 8px; }
+#weapons i { font-style: normal; opacity: 0.6; }
+#weapons b { margin-left: auto; }
+#weapons div.on { background: rgba(255, 244, 226, 0.15); color: var(--hud); }
+#weapons div.empty { opacity: 0.35; }
+
+#scores {
+  position: absolute; left: 50%; top: 18%; transform: translateX(-50%);
+  min-width: min(480px, 92vw); padding: 14px 20px; border-radius: 6px;
+  background: rgba(20, 14, 10, 0.78);
+}
+#scores table { width: 100%; border-collapse: collapse; }
+#scores th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--hud-dim); padding: 4px 8px; }
+#scores td { padding: 4px 8px; font-weight: 600; }
+#scores td + td, #scores th + th { text-align: right; }
+#scores tr.me td { background: rgba(255, 244, 226, 0.1); }
+#scores small { font-weight: 400; color: var(--hud-dim); }
+
+#ping:empty { display: none; }
+
+/* ---------------------------------------------------------------- menu */
+
+#menu {
+  position: fixed; inset: 0; overflow-y: auto; padding: 32px 16px;
+  background: rgba(20, 12, 8, 0.55);
+  display: flex; align-items: flex-start; justify-content: center;
+}
+.panel {
+  width: 100%; max-width: 720px; margin: auto 0;
+  padding: 36px 44px; border-radius: 4px;
+  background: var(--paper); color: var(--fg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.panel a { color: var(--accent); }
+.back { display: inline-block; margin-bottom: 8px; color: var(--muted) !important; text-decoration: none; }
+.back:hover { text-decoration: underline; }
+.panel h1 { font: 700 2.2rem/1.2 "Source Serif 4", Georgia, serif; margin: 0 0 8px; }
+.panel h2 { font: 600 1.05rem/1.3 "Source Serif 4", Georgia, serif; margin: 0 0 8px; }
+.intro { margin: 0 0 18px; }
+.note { color: #a33; font-weight: 600; }
+
+.join { display: flex; gap: 10px; }
+.join input {
+  flex: 1; min-width: 0; padding: 10px 12px; font: inherit; color: var(--fg);
+  border: 1px solid var(--rule); border-radius: 4px; background: #fff;
+}
+.panel button {
+  font: 600 0.95rem/1 "Source Sans 3", system-ui, sans-serif; cursor: pointer;
+  padding: 10px 16px; border-radius: 4px; border: 1px solid var(--accent);
+  background: #fff; color: var(--accent);
+}
+.panel button:hover:not(:disabled) { background: #f4ecdd; }
+.panel button:disabled { opacity: 0.45; cursor: default; }
+#play { background: var(--accent); color: #fff; padding: 10px 28px; font-size: 1.05rem; }
+#play:hover:not(:disabled) { background: #8d6a3a; }
+#status { min-height: 1.5em; margin: 6px 0 14px; color: var(--muted); font-size: 0.95rem; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+#who { list-style: none; margin: 0 0 12px; padding: 0; font-size: 0.95rem; }
+#who span { font-weight: 700; text-shadow: 0 0 1px rgba(0, 0, 0, 0.5); }
+.bots { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bots span { width: 100%; font-size: 0.85rem; color: var(--muted); }
+.bots button { padding: 7px 10px; font-size: 0.85rem; }
+
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 0.92rem; }
+.keys dt { font-weight: 600; white-space: nowrap; }
+.keys dd { margin: 0; color: var(--muted); }
+
+.settings { margin-top: 20px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.settings summary { cursor: pointer; font-weight: 600; }
+.settings label { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 0.95rem; }
+.settings input[type="range"] { flex: 1; accent-color: var(--accent); }
+.settings output { width: 3.5em; text-align: right; color: var(--muted); }
+.settings .check { gap: 8px; }
+
+.tips { margin: 18px 0 0; font-size: 0.88rem; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .panel { padding: 24px 20px; }
+  .cols { grid-template-columns: 1fr; }
+}

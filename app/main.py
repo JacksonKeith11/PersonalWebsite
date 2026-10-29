@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import auth
+from .arena import routes as arena_routes
 from .books import epub
 from .books import routes as books_routes
 from .serials import page as serials_page
@@ -110,6 +111,8 @@ if SERIALS_PATH:
             )
         return HTMLResponse(serials_page.render(page), headers=auth.PRIVATE_HEADERS)
 
+
+app.include_router(arena_routes.router)
 
 # Books are behind a username rather than the password; see app/books/routes.py.
 app.include_router(books_routes.router)

@@ -241,6 +241,10 @@ Keep it that way.
   existing effect flags; `vsShock` is new. `load()` drops removed skills from saves and moves their
   artifacts to the pack. Bonus labels that depend on the amount (fester, ironbark, pincer, momentum,
   perDebuff, vsShock, selfShieldHp) print the real number now.
+- **Keep boards open.** The owner asked for fewer obstacles on the 8×8 board: each act's `terrain` counts
+  in `data.js` give about 6–9 obstacle tiles (brush, rocks, walls, water, lava, brambles, pits) and about 8
+  hill tiles out of 64. Before the cut it was 13–15 obstacles and 11 hills. Measure a change by running `genGrid` a
+  few hundred times per act and counting tiles, not by eye.
 - **Height and charged skills** (the owner asked for these, with facing, from Final Fantasy Tactics
   and Tactics Ogre):
   - Height: `TERRAIN[t].h`; hills (`T.HILL`) are 1 and summits (`T.PEAK`) 2. `hgt`/`elev` read it.
@@ -424,10 +428,19 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
 - **Hidden canvas.** `#stage` (the canvas and side panel) is `display: none` while an HTML screen
   shows. When it reappears, `showStage` must call `game.scale.getParentBounds()` before
   `game.scale.refresh()`, or Phaser leaves the canvas 0px wide and the screen goes black.
+- **The canvas moves without Phaser noticing.** The scale manager re-measures the canvas only every
+  500ms, so a click just after the canvas moved or resized (a panel growing, a scrollbar appearing)
+  landed where it used to be: map nodes sometimes ignored clicks. A capture-phase `pointerdown` on
+  `#game` in `main.js` re-measures first. `html { scrollbar-gutter: stable }` in `game.css` also stops
+  a longer side panel (a skill's description) from bringing in a scrollbar that narrows the canvas.
+  To test it, launch Playwright with `ignoreDefaultArgs: ['--hide-scrollbars']`; headless Chromium
+  hides scrollbars otherwise.
 - **Scenes restart.** `showStage`, `setScreen` and `game.scene.start` stop and start the `map` and
   `battle` scenes on every transition. Battle state is the module-level `B` in `battle.js`. The
   turn loop checks `B === b` after every await, because a battle can end mid-animation. Tween
   promises never resolve if their scene stops, so never await them after the battle has ended.
+  `this.input` listeners are cleared on a restart, but `this.events` ones (`'update'`) are not:
+  remove them on `'shutdown'`, or another copy builds up on every visit, still holding the old scene's objects.
 - **Speed.** Animation waits go through `sleep` and `tw`/`counter`, which scale by `env.speed`
   (0.01 under autopilot). Use them rather than raw `setTimeout` or tweens, or the autopilot slows
   to a crawl.

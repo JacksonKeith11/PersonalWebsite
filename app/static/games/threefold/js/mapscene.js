@@ -1,7 +1,7 @@
 // The branching path for the current act, drawn and made clickable with Phaser.
-import { ROWS_PER_ACT } from './data.js?v=59';
-import { NODE_COLORS } from './art.js?v=59';
-import { groundTile, TP } from './tiles.js?v=59';
+import { ROWS_PER_ACT } from './data.js?v=60';
+import { NODE_COLORS } from './art.js?v=60';
+import { groundTile, TP } from './tiles.js?v=60';
 
 export const MAP = { W: 640, TOP: 78, STEP: 70, COLS: 6 };
 // Rows above the first: the act's rows, then (in newer runs) the campfire, then the boss.
@@ -55,7 +55,7 @@ export class MapScene extends Phaser.Scene {
       }
     }
     const march = this.add.graphics();
-    this.events.on('update', (time) => {
+    const ants = time => {
       march.clear();
       const o = (time / 120) % 1;
       for (const { f, steps } of live) for (let i = 3; i < steps - 2; i++) {
@@ -63,7 +63,7 @@ export class MapScene extends Phaser.Scene {
         march.fillStyle(0x000000, 0.5).fillRect(Math.round(p.x) - 2, Math.round(p.y) - 1, 5, 5);
         march.fillStyle(0xfff0b0, 1).fillRect(Math.round(p.x) - 2, Math.round(p.y) - 2, 4, 4);
       }
-    });
+    };
     const label = this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#fff', stroke: '#000', strokeThickness: 4, align: 'center' }).setOrigin(0.5, 1).setDepth(20).setVisible(false);
     this.nodeViews = new Map();
     for (const n of nodes) {
@@ -106,13 +106,16 @@ export class MapScene extends Phaser.Scene {
     }
     // the side panel's choice list points at nodes here
     let shown = null;
-    this.events.on('update', () => {
+    const follow = () => {
       if (mapEnv.hover === shown) return;
       if (shown && this.nodeViews.get(shown)) this.nodeViews.get(shown).c.setScale(1);
       shown = mapEnv.hover;
       const v = shown && this.nodeViews.get(shown);
       if (v) { v.c.setScale(1.12); label.setText(v.name).setPosition(v.p.x, v.p.y - v.r - 10).setVisible(true); cam.pan(cam.scrollX + cam.width / 2, Math.max(v.p.y, cam.height / 2), 250); } else label.setVisible(false);
-    });
+    };
+    // scene events outlive a restart: drop these or every visit to the map adds another pair
+    this.events.on('update', ants).on('update', follow);
+    this.events.once('shutdown', () => this.events.off('update', ants).off('update', follow));
     // the act's name on a banner that stays at the top
     const bar = this.add.graphics().setScrollFactor(0).setDepth(30);
     bar.fillStyle(0x120b18, 0.88).fillRect(0, 0, MAP.W, 34); bar.fillStyle(0xf2c94c, 0.6).fillRect(0, 34, MAP.W, 2);

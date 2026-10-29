@@ -1,14 +1,14 @@
 // Roguelike Tactics: run flow, menus, events, shops and saving. Phaser draws the map and battles;
 // everything text-heavy is plain HTML in #side and #screen.
-import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, FOES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=59';
+import { GH, ROWS_PER_ACT, ACTS, ACT_SLOTS, CLASSES, PROMOS, SKILLS, MODS, ITEMS, TEAM, RARITY, ASCENTS, OBJECTIVES, ARCHES, FOES, MAX_SKILLS, MAX_MODS, MAX_RELICS } from './data.js?v=60';
 import { rnd, pick, chance, shuffle, newHero, heroStats, heroSrc, heroSprite, heroTitle, promote, skStats, describe,
-  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=59';
-import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=59';
-import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=59';
-import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=59';
-import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=59';
-import { MapScene, mapEnv, mapHeight, NODE_NAMES } from './mapscene.js?v=59';
-import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=59';
+  isSkillArt, artName, artText, artUp, artDown, artPrice, artRarity, artTags, outputOf, levelUp, gainsText, growthText, growthClass, nextBreakpoint, canSocket, canWear, artifactPool, skillPool, skillOffers, skillsFull, promoOptions, partyArches } from './rules.js?v=60';
+import { buildTextures, iconCanvas, NODE_COLORS } from './art.js?v=60';
+import { initAudio, sfx, music, audioState, toggleMusic, toggleSfx } from './audio.js?v=60';
+import { env, startBattle, BattleScene, objectiveMet, setView } from './battle.js?v=60';
+import { bestPlacement, pickArtifact, pickLesson, weakestSkill, skillValue, pickClass, pickTeam, pickNode, partyHp } from './bot.js?v=60';
+import { MapScene, mapEnv, mapHeight, NODE_NAMES } from './mapscene.js?v=60';
+import { h, sprImg, bar, skillText, initTips, tipNote } from './ui.js?v=60';
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // heroes play themselves; used to test balance
@@ -856,4 +856,10 @@ game = new Phaser.Game({
   scene: [Boot, MapScene, BattleScene],
 });
 env.game = game;
+// Phaser re-measures the canvas only twice a second, so a click just after it moved or resized (a panel
+// growing, a scrollbar appearing) used the old spot and could miss a map node: re-measure first.
+document.getElementById('game').addEventListener('pointerdown', () => {
+  const r = game.canvas.getBoundingClientRect(), b = game.scale.canvasBounds;
+  if (Math.abs(r.left + scrollX - b.x) > 0.5 || Math.abs(r.top + scrollY - b.y) > 0.5 || Math.abs(r.width - b.width) > 0.5) { game.scale.getParentBounds(); game.scale.refresh(); }
+}, true);
 if (AUTO) window.__tf = { get run() { return run; } };

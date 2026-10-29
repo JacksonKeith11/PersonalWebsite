@@ -109,7 +109,7 @@ export const ACTS = {
   greenwood: {
     name: 'The Greenwood', theme: 'wood', music: 'm_wood', boss: 'The Thornmother',
     intro: 'The road climbs through the Greenwood toward the Thornmother\'s grove.',
-    terrain: { cover: [2, 4], rock: [1, 3], water: 0.5, walls: [0, 1], lava: [0, 0], hill: [2, 3], thorn: [0, 2], pits: [0, 1] },
+    terrain: { cover: [1, 2], rock: [0, 1], water: 0.3, walls: [0, 0], lava: [0, 0], hill: [1, 2], thorn: [0, 1], pits: [0, 1] },
     early: [['slime', 'slime', 'goblin'], ['goblin', 'goblin', 'archer'], ['wolf', 'wolf'], ['slime', 'archer', 'goblin'], ['bat', 'bat', 'goblin'], ['boar', 'goblin', 'goblin'], ['cutpurse', 'goblin', 'archer']],
     late: [['wolf', 'wolf', 'archer', 'goblin'], ['goblin', 'goblin', 'archer', 'archer'], ['slime', 'slime', 'shaman', 'wolf'], ['wolf', 'bat', 'bat', 'archer'],
       ['sapper', 'sapper', 'goblin', 'archer'], ['totem', 'goblin', 'goblin', 'wolf'], ['bloat', 'slime', 'archer'], ['boar', 'boar', 'cutpurse']],
@@ -119,7 +119,7 @@ export const ACTS = {
   marsh: {
     name: 'The Drowned Marsh', theme: 'marsh', music: 'm_marsh', boss: 'The Bog Hydra',
     intro: 'Fog lies over the drowned marsh. Out in the deep water, something with many heads is waking.',
-    terrain: { cover: [2, 4], rock: [1, 2], water: 1, pools: [2, 3], walls: [0, 1], lava: [0, 0], hill: [2, 3], peak: 0.4, thorn: [0, 2], pits: [0, 1] },
+    terrain: { cover: [1, 2], rock: [0, 1], water: 1, pools: [1, 2], walls: [0, 0], lava: [0, 0], hill: [1, 2], peak: 0.4, thorn: [0, 1], pits: [0, 1] },
     early: [['toad', 'toad', 'leech'], ['lizard', 'lizard', 'wisp'], ['leech', 'leech', 'bloat'], ['toad', 'lizard', 'wisp'], ['slime', 'slime', 'leech']],
     late: [['lizard', 'lizard', 'toad', 'wisp'], ['bloat', 'bloat', 'leech', 'wisp'], ['toad', 'toad', 'lizard', 'shaman'], ['leech', 'leech', 'lizard', 'cutpurse']],
     elite: [['croc', 'leech', 'leech'], ['croc', 'toad', 'wisp']],
@@ -128,7 +128,7 @@ export const ACTS = {
   crypt: {
     name: 'The Sunken Crypt', theme: 'crypt', music: 'm_crypt', boss: 'The Hollow King',
     intro: 'Below the old city, the Hollow King hoards the dead.',
-    terrain: { cover: [1, 2], rock: [1, 2], water: 0.4, walls: [2, 4], lava: [0, 0], hill: [2, 3], thorn: [0, 2], pits: [1, 2] },
+    terrain: { cover: [0, 1], rock: [0, 1], water: 0.3, walls: [1, 2], lava: [0, 0], hill: [1, 2], thorn: [0, 1], pits: [0, 1] },
     early: [['skeleton', 'skeleton', 'cultist'], ['ghost', 'ghost', 'bat'], ['spider', 'spider', 'skeleton'], ['cultist', 'shaman', 'skeleton'], ['bulwark', 'skeleton', 'cultist'], ['shade', 'ghost', 'skeleton']],
     late: [['skeleton', 'skeleton', 'ghost', 'cultist'], ['spider', 'spider', 'ghost', 'shaman'], ['skeleton', 'cultist', 'cultist', 'bat'], ['ghost', 'ghost', 'spider', 'skeleton'],
       ['wight', 'bulwark', 'cultist', 'skeleton'], ['shade', 'shade', 'spider', 'wight']],
@@ -138,7 +138,7 @@ export const ACTS = {
   rime: {
     name: 'The Rime Halls', theme: 'frost', music: 'm_frost', boss: 'The Frost Queen',
     intro: 'The road climbs into halls of ice where the Frost Queen holds court.',
-    terrain: { cover: [1, 3], rock: [1, 3], water: 0.6, walls: [1, 3], lava: [0, 0], hill: [2, 3], thorn: [0, 2], pits: [1, 2] },
+    terrain: { cover: [1, 2], rock: [0, 1], water: 0.4, walls: [0, 2], lava: [0, 0], hill: [1, 2], thorn: [0, 1], pits: [0, 1] },
     early: [['snowwolf', 'snowwolf', 'frostarcher'], ['icewight', 'skeleton', 'frostarcher'], ['yeti', 'snowwolf'], ['bulwark', 'frostarcher', 'icewight']],
     late: [['yeti', 'icewight', 'frostarcher', 'frostarcher'], ['snowwolf', 'snowwolf', 'snowwolf', 'icewight'], ['bulwark', 'bulwark', 'frostarcher', 'shaman'], ['yeti', 'shade', 'icewight', 'snowwolf']],
     elite: [['icegolem', 'frostarcher', 'frostarcher'], ['yeti', 'yeti', 'icewight']],
@@ -147,7 +147,7 @@ export const ACTS = {
   ember: {
     name: 'The Ember Peaks', theme: 'ember', music: 'm_ember', boss: 'The Cinder Wyrm',
     intro: 'At the top of the burning peaks, the Cinder Wyrm waits.',
-    terrain: { cover: [1, 2], rock: [1, 3], water: 0.3, walls: [1, 2], lava: [2, 4], hill: [2, 3], peak: 0.7, thorn: [0, 1], pits: [1, 2] },
+    terrain: { cover: [0, 1], rock: [0, 1], water: 0.2, walls: [0, 1], lava: [1, 2], hill: [1, 2], peak: 0.7, thorn: [0, 1], pits: [0, 1] },
     early: [['imp', 'imp', 'orc'], ['salamander', 'salamander', 'orc'], ['orc', 'orc', 'shaman'], ['imp', 'salamander', 'firecultist'], ['kobold', 'kobold', 'orc'], ['lavaworm', 'imp', 'salamander']],
     late: [['orc', 'orc', 'imp', 'firecultist', 'imp'], ['salamander', 'salamander', 'imp', 'imp', 'orc'], ['magmagolem', 'imp', 'imp', 'firecultist'], ['orc', 'salamander', 'firecultist', 'shaman', 'imp'],
       ['brazier', 'orc', 'orc', 'firecultist'], ['lavaworm', 'lavaworm', 'kobold', 'imp']],
@@ -157,7 +157,7 @@ export const ACTS = {
   foundry: {
     name: 'The Clockwork Foundry', theme: 'foundry', music: 'm_foundry', boss: 'The Brass Colossus',
     intro: 'Smoke and hammering ahead: the Brass Colossus guards the foundry at the end of the road.',
-    terrain: { cover: [1, 3], rock: [1, 2], water: 0.5, walls: [1, 3], lava: [1, 2], hill: [2, 3], thorn: [0, 1], pits: [1, 2] },
+    terrain: { cover: [1, 2], rock: [0, 1], water: 0.3, walls: [0, 2], lava: [0, 1], hill: [1, 2], thorn: [0, 1], pits: [0, 1] },
     early: [['clocksoldier', 'sparkbot', 'sparkbot'], ['automaton', 'turret', 'tinker'], ['sparkbot', 'sparkbot', 'sparkbot', 'tinker'], ['clocksoldier', 'clocksoldier', 'turret']],
     late: [['automaton', 'automaton', 'turret', 'tinker', 'sparkbot'], ['clocksoldier', 'clocksoldier', 'sparkbot', 'sparkbot', 'turret'], ['steamjugg', 'sparkbot', 'tinker', 'turret'], ['automaton', 'clocksoldier', 'turret', 'turret', 'tinker']],
     elite: [['steamjugg', 'automaton', 'tinker'], ['clocksoldier', 'clocksoldier', 'clocksoldier', 'tinker']],

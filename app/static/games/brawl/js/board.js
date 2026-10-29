@@ -2,7 +2,7 @@
 // ghost, traps, webs, coin piles and everyone's pieces. Pieces glide from space to space; the
 // dice and floating "+3"s are drawn over the top.
 
-import * as art from './art.js?v=3';
+import * as art from './art.js?v=4';
 
 const KIND_COLORS = {
   blue: ['#3f7fe0', '#1d4a99'],
@@ -213,9 +213,39 @@ export class Board {
     c.fillStyle = 'rgba(255, 230, 190, 0.55)';
     c.textAlign = 'center';
     c.fillText(this.b.name.toUpperCase(), 500, 625);
+    // a little shop beside each shop space, on the side away from the middle of the board
+    for (const sp of this.b.spaces) {
+      if (sp.kind !== 'shop') continue;
+      const dx = sp.x - 500, dy = sp.y - 320, m = Math.hypot(dx, dy) || 1;
+      const out = sp.middle ? [0, -1] : [dx / m, dy / m];
+      this.stall(c, sp.x + out[0] * 44, sp.y + out[1] * 44 + (out[1] < -0.5 ? 6 : 0));
+    }
     // the spaces don't change, so they're drawn once here too (only the portals swirl)
     for (const s of this.b.spaces) this.drawSpace(c, s);
     return cv;
+  }
+
+  stall(c, x, y) {
+    c.save();
+    c.translate(x, y);
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    c.beginPath(); c.ellipse(0, 15, 24, 5, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#6b4a2b';
+    c.fillRect(-20, -6, 40, 21);
+    c.fillStyle = '#ffd77a';
+    c.fillRect(-14, 0, 28, 9);
+    for (let i = 0; i < 5; i++) {
+      c.fillStyle = i % 2 ? '#f6efdc' : '#c0392b';
+      c.beginPath(); c.moveTo(-24 + i * 9.6, -6); c.lineTo(-24 + (i + 1) * 9.6, -6); c.lineTo(-22 + (i + 1) * 9.6, -18); c.lineTo(-22 + i * 9.6, -18); c.fill();
+    }
+    c.fillStyle = '#2b1d16';
+    c.fillRect(-14, -30, 28, 11);
+    c.fillStyle = '#ffe7b0';
+    c.font = '700 8px "Source Sans 3", system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('SHOP', 0, -24);
+    c.restore();
   }
 
   // ---------------------------------------------------------------- each frame

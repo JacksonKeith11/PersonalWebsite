@@ -2,10 +2,10 @@
 // what you can do this turn, the log) and the minigame overlays. The server sends the whole
 // room state whenever it changes, and this redraws from it.
 
-import { Board } from './board.js?v=3';
-import { Stage } from './mg.js?v=3';
-import { TEAM_COLORS } from './base.js?v=3';
-import * as sfx from './audio.js?v=3';
+import { Board } from './board.js?v=4';
+import { Stage } from './mg.js?v=4';
+import { TEAM_COLORS } from './base.js?v=4';
+import * as sfx from './audio.js?v=4';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -207,7 +207,7 @@ function renderAction() {
   if (!mine) {
     const doing = {
       roll: 'is thinking…', rolling: `rolled ${st.dice.join(' + ')}`, move: `is on the move: ${st.left} to go${st.back ? ', backwards' : ''}`,
-      path: 'is picking a path', buy: 'is at the crown', shop: 'is shopping', duel: 'is picking someone to duel', landed: '',
+      path: 'is picking a path', buy: 'is deciding whether to buy the crown', shop: st.passing ? 'stopped at a shop' : 'is shopping', duel: 'is picking someone to duel', landed: '',
     }[st.step] || '';
     html = `<p class="what"><span class="dot" style="background:${cur.color}"></span><b>${esc(cur.name)}</b> ${doing} ${wait}</p>`;
   } else if (st.step === 'roll') {
@@ -237,17 +237,23 @@ function renderAction() {
         return `<button data-act="path" data-v="${i}">${direction(cur.pos, s)} <small>${sp.middle ? 'through the graveyard' : 'round the loop'}</small></button>`;
       }).join('') + '</div>';
   } else if (st.step === 'buy') {
-    html = `<p class="what">👑 <b>Buy a crown for ${S.crown} coins?</b> ${wait}</p>
-      <div class="btns"><button class="primary big" data-act="buy" data-v="1">Yes!</button><button data-act="buy" data-v="0">No thanks</button></div>`;
+    const coins = me().coins;
+    html = coins >= S.crown
+      ? `<p class="what">👑 <b>You've reached the crown! Buy it for ${S.crown} coins?</b> You have ${coins}. ${wait}</p>
+        <div class="btns"><button class="primary big" data-act="buy" data-v="1">Buy it!</button><button data-act="buy" data-v="0">No thanks</button></div>`
+      : `<p class="what">👑 <b>You've reached the crown!</b> It costs ${S.crown} coins, but you only have ${coins}. ${wait}</p>
+        <div class="btns"><button class="big" disabled>Buy it (${S.crown} 🪙)</button><button class="primary" data-act="buy" data-v="0">Walk on</button></div>`;
   } else if (st.step === 'shop') {
     const p = me();
     const cheap = Object.keys(S.items).some(k => st.prices[k] < S.items[k].price);
-    html = `<p class="what">🛒 <b>The Witch's Shop</b>${cheap ? ' <span class="good">half price, since you’re behind</span>' : ''} ${wait}</p><div class="shop">` +
+    const full = p.items.length >= 3;
+    html = `<p class="what">🛒 <b>${st.passing ? 'You’re passing the Witch’s Shop. Buy anything?' : 'The Witch’s Shop'}</b>
+      You have ${p.coins} 🪙 and ${p.items.length} of 3 items.${cheap ? ' <span class="good">Half price, since you’re behind!</span>' : ''} ${wait}</p><div class="shop">` +
       Object.entries(S.items).map(([k, spec]) => `
-        <button data-act="shop" data-v="${k}" ${p.coins < st.prices[k] ? 'disabled' : ''}>
+        <button data-act="shop" data-v="${k}" ${p.coins < st.prices[k] || full ? 'disabled' : ''}>
           <span class="icon">${spec.icon}</span><b>${esc(spec.name)}</b><span class="price">${st.prices[k]} 🪙</span>
           <small>${esc(spec.desc)}</small></button>`).join('') +
-      '</div><div class="btns"><button data-act="shop" data-v="">Leave the shop</button></div>';
+      `</div><div class="btns"><button class="primary" data-act="shop" data-v="">${st.passing ? 'Keep walking' : 'Done shopping'}</button></div>`;
   } else if (st.step === 'duel') {
     html = `<p class="what">⚔️ <b>Duel!</b> Pick someone: the winner takes up to ${S.prizes.duel} coins from the loser. ${wait}</p><div class="btns">` +
       st.order.filter(id => id !== S.you).map(id => {

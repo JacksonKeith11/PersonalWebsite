@@ -15,6 +15,14 @@ land on something); then the ghost drifts toward the leader; then everyone plays
 the last round, three bonus crowns (most minigame wins, most coins held at once, most coins taken
 from rivals) are handed out if the host left them on. Most crowns wins; coins break ties.
 
+**The crown and the shops ask as you go by** (the owner asked for both). Passing the crown, or
+landing on it, always stops you to ask if you'll buy it; if you can't afford it, the question
+shows the price and your coins with Buy greyed out, and walks you on after 6 s (`WAIT["broke"]`).
+Passing or landing on one of the three shops (each drawn with a stall beside it) opens it: buy as
+many items as your coins and pockets allow, then keep walking (`Room.open_shop`, `shop_passing`).
+A human who lets the timer run out leaves the shop without buying. Bots shopping on the way past
+keep 14 coins back so they can still afford crowns.
+
 ## The owner's design answers
 
 The design came from a list of questions the owner answered. Keep to them:

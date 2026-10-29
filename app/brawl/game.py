@@ -78,7 +78,7 @@ EVENTS = [("shower", 1, 4), ("tax", 1, 2), ("gift", 1, 3), ("express", 1, 2),
           ("swap", 0, 2), ("hop", 0, 1)]
 
 # Humans get this long to act before the game does it for them.
-WAIT = {"roll": 40, "path": 25, "buy": 25, "shop": 30, "duel": 25, "ready": 25}
+WAIT = {"roll": 40, "path": 25, "buy": 25, "broke": 6, "shop": 30, "duel": 25, "ready": 25}
 
 
 def _clean(text, n):
@@ -133,6 +133,7 @@ class Room:
         self.left = 0
         self.back = False  # walking backwards (hexed)
         self.used_item = False
+        self.shop_passing = False  # in the shop on the way past, rather than having landed there
         self.crown_at = None
         self.ghost_at = B.CROSSROADS_ID
         self.traps = {}  # space -> pid of whoever set it
@@ -594,21 +595,27 @@ class Room:
             self.effect("web", s=space, p=p.id)
             self.say(f"{p.name} is stuck in {self.players[web].name}'s web!")
         if space == self.crown_at:
-            if p.coins >= CROWN_COST:
-                self.step = "buy"
-                self.wait_for(p, "buy", lambda: self.buy_crown(p, True), think=0.9)
-                return
-            self.say(f"{p.name} passes the crown but can't afford it")
+            # Always ask. Someone who can't afford it sees the price, and walks on after a moment.
+            afford = p.coins >= CROWN_COST
+            self.step = "buy"
+            self.wait_for(p, "buy" if afford else "broke", lambda: self.buy_crown(p, afford), think=0.9)
+            return
+        if B.SPACES[space]["kind"] == "shop" and self.left > 0:
+            return self.open_shop(p, passing=True)
         self.at(STEP_TIME, lambda: self.walk(p))
 
     def buy_crown(self, p, yes):
-        if yes and p.coins >= CROWN_COST:
+        if yes and p.coins < CROWN_COST:
+            return  # can't afford it: the question stays up until they walk on
+        if yes:
             self.coins(p, -CROWN_COST)
             p.crowns += 1
             self.effect("crown", p=p.id)
             self.say(f"{p.name} bought a crown!")
             self.move_crown()
-        elif not yes:
+        elif p.coins < CROWN_COST:
+            self.say(f"{p.name} can't afford the crown yet")
+        else:
             self.say(f"{p.name} walks past the crown")
         self.step = "move"
         self.deadline = None
@@ -656,11 +663,7 @@ class Room:
             self.wait_for(p, "duel", lambda: self.start_duel(p, self.bot_duel(p)), think=1.3)
             return
         elif kind == "shop":
-            if len(p.items) < MAX_ITEMS:
-                self.step = "shop"
-                self.wait_for(p, "shop", lambda: self.shop(p, self.bot_shop(p)), think=1.5)
-                return
-            self.say(f"{p.name}'s pockets are full: no shopping")
+            return self.open_shop(p, passing=False)
         self.at(1.5, self.end_turn)
 
     def gift(self, p, why):
@@ -715,20 +718,47 @@ class Room:
             self.say("The crown got restless and moved")
         self.dirty = True
 
+    def open_shop(self, p, passing):
+        """Walking past or landing on a shop: ask whether they'd like to buy anything."""
+        self.shop_passing = passing
+        if len(p.items) >= MAX_ITEMS:
+            self.say(f"{p.name}'s pockets are full: no shopping")
+            return self.leave_shop(p)
+        self.step = "shop"
+        self.wait_for(p, "shop", lambda: self.shop(p, self.bot_shop(p) if self.auto(p) else None), think=1.5)
+
     def shop(self, p, item):
+        """Buy `item`, or leave if it's None. People can keep buying until they leave."""
         self.deadline = None
         if item in ITEMS and p.coins >= self.price(p, item) and len(p.items) < MAX_ITEMS:
             self.coins(p, -self.price(p, item))
             p.items.append(item)
+            self.effect("bought", p=p.id, item=item)
             self.say(f"{p.name} bought {ITEMS[item]['name']}")
+            more = len(p.items) < MAX_ITEMS and any(p.coins >= self.price(p, k) for k in ITEMS)
+            if more and not self.auto(p):
+                self.wait_for(p, "shop", lambda: self.shop(p, None))
+                return
+        elif item is None:
+            self.say(f"{p.name} {'walks on' if self.shop_passing else 'leaves the shop'}")
         else:
-            self.say(f"{p.name} left the shop")
-        self.step = "landed"
-        self.at(1.0, self.end_turn)
+            return  # can't buy that: stay in the shop
+        self.leave_shop(p)
+
+    def leave_shop(self, p):
+        self.deadline = None
+        if self.shop_passing:
+            self.step = "move"
+            self.at(STEP_TIME, lambda: self.walk(p))
+        else:
+            self.step = "landed"
+            self.at(1.0, self.end_turn)
 
     def bot_shop(self, p):
-        afford = [k for k in ITEMS if p.coins - self.price(p, k) >= 8]
-        return random.choice(afford) if afford and random.random() < 0.7 else None
+        # walking past, a bot keeps enough back to stay on course for a crown
+        keep, chance = (14, 0.5) if self.shop_passing else (8, 0.7)
+        afford = [k for k in ITEMS if p.coins - self.price(p, k) >= keep]
+        return random.choice(afford) if afford and random.random() < chance else None
 
     def bot_duel(self, p):
         others = [q for q in self.seated() if q is not p]
@@ -956,7 +986,7 @@ class Room:
             "piles": {str(k): v for k, v in self.piles.items()}, "witching": self.witching(),
             "log": self.log, "wait": round(self.deadline - self.now, 1) if self.deadline else None,
             "mg": mg, "results": self.results, "final": self.final, "fx": self.fx, "prices": prices,
-            "duel": self.duel,
+            "duel": self.duel, "passing": self.shop_passing,
             "choices": self.ways(self.players[cur].pos) if cur and self.step == "path" else None,
         }
 

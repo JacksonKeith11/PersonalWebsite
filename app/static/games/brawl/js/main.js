@@ -2,10 +2,10 @@
 // what you can do this turn, the log) and the minigame overlays. The server sends the whole
 // room state whenever it changes, and this redraws from it.
 
-import { Board } from './board.js?v=2';
-import { Stage } from './mg.js?v=2';
-import { TEAM_COLORS } from './base.js?v=2';
-import * as sfx from './audio.js?v=2';
+import { Board } from './board.js?v=3';
+import { Stage } from './mg.js?v=3';
+import { TEAM_COLORS } from './base.js?v=3';
+import * as sfx from './audio.js?v=3';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);

@@ -2,8 +2,8 @@
 // (bumper ring, candy grab, ghost tag, pumpkin drop), which send a stick and a dash 20 times a
 // second and draw the server's snapshots, smoothed between arrivals.
 
-import { Game, TEAM_COLORS } from './base.js?v=2';
-import * as art from './art.js?v=2';
+import { Game, TEAM_COLORS } from './base.js?v=3';
+import * as art from './art.js?v=3';
 
 const now = () => performance.now() / 1000;
 const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -363,7 +363,8 @@ class Arena extends Game {
       this.c.beginPath(); this.c.arc(x, y, r * 1.5, 0, Math.PI * 2); this.c.fill();
     }
     art.token(this.c, x, y, r, p.color, { label: p.name.slice(0, 1), ring: d.id === this.me ? '#ffe066' : this.teamRing(d.id), t: t + d.id });
-    this.text(p.name, x, y - r - 12, 14, d.id === this.me ? '#ffe066' : '#fff');
+    // games on a light floor set nameColor (and a darker colour for you)
+    this.text(p.name, x, y - r - 12, 14, d.id === this.me ? (this.meColor || '#ffe066') : (this.nameColor || '#fff'));
   }
   teamRing(id) {
     if (!this.teams || this.mode === 'ffa' || this.mode === 'duel') return '#fff';

@@ -1,11 +1,11 @@
 // More minigames' browser halves: Halloween takes on Mario Party favourites. Hex Heat and
 // Spellbook Squirm are 3D (three.js, see view3d.js); the rest draw on the 2D stage like the others.
 
-import { Game } from './base.js?v=2';
-import { Arena, coarse } from './games-live.js?v=2';
-import { View3D, loadThree } from './view3d.js?v=2';
-import * as art from './art.js?v=2';
-import * as sfx from './audio.js?v=2';
+import { Game } from './base.js?v=3';
+import { Arena, coarse } from './games-live.js?v=3';
+import { View3D, loadThree } from './view3d.js?v=3';
+import * as art from './art.js?v=3';
+import * as sfx from './audio.js?v=3';
 
 const now = () => performance.now() / 1000;
 

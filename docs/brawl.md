@@ -40,6 +40,10 @@ The design came from a list of questions the owner answered. Keep to them:
 - **A big variety of minigame kinds**: action, reflex, mashing, timing, memory, counting, puzzle,
   trivia, draw-and-guess. Add more rather than polishing a few.
 - **No chat**: they're on a call.
+- **Only the board is Halloween.** Minigames don't have to be spooky; newer ones keep a plain
+  look close to the games they're based on. (The first 26 kept their spooky names.)
+- **Keyboard and mouse first.** The owner said there's no need to optimise for phones. Don't break
+  what works on a phone, but don't spend effort there.
 
 ## Minigames
 
@@ -78,6 +82,26 @@ The owner asked for more, based on Mario Party fan favourites, and allowed 3D. T
 | `pong` | Skull Pong | Paddle Battle | four-way pong | ffa, duel | server, 20 Hz |
 | `band` | Monster Mash | Mario Bandstand | rhythm | ffa, duel, team | browser |
 
+Then a third batch, from a Reddit thread of favourites the owner pasted in, in `classics.py` and
+`games-classic.js`, plain-looking:
+
+| Key | Name | Based on | Kind | Formats | Runs |
+|---|---|---|---|---|---|
+| `cheese` | Say Cheese! | Slaparazzi | action | ffa, duel, team | server, 20 Hz |
+| `ticktock` | Tick Tock Hop | Tick Tock Hop | timing | ffa, duel, team | server |
+| `cutter` | Cookie Cutter | Crazy Cutters / Trace Race | mouse precision | ffa, duel, team | browser |
+| `hotel` | Hotel Hustle | Hotel Goomba | guessing race | ffa, duel, team | browser |
+| `gallery` | Shooting Gallery | Aim of the Game | mouse aim | ffa, duel, team | browser |
+| `clock` | Ten Seconds Flat | the stop-the-clock game | timing | ffa, duel, team | browser |
+| `beanstalk` | Beanstalk | the vine-growing game | reflex race | ffa, duel, team | browser |
+| `messy` | Messy Memory | Messy Memory | memory | ffa, duel, team | browser |
+| `snowball` | Snowball Summit | Snowball Summit | action | ffa, duel, team | server, 20 Hz |
+| `hockey` | Speed Hockey | Speed Hockey | sport | team, duel | server, 20 Hz |
+
+Tick Tock Hop forgives a jump that reaches the server up to `GRACE` (0.15 s) after a hand
+reached you, so latency doesn't get people knocked out. Speed Hockey's bot keepers aim a little
+off on purpose, or bot matches end 0-0.
+
 Balance notes: Hide and Go Boo! has 6 coffins and 3 opens against 3 hiders (4 against 2), and the
 seeker wins by finding more than half, which a random seeker does about half the time; Slime
 Shooters' bots fire rarely and miss often, or a match is over in seconds.
@@ -87,11 +111,13 @@ The format is picked each round (`Room.start_minigame`): with 2 players always f
 format so they don't repeat until the bag's empty. Prizes: free-for-all 10/6/3/1; 2 v 2 8 each to
 the winners (3 each on a draw); 1 v the rest 15 to the one, or 6 each to the rest.
 
-**Adding a minigame** takes a server class in `minigames.py` or `arcade.py` (in `GAMES`, with
-`modes`, `dur`, `key_of` and `label`, plus bots) and a browser class in `games-solo.js`,
-`games-live.js` or `games-more.js` (in `SOLO`, `LIVE` or `MORE`, extending `Game` from `base.js`,
+**Adding a minigame** takes a server class in `minigames.py`, `arcade.py` or `classics.py` (in
+`GAMES`, with `modes`, `dur`, `key_of` and `label`, plus bots) and a browser class in
+`games-solo.js`, `games-live.js`, `games-more.js` or `games-classic.js` (in `SOLO`, `LIVE`, `MORE`
+or `CLASSIC`, extending `Game` from `base.js`,
 or `Arena` for the arena games). `Survival` in `arcade.py` gives last-one-standing games their
-ranking and end. Solo games get their content in `params` and
+ranking and end. Arena games on a light floor set `nameColor` and `meColor` so names stay
+readable. Solo games get their content in `params` and
 report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games are ranked by
 `team_key`, by default their best player's key; override it when the team total matters. Run
 `python3 tools/brawl-check.py` afterwards.
@@ -103,7 +129,8 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 | `app/brawl/board.py` | Haunted Hollow: the spaces (built from strings of kinds along a loop and two cross paths), forks, portals, and distance helpers. |
 | `app/brawl/game.py` | `Room`: joining by code, rejoining, the lobby, turns, items, spaces, the ghost, catch-up, minigame formats and prizes, duels, the end; `ROOMS`. |
 | `app/brawl/minigames.py` | The minigames' server halves, and their bots; `GAMES`, the full list. |
-| `app/brawl/arcade.py` | More minigames, after Mario Party favourites. |
+| `app/brawl/arcade.py` | More minigames, after Mario Party favourites; `Survival`, for last-one-standing games. |
+| `app/brawl/classics.py` | Minigames from the owner's friends' favourites thread. |
 | `app/brawl/content.py` | Trivia questions, draw-and-guess words, potion sums. |
 | `app/brawl/routes.py` | `GET /games/board-brawl` and the WebSocket at `/games/board-brawl/ws`. |
 | `app/static/games/brawl/index.html`, `game.css` | The page: menu, lobby, board screen, overlays. |
@@ -111,7 +138,7 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 | `js/board.js` | Draws the board, scenery, pieces, dice and effects on a canvas. |
 | `js/mg.js` | The minigame stage: sizing, countdown, timer, input routing. |
 | `js/base.js` | `Game`, the base class for minigames' browser halves, with drawing helpers. |
-| `js/games-solo.js`, `js/games-live.js`, `js/games-more.js` | The minigames' browser halves. |
+| `js/games-solo.js`, `js/games-live.js`, `js/games-more.js`, `js/games-classic.js` | The minigames' browser halves. |
 | `js/view3d.js` | The three.js view the 3D minigames draw into. |
 | `js/art.js` | Ghosts, pumpkins, bats, spiders, skulls, crowns, candy, tokens, graves, trees, webs: canvas paths. |
 | `js/audio.js` | Synthesized sound effects. |

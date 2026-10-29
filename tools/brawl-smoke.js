@@ -74,7 +74,7 @@ async function act(page, s) {
     }
     const keys = ['Space', 'Space', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'ArrowDown', 'Digit1', 'Digit2', 'Digit3', 'KeyQ', 'KeyS', 'KeyC', 'Enter', 'Digit7', 'KeyA', 'KeyD', 'KeyF', 'KeyJ', 'KeyK'];
     for (let i = 0; i < 4; i++) await page.keyboard.press(pick(keys));
-    if (['bumper', 'candy', 'tag', 'drop', 'hexheat', 'squirm', 'shoot', 'bowl', 'pong'].includes(k)) {
+    if (['bumper', 'candy', 'tag', 'drop', 'hexheat', 'squirm', 'shoot', 'bowl', 'pong', 'cheese', 'snowball', 'hockey'].includes(k)) {
       const key = pick(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
       await page.keyboard.down(key);
       await page.waitForTimeout(150);

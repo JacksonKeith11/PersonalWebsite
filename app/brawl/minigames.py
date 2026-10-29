@@ -1093,10 +1093,11 @@ class PumpkinDrop(OneVsMany):
         return "Survived" if d.alive else f"Squashed at {d.out_t:.1f}s"
 
 
-from . import arcade  # noqa: E402  (its games build on the classes above)
+from . import arcade, classics  # noqa: E402  (their games build on the classes above)
 
 GAMES = {g.key: g for g in (Pump, QuickDraw, Needle, Memory, Count, BatWhack, PotionMath, OddOne,
-                            Trivia, Sketch, Tug, Bumper, CandyGrab, GhostTag, PumpkinDrop, *arcade.GAMES)}
+                            Trivia, Sketch, Tug, Bumper, CandyGrab, GhostTag, PumpkinDrop, *arcade.GAMES,
+                            *classics.GAMES)}
 
 
 def suits(key, mode, n_players, n_humans):

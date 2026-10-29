@@ -15,7 +15,8 @@ replays the bigger mix from the start, as does the end-of-round reveal. The clip
 by default (the Loop button turns it off, remembered as `loop` in the saved stats); `mix()` fades
 to silence exactly at `CLIP` so the loop point doesn't click. Without looping, the clip running out
 rewinds to 0. A wrong guess by the right band says so (green "right band" tag; featured artists are ignored,
-so Rihanna matches "Rihanna ft. Jay-Z"). Every instrument is listed from the start, dimmed until it plays. A volume slider (remembered as
+so Rihanna matches "Rihanna ft. Jay-Z"). Every instrument is listed from the start, dimmed until it plays. The end-of-round card links to a YouTube search for the song
+(artist without featured guests, plus title): a search rather than a fixed video, so it never goes dead. A volume slider (remembered as
 `volume`, 0–100) feeds a gain node all clips play through. Stats and the last 15 songs (not repeated) are kept in `localStorage` under
 `song-guesser`.
 

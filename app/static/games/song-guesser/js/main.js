@@ -1,6 +1,6 @@
 // Song Guesser: picks a song, plays its clip one instrument at a time, and takes guesses.
-import { SONGS, EXTRA } from './songs.js?v=12';
-import { arrange, renderPart, mix, CLIP } from './synth.js?v=12';
+import { SONGS, EXTRA } from './songs.js?v=13';
+import { arrange, renderPart, mix, CLIP } from './synth.js?v=13';
 
 const STORE = 'song-guesser';
 const WEIGHT = { indie: 4, alt: 2, pop: 2, other: 1 };
@@ -247,7 +247,17 @@ function finish(won) {
   next.className = 'sg-btn';
   next.textContent = 'Next song';
   next.addEventListener('click', newRound);
-  res.append(h, p, next);
+  // a search rather than a fixed video: it always finds the song, and never goes dead
+  const yt = document.createElement('a');
+  yt.className = 'sg-btn sg-quiet';
+  yt.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${s.artist.split(/\s+(?:ft|feat)\.\s+/i)[0]} ${s.title}`)}`;
+  yt.target = '_blank';
+  yt.rel = 'noopener';
+  yt.textContent = 'Listen on YouTube';
+  const actions = document.createElement('div');
+  actions.className = 'sg-result-actions';
+  actions.append(next, yt);
+  res.append(h, p, actions);
   res.hidden = false;
   $('sg-form').hidden = true;
   closeList();

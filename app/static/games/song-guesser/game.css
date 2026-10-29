@@ -148,6 +148,8 @@
 .sg-result.lost { border-left-color: #a4452c; }
 .sg-result h2 { margin: 0 0 4px; padding: 0; border: 0; text-transform: none; letter-spacing: 0; font-size: 1.4rem; color: var(--fg); }
 .sg-result p { margin: 4px 0 12px; }
+.sg-result-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+a.sg-btn { display: inline-block; text-decoration: none; }
 .sg-stats { color: var(--muted); font-size: 0.95rem; }
 
 @media (max-width: 640px) {

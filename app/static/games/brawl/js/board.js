@@ -2,7 +2,7 @@
 // ghost, traps, webs, coin piles and everyone's pieces. Pieces glide from space to space; the
 // dice and floating "+3"s are drawn over the top.
 
-import * as art from './art.js?v=1';
+import * as art from './art.js?v=2';
 
 const KIND_COLORS = {
   blue: ['#3f7fe0', '#1d4a99'],
@@ -213,6 +213,8 @@ export class Board {
     c.fillStyle = 'rgba(255, 230, 190, 0.55)';
     c.textAlign = 'center';
     c.fillText(this.b.name.toUpperCase(), 500, 625);
+    // the spaces don't change, so they're drawn once here too (only the portals swirl)
+    for (const s of this.b.spaces) this.drawSpace(c, s);
     return cv;
   }
 
@@ -238,7 +240,7 @@ export class Board {
       c.fillRect(-50, -50, this.b.w + 100, this.b.h + 100);
     }
     this.drawFog(c);
-    for (const s of this.b.spaces) this.drawSpace(c, s);
+    for (const s of this.b.spaces) if (s.kind === 'portal') this.drawSpace(c, s);
     // highlight the ways to go at a fork
     if (st.step === 'path' && st.choices) {
       const mine = st.cur === this.you;

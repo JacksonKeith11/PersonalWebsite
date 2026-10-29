@@ -27,7 +27,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/arena/` and `app/static/games/arena/`: Frag Arena, a multiplayer Quake-style shooter (three.js client,
   FastAPI WebSocket server with bots) at `/games/frag-arena`
 - `app/brawl/` and `app/static/games/brawl/`: Board Brawl, a Mario Party-style board game for 2-4 friends (rooms by
-  code, a FastAPI WebSocket server with bots, fifteen canvas minigames) at `/games/board-brawl`
+  code, a FastAPI WebSocket server with bots, twenty-six minigames, two of them 3D) at `/games/board-brawl`
 - `app/static/games/song-guesser/`: Song Guesser, a name-that-tune game with synthesized arrangements at
   `/games/song-guesser`
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its

@@ -3,12 +3,13 @@
 // screen's shape. It runs the 3-2-1 countdown, the timer
 // and the FINISH banner, and hands games the keyboard, pointer and server snapshots.
 
-import * as sfx from './audio.js?v=1';
-import { SOLO } from './games-solo.js?v=1';
-import { LIVE } from './games-live.js?v=1';
-import { Game, TEAM_COLORS } from './base.js?v=1';
+import * as sfx from './audio.js?v=2';
+import { SOLO } from './games-solo.js?v=2';
+import { LIVE } from './games-live.js?v=2';
+import { MORE } from './games-more.js?v=2';
+import { Game, TEAM_COLORS } from './base.js?v=2';
 
-const GAMES = { ...SOLO, ...LIVE };
+const GAMES = { ...SOLO, ...LIVE, ...MORE };
 const now = () => performance.now() / 1000;
 
 export class Stage {
@@ -130,14 +131,20 @@ export class Stage {
     this.last = t0;
     const c = this.c;
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.fillStyle = '#0d0816';
-    c.fillRect(0, 0, this.cv.width, this.cv.height);
-    c.setTransform(this.scale, 0, 0, this.scale, this.ox, this.oy);
-    const g = c.createLinearGradient(0, 0, 0, this.H);
-    g.addColorStop(0, '#1f1236');
-    g.addColorStop(1, '#120c1e');
-    c.fillStyle = g;
-    c.fillRect(0, 0, this.W, this.H);
+    if (this.game.transparent) {
+      // a 3D game: its own canvas shows through from underneath
+      c.clearRect(0, 0, this.cv.width, this.cv.height);
+      c.setTransform(this.scale, 0, 0, this.scale, this.ox, this.oy);
+    } else {
+      c.fillStyle = '#0d0816';
+      c.fillRect(0, 0, this.cv.width, this.cv.height);
+      c.setTransform(this.scale, 0, 0, this.scale, this.ox, this.oy);
+      const g = c.createLinearGradient(0, 0, 0, this.H);
+      g.addColorStop(0, '#1f1236');
+      g.addColorStop(1, '#120c1e');
+      c.fillStyle = g;
+      c.fillRect(0, 0, this.W, this.H);
+    }
     const t = this.t;
     c.save();
     try {

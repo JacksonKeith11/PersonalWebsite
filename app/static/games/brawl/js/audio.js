@@ -86,6 +86,13 @@ const SOUNDS = {
   tick: () => tone(1200, 0.03, { type: 'square', vol: 0.06 }),
   splash: () => noise(0.5, { f0: 800, f1: 100, vol: 0.4 }),
   fall: () => tone(600, 0.6, { type: 'sine', f1: 80, vol: 0.2 }),
+  kick: () => tone(120, 0.18, { type: 'sine', f1: 45, vol: 0.35 }),
+  snare: () => noise(0.12, { f0: 2500, f1: 1200, vol: 0.25, type: 'bandpass' }),
+  hat: () => noise(0.04, { f0: 7000, vol: 0.12, type: 'highpass' }),
+  note0: () => tone(220, 0.22, { type: 'triangle', vol: 0.18 }),
+  note1: () => tone(261.6, 0.22, { type: 'triangle', vol: 0.18 }),
+  note2: () => tone(329.6, 0.22, { type: 'triangle', vol: 0.18 }),
+  note3: () => tone(392, 0.22, { type: 'triangle', vol: 0.18 }),
   witching: () => { tone(110, 2, { type: 'sawtooth', f1: 55, vol: 0.15, attack: 0.2 }); [0, 0.6, 1.2].forEach(at => tone(196, 0.5, { type: 'sine', vol: 0.15, at })); },
 };
 

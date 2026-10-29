@@ -61,14 +61,37 @@ The design came from a list of questions the owner answered. Keep to them:
 | `tag` | Ghost Tag | action | 1vn | server, 20 Hz |
 | `drop` | Pumpkin Drop | action | 1vn | server, 20 Hz |
 
+The owner asked for more, based on Mario Party fan favourites, and allowed 3D. These are in
+`arcade.py` and `games-more.js`; each class's docstring names the game it's based on:
+
+| Key | Name | Based on | Kind | Formats | Runs |
+|---|---|---|---|---|---|
+| `hexheat` | Hex Heat | Hexagon Heat | action, **3D** | ffa, duel, team | server, 20 Hz |
+| `squirm` | Spellbook Squirm | Booksquirm | action, **3D** | ffa, duel, team | server, 20 Hz |
+| `says` | Skeleton Says | Shy Guy Says | listening | ffa, duel, team | server |
+| `lift` | Pumpkin Lift | Face Lift | precision | ffa, duel, team | browser |
+| `hide` | Hide and Go Boo! | Hide and Go BOOM! | bluffing | 1vn | server |
+| `bowl` | Skull Bowling | Bowl Over | action | 1vn | server, 20 Hz |
+| `graves` | Grave Robbers | Air to a Fortune / Grab Bag | mind games | ffa, duel, team | server |
+| `potato` | Hot Pumpkin | Lit Potato | hot potato | ffa, duel | server, 20 Hz |
+| `shoot` | Slime Shooters | Shell Shocked | shooter | ffa, duel, team | server, 20 Hz |
+| `pong` | Skull Pong | Paddle Battle | four-way pong | ffa, duel | server, 20 Hz |
+| `band` | Monster Mash | Mario Bandstand | rhythm | ffa, duel, team | browser |
+
+Balance notes: Hide and Go Boo! has 6 coffins and 3 opens against 3 hiders (4 against 2), and the
+seeker wins by finding more than half, which a random seeker does about half the time; Slime
+Shooters' bots fire rarely and miss often, or a match is over in seconds.
+
 The format is picked each round (`Room.start_minigame`): with 2 players always free-for-all; with
 3, free-for-all or 1 v 2; with 4, free-for-all, 2 v 2 or 1 v 3. Games come from a shuffled bag per
 format so they don't repeat until the bag's empty. Prizes: free-for-all 10/6/3/1; 2 v 2 8 each to
 the winners (3 each on a draw); 1 v the rest 15 to the one, or 6 each to the rest.
 
-**Adding a minigame** takes a server class in `minigames.py` (in `GAMES`, with `modes`, `dur`,
-`key_of` and `label`, plus bots) and a browser class in `games-solo.js` or `games-live.js` (in
-`SOLO` or `LIVE`, extending `Game` from `base.js`). Solo games get their content in `params` and
+**Adding a minigame** takes a server class in `minigames.py` or `arcade.py` (in `GAMES`, with
+`modes`, `dur`, `key_of` and `label`, plus bots) and a browser class in `games-solo.js`,
+`games-live.js` or `games-more.js` (in `SOLO`, `LIVE` or `MORE`, extending `Game` from `base.js`,
+or `Arena` for the arena games). `Survival` in `arcade.py` gives last-one-standing games their
+ranking and end. Solo games get their content in `params` and
 report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games are ranked by
 `team_key`, by default their best player's key; override it when the team total matters. Run
 `python3 tools/brawl-check.py` afterwards.
@@ -79,7 +102,8 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 |---|---|
 | `app/brawl/board.py` | Haunted Hollow: the spaces (built from strings of kinds along a loop and two cross paths), forks, portals, and distance helpers. |
 | `app/brawl/game.py` | `Room`: joining by code, rejoining, the lobby, turns, items, spaces, the ghost, catch-up, minigame formats and prizes, duels, the end; `ROOMS`. |
-| `app/brawl/minigames.py` | The minigames' server halves, and their bots. |
+| `app/brawl/minigames.py` | The minigames' server halves, and their bots; `GAMES`, the full list. |
+| `app/brawl/arcade.py` | More minigames, after Mario Party favourites. |
 | `app/brawl/content.py` | Trivia questions, draw-and-guess words, potion sums. |
 | `app/brawl/routes.py` | `GET /games/board-brawl` and the WebSocket at `/games/board-brawl/ws`. |
 | `app/static/games/brawl/index.html`, `game.css` | The page: menu, lobby, board screen, overlays. |
@@ -87,7 +111,8 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 | `js/board.js` | Draws the board, scenery, pieces, dice and effects on a canvas. |
 | `js/mg.js` | The minigame stage: sizing, countdown, timer, input routing. |
 | `js/base.js` | `Game`, the base class for minigames' browser halves, with drawing helpers. |
-| `js/games-solo.js`, `js/games-live.js` | The minigames' browser halves. |
+| `js/games-solo.js`, `js/games-live.js`, `js/games-more.js` | The minigames' browser halves. |
+| `js/view3d.js` | The three.js view the 3D minigames draw into. |
 | `js/art.js` | Ghosts, pumpkins, bats, spiders, skulls, crowns, candy, tokens, graves, trees, webs: canvas paths. |
 | `js/audio.js` | Synthesized sound effects. |
 
@@ -115,8 +140,15 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
   together: `grep -rn "?v=" app/static/games/brawl`.
 - `base.js` exists so the game modules and `mg.js` don't import each other (a circular import
   would hit `Game` before it's defined).
-- The minigame canvas is 800 logical units wide and 450-1400 tall to match the screen's shape, so
-  games must lay out from `this.W` and `this.H`, and work in portrait on a phone.
+- The minigame canvas is 420-800 logical units wide (the screen's width in CSS pixels, within
+  those bounds) and as tall as suits the screen, so games must lay out from `this.W` and `this.H`
+  (`area()` and `side()` in `base.js` help) and work in portrait on a phone.
+- **3D minigames** set `transparent` so the stage clears its 2D canvas instead of painting it, and
+  draw into a WebGL canvas underneath (`View3D`). three.js 0.170.0 comes from cdnjs through the
+  page's import map, and is only fetched when a 3D game starts. `View3D.toStage` turns a world
+  point into stage units, for names and labels. Dispose of the view in `end()`.
+- The smoke test runs Chromium without `--use-angle=swiftshader`: that flag routes 2D canvases
+  through software GL too, which makes the board crawl and screenshots time out.
 - Two tabs of one browser are two players (for testing), but a reload is the same player.
 - `python3 tools/brawl-check.py` plays every minigame in every format with bots, then whole games,
   on a fake clock. `node tools/brawl-smoke.js [url] [rounds] [shots dir]` plays a real game in two

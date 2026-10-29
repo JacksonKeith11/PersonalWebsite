@@ -151,7 +151,8 @@ aside { width: 300px; display: flex; flex-direction: column; gap: 10px; min-heig
   padding: 16px; background: rgba(8, 4, 16, 0.72); overflow-y: auto;
 }
 .overlay.dark { background: #0d0816; padding: 0; }
-#mg { display: block; width: 100%; height: 100%; touch-action: none; }
+#mg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+#mg-stage canvas.three { position: absolute; inset: 0; display: block; }
 #mg-text {
   position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(520px, 90vw);
   padding: 12px 14px; font: 600 1.1rem "Source Sans 3", system-ui, sans-serif; border-radius: 8px;

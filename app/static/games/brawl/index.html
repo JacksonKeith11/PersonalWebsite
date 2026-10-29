@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Board Brawl · Jackson Keith</title>
+  <meta name="description" content="A party board game for friends: roll, race for crowns, sabotage each other, and play a minigame every round.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/games/brawl/game.css?v=1">
+</head>
+<body>
+  <!-- Start: make or join a room -->
+  <div id="menu" class="screen">
+    <div class="panel">
+      <a class="back" href="/games">&larr; Games</a>
+      <h1>Board Brawl</h1>
+      <p class="intro">
+        A spooky party board game for you and your friends. Roll around Haunted Hollow, buy crowns, set traps
+        and rob each other blind. After every round, everyone plays a minigame for coins. Most crowns wins.
+      </p>
+      <label class="field">Your name
+        <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false">
+      </label>
+      <div class="choices">
+        <section>
+          <h2>Start a game</h2>
+          <p>Make a room and send your friends its code or link.</p>
+          <button id="create" class="primary" type="button">Make a room</button>
+        </section>
+        <section>
+          <h2>Join friends</h2>
+          <p>Type the code from whoever made the room.</p>
+          <div class="join">
+            <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Room code">
+            <button id="join" type="button">Join</button>
+          </div>
+        </section>
+      </div>
+      <p id="status" role="status"></p>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li>Two to four players, each on their own phone or computer. Bots can fill empty seats.</li>
+          <li>Each round, everyone takes a turn: use one item if you like, then roll a 1–10 die and walk.</li>
+          <li>Blue spaces give 3 coins, red ones take 3. <b>?</b> spaces do something random, chests give an item, shops sell them, crossed bones start a duel, and portals whisk you across the board.</li>
+          <li>When you pass the <b>crown</b>, buy it for 20 coins. Then it moves somewhere else.</li>
+          <li>Be mean: traps, webs, curses, hexes, pickpockets, zombie hands and pumpkin bombs. A magic mirror bounces the next one back.</li>
+          <li>After every round there's a minigame: free-for-all, 2 v 2, or one against everyone.</li>
+          <li>It helps whoever's behind: the ghost hunts the leader, shops are half price for the back half, and the last three rounds are the Witching Hour.</li>
+          <li>At the end, bonus crowns go to whoever won the most minigames, held the most coins, and took the most from rivals. Most crowns wins; coins break ties.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- The room before the game starts -->
+  <div id="lobby" class="screen" hidden>
+    <div class="panel">
+      <a class="back" href="/games/board-brawl" id="leave-lobby">&larr; Leave room</a>
+      <h1>Room <span id="room-code" class="code"></span></h1>
+      <p class="share">Send friends this link: <input id="share" readonly> <button id="copy" type="button">Copy</button></p>
+      <div class="cols">
+        <section>
+          <h2>Players <small id="count"></small></h2>
+          <ul id="seats"></ul>
+          <div class="host-only bots">
+            <button id="bot-add" type="button">Add a bot</button>
+            <button id="bot-remove" type="button">Remove a bot</button>
+          </div>
+        </section>
+        <section>
+          <h2>Game</h2>
+          <label class="field-row">Rounds
+            <select id="rounds" class="host-input">
+              <option value="3">3 (a taster)</option>
+              <option value="5">5 (quick)</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20">20 (long)</option>
+            </select>
+          </label>
+          <label class="field-row check"><input id="bonus" type="checkbox" class="host-input"> Bonus crowns at the end</label>
+          <button id="start" class="primary host-only" type="button">Start the game</button>
+          <p id="lobby-note" class="note"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- The game -->
+  <div id="game" class="screen" hidden>
+    <header class="top">
+      <a class="back" href="/games">&larr; Games</a>
+      <b>Board Brawl</b>
+      <span id="round"></span>
+      <span class="spacer"></span>
+      <span>Room <b id="game-code" class="code"></b></span>
+      <button id="mute" type="button" class="icon" aria-label="Sound on or off">🔊</button>
+    </header>
+    <div class="main">
+      <div class="stage">
+        <div id="board-wrap"><canvas id="board"></canvas></div>
+        <div id="action" aria-live="polite"></div>
+      </div>
+      <aside>
+        <ol id="cards"></ol>
+        <ul id="log"></ul>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Minigame overlays -->
+  <div id="mg-intro" class="overlay" hidden>
+    <div class="card">
+      <p class="kicker" id="mg-mode">Minigame</p>
+      <h2 id="mg-name"></h2>
+      <p id="mg-teams"></p>
+      <p id="mg-rules"></p>
+      <p class="controls"><b>Controls:</b> <span id="mg-controls"></span></p>
+      <ul id="mg-ready"></ul>
+      <button id="ready" class="primary" type="button">Ready!</button>
+      <p class="wait" id="mg-wait"></p>
+    </div>
+  </div>
+
+  <div id="mg-stage" class="overlay dark" hidden>
+    <canvas id="mg"></canvas>
+    <input id="mg-text" maxlength="40" autocomplete="off" spellcheck="false" hidden>
+  </div>
+
+  <div id="results" class="overlay" hidden>
+    <div class="card">
+      <p class="kicker">Results</p>
+      <h2 id="res-name"></h2>
+      <table><tbody id="res-rows"></tbody></table>
+    </div>
+  </div>
+
+  <div id="final" class="overlay" hidden>
+    <div class="card wide">
+      <p class="kicker">Game over</p>
+      <h2 id="fin-title"></h2>
+      <div id="fin-bonus"></div>
+      <table><tbody id="fin-rows"></tbody></table>
+      <div class="buttons">
+        <button id="again" class="primary host-only" type="button">Back to the room</button>
+        <a class="button" href="/games/board-brawl">Leave</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/games/brawl/js/main.js?v=1"></script>
+</body>
+</html>

@@ -26,11 +26,13 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   roguelike at `/games/roguelike-tactics`
 - `app/arena/` and `app/static/games/arena/`: Frag Arena, a multiplayer Quake-style shooter (three.js client,
   FastAPI WebSocket server with bots) at `/games/frag-arena`
+- `app/brawl/` and `app/static/games/brawl/`: Board Brawl, a Mario Party-style board game for 2-4 friends (rooms by
+  code, a FastAPI WebSocket server with bots, fifteen canvas minigames) at `/games/board-brawl`
 - `app/static/games/song-guesser/`: Song Guesser, a name-that-tune game with synthesized arrangements at
   `/games/song-guesser`
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
-  turns MIDI transcriptions into Song Guesser choruses, and `arena-*`, Frag Arena's checks)
+  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, and `brawl-*`, Board Brawl's)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
 ## Area docs
@@ -46,6 +48,7 @@ up front. Read the matching one before you change something in that area:
 | `app/static/games/threefold/`, `tools/threefold-autoplay.js`, `tools/threefold-art/` | `docs/game.md` |
 | `app/static/games/song-guesser/`, `tools/song-guesser-check.js`, `tools/song-guesser-midi/` | `docs/song-guesser.md` |
 | `app/arena/`, `app/static/games/arena/`, `tools/arena-*` | `docs/arena.md` |
+| `app/brawl/`, `app/static/games/brawl/`, `tools/brawl-*` | `docs/brawl.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

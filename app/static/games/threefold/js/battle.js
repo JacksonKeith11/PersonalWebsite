@@ -1,10 +1,10 @@
 // Battles: the Phaser scene that draws the board, and the rules, turn loop and AI that drive it.
-import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=56';
-import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=56';
-import { spriteURL } from './art.js?v=56';
-import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=56';
-import { sfx } from './audio.js?v=56';
-import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=56';
+import { GW, GH, T, TERRAIN, TERRAIN_HELP, THEMES, FOES, CLASSES, SKILLS, MODS, ROWS_PER_ACT } from './data.js?v=57';
+import { rnd, pick, chance, shuffle, has, isClass, thornsOf, startShield, skStats, describe, statVal, heroStats, heroSprite, heroTitle } from './rules.js?v=57';
+import { spriteURL } from './art.js?v=57';
+import { TP, drawBoard, drawIsoBoard, ISO, isoHeight, isoProp, isoWall } from './tiles.js?v=57';
+import { sfx } from './audio.js?v=57';
+import { h, bar, sprImg, tip, tipNote, skillText } from './ui.js?v=57';
 
 const S = 2, TS = TP * S; // art is 32px per tile, shown at 2× on a 640×512 board
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -52,7 +52,7 @@ function heroUnit(p) {
   const st = heroStats(p, env.run.gold);
   const u = { id: ++B.uid, side: 'hero', ref: p, spr: heroSprite(p), name: heroTitle(p), promo: p.promo, line: p.line || [], ...st, hp: Math.min(p.hp, st.maxHp),
     flank: CLASSES[p.cls].flank || 1.25, items: p.items, team: p.team || [], skills: p.skills.map(s => ({ id: s.id, mods: s.mods, cd: 0, tempered: s.tempered })), st: {}, shield: 0,
-    ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee', face: [1, 0] };
+    ct: rnd(0, 30), turns: 0, ai: p.cls === 'mage' ? 'ranged' : 'melee' };
   u.fireproof = isClass(u, 'pyromancer') || has(u, 'lavawalkers') || has(u, 'magmaheart');
   u.anchored = isClass(u, 'juggernaut');
   u.slip = isClass(u, 'trickster');
@@ -80,7 +80,7 @@ function foeUnit(kind, lvl) {
     def: d.def + dp, res: d.res + dp, spd: foeSpd(d.spd, lvl), mov: d.mov, crit: 5, eva: d.eva || 0, acc: 0, flank: 1.25, items: [], line: [], ai: d.ai || 'melee', st: {}, shield: 0, turns: 0,
     fly: !!d.fly, phase: !!d.phase, fireproof: !!d.fireproof, trail: !!d.trail, boss: !!d.boss, anchored: !!d.boss, lure: !!d.lure, regen: d.regen || 0, scale: d.scale || 1, info: d.info,
     swim: !!d.swim, rampart: !!d.rampart, split: d.split, burst: !!d.burst, heads: d.heads, chill: !!d.chill, plating: d.plating || 0, overdrive: !!d.overdrive, loot: 0,
-    skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30), face: [-1, 0] };
+    skills: d.skills.map(id => ({ id, mods: [], cd: id === 'e_raise' ? 1 : 0 })), ct: rnd(0, 30) };
   if (d.items) u.items = [...d.items];
   if (d.stealth) u.st.stealth = 1;
   if (d.boss && B.asc >= 8) u.ct += 40;
@@ -461,28 +461,18 @@ const missingFrac = u => Math.max(0, 1 - u.hp / u.maxHp);
 const thornsNow = u => thornsOf(u) * (isClass(u, 'briarknight') && (u.shield > 0 || u.st.guard) ? 2 : 1) * (has(u, 'briarboots') && u.shield > 0 ? 1.5 : 1);
 const hitsOf = o => o.times || (o.double ? 2 : 1);
 function flanked(a, t) { return B.units.some(o => !o.dead && o !== a && o.side === a.side && dist(o, t) === 1); }
-// Facing: every unit faces one of the four directions (u.face, [dx, dy]). Where a blow comes from,
-// relative to the target's facing: 'front', 'side' or 'back' (diagonals count as the side).
-function hitSide(a, t) {
-  if (!t.face || a === t) return 'front';
-  const ax = a.x - t.x, ay = a.y - t.y, fwd = ax * t.face[0] + ay * t.face[1], across = Math.abs(ax * t.face[1] - ay * t.face[0]);
-  if (!ax && !ay) return 'front';
-  return fwd > across ? 'front' : -fwd > across ? 'back' : 'side';
-}
-const FACING_MULT = { front: 1, side: 1.1, back: 1.3 };
 // EVA: the unit's stat (class, promotions, artifacts), plus Blurring Boots for the tiles it moved on
 // its last turn (u.walked holds them until its next turn starts).
 const evaOf = t => (t.eva || 0) + (has(t, 'blurboots') ? Math.min(25, 5 * (t.walked || 0)) : 0);
 // The chance (5-100) that a's damaging skill o lands on t. Accuracy (the attacker's, the skill's, and
 // 5 per level of height above the target) minus the target's EVA, which grows with how much faster it
-// is (half the SPD gap, up to 15). Blows from the side face half the EVA and from behind none; magic
-// faces half. A helpless target (stunned, asleep, frozen) can't dodge; allies never miss each other.
+// is (half the SPD gap, up to 15). Magic faces half the EVA. A helpless target (stunned, asleep,
+// frozen) can't dodge; allies never miss each other.
 function hitChance(a, t, o) {
   if (!t || t === a || t.side === a.side || o.sure || has(a, 'concentrate') || has(a, 'eyestorm')) return 100;
   if (t.st.stun || t.st.sleep > 0 || t.st.frozen > 0) return 100;
-  const from = hitSide(a, t);
   let eva = evaOf(t) + Math.max(0, Math.min(15, (spdOf(t) - spdOf(a)) / 2)) + (has(t, 'bladegrasp') && o.kind === 'phys' ? 25 : 0);
-  eva *= (from === 'back' ? 0 : from === 'side' ? 0.5 : 1) * (o.kind === 'mag' ? 0.5 : 1);
+  if (o.kind === 'mag') eva *= 0.5;
   const acc = 100 + (a.acc || 0) + (o.acc || 0) + 5 * Math.max(0, elev(a) - elev(t)) - (a.st.blind > 0 ? 50 : 0) - (has(t, 'arrowbane') && dist(a, t) > 1 ? 20 : 0);
   return Math.max(5, Math.min(100, Math.round(acc - eva)));
 }
@@ -497,38 +487,9 @@ function onDodge(t, a) {
   }
   refreshView(t);
 }
-// Sprites are drawn facing right; on the isometric board +y runs down-left and -x up-left.
-const faceFlip = f => (env.iso ? f[0] - f[1] < 0 : f[0] < 0);
-// Turn toward a tile (the longer axis wins; a tie keeps left or right).
-function turnTo(u, x, y) {
-  const dx = x - u.x, dy = y - u.y;
-  if (!dx && !dy) return;
-  setFace(u, Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
-}
-function setFace(u, f, manual = false) {
-  u.face = f; u.faced = manual;
-  if (u.view && (f[0] || env.iso)) u.view.sp.flipX = faceFlip(f);
-  refreshView(u);
-}
-// At the end of a turn a unit turns to show its back to as little danger as it can: each foe
-// counts by how near it is, more if it would be behind than beside.
-function autoFace(u) {
-  const foes = alive().filter(f => homeSide(f) !== homeSide(u) && f.side !== u.side);
-  if (!foes.length) return;
-  const keep = u.face, cost = f => {
-    u.face = f;
-    return foes.reduce((t, x) => { const sd = hitSide(x, u); return t + (sd === 'back' ? 2.5 : sd === 'side' ? 1 : 0) / Math.max(1, dist(x, u) - 1); }, 0);
-  };
-  let best = keep, bc = cost(keep) - 0.01;
-  for (const f of DIRS) { const c = cost(f); if (c < bc) { bc = c; best = f; } }
-  u.face = keep;
-  if (best !== keep) setFace(u, best);
-}
 function dmgMult(a, t, o) {
   let m = 1;
-  const from = t.side !== a.side ? hitSide(a, t) : 'front';
-  if (t.side !== a.side && (flanked(a, t) || (o.backstab && from === 'back'))) m *= o.backstab ? 2 : a.flank;
-  if (!o.backstab) m *= FACING_MULT[from];
+  if (t.side !== a.side && flanked(a, t)) m *= o.backstab ? 2 : a.flank;
   if (inCover(t) && !has(a, 'concentrate')) m *= 0.8;
   if (a !== t) m *= 1 + 0.1 * (elev(a) - elev(t));
   if (t.st.guard) m *= 0.6;
@@ -681,7 +642,7 @@ function damage(t, amount, src, opts = {}) {
     const n = thornsNow(t);
     if (n > 0) for (const f of alive().filter(x => x.side !== t.side && dist(x, t) === 1 && !(th > 0 && x === src))) damage(f, n, t, { reflected: true, quiet: true });
   }
-  if (src && opts.melee && !opts.counter && !t.dead && !src.dead && src.side !== t.side && (t.st.riposte || isClass(t, 'blademaster') || has(t, 'countertackle')) && dist(t, src) === 1 && hitSide(src, t) !== 'back') {
+  if (src && opts.melee && !opts.counter && !t.dead && !src.dead && src.side !== t.side && (t.st.riposte || isClass(t, 'blademaster') || has(t, 'countertackle')) && dist(t, src) === 1) {
     fxText(t, 'Riposte', '#ffd23f');
     damage(src, Math.round(calcDmg(t, src, { kind: 'phys', stat: 'atk', pow: 0.6, range: [1, 1] })), t, { counter: true });
   }
@@ -1015,7 +976,6 @@ async function moveUnit(u, path, blink) {
     sfx('blink');
     await tw({ targets: u.view, alpha: 0, duration: 120 });
     const end = path[path.length - 1];
-    turnTo(u, end.x, end.y);
     u.x = end.x; u.y = end.y;
     placeView(u);
     await tw({ targets: u.view, alpha: viewAlpha(u), duration: 120 });
@@ -1023,7 +983,6 @@ async function moveUnit(u, path, blink) {
   } else {
     for (let i = 1; i < path.length && !u.dead; i++) {
       if (i % 2) sfx('step', 0.5);
-      turnTo(u, path[i].x, path[i].y);
       await stepTo(u, path[i].x, path[i].y);
     }
   }
@@ -1121,7 +1080,7 @@ async function hopAway(u, n) {
 }
 function spawn(kind, side, x, y, ally, owner = null) {
   const sk = foeUnit(kind, B.level);
-  Object.assign(sk, { x, y, side, summoned: true, ct: 0, owner, face: side === 'hero' ? [1, 0] : [-1, 0] });
+  Object.assign(sk, { x, y, side, summoned: true, ct: 0, owner });
   if (owner) sk.hp = sk.maxHp = Math.round(sk.maxHp * (has(owner, 'bonewhistle') ? 1.5 : 1));
   if (ally && kind === 'skeleton') { sk.spr = 'skeleton_ally'; sk.name = 'Risen Skeleton'; }
   else if (ally) sk.name = `Allied ${sk.name}`;
@@ -1217,7 +1176,6 @@ async function useSkill(u, s, tx, ty, echoed) {
     fxText(u, '-' + cost, '#ff6a6a');
     refreshView(u);
   }
-  if (o.tgt !== 'self') turnTo(u, tx, ty);
   if (o.delay && echoed !== 'delayed') {
     // charge now, land at the start of the caster's next turn
     u.pending = { s: { id: s.id, mods: s.mods, cd: 0 }, tx, ty };
@@ -1254,7 +1212,6 @@ async function useSkill(u, s, tx, ty, echoed) {
     await enterTile(u);
     if (u.dead) { await sleep(300); checkEnd(); return; }
   }
-  if (o.tgt !== 'self') turnTo(u, tx, ty);
   const list = hitList(u, o, tx, ty, false);
   const tiles = areaTiles(u, o, tx, ty);
   const ranged = o.tgt !== 'self' && Math.abs(u.x - tx) + Math.abs(u.y - ty) > 1;
@@ -1483,7 +1440,7 @@ async function battleLoop(b) {
   while (B === b && !b.over) {
     const u = nextActor();
     b.active = u; b.inspect = null; b.startPos = null;
-    u.moved = false; u.acted = false; u.extraMove = false; u.walked = 0; u.faced = false;
+    u.moved = false; u.acted = false; u.extraMove = false; u.walked = 0;
     if (isHero(u)) refreshIntents();
     renderPanel();
     const skip = await startTurn(u);
@@ -1500,8 +1457,6 @@ async function battleLoop(b) {
     }
     if (B !== b || b.over) return;
     u.intent = null;
-    // a unit that acted turns its back on as little as it can, unless the player chose a facing
-    if (!skip && !u.dead && !u.faced) autoFace(u);
     endTurn(u);
     // the turn is over: forecast with nobody active, so the unit that just acted (often the foe
     // that just attacked) is forecast for its next turn too
@@ -1978,10 +1933,8 @@ function statusText(u) {
   if (st.riposte) out.push(tip('Riposte ready', 'riposte'));
   if (inCover(u)) out.push(tip('In cover', 'cover'));
   if (elev(u)) out.push(tip(`Height ${elev(u)}`, 'hill'));
-  if (u.face && !u.dead) out.push(tip(`Facing ${FACE_NAMES[u.face.join()]}`, 'facing'));
   return out.flatMap((x, i) => i ? [' · ', x] : [x]);
 }
-const FACE_NAMES = { '1,0': 'right', '-1,0': 'left', '0,1': 'down', '0,-1': 'up' };
 function unitCard(u, withSkills) {
   const extra = [u.fly ? 'Flying' : null, u.swim && !u.fly ? 'Swims' : null, u.phase ? 'Passes walls' : null, u.fireproof ? 'Fireproof' : null, u.loot ? `Carrying ${u.loot} stolen gold` : null, u.info].filter(Boolean).join(' · ');
   return h('div', { class: 'card' },
@@ -2079,9 +2032,6 @@ function renderPanel() {
       }),
       B.mode === 'skill' && B.pending ? h('button', { class: 'btn go', 'data-key': 'enter', onclick: () => doSkill(u, u.skills[B.sel], B.pending.x, B.pending.y) }, confirmLabel(u), kbd('↵')) : null,
       h('button', { class: 'btn', 'data-key': 'e', onclick: () => { sfx('click'); finishTurn(); } }, 'End turn', kbd('E')),
-      h('div', { class: 'facing' }, tip('Face', 'facing'), [['←', [-1, 0], 'arrowleft'], ['↑', [0, -1], 'arrowup'], ['↓', [0, 1], 'arrowdown'], ['→', [1, 0], 'arrowright']].map(([label, f, k]) =>
-        h('button', { class: 'btn face' + (u.faced && u.face.join() === f.join() ? ' sel' : ''), 'data-key': k, title: `Face ${FACE_NAMES[f.join()]} (arrow key)`, onclick: () => { sfx('click'); setFace(u, f, true); refreshIntents(); renderPanel(); } }, label)),
-        h('span', { class: 'dim' }, u.faced ? ' chosen' : ' auto at end of turn')),
       h('div', { class: 'hint' }, hintText()),
     ));
   } else kids.push(h('div', { class: 'actions waiting' }, h('div', { class: 'hint' }, u && !B.over ? `${u.name} is acting…` : '')));
@@ -2258,35 +2208,15 @@ function makeView(u) {
   const c = scene.add.container(0, 0);
   const shadow = scene.add.ellipse(TS / 2, TS - 6, 34 * Math.min(u.scale || 1, 1.4), 10, 0x0a0614, 0.32);
   const sp = scene.add.image(TS / 2, TS - 2, 's_' + u.spr).setOrigin(0.5, 1).setScale(S * (u.scale || 1));
-  sp.flipX = u.face ? faceFlip(u.face) : u.side === 'foe';
-  const g = scene.add.graphics(), gr = scene.add.graphics();
-  c.add([gr, shadow, sp, g]);
-  Object.assign(c, { sp, g, gr }); // gr: on the ground under the sprite (facing); g: over it (bars, pips)
+  sp.flipX = u.side === 'foe';
+  const g = scene.add.graphics();
+  c.add([shadow, sp, g]);
+  Object.assign(c, { sp, g }); // g: over the sprite (HP bar, status pips)
   u.view = c;
   if (u.fly) scene.tweens.add({ targets: sp, y: TS - 10, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   if (u.dead) c.setVisible(false);
   placeView(u);
   refreshView(u);
-}
-// Facing: a soft wedge on the ground from the unit's feet to the edge of its tile it faces, with a lit
-// edge and a notch pointing out, under the sprite (teal for heroes, red for foes).
-function drawFacing(u) {
-  const gr = u.view.gr;
-  gr.clear();
-  if (!u.face || u.dead) return;
-  const iso = env.iso, cx = TS / 2, cy = iso ? TS - 6 : TS / 2;
-  const corner = (i, j) => (iso ? { x: cx + (i - j) * ISO.HW, y: cy - ISO.HH + (i + j) * ISO.HH } : { x: i * TS, y: j * TS });
-  const [fx, fy] = u.face;
-  const [a0, b0] = fx > 0 ? [corner(1, 0), corner(1, 1)] : fx < 0 ? [corner(0, 0), corner(0, 1)] : fy > 0 ? [corner(0, 1), corner(1, 1)] : [corner(0, 0), corner(1, 0)];
-  const k = 0.82, a = { x: cx + (a0.x - cx) * k, y: cy + (a0.y - cy) * k }, b = { x: cx + (b0.x - cx) * k, y: cy + (b0.y - cy) * k };
-  const col = u.side === 'hero' ? 0x7fe0d4 : 0xff7a6a;
-  gr.fillStyle(col, 0.22).fillTriangle(cx, cy, a.x, a.y, b.x, b.y);
-  gr.lineStyle(5, 0x120b18, 0.7).lineBetween(a.x, a.y, b.x, b.y);
-  gr.lineStyle(3, col, 0.95).lineBetween(a.x, a.y, b.x, b.y);
-  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, ox = m.x - cx, oy = m.y - cy, n = Math.hypot(ox, oy) || 1;
-  const ux = ox / n, uy = oy / n, ex = (b.x - a.x) / Math.hypot(b.x - a.x, b.y - a.y), ey = (b.y - a.y) / Math.hypot(b.x - a.x, b.y - a.y);
-  gr.fillStyle(0x120b18, 0.8).fillTriangle(m.x + ux * 9, m.y + uy * 9, m.x + ex * 7 - ux, m.y + ey * 7 - uy, m.x - ex * 7 - ux, m.y - ey * 7 - uy);
-  gr.fillStyle(col, 1).fillTriangle(m.x + ux * 6.5, m.y + uy * 6.5, m.x + ex * 4.5, m.y + ey * 4.5, m.x - ex * 4.5, m.y - ey * 4.5);
 }
 function refreshView(u) {
   if (!u.view || !scene) return;
@@ -2299,7 +2229,6 @@ function refreshView(u) {
   g.fillStyle(0x120b18); g.fillRect(bx - 2, by - 2, bw + 4, 8);
   g.fillStyle(u.side === 'hero' ? 0x74d65e : 0xe5574f); g.fillRect(bx, by, Math.round(bw * u.hp / total), 4);
   if (u.shield > 0) { g.fillStyle(0x9fd8ff); g.fillRect(bx + Math.round(bw * u.hp / total), by, Math.round(bw * u.shield / total), 4); }
-  drawFacing(u);
   const pips = [];
   if (u.st.poison > 0) pips.push(0x8be04e);
   if (u.st.burn > 0) pips.push(0xff8a3d);
@@ -2368,7 +2297,6 @@ function applyView(sc) {
   sc.game.canvas.style.touchAction = env.iso ? 'none' : '';
   redrawBoard();
   for (const u of b.units) if (u.view) {
-    if (u.face) u.view.sp.flipX = faceFlip(u.face);
     placeView(u); refreshView(u);
   }
   sc.sig = null; // redraw the overlay

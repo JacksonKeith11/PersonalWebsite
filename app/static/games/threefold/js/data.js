@@ -66,7 +66,7 @@ export const STATUS_HELP = {
   movUp: '+1 MOV: moves one tile farther.',
   imbue: 'Imbued: its attacks add an element (burn, poison, shock or slow).',
   intent: 'Intent: what the foe plans to do on its next turn, from where things stand now: red tiles and the damage. It\'s replanned after every move and action, so a foe that loses its target will look for another.',
-  eva: 'EVA (evasion): points off the chance that attacks hit this unit. A faster unit dodges more (half the SPD gap, up to 15). Blows from the side face half its EVA, from behind none, and magic only half. Stunned, asleep or frozen units can\'t dodge.',
+  eva: 'EVA (evasion): points off the chance that attacks hit this unit. A faster unit dodges more (half the SPD gap, up to 15). Magic faces only half of it. Stunned, asleep or frozen units can\'t dodge.',
   hit: 'Hit chance: 100% plus the attacker\'s accuracy (and 5% per level of height above the target), minus the target\'s EVA. Never below 5%. Blinded attackers lose 50%.',
   pending: 'Charging: the skill lands on the marked tiles at the start of its next turn. Step out of them, kill the caster, or break the charge: stun it, put it to sleep, charm it or knock it back. Delaying the caster holds the spell back too.',
   doom: 'Doomed: when the count reaches 0 it loses 45% of max HP (15% for bosses).',
@@ -84,7 +84,6 @@ export const STATUS_HELP = {
   chill: 'Chilled: at 3 chill it freezes, losing its next turn (bosses just count as frozen).',
   frozen: 'Frozen: loses its next turn. Some artifacts hit frozen targets harder.',
   hill: 'Height: attacks hit 10% harder per level above the target (10% weaker per level below), and ranged skills reach 1 farther per level the attacker stands on.',
-  facing: 'Facing: hits from the side deal 10% more and hits from behind 30% more, and counters only answer blows from the front or side. Units turn toward where they move and what they attack.',
 };
 // Words in skill text that name a status, mapped to its STATUS_HELP key.
 export const STATUS_WORDS = {
@@ -419,7 +418,7 @@ export const SKILLS = {
   masterstroke: { name: 'Masterstroke', kind: 'buff', tgt: 'self', range: [0, 0], shape: 'math', rule: 'all', hits: 'allies', ctGive: 50, cd: 6, txt: 'Every ally on the board gets half a turn sooner.' },
   // assassin
   cull: { name: 'Destroy', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.6, cull: 0.25, cd: 3, txt: 'Anything left under 25% HP after the hit dies. Not bosses.' },
-  shiftstab: { name: 'Shift Stab', kind: 'phys', tgt: 'foe', range: [2, 3], leap: true, backstab: true, pow: 0.9, cd: 2, txt: 'Slip in beside the target. Double damage if it\'s flanked or struck from behind.' },
+  shiftstab: { name: 'Shift Stab', kind: 'phys', tgt: 'foe', range: [2, 3], leap: true, backstab: true, pow: 0.9, cd: 2, txt: 'Slip in beside the target. Double damage if it\'s flanked.' },
   doomfist: { name: 'Doom Fist', kind: 'buff', tgt: 'foe', range: [1, 1], doom: 3, cd: 4, txt: 'Pressure points: in 3 turns the target loses 45% of its max HP.' },
   toxinsalve: { name: 'Toxin Salve', kind: 'buff', tgt: 'ally', range: [0, 3], imbue: 'poison', lob: true, cd: 3, txt: 'For 3 turns the ally\'s hits poison.' },
   hamstring: { name: 'Hamstring', kind: 'phys', tgt: 'foe', range: [1, 1], pow: 0.6, root: 2, slow: 2, cd: 3, txt: 'The target can\'t move, then moves at half speed.' },
@@ -770,7 +769,7 @@ export const MODS = {
   starfall: { name: 'Starfall Stone', tags: ['elemental'], only: 'fireball', group: 'shape', note: 'Range 3–6, radius 2, +40% power, cooldown +2', ok: o => o.aoe > 0,
     apply: o => { o.range = [3, 6]; o.aoe += 1; o.pow *= 1.4; o.cd += 2; } },
   deepfreeze: { name: 'Glacier Heart', tags: ['elemental'], only: 'frost', note: 'Freezes the target solid: stunned, but takes half damage', ok: () => true, apply: o => { o.stun = 1; o.pow *= 0.5; } },
-  backstab: { name: 'Backstabber', tags: ['poison'], only: 'stab', note: 'Flanked targets, and blows from behind, take double damage', ok: () => true, apply: o => { o.backstab = true; } },
+  backstab: { name: 'Backstabber', tags: ['poison'], only: 'stab', note: 'Flanked targets take double damage', ok: () => true, apply: o => { o.backstab = true; } },
   fanning: { name: 'Knife Fan', only: 'knives', group: 'shape', note: 'Hits every foe within 2 tiles of you (70%)', ok: single,
     apply: o => { o.tgt = 'self'; o.range = [0, 0]; o.aoe = 2; o.hits = 'foes'; o.pow *= 1.0; } },
   plague: { name: 'Plague Rat', tags: ['poison'], only: 'venom', group: 'shape', note: 'Splashes onto foes around the target at 70% power, poisoning them too', ok: single, apply: o => { o.aoe = 1; o.hits = 'foes'; o.pow *= 0.7; } },

@@ -8,7 +8,7 @@ A pixel-art tactical roguelike: a Warrior, Mage and Rogue climb three acts, each
 from two (Greenwood or Drowned Marsh, Sunken Crypt or Rime Halls, Ember Peaks or Clockwork
 Foundry). Each act is a branching map of battles, elites, events and shops ending in a
 boss. Battles are grid tactics on an 8×8 board (10×8 until the isometric view arrived), shown
-top-down or isometric, with speed-based turn order, terrain, height, facing, flanking, charged
+top-down or isometric, with speed-based turn order, terrain, height, flanking, charged
 skills, statuses and line of sight. Runs save to `localStorage`.
 
 ## Code map (`app/static/games/threefold/`)
@@ -74,7 +74,7 @@ Keep it that way.
   battle.js: 100 plus the attacker's accuracy (`acc` from artifacts, the skill's `acc` from Sharp Eye,
   +5 per level of height above), minus the target's EVA (`evaOf`: the `eva` stat from classes,
   promotions, foes and artifacts, Blurring Boots), plus half the SPD gap if the target is faster (up to
-  15). Side blows face half the EVA, back blows none, magic half; stunned, asleep or frozen targets
+  15). Magic faces half the EVA; stunned, asleep or frozen targets
   can't dodge; Blind is −50. Floor 5%. Only damaging skills roll it, against the other side. `o.sure`,
   Focus Beads and Eye of the Storm never miss. A dodge calls `onDodge` (Matador's Cape, Phantom Step,
   Parrying Dagger). The aim preview, Confirm button, foe forecasts and charges show the odds ("−12
@@ -238,7 +238,7 @@ Keep it that way.
   existing effect flags; `vsShock` is new. `load()` drops removed skills from saves and moves their
   artifacts to the pack. Bonus labels that depend on the amount (fester, ironbark, pincer, momentum,
   perDebuff, vsShock, selfShieldHp) print the real number now.
-- **Height, facing and charged skills** (the owner asked for these three from Final Fantasy Tactics
+- **Height and charged skills** (the owner asked for these, with facing, from Final Fantasy Tactics
   and Tactics Ogre):
   - Height: `TERRAIN[t].h`; hills (`T.HILL`) are 1 and summits (`T.PEAK`) 2. `hgt`/`elev` read it.
     `genGrid` raises mounds (`rc.hill` of them per board, each a summit with chance `rc.peak`, default
@@ -249,12 +249,9 @@ Keep it that way.
     the caster stands on (`rangeOf`). Knockback and pulls can't push a unit up a ledge (it slams as into
     a wall), and a push off one deals 10% of max HP per level (`shove`). Summits draw as a plateau
     with a second step on top (`hillTop` in tiles.js), with taller cliff faces where they drop two levels.
-  - Facing: `u.face` is [dx, dy]. Units turn as they walk and toward what they target (`turnTo`), and
-    at the end of a turn that wasn't skipped they turn to show their back to as little danger as they
-    can (`autoFace`), unless the player chose a facing with the arrow buttons or keys (`u.faced`).
-    `hitSide(a, t)` says where a blow lands: side hits +10%, back +30% (`FACING_MULT`); backstab skills
-    double on a back hit as well as when flanked (and skip the facing bonus). Counters (riposte, the
-    Blademaster, Counter Strap) don't answer blows from behind. A small arrow at the tile edge shows it.
+  - No facing: the owner tried FFT-style facing (side and back hits stronger, counters only from the
+    front, an auto-turn at the end of each turn, a wedge on the ground) and had it removed entirely.
+    Don't add it back; flanking is the positional bonus.
   - Charged skills: `delay: true` (see Gotchas) now also on Titan Swing, Deadeye and Starfall (one per
     base class), every boss but the Hydra (Thorn Bloom, Death Knell, Hailstorm, Siege Cannon, Meteor)
     and the Cultist, Ash Priest and Ogre Warlord. A stun, sleep, charm or knockback breaks a charge
@@ -280,9 +277,7 @@ Keep it that way.
   and walls (`isoWall`, a brick block) stand up as their own images (`syncOccluders` in battle.js),
   depth-sorted with the units so they hide what's behind them; one turns see-through when a unit stands
   just behind it. Planned next: phone layout (the camera zooms, but the board starts small on a phone).
-- **Facing is a ground wedge** (`drawFacing`): a soft fan from the unit's feet to the edge of its tile it
-  faces, with a lit edge and a notch, on the `gr` graphics under the sprite. A unit view is a container
-  `[gr, shadow, sp, g]`; use `view.sp` and `view.g`, not list indexes.
+- A unit view is a container `[shadow, sp, g]`; use `view.sp` and `view.g`, not list indexes.
 - **Pits** (`T.PIT`; Sinkhole, Abyss, Crevasse, Shaft): impassable to walkers (flyers cross), and a
   unit knocked or pulled into one (`isPit`, `plunge`) dies outright: `ko(t, killer, true)` skips every
   save (Last Stand, Phoenix, Saint's Relic and the rest) and death effects that would land in the pit

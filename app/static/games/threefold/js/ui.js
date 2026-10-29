@@ -1,7 +1,7 @@
 // Small DOM helpers shared by the menus and the battle side panel.
-import { spriteURL } from './art.js?v=58';
-import { STATUS_HELP, STATUS_WORDS } from './data.js?v=58';
-import { describeParts } from './rules.js?v=58';
+import { spriteURL } from './art.js?v=59';
+import { STATUS_HELP, STATUS_WORDS } from './data.js?v=59';
+import { describeParts } from './rules.js?v=59';
 
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -10,7 +10,7 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else if (v !== false && v != null) el.setAttribute(k, v === true ? '' : v);
   }
-  for (const c of kids.flat()) {
+  for (const c of kids.flat(Infinity)) { // any depth: a child list may itself hold lists
     if (c == null || c === false) continue;
     el.append(c.nodeType ? c : document.createTextNode(String(c)));
   }

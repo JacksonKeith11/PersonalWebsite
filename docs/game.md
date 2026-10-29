@@ -504,6 +504,8 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
   battle.js: `mid(x, y)` (a tile's middle: effects, numbers, projectiles), `quad(x, y)` (a tile's
   corners: overlays), `viewAt`/`placeView`/`tweenView` (unit containers and their depth) and
   `cellAt` (taps). They work in both the flat and the isometric view.
+- **`h()` in ui.js flattens child lists at any depth**, so a `map` that returns `[separator, element]`
+  pairs works. It used to flatten one level, and the socketing screen printed `[object HTMLSpanElement]`.
 - **Line of sight** applies to ranged skills unless they have `lob`. `describe` prints "Needs line of
   sight" from the same rule (`needsLos` in `battle.js`); keep the two in step.
 - **Sprite rows must be exactly 16 characters** (8 for icons), with `.` for transparent. A

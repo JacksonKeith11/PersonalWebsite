@@ -188,6 +188,16 @@ const SOUNDS = {
     noise(d, t, 0.3, { f0: 1500, f1: 100, peak: 1.0 });
     tone(d, t + 0.05, 0.4, { type: 'square', f0: 900, f1: 1800, peak: 0.08 });  // the "yeet"
   },
+  kn(d, t) {  // a knife swish
+    noise(d, t, 0.14, { type: 'bandpass', f0: 1200, f1: 5000, q: 1.5, peak: 0.6 });
+  },
+  infect(d, t) {  // a growl
+    tone(d, t, 0.6, { type: 'sawtooth', f0: 90, f1: 55, peak: 0.35 });
+    noise(d, t, 0.5, { type: 'lowpass', f0: 500, f1: 200, peak: 0.4 });
+  },
+  rankup(d, t) {  // Gun Game: on to the next weapon
+    for (const [i, f] of [523, 659, 784].entries()) tone(d, t + i * 0.06, 0.25, { type: 'triangle', f0: f, peak: 0.18 });
+  },
   powerup(d, t) {
     for (const [i, f] of [392, 523, 659, 784, 1047].entries()) tone(d, t + i * 0.07, 0.4, { type: 'square', f0: f, peak: 0.1 });
   },

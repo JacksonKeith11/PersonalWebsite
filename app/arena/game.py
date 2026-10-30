@@ -1,8 +1,8 @@
 """Frag Arena's match: one shared room for everyone connected, simulated at 30 Hz.
 
 Players move themselves in the browser and report where they are; everything that hurts
-(hitscan, projectiles, splash, black holes, pickups, frags) is decided here. Bots are simulated
-here too.
+(hitscan, projectiles, splash, black holes, pickups, frags) is decided here, as are the round's
+rules (the mode and mutators anyone can pick from the menu). Bots are simulated here too.
 """
 
 import asyncio
@@ -34,6 +34,14 @@ AWAY_KEEP = 20 * 60  # how long someone who left keeps their place (score, colou
 POWER_FIRST = 15.0  # seconds into a match before the first power weapon
 POWER_GAP = (30.0, 50.0)  # seconds between one being taken and the next appearing
 POWER_WAIT = 45.0  # one nobody takes vanishes after this, and turns up elsewhere soon after
+FRENZY = {"first": 3.0, "gap": (4.0, 8.0), "wait": 20.0}  # the power frenzy mutator's timings
+INFECT_START = 10.0  # seconds into an Infection round before the first zombie is picked
+INFECT_TIME = 180.0  # survive this long after that and the humans win
+ZOMBIE_FAST = 1.25  # zombies' run speed, times everyone else's
+JUGG_HP, JUGG_ARMOR = 300, 100
+JUGG_RECHARGE = 5.0  # the Juggernaut's power weapon gets a charge back this often
+LOW_GRAV = 0.45  # gravity under the low gravity mutator, times normal
+INSTA_DMG = 300  # a rail under instagib: kills anyone but a Juggernaut
 EYE = PHYS["eye"]
 
 # The first three are what everyone carries. The rest are power weapons: one at a time appears at
@@ -59,12 +67,28 @@ WEAPONS = [
     {"key": "yt", "name": "Yeet cannon", "short": "YEET", "kind": "hitscan", "power": True, "yeet": True,
      "cool": 0.8, "dmg": 20, "grow": 0.35, "push": 26.0, "lift": 9.0, "recoil": 9.0, "charge": 6,
      "blurb": "Blasts whoever it hits across the map, and you backwards"},
+    # Only in some modes: Gun Game's last rung (and always to hand there), and zombies' only weapon.
+    {"key": "kn", "name": "Knife", "short": "KNIFE", "kind": "hitscan", "melee": True, "cool": 0.45, "dmg": 200,
+     "range": 2.4, "grow": 0.3, "start": 0, "max": 0, "add": 0},
 ]
 for _w in WEAPONS:
     if _w.get("power"):
         _w.update(start=0, max=_w["charge"], add=0)
-MG, SG, RL, RG, VX, IO, SW, YT = range(len(WEAPONS))
+MG, SG, RL, RG, VX, IO, SW, YT, KN = range(len(WEAPONS))
 POWER = [i for i, w in enumerate(WEAPONS) if w.get("power")]
+
+# The round's mode, picked from the menu by anyone; changing it starts a new round.
+GUN_LADDER = [MG, SG, RL, IO, VX, RG, KN]  # Gun Game: two kills on each, then a knife kill wins
+GUN_KILLS = 2
+MODES = {
+    "dm": {"name": "Deathmatch", "limit": FRAG_LIMIT},
+    "gun": {"name": "Gun Game", "limit": GUN_KILLS * (len(GUN_LADDER) - 1) + 1},
+    "infect": {"name": "Infection", "limit": 0},
+    "jugg": {"name": "Juggernaut", "limit": 10},
+}
+# Mutators, any mix of them, on top of the mode.
+MUTATORS = {"lowgrav": "low gravity", "insta": "instagib", "rockets": "rockets only", "bigheads": "big heads",
+            "frenzy": "power frenzy"}
 
 PICKUP_RESPAWN = {"health": 20.0, "mega": 35.0, "armor": 25.0, "ammo": 20.0}
 
@@ -143,6 +167,10 @@ class Player:
         self.msg_window = 0.0
         self.msg_count = 0
         self.brain = Brain() if bot else None
+        self.role = ""  # "zombie" (Infection) or "jugg" (the Juggernaut)
+        self.jugg_w = None  # the Juggernaut's power weapon, which recharges
+        self.recharge_at = 0.0
+        self.kit_sent = None  # the last kit this player's browser was told about
 
     @property
     def pos(self):
@@ -223,6 +251,14 @@ class Game:
         self.roster_dirty = True
         self.roster_at = 0.0
         self.decay_at = 0.0
+        self.mode = "dm"
+        self.muts = set()
+        self.knock = KNOCK
+        self.infect_on = False  # Infection: the first zombie has been picked
+        self.alpha_at = 0.0
+        self.round_end = 0.0  # Infection: when the survivors win
+        self.last_human = None
+        self.rules_at = -9.0
 
     # ------------------------------------------------------------ clock and sending
 
@@ -299,8 +335,11 @@ class Game:
         self.roster_dirty = True
         self.send(p, {
             "t": "welcome", "id": p.id, "ts": now, "map": world.map_payload(), "phys": PHYS,
-            "weapons": WEAPONS, "knock": KNOCK, "interp": INTERP, "limit": FRAG_LIMIT, "tick": TICK,
+            "weapons": WEAPONS, "knock": self.knock, "interp": INTERP, "limit": self.limit(), "tick": TICK,
+            "modes": {k: m["name"] for k, m in MODES.items()}, "mutators": MUTATORS,
         })
+        self.send(p, self.rules())
+        p.kit_sent = None
         if p.alive:
             # Carry on where they were.
             p.events.append({"k": "spawn", "p": _rv(p.pos), "yaw": _r(p.yaw), "life": p.life, "warp": p.warp,
@@ -319,6 +358,9 @@ class Game:
         for q in self.players.values():
             if q.brain and q.brain.target == p.id:
                 q.brain.target = None
+        if p.role == "jugg":
+            self.broadcast_msg("The Juggernaut left")
+        self.set_role(p, "")
         if p.bot:
             return
         self.broadcast_msg(f"{p.name} left")
@@ -399,6 +441,16 @@ class Game:
                         n += 1
                     if n:
                         self.broadcast_msg(f"{p.name} removed the bots")
+            elif t == "rules":
+                mode, muts = msg.get("mode"), msg.get("muts")
+                if mode not in MODES or not isinstance(muts, list) or now - self.rules_at < 1.0:
+                    return
+                muts = {m for m in muts if m in MUTATORS}
+                if mode != self.mode or muts != self.muts:
+                    self.rules_at = now
+                    self.mode, self.muts = mode, muts
+                    self.new_round()
+                    self.broadcast_msg(f"{p.name} switched to {self.describe()}")
             elif t == "name":
                 name = _clean(msg.get("name"), 16)
                 if name and name != p.name:
@@ -416,7 +468,7 @@ class Game:
         p.yaw = _num(msg.get("yaw", 0), -1e4, 1e4) % (2 * math.pi)
         p.pitch = _num(msg.get("pitch", 0), -1.6, 1.6)
         w = msg.get("w")
-        if w in range(len(WEAPONS)) and (p.ammo[w] > 0 or not WEAPONS[w].get("power")):
+        if w in self.kit(p)[0] and p.ammo[w] > 0:
             p.weapon = w
         if abs(pos[0]) > 31 or abs(pos[2]) > 31 or not -5 < pos[1] < 60 or world.inside_solid(*pos):
             return
@@ -428,7 +480,7 @@ class Game:
         if not p.alive or now < self.inter_until:
             return
         w = msg.get("w")
-        if w not in range(len(WEAPONS)) or p.ammo[w] <= 0 or now < p.next_fire - FIRE_SLACK:
+        if w not in self.kit(p)[0] or p.ammo[w] <= 0 or now < p.next_fire - FIRE_SLACK:
             return
         origin = _vec(msg.get("o"), 100.0)
         eye = p.eye()
@@ -447,7 +499,8 @@ class Game:
     def fire(self, p, w, origin, dirs, at, now, lid=0):
         """`lid` is the shooter's own number for a rocket, so their browser can match it to the one it drew."""
         spec = WEAPONS[w]
-        p.ammo[w] -= 1
+        if w not in self.kit(p)[1]:
+            p.ammo[w] -= 1
         p.next_fire = max(p.next_fire, now - FIRE_SLACK) + spec["cool"]
         p.weapon = w
         if spec.get("power") and p.ammo[w] <= 0:
@@ -467,7 +520,7 @@ class Game:
 
     def hitscan(self, p, w, o, d, at):
         spec = WEAPONS[w]
-        far = world.ray_world(o, d, 300.0)
+        far = world.ray_world(o, d, spec.get("range", 300.0))
         hits = []
         for q in self.players.values():
             if q is p or not q.alive:
@@ -623,10 +676,12 @@ class Game:
 
     def damage(self, t, amount, by, w, kdir, predicted=False):
         """Hurt t. `predicted` means t's own browser already applied the knockback (its own rocket)."""
-        if not t.alive or self.now() < self.inter_until:
+        if not t.alive or self.now() < self.inter_until or self.friendly(by, t):
             return
+        if w == RG and "insta" in self.muts:
+            amount = INSTA_DMG
         if kdir is not None and not predicted:
-            k = min(amount, 200) * KNOCK
+            k = min(amount, 200) * self.knock
             self.push(t, [kdir[0] * k, kdir[1] * k, kdir[2] * k])
         if by is t:
             amount *= 0.5
@@ -651,17 +706,43 @@ class Game:
         t.hp = min(t.hp, 0)
         for pw in POWER:
             t.ammo[pw] = 0
-        if by is None or by is t:
-            t.score -= 1
-        else:
-            by.score += 1
         self.events.append({"k": "kill", "by": by.id if by else 0, "to": t.id, "w": w})
         self.roster_dirty = True
-        if by is not None and by is not t and by.score >= FRAG_LIMIT:
-            self.inter_until = now + INTERMISSION
-            self.shots = []
-            self.vortices = []
-            self.events.append({"k": "win", "id": by.id, "until": INTERMISSION})
+        killer = by if by is not None and by is not t else None
+        if self.mode == "dm":
+            if killer is None:
+                t.score -= 1
+            else:
+                killer.score += 1
+        elif self.mode == "gun":
+            # Any kill moves you up; dying by your own hand or a knife moves you back one.
+            if killer is not None:
+                killer.score += 1
+            if killer is None or w == KN:
+                t.score = max(0, t.score - 1)
+        elif self.mode == "infect":
+            if t.role != "zombie" and self.infect_on:
+                if killer is not None:
+                    killer.score += 1
+                self.set_role(t, "zombie")
+                self.broadcast_msg(f"{t.name} was infected")
+            elif t.role == "zombie" and killer is not None:
+                killer.score += 1
+        elif self.mode == "jugg":
+            jugg = self.juggernaut()
+            if t is jugg or jugg is None:
+                self.set_role(t, "")
+                if killer is not None:
+                    killer.score += 1
+                    self.set_role(killer, "jugg")
+                    self.broadcast_msg(f"{killer.name} is the Juggernaut")
+                elif t is jugg:
+                    self.broadcast_msg("The Juggernaut fell; the next kill takes the mantle")
+            elif killer is jugg:
+                killer.score += 1
+        limit = self.limit()
+        if limit and killer is not None and killer.score >= limit:
+            self.end_round(killer)
 
     def respawn(self, p):
         others = [q.pos for q in self.players.values() if q.alive and q is not p]
@@ -675,6 +756,14 @@ class Game:
         p.hp, p.armor = 100, 0
         p.ammo = [w["start"] for w in WEAPONS]
         p.weapon = RL if p.bot and random.random() < 0.5 else MG
+        if self.mode == "infect" and self.infect_on:
+            p.role = "zombie"  # the dead come back as zombies, and so does anyone joining late
+        if p.role == "jugg":  # made Juggernaut by a rocket that landed after they died
+            p.hp, p.armor = JUGG_HP, JUGG_ARMOR
+            if p.jugg_w is not None:
+                p.ammo[p.jugg_w] = WEAPONS[p.jugg_w]["charge"]
+        p.body.fast = ZOMBIE_FAST if p.role == "zombie" else 1.0
+        self.sync_kit(p)
         p.alive = True
         p.life += 1
         p.next_fire = 0.0
@@ -686,25 +775,196 @@ class Game:
         if p.brain:
             p.brain.__init__()
 
-    def end_intermission(self):
+    def end_round(self, winner, text=None):
+        self.inter_until = self.now() + INTERMISSION
+        self.shots = []
+        self.vortices = []
+        self.events.append({"k": "win", "id": winner.id if winner else 0, "until": INTERMISSION, "text": text})
+
+    def new_round(self):
+        """Scores reset and everyone playing respawns; also how a change of mode or mutators starts."""
+        now = self.now()
         self.inter_until = 0.0
+        self.shots = []
+        self.vortices = []
+        PHYS.update(world.BASE_PHYS)
+        self.knock = KNOCK
+        if "lowgrav" in self.muts:
+            # Jumps go higher. Pads and rocket blasts are scaled so they carry you just as high.
+            PHYS["gravity"] *= LOW_GRAV
+            PHYS["pad_mul"] = math.sqrt(LOW_GRAV)
+            self.knock = KNOCK * math.sqrt(LOW_GRAV)
+        self.infect_on = False
+        self.alpha_at = now + INFECT_START
+        self.round_end = 0.0
+        self.last_human = None
+        if self.power:
+            self.events.append({"k": "power", "w": None, "spot": self.power["spot"]})
+        self.power = None
+        self.power_at = 0.0
         for p in [*self.players.values(), *self.away.values()]:
             p.score = p.deaths = 0
+            self.set_role(p, "")
+            for w in POWER:
+                p.ammo[w] = 0
         for p in self.players.values():
             if p.bot or p.playing:  # not those still watching from the menu
                 self.respawn(p)
         for pk in self.pickups:
             pk["up_at"] = 0.0
         self.roster_dirty = True
+        self.send_rules()
+
+    # ------------------------------------------------------------ modes and mutators
+
+    def limit(self):
+        return MODES[self.mode]["limit"]
+
+    def describe(self):
+        muts = [MUTATORS[m] for m in MUTATORS if m in self.muts]
+        return MODES[self.mode]["name"] + (f" with {', '.join(muts)}" if muts else "")
+
+    def rules(self):
+        return {"t": "rules", "mode": self.mode, "muts": sorted(self.muts), "limit": self.limit(), "phys": PHYS,
+                "knock": self.knock, "ends": _r(self.round_end) if self.infect_on else None,
+                "alpha": _r(self.alpha_at) if self.mode == "infect" and not self.infect_on else None,
+                "ladder": GUN_LADDER, "per": GUN_KILLS}
+
+    def send_rules(self):
+        rules = self.rules()
+        for p in self.humans():
+            self.send(p, rules)
+
+    def participants(self):
+        return [p for p in self.players.values() if p.bot or p.playing]
+
+    def juggernaut(self):
+        return next((p for p in self.players.values() if p.role == "jugg"), None)
+
+    def friendly(self, a, b):
+        """Whether a can't hurt b: teammates in Infection, and everyone but the Juggernaut and those after them."""
+        if a is None or b is None or a is b:
+            return False
+        if self.mode == "infect":
+            return not self.infect_on or (a.role == "zombie") == (b.role == "zombie")
+        if self.mode == "jugg":
+            return "jugg" not in (a.role, b.role) and self.juggernaut() is not None
+        return False
+
+    def powers_on(self):
+        return self.mode != "gun" and not self.muts & {"insta", "rockets"}
+
+    def pickup_on(self, kind):
+        if "insta" in self.muts:
+            return False  # everyone dies to one rail anyway
+        return kind != "ammo" or not (self.mode == "gun" or "rockets" in self.muts)
+
+    def kit(self, p):
+        """The weapons p may use, in slot order, and which of them never run out."""
+        if self.mode == "gun":
+            w = GUN_LADDER[min(p.score // GUN_KILLS, len(GUN_LADDER) - 1)]
+            ws = [w] if w == KN else [w, KN]
+            return ws, set(ws)
+        if p.role == "zombie":
+            return [KN], {KN}
+        only = [w for m, w in (("insta", RG), ("rockets", RL)) if m in self.muts]
+        if only:
+            return only, set(only)
+        pw = p.power()
+        return ([MG, SG, RL, pw] if pw is not None else [MG, SG, RL]), set()
+
+    def sync_kit(self, p):
+        """Keep p holding what their kit allows, and tell their browser when the kit changes."""
+        ws, inf = self.kit(p)
+        for w in inf:
+            p.ammo[w] = max(p.ammo[w], 1)
+        if p.weapon not in ws or p.ammo[p.weapon] <= 0:
+            p.weapon = next((w for w in ws if p.ammo[w] > 0), ws[0])
+        sent = (tuple(ws), tuple(sorted(inf)), p.body.fast)
+        if sent != p.kit_sent:
+            p.kit_sent = sent
+            p.events.append({"k": "kit", "a": ws, "inf": sorted(inf), "fast": p.body.fast})
+
+    def set_role(self, p, role):
+        if p.role == role:
+            return
+        p.role = role
+        p.body.fast = ZOMBIE_FAST if role == "zombie" else 1.0
+        self.roster_dirty = True
+        if role == "jugg":
+            p.hp = max(p.hp, JUGG_HP)
+            p.armor = max(p.armor, JUGG_ARMOR)
+            p.jugg_w = random.choice([RG, VX, IO, YT]) if self.powers_on() else None
+            if p.jugg_w is not None:
+                for w in POWER:
+                    p.ammo[w] = 0
+                p.ammo[p.jugg_w] = WEAPONS[p.jugg_w]["charge"]
+                p.weapon = p.jugg_w
+            p.recharge_at = self.now() + JUGG_RECHARGE
+        elif role == "zombie":
+            for w in POWER:
+                p.ammo[w] = 0
+
+    def step_mode(self, now):
+        if now < self.inter_until:
+            return
+        if self.mode == "jugg":
+            jugg = self.juggernaut()
+            if jugg and jugg.alive and jugg.jugg_w is not None and now >= jugg.recharge_at:
+                jugg.recharge_at = now + JUGG_RECHARGE
+                w = jugg.jugg_w
+                if jugg.power() in (None, w):
+                    jugg.ammo[w] = min(WEAPONS[w]["charge"], jugg.ammo[w] + 1)
+            return
+        if self.mode != "infect":
+            return
+        if not self.alpha_at:
+            self.alpha_at = now + INFECT_START
+            self.send_rules()
+        everyone = self.participants()
+        zombies = [p for p in everyone if p.role == "zombie"]
+        humans = [p for p in everyone if p.role != "zombie"]
+        if not self.infect_on:
+            if now < self.alpha_at:
+                return
+            if len(everyone) < 2:
+                self.alpha_at = now + 1.0  # wait for someone to infect
+                return
+            alpha = random.choice(everyone)
+            self.set_role(alpha, "zombie")
+            self.infect_on = True
+            if not self.round_end:
+                self.round_end = now + INFECT_TIME
+            self.broadcast_msg(f"{alpha.name} is the first zombie! Survive {round(self.round_end - now)} s")
+            self.send_rules()
+            return
+        if not humans:
+            best = max(zombies, key=lambda q: q.score, default=None)
+            self.end_round(best, "The zombies win!")
+        elif not zombies:
+            # The zombies all left: pick another soon.
+            self.infect_on = False
+            self.alpha_at = now + 5.0
+            self.send_rules()
+        elif now >= self.round_end:
+            best = max(humans, key=lambda q: q.score)
+            self.end_round(best, f"Survivors win! {', '.join(q.name for q in humans[:4])} made it")
+        elif len(humans) == 1 and self.last_human != humans[0].id:
+            last = humans[0]
+            self.last_human = last.id
+            self.broadcast_msg(f"{last.name} is the last survivor")
+            if last.alive:
+                last.hp = max(last.hp, 200)
+                last.armor = max(last.armor, 100)
 
     # ------------------------------------------------------------ pickups
 
     def step_pickups(self, now):
         for i, pk in enumerate(self.pickups):
-            if pk["up_at"] > now:
+            if pk["up_at"] > now or not self.pickup_on(pk["kind"]):
                 continue
             for p in self.players.values():
-                if not p.alive or abs(p.pos[1] - pk["y"]) > 1.5 or math.hypot(p.pos[0] - pk["x"], p.pos[2] - pk["z"]) > 1.1:
+                if not p.alive or p.role == "zombie" or abs(p.pos[1] - pk["y"]) > 1.5 or math.hypot(p.pos[0] - pk["x"], p.pos[2] - pk["z"]) > 1.1:
                     continue
                 if self.take(p, pk["kind"]):
                     pk["up_at"] = now + PICKUP_RESPAWN[pk["kind"]]
@@ -733,15 +993,18 @@ class Game:
 
     def step_power(self, now):
         """One power weapon at a time, appearing at a random spot a while after the last was taken."""
+        if not self.powers_on():
+            return
+        frenzy = "frenzy" in self.muts
         if self.power is None:
             if not self.power_at:
-                self.power_at = now + POWER_FIRST
+                self.power_at = now + (FRENZY["first"] if frenzy else POWER_FIRST)
             if now < self.power_at or now < self.inter_until:
                 return
             spots = [i for i in range(len(world.POWER_SPOTS)) if i != self.last_spot]
             spot = random.choice(spots)
             w = random.choice(POWER)
-            self.power = {"w": w, "spot": spot, "until": now + POWER_WAIT}
+            self.power = {"w": w, "spot": spot, "until": now + (FRENZY["wait"] if frenzy else POWER_WAIT)}
             self.last_spot = spot
             self.events.append({"k": "power", "w": w, "spot": spot})
             name = WEAPONS[w]["name"]
@@ -752,10 +1015,10 @@ class Game:
             self.events.append({"k": "power", "w": None, "spot": self.power["spot"]})
             self.broadcast_msg(f"The {WEAPONS[self.power['w']]['name']} vanished")
             self.power = None
-            self.power_at = now + random.uniform(5.0, 10.0)
+            self.power_at = now + random.uniform(*FRENZY["gap"] if frenzy else (5.0, 10.0))
             return
         for p in self.players.values():
-            if p.alive and abs(p.pos[1] - s["y"]) < 1.5 and math.hypot(p.pos[0] - s["x"], p.pos[2] - s["z"]) < 1.2:
+            if p.alive and not p.role and abs(p.pos[1] - s["y"]) < 1.5 and math.hypot(p.pos[0] - s["x"], p.pos[2] - s["z"]) < 1.2:
                 w = self.power["w"]
                 for pw in POWER:
                     p.ammo[pw] = 0
@@ -765,7 +1028,7 @@ class Game:
                 self.events.append({"k": "power", "w": None, "spot": self.power["spot"], "by": p.id})
                 self.broadcast_msg(f"{p.name} grabbed the {WEAPONS[w]['name']}")
                 self.power = None
-                self.power_at = now + random.uniform(*POWER_GAP)
+                self.power_at = now + random.uniform(*FRENZY["gap"] if frenzy else POWER_GAP)
                 return
 
     # ------------------------------------------------------------ bots
@@ -774,7 +1037,7 @@ class Game:
         b = p.brain
         was = b.rush
         b.rush = False
-        if self.power and p.power() is None:
+        if self.power and p.power() is None and not p.role:
             s = world.POWER_SPOTS[self.power["spot"]]
             if s["bots"] and math.dist(p.pos, (s["x"], s["y"], s["z"])) < 25:
                 b.rush = True
@@ -785,7 +1048,7 @@ class Game:
         fwd = _dir(p.yaw, 0)
         best, best_score = None, 1e9
         for q in self.players.values():
-            if q is p or not q.alive:
+            if q is p or not q.alive or self.friendly(p, q):
                 continue
             centre = [q.pos[0], q.pos[1] + 1.0, q.pos[2]]
             d = math.dist(eye, centre)
@@ -824,9 +1087,14 @@ class Game:
                 self.bot_goal(p, now)
 
     def bot_weapon(self, p, d, q):
+        ws = self.kit(p)[0]
+        if len(ws) == 1:
+            return ws[0]
         a = p.ammo
+        if KN in ws:  # Gun Game: knife them if they're close enough
+            return KN if d < 2.5 else ws[0]
         pw = p.power()
-        if pw is not None:
+        if pw is not None and pw in ws:
             fits = {RG: d > 8, VX: 6 < d < 30, IO: d < 25, SW: 6 < d < 30 and random.random() < 0.3, YT: d < 18}
             if fits[pw]:
                 return pw
@@ -840,7 +1108,10 @@ class Game:
 
     def bot_goal(self, p, now):
         b = p.brain
-        up = [pk for pk in self.pickups if pk["up_at"] <= now]
+        up = [pk for pk in self.pickups if pk["up_at"] <= now and self.pickup_on(pk["kind"]) and p.role != "zombie"]
+        # Zombies know where the living are, and everyone knows where the Juggernaut is.
+        prey = [q for q in self.players.values() if q.alive and q is not p and not self.friendly(p, q)
+                and (p.role == "zombie" or q.role == "jugg")]
         goal = None
         wanted = []
         if p.hp < 70:
@@ -849,10 +1120,15 @@ class Game:
             wanted = [pk for pk in up if pk["kind"] in ("armor", "mega")]
         elif p.ammo[SG] + p.ammo[RL] < 8:
             wanted = [pk for pk in up if pk["kind"] == "ammo"]
-        if self.power and world.POWER_SPOTS[self.power["spot"]]["bots"] and p.power() is None and random.random() < 0.6:
+        if self.power and world.POWER_SPOTS[self.power["spot"]]["bots"] and p.power() is None and not p.role \
+                and random.random() < 0.6:
             s = world.POWER_SPOTS[self.power["spot"]]
             wanted = [{"x": s["x"], "y": s["y"], "z": s["z"]}]
-        if wanted:
+        hunting = bool(prey) and random.random() < 0.8
+        if hunting:
+            q = min(prey, key=lambda q: math.dist(p.pos, q.pos))
+            goal = world.nearest_node(*q.pos)
+        elif wanted:
             pk = min(wanted, key=lambda k: math.dist(p.pos, (k["x"], k["y"], k["z"])))
             goal = world.nearest_node(pk["x"], pk["y"], pk["z"])
         elif b.last_seen and now - b.last_seen_at < 6 and random.random() < 0.7:
@@ -861,7 +1137,7 @@ class Game:
             goal = random.randrange(len(world.NODES))
         start = world.nearest_node(*p.pos)
         b.path = world.path(start, goal)
-        b.repath_at = now + 8
+        b.repath_at = now + (3 if hunting else 8)  # the hunted move, so look again sooner
         b.best_dist = 1e9
         b.progress_at = now
 
@@ -893,7 +1169,9 @@ class Game:
             dp = want_pitch - p.pitch
             p.pitch = max(-1.5, min(1.5, p.pitch + max(-turn, min(turn, dp))))
             b.aim_err = abs(dyaw) + abs(dp)
-            limit = {MG: 0.12, SG: 0.18, RG: 0.05, SW: 0.06}.get(p.weapon, 0.1)
+            limit = {MG: 0.12, SG: 0.18, RG: 0.05, SW: 0.06, KN: 0.4}.get(p.weapon, 0.1)
+            if spec.get("melee") and math.dist(eye, aim) > spec["range"] + 0.4:
+                limit = -1.0  # not in reach yet
             if now >= b.react_at and now >= p.next_fire and b.aim_err < limit and p.ammo[p.weapon] > 0 \
                     and now >= self.inter_until:
                 self.bot_fire(p, now)
@@ -902,7 +1180,7 @@ class Game:
             # Fight: strafe, and close or open the distance toward what suits the weapon.
             d = math.hypot(q.pos[0] - p.pos[0], q.pos[2] - p.pos[2]) or 1.0
             fx, fz = (q.pos[0] - p.pos[0]) / d, (q.pos[2] - p.pos[2]) / d
-            want = {MG: 12, SG: 4, RL: 9, RG: 25, VX: 14, IO: 12, SW: 15, YT: 8}[p.weapon]
+            want = {MG: 12, SG: 4, RL: 9, RG: 25, VX: 14, IO: 12, SW: 15, YT: 8, KN: -9}[p.weapon]  # knives charge
             radial = 1.0 if d > want + 3 else -0.7 if d < want - 3 else 0.0
             if now > b.strafe_until:
                 b.strafe = -b.strafe if random.random() < 0.7 else b.strafe
@@ -973,12 +1251,16 @@ class Game:
             self.shots = []
             self.vortices = []
             self.inter_until = 0.0
+            self.infect_on = False  # the next Infection round starts when someone's back
+            self.alpha_at = self.round_end = 0.0
+            for p in self.away.values():
+                self.set_role(p, "")
             log.info("arena: match empty, stopped")
 
     def tick(self):
         now = self.now()
         if self.inter_until and now >= self.inter_until:
-            self.end_intermission()
+            self.new_round()
         for p in list(self.players.values()):
             if p.bot:
                 if p.alive:
@@ -992,9 +1274,14 @@ class Game:
         self.step_vortices(now)
         self.step_pickups(now)
         self.step_power(now)
+        self.step_mode(now)
+        for p in self.players.values():
+            self.sync_kit(p)
         if now >= self.decay_at:
             self.decay_at = now + 1.0
             for p in self.players.values():
+                if p.role == "jugg":
+                    continue
                 if p.hp > 100:
                     p.hp -= 1
                 if p.armor > 100:
@@ -1011,7 +1298,7 @@ class Game:
             self.roster_dirty = False
             self.roster_at = now
             roster = {"t": "roster", "list": [
-                [p.id, p.name, p.color, p.score, p.deaths, int(p.bot), p.ping, int(p.playing)]
+                [p.id, p.name, p.color, p.score, p.deaths, int(p.bot), p.ping, int(p.playing), p.role]
                 for p in self.players.values()
             ]}
             for p in self.humans():
@@ -1020,7 +1307,7 @@ class Game:
             "t": "s", "ts": round(now, 4),
             "p": [[p.id, _r(p.pos[0]), _r(p.pos[1]), _r(p.pos[2]), _r(p.yaw), _r(p.pitch), p.weapon, int(p.alive)]
                   for p in self.players.values()],
-            "pk": "".join("1" if pk["up_at"] <= now else "0" for pk in self.pickups),
+            "pk": "".join("1" if pk["up_at"] <= now and self.pickup_on(pk["kind"]) else "0" for pk in self.pickups),
             "pw": [self.power["w"], self.power["spot"]] if self.power else None,
             "ev": self.events,
         }
@@ -1030,6 +1317,9 @@ class Game:
             me = [p.hp, p.armor, *p.ammo, int(p.alive), p.life, p.warp]
             self.send(p, f'{head},"me":{json.dumps(me)},"pv":{json.dumps(p.events, separators=(",", ":"))}}}')
             p.events = []
+        for p in self.players.values():
+            if p.bot:
+                p.events = []  # nobody reads a bot's
 
 
 GAME = Game()

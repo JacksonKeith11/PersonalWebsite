@@ -1,12 +1,12 @@
 // Frag Arena's client: input, your own movement (predicted here, reported to the server),
 // firing, the server's events, the camera and the HUD.
-import { Net } from './net.js?v=2';
-import { View, POWER_COLOR } from './render.js?v=2';
-import { setWorld, move, rayWorld, rayBox, playerBox } from './physics.js?v=2';
-import { initAudio, sfx, setListener, setVolume } from './audio.js?v=2';
+import { Net } from './net.js?v=3';
+import { View, POWER_COLOR } from './render.js?v=3';
+import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=3';
+import { initAudio, sfx, setListener, setVolume } from './audio.js?v=3';
 
 const $ = id => document.getElementById(id);
-const MG = 0, RL = 2, BASE = [0, 1, 2];  // what everyone carries; the rest are power weapons
+const MG = 0, RL = 2, KN = 8;
 const STEP = 1 / 125;
 const KEY = 'frag-arena';
 
@@ -40,6 +40,20 @@ const S = {
   nextFire: 0, firedAt: -9, roster: new Map(), playing: false, wantPlay: false,
   diedAt: 0, killer: null, interUntil: 0, events: [], rockets: new Map(), nextLid: 1,
   sendAt: 0, acc: 0, bob: 0, stepSmooth: 0, landKick: 0, pain: 0, remote: new Map(),
+  // what the round's rules let you hold, in slot order, and which never run out (the server's kit)
+  allow: [0, 1, 2], inf: new Set(), fast: 1, rules: null, modes: {}, mutators: {},
+};
+
+// The menu's one-line explanation of each mode and mutator.
+const MODE_BLURB = {
+  dm: 'Everyone for themselves. First to 20 frags.',
+  gun: 'Every two kills moves you to the next weapon, up to the knife; a knife kill wins. Get knifed and you drop back a kill.',
+  infect: 'One player turns zombie: fast, knife only. Whoever they kill joins them. Survive three minutes to win.',
+  jugg: 'The first kill makes you the Juggernaut: 300 health and a recharging power weapon. Only the Juggernaut scores; kill them to take over. First to 10.',
+};
+const MUT_BLURB = {
+  lowgrav: 'Floaty jumps.', insta: 'Railguns only, one hit kills.', rockets: 'Rocket launchers only, endless ammo.',
+  bigheads: 'Huge heads (hitboxes stay the same).', frenzy: 'Power weapons every few seconds.',
 };
 
 // ------------------------------------------------------------------ network
@@ -52,7 +66,10 @@ const net = new Net({
     S.knock = m.knock;
     S.limit = m.limit;
     S.eye = m.phys.eye;
+    S.modes = m.modes;
+    S.mutators = m.mutators;
     setWorld(m.map, m.phys);
+    buildRulesMenu();
     if (!S.ready) view.buildMap(m.map);
     S.ready = true;
     S.alive = false;
@@ -64,9 +81,17 @@ const net = new Net({
     $('play').disabled = false;
     if (S.wantPlay) net.send({ t: 'spawn' });
   },
+  onRules(m) {
+    S.rules = m;
+    S.limit = m.limit;
+    S.knock = m.knock;
+    setPhys(m.phys);
+    drawRulesMenu();
+    hudKey = '';
+  },
   onRoster(list) {
-    S.roster = new Map(list.map(([id, name, color, score, deaths, bot, ping, playing]) =>
-      [id, { id, name, color, score, deaths, bot: !!bot, ping, playing: !!playing }]));
+    S.roster = new Map(list.map(([id, name, color, score, deaths, bot, ping, playing, role]) =>
+      [id, { id, name, color, score, deaths, bot: !!bot, ping, playing: !!playing, role: role || '' }]));
     for (const id of [...view.players.keys()]) if (!S.roster.has(id)) view.removePlayer(id);
     drawRoster();
   },
@@ -79,7 +104,7 @@ const net = new Net({
       S.armor = armor;
       const fresh = performance.now() / 1000 - S.firedAt < 0.3;
       S.ammo = ammo.map((a, i) => (fresh && i === S.weapon ? Math.min(a, S.ammo[i] ?? a) : a));
-      if (!fresh && S.ammo[S.weapon] <= 0 && isPower(S.weapon)) pickWeapon(MG);
+      if (!fresh && ((isPower(S.weapon) && S.ammo[S.weapon] <= 0) || !S.allow.includes(S.weapon))) pickWeapon(fallback());
       if (S.alive && !alive) died();
       S.alive = !!alive;
     }
@@ -91,7 +116,7 @@ const net = new Net({
 
 function privateEvent(e) {
   if (e.k === 'spawn') {
-    S.body = { pos: e.p.slice(), vel: [0, 0, 0], ground: false };
+    S.body = { pos: e.p.slice(), vel: [0, 0, 0], ground: false, fast: S.fast };
     S.prev = e.p.slice();
     S.yaw = e.yaw;
     S.pitch = 0;
@@ -106,10 +131,25 @@ function privateEvent(e) {
     setCenter('', 0);
   } else if (e.k === 'tp') {
     // swapped places: the server moved us
-    S.body = { pos: e.p.slice(), vel: [0, 0, 0], ground: false };
+    S.body = { pos: e.p.slice(), vel: [0, 0, 0], ground: false, fast: S.fast };
     S.prev = e.p.slice();
     S.warp = e.warp;
     sfx('swap');
+  } else if (e.k === 'kit') {
+    // what the rules let us hold changed: a new round, a Gun Game step, turning zombie or Juggernaut
+    const was = S.allow;
+    S.allow = e.a;
+    S.inf = new Set(e.inf);
+    S.fast = S.body.fast = e.fast;
+    if (!S.allow.includes(S.weapon)) pickWeapon(fallback());
+    const mode = S.rules && S.rules.mode;
+    if (mode === 'gun' && was[0] !== e.a[0]) {
+      sfx('rankup');
+      setCenter(e.a[0] === KN ? 'Knife: one kill to win!' : `Now: ${S.weapons[e.a[0]].name}`, 2);
+    } else if (mode === 'infect' && e.a.length === 1 && e.a[0] === KN && !(was.length === 1 && was[0] === KN)) {
+      sfx('infect');
+      setCenter("You're a zombie! Knife the living", 3);
+    }
   } else if (e.k === 'knock') {
     const v = S.body.vel;
     v[0] += e.v[0]; v[1] += e.v[1]; v[2] += e.v[2];
@@ -136,7 +176,8 @@ function privateEvent(e) {
 }
 
 const isPower = w => !!(S.weapons && S.weapons[w] && S.weapons[w].power);
-const heldPower = () => (S.weapons || []).findIndex((w, i) => w.power && S.ammo[i] > 0);
+// what to hold when the current weapon goes: the first one we may use that has ammo
+const fallback = () => S.allow.find(w => S.ammo[w] > 0 || S.inf.has(w)) ?? S.allow[0];
 
 // Draw a hitscan shot by weapon: rails, swap beams, yeet blasts, or plain tracers.
 function drawShot(w, o, end, color) {
@@ -144,7 +185,7 @@ function drawShot(w, o, end, color) {
   if (key === 'rg') view.rail(o, end, color);
   else if (key === 'sw') view.swapBeam(o, end);
   else if (key === 'yt') view.yeet(o, end);
-  else view.tracer(o, end, w);
+  else if (key !== 'kn') view.tracer(o, end, w);
 }
 
 function worldEvent(e) {
@@ -194,7 +235,8 @@ function worldEvent(e) {
     }
     if (e.to === S.id) {
       S.killer = e.by && e.by !== S.id ? e.by : null;
-      setCenter(S.killer ? `Fragged by ${killer ? killer.name : 'someone'}` : 'You fragged yourself', 0);
+      const verb = S.rules && S.rules.mode === 'infect' && killer && killer.role === 'zombie' ? 'Infected' : 'Fragged';
+      setCenter(S.killer ? `${verb} by ${killer ? killer.name : 'someone'}` : 'You fragged yourself', 0);
     } else if (e.by === S.id) {
       sfx('frag');
       setCenter(`You fragged ${victim ? victim.name : 'someone'}`, 2);
@@ -211,7 +253,7 @@ function worldEvent(e) {
   } else if (e.k === 'win') {
     S.interUntil = net.serverNow() + e.until;
     const w = S.roster.get(e.id);
-    setCenter(`${w ? w.name : 'Someone'} wins the round!`, e.until);
+    setCenter(e.text || `${w ? w.name : 'Someone'} wins the round!`, e.until);
     sfx('mega');
   }
 }
@@ -225,9 +267,8 @@ window.addEventListener('keydown', e => {
   if (!S.playing) return;
   keys.add(e.code);
   if (e.code.startsWith('Digit')) {
-    const slot = Number(e.code.slice(5));
-    if (slot >= 1 && slot <= 3) selectWeapon(slot - 1);
-    if (slot === 4 && heldPower() >= 0) selectWeapon(heldPower());
+    const w = S.allow[Number(e.code.slice(5)) - 1];
+    if (w !== undefined) selectWeapon(w);
   }
   if (e.code === 'KeyQ') cycleWeapon(-1);
   if (e.code === 'KeyE') cycleWeapon(1);
@@ -287,7 +328,7 @@ function pickWeapon(w) {
 }
 
 function cycleWeapon(dir) {
-  const slots = heldPower() >= 0 ? [...BASE, heldPower()] : BASE;
+  const slots = S.allow;
   const at = Math.max(0, slots.indexOf(S.weapon));
   for (let i = 1; i < slots.length; i++) {
     const w = slots[(at + dir * i + slots.length * 2) % slots.length];
@@ -323,8 +364,8 @@ function eyePos() {
 }
 
 // Where a shot from o along d stops: the map, or another player as we see them now.
-function trace(o, d, grow = 0.08) {
-  let best = rayWorld(o, d, 300);
+function trace(o, d, grow = 0.08, range = 300) {
+  let best = rayWorld(o, d, range);
   for (const [id, s] of S.remote) {
     if (id === S.id || !s.alive) continue;
     const t = rayBox(o, d, playerBox(s.x, s.y, s.z, grow), best);
@@ -344,14 +385,14 @@ function tryFire(t) {
   }
   S.nextFire = t + spec.cool;
   S.firedAt = t;
-  S.ammo[w]--;
+  if (!S.inf.has(w)) S.ammo[w]--;
   view.shoot(w, spec.key);
   sfx(spec.key);
   const o = eyePos();
   const base = dirOf(S.yaw, S.pitch);
   const at = net.renderTime();
   const me = S.roster.get(S.id);
-  if (spec.power && S.ammo[w] <= 0) pickWeapon(MG);  // that was its last charge
+  if (spec.power && S.ammo[w] <= 0) pickWeapon(fallback());  // that was its last charge
   if (spec.kind === 'rocket') {
     const lid = S.nextLid++;
     const v = base.map(c => c * spec.speed);
@@ -370,7 +411,7 @@ function tryFire(t) {
     dirs.push(spec.spread ? norm(base.map(c => c + gauss() * spec.spread)) : base);
   }
   const m = muzzle();
-  for (const d of dirs) drawShot(w, m, trace(o, d, spec.grow), me ? me.color : '#60ffb0');
+  for (const d of dirs) drawShot(w, m, trace(o, d, spec.grow, spec.range), me ? me.color : '#60ffb0');
   if (spec.recoil) {  // the yeet cannon kicks you backwards
     const v = S.body.vel;
     v[0] -= base[0] * spec.recoil; v[1] -= base[1] * spec.recoil; v[2] -= base[2] * spec.recoil;
@@ -460,7 +501,7 @@ function frame() {
     if (id === S.id) continue;
     const r = S.roster.get(id);
     if (!r) continue;
-    view.ensurePlayer(id, r.color, r.name);
+    view.ensurePlayer(id, r.color, r.name, { role: r.role, bigHeads: !!(S.rules && S.rules.muts.includes('bigheads')) });
     view.updatePlayer(id, s, dt);
   }
   for (const key of view.rockets.keys()) if (key[0] === 'S') view.moveRocket(key, rt);
@@ -600,38 +641,74 @@ function drawHud(t) {
   const ranked = [...S.roster.values()].filter(p => p.playing || p.bot).sort((a, b) => b.score - a.score);
   const me = S.roster.get(S.id);
   const leader = ranked.find(p => p.id !== S.id);
-  const key = [S.hp, S.armor, S.ammo.join(), S.weapon, me && me.score, leader && leader.score, leader && leader.name, Math.round(net.rtt * 1000)].join('|');
+  const modeText = modeLine(ranked);
+  const key = [S.hp, S.armor, S.ammo.join(), S.weapon, S.allow.join(), me && me.score, leader && leader.score, leader && leader.name, Math.round(net.rtt * 1000), modeText].join('|');
   if (key !== hudKey) {
     hudKey = key;
+    const count = w => (S.inf.has(w) ? '∞' : S.ammo[w] ?? 0);
     $('hp').textContent = Math.max(0, S.hp);
     $('hp').parentElement.classList.toggle('low', S.hp <= 25);
     $('armor').textContent = S.armor;
-    $('ammo').textContent = S.ammo[S.weapon] ?? 0;
+    $('ammo').textContent = count(S.weapon);
     $('ammo-name').textContent = S.weapons ? S.weapons[S.weapon].name : '';
-    const pw = heldPower();
-    [...$('weapons').children].forEach((el, i) => {
-      const w = i < 3 ? i : pw;
-      el.hidden = w < 0;
-      if (w < 0) return;
+    const slots = $('weapons');
+    while (slots.children.length < S.allow.length) {
+      slots.append(Object.assign(document.createElement('div'), { innerHTML: '<i></i> <span></span> <b></b>' }));
+    }
+    while (slots.children.length > S.allow.length) slots.lastChild.remove();
+    S.allow.forEach((w, i) => {
+      const el = slots.children[i];
       el.classList.toggle('on', w === S.weapon);
       el.classList.toggle('empty', !(S.ammo[w] > 0));
-      if (i === 3) {
-        el.querySelector('span').textContent = S.weapons[w].short;
-        el.style.color = `#${(POWER_COLOR[S.weapons[w].key] || 0xffffff).toString(16).padStart(6, '0')}`;
-      }
-      el.querySelector('b').textContent = S.ammo[w] ?? 0;
+      el.classList.toggle('power', isPower(w));
+      el.style.color = isPower(w) ? `#${(POWER_COLOR[S.weapons[w].key] || 0xffffff).toString(16).padStart(6, '0')}` : '';
+      el.querySelector('i').textContent = i + 1;
+      el.querySelector('span').textContent = S.weapons[w].short;
+      el.querySelector('b').textContent = count(w);
     });
+    $('frags-name').textContent = scoreName();
     $('frags').textContent = me ? me.score : 0;
-    $('limit').textContent = S.limit;
+    $('limit').textContent = S.limit ? ` / ${S.limit}` : '';
     $('lead').textContent = leader ? `${leader.name} ${leader.score}` : '';
     $('ping').textContent = net.rtt ? `${Math.round(net.rtt * 1000)} ms` : '';
+    $('mode').textContent = modeText;
   }
   const showScores = (S.playing && keys.has('Tab')) || net.serverNow() < S.interUntil;
   $('scores').hidden = !showScores;
   if (showScores) drawScores(ranked);
 }
 
+const scoreName = () => ({ gun: 'Kills', infect: 'Points', jugg: 'Points' }[S.rules && S.rules.mode] || 'Frags');
+
+// The line under the scores saying how the round stands: the mode, timers, who's what.
+function modeLine(ranked) {
+  const r = S.rules;
+  if (!r || !S.modes[r.mode]) return '';
+  let text = S.modes[r.mode];
+  const now = net.serverNow();
+  if (r.mode === 'gun' && r.ladder) {
+    const me = S.roster.get(S.id);
+    const rung = Math.min(Math.floor((me ? me.score : 0) / r.per), r.ladder.length - 1);
+    text += ` · ${S.weapons[r.ladder[rung]].name} (${rung + 1} of ${r.ladder.length})`;
+  } else if (r.mode === 'infect') {
+    if (r.alpha !== null) {
+      const left = Math.ceil(r.alpha - now);
+      text += left > 0 ? ` · first zombie in ${left} s` : ' · waiting for a second player';
+    } else if (r.ends !== null) {
+      const left = Math.max(0, Math.ceil(r.ends - now));
+      const alive = ranked.filter(p => p.role !== 'zombie').length;
+      text += ` · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} · ${alive} survivor${alive === 1 ? '' : 's'}`;
+    }
+  } else if (r.mode === 'jugg') {
+    const j = ranked.find(p => p.role === 'jugg');
+    text += j ? ` · ${j.id === S.id ? 'you are' : `${j.name} is`} the Juggernaut` : ' · first kill becomes the Juggernaut';
+  }
+  const muts = Object.keys(S.mutators).filter(m => r.muts.includes(m)).map(m => S.mutators[m]);
+  return muts.length ? `${text} · ${muts.join(', ')}` : text;
+}
+
 function drawScores(ranked) {
+  $('scores-name').textContent = scoreName();
   const body = $('scores-body');
   body.textContent = '';
   for (const p of ranked) {
@@ -660,6 +737,7 @@ function drawRoster() {
     if (p.id === S.id) li.append(' (you)');
     else if (p.bot) li.append(' · bot');
     else if (!p.playing) li.append(' · watching');
+    if (p.role) li.append(p.role === 'zombie' ? ' · zombie' : ' · Juggernaut');
     list.append(li);
   }
   const bots = all.filter(p => p.bot).length;
@@ -669,6 +747,45 @@ function drawRoster() {
 }
 
 // ------------------------------------------------------------------ menu
+
+// The mode and mutators: anyone can change them, which starts a new round for everyone.
+function buildRulesMenu() {
+  if ($('modes').children.length) return;
+  for (const [key, name] of Object.entries(S.modes)) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: name });
+    b.dataset.mode = key;
+    b.addEventListener('click', () => sendRules(key, S.rules.muts));
+    $('modes').append(b);
+  }
+  for (const [key, name] of Object.entries(S.mutators)) {
+    const label = document.createElement('label');
+    const box = Object.assign(document.createElement('input'), { type: 'checkbox' });
+    box.dataset.mut = key;
+    box.addEventListener('change', () => {
+      const muts = S.rules.muts.filter(m => m !== key);
+      if (box.checked) muts.push(key);
+      sendRules(S.rules.mode, muts);
+    });
+    label.title = MUT_BLURB[key] || '';
+    label.append(box, ` ${name[0].toUpperCase()}${name.slice(1)}`);
+    $('muts').append(label);
+  }
+  drawRulesMenu();
+}
+
+function sendRules(mode, muts) {
+  if (!S.rules) return;
+  net.send({ t: 'rules', mode, muts });
+}
+
+function drawRulesMenu() {
+  const r = S.rules;
+  if (!r) return;
+  for (const b of $('modes').children) b.classList.toggle('on', b.dataset.mode === r.mode);
+  for (const box of $('muts').querySelectorAll('input')) box.checked = r.muts.includes(box.dataset.mut);
+  const muts = r.muts.map(m => MUT_BLURB[m]).filter(Boolean).join(' ');
+  $('mode-blurb').textContent = `${MODE_BLURB[r.mode] || ''} ${muts}`.trim();
+}
 
 $('name').value = settings.name;
 $('play').addEventListener('click', play);

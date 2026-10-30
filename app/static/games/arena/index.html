@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/games/arena/game.css?v=2">
+  <link rel="stylesheet" href="/static/games/arena/game.css?v=3">
   <script type="importmap">
     { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.min.js" } }
   </script>
@@ -26,21 +26,17 @@
     <div id="feed"></div>
     <div id="center"></div>
     <div id="respawn" hidden>Click to respawn</div>
-    <div id="fragline"><span>Frags <b id="frags">0</b> / <span id="limit">20</span></span> <span id="lead"></span> <span id="ping"></span></div>
+    <div id="fragline"><span><span id="frags-name">Frags</span> <b id="frags">0</b><span id="limit"></span></span> <span id="lead"></span> <span id="ping"></span></div>
+    <div id="mode"></div>
     <div id="stats">
       <div class="stat"><span>Health</span><b id="hp">100</b></div>
       <div class="stat armor"><span>Armor</span><b id="armor">0</b></div>
       <div class="stat ammo"><span id="ammo-name">Ammo</span><b id="ammo">0</b></div>
     </div>
-    <div id="weapons">
-      <div><i>1</i> MG <b>0</b></div>
-      <div><i>2</i> SG <b>0</b></div>
-      <div><i>3</i> RL <b>0</b></div>
-      <div class="power" hidden><i>4</i> <span></span> <b>0</b></div>
-    </div>
+    <div id="weapons"></div>
     <div id="scores" hidden>
       <table>
-        <thead><tr><th>Player</th><th>Frags</th><th>Deaths</th><th>Ping</th></tr></thead>
+        <thead><tr><th>Player</th><th id="scores-name">Frags</th><th>Deaths</th><th>Ping</th></tr></thead>
         <tbody id="scores-body"></tbody>
       </table>
     </div>
@@ -52,7 +48,7 @@
       <h1>Frag Arena</h1>
       <p class="intro">
         Quake-style deathmatch for whoever's online. Everyone who opens this page lands in the same arena.
-        First to 20 frags takes the round.
+        Pick a party mode below for a change: Gun Game, Infection or Juggernaut, with mutators on top.
       </p>
       <p id="touch-note" class="note" hidden>This one needs a keyboard and mouse.</p>
       <div class="join">
@@ -60,6 +56,13 @@
         <button id="play" type="button">Play</button>
       </div>
       <p id="status" role="status"></p>
+
+      <section class="rules">
+        <h2>Game <small>(changing it starts a new round for everyone)</small></h2>
+        <div id="modes"></div>
+        <div id="muts"></div>
+        <p id="mode-blurb"></p>
+      </section>
 
       <div class="cols">
         <section>
@@ -78,7 +81,7 @@
             <dt>WASD</dt><dd>Move</dd>
             <dt>Space</dt><dd>Jump (hold to bunny-hop)</dd>
             <dt>Mouse</dt><dd>Aim, click to fire</dd>
-            <dt>1–3, wheel, Q/E</dt><dd>Machine gun, shotgun, rockets</dd>
+            <dt>1–3, wheel, Q/E</dt><dd>Machine gun, shotgun, rockets (or what the mode gives you)</dd>
             <dt>4</dt><dd>Power weapon, if you've grabbed one</dd>
             <dt>Tab</dt><dd>Scores</dd>
             <dt>Esc</dt><dd>This menu</dd>
@@ -103,6 +106,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/arena/js/main.js?v=2"></script>
+  <script type="module" src="/static/games/arena/js/main.js?v=3"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 // Checks Frag Arena's two copies of the movement physics agree: app/arena/world.py (bots) and
 // app/static/games/arena/js/physics.js (your own player, in the browser). Both walk, jump, strafe
-// and ride a jump pad through the same inputs; their paths must match.
+// and ride a jump pad through the same inputs; their paths must match. Then again under low
+// gravity at a zombie's speed (the round's rules change both).
 //
 //     node tools/arena-parity.mjs
 import { execFileSync } from 'child_process';
@@ -12,13 +13,17 @@ const { setWorld, move } = await import(path.join(root, 'app/static/games/arena/
 
 // The same input script in both languages: a function of the step number.
 const STEPS = 4000;
-const pyScript = `
+let worst = 0, travelled = 0;
+for (const [gravity, padMul, fast] of [[25, 1, 1], [11.25, Math.sqrt(0.45), 1.25]]) {
+  const pyScript = `
 import json, math, sys
 sys.path.insert(0, '.')
 from app.arena import world
+world.PHYS.update(gravity=${gravity}, pad_mul=${padMul})
 out = []
 for start in ((20, 0, 26), (14, 0, 0), (0, 0, 13)):
     b = world.Body(*start)
+    b.fast = ${fast}
     yaw = math.atan2(start[0], start[2] + 0.1)
     path = []
     for i in range(${STEPS}):
@@ -33,28 +38,28 @@ for start in ((20, 0, 26), (14, 0, 0), (0, 0, 13)):
             path.append(b.pos[:])
     out.append(path)
 print(json.dumps({"paths": out, "map": world.map_payload(), "phys": world.PHYS}))
-`;
-const py = JSON.parse(execFileSync('python3', ['-c', pyScript], { cwd: root }).toString());
-setWorld(py.map, py.phys);
+  `;
+  const py = JSON.parse(execFileSync('python3', ['-c', pyScript], { cwd: root }).toString());
+  setWorld(py.map, py.phys);
 
-let worst = 0, travelled = 0;
-[[20, 0, 26], [14, 0, 0], [0, 0, 13]].forEach((start, k) => {
-  const b = { pos: start.slice(), vel: [0, 0, 0], ground: false };
-  let yaw = Math.atan2(start[0], start[2] + 0.1);
-  let n = 0;
-  for (let i = 0; i < STEPS; i++) {
-    if (i % 90 === 0) yaw += 0.7 * Math.sin(i);
-    const jump = Math.floor(i / 60) % 3 === 0;
-    let wx = -Math.sin(yaw), wz = -Math.cos(yaw);
-    if (Math.floor(i / 200) % 2) { wx += Math.cos(yaw) * 0.7; wz -= Math.sin(yaw) * 0.7; }
-    move(b, wx, wz, jump, 1 / 125);
-    if (i % 50 === 49) {
-      const q = py.paths[k][n++];
-      worst = Math.max(worst, Math.hypot(b.pos[0] - q[0], b.pos[1] - q[1], b.pos[2] - q[2]));
+  [[20, 0, 26], [14, 0, 0], [0, 0, 13]].forEach((start, k) => {
+    const b = { pos: start.slice(), vel: [0, 0, 0], ground: false, fast };
+    let yaw = Math.atan2(start[0], start[2] + 0.1);
+    let n = 0;
+    for (let i = 0; i < STEPS; i++) {
+      if (i % 90 === 0) yaw += 0.7 * Math.sin(i);
+      const jump = Math.floor(i / 60) % 3 === 0;
+      let wx = -Math.sin(yaw), wz = -Math.cos(yaw);
+      if (Math.floor(i / 200) % 2) { wx += Math.cos(yaw) * 0.7; wz -= Math.sin(yaw) * 0.7; }
+      move(b, wx, wz, jump, 1 / 125);
+      if (i % 50 === 49) {
+        const q = py.paths[k][n++];
+        worst = Math.max(worst, Math.hypot(b.pos[0] - q[0], b.pos[1] - q[1], b.pos[2] - q[2]));
+      }
     }
-  }
-  travelled += Math.hypot(b.pos[0] - start[0], b.pos[2] - start[2]);
-});
+    travelled += Math.hypot(b.pos[0] - start[0], b.pos[2] - start[2]);
+  });
+}
 console.log(`largest gap between the two: ${worst.toExponential(1)} m (paths moved ${travelled.toFixed(0)} m)`);
 if (worst > 1e-3 || travelled < 5) {
   console.log('FAILED: world.py and physics.js disagree');

@@ -10,6 +10,9 @@ export function setWorld(map, phys) {
   W.P = phys;
 }
 
+// The round's rules can change gravity (the low gravity mutator).
+export function setPhys(phys) { W.P = phys; }
+
 export function playerHits(boxes, x, y, z) {
   const { radius: R, height: H } = W.P;
   const out = [];
@@ -98,14 +101,15 @@ function accelerate(v, wx, wz, wishspeed, accel, dt, cap = Infinity) {
   v[2] += a * wz;
 }
 
-// One physics step for body {pos, vel, ground}. (wx, wz) is the wished direction, length 0..1.
+// One physics step for body {pos, vel, ground, fast}; `fast` scales run speed (zombies).
+// (wx, wz) is the wished direction, length 0..1.
 // Returns what happened worth a sound or a camera nudge.
 export function move(body, wx, wz, jump, dt) {
   const P = W.P, p = body.pos, v = body.vel;
   const out = { jumped: false, landed: 0, pad: false, stepped: 0 };
   const wish = Math.hypot(wx, wz);
   if (wish > 1e-6) { wx /= wish; wz /= wish; }
-  const wishspeed = P.speed * Math.min(wish, 1);
+  const wishspeed = P.speed * (body.fast || 1) * Math.min(wish, 1);
 
   if (body.ground && jump) {
     v[1] = P.jump;
@@ -158,7 +162,7 @@ export function move(body, wx, wz, jump, dt) {
   if (body.ground) {
     for (const pad of W.pads) {
       if (Math.abs(p[1] - pad.y) < 0.05 && Math.hypot(p[0] - pad.x, p[2] - pad.z) < pad.r) {
-        v[0] = pad.v[0]; v[1] = pad.v[1]; v[2] = pad.v[2];
+        v[0] = pad.v[0] * P.pad_mul; v[1] = pad.v[1] * P.pad_mul; v[2] = pad.v[2] * P.pad_mul;
         body.ground = false;
         out.pad = true;
         break;

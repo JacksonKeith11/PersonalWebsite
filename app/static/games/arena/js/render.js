@@ -2,7 +2,7 @@
 // weapon in your hands, and effects. No lights are added or removed after startup (that makes
 // three.js recompile shaders); flashes borrow from a fixed pool of point lights.
 import * as THREE from 'three';
-import { rayWorld } from './physics.js?v=2';
+import { rayWorld } from './physics.js?v=3';
 
 const TEX_METRES = 2;  // one texture repeat covers 2 m
 
@@ -303,18 +303,25 @@ function gunModel(w, scale = 1) {
     add(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshStandardMaterial({ color: 0xff50d0, roughness: 0.4 }), -0.04, 0, -0.1);
     add(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshStandardMaterial({ color: 0x40e0ff, roughness: 0.4 }), 0.04, 0, -0.15);
     add(new THREE.OctahedronGeometry(0.07), glowMat(0xffffff), 0, 0.02, -0.45);
-  } else {  // yeet cannon
+  } else if (w === 7) {  // yeet cannon
     const orange = new THREE.MeshStandardMaterial({ color: 0xe0701a, roughness: 0.5, metalness: 0.3 });
     add(new THREE.CylinderGeometry(0.2, 0.07, 0.55, 16, 1, true), orange, 0, 0, -0.3, -Math.PI / 2).material.side = THREE.DoubleSide;
     add(new THREE.BoxGeometry(0.1, 0.1, 0.25), DARK, 0, 0, 0.08);
     add(new THREE.BoxGeometry(0.05, 0.14, 0.08), DARK, 0, -0.12, 0.05);
+  } else {  // knife
+    const steel = new THREE.MeshStandardMaterial({ color: 0xd8dde4, roughness: 0.2, metalness: 0.9 });
+    add(new THREE.BoxGeometry(0.035, 0.05, 0.16), DARK, 0, 0, 0.05);
+    add(new THREE.BoxGeometry(0.09, 0.02, 0.02), DARK, 0, 0, -0.04);
+    add(new THREE.BoxGeometry(0.012, 0.05, 0.3), steel, 0, 0.005, -0.2);
   }
   return g;
 }
 
-function playerModel(color, name) {
+// `look`: role ('zombie' or 'jugg', from the round's mode) and bigHeads (a mutator).
+function playerModel(color, name, look = {}) {
   const root = new THREE.Group();
-  const body = new THREE.MeshStandardMaterial({ color, roughness: 0.55 });
+  const zombie = look.role === 'zombie', jugg = look.role === 'jugg';
+  const body = new THREE.MeshStandardMaterial({ color: zombie ? 0x5f8f3a : color, roughness: 0.55 });
   const box = (w, h, d, mat) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   const legs = [];
   for (const s of [-1, 1]) {
@@ -332,19 +339,29 @@ function playerModel(color, name) {
   const aim = new THREE.Group();  // head and gun pitch together
   aim.position.y = 1.4;
   const head = box(0.34, 0.34, 0.34, body);
-  head.position.y = 0.24;
+  const big = look.bigHeads ? 2.3 : 1;
+  head.scale.setScalar(big);
+  head.position.y = 0.24 + 0.17 * (big - 1);
   aim.add(head);
-  const visor = box(0.28, 0.09, 0.03, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffffff, emissiveIntensity: 0.6 }));
-  visor.position.set(0, 0.27, -0.18);
-  aim.add(visor);
+  const eyes = zombie ? 0xff3020 : jugg ? 0xffa020 : 0xffffff;
+  const visor = box(0.28, 0.09, 0.03, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: eyes, emissiveIntensity: zombie || jugg ? 1.4 : 0.6 }));
+  visor.position.set(0, 0.03, -0.18);
+  head.add(visor);
   const gunHolder = new THREE.Group();
   gunHolder.position.set(0.3, -0.12, -0.25);
   aim.add(gunHolder);
   root.add(aim);
+  if (jugg) {  // the Juggernaut is bigger (its hitbox isn't) and wears a glowing ring
+    root.scale.setScalar(1.3);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 8, 24), glowMat(0xffa020));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 2.05;
+    root.add(ring);
+  }
   const label = labelSprite(name, color);
-  label.position.y = 2.25;
+  label.position.y = 2.25 + (big - 1) * 0.4;
   root.add(label);
-  return { root, legs, aim, gunHolder, gun: -1, label, name, color, phase: 0, last: null };
+  return { root, legs, aim, gunHolder, gun: -1, label, name, color, look: JSON.stringify(look), phase: 0, last: null };
 }
 
 // ------------------------------------------------------------------ the view
@@ -498,11 +515,11 @@ export class View {
 
   // ---------------------------------------------------------------- players
 
-  ensurePlayer(id, color, name) {
+  ensurePlayer(id, color, name, look = {}) {
     let p = this.players.get(id);
-    if (p && p.name === name && p.color === color) return p;
+    if (p && p.name === name && p.color === color && p.look === JSON.stringify(look)) return p;
     if (p) this.scene.remove(p.root);
-    p = playerModel(color, name);
+    p = playerModel(color, name, look);
     this.players.set(id, p);
     this.scene.add(p.root);
     return p;
@@ -843,6 +860,7 @@ export class View {
   }
 
   shoot(w, key) {
+    if (key === 'kn') { this.swing = 0.3; return; }
     this.kick = w === 0 ? 0.035 : w >= 3 ? 0.14 : 0.1;
     this.flashUntil = this.time + (w >= 3 ? 0.08 : 0.05);
     this.flash.material.color.set(POWER_COLOR[key] || 0xffc070);
@@ -890,6 +908,11 @@ export class View {
     const sway = Math.min(speed / 10, 1);
     this.vgun.position.set(0.2 + Math.cos(bob) * 0.012 * sway, -0.2 - Math.abs(Math.sin(bob)) * 0.015 * sway - this.switchT * 0.8, -0.45 + this.kick);
     this.vgun.rotation.x = this.kick * 1.2;
+    this.swing = Math.max(0, (this.swing || 0) - dt);
+    const slash = Math.sin(Math.min(1, (0.3 - this.swing) / 0.3) * Math.PI) * (this.swing > 0 ? 1 : 0);
+    this.vgun.rotation.y = slash * 0.9;
+    this.vgun.rotation.z = slash * 0.6;
+    this.vgun.position.x -= slash * 0.12;
     this.vgun.visible = showGun;
     this.flash.visible = showGun && this.time < this.flashUntil;
     if (this.flash.visible) {

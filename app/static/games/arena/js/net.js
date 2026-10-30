@@ -5,7 +5,7 @@ const now = () => performance.now() / 1000;
 
 export class Net {
   constructor(h) {
-    this.h = h;  // onWelcome, onSnap, onRoster, onPong, onStatus
+    this.h = h;  // onWelcome, onRules, onSnap, onRoster, onStatus
     this.ws = null;
     this.name = '';
     this.offset = null;  // server time minus local time
@@ -79,6 +79,8 @@ export class Net {
       this.rtt = this.rtt ? this.rtt * 0.7 + rtt * 0.3 : rtt;
       if (Math.abs(best.off - this.offset) > 0.25) this.offset = best.off;
       else this.target = best.off;
+    } else if (m.t === 'rules') {
+      this.h.onRules(m);
     } else if (m.t === 'roster') {
       this.h.onRoster(m.list);
     } else if (m.t === 'full') {

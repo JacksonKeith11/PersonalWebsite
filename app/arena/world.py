@@ -25,7 +25,9 @@ PHYS = {
     "radius": 0.4,
     "height": 1.8,
     "eye": 1.6,
+    "pad_mul": 1.0,  # jump pads' launch speed; low gravity lowers it so pads land in the same place
 }
+BASE_PHYS = dict(PHYS)
 
 R = PHYS["radius"]
 H = PHYS["height"]
@@ -220,6 +222,7 @@ class Body:
         self.pos = [x, y, z]
         self.vel = [0.0, 0.0, 0.0]
         self.ground = False
+        self.fast = 1.0  # run speed multiplier (zombies are quicker)
 
     def knock(self, vx, vy, vz):
         self.vel[0] += vx
@@ -282,7 +285,7 @@ def move(body, wx, wz, jump, dt):
     wish = math.hypot(wx, wz)
     if wish > 1e-6:
         wx, wz = wx / wish, wz / wish
-    wishspeed = PHYS["speed"] * min(wish, 1.0)
+    wishspeed = PHYS["speed"] * body.fast * min(wish, 1.0)
 
     if body.ground and jump:
         v[1] = PHYS["jump"]
@@ -331,7 +334,7 @@ def move(body, wx, wz, jump, dt):
     if body.ground:
         for pad in PADS:
             if abs(p[1] - pad["y"]) < 0.05 and math.hypot(p[0] - pad["x"], p[2] - pad["z"]) < pad["r"]:
-                v[0], v[1], v[2] = pad["v"]
+                v[0], v[1], v[2] = (c * PHYS["pad_mul"] for c in pad["v"])
                 body.ground = False
                 return "pad"
     return None

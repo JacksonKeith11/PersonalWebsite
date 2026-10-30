@@ -8,13 +8,15 @@ scripts.
 A Quake 3-style deathmatch in the browser, with Counter-Strike's bunny-hopping. Everyone who opens
 the page joins one shared arena (up to 12 players, bots included). Watchers who haven't pressed Play sit in the roster as "watching" and
 see an orbiting camera. First to 20 frags wins the round. Then there's an 8-second intermission with
-the scores up, everyone respawns, and scores reset. Bots can be added and removed from the menu by
-anyone. They're for testing and solo play, and the owner and friends are the intended players.
+the scores up, everyone respawns, and scores reset. Anyone can switch the round to a party mode
+(Gun Game, Infection, Juggernaut) and mix in mutators from the menu; see "Modes and mutators". Bots
+can be added and removed from the menu by anyone. They're for testing and solo play, and the owner
+and friends are the intended players.
 
 - **Weapons everyone carries** (keys 1-3): machine gun (hitscan, 11 a bullet, 11 a second; the
   owner asked for it stronger than Q3's), shotgun (11 pellets of 8), rocket launcher (100 direct,
   100 splash over 3.75 m, knockback, rocket jumps). One shared cooldown, as in Q3. The table is
-  `WEAPONS` in `game.py` and is sent to the client.
+  `WEAPONS` in `game.py` and is sent to the client. A knife (index 8) exists only in some modes.
 - **Power weapons** (key 4): rare, one at a time. See below.
 - **Pickups**: health +25 (to 100), mega health +100 (to 200, on the middle platform), armor +50
   (absorbs two thirds of damage), ammo boxes. Health and armor above 100 tick down 1 a second.
@@ -53,12 +55,52 @@ Pulls and flings reach a person as `knock` events and are applied by their brows
 both players on the server, and tell a person's browser with a `tp` event carrying `warp`, a count
 of teleports. Like `life`, it makes the server ignore position reports from before the move.
 
+## Modes and mutators
+
+The owner asked for party modes from Halo and Counter-Strike. Anyone picks the mode and any mix of
+mutators in the menu's Game section; a change starts a new round for everyone at once
+(`Game.new_round`, also what ends an intermission), and is announced. The choice lasts until
+someone changes it, even through an empty server; a deploy resets it to Deathmatch.
+
+| Mode | How it plays |
+|---|---|
+| Deathmatch | As above. |
+| Gun Game (CS:GO's Arms Race) | Everyone climbs `GUN_LADDER` (MG, SG, RL, ion orb, vortex, rail, knife), two kills a rung, with endless ammo and the knife always on 2. A kill on the last rung (the knife) wins. Dying by your own hand or a knife costs a kill. Score is kills toward the ladder. No power weapon spawns or ammo pickups. |
+| Infection (Halo) | 10 s in, a random player (bot or person) becomes the first zombie: knife only, 1.25× run speed, no pickups. Whoever dies as a human comes back a zombie, and so does anyone who joins late. Humans can't hurt humans, nor zombies zombies. Zombies score for infecting, humans for killing zombies. The last survivor gets 200 health and 100 armor. Zombies win when no humans are left; humans win if any survive 3 minutes. Waits for two players. |
+| Juggernaut (Halo) | Free for all until the first kill; the killer becomes the Juggernaut: 300 health and 100 armor (no decay), a random power weapon that gets a charge back every 5 s, drawn 1.3× bigger with a ring. Only the Juggernaut and the people hunting them can hurt each other, so everyone else is a team. The Juggernaut scores a point a kill; killing them scores one and takes the mantle. First to 10. |
+
+| Mutator | Effect |
+|---|---|
+| Low gravity | Gravity × 0.45, so jumps go twice as high. Pads launch at × √0.45 and splash knockback is × √0.45, so pads land where they always do and rocket jumps reach the same height (but hang longer). |
+| Instagib | Railguns only, endless, 300 damage. No pickups, no power weapons. |
+| Rockets only | Rocket launchers only, endless. No ammo pickups, no power weapons. |
+| Big heads | Heads drawn 2.3× bigger. Only the look; hitboxes stay boxes. |
+| Power frenzy | Power weapons appear 3 s in and every 4-8 s after one is taken; untaken ones vanish after 20 s. |
+
+How it's built:
+
+- **The kit.** `Game.kit(p)` says what p may hold, in slot order, and which weapons never run out,
+  from the mode, p's role and the mutators. `sync_kit` runs every tick: it keeps p holding an
+  allowed weapon, tops up endless ones, and sends the browser a `kit` event when the kit changes.
+  The browser's number keys, wheel and HUD slots all follow the kit (`S.allow`, `S.inf`), and the
+  server refuses shots and weapon choices outside it.
+- **Roles.** `Player.role` is `"zombie"`, `"jugg"` or empty, set through `set_role`, sent in the
+  roster (its ninth field) and drawn by `render.js` (green zombies with red eyes; the
+  Juggernaut). `Game.friendly(a, b)` decides who can't hurt whom; `damage` checks it first, so
+  teammates get no knockback from each other either.
+- **The rules message** (`t: "rules"`): mode, mutators, score limit, physics, knockback, and the
+  Infection timers (`alpha`, when the first zombie is picked; `ends`). Sent after `welcome` and
+  whenever they change. The HUD's mode line under the scores is built from it and the roster.
+- **Run speed** is a body's `fast` (zombies' 1.25), part of the physics in both copies.
+- Bots skip teammates when picking targets, hunt (zombies know where the living are, and everyone
+  knows where the Juggernaut is), charge with the knife, and only fire it in reach.
+
 ## Code map
 
 | File | Holds |
 |---|---|
 | `app/arena/world.py` | The map, box/ray geometry, the movement physics (`move`), and the bots' waypoint graph (`build_graph`, `path`). |
-| `app/arena/game.py` | `Game`: joining and rejoining, the 30 Hz tick, messages from clients, hitscan with lag compensation, projectiles, black holes, splash, damage, frags, pickups, power weapons, respawns, intermission, and the bots' brains. `GAME` is the one room. |
+| `app/arena/game.py` | `Game`: joining and rejoining, the 30 Hz tick, messages from clients, hitscan with lag compensation, projectiles, black holes, splash, damage, frags, pickups, power weapons, respawns, rounds, modes and mutators, and the bots' brains. `GAME` is the one room. |
 | `app/arena/routes.py` | `GET /games/frag-arena` (the page) and the WebSocket at `/games/frag-arena/ws`. |
 | `app/static/games/arena/index.html` | The page: HUD, the menu (name, Play, bots, settings, controls), and the import map for three.js. |
 | `js/main.js` | The client: input, your own movement, firing, server events, the camera, HUD and menu. |
@@ -151,7 +193,15 @@ and walking links never cross a pad.
 - Map changes: boxes must not overlap spawns, pickups or waypoint paths in ways that trap players.
   Run `python3 tools/arena-check.py` afterwards: it checks every waypoint can reach every other,
   then plays 6 bots for 3 simulated minutes and fails if nobody scores, a bot stays stuck, or a tick
-  gets slow.
+  gets slow, then plays each party mode and a few mutators.
+- **The low gravity mutator rewrites `world.PHYS` in place** (`new_round` restores it from
+  `world.BASE_PHYS` first), since bots' movement reads it. Anything that reads `PHYS` reads the
+  round's physics, and the browser gets them in the rules message (`setPhys`). Jump pads are built
+  once with normal gravity; `pad_mul` scales their launch.
+- **A new mode** needs an entry in `MODES`, its kit in `kit`, its scoring in `kill`, any rules it
+  keeps in `step_mode`, a line in `modeLine` and `MODE_BLURB` (`main.js`), and a run in
+  `tools/arena-check.py` that checks it does its thing. New weapons go after the knife, or every
+  index in both languages moves.
 - `?debug` on the page URL exposes `window.arena` (`S`, `net`, `view`, `keys`) for
   `tools/arena-smoke.js`, which plays two headless browsers against a running server (see its
   header). Headless rendering is software, a few frames a second, so test in a real browser for

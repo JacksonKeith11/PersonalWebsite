@@ -3,7 +3,9 @@
     python3 tools/arena-check.py [seconds]
 
 Fails if the waypoint graph has unreachable parts, a bot spends long stuck, nobody scores, or
-ticks get slow (99th percentile over a quarter of the 33 ms budget).
+ticks get slow (99th percentile over a quarter of the 33 ms budget). Then plays a shorter round
+of each other mode (and some mutators) and fails if the mode doesn't do its thing: Gun Game
+players climbing the ladder, Infection spreading and ending, a Juggernaut being crowned.
 """
 
 import math
@@ -42,9 +44,18 @@ def check_graph():
     return True
 
 
-def run(seconds):
+def run(seconds, mode="dm", muts=()):
     random.seed(1)
     g = game.Game()
+    g.mode, g.muts = mode, set(muts)
+    g.new_round()
+    wins = []
+    end_round = g.end_round
+    g.end_round = lambda w, text=None: (wins.append((w.name if w else None, text)), end_round(w, text))
+    seen = {"jugg": 0, "zombies": 0, "rung": 0}
+    kills = []  # counted here, since a round ending resets the scores
+    kill = g.kill
+    g.kill = lambda t, by, w: (kills.append(w), kill(t, by, w))
     for _ in range(6):
         g.add_bot()
     sim_now = [0.0]
@@ -60,6 +71,11 @@ def run(seconds):
         t0 = time.perf_counter()
         g.tick()
         times.append(time.perf_counter() - t0)
+        ps = list(g.players.values())
+        seen["jugg"] = max(seen["jugg"], sum(p.role == "jugg" for p in ps))
+        seen["zombies"] = max(seen["zombies"], sum(p.role == "zombie" for p in ps))
+        if mode == "gun":
+            seen["rung"] = max([seen["rung"]] + [p.score // game.GUN_KILLS for p in ps])
         for p in g.players.values():
             s = stuck[p.id]
             if not p.alive:
@@ -71,16 +87,23 @@ def run(seconds):
                 longest_stuck = sim_now[0] - s[0]
                 if longest_stuck > 8:
                     print(f"  {p.name} stuck at {[round(c, 1) for c in p.pos]} for {longest_stuck:.0f}s")
-    frags = sum(max(p.score, 0) for p in g.players.values())
-    deaths = sum(p.deaths for p in g.players.values())
-    print(f"{seconds}s simulated: {frags} frags, {deaths} deaths")
+    deaths = len(kills)
+    used = sorted({game.WEAPONS[w]["short"] for w in kills})
+    print(f"{g.describe()}, {seconds}s simulated: {deaths} deaths, by {', '.join(used)}; rounds won: {wins}; {seen}")
     for p in sorted(g.players.values(), key=lambda p: -p.score):
         print(f"  {p.name:6} {p.score:3} frags {p.deaths:3} deaths")
     times.sort()
     p99 = times[int(len(times) * 0.99)]
     print(f"tick: mean {sum(times) / ticks * 1000:.2f} ms, 99th percentile {p99 * 1000:.2f} ms, "
           f"worst {times[-1] * 1000:.2f} ms; longest stuck {longest_stuck:.1f}s")
-    ok = frags >= seconds / 20 and p99 < game.TICK * 0.25 and longest_stuck < 12
+    ok = deaths >= seconds / 20 and p99 < game.TICK * 0.25 and longest_stuck < 12
+    if mode == "gun":
+        ok = ok and seen["rung"] >= 3
+    elif mode == "infect":
+        ok = ok and seen["zombies"] >= 3 and bool(wins)
+    elif mode == "jugg":
+        ok = ok and seen["jugg"] == 1
+    world.PHYS.update(world.BASE_PHYS)
     return ok
 
 
@@ -88,6 +111,9 @@ def main():
     seconds = int(sys.argv[1]) if len(sys.argv) > 1 else 180
     ok = check_graph()
     ok = run(seconds) and ok
+    for mode, muts in (("gun", ()), ("infect", ()), ("jugg", ("frenzy",)), ("dm", ("lowgrav", "insta")),
+                       ("dm", ("rockets", "lowgrav"))):
+        ok = run(200, mode, muts) and ok
     print("OK" if ok else "FAILED")
     sys.exit(0 if ok else 1)
 

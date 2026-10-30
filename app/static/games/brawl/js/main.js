@@ -2,10 +2,10 @@
 // what you can do this turn, the log) and the minigame overlays. The server sends the whole
 // room state whenever it changes, and this redraws from it.
 
-import { Board, ROUTE_COLORS } from './board.js?v=6';
-import { Stage } from './mg.js?v=6';
-import { TEAM_COLORS } from './base.js?v=6';
-import * as sfx from './audio.js?v=6';
+import { Board, ROUTE_COLORS } from './board.js?v=7';
+import { Stage } from './mg.js?v=7';
+import { TEAM_COLORS } from './base.js?v=7';
+import * as sfx from './audio.js?v=7';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -39,6 +39,9 @@ function connect(opts) {
   open();
 }
 
+// this page's ?v=, so the server can tell a tab left open across a deploy to reload
+const VERSION = new URL(import.meta.url).searchParams.get('v');
+
 function open() {
   const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/games/board-brawl/ws`);
   ws = sock;
@@ -46,7 +49,7 @@ function open() {
   sock.onopen = () => {
     retry = 1;
     sock.send(JSON.stringify({
-      t: 'hello', name: saved.name || 'Player', token: saved.token, tab,
+      t: 'hello', v: VERSION, name: saved.name || 'Player', token: saved.token, tab,
       room: S.code || join.room || '', create: !S.code && !!join.create,
     }));
   };
@@ -88,6 +91,13 @@ function receive(m) {
     render();
   } else if (m.t === 'mg') {
     stage.snap(m);
+  } else if (m.t === 'reload') {
+    // once per version, in case something keeps serving the old page
+    let tried = null;
+    try { tried = sessionStorage.getItem('brawl-reload'); sessionStorage.setItem('brawl-reload', VERSION); } catch {}
+    wanted = false;
+    if (tried !== VERSION) location.reload();
+    else status('Board Brawl has just been updated: reload the page to play.');
   } else if (m.t === 'error') {
     wanted = false;
     S.code = null;

@@ -52,6 +52,7 @@ class HexHeat(Survival, ArenaGame):
                 if abs(q + r) <= self.RINGS:
                     self.tiles.append((50 + self.SIZE * math.sqrt(3) * (q + r / 2), 50 + self.SIZE * 1.5 * r))
         self.out_at = {}
+        self.short = {}
         self.round = 0
         self.new_round()
 
@@ -61,10 +62,10 @@ class HexHeat(Survival, ArenaGame):
         self.colors = [i % self.COLORS for i in range(n)]
         random.shuffle(self.colors)
         self.called = random.randrange(self.COLORS)
-        # fewer safe tiles each round, down to two, so it ends with a scramble rather than a draw
+        # fewer safe tiles each round, down to one, so it ends with a scramble rather than a draw
         safe = [i for i, c in enumerate(self.colors) if c == self.called]
         random.shuffle(safe)
-        for i in safe[max(2, self.SAFE0 - self.round):]:
+        for i in safe[max(1, self.SAFE0 - self.round):]:
             self.colors[i] = random.choice([c for c in range(self.COLORS) if c != self.called])
         self.phase = "call"
         self.phase_end = self.t + max(1.7, 4.2 - 0.35 * self.round)
@@ -74,9 +75,12 @@ class HexHeat(Survival, ArenaGame):
         return [d.pid for d in self.discs.values() if d.alive]
 
     def tile_at(self, x, y):
+        # Hexes tile the board, so the nearest centre is always the tile you're on; a tile's
+        # corners are SIZE from its centre, so only past that are you off the edge. (A cutoff
+        # under SIZE made the corners where three tiles meet into holes.)
         best = min(range(len(self.tiles)), key=lambda i: math.hypot(self.tiles[i][0] - x, self.tiles[i][1] - y))
         tx, ty = self.tiles[best]
-        return best if math.hypot(tx - x, ty - y) < self.SIZE * 0.93 else None
+        return best if math.hypot(tx - x, ty - y) <= self.SIZE else None
 
     def after_move(self, live, dt):
         if self.t >= self.phase_end:
@@ -92,6 +96,9 @@ class HexHeat(Survival, ArenaGame):
                 d.alive = False
                 d.vx = d.vy = 0
                 self.out_at[d.pid] = self.t
+                # for breaking a tie between people who fall together: how far from safety
+                self.short[d.pid] = min(math.hypot(x - d.x, y - d.y) for k, (x, y) in enumerate(self.tiles)
+                                        if self.colors[k] == self.called)
 
     def bot_tick(self, dt):
         for pid in self.bots:
@@ -114,6 +121,9 @@ class HexHeat(Survival, ArenaGame):
                 d.ix = d.iy = 0.0
             else:
                 self.steer(d, tx, ty, 0.12)
+
+    def key_of(self, pid):
+        return (0, 0, 0) if pid not in self.out_at else (1, -self.out_at[pid], round(self.short[pid], 1))
 
     def snap(self):
         s = super().snap()

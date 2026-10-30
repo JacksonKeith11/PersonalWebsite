@@ -904,11 +904,15 @@ class Room:
                 for r in rows:
                     r["prize"] = self.coins(self.players[r["id"]], PRIZES[r["place"] - 1])
             else:
-                win = [r for r in rows if r["place"] == 1]
-                if len(win) == 1:
-                    w, l = self.players[rows[0]["id"]], self.players[rows[1]["id"]]
-                    n = self.take(l, w, DUEL_STAKE)
-                    rows[0]["prize"], rows[1]["prize"] = n, -n
+                # A duel always has a loser: a dead heat goes to a coin toss.
+                if rows[0]["place"] == rows[1]["place"]:
+                    random.shuffle(rows)
+                    rows[0]["label"] += " · won the coin toss"
+                    rows[1]["label"] += " · lost the coin toss"
+                    rows[0]["place"], rows[1]["place"] = 1, 2
+                w, l = self.players[rows[0]["id"]], self.players[rows[1]["id"]]
+                n = self.take(l, w, DUEL_STAKE)
+                rows[0]["prize"], rows[1]["prize"] = n, -n
         else:
             tk = [mg.team_key(t) for t in mg.teams]
             for ti, team in enumerate(mg.teams):

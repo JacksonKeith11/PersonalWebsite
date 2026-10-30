@@ -1,9 +1,9 @@
 // More one-against-the-rest minigames (showdown.py on the server): Candy Bash, Look Away, and
 // Red Light, Green Light. In each, params.solo is the one.
 
-import { Game } from './base.js?v=6';
-import { Arena } from './games-live.js?v=6';
-import * as art from './art.js?v=6';
+import { Game } from './base.js?v=7';
+import { Arena } from './games-live.js?v=7';
+import * as art from './art.js?v=7';
 
 const now = () => performance.now() / 1000;
 

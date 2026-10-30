@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -10,6 +11,9 @@ from fastapi.responses import FileResponse
 from . import game
 
 PAGE = Path(__file__).parent.parent / "static" / "games" / "brawl" / "index.html"
+# The page's ?v=: a tab opened before a deploy runs the old game code, which can't play the new
+# server's minigames, so it's told to reload.
+VERSION = re.search(r"\?v=(\d+)", PAGE.read_text()).group(1)
 
 router = APIRouter()
 
@@ -36,6 +40,12 @@ async def socket(ws: WebSocket):
     try:
         hello = json.loads(await asyncio.wait_for(ws.receive_text(), 10))
         if not isinstance(hello, dict):
+            return
+        if str(hello.get("v")) != VERSION:
+            stale = {"t": "reload"} if hello.get("v") else \
+                {"t": "error", "msg": "Board Brawl has just been updated: reload the page to play."}
+            await ws.send_text(json.dumps(stale))
+            await ws.close()
             return
         room = game.new_room() if hello.get("create") else game.find_room(hello.get("room"))
         if room is None:

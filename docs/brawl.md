@@ -148,14 +148,16 @@ Other tuning from the owner's audit: Boo-lloon Pump alternates ← and → to 60
 mashing Space); Potion Math is a race on Trivia's rules, with a bonus for the first right answer
 and a cost for a wrong one (it was ten sums typed alone); Count the Creeps is three rounds; Hot
 Pumpkin needs three players (as a duel it was a coin flip, over in 8 s); Hex Heat's safe tiles
-thin out each round, down to two (half its games ended in a draw); Skeleton Says ramps faster
+thin out each round, down to one, and people who fall together are ranked by how near they were
+to a safe tile (half its games ended in a draw); Skeleton Says ramps faster
 and lasts at most 45 s. Someone watching a game played on the players' own screens (a duel
 they're not in) gets a big scoreboard rather than a small list.
 
 The format is picked each round (`Room.start_minigame`): with 2 players always free-for-all; with
 3, free-for-all or 1 v 2; with 4, free-for-all, 2 v 2 or 1 v 3. Games come from a shuffled bag per
 format so they don't repeat until the bag's empty. Prizes: free-for-all 10/6/3/1; 2 v 2 8 each to
-the winners (3 each on a draw); 1 v the rest 15 to the one, or 6 each to the rest.
+the winners (3 each on a draw); 1 v the rest 15 to the one, or 6 each to the rest. **A duel always has a loser** (the owner asked):
+a dead heat goes to a coin toss, and the results say so.
 
 **Adding a minigame** takes a server class in `minigames.py`, `arcade.py`, `classics.py` or `showdown.py` (in
 `GAMES`, with `modes`, `dur`, `key_of` and `label`, plus bots) and a browser class in
@@ -209,6 +211,13 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 
 ## Gotchas
 
+- **A tab left open across a deploy is told to reload.** The browser sends its `?v=` in its hello;
+  `routes.py` reads the page's and, if they differ, answers `reload` (or, for a tab from before
+  this check, an error saying to reload). Old game code against a new server breaks minigames in
+  odd ways (a one-round Count the Creeps waiting on a three-round server looked stuck).
+- **Hex Heat's `tile_at` must allow up to `SIZE`** from the nearest centre: that's where a tile's
+  corners are, and a smaller cutoff turned the points where three tiles meet into holes, so
+  people fell while crossing the board.
 - **Every module URL carries `?v=N`, and they must all match** (Cloudflare caches `/static`, and a
   module loaded under two URLs runs twice). When changing any of the game's JS or CSS, bump them
   together: `grep -rn "?v=" app/static/games/brawl`.

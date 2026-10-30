@@ -2,8 +2,8 @@
 // (bumper ring, candy grab, ghost tag, pumpkin drop), which send a stick and a dash 20 times a
 // second and draw the server's snapshots, smoothed between arrivals.
 
-import { Game, TEAM_COLORS } from './base.js?v=6';
-import * as art from './art.js?v=6';
+import { Game, TEAM_COLORS } from './base.js?v=7';
+import * as art from './art.js?v=7';
 
 const now = () => performance.now() / 1000;
 const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;

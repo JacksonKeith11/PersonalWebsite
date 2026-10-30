@@ -1,8 +1,8 @@
 // The solo minigames: each browser plays its own copy against the content the server dealt,
 // and reports progress (`prog`) and a final score (`done`). Others' progress arrives in `prog`.
 
-import { Game } from './base.js?v=6';
-import * as art from './art.js?v=6';
+import { Game } from './base.js?v=7';
+import * as art from './art.js?v=7';
 
 const ARROWS = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'];
 const WASD = ['KeyW', 'KeyD', 'KeyS', 'KeyA'];

@@ -29,9 +29,8 @@ and friends are the intended players.
   held, so hops keep their speed. Steps up to 0.5 m are walked, jump pads throw you onto the side
   ledges, and splash knockback is 0.15 m/s per point of damage, so a rocket at your feet as you
   jump lifts you about 9-10 m.
-- **The map** is built in code (`build_map()` in `world.py`) from axis-aligned boxes: a 60 × 60
-  floor, a central platform with stairs north and south, two side ledges with stairs and pads, four
-  pillars, crates. The client draws whatever boxes the server sends.
+- **Maps** are built in code (`MAPS` in `world.py`) from axis-aligned boxes; the client draws
+  whatever boxes the server sends. See "Maps".
 
 ## Power weapons
 
@@ -55,12 +54,38 @@ Pulls and flings reach a person as `knock` events and are applied by their brows
 both players on the server, and tell a person's browser with a `tp` event carrying `warp`, a count
 of teleports. Like `life`, it makes the server ignore position reports from before the move.
 
+## Maps
+
+| Map | Builder | What it is |
+|---|---|---|
+| Arena | `build_arena` | The first one, 60 × 60: a central platform with the mega health, two side ledges with stairs and pads, four pillars (a power spot on one), crates. |
+| Warehouse | `build_warehouse` | 64 × 48, two levels: grated catwalks 4 m up along both ends and a bridge down the middle (mega on it; pads from the floor), shipping containers below, two stacked ones a rocket jump reaches. Steel-blue light. |
+| Spire | `build_spire` | 60 × 60: a stepped tower in the middle (tiers at 3, 6 and 9 m; stairs to the first two, pads from the second to the top, where a power weapon can appear), corner balconies with stairs, pillars and low walls. Violet dusk. |
+| Twin Bases | `build_bases` | 80 × 40, Halo-style: two raised bases facing each other, each with stairs, a pad up, a parapet and a tower behind (rocket jump; power spot), a low platform with the mega in the middle. Overcast teal. Built with team modes in mind. |
+
+Anyone picks the map in the menu's Game section, which starts a new round there for everyone (like
+a mode change), and can tick "Next map after each round" to rotate through `MAPS` in order. A deploy
+goes back to Arena.
+
+- **`load_map(key)` empties and refills `world`'s lists in place** (`BOXES`, `PICKUPS`, `SPAWNS`,
+  `NODES`...), sets `HALF` (the inside of the outer walls, used for the grid of waypoints and for
+  checking reported positions) and `THEME` (sky, fog and sun colours). Code that reads
+  `world.BOXES` etc. sees the new map; never copy them at import.
+- **Each map's waypoint graph is built the first time bots play it** (0.2-0.35 s, which stalls one
+  tick) and kept in `_GRAPHS`, so switching back is free.
+- **Switching sends a `map` message** with the whole map (`map_payload`), before the new round's
+  respawns. The browser rebuilds its meshes (disposing the old ones) and re-themes the sky.
+- Builders share helpers: `outer(hx, hz)` (floor and walls, 16 m high so rocket jumps stay in),
+  `stairs(...)` (along x or z, from any `base` height, with the bots' link up and down),
+  `jump_pad(..., y=)` (from any height; worked out at normal gravity), `pickup`, `power_spot`,
+  `spawn`.
+
 ## Modes and mutators
 
 The owner asked for party modes from Halo and Counter-Strike. Anyone picks the mode and any mix of
 mutators in the menu's Game section; a change starts a new round for everyone at once
 (`Game.new_round`, also what ends an intermission), and is announced. The choice lasts until
-someone changes it, even through an empty server; a deploy resets it to Deathmatch.
+someone changes it, even through an empty server; a deploy resets it to Deathmatch on Arena.
 
 | Mode | How it plays |
 |---|---|
@@ -88,8 +113,8 @@ How it's built:
   roster (its ninth field) and drawn by `render.js` (green zombies with red eyes; the
   Juggernaut). `Game.friendly(a, b)` decides who can't hurt whom; `damage` checks it first, so
   teammates get no knockback from each other either.
-- **The rules message** (`t: "rules"`): mode, mutators, score limit, physics, knockback, and the
-  Infection timers (`alpha`, when the first zombie is picked; `ends`). Sent after `welcome` and
+- **The rules message** (`t: "rules"`): map, rotation, mode, mutators, score limit, physics,
+  knockback, and the Infection timers (`alpha`, when the first zombie is picked; `ends`). Sent after `welcome` and
   whenever they change. The HUD's mode line under the scores is built from it and the roster.
 - **Run speed** is a body's `fast` (zombies' 1.25), part of the physics in both copies.
 - Bots skip teammates when picking targets, hunt (zombies know where the living are, and everyone
@@ -99,7 +124,7 @@ How it's built:
 
 | File | Holds |
 |---|---|
-| `app/arena/world.py` | The map, box/ray geometry, the movement physics (`move`), and the bots' waypoint graph (`build_graph`, `path`). |
+| `app/arena/world.py` | The maps and `load_map`, box/ray geometry, the movement physics (`move`), and the bots' waypoint graph (`build_graph`, `path`). |
 | `app/arena/game.py` | `Game`: joining and rejoining, the 30 Hz tick, messages from clients, hitscan with lag compensation, projectiles, black holes, splash, damage, frags, pickups, power weapons, respawns, rounds, modes and mutators, and the bots' brains. `GAME` is the one room. |
 | `app/arena/routes.py` | `GET /games/frag-arena` (the page) and the WebSocket at `/games/frag-arena/ws`. |
 | `app/static/games/arena/index.html` | The page: HUD, the menu (name, Play, bots, settings, controls), and the import map for three.js. |
@@ -190,10 +215,15 @@ and walking links never cross a pad.
   together: `grep -rn "?v=" app/static/games/arena`.
 - **Don't add or remove three.js lights at runtime**: it recompiles every shader. Flashes borrow
   from the fixed pool in `View.lights`.
-- Map changes: boxes must not overlap spawns, pickups or waypoint paths in ways that trap players.
-  Run `python3 tools/arena-check.py` afterwards: it checks every waypoint can reach every other,
-  then plays 6 bots for 3 simulated minutes and fails if nobody scores, a bot stays stuck, or a tick
-  gets slow, then plays each party mode and a few mutators.
+- Map changes and new maps: boxes must not overlap spawns, pickups or waypoint paths in ways that
+  trap players. Run `python3 tools/arena-check.py` afterwards: for every map it checks every
+  waypoint can reach every other and that spawns, pickups and bots' power spots are clear and on
+  the graph, then plays 6 bots on each map for 3 simulated minutes (failing if nobody scores, a bot
+  stays stuck, or a tick gets slow), then plays each party mode and a few mutators. Common
+  failures: stairs whose foot ends hard against a wall or another box (the link's lower end can't
+  join the floor's waypoints; leave about 3 m clear), and a ledge bots can climb to but not walk
+  down from (add a one-way link off it, as the Spire's top has). Also check pads land where they
+  should, at both gravities.
 - **The low gravity mutator rewrites `world.PHYS` in place** (`new_round` restores it from
   `world.BASE_PHYS` first), since bots' movement reads it. Anything that reads `PHYS` reads the
   round's physics, and the browser gets them in the rules message (`setPhys`). Jump pads are built

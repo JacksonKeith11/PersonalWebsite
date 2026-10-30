@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/games/arena/game.css?v=3">
+  <link rel="stylesheet" href="/static/games/arena/game.css?v=4">
   <script type="importmap">
     { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.min.js" } }
   </script>
@@ -48,7 +48,8 @@
       <h1>Frag Arena</h1>
       <p class="intro">
         Quake-style deathmatch for whoever's online. Everyone who opens this page lands in the same arena.
-        Pick a party mode below for a change: Gun Game, Infection or Juggernaut, with mutators on top.
+        Pick a map and a party mode below for a change: Gun Game, Infection or Juggernaut, with mutators on
+        top.
       </p>
       <p id="touch-note" class="note" hidden>This one needs a keyboard and mouse.</p>
       <div class="join">
@@ -59,6 +60,9 @@
 
       <section class="rules">
         <h2>Game <small>(changing it starts a new round for everyone)</small></h2>
+        <div id="maps"></div>
+        <p id="map-blurb"></p>
+        <label class="rotate"><input id="rotate" type="checkbox"> Next map after each round</label>
         <div id="modes"></div>
         <div id="muts"></div>
         <p id="mode-blurb"></p>
@@ -106,6 +110,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/arena/js/main.js?v=3"></script>
+  <script type="module" src="/static/games/arena/js/main.js?v=4"></script>
 </body>
 </html>

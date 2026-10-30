@@ -253,6 +253,7 @@ class Game:
         self.decay_at = 0.0
         self.mode = "dm"
         self.muts = set()
+        self.rotate = False  # move to the next map after each round
         self.knock = KNOCK
         self.infect_on = False  # Infection: the first zombie has been picked
         self.alpha_at = 0.0
@@ -337,6 +338,7 @@ class Game:
             "t": "welcome", "id": p.id, "ts": now, "map": world.map_payload(), "phys": PHYS,
             "weapons": WEAPONS, "knock": self.knock, "interp": INTERP, "limit": self.limit(), "tick": TICK,
             "modes": {k: m["name"] for k, m in MODES.items()}, "mutators": MUTATORS,
+            "maps": {k: [m[0], m[2]] for k, m in world.MAPS.items()},
         })
         self.send(p, self.rules())
         p.kit_sent = None
@@ -443,12 +445,20 @@ class Game:
                         self.broadcast_msg(f"{p.name} removed the bots")
             elif t == "rules":
                 mode, muts = msg.get("mode"), msg.get("muts")
-                if mode not in MODES or not isinstance(muts, list) or now - self.rules_at < 1.0:
+                key, rotate = msg.get("map", world.MAP["key"]), bool(msg.get("rotate", self.rotate))
+                if mode not in MODES or not isinstance(muts, list) or key not in world.MAPS \
+                        or now - self.rules_at < 1.0:
                     return
                 muts = {m for m in muts if m in MUTATORS}
-                if mode != self.mode or muts != self.muts:
+                if rotate != self.rotate:
+                    self.rotate = rotate
+                    self.broadcast_msg(f"{p.name} turned map rotation {'on' if rotate else 'off'}")
+                    self.send_rules()
+                if mode != self.mode or muts != self.muts or key != world.MAP["key"]:
                     self.rules_at = now
                     self.mode, self.muts = mode, muts
+                    if key != world.MAP["key"]:
+                        self.set_map(key)
                     self.new_round()
                     self.broadcast_msg(f"{p.name} switched to {self.describe()}")
             elif t == "name":
@@ -470,7 +480,8 @@ class Game:
         w = msg.get("w")
         if w in self.kit(p)[0] and p.ammo[w] > 0:
             p.weapon = w
-        if abs(pos[0]) > 31 or abs(pos[2]) > 31 or not -5 < pos[1] < 60 or world.inside_solid(*pos):
+        if abs(pos[0]) > world.HALF[0] + 1 or abs(pos[2]) > world.HALF[1] + 1 or not -5 < pos[1] < 60 \
+                or world.inside_solid(*pos):
             return
         p.body.pos = pos
         if isinstance(msg.get("v"), list):
@@ -822,13 +833,27 @@ class Game:
 
     def describe(self):
         muts = [MUTATORS[m] for m in MUTATORS if m in self.muts]
-        return MODES[self.mode]["name"] + (f" with {', '.join(muts)}" if muts else "")
+        return f"{MODES[self.mode]['name']} on {world.MAP['name']}" + (f" with {', '.join(muts)}" if muts else "")
+
+    def set_map(self, key):
+        """Swap the map; the caller starts a new round, which respawns everyone on it."""
+        world.load_map(key)
+        if any(p.bot for p in self.players.values()):
+            world.build_graph()
+        self.pickups = [dict(pk, up_at=0.0) for pk in world.PICKUPS]
+        self.power = None
+        self.last_spot = None
+        self.shots = []
+        self.vortices = []
+        msg = json.dumps({"t": "map", "map": world.map_payload()}, separators=(",", ":"))
+        for p in self.humans():
+            self.send(p, msg)
 
     def rules(self):
         return {"t": "rules", "mode": self.mode, "muts": sorted(self.muts), "limit": self.limit(), "phys": PHYS,
                 "knock": self.knock, "ends": _r(self.round_end) if self.infect_on else None,
                 "alpha": _r(self.alpha_at) if self.mode == "infect" and not self.infect_on else None,
-                "ladder": GUN_LADDER, "per": GUN_KILLS}
+                "ladder": GUN_LADDER, "per": GUN_KILLS, "map": world.MAP["key"], "rotate": self.rotate}
 
     def send_rules(self):
         rules = self.rules()
@@ -1260,6 +1285,10 @@ class Game:
     def tick(self):
         now = self.now()
         if self.inter_until and now >= self.inter_until:
+            if self.rotate:
+                keys = list(world.MAPS)
+                self.set_map(keys[(keys.index(world.MAP["key"]) + 1) % len(keys)])
+                self.broadcast_msg(f"Next map: {world.MAP['name']}")
             self.new_round()
         for p in list(self.players.values()):
             if p.bot:

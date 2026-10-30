@@ -174,9 +174,12 @@ html, body {
 
 .rules { margin-bottom: 22px; }
 .rules h2 small { font: 400 0.8rem "Source Sans 3", system-ui, sans-serif; color: var(--muted); }
-#modes { display: flex; flex-wrap: wrap; gap: 6px; }
-#modes button { padding: 7px 12px; font-size: 0.9rem; }
-#modes button.on { background: var(--accent); color: #fff; }
+#modes, #maps { display: flex; flex-wrap: wrap; gap: 6px; }
+#modes button, #maps button { padding: 7px 12px; font-size: 0.9rem; }
+#modes button.on, #maps button.on { background: var(--accent); color: #fff; }
+#map-blurb { margin: 6px 0 4px; font-size: 0.88rem; color: var(--muted); min-height: 1.3em; }
+.rotate { display: flex; align-items: center; gap: 6px; font-size: 0.92rem; margin-bottom: 14px; cursor: pointer; }
+.rotate input { accent-color: var(--accent); }
 #muts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 0.92rem; }
 #muts label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 #muts input { accent-color: var(--accent); }

@@ -2,7 +2,7 @@
 // weapon in your hands, and effects. No lights are added or removed after startup (that makes
 // three.js recompile shaders); flashes borrow from a fixed pool of point lights.
 import * as THREE from 'three';
-import { rayWorld } from './physics.js?v=3';
+import { rayWorld } from './physics.js?v=4';
 
 const TEX_METRES = 2;  // one texture repeat covers 2 m
 
@@ -124,6 +124,20 @@ const TEXTURES = {
     g.lineWidth = 14;
     g.strokeRect(7, 7, s - 14, s - 14);
     g.beginPath(); g.moveTo(10, 10); g.lineTo(s - 10, s - 10); g.stroke();
+  },
+  grate: (g, s, r) => {  // catwalk grating
+    g.fillStyle = '#1c2026';
+    g.fillRect(0, 0, s, s);
+    const n = 16, w = s / n;
+    for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) {
+      g.fillStyle = shade('#6a737e', 0.8 + r() * 0.3);
+      g.fillRect(i * w + 1, k * w + 1, w - 2, 3);
+      g.fillRect(i * w + 1, k * w + 1, 3, w - 2);
+    }
+    g.strokeStyle = '#3a414a';
+    g.lineWidth = 6;
+    g.strokeRect(0, 0, s, s);
+    speckle(g, s, r, 1500, 0.15);
   },
 };
 
@@ -383,7 +397,7 @@ export class View {
     this.camera.rotation.order = 'YXZ';
 
     // sky: a gradient dome
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), new THREE.ShaderMaterial({
+    const sky = this.sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { top: { value: new THREE.Color(0x1e1830) }, mid: { value: new THREE.Color(0x7a4a3a) }, bot: { value: new THREE.Color(0xd08a50) } },
       vertexShader: 'varying vec3 v; void main(){ v = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
@@ -391,8 +405,9 @@ export class View {
     }));
     scene.add(sky);
 
-    scene.add(new THREE.HemisphereLight(0xe8d2b8, 0x3a2a20, 1.6));
-    const sun = new THREE.DirectionalLight(0xffd8a8, 2.0);
+    this.hemi = new THREE.HemisphereLight(0xe8d2b8, 0x3a2a20, 1.6);
+    scene.add(this.hemi);
+    const sun = this.sun = new THREE.DirectionalLight(0xffd8a8, 2.0);
     sun.position.set(30, 60, 20);
     scene.add(sun);
     const fill = new THREE.DirectionalLight(0x8090ff, 0.5);
@@ -452,8 +467,27 @@ export class View {
     this.vcam.updateProjectionMatrix();
   }
 
+  // Each map has its own sky, fog and sunlight.
+  setTheme(t) {
+    if (!t || !t.sky) return;
+    const u = this.sky.material.uniforms;
+    u.top.value.set(t.sky[0]);
+    u.mid.value.set(t.sky[1]);
+    u.bot.value.set(t.sky[2]);
+    this.scene.fog.color.set(t.fog);
+    this.sun.color.set(t.sun);
+    this.hemi.groundColor.set(t.ground);
+  }
+
   buildMap(map) {
-    if (this.mapGroup) this.scene.remove(this.mapGroup);
+    if (this.mapGroup) {
+      this.scene.remove(this.mapGroup);
+      this.mapGroup.traverse(o => {  // the last map's meshes and canvas textures
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+      });
+    }
+    this.setTheme(map.theme);
     const group = new THREE.Group();
     const accs = {};
     for (const b of map.boxes) {

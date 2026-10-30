@@ -34,15 +34,20 @@ H = PHYS["height"]
 STEP = PHYS["step"]
 EPS = 1e-5
 
-# Boxes are (x0, y0, z0, x1, y1, z1); the map also keeps a material name and whether bots walk on top.
-BOXES: list[tuple] = []
-MATS: list[str] = []
+# The map in play. Maps are built in code from axis-aligned boxes by the builders in MAPS, and
+# `load_map` swaps one in: these lists are emptied and refilled in place, so anything holding them
+# sees the new map.
+BOXES: list[tuple] = []  # (x0, y0, z0, x1, y1, z1)
+MATS: list[str] = []  # each box's material, which the browser draws it with
 WALKABLE: list[tuple] = []  # the boxes whose tops get waypoints
-PADS: list[dict] = []  # jump pads: a disc on the floor that launches you at a target
+PADS: list[dict] = []  # jump pads: a disc that launches you at a target
 PICKUPS: list[dict] = []
 POWER_SPOTS: list[dict] = []  # where the rare power weapons appear
 SPAWNS: list[tuple] = []  # (x, y, z, yaw)
 LINKS: list[tuple] = []  # hand-made waypoint links: (a, b, one_way)
+HALF = [30.0, 30.0]  # the inside of the outer walls: |x| <= HALF[0], |z| <= HALF[1]
+THEME: dict = {}  # sky, fog and light colours for the browser
+MAP = {"key": "", "name": ""}
 
 
 def box(x0, y0, z0, x1, y1, z1, mat, walk=False):
@@ -54,44 +59,64 @@ def box(x0, y0, z0, x1, y1, z1, mat, walk=False):
     return b
 
 
-def stairs(x0, x1, z_start, direction, top, rise, run, mat="stone"):
-    """Steps falling away from a ledge's edge at z_start, along z in `direction` (+1/-1)."""
-    n = round(top / rise)
+def stairs(a0, a1, start, direction, top, rise, run, mat="stone", axis="z", base=0.0):
+    """Steps falling away from a ledge's edge at `start`, along `axis` in `direction` (+1/-1), from
+    `top` down to `base`. a0..a1 is how far they reach across."""
+    n = round((top - base) / rise)
     for k in range(n - 1):
         h = top - rise * (k + 1)
-        za = z_start + direction * run * k
-        box(x0, 0, za, x1, h, za + direction * run, mat, walk=True)
-    end = z_start + direction * run * (n - 1)
-    mid = (x0 + x1) / 2
-    LINKS.append(((mid, 0.0, end + direction * 0.8), (mid, top, z_start - direction * 0.8), False))
+        s = start + direction * run * k
+        if axis == "z":
+            box(a0, 0, s, a1, h, s + direction * run, mat, walk=True)
+        else:
+            box(s, 0, a0, s + direction * run, h, a1, mat, walk=True)
+    end = start + direction * run * (n - 1)
+    mid = (a0 + a1) / 2
+    lo, hi = end + direction * 0.8, start - direction * 0.8
+    if axis == "z":
+        LINKS.append(((mid, base, lo), (mid, top, hi), False))
+    else:
+        LINKS.append(((lo, base, mid), (hi, top, mid), False))
 
 
-def jump_pad(x, z, tx, ty, tz, apex=3.5):
-    """A pad at (x, 0, z) that throws you onto (tx, ty, tz), peaking `apex` metres above the target."""
-    g = PHYS["gravity"]
-    peak = ty + apex
-    vy = math.sqrt(2 * g * peak)
+def jump_pad(x, z, tx, ty, tz, apex=3.5, y=0.0):
+    """A pad at (x, y, z) that throws you onto (tx, ty, tz), peaking `apex` metres above the target.
+    Worked out at normal gravity; low gravity scales the launch (`pad_mul`) to land in the same place."""
+    g = BASE_PHYS["gravity"]
+    vy = math.sqrt(2 * g * (ty - y + apex))
     t = vy / g + math.sqrt(2 * apex / g)
     vx, vz = (tx - x) / t, (tz - z) / t
-    PADS.append({"x": x, "y": 0.0, "z": z, "r": 1.0, "v": (vx, vy, vz)})
-    LINKS.append(((x, 0.0, z), (tx, ty, tz), True))
+    PADS.append({"x": x, "y": y, "z": z, "r": 1.0, "v": (vx, vy, vz)})
+    LINKS.append(((x, y, z), (tx, ty, tz), True))
 
 
 def pickup(kind, x, y, z):
     PICKUPS.append({"kind": kind, "x": x, "y": y, "z": z})
 
 
+def power_spot(x, y, z, where, bots=True):
+    """Where a power weapon can appear; `bots` says whether bots can walk there."""
+    POWER_SPOTS.append({"x": x, "y": y, "z": z, "where": where, "bots": bots})
+
+
 def spawn(x, y, z):
     SPAWNS.append((x, y, z, math.atan2(x, z)))  # facing the middle
 
 
-def build_map():
-    # Floor and outer walls. The arena is 60 x 60 inside.
-    box(-32, -1, -32, 32, 0, 32, "floor", walk=True)
-    box(-32, 0, 30, 32, 14, 32, "wall")
-    box(-32, 0, -32, 32, 14, -30, "wall")
-    box(30, 0, -30, 32, 14, 30, "wall")
-    box(-32, 0, -30, -30, 14, 30, "wall")
+def outer(hx, hz, height=16.0):
+    """The floor and the four outer walls, around a space 2hx by 2hz."""
+    HALF[:] = [hx, hz]
+    box(-hx - 2, -1, -hz - 2, hx + 2, 0, hz + 2, "floor", walk=True)
+    box(-hx - 2, 0, hz, hx + 2, height, hz + 2, "wall")
+    box(-hx - 2, 0, -hz - 2, hx + 2, height, -hz, "wall")
+    box(hx, 0, -hz, hx + 2, height, hz, "wall")
+    box(-hx - 2, 0, -hz, -hx, height, hz, "wall")
+
+
+def build_arena():
+    """The first map: a square pit with a central platform, two ledges and four pillars."""
+    outer(30, 30)
+    THEME.update(sky=["#1e1830", "#7a4a3a", "#d08a50"], fog="#5a3f36", sun="#ffd8a8", ground="#3a2a20")
 
     # Central platform with the mega health, stairs north and south.
     box(-5, 0, -5, 5, 3, 5, "metal", walk=True)
@@ -129,26 +154,191 @@ def build_map():
     pickup("ammo", 27, 4, 8)
     pickup("ammo", -27, 4, -8)
 
-    # Power weapon spots; `bots` says whether bots can walk there (the pillar takes a rocket jump).
-    POWER_SPOTS.append({"x": 12, "y": 7, "z": -12, "where": "on top of a pillar", "bots": False})
-    POWER_SPOTS.append({"x": 26, "y": 0, "z": 26, "where": "in a corner", "bots": True})
-    POWER_SPOTS.append({"x": -26, "y": 0, "z": -26, "where": "in a corner", "bots": True})
-    POWER_SPOTS.append({"x": 25, "y": 4, "z": 13, "where": "on the east ledge", "bots": True})
-    POWER_SPOTS.append({"x": -25, "y": 4, "z": -13, "where": "on the west ledge", "bots": True})
+    power_spot(12, 7, -12, "on top of a pillar", bots=False)  # a rocket jump up
+    power_spot(26, 0, 26, "in a corner")
+    power_spot(-26, 0, -26, "in a corner")
+    power_spot(25, 4, 13, "on the east ledge")
+    power_spot(-25, 4, -13, "on the west ledge")
 
-    for x, y, z in (
-        (20, 0, 26), (-20, 0, -26), (-20, 0, 26), (20, 0, -26),
-        (26, 4, -12), (-26, 4, 12), (-8, 0, 13), (8, 0, -13),
-    ):
-        spawn(x, y, z)
+    for p in ((20, 0, 26), (-20, 0, -26), (-20, 0, 26), (20, 0, -26),
+              (26, 4, -12), (-26, 4, 12), (-8, 0, 13), (8, 0, -13)):
+        spawn(*p)
 
 
-build_map()
+def build_warehouse():
+    """A long hall with grated catwalks along both ends and a bridge across the middle, and
+    shipping containers on the floor below. Fights happen on two levels at once."""
+    outer(32, 24)
+    THEME.update(sky=["#0e141c", "#34424f", "#8496a4"], fog="#27313b", sun="#d8e6ff", ground="#1c232b")
+
+    # Catwalks 4 m up (you can walk underneath), joined by a bridge down the middle.
+    box(-32, 3.6, 18, 32, 4, 24, "grate", walk=True)
+    box(-32, 3.6, -24, 32, 4, -18, "grate", walk=True)
+    box(-2.5, 3.6, -18, 2.5, 4, 18, "grate", walk=True)
+    for x0, x1 in ((26, 30), (-30, -26)):
+        stairs(x0, x1, 18, -1, 4.0, 0.4, 0.6, mat="metal")
+        stairs(x0, x1, -18, +1, 4.0, 0.4, 0.6, mat="metal")
+    jump_pad(16, 0, 0, 4, 0)  # onto the bridge, by the mega health
+    jump_pad(-16, 0, 0, 4, 0)
+
+    # Containers, and two stacked ones only a rocket jump reaches.
+    for sx in (-1, 1):
+        box(sx * 8, 0, sx * 6, sx * 14, 2.6, sx * 9, "metal")
+        box(sx * 19, 0, sx * 4, sx * 22, 2.6, sx * 10, "metal")
+        box(sx * 18, 0, sx * -10, sx * 24, 5.2, sx * -13, "metal")
+        box(sx * 5, 0, sx * 10, sx * 6.5, 1.5, sx * 11.5, "crate")
+        box(sx * 10, 0, sx * 14, sx * 12, 1, sx * 16, "crate")
+
+    pickup("mega", 0, 4, 0)
+    pickup("armor", 0, 4, 21)
+    pickup("armor", 0, 4, -21)
+    pickup("health", 10, 0, 2)
+    pickup("health", -10, 0, -2)
+    pickup("health", 20, 4, 21)
+    pickup("health", -20, 4, -21)
+    pickup("ammo", 26, 0, 0)
+    pickup("ammo", -26, 0, 0)
+    pickup("ammo", 14, 4, -21)
+    pickup("ammo", -14, 4, 21)
+
+    power_spot(-21, 5.2, -11.5, "on the stacked containers", bots=False)
+    power_spot(29, 4, 21, "on the north catwalk")
+    power_spot(-29, 4, -21, "on the south catwalk")
+    power_spot(0, 0, 0, "under the bridge")
+
+    for p in ((-28, 0, -8), (28, 0, 8), (14, 0, 13), (-14, 0, -13),
+              (-20, 4, 21), (20, 4, -21), (0, 0, 6), (0, 0, -6)):
+        spawn(*p)
+
+
+def build_spire():
+    """A stepped tower in the middle: stairs to the first two tiers, a jump pad to the top. Raised
+    balconies in the corners."""
+    outer(30, 30)
+    THEME.update(sky=["#120c24", "#583a78", "#e28aa0"], fog="#3a2a4a", sun="#ffd0e4", ground="#2a1a30")
+
+    box(-12, 0, -12, 12, 3, 12, "stone", walk=True)
+    box(-6, 0, -6, 6, 6, 6, "metal", walk=True)
+    box(-2.5, 0, -2.5, 2.5, 9, 2.5, "pillar", walk=True)
+    # Up to the first tier from all four sides.
+    stairs(-2, 2, 12, +1, 3.0, 0.375, 0.6)
+    stairs(-2, 2, -12, -1, 3.0, 0.375, 0.6)
+    stairs(-2, 2, 12, +1, 3.0, 0.375, 0.6, axis="x")
+    stairs(-2, 2, -12, -1, 3.0, 0.375, 0.6, axis="x")
+    # Up to the second from the east and west, and pads from there to the top.
+    stairs(2, 5, 6, +1, 6.0, 0.375, 0.45, mat="metal", axis="x", base=3.0)
+    stairs(-5, -2, -6, -1, 6.0, 0.375, 0.45, mat="metal", axis="x", base=3.0)
+    jump_pad(0, 4.5, 0, 9, 0, y=6.0)
+    jump_pad(0, -4.5, 0, 9, 0, y=6.0)
+    for x in (-4.2, 4.2):
+        LINKS.append(((0, 9, 0), (x, 6.0, 0), True))  # bots get down by stepping off the top
+
+    # Corner balconies, each with stairs.
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            box(sx * 22, 0, sz * 22, sx * 30, 4, sz * 30, "stone", walk=True)
+            stairs(sz * 26, sz * 29, sx * 22, -sx, 4.0, 0.4, 0.6, axis="x")
+            box(sx * 16, 0, sz * 16, sx * 18, 7, sz * 18, "pillar")
+    # Low walls to duck behind on the floor.
+    for s in (-1, 1):
+        box(s * 22.5, 0, -4, s * 23.5, 1.2, 4, "crate")
+        box(-4, 0, s * 22.5, 4, 1.2, s * 23.5, "crate")
+
+    pickup("mega", 4.2, 6, 0)
+    pickup("armor", 26, 4, 26)
+    pickup("armor", -26, 4, -26)
+    pickup("health", 26, 4, -26)
+    pickup("health", -26, 4, 26)
+    pickup("health", 0, 0, 26.5)
+    pickup("health", 0, 0, -26.5)
+    pickup("ammo", 9, 3, -9)
+    pickup("ammo", -9, 3, 9)
+    pickup("ammo", 26.5, 0, 0)
+    pickup("ammo", -26.5, 0, 0)
+
+    power_spot(0, 9, 0, "on top of the spire")
+    power_spot(9, 3, 9, "on the spire's first tier")
+    power_spot(-9, 3, -9, "on the spire's first tier")
+    power_spot(26.5, 0, 9, "by the east wall")
+    power_spot(-26.5, 0, -9, "by the west wall")
+
+    for p in ((24, 0, 8), (-24, 0, -8), (8, 0, 24), (-8, 0, -24),
+              (28, 4, 24), (-28, 4, -24), (24, 4, -28), (-24, 4, 28)):
+        spawn(*p)
+
+
+def build_bases():
+    """Two raised bases facing each other across a long courtyard, Halo-style, each with a tower
+    behind it. A low platform with the mega health sits in the middle."""
+    outer(40, 20)
+    THEME.update(sky=["#16262c", "#567676", "#cad8c0"], fog="#46564c", sun="#fff0d0", ground="#283028")
+
+    for s in (-1, 1):
+        box(s * 30, 0, -20, s * 40, 3, 20, "stone", walk=True)
+        stairs(-13, -9, s * 30, -s, 3.0, 0.375, 0.6, axis="x")
+        stairs(9, 13, s * 30, -s, 3.0, 0.375, 0.6, axis="x")
+        box(s * 36, 0, -3, s * 40, 7, 3, "pillar")  # the tower: a rocket jump up
+        box(s * 30, 3, -6, s * 31, 4.2, 6, "metal")  # a parapet to shoot over
+        jump_pad(s * 22, 0, s * 34, 3, 0)
+        box(s * 13, 0, -1, s * 15, 1.5, 1, "crate")
+        box(s * 20, 0, s * 14, s * 22, 1.5, s * 16, "crate")
+        box(-8, 0, s * 15.5, 8, 1.2, s * 16.5, "stone")
+        for t in (-1, 1):
+            box(s * 15, 0, t * 10, s * 17, 7, t * 12, "pillar")
+    box(-6, 0, -6, 6, 2, 6, "metal", walk=True)
+    stairs(-1.5, 1.5, 6, +1, 2.0, 0.4, 0.6, axis="x")
+    stairs(-1.5, 1.5, -6, -1, 2.0, 0.4, 0.6, axis="x")
+
+    pickup("mega", 0, 2, 0)
+    pickup("armor", 35, 3, 12)
+    pickup("armor", -35, 3, -12)
+    pickup("health", 34, 3, -12)
+    pickup("health", -34, 3, 12)
+    pickup("health", 20, 0, -8)
+    pickup("health", -20, 0, 8)
+    pickup("ammo", 0, 0, 12)
+    pickup("ammo", 0, 0, -12)
+    pickup("ammo", 26, 0, -16)
+    pickup("ammo", -26, 0, 16)
+
+    power_spot(38, 7, 0, "on the east tower", bots=False)
+    power_spot(-38, 7, 0, "on the west tower", bots=False)
+    power_spot(0, 0, 18, "behind the north wall")
+    power_spot(0, 0, -18, "behind the south wall")
+
+    for p in ((35, 3, 8), (35, 3, -8), (-35, 3, 8), (-35, 3, -8),
+              (22, 0, 18), (-22, 0, -18), (10, 0, -6), (-10, 0, 6)):
+        spawn(*p)
+
+
+# key: (name, builder, a line for the menu)
+MAPS = {
+    "arena": ("Arena", build_arena, "The original: a central platform, two ledges, four pillars."),
+    "warehouse": ("Warehouse", build_warehouse, "Catwalks over a floor of shipping containers."),
+    "spire": ("Spire", build_spire, "Climb the stepped tower in the middle; corner balconies."),
+    "bases": ("Twin Bases", build_bases, "A long courtyard between two raised bases."),
+}
+_GRAPHS: dict = {}  # each map's waypoint graph, built the first time bots play it
+
+
+def load_map(key):
+    """Swap in another map. The waypoint graph comes back too if it was built before."""
+    for lst in (BOXES, MATS, WALKABLE, PADS, PICKUPS, POWER_SPOTS, SPAWNS, LINKS, NODES, EDGES):
+        lst.clear()
+    THEME.clear()
+    name, builder, _ = MAPS[key]
+    MAP.update(key=key, name=name)
+    builder()
+    if key in _GRAPHS:
+        nodes, edges = _GRAPHS[key]
+        NODES.extend(nodes)
+        EDGES.extend([e[:] for e in edges])
 
 
 def map_payload():
     """What the client needs to draw and collide with the map."""
     return {
+        "key": MAP["key"], "name": MAP["name"], "theme": THEME, "half": HALF,
         "boxes": [[*b, m] for b, m in zip(BOXES, MATS)],
         "pads": [[p["x"], p["y"], p["z"], p["r"], *p["v"]] for p in PADS],
         "pickups": [[p["kind"], p["x"], p["y"], p["z"]] for p in PICKUPS],
@@ -394,10 +584,11 @@ def build_graph():
     if NODES:
         return
     tops = sorted({round(b[4], 3) for b in WALKABLE if b[4] > 0.5 or b[4] == 0})
+    # a grid 3 m apart, centred on the middle of the map
+    xs, zs = ([1.5 + 3 * i for i in range(-20, 20) if abs(1.5 + 3 * i) <= h - 0.5] for h in HALF)
     for y in tops:
-        for i in range(20):
-            for k in range(20):
-                x, z = -28.5 + 3 * i, -28.5 + 3 * k
+        for x in xs:
+            for z in zs:
                 if _on_walkable(x, y, z) and not inside_solid(x, y, z):
                     _add_node(x, y, z)
     for p in PICKUPS:
@@ -431,6 +622,7 @@ def build_graph():
     # Walking over a pad launches you, so a pad only leads to its landing.
     for i in pad_nodes:
         EDGES[i] = [j for j in EDGES[i] if any(j == ib for ia, ib, _ in special if ia == i)]
+    _GRAPHS[MAP["key"]] = (NODES[:], [e[:] for e in EDGES])
 
 
 def nearest_node(x, y, z):
@@ -472,3 +664,6 @@ def path(start, goal):
                 came[nb] = cur
                 heapq.heappush(open_, (nc + h(nb), nc, nb))
     return []
+
+
+load_map("arena")

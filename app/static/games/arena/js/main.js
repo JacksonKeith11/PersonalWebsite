@@ -1,9 +1,9 @@
 // Frag Arena's client: input, your own movement (predicted here, reported to the server),
 // firing, the server's events, the camera and the HUD.
-import { Net } from './net.js?v=3';
-import { View, POWER_COLOR } from './render.js?v=3';
-import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=3';
-import { initAudio, sfx, setListener, setVolume } from './audio.js?v=3';
+import { Net } from './net.js?v=4';
+import { View, POWER_COLOR } from './render.js?v=4';
+import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=4';
+import { initAudio, sfx, setListener, setVolume } from './audio.js?v=4';
 
 const $ = id => document.getElementById(id);
 const MG = 0, RL = 2, KN = 8;
@@ -42,6 +42,7 @@ const S = {
   sendAt: 0, acc: 0, bob: 0, stepSmooth: 0, landKick: 0, pain: 0, remote: new Map(),
   // what the round's rules let you hold, in slot order, and which never run out (the server's kit)
   allow: [0, 1, 2], inf: new Set(), fast: 1, rules: null, modes: {}, mutators: {},
+  maps: {}, map: null, phys: null,
 };
 
 // The menu's one-line explanation of each mode and mutator.
@@ -68,9 +69,10 @@ const net = new Net({
     S.eye = m.phys.eye;
     S.modes = m.modes;
     S.mutators = m.mutators;
-    setWorld(m.map, m.phys);
+    S.maps = m.maps;
+    S.phys = m.phys;
+    loadMap(m.map);
     buildRulesMenu();
-    if (!S.ready) view.buildMap(m.map);
     S.ready = true;
     S.alive = false;
     S.life = 0;
@@ -81,10 +83,18 @@ const net = new Net({
     $('play').disabled = false;
     if (S.wantPlay) net.send({ t: 'spawn' });
   },
+  onMap(map) {
+    // someone picked another map, or the rotation moved on; a respawn follows
+    loadMap(map);
+    S.events = S.events.filter(([, e]) => ['kill', 'msg', 'win'].includes(e.k));
+    for (const k of S.rockets.keys()) view.removeRocket('L' + k);
+    S.rockets.clear();
+  },
   onRules(m) {
     S.rules = m;
     S.limit = m.limit;
     S.knock = m.knock;
+    S.phys = m.phys;
     setPhys(m.phys);
     drawRulesMenu();
     hudKey = '';
@@ -113,6 +123,12 @@ const net = new Net({
     for (const e of m.ev) S.events.push([m.ts, e]);
   },
 });
+
+function loadMap(map) {
+  setWorld(map, S.phys);
+  if (!S.map || S.map.key !== map.key) view.buildMap(map);
+  S.map = map;
+}
 
 function privateEvent(e) {
   if (e.k === 'spawn') {
@@ -565,7 +581,8 @@ function frame() {
     cam = { x: S.body.pos[0], y: S.body.pos[1] + S.eye - sink * 1.2, z: S.body.pos[2], yaw: S.yaw, pitch: S.pitch * (1 - sink), roll: sink * 0.4 };
   } else {
     const a = t * 0.05;
-    const x = Math.cos(a) * 24, z = Math.sin(a) * 24;
+    const half = S.map ? S.map.half : [30, 30];
+    const x = Math.cos(a) * half[0] * 0.8, z = Math.sin(a) * half[1] * 0.8;
     cam = { x, y: 13, z, yaw: Math.atan2(x, z), pitch: -0.45 };
   }
   setListener(cam.x, cam.y, cam.z, cam.yaw);
@@ -684,7 +701,7 @@ const scoreName = () => ({ gun: 'Kills', infect: 'Points', jugg: 'Points' }[S.ru
 function modeLine(ranked) {
   const r = S.rules;
   if (!r || !S.modes[r.mode]) return '';
-  let text = S.modes[r.mode];
+  let text = `${S.map ? `${S.map.name} · ` : ''}${S.modes[r.mode]}`;
   const now = net.serverNow();
   if (r.mode === 'gun' && r.ladder) {
     const me = S.roster.get(S.id);
@@ -751,6 +768,13 @@ function drawRoster() {
 // The mode and mutators: anyone can change them, which starts a new round for everyone.
 function buildRulesMenu() {
   if ($('modes').children.length) return;
+  for (const [key, [name]] of Object.entries(S.maps)) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: name });
+    b.dataset.map = key;
+    b.addEventListener('click', () => sendRules(S.rules.mode, S.rules.muts, key));
+    $('maps').append(b);
+  }
+  $('rotate').addEventListener('change', () => sendRules(S.rules.mode, S.rules.muts, S.rules.map, $('rotate').checked));
   for (const [key, name] of Object.entries(S.modes)) {
     const b = Object.assign(document.createElement('button'), { type: 'button', textContent: name });
     b.dataset.mode = key;
@@ -773,15 +797,18 @@ function buildRulesMenu() {
   drawRulesMenu();
 }
 
-function sendRules(mode, muts) {
+function sendRules(mode, muts, map = S.rules && S.rules.map, rotate = S.rules && S.rules.rotate) {
   if (!S.rules) return;
-  net.send({ t: 'rules', mode, muts });
+  net.send({ t: 'rules', mode, muts, map, rotate });
 }
 
 function drawRulesMenu() {
   const r = S.rules;
   if (!r) return;
   for (const b of $('modes').children) b.classList.toggle('on', b.dataset.mode === r.mode);
+  for (const b of $('maps').children) b.classList.toggle('on', b.dataset.map === r.map);
+  $('rotate').checked = r.rotate;
+  $('map-blurb').textContent = (S.maps[r.map] || [])[1] || '';
   for (const box of $('muts').querySelectorAll('input')) box.checked = r.muts.includes(box.dataset.mut);
   const muts = r.muts.map(m => MUT_BLURB[m]).filter(Boolean).join(' ');
   $('mode-blurb').textContent = `${MODE_BLURB[r.mode] || ''} ${muts}`.trim();

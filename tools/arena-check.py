@@ -2,10 +2,11 @@
 
     python3 tools/arena-check.py [seconds]
 
-Fails if the waypoint graph has unreachable parts, a bot spends long stuck, nobody scores, or
-ticks get slow (99th percentile over a quarter of the 33 ms budget). Then plays a shorter round
-of each other mode (and some mutators) and fails if the mode doesn't do its thing: Gun Game
-players climbing the ladder, Infection spreading and ending, a Juggernaut being crowned.
+Checks every map: fails if its waypoint graph has unreachable parts, or a spawn, pickup or power
+spot is inside a wall or off the graph. Then plays each map with 6 bots and fails if a bot spends
+long stuck, nobody scores, or ticks get slow (99th percentile over a quarter of the 33 ms
+budget). Then plays each party mode (and some mutators) and fails if the mode doesn't do its
+thing: Gun Game players climbing the ladder, Infection spreading and ending, a Juggernaut crowned.
 """
 
 import math
@@ -19,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.arena import game, world
 
 
-def check_graph():
+def check_graph(key):
+    world.load_map(key)
     world.build_graph()
     n = len(world.NODES)
     seen = {0}
@@ -29,7 +31,7 @@ def check_graph():
             if j not in seen:
                 seen.add(j)
                 todo.append(j)
-    print(f"graph: {n} nodes, {sum(map(len, world.EDGES))} links, {len(seen)} reachable from node 0")
+    print(f"{world.MAP['name']} graph: {n} nodes, {sum(map(len, world.EDGES))} links, {len(seen)} reachable from node 0")
     bad = []
     for i in range(n):
         if not world.path(i, 0) and i != 0:
@@ -41,13 +43,22 @@ def check_graph():
         if world.inside_solid(x, y, z):
             print("node inside a wall:", world.NODES[i])
             return False
+    spots = [("spawn", *s[:3]) for s in world.SPAWNS]
+    spots += [(p["kind"], p["x"], p["y"], p["z"]) for p in world.PICKUPS]
+    spots += [("power", p["x"], p["y"], p["z"]) for p in world.POWER_SPOTS if p["bots"]]
+    for kind, x, y, z in spots:
+        near = min((math.hypot(a - x, c - z) for a, b, c in world.NODES if abs(b - y) < 0.1), default=99)
+        if world.inside_solid(x, y, z) or (kind != "spawn" and near > 0.01) or near > 4.4:
+            print(f"{kind} at {(x, y, z)} is inside a wall or off the waypoints")
+            return False
     return True
 
 
-def run(seconds, mode="dm", muts=()):
+def run(seconds, mode="dm", muts=(), key="arena"):
     random.seed(1)
     g = game.Game()
     g.mode, g.muts = mode, set(muts)
+    g.set_map(key)
     g.new_round()
     wins = []
     end_round = g.end_round
@@ -109,11 +120,13 @@ def run(seconds, mode="dm", muts=()):
 
 def main():
     seconds = int(sys.argv[1]) if len(sys.argv) > 1 else 180
-    ok = check_graph()
-    ok = run(seconds) and ok
-    for mode, muts in (("gun", ()), ("infect", ()), ("jugg", ("frenzy",)), ("dm", ("lowgrav", "insta")),
-                       ("dm", ("rockets", "lowgrav"))):
-        ok = run(200, mode, muts) and ok
+    graphs = [check_graph(key) for key in world.MAPS]  # every map, even after one fails
+    ok = all(graphs)
+    for key in world.MAPS:
+        ok = run(seconds, key=key) and ok
+    for mode, muts, key in (("gun", (), "warehouse"), ("infect", (), "spire"), ("jugg", ("frenzy",), "bases"),
+                            ("dm", ("lowgrav", "insta"), "arena"), ("dm", ("rockets", "lowgrav"), "spire")):
+        ok = run(200, mode, muts, key) and ok
     print("OK" if ok else "FAILED")
     sys.exit(0 if ok else 1)
 

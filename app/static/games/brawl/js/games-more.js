@@ -1,11 +1,11 @@
 // More minigames' browser halves: Halloween takes on Mario Party favourites. Hex Heat and
 // Spellbook Squirm are 3D (three.js, see view3d.js); the rest draw on the 2D stage like the others.
 
-import { Game } from './base.js?v=5';
-import { Arena, coarse } from './games-live.js?v=5';
-import { View3D, loadThree } from './view3d.js?v=5';
-import * as art from './art.js?v=5';
-import * as sfx from './audio.js?v=5';
+import { Game } from './base.js?v=6';
+import { Arena, coarse } from './games-live.js?v=6';
+import { View3D, loadThree } from './view3d.js?v=6';
+import * as art from './art.js?v=6';
+import * as sfx from './audio.js?v=6';
 
 const now = () => performance.now() / 1000;
 
@@ -31,7 +31,7 @@ class Arena3D extends Arena {
     if (!this.v) {
       this.c.fillStyle = '#140d22';
       this.c.fillRect(0, 0, this.W, this.H);
-      this.text(this.failed ? 'Couldn’t load the 3D view.' : 'Loading…', this.W / 2, this.H / 2, 20, '#cbbfe0');
+      this.text(this.failed ? 'Couldn’t load the 3D view.' : 'Loading…', this.W / 2, this.H / 2 + 140, 20, '#cbbfe0');
       return;
     }
     this.update(t, dt);
@@ -130,9 +130,12 @@ class Squirm extends Arena3D {
   }
   build(T) {
     this.T = T;
-    const floor = new T.Mesh(new T.PlaneGeometry(100, 100), new T.MeshStandardMaterial({ color: '#3b2a4f', roughness: 0.9 }));
+    const floor = new T.Mesh(new T.PlaneGeometry(100, 100), new T.MeshStandardMaterial({ color: '#221a30', roughness: 0.9 }));
     floor.rotation.x = -Math.PI / 2;
     this.v.scene.add(floor);
+    const grid = new T.GridHelper(100, 10, '#4a3a63', '#4a3a63');
+    grid.position.y = 0.05;
+    this.v.scene.add(grid);
     const edge = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(100, 2, 100)), new T.LineBasicMaterial({ color: '#ff9a3d' }));
     edge.position.y = 1;
     this.v.scene.add(edge);
@@ -153,14 +156,14 @@ class Squirm extends Arena3D {
     shape.holes.push(hole);
     const mesh = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: 1.5, bevelEnabled: false }),
       // see-through, so you can see yourself under it as it falls
-      new T.MeshStandardMaterial({ color: '#efe2c4', roughness: 0.8, transparent: true, opacity: 0.45, depthWrite: false }));
+      new T.MeshStandardMaterial({ color: '#f4ead2', roughness: 0.8, transparent: true, opacity: 0.32, depthWrite: false }));
     mesh.rotation.x = -Math.PI / 2;
     this.v.scene.add(mesh);
     // where the hole will land, lit up on the floor
     const pts = hole.getPoints(48);
     const outline = new T.LineLoop(new T.BufferGeometry().setFromPoints(pts.map(q => new T.Vector3(q.x, 0.3, -q.y))),
       new T.LineBasicMaterial({ color: '#ffe066' }));
-    const spot = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts)), new T.MeshBasicMaterial({ color: '#ffe066', transparent: true, opacity: 0.3, side: T.DoubleSide }));
+    const spot = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts)), new T.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.55, side: T.DoubleSide }));
     spot.rotation.x = -Math.PI / 2;
     spot.position.y = 0.2;
     this.v.scene.add(outline, spot);
@@ -379,7 +382,7 @@ class PumpkinLift extends Game {
         drawFeature(c, f, x, y, l.R, (this.drag && this.drag.f === f) || (!coarse && i === this.sel && this.result == null) ? '#5a2a00' : '#2a1500');
       });
       if (this.result == null) this.button(this.doneRect(), 'Done!', { on: true, size: 20 });
-      else this.title(`Off by ${this.result}`, l.mx, l.my + l.R * 1.05 + 22, 30, '#ffe066');
+      else this.title(`${Math.max(0, 100 - Math.floor(this.result / 2))}% match`, l.mx, l.my + l.R * 1.05 + 22, 30, '#ffe066');
     }
     this.sideBoard('Finished', this.ids.map(id => ({ id, text: (id === this.me ? this.result != null : this.others[id]) ? '✓' : '…' })));
   }

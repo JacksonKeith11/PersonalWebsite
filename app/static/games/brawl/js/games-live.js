@@ -2,8 +2,8 @@
 // (bumper ring, candy grab, ghost tag, pumpkin drop), which send a stick and a dash 20 times a
 // second and draw the server's snapshots, smoothed between arrivals.
 
-import { Game, TEAM_COLORS } from './base.js?v=5';
-import * as art from './art.js?v=5';
+import { Game, TEAM_COLORS } from './base.js?v=6';
+import * as art from './art.js?v=6';
 
 const now = () => performance.now() / 1000;
 const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -66,7 +66,7 @@ class Trivia extends Game {
     this.text(`Question ${q.i + 1} of ${q.n}`, this.W / 2, 62, 16, '#cbbfe0');
     const left = Math.max(0, q.left - (now() - q.at));
     c.fillStyle = q.asking ? '#ffd23f' : '#666';
-    c.fillRect(30, 76, (this.W - 60) * (q.asking ? left / 10 : 0), 6);
+    c.fillRect(30, 76, (this.W - 60) * (q.asking ? left / (q.ask || 10) : 0), 6);
     c.font = '700 26px "Source Serif 4", Georgia, serif';
     const lines = wrap(c, q.q, this.W - 80);
     lines.forEach((l, i) => this.title(l, this.W / 2, 118 + i * 34, 26, '#fff'));
@@ -80,6 +80,7 @@ class Trivia extends Game {
         Object.entries(q.picks).filter(([, a]) => a === i).forEach(([pid], k) => {
           c.fillStyle = this.player(+pid).color;
           c.beginPath(); c.arc(r.x + r.w - 16 - k * 18, r.y + 14, 7, 0, Math.PI * 2); c.fill();
+          if (+pid === q.first) this.text('⚡', r.x + r.w - 16 - k * 18, r.y + 32, 13, '#ffe066');
         });
       }
     });
@@ -93,6 +94,19 @@ class Trivia extends Game {
       c.beginPath(); c.arc(x - 60, y, 8, 0, Math.PI * 2); c.fill();
       this.text(`${p.name} ${s.v}${q.asking && answered.has(s.id) ? ' ✓' : ''}`, x - 46, y, 15, '#fff', 'left');
     });
+  }
+}
+
+// ---------------------------------------------------------------- Potion Math: trivia with sums
+
+class PotionMath extends Trivia {
+  constructor(s) {
+    super(s);
+    this.hint = 'First right answer gets a bonus ⚡; wrong ones cost you';
+  }
+  snap(m) {
+    if (this.q && this.q.asking && !m.asking && m.first === this.me) this.sound('pop');
+    super.snap(m);
   }
 }
 
@@ -473,7 +487,13 @@ class GhostTag extends Arena {
   constructor(s) {
     super(s);
     this.solo = this.params.solo;
-    this.hint = this.solo === this.me ? 'You’re the ghost: catch them all!' : 'Run from the ghost!';
+    this.hint = this.solo === this.me ? 'You’re the ghost: freeze them all at once!' : 'Run! Touch frozen friends to thaw them';
+  }
+  onSnap(m) {
+    const fz = m.fz || {};
+    const was = this.fz || {};
+    for (const id of Object.keys(fz)) if (!(id in was)) this.sound(+id === this.me ? 'wrong' : 'pop');
+    this.fz = fz;
   }
   drawField(t) {
     const c = this.c, f = this.field();
@@ -485,7 +505,20 @@ class GhostTag extends Arena {
     for (let i = 0; i < 6; i++) art.tombstone(c, f.x + (12 + ((i * 37) % 80)) * f.s, f.y + (15 + ((i * 53) % 75)) * f.s, 2.6 * f.s, { tilt: (i % 3 - 1) * 0.15 });
   }
   drawDisc(d, t) {
-    if (d.id !== this.solo) return super.drawDisc(d, t);
+    if (d.id !== this.solo) {
+      super.drawDisc(d, t);
+      const left = (this.fz || {})[d.id];
+      if (left == null) return;
+      // a block of ice, with the seconds until it melts
+      const c = this.c, [x, y] = this.at(d.x, d.y), r = 4.2 * this.field().s * 1.45;
+      c.fillStyle = 'rgba(170, 225, 255, 0.55)';
+      c.strokeStyle = '#e8f8ff';
+      c.lineWidth = 2;
+      c.beginPath(); c.roundRect(x - r, y - r, 2 * r, 2 * r, r * 0.3); c.fill(); c.stroke();
+      const since = this.cur ? now() - this.cur.at : 0;
+      this.text(`${Math.max(0, left - since).toFixed(1)}`, x, y + r + 12, 13, '#bfe9ff');
+      return;
+    }
     const [x, y] = this.at(d.x, d.y);
     const s = 5.5 * this.field().s;
     art.ghost(this.c, x, y, s, { t, color: d.dash ? '#ffffff' : '#d9d2ff' });
@@ -546,4 +579,4 @@ class PumpkinDrop extends Arena {
 }
 
 export { Arena, coarse };
-export const LIVE = { trivia: Trivia, sketch: Sketch, tug: Tug, bumper: Bumper, candy: CandyGrab, tag: GhostTag, drop: PumpkinDrop };
+export const LIVE = { trivia: Trivia, math: PotionMath, sketch: Sketch, tug: Tug, bumper: Bumper, candy: CandyGrab, tag: GhostTag, drop: PumpkinDrop };

@@ -1,7 +1,7 @@
 // The base class every minigame's browser half extends: drawing helpers, and what the stage
 // calls (snap, key, pointer, draw, end).
 
-import * as sfx from './audio.js?v=5';
+import * as sfx from './audio.js?v=6';
 
 export const TEAM_COLORS = ['#ff8a3d', '#5fb0ff'];
 
@@ -65,6 +65,7 @@ export class Game {
   // Everyone's progress, as a strip of rows: [{id, text, frac}]
   board(rows, x, y, w, rowH = 30) {
     const c = this.c;
+    const size = rowH >= 44 ? 20 : 15, dot = rowH >= 44 ? 10 : 7;
     rows.forEach((r, i) => {
       const p = this.player(r.id);
       const yy = y + i * rowH;
@@ -77,9 +78,9 @@ export class Game {
         c.globalAlpha = 1;
       }
       c.fillStyle = p.color;
-      c.beginPath(); c.arc(x + 12, yy + (rowH - 4) / 2, 7, 0, Math.PI * 2); c.fill();
-      this.text(p.name, x + 26, yy + (rowH - 4) / 2, 15, '#fff', 'left', 600);
-      this.text(r.text || '', x + w - 8, yy + (rowH - 4) / 2, 15, '#ffe9b8', 'right', 700);
+      c.beginPath(); c.arc(x + 6 + dot, yy + (rowH - 4) / 2, dot, 0, Math.PI * 2); c.fill();
+      this.text(p.name, x + 14 + dot * 2, yy + (rowH - 4) / 2, size, '#fff', 'left', 600);
+      this.text(r.text || '', x + w - 10, yy + (rowH - 4) / 2, size, '#ffe9b8', 'right', 700);
     });
   }
 
@@ -94,12 +95,22 @@ export class Game {
   }
   cx() { const a = this.area(); return a.x + a.w / 2; }
   side() {
-    if (!this.playing) { const w = Math.min(500, this.W - 32); return { x: (this.W - w) / 2, y: 70, w }; }
+    if (!this.playing) { const w = Math.min(560, this.W - 32); return { x: (this.W - w) / 2, y: this.H * 0.22, w }; }
     if (this.portrait) return { x: 16, y: this.H - this.sideH(), w: this.W - 32 };
     return { x: this.W * 0.72, y: 60, w: this.W * 0.26 };
   }
   sideBoard(title, rows) {
     const s = this.side();
+    if (!this.playing) {
+      // watching a game that's played on the players' own screens: their scores, big
+      const names = this.ids.map(id => this.player(id).name).join(this.ids.length === 2 ? ' vs ' : ', ');
+      this.title(names, s.x + s.w / 2, s.y - 40, 26, '#ffe066');
+      this.text(title, s.x + s.w / 2, s.y + 6, 17, '#cbbfe0');
+      this.board(rows, s.x, s.y + 26, s.w, 52);
+      this.text('They’re playing on their own screens; here’s how they’re doing.', s.x + s.w / 2,
+        s.y + 40 + rows.length * 52, 15, '#9a8db5');
+      return;
+    }
     this.text(title, s.x + s.w / 2, s.y + 10, 15, '#cbbfe0');
     this.board(rows, s.x, s.y + 26, s.w, 32);
   }

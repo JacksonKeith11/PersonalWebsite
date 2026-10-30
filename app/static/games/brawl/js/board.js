@@ -2,7 +2,7 @@
 // ghost, traps, webs, coin piles and everyone's pieces. Pieces glide from space to space; the
 // dice and floating "+3"s are drawn over the top.
 
-import * as art from './art.js?v=5';
+import * as art from './art.js?v=6';
 
 const KIND_COLORS = {
   blue: ['#3f7fe0', '#1d4a99'],

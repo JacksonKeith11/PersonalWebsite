@@ -1,8 +1,8 @@
 // The solo minigames: each browser plays its own copy against the content the server dealt,
 // and reports progress (`prog`) and a final score (`done`). Others' progress arrives in `prog`.
 
-import { Game } from './base.js?v=5';
-import * as art from './art.js?v=5';
+import { Game } from './base.js?v=6';
+import * as art from './art.js?v=6';
 
 const ARROWS = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'];
 const WASD = ['KeyW', 'KeyD', 'KeyS', 'KeyA'];
@@ -35,7 +35,8 @@ class Pump extends Game {
     this.server = {};
     this.last = 0;
     this.popped = {};
-    this.hint = 'Mash Space, or tap!';
+    this.side = null;  // the last key: a pump is left then right, or right then left
+    this.hint = 'Alternate ← and → (or A and D) to pump';
   }
   snap(m) {
     this.server = m.prog || {};
@@ -47,8 +48,10 @@ class Pump extends Game {
     const v = this.server[id] || 0;
     return id === this.me ? Math.max(v, this.local) : v;
   }
-  pump() {
+  pump(side) {
     const t = performance.now();
+    if (side === this.side) { this.stall = 1; return; }  // the same key twice does nothing
+    this.side = side;
     if (this.local >= this.target || t - this.last < 50) return;
     this.last = t;
     this.local++;
@@ -56,11 +59,22 @@ class Pump extends Game {
     this.sound('pump');
     this.squish = 1;
   }
-  key(e, down, live) { if (down && live && (e.code === 'Space' || e.code === 'Enter')) this.pump(); }
-  pointer(type, x, y, id, live) { if (type === 'pointerdown' && live) this.pump(); }
+  key(e, down, live) {
+    if (!down || !live) return;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.pump('L');
+    else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.pump('R');
+  }
+  // on a touch screen: tap the left half, then the right
+  pointer(type, x, y, id, live) { if (type === 'pointerdown' && live) this.pump(x < this.W / 2 ? 'L' : 'R'); }
   draw(t, dt) {
     const c = this.c, n = this.ids.length;
     this.squish = Math.max(0, (this.squish || 0) - dt * 6);
+    this.stall = Math.max(0, (this.stall || 0) - dt * 3);
+    if (this.playing && this.local < this.target) {
+      // which key is next
+      const next = this.side === 'L' ? '→' : this.side === 'R' ? '←' : '← →';
+      this.title(next, this.W / 2, this.portrait ? 110 : 96, 46, this.stall > 0 ? '#ff6b6b' : '#ffe066');
+    }
     this.ids.forEach((id, i) => {
       const p = this.player(id);
       const cx = (this.W / n) * (i + 0.5);
@@ -170,7 +184,7 @@ class QuickDraw extends Game {
     }
     this.sideBoard('Times', this.ids.map(id => {
       const v = id === this.me ? this.times : this.others[id] || [];
-      return { id, text: v.length ? v.map(ms => (ms >= 1000 ? '✗' : ms)).join(' · ') : '…' };
+      return { id, text: v.length ? v.map(ms => (ms >= 1000 ? '✗' : `${(ms / 1000).toFixed(2)}s`)).join(' · ') : '…' };
     }));
   }
 }
@@ -231,7 +245,7 @@ class Needle extends Game {
       c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(a) * (R + 20), cy + Math.sin(a) * (R + 20)); c.stroke();
       c.fillStyle = '#9b4fd1';
       c.beginPath(); c.arc(cx, cy, 16, 0, Math.PI * 2); c.fill();
-      if (this.stopped) this.title(this.stopped.miss === 0 ? 'Perfect!' : `Off by ${this.stopped.miss}`, cx, cy + 50, 34, '#ffe066');
+      if (this.stopped) this.title(this.stopped.miss === 0 ? 'Perfect!' : `${this.stopped.miss}% off centre`, cx, cy + 50, 34, '#ffe066');
       this.text(`Try ${Math.min(3, this.k + 1)} of 3`, cx, 70, 18, '#ddd');
     }
     this.sideBoard('Misses (lower is better)', this.ids.map(id => {
@@ -335,26 +349,44 @@ const CRIT_COLOR = { ghost: '#f4f1ff', pumpkin: '#f07b1d', bat: '#7a5fa8', spide
 class Count extends Game {
   constructor(s) {
     super(s);
+    const P = this.params;
+    this.span = P.show + P.ans + P.reveal;
+    this.answers = P.rounds.map(r => r.items.filter(it => it[0] === r.target).length);
+    this.r = 0;
     this.guess = 10;
     this.locked = false;
+    this.miss = 0;
+    this.took = 0;
     this.others = {};
-    this.hint = `Count the ${PLURAL[this.params.target]}!`;
+    this.hint = 'Count the critters you’re asked for';
   }
   snap(m) { this.others = m.prog || {}; }
-  answering() { return this.t >= this.params.show; }
-  submit() {
-    if (this.locked || !this.answering()) return;
-    this.locked = true;
-    this.sound('right');
-    this.done([this.guess, +(this.t - this.params.show).toFixed(2)]);
+  // where we are: round, and phase ('show', 'ans' or 'reveal') with seconds into it
+  phase() {
+    const P = this.params;
+    const r = Math.min(P.rounds.length - 1, Math.max(0, Math.floor(this.t / this.span)));
+    const into = this.t - r * this.span;
+    if (into < P.show) return { r, ph: 'show', into };
+    if (into < P.show + P.ans) return { r, ph: 'ans', into: into - P.show };
+    return { r, ph: 'reveal', into: into - P.show - P.ans };
   }
-  bump(d) { if (!this.locked && this.answering()) { this.guess = Math.max(0, Math.min(99, this.guess + d)); this.sound('tick'); } }
+  submit(timeout) {
+    if (this.locked || (!timeout && this.phase().ph !== 'ans')) return;
+    const P = this.params, { r, into } = this.phase();
+    this.locked = true;
+    this.miss += Math.abs(this.guess - this.answers[r]);
+    this.took += timeout ? P.ans : into;
+    if (!timeout) this.sound('right');
+    if (r === P.rounds.length - 1) this.done([this.miss, +this.took.toFixed(2)]);
+    else this.prog([r + 1]);
+  }
+  bump(d) { if (!this.locked && this.phase().ph === 'ans') { this.guess = Math.max(0, Math.min(99, this.guess + d)); this.typed = false; this.sound('tick'); } }
   key(e, down, live) {
     if (!down || !live) return;
     if (e.code === 'ArrowUp' || e.code === 'ArrowRight' || e.code === 'KeyW') this.bump(1);
     else if (e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'KeyS') this.bump(-1);
     else if (e.code === 'Enter' || e.code === 'Space') this.submit();
-    else if (/^Digit\d$/.test(e.code) && !this.locked && this.answering()) {
+    else if (/^Digit\d$/.test(e.code) && !this.locked && this.phase().ph === 'ans') {
       const d = +e.code.slice(5);
       this.guess = this.typed ? Math.min(99, this.guess * 10 + d) : d;
       this.typed = this.guess < 10;
@@ -377,11 +409,16 @@ class Count extends Game {
   }
   draw(t) {
     const P = this.params;
-    if (t < P.show) {
-      this.text(`Count the ${PLURAL[P.target]}`, this.W / 2, 64, 24, '#ffe066');
+    const { r, ph, into } = this.phase();
+    const round = P.rounds[r];
+    if (r !== this.r) { this.r = r; this.locked = false; this.guess = 10; this.typed = false; }
+    if (ph === 'reveal' && this.playing && !this.locked) this.submit(true);  // out of time: lock in what's there
+    this.text(`Round ${r + 1} of ${P.rounds.length}`, this.W / 2, 40, 15, '#cbbfe0');
+    if (ph === 'show') {
+      this.text(`Count the ${PLURAL[round.target]}`, this.W / 2, 64, 24, '#ffe066');
       if (t >= 0) {
-        for (const [kind, x, y, at] of P.items) {
-          const age = t - at;
+        for (const [kind, x, y, at] of round.items) {
+          const age = into - at;
           if (age < 0 || age > P.life) continue;
           const pop = Math.min(1, age * 8) * Math.min(1, (P.life - age) * 8);
           const px = 30 + (x / 100) * (this.W - 60), py = 90 + (y / 100) * (this.H - 120);
@@ -390,15 +427,21 @@ class Count extends Game {
       }
       return;
     }
-    if (this.playing) {
-      const r = this.rects();
-      this.text(`How many ${PLURAL[P.target]}?`, this.W / 2, 80, 26, '#ffe066');
-      this.title(String(this.guess), this.W / 2, this.H / 2, 96, this.locked ? '#7dff9b' : '#fff');
-      this.button(r.minus, '−', { size: 48 });
-      this.button(r.plus, '+', { size: 48 });
-      this.button(r.ok, this.locked ? 'Locked in' : 'Lock in', { on: !this.locked, size: 26 });
+    if (ph === 'reveal') {
+      this.title(`It was ${this.answers[r]}`, this.W / 2, this.H / 2 - 20, 64, '#ffe066');
+      if (this.playing) this.text(`You said ${this.guess} · off by ${this.miss} so far`, this.W / 2, this.H / 2 + 40, 20, '#fff');
+      return;
     }
-    const answered = this.ids.filter(id => (id === this.me ? this.locked : this.others[id]));
+    if (this.playing) {
+      const b = this.rects();
+      this.text(`How many ${PLURAL[round.target]}?`, this.W / 2, 80, 26, '#ffe066');
+      this.title(String(this.guess), this.W / 2, this.H / 2, 96, this.locked ? '#7dff9b' : '#fff');
+      this.button(b.minus, '−', { size: 48 });
+      this.button(b.plus, '+', { size: 48 });
+      this.button(b.ok, this.locked ? 'Locked in' : 'Lock in', { on: !this.locked, size: 26 });
+      this.text(`${Math.max(0, P.ans - into).toFixed(0)}s to lock in`, this.W / 2, this.H / 2 + 175, 15, '#cbbfe0');
+    }
+    const answered = this.ids.filter(id => (id === this.me ? this.locked : (this.others[id] || [0])[0] > r));
     this.text(`${answered.length} of ${this.ids.length} answered`, this.W / 2, this.H - 30, 16, '#cbbfe0');
   }
 }
@@ -463,77 +506,6 @@ class Whack extends Game {
     this.sideBoard('Points', this.ids.map(id => {
       const v = id === this.me ? this.score : (this.others[id] || [0])[0];
       return { id, text: String(v) };
-    }));
-  }
-}
-
-// ---------------------------------------------------------------- Potion Math
-
-class PotionMath extends Game {
-  constructor(s) {
-    super(s);
-    this.sums = this.params.sums;
-    this.i = 0;
-    this.typed = '';
-    this.shake = 0;
-    this.others = {};
-    this.hint = 'Type the answers as fast as you can';
-  }
-  snap(m) { this.others = m.prog || {}; }
-  keyRects() {
-    const cx = this.cx();
-    const a = this.area();
-    const s = Math.min(70, (a.h - 220) / 4);
-    const labels = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓'];
-    return labels.map((l, i) => ({ l, x: cx - s * 1.6 + (i % 3) * s * 1.1, y: a.y + a.h - s * 4.5 + Math.floor(i / 3) * s * 1.1, w: s, h: s }));
-  }
-  input(l) {
-    if (this.i >= this.sums.length || this.sentDone) return;
-    if (l === '⌫') this.typed = this.typed.slice(0, -1);
-    else if (l === '✓') this.check();
-    else if (this.typed.length < 4) this.typed += l;
-    this.sound('tick');
-  }
-  check() {
-    if (!this.typed) return;
-    if (+this.typed === this.sums[this.i][1]) {
-      this.i++;
-      this.sound('right');
-      this.prog([this.i, +this.t.toFixed(2)]);
-      if (this.i === this.sums.length) this.done([this.i, +this.t.toFixed(2)]);
-    } else {
-      this.sound('wrong');
-      this.shake = 0.3;
-    }
-    this.typed = '';
-  }
-  key(e, down, live) {
-    if (!down || !live) return;
-    if (/^(Digit|Numpad)\d$/.test(e.code)) this.input(e.code.slice(-1));
-    else if (e.code === 'Backspace') this.input('⌫');
-    else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') this.input('✓');
-  }
-  pointer(type, x, y, id, live) {
-    if (type !== 'pointerdown' || !live) return;
-    for (const r of this.keyRects()) if (this.hit(r, x, y)) this.input(r.l);
-  }
-  draw(t, dt) {
-    if (this.playing && t > this.s.info.dur - 0.3 && !this.sentDone) this.done([this.i, +t.toFixed(2)]);
-    this.shake = Math.max(0, this.shake - dt);
-    const cx = (this.cx()) + Math.sin(this.shake * 60) * this.shake * 30;
-    if (this.playing) {
-      if (this.i < this.sums.length) {
-        this.text(`Potion ${this.i + 1} of ${this.sums.length}`, cx, 70, 18, '#cbbfe0');
-        this.title(`${this.sums[this.i][0]} =`, cx, 130, 50, '#ffe066');
-        this.title(this.typed || '?', cx, 195, 50, this.typed ? '#fff' : '#665');
-      } else {
-        this.title('All brewed!', cx, 150, 44, '#7dff9b');
-      }
-      for (const r of this.keyRects()) this.button(r, r.l, { size: 28, color: r.l === '✓' ? '#2f6b3f' : '#3a2a52' });
-    }
-    this.sideBoard('Potions', this.ids.map(id => {
-      const v = id === this.me ? this.i : (this.others[id] || [0])[0];
-      return { id, text: `${v} / ${this.sums.length}`, frac: v / this.sums.length };
     }));
   }
 }
@@ -616,4 +588,4 @@ class OddOne extends Game {
   }
 }
 
-export const SOLO = { pump: Pump, draw: QuickDraw, needle: Needle, memory: Memory, count: Count, whack: Whack, math: PotionMath, odd: OddOne };
+export const SOLO = { pump: Pump, draw: QuickDraw, needle: Needle, memory: Memory, count: Count, whack: Whack, odd: OddOne };

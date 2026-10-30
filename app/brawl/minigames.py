@@ -1,13 +1,13 @@
 """Board Brawl's minigames, the server's half.
 
 Two kinds:
-- "Solo" games (pump, quick draw, needle, copycat, count, whack-a-bat, potion math, odd ghost out)
+- "Solo" games (pump, quick draw, needle, copycat, count, whack-a-bat, odd ghost out)
   are played in each browser against content the server deals out, the same for everyone. The
   browser reports progress and a final score. Like Frag Arena, the browser is trusted: it's for
   friends.
 - "Live" games run here: the arena games (bumper ring, candy grab, ghost tag, pumpkin drop) at
   20 Hz from each browser's stick and dash; tug of doom from pumps; trivia and draw-and-guess
-  from answers and guesses.
+  from answers and guesses; potion math is trivia with sums.
 
 Formats: "ffa" (everyone for themselves), "duel" (two players, from a duel space), "team" (2 v 2)
 and "1vn" (one against the rest). Each game lists the formats it suits in `modes`.
@@ -130,10 +130,10 @@ class Scripted(Minigame):
 
 class Pump(Minigame):
     key, name = "pump", "Boo-lloon Pump"
-    rules = "Pump up your ghost balloon until it pops. First to pop wins."
-    controls = "Mash Space, or tap the pump."
+    rules = "Pump up your ghost balloon until it pops: left, right, left, right. The same key twice does nothing. First to pop wins."
+    controls = "Alternate ← and → (or A and D). On a phone, tap left then right."
     dur = 20.0
-    TARGET = 40
+    TARGET = 60
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -203,7 +203,7 @@ class QuickDraw(Scripted):
         return self.score.get(pid, 99999)
 
     def label(self, pid):
-        return f"{self.score[pid]} ms total" if pid in self.score else "No time"
+        return f"{self.score[pid] / 1000:.2f}s in all" if pid in self.score else "No time"
 
 
 class Needle(Scripted):
@@ -232,7 +232,7 @@ class Needle(Scripted):
         return self.score.get(pid, 999)
 
     def label(self, pid):
-        return f"Off by {self.score[pid]}" if pid in self.score else "Didn't finish"
+        return f"{self.score[pid]}% off centre in all" if pid in self.score else "Didn't finish"
 
 
 class Memory(Scripted):
@@ -272,46 +272,60 @@ class Memory(Scripted):
 
 class Count(Scripted):
     key, name = "count", "Count the Creeps"
-    rules = "Creepy critters pop up for a few seconds. Count the ones you're asked for. Closest guess wins; ties go to the quicker."
-    controls = "Watch, then pick your number."
-    SHOW = 7.0
-    dur = SHOW + 12.0
+    rules = "Three rounds. Creepy critters pop up for a few seconds: count the ones you're asked for. Your misses add up over the rounds; the smallest total wins, and ties go to the quicker."
+    controls = "Watch, then pick your number: arrows or typing, Enter to lock in."
+    SHOW, ANS, REVEAL, ROUNDS = 6.0, 5.0, 1.5, 3
+    dur = ROUNDS * (SHOW + ANS + REVEAL) + 0.5
     SHAPES = ["bat", "ghost", "pumpkin", "spider"]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        target = random.choice(self.SHAPES)
-        answer = random.randint(9, 17)
-        others = random.randint(22, 30)
-        items = [target] * answer + [random.choice([s for s in self.SHAPES if s != target]) for _ in range(others)]
-        random.shuffle(items)
-        crit = []
-        for i, kind in enumerate(items):
-            at = 0.2 + (self.SHOW - 1.6) * i / len(items) + random.uniform(-0.15, 0.15)
-            crit.append([kind, random.randint(8, 92), random.randint(12, 88), round(max(0.0, at), 2)])
-        self.answer = answer
-        self.params = {"target": target, "items": crit, "show": self.SHOW, "life": 1.1}
+        rounds, self.answers = [], []
+        for _ in range(self.ROUNDS):
+            target = random.choice(self.SHAPES)
+            answer = random.randint(7, 15)
+            others = random.randint(16, 24)
+            items = [target] * answer + [random.choice([s for s in self.SHAPES if s != target]) for _ in range(others)]
+            random.shuffle(items)
+            crit = []
+            for i, kind in enumerate(items):
+                at = 0.2 + (self.SHOW - 1.4) * i / len(items) + random.uniform(-0.15, 0.15)
+                crit.append([kind, random.randint(8, 92), random.randint(12, 88), round(max(0.0, at), 2)])
+            rounds.append({"target": target, "items": crit})
+            self.answers.append(answer)
+        self.params = {"rounds": rounds, "show": self.SHOW, "ans": self.ANS, "reveal": self.REVEAL, "life": 1.1}
+        span = self.SHOW + self.ANS + self.REVEAL
         for pid in self.bots:
-            guess = answer + random.choice([-3, -2, -1, -1, 0, 0, 0, 1, 1, 2])
-            t = self.SHOW + random.uniform(1.5, 5.0)
-            self.plans[pid] = [(t, [1], [max(0, guess), round(t - self.SHOW, 2)])]
+            plan, miss, took = [], 0, 0.0
+            for r, answer in enumerate(self.answers):
+                guess = answer + random.choice([-3, -2, -1, -1, 0, 0, 0, 1, 1, 2])
+                wait = random.uniform(1.2, 4.5)
+                miss += abs(guess - answer)
+                took += wait
+                last = r == self.ROUNDS - 1
+                plan.append((r * span + self.SHOW + wait, [r + 1], [miss, round(took, 2)] if last else None))
+            self.plans[pid] = plan
 
     def clean_score(self, v):
-        v = _nums(v, 2, 0, 99)
-        if self.t < self.SHOW - 0.5 or v is None:
+        v = _nums(v, 2, 0, 999)
+        if v is None or self.t < (self.ROUNDS - 1) * (self.SHOW + self.ANS + self.REVEAL) + self.SHOW - 0.5:
             return None
         return [int(v[0]), v[1]]
 
     def clean_prog(self, v):
-        return [1] if v else None  # just "has answered", so nobody sees a guess before the reveal
+        # just how many rounds they've answered, so nobody sees a guess before the reveal
+        return [min(self.ROUNDS, int(v[0]))] if isinstance(v, list) and v and isinstance(v[0], (int, float)) else None
 
     def key_of(self, pid):
         if pid not in self.score:
             return (999, 0)
-        return (abs(self.score[pid][0] - self.answer), self.score[pid][1])
+        return tuple(self.score[pid])
 
     def label(self, pid):
-        return f"Guessed {self.score[pid][0]} (it was {self.answer})" if pid in self.score else "No guess"
+        if pid not in self.score:
+            return "Didn't finish"
+        m = self.score[pid][0]
+        return "Spot on every time" if m == 0 else f"Off by {m} in all"
 
 
 class BatWhack(Scripted):
@@ -356,38 +370,6 @@ class BatWhack(Scripted):
 
     def label(self, pid):
         return f"{-self.key_of(pid)} points"
-
-
-class PotionMath(Scripted):
-    key, name = "math", "Potion Math"
-    rules = "Brew ten potions: work out each sum and type the answer. Most potions brewed wins, then the quickest."
-    controls = "Type the number and press Enter, or tap the keypad."
-    dur = 45.0
-    N = 10
-
-    def __init__(self, *a, **kw):
-        super().__init__(*a, **kw)
-        self.params = {"sums": content.sums(self.N)}
-        for pid in self.bots:
-            t, plan = 0.0, []
-            for i in range(self.N):
-                t += random.uniform(2.6, 5.0)
-                if t > self.dur:
-                    break
-                plan.append((t, [i + 1, round(t, 2)], [i + 1, round(t, 2)] if i == self.N - 1 else None))
-            self.plans[pid] = plan
-
-    def clean_score(self, v):
-        v = _nums(v, 2, 0, self.dur)
-        return None if v is None else [min(self.N, int(v[0])), v[1]]
-
-    def key_of(self, pid):
-        s = self.score.get(pid) or self.prog.get(pid) or [0, self.dur]
-        return (-s[0], s[1])
-
-    def label(self, pid):
-        s = self.score.get(pid) or self.prog.get(pid) or [0]
-        return f"{int(s[0])} potion{'s' if s[0] != 1 else ''}" + (f" in {s[1]:.1f}s" if len(s) > 1 else "")
 
 
 class OddOne(Scripted):
@@ -444,10 +426,13 @@ class Trivia(Minigame):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.qs = content.trivia(self.N)
+        self.qs = self.make_qs()
         self.picks = [{} for _ in self.qs]  # pid -> (answer, seconds taken)
         self.points = {pid: 0 for pid in self.ids}
         self.bot_plan = {pid: [(random.uniform(2, 8), random.random() < 0.6) for _ in self.qs] for pid in self.bots}
+
+    def make_qs(self):
+        return content.trivia(self.N)
 
     def where(self):
         i = min(self.N - 1, int(self.t // (self.ASK + self.SHOW)))
@@ -499,6 +484,51 @@ class Trivia(Minigame):
     def label(self, pid):
         right = sum(1 for i, q in enumerate(self.qs) if self.picks[i].get(pid, (None,))[0] == q["a"])
         return f"{right} of {self.N} right, {self.points[pid]} points"
+
+
+class PotionMath(Trivia):
+    """Trivia's rules with sums: everyone races the same sum, and the first right answer gets a
+    bonus on top of the speed points."""
+    key, name = "math", "Potion Math"
+    rules = "Race to brew the same potions: work out each sum and pick the answer. Quick right answers score more, and the first right answer gets a bonus. A wrong one costs you."
+    controls = "Click or tap an answer, or press 1-4."
+    ASK, SHOW, N = 7.0, 2.0, 6
+    dur = N * (ASK + SHOW)
+    FIRST, WRONG = 400, 200
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.first = [None] * self.N
+        self.bot_plan = {pid: [(random.uniform(1.6, 5.5), random.random() < 0.8) for _ in self.qs] for pid in self.bots}
+
+    def make_qs(self):
+        qs = []
+        for text, ans in content.sums(self.N + 2)[2:]:  # skip the two easiest
+            wrong = set()
+            while len(wrong) < 3:
+                w = ans + random.choice([-10, -2, -1, 1, 2, 10, random.randint(-6, 6)])
+                if w != ans and w >= 0:
+                    wrong.add(w)
+            opts = [ans, *wrong]
+            random.shuffle(opts)
+            qs.append({"q": f"{text} = ?", "opts": [str(o) for o in opts], "a": opts.index(ans)})
+        return qs
+
+    def answer(self, pid, i, a, into):
+        super().answer(pid, i, a, into)
+        if a == self.qs[i]["a"]:
+            if self.first[i] is None:
+                self.first[i] = pid
+                self.points[pid] += self.FIRST
+        else:
+            self.points[pid] -= self.WRONG
+
+    def snap(self):
+        s = super().snap()
+        s["ask"] = self.ASK
+        if not s["asking"]:
+            s["first"] = self.first[s["i"]]
+        return s
 
 
 class Sketch(Minigame):
@@ -947,6 +977,18 @@ class OneVsMany(ArenaGame):
         s = self.discs[self.solo]
         s.x, s.y = 50, 50
 
+    def escape(self, d, threats, jitter=0.15):
+        """Steer the way that keeps furthest from the threats half a second on, out of the corners."""
+        best, pick = -1e9, (0.0, 0.0)
+        for i in range(16):
+            a = 2 * math.pi * i / 16
+            x, y = d.x + math.cos(a) * 16, d.y + math.sin(a) * 16
+            room = min(x, ARENA - x, y, ARENA - y)
+            score = min(math.hypot(x - tx, y - ty) for tx, ty in threats) + min(0.0, room - 14) * 2.5
+            if score > best:
+                best, pick = score, (x, y)
+        self.steer(d, pick[0], pick[1], jitter)
+
     def runners(self):
         return [d for pid, d in self.discs.items() if pid != self.solo]
 
@@ -970,48 +1012,101 @@ class OneVsMany(ArenaGame):
 
 
 class GhostTag(OneVsMany):
+    """Freeze tag: the ghost freezes whoever it touches, and a runner thaws a frozen friend by
+    touching them. The ghost wins by having everyone frozen at once."""
     key, name = "tag", "Ghost Tag"
-    rules = "One of you is the ghost. Ghost: touch everyone before time's up. Everyone else: don't get touched. If anyone's left, the living win."
+    rules = "One of you is the ghost: touch the others to freeze them. Touch a frozen friend to thaw them; the ice melts by itself after a few seconds anyway. The ghost wins if everyone's frozen at once; otherwise the living win."
     controls = "WASD or arrows to roll, Space to dash. On a phone, drag to roll and tap DASH."
     dur = 30.0
+    GHOST = 1.0  # the ghost's acceleration, against the runners'
+    GHOST_DASH_CD = 1.0  # the ghost's dash recharges faster than everyone else's
+    THAW = 3.5  # a frozen runner thaws by themselves after this long
+
+    def dash(self, d):
+        super().dash(d)
+        if d.pid == self.solo and d.dash_cd:
+            d.dash_cd = self.GHOST_DASH_CD
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.frozen = {}  # pid -> (x, y, when they thaw)
+        self.freezes = 0
+        self.thaws = {pid: 0 for pid in self.ids}
 
     def acc_of(self, d):
-        return self.ACC * (1.22 if d.pid == self.solo else 1.0)
+        if d.pid in self.frozen:
+            return 0.0
+        return self.ACC * (self.GHOST if d.pid == self.solo else 1.0)
 
     def touch(self, a, b):
         ghost = a if a.pid == self.solo else b if b.pid == self.solo else None
-        if ghost is None:
-            return False
-        runner = b if ghost is a else a
-        self.out(runner)
-        return True
+        if ghost is not None:
+            r = b if ghost is a else a
+            if r.pid in self.frozen or r.safe > 0:
+                return False
+            self.frozen[r.pid] = (r.x, r.y, self.t + self.THAW)
+            self.freezes += 1
+            r.vx = r.vy = 0
+            return True
+        for x, y in ((a, b), (b, a)):
+            if x.pid in self.frozen and y.pid not in self.frozen:
+                del self.frozen[x.pid]
+                x.safe = 1.0  # a moment to get away
+                self.thaws[y.pid] += 1
+        return False
+
+    def after_move(self, live, dt):
+        for pid, (x, y, until) in list(self.frozen.items()):
+            d = self.discs[pid]
+            d.x, d.y, d.vx, d.vy = x, y, 0.0, 0.0
+            if self.t >= until and not self.solo_won():
+                del self.frozen[pid]
+                d.safe = 1.0
+
+    def solo_won(self):
+        return all(r.pid in self.frozen for r in self.runners())
+
+    def over(self):
+        return self.t >= self.dur or self.solo_won()
 
     def bot_tick(self, dt):
         g = self.discs[self.solo]
         for pid in self.bots:
             d = self.discs[pid]
             d.think -= dt
-            if not d.alive or d.think > 0:
+            if d.think > 0 or pid in self.frozen:
                 continue
             d.think = random.uniform(0.12, 0.22)
             if pid == self.solo:
-                live = [r for r in self.runners() if r.alive]
-                if live:
-                    r = min(live, key=lambda r: math.hypot(r.x - d.x, r.y - d.y))
-                    self.steer(d, r.x + r.vx * 0.3, r.y + r.vy * 0.3, 0.15)
-                    if math.hypot(r.x - d.x, r.y - d.y) < 16 and random.random() < 0.3:
+                free = [r for r in self.runners() if r.pid not in self.frozen and r.safe == 0]
+                if free:
+                    r = min(free, key=lambda r: math.hypot(r.x - d.x, r.y - d.y))
+                    self.steer(d, r.x + r.vx * 0.3, r.y + r.vy * 0.3, 0.2)
+                    if math.hypot(r.x - d.x, r.y - d.y) < 14 and random.random() < 0.25:
                         d.dash_req = True
+                continue
+            gd = math.hypot(g.x - d.x, g.y - d.y)
+            stuck = [self.discs[p] for p in self.frozen]
+            if stuck and gd > 22:
+                f = min(stuck, key=lambda f: math.hypot(f.x - d.x, f.y - d.y))
+                self.steer(d, f.x, f.y, 0.15)
             else:
-                self.flee(d, [(g.x, g.y)])
-                if math.hypot(g.x - d.x, g.y - d.y) < 12 and random.random() < 0.3:
+                self.escape(d, [(g.x, g.y)])
+                if gd < 12 and random.random() < 0.3:
                     d.dash_req = True
+
+    def snap(self):
+        s = super().snap()
+        s["fz"] = {str(pid): _r(f[2] - self.t) for pid, f in self.frozen.items()}
+        return s
 
     def label(self, pid):
         if pid == self.solo:
-            n = sum(1 for r in self.runners() if not r.alive)
-            return f"Ghost: caught {n}"
-        d = self.discs[pid]
-        return "Survived" if d.alive else f"Caught at {d.out_t:.1f}s"
+            return f"Ghost: {self.freezes} freeze{'s' if self.freezes != 1 else ''}"
+        if pid in self.frozen:
+            return "Frozen at the end"
+        n = self.thaws[pid]
+        return f"Free, thawed {n} friend{'s' if n != 1 else ''}" if n else "Free at the end"
 
 
 class PumpkinDrop(OneVsMany):
@@ -1019,7 +1114,7 @@ class PumpkinDrop(OneVsMany):
     rules = "One of you flies a bat that drops pumpkins; everyone else dodges the shadows. Two hits and you're out. If anyone's left, the dodgers win."
     controls = "WASD or arrows to move, Space to dash (or drop, if you're the bat). On a phone, drag and tap the button."
     dur = 30.0
-    FALL, BLAST, DROP_CD, BAT_SPEED = 1.0, 9.0, 0.75, 55.0
+    FALL, BLAST, DROP_CD, BAT_SPEED = 0.95, 9.5, 0.7, 58.0
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -1073,9 +1168,11 @@ class PumpkinDrop(OneVsMany):
                     if math.hypot(tx - d.x, ty - d.y) < 6:
                         d.dash_req = True
             else:
-                near = [(p[0], p[1]) for p in self.pumpkins if math.hypot(p[0] - d.x, p[1] - d.y) < 16]
+                # a person takes about a third of a second to spot a new shadow
+                near = [(p[0], p[1]) for p in self.pumpkins if p[2] - self.t < self.FALL - 0.3
+                        and math.hypot(p[0] - d.x, p[1] - d.y) < self.BLAST + 8]
                 if near:
-                    self.flee(d, near, 0.2)
+                    self.escape(d, near, 0.2)
                 elif random.random() < 0.2:
                     self.steer(d, random.uniform(15, 85), random.uniform(15, 85), 0.4)
 
@@ -1093,11 +1190,11 @@ class PumpkinDrop(OneVsMany):
         return "Survived" if d.alive else f"Squashed at {d.out_t:.1f}s"
 
 
-from . import arcade, classics  # noqa: E402  (their games build on the classes above)
+from . import arcade, classics, showdown  # noqa: E402  (their games build on the classes above)
 
-GAMES = {g.key: g for g in (Pump, QuickDraw, Needle, Memory, Count, BatWhack, PotionMath, OddOne,
-                            Trivia, Sketch, Tug, Bumper, CandyGrab, GhostTag, PumpkinDrop, *arcade.GAMES,
-                            *classics.GAMES)}
+GAMES = {g.key: g for g in (Pump, QuickDraw, Needle, Memory, Count, BatWhack, OddOne,
+                            Trivia, PotionMath, Sketch, Tug, Bumper, CandyGrab, GhostTag, PumpkinDrop, *arcade.GAMES,
+                            *classics.GAMES, *showdown.GAMES)}
 
 
 def suits(key, mode, n_players, n_humans):

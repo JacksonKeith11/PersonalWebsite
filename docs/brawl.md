@@ -64,20 +64,20 @@ The design came from a list of questions the owner answered. Keep to them:
 
 | Key | Name | Kind | Formats | Runs |
 |---|---|---|---|---|
-| `pump` | Boo-lloon Pump | mashing | ffa, duel, team | server counts pumps |
+| `pump` | Boo-lloon Pump | alternating ← → | ffa, duel, team | server counts pumps |
 | `draw` | Quick Draw | reflex | ffa, duel, team | browser |
 | `needle` | Stop the Needle | timing | ffa, duel, team | browser |
 | `memory` | Copycat Spell | memory | ffa, duel, team | browser |
-| `count` | Count the Creeps | counting | ffa, duel, team | browser |
+| `count` | Count the Creeps | counting, three rounds | ffa, duel, team | browser |
 | `whack` | Whack-a-Bat | reflex | ffa, duel, team | browser |
-| `math` | Potion Math | puzzle | ffa, duel, team | browser |
+| `math` | Potion Math | sums race (Trivia's rules) | ffa, duel, team | server |
 | `odd` | Odd Ghost Out | puzzle | ffa, duel, team | browser |
 | `trivia` | Trivia Night | trivia | ffa, duel, team | server |
 | `sketch` | Sketchy Spirits | draw and guess | ffa (3+ players, 2+ humans) | server |
 | `tug` | Tug of Doom | mashing | team | server |
 | `bumper` | Bumper Ring | action | ffa, duel, team | server, 20 Hz |
 | `candy` | Candy Grab | action | ffa, duel, team | server, 20 Hz |
-| `tag` | Ghost Tag | action | 1vn | server, 20 Hz |
+| `tag` | Ghost Tag | freeze tag | 1vn | server, 20 Hz |
 | `drop` | Pumpkin Drop | action | 1vn | server, 20 Hz |
 
 The owner asked for more, based on Mario Party fan favourites, and allowed 3D. These are in
@@ -92,7 +92,7 @@ The owner asked for more, based on Mario Party fan favourites, and allowed 3D. T
 | `hide` | Hide and Go Boo! | Hide and Go BOOM! | bluffing | 1vn | server |
 | `bowl` | Skull Bowling | Bowl Over | action | 1vn | server, 20 Hz |
 | `graves` | Grave Robbers | Air to a Fortune / Grab Bag | mind games | ffa, duel, team | server |
-| `potato` | Hot Pumpkin | Lit Potato | hot potato | ffa, duel | server, 20 Hz |
+| `potato` | Hot Pumpkin | Lit Potato | hot potato | ffa (3+ players) | server, 20 Hz |
 | `shoot` | Slime Shooters | Shell Shocked | shooter | ffa, duel, team | server, 20 Hz |
 | `pong` | Skull Pong | Paddle Battle | four-way pong | ffa, duel | server, 20 Hz |
 | `band` | Monster Mash | Mario Bandstand | rhythm | ffa, duel, team | browser |
@@ -113,6 +113,15 @@ Then a third batch, from a Reddit thread of favourites the owner pasted in, in `
 | `snowball` | Snowball Summit | Snowball Summit | action | ffa, duel, team | server, 20 Hz |
 | `hockey` | Speed Hockey | Speed Hockey | sport | team, duel | server, 20 Hz |
 
+Then three more one-against-the-rest games, because 1 v 3 had the fewest games and so repeated
+most, in `showdown.py` and `games-showdown.js`:
+
+| Key | Name | Based on | Kind | Formats | Runs |
+|---|---|---|---|---|---|
+| `bash` | Candy Bash | Bash 'n' Cash | chase the sack | 1vn | server, 20 Hz |
+| `look` | Look Away | Look Away | bluffing | 1vn | server |
+| `redlight` | Red Light, Green Light | the playground game | timing | 1vn | server, 20 Hz |
+
 Tick Tock Hop forgives a jump that reaches the server up to `GRACE` (0.15 s) after a hand
 reached you, so latency doesn't get people knocked out. Speed Hockey's bot keepers aim a little
 off on purpose, or bot matches end 0-0.
@@ -121,15 +130,37 @@ Balance notes: Hide and Go Boo! has 6 coffins and 3 opens against 3 hiders (4 ag
 seeker wins by finding more than half, which a random seeker does about half the time; Slime
 Shooters' bots fire rarely and miss often, or a match is over in seconds.
 
+**One against the rest is tuned so the one wins 40-60% of bot games.** Check with
+`python3 tools/brawl-balance.py [keys] [games]` after any change. What it took:
+- Ghost Tag was a walkover for the ghost (a chaser in a walled box always corners you). It's
+  freeze tag now: a frozen runner thaws when a friend touches them, or after `THAW` (3.5 s)
+  anyway, and the ghost needs everyone frozen at once. Same speed as the runners; its dash
+  recharges faster.
+- Pumpkin Drop was a walkover for the dodgers; `FALL`, `BLAST` and `DROP_CD` are tuned to it,
+  and it is touchy: a tenth of a second on `FALL` swings it by 30 points.
+- Red Light, Green Light needs most of the runners home (2 of 3), not one, and the runners'
+  `ACCEL` (how quickly they stop) decides it. Also touchy.
+- Bot runners and dodgers must play like people or the tuning means nothing:
+  `OneVsMany.escape` looks ahead in 16 directions and keeps out of corners (the old `flee`
+  ran into them), and bot dodgers and runners react after 0.2-0.6 s, not at once.
+
+Other tuning from the owner's audit: Boo-lloon Pump alternates ← and → to 60 (it was 5 s of
+mashing Space); Potion Math is a race on Trivia's rules, with a bonus for the first right answer
+and a cost for a wrong one (it was ten sums typed alone); Count the Creeps is three rounds; Hot
+Pumpkin needs three players (as a duel it was a coin flip, over in 8 s); Hex Heat's safe tiles
+thin out each round, down to two (half its games ended in a draw); Skeleton Says ramps faster
+and lasts at most 45 s. Someone watching a game played on the players' own screens (a duel
+they're not in) gets a big scoreboard rather than a small list.
+
 The format is picked each round (`Room.start_minigame`): with 2 players always free-for-all; with
 3, free-for-all or 1 v 2; with 4, free-for-all, 2 v 2 or 1 v 3. Games come from a shuffled bag per
 format so they don't repeat until the bag's empty. Prizes: free-for-all 10/6/3/1; 2 v 2 8 each to
 the winners (3 each on a draw); 1 v the rest 15 to the one, or 6 each to the rest.
 
-**Adding a minigame** takes a server class in `minigames.py`, `arcade.py` or `classics.py` (in
+**Adding a minigame** takes a server class in `minigames.py`, `arcade.py`, `classics.py` or `showdown.py` (in
 `GAMES`, with `modes`, `dur`, `key_of` and `label`, plus bots) and a browser class in
-`games-solo.js`, `games-live.js`, `games-more.js` or `games-classic.js` (in `SOLO`, `LIVE`, `MORE`
-or `CLASSIC`, extending `Game` from `base.js`,
+`games-solo.js`, `games-live.js`, `games-more.js`, `games-classic.js` or `games-showdown.js` (in `SOLO`,
+`LIVE`, `MORE`, `CLASSIC` or `SHOWDOWN`, extending `Game` from `base.js`,
 or `Arena` for the arena games). `Survival` in `arcade.py` gives last-one-standing games their
 ranking and end. Arena games on a light floor set `nameColor` and `meColor` so names stay
 readable. Solo games get their content in `params` and
@@ -146,6 +177,7 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 | `app/brawl/minigames.py` | The minigames' server halves, and their bots; `GAMES`, the full list. |
 | `app/brawl/arcade.py` | More minigames, after Mario Party favourites; `Survival`, for last-one-standing games. |
 | `app/brawl/classics.py` | Minigames from the owner's friends' favourites thread. |
+| `app/brawl/showdown.py` | More one-against-the-rest minigames. |
 | `app/brawl/content.py` | Trivia questions, draw-and-guess words, potion sums. |
 | `app/brawl/routes.py` | `GET /games/board-brawl` and the WebSocket at `/games/board-brawl/ws`. |
 | `app/static/games/brawl/index.html`, `game.css` | The page: menu, lobby, board screen, overlays. |
@@ -153,7 +185,7 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 | `js/board.js` | Draws the board, scenery, pieces, dice and effects on a canvas. |
 | `js/mg.js` | The minigame stage: sizing, countdown, timer, input routing. |
 | `js/base.js` | `Game`, the base class for minigames' browser halves, with drawing helpers. |
-| `js/games-solo.js`, `js/games-live.js`, `js/games-more.js`, `js/games-classic.js` | The minigames' browser halves. |
+| `js/games-solo.js`, `js/games-live.js`, `js/games-more.js`, `js/games-classic.js`, `js/games-showdown.js` | The minigames' browser halves. |
 | `js/view3d.js` | The three.js view the 3D minigames draw into. |
 | `js/art.js` | Ghosts, pumpkins, bats, spiders, skulls, crowns, candy, tokens, graves, trees, webs: canvas paths. |
 | `js/audio.js` | Synthesized sound effects. |
@@ -192,6 +224,7 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 - The smoke test runs Chromium without `--use-angle=swiftshader`: that flag routes 2D canvases
   through software GL too, which makes the board crawl and screenshots time out.
 - Two tabs of one browser are two players (for testing), but a reload is the same player.
+- `python3 tools/brawl-balance.py` says how often the one wins each 1 v 3 minigame.
 - `python3 tools/brawl-check.py` plays every minigame in every format with bots, then whole games,
   on a fake clock. `node tools/brawl-smoke.js [url] [rounds] [shots dir]` plays a real game in two
   headless browsers (one phone-sized) against a running server, with real clicks and key presses.

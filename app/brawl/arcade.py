@@ -42,6 +42,7 @@ class HexHeat(Survival, ArenaGame):
     RINGS, SIZE = 3, 8.0
     COLORS = 4
     DROP, RISE = 1.4, 0.7
+    SAFE0 = 9  # safe tiles in the first round
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -60,6 +61,11 @@ class HexHeat(Survival, ArenaGame):
         self.colors = [i % self.COLORS for i in range(n)]
         random.shuffle(self.colors)
         self.called = random.randrange(self.COLORS)
+        # fewer safe tiles each round, down to two, so it ends with a scramble rather than a draw
+        safe = [i for i, c in enumerate(self.colors) if c == self.called]
+        random.shuffle(safe)
+        for i in safe[max(2, self.SAFE0 - self.round):]:
+            self.colors[i] = random.choice([c for c in range(self.COLORS) if c != self.called])
         self.phase = "call"
         self.phase_end = self.t + max(1.7, 4.2 - 0.35 * self.round)
         self.round += 1
@@ -214,8 +220,8 @@ class SkeletonSays(Survival, Minigame):
     key, name = "says", "Skeleton Says"
     rules = "The skeleton calls a flag: raise it. If it says DON'T raise one, raise the other. Too slow or wrong and you're out. It speeds up."
     controls = "Left (A or ←) for the pumpkin flag, right (D or →) for the bone flag. Or tap a side."
-    dur = 75.0
-    N, GAP = 30, 0.9
+    dur = 45.0
+    N, GAP = 24, 0.7
     CALLS = [("Pumpkin up!", 0), ("Bone up!", 1), ("Don't raise the pumpkin!", 1), ("Don't raise the bone!", 0)]
 
     def __init__(self, *a, **kw):
@@ -224,7 +230,7 @@ class SkeletonSays(Survival, Minigame):
         t = 0.6
         for i in range(self.N):
             text, flag = random.choice(self.CALLS[:2] if i < 2 else self.CALLS)
-            window = max(0.85, 2.3 - 0.075 * i)
+            window = max(0.7, 2.0 - 0.1 * i)
             self.calls.append({"text": text, "flag": flag, "at": t, "end": t + window})
             t += window + self.GAP
         self.i = 0
@@ -314,7 +320,8 @@ class PumpkinLift(Scripted):
         return self.score.get(pid, 9999)
 
     def label(self, pid):
-        return f"Off by {self.score[pid]}" if pid in self.score else "Didn't finish"
+        # the score is how far the features are from home, in hundredths of the pumpkin's radius
+        return f"{max(0, 100 - self.score[pid] // 2)}% match" if pid in self.score else "Didn't finish"
 
 
 # ---------------------------------------------------------------- Hide and Go Boo!
@@ -630,7 +637,8 @@ class HotPumpkin(Survival, Minigame):
     key, name = "potato", "Hot Pumpkin"
     rules = "Lit pumpkins go round the circle. Pass them left or right before they blow: whoever's holding one when it goes off is out. Last one standing wins."
     controls = "Left (A or ←) or right (D or →) to pass, or tap the arrows."
-    modes = {"ffa", "duel"}
+    modes = {"ffa"}
+    min_players = 3  # with two it's a coin flip, over in seconds
     hz = 20
     dur = 60.0
     FLY, PAUSE = 0.35, 1.8

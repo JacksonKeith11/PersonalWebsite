@@ -3,14 +3,15 @@
 // screen's shape. It runs the 3-2-1 countdown, the timer
 // and the FINISH banner, and hands games the keyboard, pointer and server snapshots.
 
-import * as sfx from './audio.js?v=5';
-import { SOLO } from './games-solo.js?v=5';
-import { LIVE } from './games-live.js?v=5';
-import { MORE } from './games-more.js?v=5';
-import { CLASSIC } from './games-classic.js?v=5';
-import { Game, TEAM_COLORS } from './base.js?v=5';
+import * as sfx from './audio.js?v=6';
+import { SOLO } from './games-solo.js?v=6';
+import { LIVE } from './games-live.js?v=6';
+import { MORE } from './games-more.js?v=6';
+import { CLASSIC } from './games-classic.js?v=6';
+import { SHOWDOWN } from './games-showdown.js?v=6';
+import { Game, TEAM_COLORS } from './base.js?v=6';
 
-const GAMES = { ...SOLO, ...LIVE, ...MORE, ...CLASSIC };
+const GAMES = { ...SOLO, ...LIVE, ...MORE, ...CLASSIC, ...SHOWDOWN };
 const now = () => performance.now() / 1000;
 
 export class Stage {
@@ -183,7 +184,14 @@ export class Stage {
       c.fillStyle = 'rgba(0,0,0,0.45)';
       c.fillRect(0, 0, this.W, this.H);
       g.title(String(n), this.W / 2, this.H / 2, 110, '#ffe066');
-      if (this.game.hint) g.text(this.game.hint, this.W / 2, this.H / 2 + 90, 20, '#fff');
+      if (this.game.hint) {
+        // on a dark pill, so it reads over whatever the game has drawn there
+        c.font = '700 20px "Source Sans 3", system-ui, sans-serif';
+        const w = c.measureText(this.game.hint).width + 36;
+        c.fillStyle = 'rgba(16, 10, 28, 0.92)';
+        c.beginPath(); c.roundRect(this.W / 2 - w / 2, this.H / 2 + 70, w, 40, 20); c.fill();
+        g.text(this.game.hint, this.W / 2, this.H / 2 + 90, 20, '#fff');
+      }
     } else if (t >= 0 && t < 0.7) {
       if (this.counted > 0) { this.counted = 0; sfx.play('go'); }
       g.title('GO!', this.W / 2, this.H / 2, 110 + t * 60, `rgba(255,224,102,${1 - t / 0.7})`);

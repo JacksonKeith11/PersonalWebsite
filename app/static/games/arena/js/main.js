@@ -1,9 +1,9 @@
 // Frag Arena's client: input, your own movement (predicted here, reported to the server),
 // firing, the server's events, the camera and the HUD.
-import { Net } from './net.js?v=4';
-import { View, POWER_COLOR } from './render.js?v=4';
-import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=4';
-import { initAudio, sfx, setListener, setVolume } from './audio.js?v=4';
+import { Net } from './net.js?v=5';
+import { View, POWER_COLOR } from './render.js?v=5';
+import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=5';
+import { initAudio, sfx, setListener, setVolume } from './audio.js?v=5';
 
 const $ = id => document.getElementById(id);
 const MG = 0, RL = 2, KN = 8;
@@ -230,6 +230,8 @@ function worldEvent(e) {
   } else if (e.k === 'vortex') {
     view.vortex('S' + e.id, e.p, e.t);
     sfx('vortex', e.p);
+  } else if (e.k === 'gone') {  // a new round: shots still flying just stop
+    for (const id of e.ids) view.removeRocket('S' + id);
   } else if (e.k === 'vend') {
     view.vortexEnd('S' + e.id, e.p);
     sfx('boom', e.p);
@@ -520,7 +522,11 @@ function frame() {
     view.ensurePlayer(id, r.color, r.name, { role: r.role, bigHeads: !!(S.rules && S.rules.muts.includes('bigheads')) });
     view.updatePlayer(id, s, dt);
   }
-  for (const key of view.rockets.keys()) if (key[0] === 'S') view.moveRocket(key, rt);
+  for (const [key, r] of view.rockets) {
+    if (key[0] !== 'S') continue;
+    if (rt - r.t0 > 12) view.removeRocket(key);  // its end never reached us; nothing lives this long
+    else view.moveRocket(key, rt);
+  }
 
   let speed = 0;
   if (S.alive) {

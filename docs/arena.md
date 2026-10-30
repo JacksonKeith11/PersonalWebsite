@@ -213,6 +213,13 @@ and walking links never cross a pad.
 - **Every module URL carries `?v=N`, and they must all match** (Cloudflare caches `/static`, and a
   module loaded under two URLs runs twice). When changing any of the game's JS or CSS, bump them
   together: `grep -rn "?v=" app/static/games/arena`.
+- **Effects live in `View.fx`**, a list of update functions that return false when done (and
+  remove their meshes then). An effect may start others (the vortex spawns sparks every frame), so
+  `frame` swaps in a fresh list before running them; filtering the list in place lost those, and
+  their sprites stayed in the scene forever, piling up until the game lagged.
+- **Every projectile and black hole a browser draws needs an end it will hear about**: `boom`,
+  `vend`, or `gone` (sent by `clear_shots` when a round or map change drops them). The browser
+  also drops server projectiles after 12 s, in case an end was missed.
 - **Don't add or remove three.js lights at runtime**: it recompiles every shader. Flashes borrow
   from the fixed pool in `View.lights`.
 - Map changes and new maps: boxes must not overlap spawns, pickups or waypoint paths in ways that

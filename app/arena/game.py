@@ -786,18 +786,25 @@ class Game:
         if p.brain:
             p.brain.__init__()
 
-    def end_round(self, winner, text=None):
-        self.inter_until = self.now() + INTERMISSION
+    def clear_shots(self):
+        """Drop every projectile and black hole, telling browsers so they stop drawing them."""
+        if self.shots:
+            self.events.append({"k": "gone", "ids": [sh["id"] for sh in self.shots]})
+        for v in self.vortices:
+            self.events.append({"k": "vend", "id": v["id"], "p": _rv(v["p"])})
         self.shots = []
         self.vortices = []
+
+    def end_round(self, winner, text=None):
+        self.inter_until = self.now() + INTERMISSION
+        self.clear_shots()
         self.events.append({"k": "win", "id": winner.id if winner else 0, "until": INTERMISSION, "text": text})
 
     def new_round(self):
         """Scores reset and everyone playing respawns; also how a change of mode or mutators starts."""
         now = self.now()
         self.inter_until = 0.0
-        self.shots = []
-        self.vortices = []
+        self.clear_shots()
         PHYS.update(world.BASE_PHYS)
         self.knock = KNOCK
         if "lowgrav" in self.muts:
@@ -843,8 +850,7 @@ class Game:
         self.pickups = [dict(pk, up_at=0.0) for pk in world.PICKUPS]
         self.power = None
         self.last_spot = None
-        self.shots = []
-        self.vortices = []
+        self.clear_shots()
         msg = json.dumps({"t": "map", "map": world.map_payload()}, separators=(",", ":"))
         for p in self.humans():
             self.send(p, msg)

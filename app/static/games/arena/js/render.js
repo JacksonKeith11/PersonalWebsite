@@ -2,7 +2,7 @@
 // weapon in your hands, and effects. No lights are added or removed after startup (that makes
 // three.js recompile shaders); flashes borrow from a fixed pool of point lights.
 import * as THREE from 'three';
-import { rayWorld } from './physics.js?v=4';
+import { rayWorld } from './physics.js?v=5';
 
 const TEX_METRES = 2;  // one texture repeat covers 2 m
 
@@ -735,7 +735,7 @@ export class View {
     g.add(ring);
     this.scene.add(g);
     const light = this.light(p, POWER_COLOR.vx, 40, secs + 1, g);
-    let t = 0;
+    let t = 0, sparks = 0;
     const v = { g, light, done: false };
     this.vortices = this.vortices || new Map();
     this.vortices.set(key, v);
@@ -748,7 +748,7 @@ export class View {
       }
       ring.rotation.x = t * 3; ring.rotation.y = t * 2;
       halo.scale.setScalar(3.5 + Math.sin(t * 20) * 0.3);
-      for (let i = 0; i < 3; i++) {
+      for (sparks += dt * 90; sparks >= 1; sparks--) {  // 90 a second, whatever the frame rate
         const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.5) * 2, r = 5 + Math.random() * 3;
         const from = [p[0] + Math.cos(a) * r, p[1] + e * 2, p[2] + Math.sin(a) * r];
         const life = 0.6;
@@ -923,7 +923,11 @@ export class View {
         s.l.intensity = left > 0 ? s.peak * left / s.fade : 0;
       }
     }
-    this.fx = this.fx.filter(f => f(dt));
+    // Effects can start effects (the vortex's sparks); those land in the fresh list, not the one
+    // being filtered, or they'd never be updated or removed.
+    const running = this.fx;
+    this.fx = [];
+    this.fx = running.filter(f => f(dt)).concat(this.fx);
     for (const r of this.rockets.values()) {
       r.puff -= dt;
       if (r.puff <= 0 && r.kind === 'rl') {

@@ -198,3 +198,6 @@ aside { width: 300px; display: flex; flex-direction: column; gap: 10px; min-heig
   .card h2 { font-size: 1.6rem; }
   .top { gap: 8px; font-size: 0.85rem; }
 }
+#action button.way { text-align: left; }
+#action button.way i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; border: 2px solid #1a1020; vertical-align: -1px; }
+#action button.way .lands { display: block; font-size: 0.82rem; opacity: 0.85; margin-top: 3px; }

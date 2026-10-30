@@ -23,6 +23,13 @@ many items as your coins and pockets allow, then keep walking (`Room.open_shop`,
 A human who lets the timer run out leaves the shop without buying. Bots shopping on the way past
 keep 14 coins back so they can still afford crowns.
 
+**Forks show where each way leads** (the owner asked for this). At a fork the state carries
+`routes`: for each way, every route the rest of the roll could take (`Room.routes`; a later fork
+splits it, a web stops it short). The board draws each way as a dotted trail in its own colour
+(`ROUTE_COLORS` in `board.js`) with a pin on every space it could end on, and each button says
+what you'd land on and whether you'd pass the crown, a shop or the ghost. Pointing at a button or
+a pin lights up just that way.
+
 ## The owner's design answers
 
 The design came from a list of questions the owner answered. Keep to them:

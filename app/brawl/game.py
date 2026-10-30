@@ -567,6 +567,20 @@ class Room:
             return
         self.go(p, nxt[0])
 
+    def routes(self, p, first):
+        """Every way the rest of this walk could go after stepping onto `first`: the spaces
+        walked, ending where the player would land (a later fork splits it; a web stops it)."""
+        out, todo = [], [[first]]
+        while todo:
+            route = todo.pop()
+            s = route[-1]
+            web = self.webs.get(s)
+            if len(route) >= self.left or (web is not None and web != p.id):
+                out.append(route)
+                continue
+            todo += [route + [n] for n in reversed(self.ways(s))]
+        return out
+
     def bot_path(self, p):
         nxt = self.ways(p.pos)
         if not self.back and p.coins >= CROWN_COST and random.random() < 0.85:
@@ -988,6 +1002,8 @@ class Room:
             "mg": mg, "results": self.results, "final": self.final, "fx": self.fx, "prices": prices,
             "duel": self.duel, "passing": self.shop_passing,
             "choices": self.ways(self.players[cur].pos) if cur and self.step == "path" else None,
+            "routes": [self.routes(self.players[cur], c) for c in self.ways(self.players[cur].pos)]
+            if cur and self.step == "path" else None,
         }
 
     def send_snap(self, extra=None):

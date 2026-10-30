@@ -2,7 +2,7 @@
 // ghost, traps, webs, coin piles and everyone's pieces. Pieces glide from space to space; the
 // dice and floating "+3"s are drawn over the top.
 
-import * as art from './art.js?v=4';
+import * as art from './art.js?v=5';
 
 const KIND_COLORS = {
   blue: ['#3f7fe0', '#1d4a99'],
@@ -14,6 +14,8 @@ const KIND_COLORS = {
   portal: ['#2fd1d1', '#0d5f6b'],
 };
 const SPACE_R = 22;
+// one colour per way at a fork, matching the dots on the choice buttons
+export const ROUTE_COLORS = ['#ffe066', '#6fe8ff', '#ff8adf'];
 
 export class Board {
   constructor(canvas, board, { onPick } = {}) {
@@ -35,6 +37,9 @@ export class Board {
     this.bg = null;
     this.t = 0;
     canvas.addEventListener('pointerdown', e => this.click(e));
+    canvas.addEventListener('pointermove', e => { this.hover = this.pickAt(e); });
+    canvas.addEventListener('pointerleave', () => { this.hover = null; });
+    this.hover = null;  // the fork choice being pointed at, here or on its button
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
     this.resize();
   }
@@ -82,6 +87,7 @@ export class Board {
   }
 
   update(st, you) {
+    if (st.step !== 'path') this.hover = null;
     this.st = st;
     this.you = you;
     for (const f of st.fx || []) this.effect(f);
@@ -113,14 +119,20 @@ export class Board {
   }
 
   click(e) {
-    if (!this.st || this.st.step !== 'path' || this.st.cur !== this.you || !this.st.choices) return;
+    const i = this.pickAt(e);
+    if (i != null && this.onPick) this.onPick(i);
+  }
+
+  // which fork choice is under the pointer: its first space, or where its routes end
+  pickAt(e) {
+    if (!this.st || this.st.step !== 'path' || this.st.cur !== this.you || !this.st.choices) return null;
     const r = this.cv.getBoundingClientRect();
     const x = ((e.clientX - r.left) * this.dpr - this.ox) / this.scale;
     const y = ((e.clientY - r.top) * this.dpr - this.oy) / this.scale;
-    this.st.choices.forEach((id, i) => {
-      const s = this.space(id);
-      if (Math.hypot(s.x - x, s.y - y) < SPACE_R * 1.6) this.onPick && this.onPick(i);
-    });
+    const near = id => { const s = this.space(id); return Math.hypot(s.x - x, s.y - y) < SPACE_R * 1.6; };
+    const i = this.st.choices.findIndex((id, i) =>
+      near(id) || (this.st.routes?.[i] || []).some(rt => near(rt[rt.length - 1])));
+    return i < 0 ? null : i;
   }
 
   // ---------------------------------------------------------------- scenery (drawn once)
@@ -274,12 +286,13 @@ export class Board {
     // highlight the ways to go at a fork
     if (st.step === 'path' && st.choices) {
       const mine = st.cur === this.you;
-      st.choices.forEach(id => {
+      st.choices.forEach((id, i) => {
         const s = this.space(id);
-        c.strokeStyle = mine ? '#ffe066' : 'rgba(255, 255, 255, 0.5)';
+        c.strokeStyle = mine ? ROUTE_COLORS[i] : 'rgba(255, 255, 255, 0.5)';
         c.lineWidth = 3;
         c.beginPath(); c.arc(s.x, s.y, SPACE_R + 6 + Math.sin(this.t * 6) * 3, 0, Math.PI * 2); c.stroke();
       });
+      if (st.routes) this.drawRoutes(c, st);
     }
     // piles, traps, webs
     for (const [sid, n] of Object.entries(st.piles || {})) {
@@ -320,6 +333,55 @@ export class Board {
     this.drawBombs(c, dt);
     this.drawFloats(c, dt);
     this.drawDice(c, dt);
+  }
+
+  // where each way at a fork leads: a dotted trail to a pin on every space it could end on
+  drawRoutes(c, st) {
+    const from = st.players.find(p => p.id === st.cur);
+    if (!from) return;
+    const pins = new Map();  // space -> choices that can end there
+    const order = st.routes.map((_, i) => i).filter(i => i !== this.hover);
+    if (this.hover != null && st.routes[this.hover]) order.push(this.hover);  // pointed-at one on top
+    for (const i of order) {
+      const lit = this.hover == null || this.hover === i;
+      for (const rt of st.routes[i]) {
+        const pts = [from.pos, ...rt].map(id => this.space(id));
+        c.save();
+        c.globalAlpha = lit ? 0.9 : 0.25;
+        c.strokeStyle = ROUTE_COLORS[i];
+        c.lineWidth = lit && this.hover === i ? 5 : 3.5;
+        c.setLineDash([2, 9]);
+        c.lineDashOffset = -this.t * 18;
+        c.lineCap = 'round';
+        c.beginPath();
+        pts.forEach((p, k) => (k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+        c.stroke();
+        c.restore();
+        const end = rt[rt.length - 1];
+        if (!pins.has(end)) pins.set(end, []);
+        if (!pins.get(end).includes(i)) pins.get(end).push(i);
+      }
+    }
+    const bob = Math.sin(this.t * 4) * 3;
+    for (const [id, is] of pins) {
+      const s = this.space(id);
+      is.forEach((i, k) => {
+        const x = s.x + (k - (is.length - 1) / 2) * 24, y = s.y - SPACE_R - 24 + bob;
+        const lit = this.hover == null || this.hover === i;
+        c.globalAlpha = lit ? 1 : 0.35;
+        c.fillStyle = ROUTE_COLORS[i];
+        c.strokeStyle = '#1a1020';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(x, y + 17);
+        c.arc(x, y, 11, Math.PI * 0.75, Math.PI * 0.25);
+        c.closePath();
+        c.fill(); c.stroke();
+        c.fillStyle = '#1a1020';
+        c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fill();
+        c.globalAlpha = 1;
+      });
+    }
   }
 
   drawFog(c) {

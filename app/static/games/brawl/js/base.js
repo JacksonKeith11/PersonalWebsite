@@ -1,7 +1,7 @@
 // The base class every minigame's browser half extends: drawing helpers, and what the stage
 // calls (snap, key, pointer, draw, end).
 
-import * as sfx from './audio.js?v=4';
+import * as sfx from './audio.js?v=5';
 
 export const TEAM_COLORS = ['#ff8a3d', '#5fb0ff'];
 

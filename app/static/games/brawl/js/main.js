@@ -2,10 +2,10 @@
 // what you can do this turn, the log) and the minigame overlays. The server sends the whole
 // room state whenever it changes, and this redraws from it.
 
-import { Board } from './board.js?v=4';
-import { Stage } from './mg.js?v=4';
-import { TEAM_COLORS } from './base.js?v=4';
-import * as sfx from './audio.js?v=4';
+import { Board, ROUTE_COLORS } from './board.js?v=5';
+import { Stage } from './mg.js?v=5';
+import { TEAM_COLORS } from './base.js?v=5';
+import * as sfx from './audio.js?v=5';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -193,6 +193,36 @@ function direction(from, to) {
   return DIRS.reduce((best, d) => ((d[0] * dx + d[1] * dy) / m > best.score ? { score: (d[0] * dx + d[1] * dy) / m, label: d[2] } : best), { score: -2, label: '' }).label;
 }
 
+const LANDS = {
+  event: '❓ Event', item: '🎁 Chest', shop: '🛒 Shop',
+  duel: '⚔️ Duel', portal: '🌀 Portal',
+};
+
+// what a way at a fork leads to: where you'd land, and what you'd pass on the way
+function landing(st, routes) {
+  if (!routes.length) return '';
+  const ends = [...new Set(routes.map(rt => rt[rt.length - 1]))];
+  const what = id => {
+    const extra = [];
+    if (id === st.crown) extra.push('👑');
+    if (id === st.ghost) extra.push('👻');
+    const trap = st.traps?.[id];
+    if (trap != null && trap !== S.you) extra.push('⚠️ trap');
+    if (st.webs?.[id] != null && st.webs[id] !== S.you) extra.push('🕸️ stuck');
+    const kind = board.space(id).kind;
+    const n = st.witching ? 6 : 3;
+    const label = kind === 'blue' ? `🔵 +${n} coins` : kind === 'red' ? `🔴 −${n} coins` : LANDS[kind];
+    return `${label}${extra.length ? ' ' + extra.join(' ') : ''}`;
+  };
+  const passes = new Set(routes.flatMap(rt => rt.slice(0, -1)));
+  const via = [];
+  if (st.crown != null && passes.has(st.crown)) via.push('👑 crown');
+  if ([...passes].some(id => board.space(id).kind === 'shop')) via.push('🛒 shop');
+  if (st.ghost != null && passes.has(st.ghost)) via.push('👻 ghost');
+  const fork = routes.length > 1 ? ', another fork on the way' : '';
+  return `Lands on ${ends.map(what).join(' or ')}${fork}${via.length ? ` · passes ${via.join(', ')}` : ''}`;
+}
+
 function renderAction() {
   const st = S.st;
   const el = $('action');
@@ -234,7 +264,8 @@ function renderAction() {
     html = `<p class="what"><b>Which way?</b> Tap a glowing space or pick: ${wait}</p><div class="btns">` +
       st.choices.map((s, i) => {
         const sp = board.space(s);
-        return `<button data-act="path" data-v="${i}">${direction(cur.pos, s)} <small>${sp.middle ? 'through the graveyard' : 'round the loop'}</small></button>`;
+        return `<button data-act="path" data-v="${i}" class="way"><i style="background:${ROUTE_COLORS[i]}"></i>${direction(cur.pos, s)} <small>${sp.middle ? 'through the graveyard' : 'round the loop'}</small>
+          <span class="lands">${landing(st, st.routes?.[i] || [])}</span></button>`;
       }).join('') + '</div>';
   } else if (st.step === 'buy') {
     const coins = me().coins;
@@ -276,6 +307,12 @@ function tickWait() {
 }
 setInterval(tickWait, 250);
 
+// pointing at a way at a fork lights up its route on the board
+$('action').addEventListener('pointerover', e => {
+  const b = e.target.closest('button[data-act="path"]');
+  if (board) board.hover = b ? +b.dataset.v : null;
+});
+$('action').addEventListener('pointerleave', () => { if (board) board.hover = null; });
 $('action').addEventListener('click', e => {
   const b = e.target.closest('button[data-act]');
   if (!b || b.disabled) return;

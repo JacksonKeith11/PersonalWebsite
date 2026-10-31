@@ -231,7 +231,7 @@ each pool at 6 actions, 6 passives and 2 capstones.
 | Berserker | Front | 34 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
 | Ranger | Back | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
 | Arcanist | Back | 18 | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
-| Mender | Back | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there by half (`on_rest`) | Healer | Restoration, Warding |
+| Mender | Back | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
 | Scoundrel | Either | 22 | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
 | Herald | Back | 20 | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
 | Alchemist | Back | 20 | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
@@ -314,8 +314,8 @@ Scoundrel's *Wayfinder* passive.
 
 ### Mender
 
-- **Starts with**: Mend (any: heal an ally the die +2); Lift (any: pick up a knocked-down ally at HP
-  equal to the die ×2).
+- **Starts with**: Mend (any: heal an ally the die +1; cooldown 2); Lift (any, once per fight: pick
+  up a knocked-down ally at twice the die +2 HP).
 - **Actions**: Renew (a pair: heal the whole party the sum) [Restoration]; Lifeline (exactly 6: an
   ally heals fully at the end of the round) [Restoration]; Ward (any: an ally gains Armor = die ×2)
   [Warding]; Sanctuary (≥5: every hit on the party deals 3 less this round) [Warding]; Cleanse
@@ -491,7 +491,8 @@ dice round, all as recommended):
   asked that only basic attacks be usable every round, so a hero can't win by repeating one strong
   skill: `FREE` in `classes.py` lists what's exempt (each class's basic action: Strike, Bolt, Mend,
   Slash, Hack, Shoot, Stab, Jab, Toss, Thornlash; the Vanguard's Brace, because a tank needs a defence
-  it can count on; Block, Shift, Flee and Lift). Weapon actions are free too, except Sweep and Tidal
+  it can count on; Block, Shift and Flee). The Mender's free action is its weapon's Flare: Mend has
+  a cooldown of 2 and Lift is once per fight. Weapon actions are free too, except Sweep and Tidal
   (2). Everything else gets 2, and Finisher, Called Shot, Reckless Swing, Doom, Cacophony, Call Bear,
   Pickpocket, Bottle It and Quicksilver get 3. Once-per-fight actions have no cooldown.
 - **Misses scale with the risk** (owner's choice): an action needing 6+, a pair or a big sum (9+ on
@@ -507,8 +508,10 @@ dice round, all as recommended):
 - **Rebalance after all that** (smart bots): the Vanguard went to 36 HP (+5 a level), and Strike deals
   the die +2 plus half its Armor, so Brace then Strike is its rhythm; Stab deals the die +1 (+4 if the
   enemy isn't coming for you); Mend heals the die +1. Normal enemies have 1.9× HP; Hard 2.2× HP and
-  2.1× damage. Bots win about 75% on Normal, 46% on Hard and all of Story. The Mender's parties still
-  win most (about 90% and 80%).
+  2.1× damage. Then the Mender, whose parties won about 90% on Normal and 86% on Hard, was nerfed
+  where its strength was recovery: Lift once per fight, Mend on a cooldown of 2 (Flare is its free
+  action), Field Medic an extra 10% on a rest instead of half. Bots now win about 72% on Normal and
+  41% on Hard (Mender parties 80% and 61%) and all of Story.
 
 ## How the classes ended up
 
@@ -532,7 +535,7 @@ What changed while building all ten:
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
 - **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.2×/2.1×
   with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
-  incoming damage) win about 75% on Normal, 46% on Hard and every Story run; see the cooldowns entry
+  incoming damage) win about 72% on Normal, 41% on Hard and every Story run; see the cooldowns entry
   above for how that was reached.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others

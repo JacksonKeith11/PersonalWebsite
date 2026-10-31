@@ -636,9 +636,11 @@ class Game(Combat):
         medic = any(C.CLASSES[self.hero(x)["cls"]]["map"]["key"] == "field_medic" and self.hero(x)["tile"] == hero["tile"]
                     for x in self.living())
         key = C.CLASSES[hero["cls"]]["map"]["key"]
-        frac = 0.5 if (p and p["kind"] == "camp") or medic else 0.2
+        frac = 0.5 if p and p["kind"] == "camp" else 0.2
         if key == "forage" and p and p["kind"] == "camp":
             frac = 1
+        if medic:
+            frac = min(1, frac + 0.1)
         n = self.heal(h, int(self.maxhp(h) * frac + 0.5))
         self.fx("heal", to=f"h{h}", n=n)
         self.say(f"{hero['name']} rests (+{n} HP).")

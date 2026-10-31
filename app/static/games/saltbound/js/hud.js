@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=14';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=14';
-import { spriteURL } from './art.js?v=14';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=14';
-import { MapView } from './hexmap.js?v=14';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=14';
-import { disconnect } from './main.js?v=14';
-import * as sfx from './audio.js?v=14';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=15';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=15';
+import { spriteURL } from './art.js?v=15';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=15';
+import { MapView } from './hexmap.js?v=15';
+import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=15';
+import { disconnect } from './main.js?v=15';
+import * as sfx from './audio.js?v=15';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -275,8 +275,9 @@ function restText(h0) {
   const g = S.game, hero = g.heroes[h0];
   const p = g.places[hero.tile];
   const medic = g.heroes.some(x => x.alive && x.tile === hero.tile && cls(x.cls).map.key === 'field_medic');
-  const frac = (p && p.kind === 'camp') || medic ? 0.5 : 0.2;
-  return `Spend the turn resting: heal ${Math.round(hero.maxhp * frac)} HP${frac < 0.5 ? ' (half at a camp)' : ''}.`;
+  const camp = p && p.kind === 'camp';
+  const frac = Math.min(1, (camp ? 0.5 : 0.2) + (medic ? 0.1 : 0));
+  return `Spend the turn resting: heal ${Math.round(hero.maxhp * frac)} HP${medic ? ' (with the Field Medic)' : ''}${camp ? '' : ' (more at a camp)'}.`;
 }
 
 // ------------------------------------------------------------------ log

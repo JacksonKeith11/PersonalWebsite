@@ -128,8 +128,8 @@ ACTIONS = {
 
     # ---- Mender
     "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+1"}], "text": "Heal an ally the die +1."},
-    "lift": {"name": "Lift", "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2+2"}],
-             "text": "Pick up a knocked-down ally with twice the die +2 HP."},
+    "lift": {"name": "Lift", "once": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2+2"}],
+             "text": "Once per fight: pick up a knocked-down ally with twice the die +2 HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
               "tags": ["restoration"], "text": "Two dice: heal the whole party half the sum, or the full sum on a pair."},
     "lifeline": {"cd": 2, "name": "Lifeline", "req": {"n": 1, "min": 5}, "tgt": "ally", "tags": ["restoration"],
@@ -347,7 +347,7 @@ CLASSES = {
     "mender": {
         "name": "Mender", "row": "back", "hp": 22, "hp_lvl": 3, "role": "Healer",
         "dice": [D(6), D(6)], "tags": ["restoration", "warding"],
-        "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals by half."},
+        "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals an extra 10% of their max HP."},
         "start": ["mend", "lift"], "weapon": "lantern_rod", "armor": "nurses_apron",
         "pool": ["renew", "lifeline", "ward", "sanctuary", "cleanse", "smite",
                  "bedside_manner", "overflow", "quick_hands", "blessed_supplies", "aura", "calm",
@@ -532,8 +532,8 @@ def is_defensive(a):
 # count on every round), Block, Shift, Flee and Lift (plus weapon actions, in
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "brace", "bolt", "mend", "slash_d", "hack_b", "shoot_r", "stab", "jab", "toss", "thornlash",
-        "block", "shift", "flee", "lift"}
+FREE = {"strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "toss", "thornlash",
+        "block", "shift", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once a fight
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3}
 
 for _k, _a in ACTIONS.items():

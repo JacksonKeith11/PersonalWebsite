@@ -458,6 +458,8 @@ class Combat:
             if m.get("skull_boost"):
                 x["inspire"] = x.get("inspire", 0) + m["skull_boost"]
                 self.fx("st", to=f"h{h}", s="inspired")
+        if t == "W" and m.get("wild_heal") and self.active(h):
+            self.fight_heal(h, m["wild_heal"], h)
         if m.get("keen_edge") and v == 6:
             v = 7
         if t not in ("S", "X"):
@@ -816,6 +818,8 @@ class Combat:
                 n += m.get("opportunist", 0)
             if target["st"].get("burn"):
                 n += m.get("burn_bonus_hit", 0)
+            if target["hp"] * 2 < target["max"]:
+                n += m.get("execute_bonus", 0)
             it = target.get("intent") or {}
             if it.get("tgt") and it.get("tgt") != f"h{h}":
                 n += m.get("backstab", 0)

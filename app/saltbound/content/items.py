@@ -152,6 +152,9 @@ PASSIVES = {
     "black_pearl": ({"kill_gold": 3}, "Pirate's luck: each kill gives you 3 gold."),
     "gamblers_bones": ({"skull_boost": 4}, "Double or nothing: a skull still hurts, but your next die rolls 4 higher."),
     "frost_locket": ({"frozen_bonus": 2}, "Frozen enemies take +2 from you."),
+    "shark_tooth": ({"execute_bonus": 2}, "Bloodscent: +2 damage against enemies below half health."),
+    "drowned_idol": ({"wild_heal": 4}, "The drowned god's favour: a wild face also heals you 4."),
+    "cork_vest": ({"rest_bonus": 0.1}, "Buoyant: resting heals an extra 10% of your max HP."),
 }
 for _k, (_m, _t) in PASSIVES.items():
     ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}

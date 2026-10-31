@@ -642,6 +642,7 @@ class Game(Combat):
             frac = 1
         if medic:
             frac = min(1, frac + 0.1)
+        frac = min(1, frac + self.mods(h).get("rest_bonus", 0))
         n = self.heal(h, int(self.maxhp(h) * frac + 0.5))
         self.fx("heal", to=f"h{h}", n=n)
         self.say(f"{hero['name']} rests (+{n} HP).")

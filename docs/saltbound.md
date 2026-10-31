@@ -516,7 +516,9 @@ dice round, all as recommended):
   Block heals 2 (`block_heal`); Whaleplate takes 3 off the first hit each round (`first_hit_soak`);
   Mistweave makes the first hit each fight miss; Tidelord's Aegis is Unbreakable. Trinkets: Black
   Pearl 3 gold per kill (`kill_gold`); Gambler's Bones turn a skull into +4 on your next die
-  (`skull_boost`); Frost Locket +2 on Frozen. They moved the bots' win rates by about a point.
+  (`skull_boost`); Frost Locket +2 on Frozen; Shark Tooth +2 on enemies below half health
+  (`execute_bonus`); Drowned Idol heals 4 on a wild face (`wild_heal`). Cork Vest makes rests heal
+  10% more (`rest_bonus`). They moved the bots' win rates by no more than noise.
 - **Volley** hits every enemy for half of each die, rounded up: the Ranger's answer to crowds, where
   Shoot is for one target.
 - **Rebalance after all that** (smart bots): the Vanguard went to 36 HP (+5 a level), and Strike deals

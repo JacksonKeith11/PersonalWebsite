@@ -4,16 +4,16 @@
 from common import *
 
 # ------------------------------------------------------------------ Vanguard: tank
-def vanguard1():  # shieldbearer: great helm with a visor slit, blue tabard, tall heater shield, flanged mace
+def vanguard1():  # shieldbearer: great helm with a visor slit, blue tabard, tall heater shield, spear (the owner's pick)
     pal = {'A': '#a8b0bc', 'a': '#7a8494', 'T': '#3a5aa8', 't': '#2a4280', 'Y': '#d0a840', 'n': '#1e1a26', 'L': '#5a6070', 'k': '#2a2430',
-           'S': '#c8c4b4', 's': '#3a5aa8', 'h': '#5a3a24', 'M': '#8a929e'}
+           'S': '#c8c4b4', 's': '#3a5aa8', 'h': '#5a3a24', 'M': '#8a929e', 'w': '#dfe6ee'}
     g = G(pal)
     legs(g, 'a')
     torso(g, 'A')
     g.rows(10, 15, [(0, 7)] * 8 + [(-1, 8)], 'T'); g.rect(9, 20, 18, 20, 'h'); g.rect(13, 20, 14, 20, 'Y')
     g.rect(6, 13, 9, 15, 'a'); g.rect(18, 13, 21, 15, 'a')
-    # mace raised
-    g.rect(20, 15, 22, 18, 'A'); g.rect(21, 18, 23, 19, 'a'); g.rect(22, 5, 23, 17, 'h'); g.rect(20, 2, 25, 6, 'M'); g.px(19, 4, 'M'); g.px(26, 4, 'M'); g.px(22, 1, 'M')
+    # spear upright, as the spear-warden holds it
+    g.rect(20, 15, 22, 18, 'A'); g.rect(22, 2, 22, 30, 'h'); g.rect(21, 18, 23, 19, 'a'); g.text(21, 0, [' w ', 'www', 'www', ' w '])
     # heater shield
     g.rows(1, 12, [(0, 8), (0, 8), (0, 8), (0, 8), (0, 8), (0, 8), (0, 8), (1, 7), (1, 7), (2, 6), (3, 5), (4, 4)], 'S')
     g.rows(1, 13, [(1, 7)] * 6 + [(2, 6), (2, 6), (3, 5), (4, 4)], 's'); g.rect(5, 13, 5, 21, 'Y'); g.rect(2, 16, 8, 16, 'Y')

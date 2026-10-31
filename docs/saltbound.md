@@ -442,8 +442,9 @@ Asked of the owner during step 1 (keep to these too):
 - **Heroes are not sea-themed; only the enemies are.** Hero sprites are ordinary fantasy
   adventurers and the classes' starting gear has plain names (Hand Axe, Oak Staff, Wool Robe), so
   heroes carry over to future maps like the class data does. Sea flavour belongs to enemies, the map
-  and its events. Each hero has four sprite options in `heroes.py`; until the owner picks, option 1
-  of each is used (Shieldbearer, Pyromancer, Cleric). Swap a pick in `build.py`'s `PICKS` and rebuild.
+  and its events. Each hero had four sprite options in `heroes.py`; the owner picked the Shieldbearer
+  holding the Spear-warden's spear (`vanguard1`), the Sorceress (`arcanist2`) and the Cleric (`mender1`).
+  New classes get four options the same way. Picks live in `build.py`'s `PICKS`; rebuild after changing one.
 
 Smaller calls made while building, not yet confirmed by the owner:
 

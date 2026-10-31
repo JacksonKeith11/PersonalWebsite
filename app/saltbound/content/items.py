@@ -45,15 +45,15 @@ WEAPON_ACTIONS = {
 
 ITEMS = {
     # ---- starting gear
-    "boarding_axe": {"name": "Boarding Axe", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["hack"],
+    "hand_axe": {"name": "Hand Axe", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["hack"],
                      "start": True},
-    "driftwood_staff": {"name": "Driftwood Staff", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["zap"],
+    "oak_staff": {"name": "Oak Staff", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["zap"],
                         "start": True},
     "lantern_rod": {"name": "Lantern Rod", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["flare"],
                     "start": True},
     "padded_coat": {"name": "Padded Coat", "slot": "armor", "rarity": "common", "die": D(4), "mods": {"max_hp": 2},
                     "start": True},
-    "oilskin_robe": {"name": "Oilskin Robe", "slot": "armor", "rarity": "common", "die": D(4), "start": True},
+    "wool_robe": {"name": "Wool Robe", "slot": "armor", "rarity": "common", "die": D(4), "start": True},
     "nurses_apron": {"name": "Nurse's Apron", "slot": "armor", "rarity": "common", "die": D(4), "mods": {"heal_bonus": 1},
                      "start": True},
 

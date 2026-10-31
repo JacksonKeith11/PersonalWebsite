@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, flood warnings, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles } from './rules.js?v=1';
-import { spriteCanvas, placeCanvas } from './art.js?v=1';
+import { W, H, terrain, visibleTiles } from './rules.js?v=2';
+import { spriteCanvas, placeCanvas } from './art.js?v=2';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;

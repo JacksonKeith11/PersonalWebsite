@@ -24,6 +24,9 @@ ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the
 ONE_SHOT = ("stun", "freeze", "shock")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
+# Enemy intents with a number roll it when they act: about a third either side of what they show.
+FOE_SPREAD = 0.35
+ROLLED = ("attack", "row", "all", "block", "guard", "heal")
 
 
 class Invalid(Exception):
@@ -375,6 +378,10 @@ class Combat:
             if f["round"] == 1:
                 heckle = max([self.mods(h).get("heckler", 0) for h in self.actives()] or [0])
                 it["v"] = max(0, it["v"] - heckle)
+        if it.get("v", 0) >= 2 and it["k"] in ROLLED:
+            # enemies roll too: the intent shows the range, the number comes up when it acts
+            spread = max(1, round(it["v"] * FOE_SPREAD))
+            it["lo"], it["hi"] = max(1, it["v"] - spread), it["v"] + spread
         if it["k"] == "attack" or it["k"] == "debuff":
             it["tgt"] = self.foe_target(it, heroes_only=it["k"] == "debuff")
         elif it["k"] == "row":
@@ -965,9 +972,9 @@ class Combat:
         if kind == "foe":
             fo = self.foe(int(tgt[1:]))
             if not fo or fo["hp"] <= 0:
-                # it died before this resolved: hit another in reach
+                # it died before this resolved: the weakest enemy in reach takes it instead
                 pool = self.front_foes() if a.get("melee") else self.foes()
-                fo = pool[0] if pool else None
+                fo = min(pool, key=lambda o: o["hp"]) if pool else None
             return [fo] if fo else []
         if kind == "foes":
             return self.foes()
@@ -1173,6 +1180,8 @@ class Combat:
                     it = t.get("intent") if isinstance(t, dict) else None
                     if it and it.get("v") is not None:
                         it["v"] = max(0, it["v"] - n)
+                        if "lo" in it:
+                            it["lo"], it["hi"] = max(0, it["lo"] - n), max(0, it["hi"] - n)
                         self.fx("st", to=f"f{t['id']}", s="weakened")
             elif k == "retarget":
                 for t in targets:
@@ -1374,6 +1383,9 @@ class Combat:
         frozen = fo["st"].pop("freeze", 0)
         k = it.get("k")
         v = it.get("v", 0)
+        if "lo" in it:
+            v = self.rng.randint(it["lo"], it["hi"])
+            self.fx("froll", f=fo["id"], v=v, lo=it["lo"], hi=it["hi"], ik=k)
         if frozen:
             v //= 2
         if fo["st"].get("weak"):

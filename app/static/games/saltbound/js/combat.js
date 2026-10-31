@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=29';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=29';
-import { spriteURL } from './art.js?v=29';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=29';
-import { render } from './main.js?v=29';
-import * as sfx from './audio.js?v=29';
+import { S, send, mine } from './store.js?v=30';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=30';
+import { spriteURL } from './art.js?v=30';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=30';
+import { render } from './main.js?v=30';
+import * as sfx from './audio.js?v=30';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -157,14 +157,14 @@ export function renderCombat(el) {
 // Per unit: the damage enemies intend to deal it (after any Armor it has).
 function preview(f) {
   const out = {};
-  const at = id => (out[id] ||= { dmg: 0, heal: 0, armor: 0, incoming: 0 });
+  const at = id => (out[id] ||= { dmg: 0, heal: 0, armor: 0, incoming: 0, lo: 0, hi: 0 });
   const alive = f.foes.filter(fo => fo.hp > 0);
   const units = [...f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y), ...(f.allies || []).filter(a => a.hp > 0).map(a => 's' + a.id)];
   const rowOf = id => (id[0] === 'h' ? f.hs[+id.slice(1)].row : (f.allies || []).find(a => 's' + a.id === id)?.row);
   for (const fo of alive) {
     const it = fo.intent;
     if (!it || !it.v || !['attack', 'row', 'all'].includes(it.k)) continue;
-    for (const id of intentTargets(it, units, rowOf)) at(id).incoming += it.v;
+    for (const id of intentTargets(it, units, rowOf)) { const u = at(id); u.incoming += it.v; u.lo += it.lo ?? it.v; u.hi += it.hi ?? it.v; }
   }
   return out;
 }
@@ -186,8 +186,8 @@ function previewRow(id, prev, hp) {
   if (p.incoming) {
     let have = p.armor;
     if (id[0] === 'h') have += (S.game.fight?.hs[+id.slice(1)]?.st?.armor || 0);
-    const net = Math.max(0, p.incoming - have);
-    chips.push(h('span.pv.in', { tip: `Incoming\nEnemies intend ${p.incoming} damage here${have ? `; ${Math.min(have, p.incoming)} of it is blocked by Armor` : ''}.` }, icon('skull'), net, have ? h('span.faint', null, ` / ${p.incoming}`) : null));
+    const lo = Math.max(0, p.lo - have), hi = Math.max(0, p.hi - have);
+    chips.push(h('span.pv.in', { tip: `Incoming\nEnemies will roll ${p.lo === p.hi ? p.lo : `${p.lo}–${p.hi}`} damage here${have ? `, less ${have} Armor` : ''}.` }, icon('skull'), lo === hi ? lo : `${lo}–${hi}`, have ? h('span.faint', null, ` ◆${have}`) : null));
   }
   return h('div.preview', null, ...chips);
 }
@@ -273,6 +273,13 @@ function rollTray() {
   // tags come as faces (S, X, W) or as the status an elemental face adds
   const EL = { burn: 'F', freeze: 'I', poison: 'P', F: 'F', I: 'I', P: 'P' };
   const shown = x => faceText(['S', 'X', 'W'].includes(x.tag) ? x.tag : EL[x.tag] ? EL[x.tag] + x.v : x.v);
+  if (t.foe) {
+    const what = { attack: 'Attack', row: 'Row attack', all: 'Hits everyone', block: 'Defend', guard: 'Shield', heal: 'Heal' }[t.ik] || 'Rolls';
+    return h('div.roll-tray.foe-roll' + (t.verdict && now >= t.vt ? '.' + t.verdict : ''), { style: since(t.t), role: 'status' },
+      h('div.rt-info', null, h('span.rt-who', null, t.foe), h('span.rt-act', null, what), h('span.rt-need', null, `Rolls ${t.range}`)),
+      h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die.foe', { style: since(x.t) }, h('span', { style: since(x.t) }, x.v)))),
+      h('div.rt-slot', null, t.verdict && now >= t.vt ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'heavy' ? 'Heavy!' : 'Glancing') : null));
+  }
   return h('div.roll-tray' + (t.verdict ? '.' + t.verdict : ''), { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
     h('div.rt-info', null,
       h('span.rt-who', null, S.game.heroes[t.h].name),
@@ -305,8 +312,9 @@ function intentChip(fo, f) {
   else if (it.k === 'row') to = it.row === 'back' ? 'back row' : 'front row';
   else if (it.k === 'all') to = 'everyone';
   const stTxt = it.st ? ` + ${STATUS[it.st]?.name || it.st}` : '';
-  const tip = `${INTENT_TEXT[it.k] || it.k}${it.v ? ` for ${it.v}` : ''}${stTxt}${to ? `\nTarget: ${to}` : ''}`;
-  return h('div.intent', { style: { '--c': col }, tip }, icon(ic), it.v ?? '', it.st ? icon(STATUS[it.st]?.icon || 'spark') : null, to ? h('span.to', null, '→ ' + to) : null);
+  const range = it.lo != null ? `${it.lo}–${it.hi}` : null;
+  const tip = `${INTENT_TEXT[it.k] || it.k}${range ? ` for ${range} (rolled when it acts)` : it.v ? ` for ${it.v}` : ''}${stTxt}${to ? `\nTarget: ${to}` : ''}`;
+  return h('div.intent', { style: { '--c': col }, tip }, icon(ic), range ?? it.v ?? '', it.st ? icon(STATUS[it.st]?.icon || 'spark') : null, to ? h('span.to', null, '→ ' + to) : null);
 }
 
 function doneChip(p, i, f) {
@@ -326,7 +334,7 @@ function tray(f, x, my) {
   const dice = hs.dice;
   const selDice = dice.filter(d => C.sel.has(d.id) && !d.used);
   const acts = hero.actions;
-  const ready = hs.ready || C.playing;
+  const ready = hs.ready;
   const waiting = f.heroes.filter(y => heroActive(f, y) && !f.hs[y].ready && y !== x).map(y => g.heroes[y].name);
   // one button per kind of consumable, using the first of them
   const uses = [];
@@ -350,9 +358,9 @@ function tray(f, x, my) {
     h('div.actions', null, ...acts.map((k, i) => actionCard(f, x, k, i, selDice, ready))),
     h('div.tray-right', null,
       C.pending ? h('p', { style: { color: 'var(--accent)', fontWeight: 600 } }, 'Choose a target', h('br'), h('span.muted', { style: { fontWeight: 400 } }, 'Esc to cancel')) : null,
-      h('p.muted', { style: { fontSize: '14px' } }, C.playing ? 'Playing it out…' : hs.ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Enemies are acting…') : waiting.length ? `${waiting.join(', ')} still acting` : 'Everyone else is ready'),
-      hs.ready ? h('button.btn.lg', { disabled: C.playing, onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
-        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { disabled: C.playing, onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
+      h('p.muted', { style: { fontSize: '14px' } }, C.playing && !hs.ready ? 'Keep playing: your actions queue up' : hs.ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Enemies are acting…') : waiting.length ? `${waiting.join(', ')} still acting` : 'Everyone else is ready'),
+      hs.ready ? h('button.btn.lg', { onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
+        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
 }
 
 // A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
@@ -511,7 +519,8 @@ function targetClick(id) {
 document.addEventListener('keydown', e => {
   if (e.target.matches?.('input, select, textarea')) return;
   const f = S.game?.fight;
-  if (!f || C.playing || !combatOpen()) return;
+  // during playback you can keep acting, as long as the playback is still this round
+  if (!f || !combatOpen() || (C.playing && (C.display?.id !== f.id || C.display?.round !== f.round))) return;
   const x = C.tab;
   if (e.key === 'Escape' && C.pending) { C.pending = null; render(); return; }
   if (x === null) return;
@@ -529,7 +538,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------------ playing back a round
-const COMBAT_FX = new Set(['roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
+const COMBAT_FX = new Set(['froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
 
 const queue = [];
 export function combatFx(list, before) {
@@ -566,7 +575,8 @@ function playNext() {
     const f = fx[i++];
     const wait = apply(f);
     render();
-    setTimeout(step, wait / speed);
+    // more waiting behind this one: hurry, so queued actions keep pace with the party
+    setTimeout(step, wait / (speed * (queue.length ? 1 + Math.min(queue.length, 3) * 0.5 : 1)));
   };
   setTimeout(step, 150 / speed);
 }
@@ -642,8 +652,19 @@ function apply(f) {
       sfx.play(f.hit === false ? 'error' : 'swing');
       return 380;
     }
+    case 'froll': {
+      const fo = foe('f' + f.f);
+      const now = performance.now();
+      const third = (f.hi - f.lo) / 3;
+      const verdict = f.hi === f.lo ? null : f.v >= f.hi - third ? 'heavy' : f.v <= f.lo + third ? 'glancing' : null;
+      C.tray = { fid: f.f, foe: fo?.name || 'Enemy', range: `${f.lo}–${f.hi}`, ik: f.ik, t: now, verdict, vt: now + 380 / (S.settings.speed || 1), dice: [{ id: 'f' + f.f, v: f.v, t: now }] };
+      flash('f' + f.f, 'act');
+      sfx.play('dice');
+      if (verdict) setTimeout(render, 400 / (S.settings.speed || 1));
+      return 640;
+    }
     case 'fact': {
-      C.tray = null;
+      if (C.tray?.fid !== f.f) C.tray = null;
       flash('f' + f.f, 'act');
       if (f.ik !== 'dazed') sfx.play('swing');
       return 300;

@@ -712,6 +712,12 @@ a:hover { color: var(--accent-hi); }
   30% { opacity: 1; width: 60px; margin-left: -30px; } 100% { opacity: 0; width: 90px; height: 220px; margin: -160px 0 0 -45px; border-radius: 30px; background: linear-gradient(transparent, rgba(255, 226, 140, 0.5), transparent); } }
 .roll-tray.hit { animation: rt-in 220ms var(--ease) both, rt-glow 640ms var(--ease); }
 .roll-tray.miss { animation: rt-in 220ms var(--ease) both, rt-nope 400ms var(--ease); }
+/* enemies roll too: a red-edged tray, heavy rolls shake, glancing ones are a relief */
+.roll-tray.foe-roll { --seat: var(--danger); border-color: var(--danger); }
+.big-die.foe { background: linear-gradient(180deg, #e9c9bf, #c99a8c); }
+.rt-verdict.heavy { color: var(--danger); text-shadow: 0 0 18px rgba(208, 98, 79, 0.55); }
+.rt-verdict.glancing { color: var(--ok); text-shadow: 0 0 18px rgba(95, 176, 122, 0.55); }
+.roll-tray.heavy { animation: rt-in 220ms var(--ease) both, rt-nope 400ms var(--ease); }
 @keyframes rt-glow { 0% { box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55); } 30% { box-shadow: 0 0 0 4px rgba(95, 176, 122, 0.6), 0 0 40px rgba(95, 176, 122, 0.5); } 100% { box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55); } }
 @keyframes rt-nope { 20% { margin-left: -8px; } 40% { margin-left: 8px; } 60% { margin-left: -5px; } 80% { margin-left: 3px; } }
 

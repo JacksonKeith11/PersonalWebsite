@@ -104,8 +104,16 @@ Keep to these. They came from the owner directly.
 - **A round**: dice are rolled; enemies show **intents** (what they'll do and to whom); the party
   plays dice on actions together, and **each action happens the moment it's played** (owner's
   request, after Slay the Spire 2's multiplayer): its dice roll, it hits or misses and its effects
-  land before anyone plays another, so the order is whoever played first. There's no undo. When
-  everyone has clicked Ready, summons and pets act, then enemies in speed order.
+  land before anyone plays another, so the order is whoever played first. There's no undo. You
+  needn't wait to see a roll: plays **queue** (owner's request), so you can pour every die into
+  the last weak enemy while the first roll is still animating; an action whose enemy died first
+  goes to the weakest enemy in reach instead. When everyone has clicked Ready, summons and pets
+  act, then enemies in speed order.
+- **Enemies roll too** (owner's request): an intent with a number (attack, row, all, block, guard,
+  heal) shows a range, about a third either side of its value (`FOE_SPREAD` in `combat.py`, as
+  `lo`/`hi` on the intent; `v` stays the middle, which the bots and Weaken use), and rolls it when
+  the enemy acts (an `froll` effect, shown in the roll tray: "Heavy!" in the top third, "Glancing"
+  in the bottom). Weaken lowers the whole range.
 - **Luck you can steer**: every hero gets 1 reroll per fight (restored by resting), and some skills
   and items change dice (+1, flip, set, copy, give to an ally).
 - **Fleeing**: on their turn a hero can spend a die of 4+ to flee, going back to the hex they came
@@ -573,10 +581,11 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand** (the smart bots, 100 runs each): about 92% on Normal and 46% on Hard
-  since actions resolve as they're played (seeing each roll before the next move is worth a lot;
-  before that it was about 80% and 30–35%). Classes on Hard sit between 31% (Ranger) and 60%
-  (Mender). The Mender and Berserker have led, the Ranger, Herald and Arcanist have trailed.
+- **Where the bots stand** (the smart bots, 100 runs each): about 88% on Normal and 42% on Hard
+  since actions resolve as they're played and enemies roll their numbers (seeing each roll before
+  the next move is worth a lot: before, it was about 80% and 30–35%; rolled enemies took back a
+  few points). Classes on Hard sit between 31% (Warden) and 67% (Mender). The Mender has led
+  throughout; the Warden, Arcanist and Ranger trail.
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
   between batches by chance alone, and overall rates ±4. Treat a pick's win rate (20–40 runs) as a
   hint. Run 100 or more before changing anything, and compare like with like (same seeds: the
@@ -644,8 +653,9 @@ no clock anywhere: the run changes only when someone acts.
 - **Actions resolve as they're played** (`do_place` calls `resolve_action`; `resolve_round` is only
   summons, pets and enemies once everyone is ready). `f["done"]` lists the round's actions for the
   "This round" strip, with hit or miss. Each play sends its own effects, so the client plays them
-  back while the hero's dice stay on screen, locked (`tray()` draws from the live state when the
-  playback is in the same round). In rooms, bots wait `BOT_FIGHT_DELAY` (1.2 s) between fight
+  back while the hero's dice stay on screen and playable (`tray()` draws from the live state when
+  the playback is in the same round; the keys work then too), so plays queue. Playback speeds up
+  (up to 2.5×) while more is waiting behind it. Incoming-damage previews show the enemies' range. In rooms, bots wait `BOT_FIGHT_DELAY` (1.2 s) between fight
   moves so each one can be seen. Saves before this (v1) get any planned dice back (`save._v1`).
 - **Rolls play back in the roll tray** (`rollTray()` in `combat.js`): big dice tumble in the middle of
   the fight, rerolls flash, and risky actions end with HIT or MISS. The playback looks ahead from a

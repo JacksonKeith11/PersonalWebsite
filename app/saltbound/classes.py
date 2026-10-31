@@ -58,12 +58,12 @@ PASSIVES = {
     "quick_hands": {"name": "Quick Hands", "mods": {"grant": "quick_lift"}, "tags": ["restoration"],
                     "text": "Learn Quick Lift: once per fight, pick up an ally without a die."},
     "blessed_supplies": {"name": "Blessed Supplies", "mods": {"potion_bonus": 0.5}, "text": "Potions you use heal 50% more."},
-    "aura": {"name": "Aura", "mods": {"aura": 1}, "tags": ["warding"], "text": "The party regenerates 1 HP a round in your fights."},
+    "aura": {"name": "Aura", "mods": {"aura": 1}, "tags": ["warding"], "text": "In your fights, your most wounded ally heals 1 HP each round."},
     "calm": {"name": "Calm", "mods": {"freeze_immune": 1}, "text": "Your dice can't be Frozen."},
     "miracle": {"name": "Miracle", "cap": True, "mods": {"miracle": 1}, "tags": ["restoration"],
                 "text": "Once per run, a revive that would be spent isn't."},
-    "aegis": {"name": "Aegis", "cap": True, "mods": {"aegis": 2}, "tags": ["warding"],
-              "text": "Once you cast Sanctuary, every hit on the party deals 2 less for the rest of the fight."},
+    "aegis": {"name": "Aegis", "cap": True, "mods": {"aegis": 1}, "tags": ["warding"],
+              "text": "Once your Sanctuary hits (5+), every hit on the party deals 1 less for the rest of the fight."},
 }
 
 D = lambda n: list(range(1, n + 1))
@@ -170,7 +170,7 @@ ACTIONS = {
                      "ops": [{"op": "setdie", "to": "max"}], "text": "Once a round: a die of yours will roll its top face. It stays unused."},
 
     # ---- Berserker
-    "hack_b": {"name": "Hack", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Deal the die +2."},
+    "hack_b": {"name": "Hack", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Deal the die +1."},
     "bloodprice": {"name": "Bloodprice", "req": {"n": 1}, "tgt": "self", "instant": True,
                    "ops": [{"op": "selfdmg", "amt": "3"}, {"op": "bump", "amt": "3"}], "text": "Pay 3 HP: a die of yours rolls 3 higher. It stays unused."},
     "drink_deep": {"name": "Drink Deep", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True, "tags": ["bloodlust"],
@@ -441,7 +441,7 @@ CLASSES.update({
         "blurb": "Fast, precise and deadly against one target at a time.",
     },
     "berserker": {
-        "name": "Berserker", "row": "front", "hp": 34, "hp_lvl": 4, "role": "High-risk damage",
+        "name": "Berserker", "row": "front", "hp": 30, "hp_lvl": 4, "role": "High-risk damage",
         "dice": [D(10), D(4)], "tags": ["bloodlust", "rampage"],
         "map": {"key": "forage", "name": "Forage", "text": "Resting at a camp heals you fully."},
         "start": ["hack_b", "bloodprice"], "weapon": "great_axe", "armor": "hide_vest",

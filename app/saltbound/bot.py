@@ -517,7 +517,7 @@ def evaluate(g, b, h, a, dice, tgt):
                 eff["taunt"] = h
             elif k == "sanct":
                 n = op["n"] + (1 if a["plus"] else 0)
-                val += n * sum(hits.values()) + (m.get("aegis", 0) * 3)
+                val += n * sum(hits.values()) + (m.get("aegis", 0) * 3 if hit else 0)
                 eff["sanct"] += pr * n
             elif k == "cleanse":
                 for t, share in tg:

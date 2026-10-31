@@ -270,7 +270,10 @@ class Combat:
                 self.hurt_foe(fo, thorns, None, pure=True)
             if fo["hp"] > 0 and fo["st"].get("poison"):
                 self.hurt_foe(fo, fo["st"]["poison"], None, pure=True)
+        # Aura: the most wounded hero (lowest HP, below full) heals
         aura = sum(self.mods(h).get("aura", 0) for h in self.actives())
+        hurt = [h for h in self.actives() if self.hero(h)["hp"] < self.maxhp(h)]
+        aura_to = min(hurt, key=lambda h: self.hero(h)["hp"]) if aura and hurt else None
         for h in self.actives():
             st = self.hs(h)["st"]
             if st.get("poison"):
@@ -278,8 +281,9 @@ class Combat:
             if not self.active(h):
                 continue
             m = self.mods(h)
-            if aura + m.get("regen", 0):
-                self.fight_heal(h, aura + m.get("regen", 0), None)
+            got = (aura if h == aura_to else 0) + m.get("regen", 0)
+            if got:
+                self.fight_heal(h, got, None)
             if m.get("last_stand") and self.hero(h)["hp"] <= self.maxhp(h) // 4:
                 st["armor"] = st.get("armor", 0) + m["last_stand"]
         sregen = sum(self.mods(h).get("summon_regen", 0) for h in self.actives())
@@ -851,12 +855,12 @@ class Combat:
             hit = self.roll_for(h, a, dice)
             self.fx("act", h=h, a=a["key"], tgt=p["tgt"], hit=hit)
             ops = a["ops"] if hit else a.get("miss", [])
-            self.run_ops(h, a, dice, p["tgt"], ops=ops)
+            self.run_ops(h, a, dice, p["tgt"], ops=ops, hit=hit)
             self.elements(h, a, dice, p["tgt"])
             if a.get("spell") and self.mods(h).get("spell_echo") and not x["echo"] and self.s["fight"] is f:
                 x["echo"] = True
                 self.fx("act", h=h, a=a["key"], tgt=p["tgt"], echo=True)
-                self.run_ops(h, a, dice, p["tgt"], half=True, ops=ops)
+                self.run_ops(h, a, dice, p["tgt"], half=True, ops=ops, hit=hit)
             f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
             if self.s["fight"] is not f:
                 return
@@ -983,7 +987,7 @@ class Combat:
             return [("h", y) for y in self.actives() if self.hs(y)["row"] == x["row"]]
         return base
 
-    def run_ops(self, h, a, dice, tgt, half=False, ops=None):
+    def run_ops(self, h, a, dice, tgt, half=False, ops=None, hit=True):
         m = self.mods(h)
         plus = 2 if a["plus"] else 0
         base = self.targets_for(h, a, tgt)
@@ -1140,7 +1144,7 @@ class Combat:
             elif k == "sanct":
                 f = self.s["fight"]
                 f["sanct"] += op["n"] + (1 if a["plus"] else 0)
-                if m.get("aegis"):
+                if m.get("aegis") and hit:
                     f["aegis"] = max(f["aegis"], m["aegis"])
                 self.fx("st", to="party", s="sanct")
             elif k == "weaken":

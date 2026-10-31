@@ -228,7 +228,7 @@ each pool at 6 actions, 6 passives and 2 capstones.
 |---|---|---|---|---|---|---|
 | Vanguard | Front | 30 | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
 | Duelist | Front | 24 | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
-| Berserker | Front | 34 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
+| Berserker | Front | 30 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
 | Ranger | Back | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
 | Arcanist | Back | 18 | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
 | Mender | Back | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
@@ -271,7 +271,7 @@ Scoundrel's *Wayfinder* passive.
 
 ### Berserker
 
-- **Starts with**: Hack (any: deal its value +2); Bloodprice (pay 3 HP: +2 to one die).
+- **Starts with**: Hack (any: deal its value +1); Bloodprice (pay 3 HP: +2 to one die).
 - **Actions**: Drink Deep (≥4: deal its value; on a kill, heal that much) [Bloodlust]; Frenzy (two
   dice: deal the sum, take 2) [Bloodlust]; Cleave (≥5: deal its value to the whole front row)
   [Rampage]; Earthshaker (dice summing to 12+: half to all enemies, Stun one at random) [Rampage];
@@ -322,10 +322,10 @@ Scoundrel's *Wayfinder* passive.
   (any: remove an ally's debuffs and heal 2); Smite (≥4: deal its value, +3 against undead).
 - **Passives**: Bedside Manner (+2 to all your heals) [Restoration]; Overflow (overhealing becomes
   Armor) [Warding]; Quick Hands (one free Lift per fight) [Restoration]; Blessed Supplies (potions
-  used on or by the party heal 50% more); Aura (the party regenerates 1 HP a round) [Warding];
+  used on or by the party heal 50% more); Aura (the most wounded ally heals 1 HP a round) [Warding];
   Calm (your dice can't be Frozen).
 - **Capstones**: Miracle (once per run, a revive that would be spent isn't) [Restoration]; Aegis
-  (Sanctuary lasts the whole fight at −2) [Warding].
+  (once Sanctuary hits, every hit on the party deals 1 less for the rest of the fight) [Warding].
 
 ### Scoundrel
 
@@ -512,8 +512,10 @@ dice round, all as recommended):
   2.1× damage. Then the Mender, whose parties won about 90% on Normal and 86% on Hard, was nerfed
   where its strength was recovery: Lift once per rest, Mend on a cooldown of 2 (Flare is its free
   action), Field Medic an extra 10% on a rest instead of half. The owner wants Hard genuinely hard
-  for the bots and no class far ahead, so Hard went to 2.35× HP and 2.3× damage: bots win about 73%
-  on Normal (classes 64–83%), 18% on Hard (classes 10–24%) and all of Story.
+  for the bots and no class far ahead, so Hard went to 2.35× HP and 2.3× damage. Then Aegis needs
+  Sanctuary to hit and gives 1 less (not 2), Aura heals only the most wounded ally, the Berserker's
+  Hack deals the die +1 and it has 30 HP. Bots win about 70% on Normal (classes 55–85%), 19% on
+  Hard (classes 10–27%) and all of Story.
 
 ## How the classes ended up
 
@@ -537,7 +539,7 @@ What changed while building all ten:
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
 - **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.35×/2.3×
   with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
-  incoming damage) win about 73% on Normal, 18% on Hard and every Story run; see the cooldowns entry
+  incoming damage) win about 70% on Normal, 19% on Hard and every Story run; see the cooldowns entry
   above for how that was reached.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others

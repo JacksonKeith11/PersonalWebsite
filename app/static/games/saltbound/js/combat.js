@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=8';
-import { h, icon, toast, hideTip } from './ui.js?v=8';
-import { spriteURL } from './art.js?v=8';
-import { reqText, checkReq, STATUS, dieLabel } from './rules.js?v=8';
-import { render } from './main.js?v=8';
-import * as sfx from './audio.js?v=8';
+import { S, send, mine } from './store.js?v=9';
+import { h, icon, toast, hideTip } from './ui.js?v=9';
+import { spriteURL } from './art.js?v=9';
+import { reqText, checkReq, STATUS, dieLabel } from './rules.js?v=9';
+import { render } from './main.js?v=9';
+import * as sfx from './audio.js?v=9';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -18,6 +18,7 @@ export function combatOpen() {
   return inIt || !C.hidden;
 }
 export function showFight() { C.hidden = false; render(); }
+export function combatBusy() { return C.playing || queue.length > 0; }
 
 const KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
 const INTENT = {
@@ -52,6 +53,7 @@ export function renderCombat(el) {
   if (C.tab === null || !my.includes(C.tab)) C.tab = my.includes(S.sel) ? S.sel : my[0] ?? null;
   const active = C.tab;
   const hpOf = x => (C.playing && C.hp ? C.hp[x] : g.heroes[x].hp);
+  const prev = C.playing ? {} : preview(f);
 
   const unitHero = x => {
     const hs = f.hs[x], hero = g.heroes[x];
@@ -64,11 +66,12 @@ export function renderCombat(el) {
     if (x === active) cl.push('mine-sel');
     if (isTarget('h' + x, f)) cl.push('target');
     const ready = hs?.ready && !C.playing;
-    return h('div.' + cl.join('.'), { style: { '--seat': `var(--hero-${x})` }, onclick: () => targetClick('h' + x) },
+    return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, onclick: () => targetClick('h' + x) },
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
       hpBar(hpOf(x), max),
+      previewRow('h' + x, prev),
       statusRow(st, hs?.down ? ['Knocked down'] : []),
       floats('h' + x));
   };
@@ -79,11 +82,12 @@ export function renderCombat(el) {
     if (fo.hp <= 0) cl.push('dead');
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
-    return h('div.' + cl.join('.'), { onclick: () => targetClick('f' + fo.id), tip: foeTip(fo) },
+    return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, onclick: () => targetClick('f' + fo.id), tip: foeTip(fo) },
       intentChip(fo, f),
       h('img.pix', { src: spriteURL(fo.k), alt: '' }),
       h('div.uname', null, fo.name),
       hpBar(Math.max(0, fo.hp), fo.max),
+      previewRow('f' + fo.id, prev, fo.hp),
       statusRow(fo.st, fo.might ? [`+${fo.might} might`] : []),
       floats('f' + fo.id));
   };
@@ -91,11 +95,12 @@ export function renderCombat(el) {
     const cl = ['unit', 'hero', 'summon'];
     if (a.hp <= 0) cl.push('dead');
     if (C.anim['s' + a.id]) cl.push(C.anim['s' + a.id]);
-    return h('div.' + cl.join('.'), { tip: `${a.name}\nSummoned by ${g.heroes[a.owner].name}${a.atk ? `. Hits ${a.all ? 'every enemy' : 'the weakest front enemy'} for ${a.atk} each round.` : '. Soaks up hits.'}` },
+    return h('div.' + cl.join('.'), { 'data-uid': 's' + a.id, tip: `${a.name}\nSummoned by ${g.heroes[a.owner].name}${a.atk ? `. Hits ${a.all ? 'every enemy' : 'the weakest front enemy'} for ${a.atk} each round.` : '. Soaks up hits.'}` },
       h('div.intent.none', null, '·'),
       h('img.pix', { src: spriteURL(a.k), alt: '' }),
       h('div.uname', { style: { color: `var(--hero-${a.owner})` } }, a.name),
       hpBar(Math.max(0, a.hp), a.max),
+      previewRow('s' + a.id, prev),
       h('div.sts'),
       floats('s' + a.id));
   };
@@ -140,6 +145,106 @@ export function renderCombat(el) {
       !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null),
     stage, plan, bottom);
   C.rolled = false;
+  requestAnimationFrame(() => drawArrows(box, f));
+}
+
+// ------------------------------------------------------------------ what the plan and the intents will do
+// Per unit: planned damage, healing and armor from the party's placed actions, and the damage
+// enemies intend to deal it (after any Armor it has or is about to get).
+function preview(f) {
+  const out = {};
+  const at = id => (out[id] ||= { dmg: 0, heal: 0, armor: 0, incoming: 0 });
+  const alive = f.foes.filter(fo => fo.hp > 0);
+  for (const p of f.plan) {
+    const a = S.static.actions[p.a];
+    if (!a || !p.est) continue;
+    let ids;
+    if (p.tgt) ids = [p.tgt];
+    else if (a.tgt === 'foes') ids = alive.map(fo => 'f' + fo.id);
+    else if (a.tgt === 'front') { const fr = alive.filter(fo => fo.row === 'front'); ids = (fr.length ? fr : alive).map(fo => 'f' + fo.id); }
+    else if (a.tgt === 'party') ids = f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y);
+    else ids = ['h' + p.h];
+    const key = p.est.k === 'dmg' ? 'dmg' : p.est.k === 'armor' ? 'armor' : p.est.k === 'heal' || p.est.k === 'lift' ? 'heal' : null;
+    if (!key) continue;
+    for (const id of ids) at(id)[key] += p.est.n;
+  }
+  const units = [...f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y), ...(f.allies || []).filter(a => a.hp > 0).map(a => 's' + a.id)];
+  const rowOf = id => (id[0] === 'h' ? f.hs[+id.slice(1)].row : (f.allies || []).find(a => 's' + a.id === id)?.row);
+  for (const fo of alive) {
+    const it = fo.intent;
+    if (!it || !it.v || !['attack', 'row', 'all'].includes(it.k)) continue;
+    for (const id of intentTargets(it, units, rowOf)) at(id).incoming += it.v;
+  }
+  return out;
+}
+
+function intentTargets(it, units, rowOf) {
+  if (it.k === 'attack') return it.tgt && units.includes(it.tgt) ? [it.tgt] : [];
+  if (it.k === 'all') return units;
+  if (it.k === 'row') { const r = units.filter(u => rowOf(u) === (it.row || 'front')); return r.length ? r : units; }
+  return [];
+}
+
+function previewRow(id, prev, hp) {
+  const p = prev[id];
+  if (!p) return h('div.preview');
+  const chips = [];
+  if (p.dmg) chips.push(h('span.pv.dmg', { tip: `Planned damage\nAbout ${p.dmg} from the actions placed so far, before Armor.` }, icon('sword'), p.dmg, hp !== undefined && p.dmg >= hp ? ' · lethal' : ''));
+  if (p.heal) chips.push(h('span.pv.heal', { tip: 'Planned healing' }, icon('plus'), p.heal));
+  if (p.armor) chips.push(h('span.pv.arm', { tip: 'Planned Armor' }, icon('shield'), p.armor));
+  if (p.incoming) {
+    let have = p.armor;
+    if (id[0] === 'h') have += (S.game.fight?.hs[+id.slice(1)]?.st?.armor || 0);
+    const net = Math.max(0, p.incoming - have);
+    chips.push(h('span.pv.in', { tip: `Incoming\nEnemies intend ${p.incoming} damage here${have ? `; ${Math.min(have, p.incoming)} of it is blocked by Armor` : ''}.` }, icon('skull'), net, have ? h('span.faint', null, ` / ${p.incoming}`) : null));
+  }
+  return h('div.preview', null, ...chips);
+}
+
+// Curved arrows from each enemy to whoever its intent targets.
+const ARROW = { attack: '#d0624f', row: '#d0624f', all: '#d0624f', debuff: '#a48ad8' };
+function drawArrows(box, f) {
+  const stage = box.querySelector('.stage');
+  if (!stage) return;
+  stage.querySelector('svg.arrows')?.remove();
+  if (C.playing) return;
+  const sr = stage.getBoundingClientRect();
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'arrows');
+  svg.setAttribute('width', sr.width); svg.setAttribute('height', sr.height);
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  for (const [k, c] of Object.entries({ red: ARROW.attack, violet: ARROW.debuff })) {
+    defs.insertAdjacentHTML('beforeend', `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`);
+  }
+  svg.append(defs);
+  const units = [...stage.querySelectorAll('.unit.hero:not(.down):not(.fled):not(.dead)')].map(el => el.dataset.uid);
+  const rowOf = id => (id[0] === 'h' ? f.hs[+id.slice(1)].row : (f.allies || []).find(a => 's' + a.id === id)?.row);
+  const pos = (el, side) => {
+    const r = el.querySelector('img').getBoundingClientRect();
+    return [side === 'left' ? r.left - sr.left - 4 : r.right - sr.left + 4, r.top - sr.top + r.height * 0.45];
+  };
+  for (const fo of f.foes) {
+    const it = fo.intent;
+    if (fo.hp <= 0 || !it || !ARROW[it.k]) continue;
+    const fromEl = stage.querySelector(`[data-uid="f${fo.id}"]`);
+    if (!fromEl) continue;
+    const targets = it.k === 'debuff' ? (it.tgt ? [it.tgt] : []) : intentTargets(it, units, rowOf);
+    const [x0, y0] = pos(fromEl, 'left');
+    for (const t of targets) {
+      const toEl = stage.querySelector(`[data-uid="${t}"]`);
+      if (!toEl) continue;
+      const [x1, y1] = pos(toEl, 'right');
+      const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 40 - Math.abs(x0 - x1) * 0.06;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${x0},${y0} Q${mx},${my} ${x1},${y1}`);
+      path.setAttribute('class', 'arrow');
+      path.setAttribute('stroke', ARROW[it.k]);
+      path.setAttribute('marker-end', `url(#ah-${it.k === 'debuff' ? 'violet' : 'red'})`);
+      if (it.k !== 'attack') path.setAttribute('stroke-dasharray', '6 5');
+      svg.append(path);
+    }
+  }
+  stage.prepend(svg);
 }
 
 function heroActive(f, x) { const hs = f.hs[x]; return hs && !hs.down && !hs.fled; }

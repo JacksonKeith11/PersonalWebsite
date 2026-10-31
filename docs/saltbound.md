@@ -518,6 +518,15 @@ no clock anywhere: the run changes only when someone acts.
   `grep -rn "?v=" app/static/games/saltbound`. The page's `?v=` is also how the server tells a tab
   left open across a deploy to reload.
 - `h('div#id.class')`: ids and classes can come in any order in the tag string.
+- **Effects play before the new state is drawn** (`main.js`): map moves start from the old hexes
+  (heroes walk first, enemies after), and a fight's last round plays back before the map or the end
+  screen replaces it. `combatBusy()` holds the end screen until playback finishes.
+- The fight screen draws enemy intents as arrows to their targets (an SVG behind the units) and
+  previews each unit's planned damage, healing and Armor, and the damage coming at it after Armor.
+  The numbers come from each plan entry's `est`, so they're estimates (statuses applied by earlier
+  actions in the same round aren't counted).
+- **Music** is synthesized in `audio.js` (`music('map' | 'fight' | null)`), scheduled a quarter
+  second ahead; it starts on the first click or key press, as browsers require.
 - All randomness comes from `Game.rng`; never the global `random` module, or restored runs won't
   match. `python3 tools/saltbound-sim.py N normal --saves` checks this.
 - Hidden enemy groups don't block planned paths (that would give away where they are); walking

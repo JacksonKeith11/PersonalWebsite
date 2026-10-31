@@ -251,6 +251,14 @@ a:hover { color: var(--accent-hi); }
 .item .sub { font-size: var(--fs-14); color: var(--muted); }
 .item .acts { display: flex; gap: var(--s-2); flex-wrap: wrap; justify-content: flex-end; }
 .item.empty { color: var(--faint); grid-template-columns: 40px 1fr; }
+.item.r-common, .pick.r-common { --rar: var(--r-common); }
+.item.r-uncommon, .pick.r-uncommon { --rar: var(--r-uncommon); }
+.item.r-rare, .pick.r-rare { --rar: var(--r-rare); }
+.item.r-legendary, .pick.r-legendary { --rar: var(--r-legendary); }
+.item[class*="r-"] { border-left: 3px solid var(--rar); }
+.item[class*="r-"] .ico { color: var(--rar); }
+.pick[class*="r-"] { border-top: 3px solid var(--rar); }
+.pick.r-legendary { box-shadow: 0 0 0 1px rgba(214, 174, 82, 0.35), 0 0 24px rgba(214, 174, 82, 0.12); }
 .rar-common { color: var(--r-common); }
 .rar-uncommon { color: var(--r-uncommon); }
 .rar-rare { color: var(--r-rare); }
@@ -353,6 +361,16 @@ a:hover { color: var(--accent-hi); }
   font-weight: var(--fw-bold); font-size: var(--fs-15); box-shadow: var(--shadow-1); white-space: nowrap;
 }
 .intent .icon-svg { width: 16px; height: 16px; }
+.stage svg.arrows { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: visible; }
+.stage svg.arrows .arrow { fill: none; stroke-width: 2; opacity: 0.75; }
+.stage .side-units { position: relative; z-index: 2; }
+.preview { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; min-height: 22px; }
+.pv { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 6px; border-radius: var(--r-pill); font-size: var(--fs-14); font-weight: var(--fw-bold); background: rgba(11, 16, 23, 0.85); border: var(--bw) solid currentColor; }
+.pv .icon-svg { width: 13px; height: 13px; }
+.pv.dmg { color: #ff9a80; }
+.pv.heal { color: var(--heal); }
+.pv.arm { color: var(--armor); }
+.pv.in { color: var(--intent-attack); border-style: dashed; }
 .intent .to { font-weight: var(--fw-medium); font-size: var(--fs-14); color: var(--text-2); }
 .intent.none { visibility: hidden; }
 .float {

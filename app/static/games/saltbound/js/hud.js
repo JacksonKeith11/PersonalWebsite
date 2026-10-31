@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=8';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=8';
-import { spriteURL } from './art.js?v=8';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, reqText, visibleTiles } from './rules.js?v=8';
-import { MapView } from './hexmap.js?v=8';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=8';
-import { disconnect } from './main.js?v=8';
-import * as sfx from './audio.js?v=8';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=9';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=9';
+import { spriteURL } from './art.js?v=9';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, reqText, visibleTiles } from './rules.js?v=9';
+import { MapView } from './hexmap.js?v=9';
+import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=9';
+import { disconnect } from './main.js?v=9';
+import * as sfx from './audio.js?v=9';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -302,9 +302,13 @@ function renderMenu() {
     h('div.field', null, 'Animation speed', h('div.seg', null, ...speed.map(([v, l]) => h('button', {
       'aria-pressed': String(S.settings.speed === v), onclick: () => { S.settings.speed = v; saved.settings = S.settings; persist(); renderMenu(); },
     }, l)))),
-    h('label.field', null, `Sound volume`, h('input', {
+    h('label.field', null, `Sound effects`, h('input', {
       type: 'range', min: 0, max: 1, step: 0.05, value: S.settings.volume,
       oninput: e => { S.settings.volume = +e.target.value; sfx.setVolume(S.settings.volume); saved.settings = S.settings; persist(); },
+    })),
+    h('label.field', null, `Music`, h('input', {
+      type: 'range', min: 0, max: 1, step: 0.05, value: S.settings.music ?? 0.5,
+      oninput: e => { S.settings.music = +e.target.value; sfx.setMusicVolume(S.settings.music); saved.settings = S.settings; persist(); },
     })),
     h('p.muted', null, `Room ${S.code}. The voyage saves itself after every turn and every round of a fight.`),
     h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
@@ -359,7 +363,7 @@ function itemRow(key, right, extra) {
   const sub = [];
   if (it.slot !== 'use') sub.push(it.slot[0].toUpperCase() + it.slot.slice(1));
   if (it.die) sub.push(h('span.faces', null, ...it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), null, f === 'S' ? '◆' : f))));
-  return h('div.item', { tip: itemTip(key) },
+  return h('div.item.r-' + it.rarity, { tip: itemTip(key) },
     h('div.ico', null, icon(SLOT_ICON[it.slot] || 'spark')),
     h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')), extra || null),
     h('div.acts', null, right));
@@ -531,9 +535,9 @@ function renderDialogs() {
       h('p.lead', null, 'Take one. Gear goes straight on if the slot is empty; otherwise into your bag.'),
       h('div.picks', null, ...d.opts.map((k, i) => {
         const it = item(k);
-        return h('button.pick', { onclick: () => send({ t: 'choose', h: h0, n: i }) },
+        return h('button.pick.r-' + it.rarity, { onclick: () => send({ t: 'choose', h: h0, n: i }) },
           h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
-          h('h3', null, it.name),
+          h('h3.rar-' + it.rarity, null, it.name),
           it.die ? h('span.faces', null, ...it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), null, f === 'S' ? '◆' : f))) : null,
           ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
           it.mods ? h('p', null, modsText(it.mods)) : null,
@@ -588,10 +592,18 @@ export function markHint(key) { S.seenHints[key] = 1; saved.hints = S.seenHints;
 // ------------------------------------------------------------------ effects
 export function handleFx(list, before) {
   const speed = S.settings.speed;
+  let heroSteps = 0;
   for (const f of list) {
     switch (f.k) {
-      case 'move': if (map && speed) map.playMove('h' + f.h, f.path, speed); if (mine().includes(f.h)) sfx.play('step'); break;
-      case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed); break;
+      case 'move':
+        if (map && speed) {
+          map.playMove('h' + f.h, f.path, speed);
+          heroSteps = Math.max(heroSteps, f.path.length - 1);
+          if (f.h === sel()) map.centerOn(f.path[f.path.length - 1]);
+        }
+        if (mine().includes(f.h)) sfx.play('step');
+        break;
+      case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
       case 'rise': toast('The sea rises', 'big'); sfx.play('rise'); break;
       case 'tide': toast(f.tide === 'low' ? 'Low tide: the sandbars are out' : 'High tide: the shallows close'); break;
       case 'level': toast(`The party reaches level ${f.lvl}`, 'big'); sfx.play('level'); break;

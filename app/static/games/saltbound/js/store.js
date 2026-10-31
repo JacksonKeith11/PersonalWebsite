@@ -1,7 +1,7 @@
 // Shared client state and the socket's send(), so screens don't import each other.
 export const S = {
   you: null, code: null, static: null, world: null, room: null, game: null, saves: [],
-  sel: null, lastFx: 0, fresh: true, settings: { speed: 1, volume: 0.6 }, seenHints: {},
+  sel: null, lastFx: 0, fresh: true, settings: { speed: 1, volume: 0.6, music: 0.5 }, seenHints: {},
 };
 
 const KEY = 'saltbound';

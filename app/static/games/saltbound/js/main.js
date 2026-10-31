@@ -1,10 +1,11 @@
 // Saltbound in the browser: the connection, and choosing which screen to show from the room
 // state the server sends whenever anything changes.
-import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=8';
-import { $, toast } from './ui.js?v=8';
-import { renderTitle, renderLobby, renderEnd } from './screens.js?v=8';
-import { renderGame, handleFx, teardownGame } from './hud.js?v=8';
-import * as sfx from './audio.js?v=8';
+import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=9';
+import { $, toast } from './ui.js?v=9';
+import { renderTitle, renderLobby, renderEnd } from './screens.js?v=9';
+import { renderGame, handleFx, teardownGame } from './hud.js?v=9';
+import { combatBusy } from './combat.js?v=9';
+import * as sfx from './audio.js?v=9';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const params = new URLSearchParams(location.search);
@@ -68,7 +69,13 @@ function receive(m) {
       if (S.game) {
         const fx = S.game.fx.filter(f => f.id > S.lastFx);
         if (S.fresh) { S.fresh = false; S.lastFx = S.game.fx.length ? S.game.fx[S.game.fx.length - 1].id : 0; render(); }
-        else { if (fx.length) S.lastFx = fx[fx.length - 1].id; render(); handleFx(fx, before); }
+        else {
+          // effects first, so animations start from the old positions instead of flashing the new state
+          if (fx.length) S.lastFx = fx[fx.length - 1].id;
+          if (shown === 'game') handleFx(fx, before);
+          render();
+          if (shown !== 'game') handleFx(fx, before);
+        }
       } else {
         S.lastFx = 0; S.fresh = true; render();
       }
@@ -82,10 +89,15 @@ function receive(m) {
 
 let shown = null;
 export function render() {
+  renderScreen();
+  sfx.music(shown === 'game' && combatOpenNow() ? 'fight' : shown === 'end' ? null : 'map');
+}
+function combatOpenNow() { return !!document.querySelector('.combat'); }
+function renderScreen() {
   const r = S.room, g = S.game;
   if (!S.code || !r) { if (shown !== 'title') teardownGame(); shown = 'title'; renderTitle(); return; }
   if (!g) { if (shown === 'game' || shown === 'end') teardownGame(); shown = 'lobby'; renderLobby(); return; }
-  if (g.phase === 'end') { if (shown === 'game') teardownGame(); shown = 'end'; renderEnd(); return; }
+  if (g.phase === 'end' && !combatBusy()) { if (shown === 'game') teardownGame(); shown = 'end'; renderEnd(); return; }
   if (!S.world) return;
   if (S.sel === null || !mine().includes(S.sel)) S.sel = mine()[0] ?? 0;
   shown = 'game';

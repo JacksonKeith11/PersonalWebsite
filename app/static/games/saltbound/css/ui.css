@@ -438,6 +438,20 @@ a:hover { color: var(--accent-hi); }
 .hint-card p { font-size: var(--fs-14); color: var(--text-2); }
 .hint-card .btn { justify-self: end; }
 
+/* ------------------------------------------------------------------ shorter screens: compact fights */
+@media (max-height: 860px) {
+  .stage { padding: var(--s-3) var(--s-8) var(--s-2); }
+  .col { gap: var(--s-2); }
+  .unit { width: 150px; gap: 4px; padding: var(--s-1) var(--s-2) var(--s-2); }
+  .unit img { width: 64px; height: 64px; }
+  .unit.boss img { width: 88px; height: 88px; }
+  .unit .sts { min-height: 0; }
+  .combat-head { padding: var(--s-2) var(--s-6); }
+  .tray { padding: var(--s-3) var(--s-6) var(--s-3); }
+  .actions { max-height: 168px; }
+  .action { min-height: 76px; }
+}
+
 /* ------------------------------------------------------------------ smaller screens: keep it working, no extra effort */
 @media (max-width: 900px) {
   .lobby-grid, .slots { grid-template-columns: 1fr; }

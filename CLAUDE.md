@@ -31,8 +31,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/static/games/song-guesser/`: Song Guesser, a name-that-tune game with synthesized arrangements at
   `/games/song-guesser`
 - `app/saltbound/` and `app/static/games/saltbound/`: Saltbound, a 1-3 player co-op strategy RPG (hex overworld,
-  dice combat, a rising sea as the clock; FastAPI WebSocket server, Phaser map) at `/games/saltbound`, unlisted
-  while it's being finished
+  dice combat, a rising sea as the clock; FastAPI WebSocket server, Phaser map) at `/games/saltbound`
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
   turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's)

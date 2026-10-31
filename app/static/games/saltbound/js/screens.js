@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=5';
-import { $, h, icon, toast } from './ui.js?v=5';
-import { spriteURL } from './art.js?v=5';
-import { dieLabel } from './rules.js?v=5';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=5';
-import { connect, disconnect, debug } from './main.js?v=5';
+import { S, saved, persist, send } from './store.js?v=8';
+import { $, h, icon, toast } from './ui.js?v=8';
+import { spriteURL } from './art.js?v=8';
+import { dieLabel } from './rules.js?v=8';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=8';
+import { connect, disconnect, debug } from './main.js?v=8';
 
 const app = () => $('app');
 
@@ -123,9 +123,10 @@ export function renderLobby() {
       body = [
         h('p.muted', null, canPick ? 'Choose a class:' : 'Waiting for someone to choose.'),
         h('div.class-pick', null, ...Object.entries(st.classes).map(([k, cl]) => h('button.class-opt', {
-          disabled: taken.has(k) || !canPick,
+          disabled: taken.has(k) || !canPick, 'aria-label': `${cl.name}, ${cl.role}`,
           onclick: () => (mySlot < 0 && !slot.pid) || isMine ? send({ t: 'claim', slot: i, cls: k }) : send({ t: 'setcls', slot: i, cls: k }),
-        }, h('img.pix', { src: spriteURL(k), alt: '' }), h('div', null, h('b', null, cl.name), h('span', null, cl.role))))),
+          tip: `${cl.name}\n${cl.role} · ${cl.row === 'front' ? 'front row' : cl.row === 'back' ? 'back row' : 'either row'}\n${cl.blurb}`,
+        }, h('img.pix', { src: spriteURL(k), alt: '' }), h('b', null, cl.name)))),
       ];
     }
     return h('div.slot.card' + (isMine ? '.mine' : ''), null, h('div.slot-head', null, h('span.eyebrow', null, `Hero ${i + 1}`), ctl), ...body);

@@ -21,7 +21,7 @@ router = APIRouter()
 
 @router.get("/games/saltbound", include_in_schema=False)
 def page():
-    return FileResponse(PAGE, headers={"X-Robots-Tag": "noindex"})
+    return FileResponse(PAGE)
 
 
 async def _writer(ws: WebSocket, queue: asyncio.Queue):

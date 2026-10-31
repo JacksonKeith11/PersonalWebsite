@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=5';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=5';
-import { spriteURL } from './art.js?v=5';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, reqText, visibleTiles } from './rules.js?v=5';
-import { MapView } from './hexmap.js?v=5';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=5';
-import { disconnect } from './main.js?v=5';
-import * as sfx from './audio.js?v=5';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=8';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=8';
+import { spriteURL } from './art.js?v=8';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, reqText, visibleTiles } from './rules.js?v=8';
+import { MapView } from './hexmap.js?v=8';
+import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=8';
+import { disconnect } from './main.js?v=8';
+import * as sfx from './audio.js?v=8';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;

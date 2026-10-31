@@ -2,10 +2,12 @@
 # To change a hero's look, point its entry at another option in heroes.py and rebuild.
 import json, os
 import heroes, heroes2, foes
+# owner's picks among heroes2.OPTIONS (0-based); unpicked classes use option 1
+STEP2_PICKS = {'ranger': 2}
 PICKS = {
     'vanguard': heroes.vanguard1, 'arcanist': heroes.arcanist2, 'mender': heroes.mender1,  # the owner's picks
-    # build step 2's classes: option 1 of each until the owner picks (see heroes2.OPTIONS)
-    **{cls: opts[0][1] for cls, opts in heroes2.OPTIONS.items()},
+    # build step 2's classes (see heroes2.OPTIONS)
+    **{cls: opts[STEP2_PICKS.get(cls, 0)][1] for cls, opts in heroes2.OPTIONS.items()},
     **{f.__name__: f for f in foes.ALL},
     **{f.__name__: f for f in foes.SUMMONS},
 }

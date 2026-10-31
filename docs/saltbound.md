@@ -3,11 +3,10 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: build step 2 of 3.** All ten classes play whole runs end to end, at the unlisted URL.
-Step 3 is listing it on `/games` and the nav. This doc began as the design the owner signed off on;
-"Decisions made while building" records the answers given since, and "How the classes ended up"
-what changed from the first-pass skill lists below. When the build forces a change, update this
-doc in the same commit.
+**Status: built and public.** All ten classes play whole runs, and the game is listed on `/games`.
+This doc began as the design the owner signed off on; "Decisions made while building" records the
+answers given since, and "How the classes ended up" what changed from the first-pass skill lists
+below. When a change alters how the game works, update this doc in the same commit.
 
 ## What it is
 
@@ -478,8 +477,9 @@ What changed while building all ten:
 - **Balance** (bots, which play simply): Normal enemies have 1.8× HP and 1.75× damage of the listed
   numbers and bots win about 65%; Hard 2.05×/1.95× with a rise every 3 turns (not 2) and bots win
   about 25%; Story 1.0×/0.95× and bots always win. Humans who coordinate should do better than bots.
-- Step 2's classes use option 1 of four sprite options each (`tools/saltbound-art/heroes2.py`,
-  built from `parts.py`) until the owner picks.
+- Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
+  `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others
+  use option 1 until picked.
 
 ## Code map
 

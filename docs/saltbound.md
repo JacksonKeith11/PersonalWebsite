@@ -806,6 +806,19 @@ no clock anywhere: the run changes only when someone acts.
   same specificity, so the fight's phone overrides live in a block at the very end of the file.
   On phones the stage is a flex column with `align-items: stretch` (a centred grid let the party
   row collapse to zero width and the enemy side cover it).
+- **One look for dice, skills and intents** (owner's choice): a die is a cream tile with a coloured
+  top edge for where it comes from (`--src-*` tokens: class, weapon, armor, trinket...), its size or
+  number big, and one icon for a special kind. A skill shows a die-shaped badge for its requirement
+  ("any", "4+", "Σ10+", "pair", from `reqBadge` in `combat.js`) that fills green, amber or red with
+  your odds, then one bold effect line and a small miss line: hand-written per action in `SHORT` in
+  `classes.py` (every action needs one; `static()` sends it as `short`). The same face appears in
+  the hero sheet, level-ups and the lobby (`skillFace` in `hud.js`). An enemy intent is a small card:
+  the move's name, its dice drawn as little pink dice ("d6", or the number once known), the bonus,
+  the range big, then a hero-coloured dot per target and its riders.
+- `h()` sets CSS custom properties with `setProperty` (`style: { '--seat': ... }`); plain
+  assignment drops them silently, which for a long time left every hero colour unset.
+- The rapier and fishing spear's Jab is the weapon action `thrust`; `jab` is the Herald's Cutting
+  Words. Action keys share one namespace in `static()`.
 - A combat effect the client should play must be listed in `COMBAT_FX` in `combat.js` (`froll`,
   `retarget`...), or it's silently dropped.
 - Bots and the forecast must not disagree about the map rules: `Game.group_step` is the one copy of

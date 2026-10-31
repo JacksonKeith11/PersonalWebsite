@@ -13,7 +13,10 @@ export function h(tag, attrs, ...kids) {
     for (const [k, v] of Object.entries(attrs)) {
       if (v == null || v === false) continue;
       if (k === 'class') el.className += (el.className ? ' ' : '') + v;
-      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'style' && typeof v === 'object') {
+        // custom properties (--seat, --src...) need setProperty: plain assignment drops them
+        for (const [sk, sv] of Object.entries(v)) { if (sk.startsWith('--')) el.style.setProperty(sk, sv); else el.style[sk] = sv; }
+      }
       else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
       else if (k === 'tip') el.dataset.tip = v;
       else if (k === 'html') el.innerHTML = v;

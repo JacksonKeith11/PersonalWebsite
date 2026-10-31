@@ -895,3 +895,97 @@ a:hover { color: var(--accent-hi); }
 @media (max-width: 700px) { .scrim.bd-dungeon::before { content: none; } }
 .intent:not(.none) { max-width: 210px; }
 .intent .ln { min-width: 0; }
+
+/* ------------------------------------------------------------------ design pass: dice, skills, intents
+   One visual language: a die is a cream tile; a requirement is a die-shaped badge ("4+") that fills
+   with your odds; an effect is one bold line with its icon; an enemy's intent draws its dice. */
+
+/* dice tiles */
+.die.tile { width: 58px; height: 58px; border-radius: 12px; border: 0; background: linear-gradient(170deg, var(--die-face), var(--die-face-2));
+  color: var(--die-ink); box-shadow: inset 0 4px 0 var(--src), inset 0 -4px 0 rgba(0, 0, 0, 0.16), var(--shadow-1); }
+.die.tile .size { font: 700 18px/1 var(--font-ui); letter-spacing: -0.01em; opacity: 0.8; }
+.die.tile .num { font: 800 28px/1 var(--font-ui); }
+.die.tile.known { box-shadow: inset 0 4px 0 var(--src), inset 0 -4px 0 rgba(0, 0, 0, 0.16), 0 0 0 2px rgba(224, 187, 98, 0.55), var(--shadow-1); }
+.die.tile .k { top: 6px; left: 6px; font: 600 10px/1 var(--font-ui); color: rgba(28, 24, 16, 0.45); }
+.die.tile .sz { position: absolute; bottom: 4px; left: 6px; font: 600 10px/1 var(--font-ui); color: rgba(28, 24, 16, 0.5); }
+.die.tile .kinds { position: absolute; bottom: 4px; right: 5px; display: flex; gap: 2px; color: rgba(28, 24, 16, 0.65); }
+.die.tile .kinds .icon-svg { width: 12px; height: 12px; }
+.die.tile.guard .kinds { color: #3d5a78; }
+.die.tile .marks { position: absolute; top: -8px; right: -8px; display: flex; gap: 3px; }
+.die.tile .mk { min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font: 700 11px/1 var(--font-ui); }
+.die.tile .mk .icon-svg { width: 12px; height: 12px; }
+.die.tile .hint { font-size: 20px; }
+.die.tile.sel { box-shadow: inset 0 4px 0 var(--src), 0 0 0 3px var(--accent), 0 8px 18px rgba(0, 0, 0, 0.45); transform: translateY(-4px); }
+.die.tile.used { opacity: 0.22; filter: grayscale(0.8); }
+.die.tile.auto { box-shadow: inset 0 4px 0 var(--src), 0 0 0 3px var(--accent-hi, #ffd77a), 0 0 18px rgba(224, 187, 98, 0.5); transform: translateY(-3px); }
+
+/* skill cards: badge | name, effect, miss */
+.action.v2 { grid-template-columns: 46px minmax(0, 1fr); column-gap: 10px; align-items: start; min-height: 0; padding: 8px 10px 8px 8px; }
+.action.v2 .rq { width: 46px; height: 46px; border-radius: 10px; display: grid; place-content: center; justify-items: center; gap: 1px;
+  background: rgba(255, 255, 255, 0.04); border: 1.5px solid var(--border-strong); color: var(--text-2); }
+.action.v2 .rq b { font: 800 15px/1 var(--font-ui); letter-spacing: -0.02em; }
+.action.v2 .rq small { font: 600 10px/1 var(--font-ui); color: var(--muted); }
+.action.v2 .rq.risky { border-color: var(--accent); color: var(--accent-hi, #ffd77a); }
+.action.v2 .rq.good { background: rgba(95, 176, 122, 0.18); border-color: var(--ok); color: #bfe8cc; }
+.action.v2 .rq.mid { background: rgba(224, 187, 98, 0.16); border-color: var(--accent); color: #f6e2a8; }
+.action.v2 .rq.bad { background: rgba(208, 98, 79, 0.18); border-color: var(--danger); color: #ffc2b4; }
+.action.v2 .rq.good small, .action.v2 .rq.mid small, .action.v2 .rq.bad small { color: inherit; font-weight: 700; }
+.action.v2 .ab { display: grid; gap: 3px; min-width: 0; padding-right: 18px; }
+.action.v2 .top { justify-content: space-between; }
+.action.v2 .top b { font-size: var(--fs-15); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.action.v2 .eff { display: flex; align-items: center; gap: 6px; font: 600 var(--fs-14)/1.25 var(--font-ui); color: var(--text); }
+.action.v2 .eff .icon-svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+.action.v2.def .eff .icon-svg { color: var(--armor); }
+.action.v2 .miss { font-size: 12px; color: var(--muted); }
+.action.v2 .kbd { right: 6px; bottom: 6px; }
+.action.v2 .cd { font-size: 12px; }
+
+/* enemy intents: a small card that draws the dice it will roll */
+.intent.card:not(.none) { display: grid; gap: 3px; justify-items: stretch; align-items: initial; height: auto; min-width: 128px; max-width: 214px;
+  padding: 5px 8px 6px; border-radius: 10px; background: rgba(11, 16, 23, 0.94); border: 1.5px solid var(--c); color: var(--text); white-space: nowrap; }
+.intent.card .it-name { display: flex; align-items: center; gap: 5px; font: 600 12px/1.1 var(--font-ui); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
+.intent.card .it-name .ic { display: inline-flex; color: var(--c); }
+.intent.card .it-name .icon-svg { width: 13px; height: 13px; }
+.intent.card .it-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.intent.card .it-dice { display: inline-flex; align-items: center; gap: 3px; }
+.intent.card .md { min-width: 22px; height: 20px; padding: 0 4px; border-radius: 5px; display: grid; place-items: center;
+  background: linear-gradient(170deg, #f1d6cc, #d9ada0); color: #2a1410; font: 800 11px/1 var(--font-ui); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18); }
+.intent.card .md.known { font-size: 12px; background: linear-gradient(170deg, #fff1c8, #e8c878); box-shadow: 0 0 0 1.5px var(--accent), inset 0 -2px 0 rgba(0, 0, 0, 0.18); }
+.intent.card .md.fate { font-size: 10px; }
+.intent.card .md.boom::after { content: "!"; margin-left: 1px; color: #a02a10; }
+.intent.card .md.steady::after { content: "~"; margin-left: 1px; color: #6a4a40; }
+.intent.card .md.odd::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: #a02a10; position: relative; top: -6px; right: -12px; position: absolute; }
+.intent.card .md { position: relative; }
+.intent.card .bn { font: 700 12px/1 var(--font-ui); color: var(--text-2); margin-left: 1px; }
+.intent.card .it-range { font: 800 18px/1 var(--font-ui); color: var(--c); }
+.intent.card .it-range small { font-size: 11px; color: var(--text-2); }
+.intent.card .it-what { font: 600 13px/1 var(--font-ui); color: var(--text-2); }
+.intent.card .it-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font: 600 11px/1 var(--font-ui); color: var(--text-2); }
+.intent.card .who { display: inline-flex; align-items: center; gap: 4px; }
+.intent.card .who i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--seat, var(--c)); }
+.intent.card .who.all i { background: var(--c); }
+.intent.card .rider { display: inline-flex; align-items: center; gap: 3px; color: #f0c0b0; }
+.intent.card .rider .icon-svg { width: 11px; height: 11px; }
+.intent.card .gd { margin-left: auto; color: var(--armor); display: inline-flex; }
+.intent.card.guarded { border-style: dashed; }
+.col.herocol .unit > .intent { min-width: 0; }
+@media (max-width: 700px) {
+  .die.tile { width: 48px; height: 48px; }
+  .die.tile .num { font-size: 22px; } .die.tile .size { font-size: 15px; }
+  .intent.card:not(.none) { min-width: 0; max-width: 100%; padding: 4px 6px; }
+  .intent.card .it-range { font-size: 15px; }
+  .action.v2 { grid-template-columns: 38px minmax(0, 1fr); column-gap: 8px; }
+  .action.v2 .rq { width: 38px; height: 38px; } .action.v2 .rq b { font-size: 13px; }
+}
+
+/* the same skill face outside fights: hero sheet, level-ups, class details */
+.skill-face { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; }
+.skill-face .rq { width: 40px; height: 40px; border-radius: 9px; display: grid; place-content: center; justify-items: center; gap: 1px;
+  background: rgba(255, 255, 255, 0.04); border: 1.5px solid var(--border-strong); color: var(--text-2); }
+.skill-face .rq b { font: 800 14px/1 var(--font-ui); }
+.skill-face .rq small { font: 600 10px/1 var(--font-ui); color: var(--muted); }
+.skill-face .rq.risky { border-color: var(--accent); color: var(--accent-hi, #ffd77a); }
+.skill-face .eff { display: flex; align-items: center; gap: 6px; font: 600 var(--fs-14)/1.25 var(--font-ui); color: var(--text); }
+.skill-face .eff .icon-svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+.skill-face .miss { font-size: 12px; color: var(--muted); }

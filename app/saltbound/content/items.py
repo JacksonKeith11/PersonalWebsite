@@ -19,7 +19,7 @@ WEAPON_ACTIONS = {
             "text": "Any row: the die, and Shock (its next hit also hits a neighbour)."},
     "flare": {"name": "Flare", "req": {"n": 1}, "tgt": "foe",
               "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "mark", "n": 1}], "text": "Any row: half the die, and Mark."},
-    "jab": {"name": "Jab", "req": {"n": 1}, "tgt": "foe", "melee": True,
+    "thrust": {"name": "Jab", "req": {"n": 1}, "tgt": "foe", "melee": True,
             "ops": [{"op": "dmg", "amt": "v"}], "text": "Deal the die."},
     "harpoon": {"name": "Reel In", "req": {"n": 1, "min": 4}, "tgt": "foe",
                 "ops": [{"op": "dmg", "amt": "v"}, {"op": "drag"}], "miss": [{"op": "dmg", "amt": "v//2"}],
@@ -51,7 +51,7 @@ ITEMS = {
                         "start": True},
     "lantern_rod": {"name": "Lantern Rod", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["flare"],
                     "start": True},
-    "rapier": {"name": "Rapier", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["jab"], "start": True},
+    "rapier": {"name": "Rapier", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["thrust"], "start": True},
     "great_axe": {"name": "Great Axe", "slot": "weapon", "rarity": "common", "die": D(8), "acts": ["crush"], "start": True},
     "short_bow": {"name": "Short Bow", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["shoot"], "start": True},
     "daggers": {"name": "Paired Daggers", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["venom_stab"], "start": True},
@@ -67,7 +67,7 @@ ITEMS = {
                      "start": True},
 
     # ---- weapons
-    "fishing_spear": {"name": "Fishing Spear", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["jab"]},
+    "fishing_spear": {"name": "Fishing Spear", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["thrust"]},
     "rusty_harpoon": {"name": "Rusty Harpoon", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["harpoon"]},
     "flintlock": {"name": "Flintlock", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, 6, 8], "acts": ["shoot"]},
     "coral_blade": {"name": "Coral Blade", "slot": "weapon", "rarity": "uncommon", "die": D(8), "dk": ["steady"], "acts": ["slash"]},

@@ -1288,7 +1288,7 @@ class Game(Combat):
 
 def static():
     """Content the browser needs once: classes, actions, items, foes, events, buffs."""
-    acts = {k: {**v, "def": C.is_defensive(v)} for k, v in {**C.ACTIONS, **I.WEAPON_ACTIONS}.items()}
+    acts = {k: {**v, "def": C.is_defensive(v), "short": C.SHORT.get(k)} for k, v in {**I.WEAPON_ACTIONS, **C.ACTIONS}.items()}
     return {
         "classes": C.CLASSES, "actions": acts, "passives": C.PASSIVES, "items": I.ITEMS, "foes": A.FOES,
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,

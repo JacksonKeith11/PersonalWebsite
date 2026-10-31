@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=35';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=35';
-import { spriteURL } from './art.js?v=35';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=35';
-import { MapView } from './hexmap.js?v=35';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=35';
-import { disconnect } from './main.js?v=35';
-import * as sfx from './audio.js?v=35';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=36';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=36';
+import { spriteURL } from './art.js?v=36';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=36';
+import { MapView } from './hexmap.js?v=36';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=36';
+import { disconnect } from './main.js?v=36';
+import * as sfx from './audio.js?v=36';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -570,6 +570,17 @@ function heroDrawer(h0, d) {
   return drawerShell(hero.name, `${c.name} · ${controllerName(h0)}`, [['gear', 'Gear'], ['skills', 'Skills'], ['about', 'About']], d, body);
 }
 
+// The same face a skill has in a fight: the requirement badge, then its effect and miss lines.
+export function skillFace(k) {
+  const a = S.static.actions[k.replace(/\+$/, '')];
+  if (!a) return null;
+  const bd = reqBadge(a.req);
+  const [ico, eff, miss] = a.short || ['spark', a.text, null];
+  return h('div.skill-face', null,
+    h('div.rq' + (bd.risky ? '.risky' : ''), { tip: `Needs: ${reqText(a.req)}` }, h('b', null, bd.main), bd.sub ? h('small', null, bd.sub) : null),
+    h('div.ab', null, h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''))), miss ? h('div.miss', null, `miss: ${miss}`) : null));
+}
+
 export function skillCard(k, source = null) {
   const sk = skillDef(k);
   const up = k.endsWith('+');
@@ -577,7 +588,8 @@ export function skillCard(k, source = null) {
   // how often it can be used, where it comes from, and whether it takes Guard dice
   const when = !isAct ? null : sk.cd ? `Cooldown: every ${sk.cd} rounds` : sk.once ? 'Once a fight' : sk.per_rest ? 'Once per rest' : 'Every round';
   return h('div.card.skill', null,
-    h('div.row', null, h('b', null, sk.name + (up ? '+' : '')), isAct ? h('span.req', null, icon('dice'), reqText(sk.req)) : h('span.chip', null, sk.cap ? 'Capstone' : 'Passive')),
+    h('div.row', null, h('b', null, sk.name + (up ? '+' : '')), isAct ? null : h('span.chip', null, sk.cap ? 'Capstone' : 'Passive')),
+    isAct ? skillFace(k) : null,
     isAct ? h('div.sk-tags', { style: { justifyContent: 'flex-start' } },
       h('span.tag' + (when === 'Every round' ? '.free' : ''), null, sk.cd ? icon('clock') : null, when),
       source ? h('span.tag', { tip: `From your ${source}` }, source) : null,
@@ -726,7 +738,8 @@ function renderDialogs() {
         return h('button.pick', { style: { '--i': i }, onclick: () => send({ t: 'choose', h: h0, n: i }) }, h('span.kbd.pick-key', null, i + 1),
           h('span.kind', null, up ? 'Upgrade' : sk.cap ? 'Capstone' : isAct ? 'New action' : 'Passive'),
           h('h3', null, sk.name + (up ? '+' : '')),
-          isAct ? h('span.req', null, icon('dice'), reqText(sk.req), sk.cd ? ` · cooldown ${sk.cd}` : '') : null,
+          isAct ? skillFace(k) : null,
+          isAct && sk.cd ? h('span.req', null, icon('clock'), `cooldown ${sk.cd}`) : null,
           h('p', null, up ? `${sk.text} Upgraded: +2 to its numbers.` : sk.text),
           sk.tags?.length ? h('div.tags', null, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
       })),

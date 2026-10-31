@@ -35,6 +35,9 @@
   --hp-mid: #c9953a;
   --hp-track: #1c232d;
   --armor: #8fa3b8;
+  /* where a die comes from: the coloured top edge of a dice tile */
+  --src-class: #c9a24a; --src-weapon: #d0624f; --src-armor: #8fa3b8; --src-trinket: #a48ad8; --src-spirit: #cfc4ec; --src-pet: #7fb069;
+  --die-face: #f1ead8; --die-face-2: #ddd2b4; --die-ink: #1c1810;
   --heal: #5fb07a;
   --danger: #d0624f;
   --ok: #5fb07a;

@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=35';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=35';
-import { spriteURL } from './art.js?v=35';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=35';
-import { render } from './main.js?v=35';
-import * as sfx from './audio.js?v=35';
+import { S, send, mine } from './store.js?v=36';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=36';
+import { spriteURL } from './art.js?v=36';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=36';
+import { render } from './main.js?v=36';
+import * as sfx from './audio.js?v=36';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -371,14 +371,32 @@ function intentChip(fo, f) {
   if (it.guarded != null) lines.push(`Guarded: it now comes at ${unitName(f, it.guarded)}.`);
   if (to) lines.push(`Target: ${to}`);
   const sure = it.k === 'debuff' && it.st_min && it.dice?.[0]?.v != null ? (it.dice[0].v >= it.st_min ? '.sure' : '.fizzle') : '';
-  const short = it.k === 'all' ? 'all' : Object.entries(counts).map(([n, c]) => n.split(' ')[0] + (c > 1 && hits > 1 && Object.keys(counts).length > 1 ? `×${c}` : '')).join(', ');
-  return h('div.intent' + sure + (it.guarded != null ? '.guarded' : ''), { style: { '--c': col }, tip: lines.join('\n') },
-    h('span.mv', null, it.name || INTENT_TEXT[it.k] || ''),
-    h('span.ln', null, icon(ic),
-      it.guarded != null ? h('span.gd', null, icon('shield')) : null,
-      range ? h('b', null, range) : null, hits > 1 ? h('span.x', null, `×${hits}`) : null,
-      it.st ? icon(STATUS[it.st]?.icon || 'spark') : null,
-      short ? h('span.to', null, '→ ' + short) : null));
+  // the card: name; the dice it will roll, drawn as little dice, the bonus, and the range big;
+  // then who it's aimed at (a dot in their colour) and any rider
+  const tgtIds = it.k === 'all' ? [] : (it.tgts || (it.tgt ? [it.tgt] : []));
+  const seen = new Set();
+  const who = tgtIds.filter(u => !seen.has(u) && seen.add(u)).map(u => h('span.who', { style: { '--seat': u.startsWith('h') ? `var(--hero-${u.slice(1)})` : 'var(--muted)' } },
+    h('i'), unitName(f, u).split(' ')[0] + (counts[unitName(f, u)] > 1 ? ` ×${counts[unitName(f, u)]}` : '')));
+  const tags = [];
+  if (it.st) tags.push(h('span.rider', null, icon(STATUS[it.st]?.icon || 'spark'), (it.st_min ? `${it.st_min}+: ` : '') + (STATUS[it.st]?.name || it.st)));
+  if (it.pair) tags.push(h('span.rider', null, 'pair: ', it.pair.again ? 'twice' : STATUS[it.pair.st]?.name || it.pair.st));
+  if (it.chain) tags.push(h('span.rider', null, icon('bolt'), 'arcs'));
+  const dice = (it.dice || []).map(d => {
+    const nums = d.faces.map(x => (typeof x === 'number' ? x : parseInt(String(x).slice(1)) || 0));
+    const top = Math.max(...nums);
+    const odd = d.faces.some(x => typeof x !== 'number');
+    const label = d.v != null ? (d.tag === 'W' ? 'W' : String(d.v)) : d.fc ? d.fc.map(x => x[0] ?? 'W').join('|') : `d${top}`;
+    return h('span.md' + (d.v != null ? '.known' : '') + (d.fc ? '.fate' : '') + (d.dk.includes('exploding') ? '.boom' : '') + (d.dk.includes('steady') ? '.steady' : '') + (odd ? '.odd' : ''), null, label);
+  });
+  const b = it.bonus || 0;
+  const body = it.dice?.length
+    ? h('div.it-row', null, h('span.it-dice', null, ...dice, b ? h('span.bn', null, b > 0 ? `+${b}` : `−${-b}`) : null),
+        range ? h('b.it-range', null, range, hits > 1 ? h('small', null, ` ×${hits}`) : null) : null)
+    : h('div.it-row', null, icon(ic), h('span.it-what', null, range || { buff: 'buff', summon: 'calls help', charge: 'charging', dazed: 'nothing' }[it.k] || ''));
+  return h('div.intent.card' + sure + (it.guarded != null ? '.guarded' : ''), { style: { '--c': col }, tip: lines.join('\n') },
+    h('div.it-name', null, h('span.ic', null, icon(ic)), it.name || INTENT_TEXT[it.k] || '', it.guarded != null ? h('span.gd', null, icon('shield')) : null),
+    body,
+    who.length || it.k === 'all' || tags.length ? h('div.it-foot', null, it.k === 'all' ? h('span.who.all', null, h('i'), 'everyone') : null, ...who, ...tags) : null);
 }
 
 function A_CHARGE(fo) {
@@ -434,33 +452,56 @@ function tray(f, x, my) {
 
 // A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
 // an Augur die (high or low) or a Fate die (two faces).
+// A die in the tray: a cream tile with its size (or its number, once known) big in the middle, a
+// coloured top edge for where it comes from, and one icon for anything special about it.
+const SRC = { base: ['Class die', 'var(--src-class)'], weapon: ['Weapon die', 'var(--src-weapon)'], armor: ['Armor die', 'var(--src-armor)'],
+  trinket: ['Trinket die', 'var(--src-trinket)'], spirit: ['Spirit die from a fallen ally', 'var(--src-spirit)'], pet: ['Your hawk’s die', 'var(--src-pet)'],
+  anthem: ['From the Anthem of Kings', 'var(--src-spirit)'], gift: ['Given by an ally', 'var(--src-spirit)'], hex: ['Cursed: a hex swapped your biggest die', 'var(--danger)'] };
+const KIND_ICON = { seer: 'eye', exploding: 'spark', steady: 'refresh', heirloom: 'star', guard: 'shield' };
 function dieButton(d, i, ready) {
-  const src = { base: 'class die', spirit: 'spirit die from a fallen ally', pet: 'your hawk’s die', anthem: 'from the Anthem of Kings', gift: 'given by an ally' }[d.src] || 'from your ' + d.src;
+  const [srcName, srcCol] = SRC[d.src] || [`From your ${d.src}`, 'var(--border-strong)'];
   let face, cls = '';
+  const size = dieLabel(d.faces);
   if (d.v !== null && d.v !== undefined) {
-    face = d.tag === 'S' ? icon('shield') : d.tag === 'X' ? '☠' : String(d.v);
-    cls = '.shown';
-    if (d.tag === 'S') cls += '.shield';
+    face = d.tag === 'S' ? icon('shield') : d.tag === 'X' ? '☠' : h('span.num', null, String(d.v));
+    cls = '.known';
   } else if (d.fc) {
     face = h('span.fate', null, d.fc[0], h('i', null, '|'), d.fc[1]);
-    cls = '.fatedie';
+    cls = '.known';
   } else if (d.hint) {
     face = h('span.hint', null, d.hint === 'high' ? '▲' : '▼', h('small', null, d.hint));
-    cls = '.augurdie';
   } else {
-    face = h('span.hidden-face', null, d.top ? '★' : dieLabel(d.faces));
-    cls = '.hidden';
+    face = h('span.size', null, d.top ? '★' : size);
   }
-  const badges = [];
-  if (d.bonus) badges.push(h('span.badge', null, `+${d.bonus}`));
-  if (d.link) badges.push(h('span.badge', null, '⛓'));
-  if (d.top && d.v == null) badges.push(h('span.badge', null, 'top'));
-  const guard = d.dk?.includes('guard');
-  if (guard) badges.push(h('span.badge.guard', null, icon('shield')));
-  const tip = `${dieTip(d)}\n${src}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
-  return h('button.die' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (d.src === 'spirit' ? '.spirit' : '') + (guard ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
-    disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${dieLabel(d)}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
-  }, h('span.k', null, i + 1), face, ...badges, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G', hex: '☠' }[d.src] ?? ''));
+  const kinds = (d.dk || []).filter(k => KIND_ICON[k]);
+  const marks = [];
+  if (d.bonus) marks.push(h('span.mk.bonus', null, `+${d.bonus}`));
+  if (d.link) marks.push(h('span.mk', null, icon('link')));
+  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
+  return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
+    style: { '--src': srcCol }, disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${size}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
+  }, h('span.k', null, i + 1), face,
+    kinds.length ? h('span.kinds', null, ...kinds.map(k => icon(KIND_ICON[k]))) : null,
+    d.v != null && !d.fc ? h('span.sz', null, size) : null,
+    marks.length ? h('span.marks', null, ...marks) : null);
+}
+
+// The requirement as a die-shaped badge: what the die must roll ("4+", "odd", "Σ10+"), or "any".
+export function reqBadge(req) {
+  const n = req.n ?? 1;
+  let main = 'any', sub = n === 0 ? '' : n > 1 ? (req.upto ? `1–${n} dice` : `${n} dice`) : '';
+  if (n === 0) main = 'free';
+  else if (req.min !== undefined) main = `${req.min}+`;
+  else if (req.max !== undefined) main = `≤${req.max}`;
+  else if (req.exact !== undefined) main = `=${req.exact}`;
+  else if (req.sum_min !== undefined) main = `Σ${req.sum_min}+`;
+  else if (req.odd) main = 'odd';
+  else if (req.even) main = 'even';
+  else if (req.pair) main = 'pair';
+  else if (req.straight) main = 'run';
+  if (req.or_face === 'S') sub = 'or ◆';
+  if (req.marked) sub = 'Marked';
+  return { main, sub, risky: main !== 'any' && main !== 'free' };
 }
 
 function actionCard(f, x, k, i, selDice, ready) {
@@ -487,17 +528,21 @@ function actionCard(f, x, k, i, selDice, ready) {
   const ids = auto ? auto.map(d => d.id) : [];
   const light = on => { for (const id of ids) document.querySelector(`.tray .die[data-id="${CSS.escape(id)}"]`)?.classList.toggle('auto', on); };
   const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
-  return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : '') + (noDice ? '.nodice' : ''), {
+  const bd = reqBadge(a.req);
+  const [ico, eff, miss] = a.short || ['spark', a.text, null];
+  const oddCls = chance === null ? '' : chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad';
+  return h('button.action.v2' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : '') + (noDice ? '.nodice' : ''), {
     disabled: dis, onmouseenter: () => light(true), onmouseleave: () => light(false), onfocus: () => light(true), onblur: () => light(false), tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches only the enemies’ front row.' : ''}${cdText}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
-    h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
-      h('span.top-r', null,
-        cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling} rounds` : 'next round')
-          : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null,
-        cooling ? null : chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad') + (auto ? '.auto' : ''), { tip: `Chance to hit with ${auto ? 'the dice it would use' : 'the dice you\'ve picked'}: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
-          : h('span.req', null, reqText(a.req)))),
-    h('p', null, a.text),
+    h('div.rq' + (bd.risky ? '.risky' : '') + oddCls, { tip: `Needs: ${reqText(a.req)}${chance !== null ? `\n${Math.round(chance * 100)}% to hit with ${auto ? 'the dice it would use' : 'your picked dice'}` : ''}` },
+      h('b', null, bd.main), chance !== null && bd.risky ? h('small', null, `${Math.round(chance * 100)}%`) : bd.sub ? h('small', null, bd.sub) : null),
+    h('div.ab', null,
+      h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
+        cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling}` : '1')
+          : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null),
+      h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''))),
+      miss ? h('div.miss', null, `miss: ${miss}`) : null),
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
 }
 

@@ -538,7 +538,7 @@ def is_defensive(a):
 # count on every round), Block, Flee and Lift (plus weapon actions, in
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "toss", "thornlash",
+FREE = {"strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
         "block", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3}
 
@@ -566,3 +566,63 @@ def skill_def(key):
     """An action or passive by key, or None."""
     base = key.rstrip("+")
     return ACTIONS.get(base) or PASSIVES.get(base)
+
+
+# The card face of every action, for reading at a glance: (icon, effect, effect on a miss or None).
+# The requirement badge comes from `req`; the full rules stay in `text`, shown in the tooltip.
+# "die" is the die you put on it, "sum" the dice added up.
+SHORT = {
+    "block": ("shield", "die as Armor", None), "flee": ("boot", "run away", "stay"),
+    "strike": ("sword", "die +2 + ½ Armor", None), "guard": ("shield", "take an ally's hit · die +2 Armor", None),
+    "taunt": ("target", "all attacks on you · ½ die Armor", None), "brace": ("shield", "2× die Armor · +2 to the weakest", None),
+    "rally_wall": ("shield", "party: ⅓ sum Armor · pair +3", None), "shield_bash": ("sword", "4 + Stun", "½ die"),
+    "retaliate": ("sword", "your Armor + ½ die", None), "shoulder_charge": ("sword", "die +3 · drag to front", "½ die"),
+    "bolt": ("sword", "die", None), "channel": ("sword", "sum +2", None),
+    "fireball": ("flame", "all: ½ sum +2 · Burn 2", "nothing"), "frost_lance": ("snow", "die +3 · Freeze", "½ die"),
+    "chain_lightning": ("bolt", "die +2 · Shock", "½ die"), "hex": ("down", "Weak + Vulnerable", None),
+    "siphon": ("sword", "die +1 · heal half", "½ die · heal half"), "doom": ("skull", "20 − die, next round", None),
+    "mend": ("plus", "heal die", None), "lift": ("hand", "revive: 2× die +2", None),
+    "renew": ("plus", "party: heal ½ sum · pair: sum", None), "lifeline": ("plus", "full heal at round end", "heal ½ die"),
+    "ward": ("shield", "ally: 1½× die Armor", None), "sanctuary": ("shield", "party: hits −2", "hits −1"),
+    "cleanse": ("plus", "cure + heal die", None), "smite": ("sword", "die +3 · undead +3", "½ die"),
+    "quick_lift": ("hand", "revive with 8 HP", None),
+    "slash_d": ("sword", "die +2", "½ die"), "parry": ("shield", "die Armor · riposte 2", None),
+    "twin_cut": ("sword", "two hits · pair +3 each", None), "whirl": ("sword", "each die +1, random foes", None),
+    "read_blade": ("eye", "reveal · die, 2× +2 if you beat it", None), "lunge": ("sword", "die +10 · Stun", "nothing"),
+    "finisher": ("sword", "sum · straight 2×", None), "pinpoint": ("target", "die +1, 2× if it aims at you", None),
+    "feint": ("down", "its attack −die", None), "perfect_form": ("star", "a die rolls its top face", None),
+    "hack_b": ("sword", "die +1", None), "bloodprice": ("heart", "−3 HP · a die +2", None),
+    "drink_deep": ("sword", "die +2 · heal on kill", "½ die"), "frenzy": ("sword", "sum +3 · take 2", None),
+    "cleave": ("sword", "die to front row", "½ die to one"), "earthshaker": ("crack", "all: ½ sum · Stun one", "nothing"),
+    "reckless_swing": ("sword", "die +12 · take 3", "take 3"), "howl": ("down", "all enemies Weak", None),
+    "shoot_r": ("sword", "die +1", None), "hunters_mark": ("target", "Mark · ⅓ die", None),
+    "aimed_shot": ("target", "2× die +1", "nothing"), "called_shot": ("target", "sum · pair +6 · pierce", None),
+    "sic_em": ("sword", "die · Weak", None), "pack_tactics": ("sword", "die +5", "½ die"),
+    "spotter": ("eye", "reveal all enemy dice · ½ die Armor", None), "volley": ("sword", "all: ½ each die", None),
+    "covering_fire": ("down", "its attack −die · ½ die", None),
+    "stab": ("sword", "die, +3 if not aimed at you", None), "slip": ("boot", "dodge next hit", "nothing"),
+    "envenom": ("drop", "Poison ½ die", None), "garrote": ("sword", "die +2 · Stun if Poisoned", "½ die"),
+    "toxic_cloud": ("drop", "all: Poison 3", "nothing"), "pickpocket": ("hand", "steal its biggest die · 4 gold", "its attack −½ die"),
+    "loaded_dice": ("link", "link two dice", None), "smoke_bomb": ("boot", "party dodges next hit", "nothing"),
+    "inspire": ("up", "ally's next die +½", None), "jab": ("sword", "die", None),
+    "hymn_of_valor": ("up", "party dice +1 · match +2", None), "lend_a_hand": ("hand", "give a die", None),
+    "crescendo": ("up", "party's next hit +50%", None), "dirge": ("down", "Weak · ½ die", None),
+    "taunting_verse": ("arrow", "its attack swings away", "its attack −2"), "cacophony": ("x", "it loses its turn", "its attack −⅓ sum"),
+    "requiem": ("x", "cancel an intent", None),
+    "toss": ("sword", "die · splash 1", None), "tonic_a": ("plus", "heal die +1", None),
+    "firebomb": ("flame", "die to its row · Burn 1", "½ die"), "acid_flask": ("drop", "−2× die Armor · Vuln · ½ die", None),
+    "concussion": ("sword", "3 + Stun", "½ die"), "bottle_it": ("drop", "brew a potion", None),
+    "quicksilver": ("refresh", "ally +2 rerolls", None), "panacea": ("plus", "party: cure + heal ½ sum", "cure"),
+    "thornlash": ("sword", "die +1 · 5+: Root", None), "sprout": ("spark", "sapling, 2× die HP", None),
+    "call_bear": ("spark", "a bear joins", "nothing"), "swarm": ("spark", "wasps, sum HP", None),
+    "regrowth": ("plus", "party: heal ½ die +1", None), "entangle": ("root", "Root + Weak", None),
+    "briar_wall": ("shield", "party: ⅓ sum Armor · thorns 2", None), "strangle": ("sword", "die +1, 2× if Rooted", "½ die"),
+    "ancient_guardian": ("spark", "a treant rises", None),
+    # weapon actions
+    "hack": ("sword", "die +3", "½ die"), "zap": ("bolt", "die · Shock", None), "flare": ("target", "½ die · Mark", None),
+    "thrust": ("sword", "die", None), "harpoon": ("sword", "die · drag to front", "½ die"),
+    "shoot": ("sword", "die +4", "½ die"), "slash": ("sword", "die +1", None), "crush": ("sword", "die +5", "½ die"),
+    "sweep": ("sword", "front row: ½ sum · pair +3", None), "tidal": ("wave", "all: ½ sum · pair +3", None),
+    "storm_bolt": ("bolt", "die +4 · Shock", "nothing"), "venom_stab": ("drop", "½ die · Poison 2", None),
+    "blessing": ("plus", "heal die · 2 Armor", None),
+}

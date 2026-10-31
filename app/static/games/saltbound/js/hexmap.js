@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, flood warnings, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles } from './rules.js?v=32';
-import { spriteCanvas, placeCanvas } from './art.js?v=32';
+import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=33';
+import { spriteCanvas, placeCanvas } from './art.js?v=33';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -187,6 +187,8 @@ export class MapView {
     this.gReach = scene.add.graphics();
     this.layerPlaces = scene.add.container();
     this.gPaths = scene.add.graphics();
+    this.gForecast = scene.add.graphics();
+    this.layerForecast = scene.add.container();
     this.layerUnits = scene.add.container();
     this.gFog = scene.add.graphics();
     this.gHover = scene.add.graphics();
@@ -255,7 +257,7 @@ export class MapView {
       this.paintedKey = key;
     }
     if (this.centerPending !== undefined) { this.centerOn(this.centerPending, false); this.centerPending = undefined; }
-    this.drawFloods(); this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawUnits(); this.drawFog(); this.drawHover();
+    this.drawFloods(); this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog(); this.drawHover();
   }
 
   drawFloods() {
@@ -267,14 +269,70 @@ export class MapView {
     }
   }
 
+  // Where the selected hero can get to this turn: a lit area with a bold outline around its edge,
+  // and a red ring on hexes where walking in starts a fight.
   drawReach() {
     const g = this.gReach; g.clear();
     const r = this.opts?.reach;
     if (!r) return;
-    for (const [t] of r.best) {
-      if (t === this.state.heroes[this.opts.sel]?.tile) continue;
-      g.fillStyle(0xc9a24a, 0.13); g.fillPoints(hexPoints(t, 3), true);
-      g.lineStyle(1, 0xc9a24a, 0.45); g.strokePoints(hexPoints(t, 3), true);
+    const here = this.state.heroes[this.opts.sel]?.tile;
+    const inReach = new Set([...r.best.keys()]);
+    for (const t of inReach) {
+      if (t === here) continue;
+      g.fillStyle(0xe0bb62, 0.2); g.fillPoints(hexPoints(t, 1), true);
+    }
+    g.lineStyle(3, 0xffd77a, 0.95);
+    for (const t of inReach) {
+      const pts = hexPoints(t, 0), [cx, cy] = center(t);
+      const nb = neighbors(t).map(n => [n, center(n)]);
+      for (let i = 0; i < 6; i++) {
+        const a = pts[i], b = pts[(i + 1) % 6];
+        const mx = (a.x + b.x) - cx, my = (a.y + b.y) - cy;  // the centre of the hex across this edge
+        const across = nb.find(([, [nx, ny]]) => Math.abs(nx - mx) < 6 && Math.abs(ny - my) < 6);
+        if (!across || !inReach.has(across[0])) g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+    }
+    const vis = visibleTiles(this.state);
+    for (const gr of this.state.groups) {
+      if (!inReach.has(gr.tile) || !vis.has(gr.tile)) continue;
+      g.lineStyle(3, 0xd0624f, 0.95); g.strokePoints(hexPoints(gr.tile, 4), true);
+    }
+  }
+
+  // The turn as planned: where visible enemies will step (red arrows), the fights that will start
+  // (a crossed-swords marker) and dashed lines from every hero who'll be pulled into one.
+  drawForecast() {
+    const g = this.gForecast; g.clear();
+    const L = this.layerForecast; L.removeAll(true);
+    const fc = this.state.forecast;
+    if (!fc || this.opts?.hideForecast) return;
+    for (const st of fc.steps) {
+      const [x0, y0] = center(st.from), [x1, y1] = center(st.to);
+      const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+      const sx = x0 + ux * 12, sy = y0 + uy * 12, ex = x1 - ux * 10, ey = y1 - uy * 10;
+      g.lineStyle(3, 0x0b1017, 0.6); g.lineBetween(sx, sy, ex, ey);
+      g.lineStyle(2, 0xff7a5c, 0.95); g.lineBetween(sx, sy, ex, ey);
+      g.fillStyle(0xff7a5c, 0.95);
+      g.fillTriangle(ex + ux * 6, ey + uy * 6, ex - uy * 5 - ux * 2, ey + ux * 5 - uy * 2, ex + uy * 5 - ux * 2, ey - ux * 5 - uy * 2);
+    }
+    for (const f of fc.fights) {
+      const [fx, fy] = center(f.tile);
+      for (const h of f.heroes) {
+        const end = fc.ends[h];
+        if (end === undefined || end === f.tile) continue;
+        const [hx, hy] = center(end);
+        const len = Math.hypot(fx - hx, fy - hy), n = Math.floor(len / 6);
+        g.fillStyle(SEATS[h], 0.95);
+        for (let k = 1; k < n; k += 2) g.fillCircle(hx + (fx - hx) * k / n, hy + (fy - hy) * k / n, 1.6);
+      }
+      g.fillStyle(0x6a1d2a, 0.85); g.fillCircle(fx, fy - 30, 11);
+      g.lineStyle(2, 0xff9a80, 1); g.strokeCircle(fx, fy - 30, 11);
+      const txt = this.scene.add.text(fx, fy - 30, '⚔', { fontFamily: 'Inter', fontSize: '13px', color: '#ffe8de', resolution: 4 }).setOrigin(0.5);
+      L.add(txt);
+      f.heroes.forEach((h, i) => {
+        const dot = this.scene.add.circle(fx - (f.heroes.length - 1) * 5 + i * 10, fy - 15, 4, SEATS[h]).setStrokeStyle(1, 0x0b1017);
+        L.add(dot);
+      });
     }
   }
 

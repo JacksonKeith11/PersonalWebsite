@@ -36,7 +36,8 @@ export function visibleTiles(game) {
   const out = new Set();
   game.heroes.forEach((hero, h) => {
     if (!hero.alive) return;
-    const r = 3 + (hero.cls === 'arcanist' ? 1 : 0) + (hero.cls === 'ranger' ? 2 : 0) + (hero.skills.includes('wayfinder') ? 1 : 0);
+    // matches Game.enemy_sight: vision 5, Farsight +1, Wayfinder +1, Trackers see enemies 2 further
+    const r = 5 + (hero.cls === 'arcanist' ? 1 : 0) + (hero.cls === 'ranger' ? 2 : 0) + (hero.skills.includes('wayfinder') ? 1 : 0);
     for (const t of within(hero.tile, r)) out.add(t);
   });
   return out;

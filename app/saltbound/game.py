@@ -28,7 +28,7 @@ DIFFICULTY = {
     "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.3},
 }
 MOVES = 4
-VISION = 2
+VISION = 5  # land seen around a hero: more than a turn's walk, so a move's result is in view
 GROW_FROM = 10  # after this many rises the Drowned Crown grows and more enemies come
 LOSS_RISE = 15  # the peak floods: the run is lost
 TIDE_EVERY = 4
@@ -278,7 +278,7 @@ class Game(Combat):
 
     def enemy_sight(self, h):
         """How far a hero can see enemies (Trackers see them further off)."""
-        return self.vision(h) + 1 + (2 if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "tracker" else 0)
+        return self.vision(h) + (2 if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "tracker" else 0)
 
     def reveal_all(self):
         for h in self.living():
@@ -323,29 +323,115 @@ class Game(Combat):
         """Enemies near a hero on land take a step toward them. Returns tiles where they caught someone."""
         caught = []
         heroes = [h for h in self.living() if not self.hero(h)["afloat"]]
+        pos = {h: (self.hero(h)["tile"], self.hero(h)["afloat"]) for h in self.living()}
         for g in self.s["groups"]:
-            if g["lair"]:
-                continue
-            beasts = all(A.FOES[f["k"]].get("beast") for f in g["foes"])
-            near = [h for h in heroes if Wd.dist(g["tile"], self.hero(h)["tile"]) <= 3 and
-                    not (beasts and C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "wildspeak")]
-            if not near:
-                continue
-            h = min(near, key=lambda h: Wd.dist(g["tile"], self.hero(h)["tile"]))
-            goal = self.hero(h)["tile"]
-            best = None
-            for n in Wd.neighbors(g["tile"]):
-                ter = self.terrain(n)
-                if ter not in Wd.COST or ter == "town" or self.group_at(n) or (self.place(n) and n != goal):
-                    continue
-                if Wd.dist(n, goal) < Wd.dist(g["tile"], goal) and (best is None or Wd.dist(n, goal) < Wd.dist(best, goal)):
-                    best = n
+            tile_of = {x["id"]: x["tile"] for x in self.s["groups"]}
+            best = self.group_step(g, pos, set(tile_of.values()), tile_of)
             if best is not None:
                 self.fx("gmove", g=g["id"], path=[g["tile"], best])
                 g["tile"] = best
                 if any(self.hero(x)["tile"] == best for x in heroes):
                     caught.append(best)
         return caught
+
+    def group_step(self, g, heroes, occupied, tile_of):
+        """Where a roaming group steps this turn, toward the nearest hero on land within 3 (None if
+        it stays). `heroes` maps hero to (tile, afloat); `occupied` is every group's tile."""
+        if g["lair"]:
+            return None
+        beasts = all(A.FOES[f["k"]].get("beast") for f in g["foes"])
+        at = tile_of[g["id"]]
+        near = [h for h, (t, af) in heroes.items() if not af and Wd.dist(at, t) <= 3 and
+                not (beasts and C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "wildspeak")]
+        if not near:
+            return None
+        h = min(near, key=lambda h: Wd.dist(at, heroes[h][0]))
+        goal = heroes[h][0]
+        best = None
+        for n in Wd.neighbors(at):
+            ter = self.terrain(n)
+            if ter not in Wd.COST or ter == "town" or n in occupied or (self.place(n) and n != goal):
+                continue
+            if Wd.dist(n, goal) < Wd.dist(at, goal) and (best is None or Wd.dist(n, goal) < Wd.dist(best, goal)):
+                best = n
+        return best
+
+    def forecast(self):
+        """What the planned turn will do, worked out from what the party can see: where each hero
+        ends up, where the visible enemy groups will step, which fights start and who joins them,
+        and what each hero lands on. Hidden enemies can still spring an ambush."""
+        s = self.s
+        if s["phase"] != "plan":
+            return None
+        vis = self.visible_tiles()
+        pos = {h: (self.hero(h)["tile"], self.hero(h)["afloat"]) for h in self.living()}
+        plans = {int(h): p for h, p in s["plans"].items() if int(h) in pos}
+        active = {h: list(p["path"]) for h, p in plans.items() if p["path"]}
+        encounters = []
+        for _ in range(max((len(v) for v in active.values()), default=0)):
+            for h in list(active):
+                b = active[h].pop(0)
+                t, af = pos[h]
+                st = self.step_cost(h, t, b, af)
+                if st is None:
+                    active.pop(h)
+                    continue
+                pos[h] = (b, st[1])
+                g = self.group_at(b)
+                if (g and b in vis) or self.is_dungeon(b):
+                    encounters.append((b, h))
+                    active.pop(h)
+                elif not active[h]:
+                    active.pop(h)
+        tile_of = {g["id"]: g["tile"] for g in s["groups"]}
+        steps = []
+        for g in s["groups"]:
+            occupied = set(tile_of.values())
+            best = self.group_step(g, pos, occupied, tile_of)
+            if best is None:
+                continue
+            seen = g["tile"] in vis
+            tile_of[g["id"]] = best
+            if seen:
+                steps.append({"g": g["id"], "from": g["tile"], "to": best})
+                if any(t == best and not af for t, af in pos.values()) and best not in [e[0] for e in encounters]:
+                    encounters.append((best, None))
+        fights, engaged = [], set()
+        for tile, by in encounters:
+            heroes = [h for h in pos if h not in engaged and Wd.dist(pos[h][0], tile) <= 1]
+            if not heroes:
+                continue
+            engaged.update(heroes)
+            p = self.place(tile)
+            fight = {"tile": tile, "heroes": heroes, "by": by}
+            if p and p["kind"] == "peak":
+                fight.update(kind="boss", foes=list(A.FINAL))
+            elif p and p["kind"] == "dungeon" and p["region"] not in s["cleared"]:
+                step = s["dungeon"].get(p["region"], 0)
+                fight.update(kind="dungeon", region=p["region"], step=step, foes=list(A.DUNGEONS[p["region"]]["fights"][step]))
+            else:
+                main = next((g for g in s["groups"] if tile_of[g["id"]] == tile), None)
+                if main is None:
+                    continue
+                near = [g for g in s["groups"] if g is not main and not g["lair"] and tile_of[g["id"]] in vis
+                        and Wd.dist(tile_of[g["id"]], tile) <= 1]
+                foes = [f["k"] for f in main["foes"]]
+                for g in near:
+                    if len(foes) + len(g["foes"]) <= 5:
+                        foes += [f["k"] for f in g["foes"]]
+                fight.update(kind="lair" if main["lair"] else "roam", foes=foes[:5])
+            fights.append(fight)
+        lands = {}
+        for h, (t, af) in pos.items():
+            p = self.place(t)
+            if h in engaged or not p or t == self.hero(h)["tile"]:
+                continue
+            if p["kind"] in ("event", "wreck") and p.get("done"):
+                continue
+            if p["kind"] == "shrine" and t in self.hero(h)["shrines"]:
+                continue
+            lands[str(h)] = p["kind"]
+        return {"ends": {str(h): t for h, (t, af) in pos.items()}, "steps": steps, "fights": fights, "lands": lands}
 
     # ------------------------------------------------------------------ planning
 
@@ -716,12 +802,11 @@ class Game(Combat):
             out = ch["ok"]
             roll = None
             if ch.get("check"):
-                from .combat import face, top_face
-                faces = max((d2["faces"] for d2 in self.dice_of(h)), key=top_face)
-                v, t = face(self.roll_face(faces))
-                roll = (top_face(faces) if t == "W" else v) + self.mods(h).get("silver_voice", 0)
-                if roll < ch["check"]:
+                roll = self.event_roll(h, ch["check"])
+                if not roll["ok"]:
                     out = ch["bad"]
+                elif ch.get("great") and roll.get("great"):
+                    out = ch["great"]
             self.outcome(h, out, ev, roll)
         elif d["type"] == "loot":
             if n is None or n == -1:
@@ -745,6 +830,43 @@ class Game(Combat):
         elif self.s["phase"] == "plan" and self.all_ready():
             self.resolve_turn()
 
+    def event_die(self, h, which):
+        """The die an event check rolls: a slot's item die (a bare d4 with nothing there), or the
+        hero's best die."""
+        from .combat import top_face
+        dice = self.dice_of(h)
+        if which in ("weapon", "armor", "trinket"):
+            d = next((d for d in dice if d["src"] == which), None)
+            return d["faces"] if d else [1, 2, 3, 4]
+        return max((d["faces"] for d in dice), key=top_face)
+
+    def event_roll(self, h, spec):
+        """Roll an event check. `spec` is a number (best die, that much or more) or {die: weapon,
+        armor, trinket, best or party (the best die of anyone on your hex), n: the target, vs: an
+        opponent's die size to beat instead, great: a roll for the best outcome}."""
+        from .combat import face, top_face
+        if isinstance(spec, int):
+            spec = {"n": spec}
+        which = spec.get("die", "best")
+        roller = h
+        if which == "party":
+            here = [x for x in self.living() if self.hero(x)["tile"] == self.hero(h)["tile"]]
+            roller = max(here, key=lambda x: top_face(self.event_die(x, "best")))
+            which = "best"
+        faces = self.event_die(roller, which)
+        v, t = face(self.roll_face(faces))
+        v = (top_face(faces) if t == "W" else v) + self.mods(roller).get("silver_voice", 0)
+        out = {"v": v, "die": which, "faces": faces, "by": roller}
+        if spec.get("vs"):
+            opp = self.rng.randint(1, spec["vs"])
+            out.update(opp=opp, vs=spec["vs"], ok=v > opp)
+        else:
+            out.update(need=spec.get("n", 4), ok=v >= spec.get("n", 4))
+        if spec.get("great"):
+            out["great"] = v >= spec["great"]
+            out["great_at"] = spec["great"]
+        return out
+
     def has_class(self, k):
         return any(self.hero(h)["cls"] == k for h in self.living())
 
@@ -754,9 +876,21 @@ class Game(Combat):
     def outcome(self, h, out, ev, roll):
         hero = self.hero(h)
         bits = []
+        if out.get("all"):
+            # good fortune shared with everyone standing on this hex
+            for x in self.living():
+                if x != h and self.hero(x)["tile"] == hero["tile"]:
+                    if out.get("hp", 0) > 0:
+                        self.heal(x, out["hp"])
+                    if out.get("buff"):
+                        self.buff(x, out["buff"])
+                    bits.append(f"{self.hero(x)['name']} too")
+        if out.get("skiff") and not hero["skiff"]:
+            hero["skiff"] = True
+            bits.append("a skiff")
         if out.get("gold"):
-            hero["gold"] += out["gold"]
-            bits.append(f"+{out['gold']} gold")
+            hero["gold"] = max(0, hero["gold"] + out["gold"])
+            bits.append(f"{out['gold']:+d} gold")
         if out.get("hp"):
             if out["hp"] > 0:
                 n = self.heal(h, out["hp"])
@@ -1120,7 +1254,7 @@ class Game(Combat):
         for h in range(3):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
-                           "moves": self.moves(h), "dice": [{"faces": d["faces"], "dk": d["dk"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h),
+                           "moves": self.moves(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h),
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():
@@ -1141,6 +1275,7 @@ class Game(Combat):
             "xp": s["xp"], "level": s["level"], "xp_next": C.XP_FOR[s["level"]] if s["level"] < C.MAX_LEVEL else None,
             "xp_this": C.XP_FOR[s["level"] - 1], "revives": s["revives"], "cleared": s["cleared"],
             "dungeon": s["dungeon"], "plans": s["plans"], "pending": s["pending"], "fight": self.fight_view(),
+            "forecast": self.forecast(),
             "quests": s["quests"], "floods": self.floods_next(), "log": s["log"][-12:], "fx": s["fx"][-60:],
             "stats": s["stats"], "waiting": self.waiting(), "inn": self.inn_cost(),
             "skiff_cost": SKIFF_COST, "herald": self.has_class("herald"),

@@ -127,9 +127,9 @@ export function bigBanner(title, sub = '', kind = 'gold', ms = 2200) {
 }
 
 // ------------------------------------------------------------------ modal
-export function modal(content, { wide = false, onClose = null, enter = true } = {}) {
+export function modal(content, { wide = false, onClose = null, enter = true, backdrop = null } = {}) {
   const box = h('div.modal.panel' + (wide ? '.wide' : ''), { role: 'dialog', 'aria-modal': 'true' }, content);
-  const scrim = h('div.scrim' + (enter ? '.enter' : ''), null, box);
+  const scrim = h('div.scrim' + (enter ? '.enter' : '') + (backdrop ? '.bd-' + backdrop : ''), null, box);
   if (onClose) scrim.addEventListener('click', e => { if (e.target === scrim) onClose(); });
   return scrim;
 }

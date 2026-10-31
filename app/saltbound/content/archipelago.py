@@ -188,66 +188,81 @@ BUFFS = {
 }
 SHRINE_BUFFS = ["swift", "might", "warded", "vigor"]
 
-# Text events. A choice may need a class (`need`) or a check (`check`: your best die must roll at
-# least this). Outcomes: text, gold, hp, xp, item (a rarity), potion, buff, revive, fight (a
-# region key or "here").
+# Events. A choice may need a class (`need`), cost gold (`cost`) or roll a die (`check`): a number
+# (your best die must roll at least that), or {die: weapon, armor, trinket (a bare d4 if that slot is
+# empty), best, or party (the best die of anyone on your hex: bring friends), n: the target, vs: an
+# opponent's die to beat instead, great: a roll that earns the `great` outcome}. Outcomes: text,
+# gold (can be negative), hp, xp, item (a rarity), potion, buff (curses too), revive, skiff, fight
+# (enemy keys), all (healing and buffs reach everyone on your hex too).
 EVENTS = [
     {"key": "bottle", "title": "A Bottle, Corked", "text": "A bottle bobs against the rocks with a rolled-up note inside. "
      "It has clearly been waiting for someone exactly like you, or at least anyone at all.",
      "choices": [
          {"label": "Read the note", "ok": {"text": "It's a treasure map. The treasure, it turns out, is taped to the back of the map.", "gold": 10}},
-         {"label": "Smash it for the glass", "ok": {"text": "Glass everywhere. Also, oddly, a trinket.", "hp": -2, "item": "common"}},
+         {"label": "Smash it for the glass", "check": {"die": "trinket", "n": 3},
+          "ok": {"text": "Glass everywhere, and in the middle of it, a trinket.", "item": "common"},
+          "bad": {"text": "Glass everywhere, mostly in you.", "hp": -3}},
          {"label": "Write a reply and send it back", "need": "herald", "ok": {"text": "You compose a moving reply. Somewhere, someone is moved. You feel wiser.", "xp": 12}},
      ]},
     {"key": "smuggler", "title": "The Honest Smuggler", "text": "A man in a very large coat assures you that everything inside it is "
      "\"genuine, practically legal\" and \"only slightly damp\".",
      "choices": [
-         {"label": "Buy something (15 gold)", "cost": 15, "ok": {"text": "It's genuinely good. He seems as surprised as you are.", "item": "uncommon"}},
+         {"label": "Buy something", "cost": 15, "ok": {"text": "It's genuinely good. He seems as surprised as you are.", "item": "uncommon"}},
          {"label": "Politely decline", "ok": {"text": "He tips a hat that you're fairly sure is also for sale."}},
          {"label": "Haggle him down to nothing", "need": "herald", "ok": {"text": "Somehow he pays you to take it.", "item": "uncommon", "gold": 5}},
      ]},
     {"key": "tidepool", "title": "Tide Pool", "text": "A clear pool among the rocks. Something glints at the bottom. Something else, "
      "with claws, is very interested in whether you'll reach for it.",
      "choices": [
-         {"label": "Reach in", "check": 4, "ok": {"text": "You snatch it out before the claws close.", "item": "common"},
+         {"label": "Reach in and grab it", "check": {"die": "trinket", "n": 3, "great": 4},
+          "great": {"text": "You snatch it out before the claws even twitch. It's better than it looked.", "item": "uncommon"},
+          "ok": {"text": "You snatch it out before the claws close.", "item": "common"},
           "bad": {"text": "The crab disagrees, firmly, with your fingers.", "hp": -4}},
+         {"label": "Shoo the crab off first", "check": {"die": "weapon", "n": 4},
+          "ok": {"text": "It retreats, offended. The glint is yours.", "item": "common"},
+          "bad": {"text": "It does not shoo. You leave, nursing a pinch.", "hp": -2}},
          {"label": "Leave it", "ok": {"text": "The crab looks disappointed. You'll get over it."}},
      ]},
     {"key": "cook", "title": "Shipwrecked Cook", "text": "A cook sits beside the wreck of his galley, stirring a pot of something he "
      "insists is chowder.",
      "choices": [
-         {"label": "Have a bowl", "ok": {"text": "It's... fine. It's warm and it's fine.", "hp": 8}},
+         {"label": "Have a bowl (bring friends)", "ok": {"text": "It's... fine. It's warm and it's fine. There's plenty.", "hp": 8, "all": True}},
          {"label": "Ask for the recipe", "ok": {"text": "The recipe is mostly a list of things that were nearby. You learn a lot.", "xp": 8}},
-         {"label": "Check the pot first", "need": "mender", "ok": {"text": "You pick out the worrying bits. The result is genuinely restorative, and he gives you a flask for the road.", "hp": 15, "potion": 1}},
+         {"label": "Check the pot first", "need": "mender", "ok": {"text": "You pick out the worrying bits. The result is genuinely restorative, and he gives you a flask for the road.", "hp": 15, "potion": 1, "all": True}},
      ]},
     {"key": "gulls", "title": "The Gull Parliament", "text": "Forty gulls stand in a solemn ring on the beach. One of them appears to "
      "be speaking. The motion before the house is, as always, chips.",
      "choices": [
          {"label": "Bow and back away", "ok": {"text": "The house notes your respect. A tailwind follows you.", "buff": "swift"}},
-         {"label": "Interrupt", "check": 5, "ok": {"text": "Your speech carries the vote. They pay you in shiny things.", "gold": 12},
+         {"label": "Address the house", "check": {"die": "best", "n": 5},
+          "ok": {"text": "Your speech carries the vote. They pay you in shiny things.", "gold": 12},
           "bad": {"text": "The house rises as one. You are pecked, extensively.", "hp": -5}},
          {"label": "Translate the debate", "need": "arcanist", "ok": {"text": "Gull grammar is fascinating and also horrifying.", "xp": 15}},
      ]},
     {"key": "drowned_shrine", "title": "Half-Drowned Shrine", "text": "An old shrine to a sea god, knee-deep in water. Offerings still "
-     "glitter in the bowl.",
+     "glitter in the bowl. Whoever prays here prays for everyone beside them.",
      "choices": [
-         {"label": "Pray", "check": 3, "ok": {"text": "Something old and wet approves of you.", "buff": "warded"},
+         {"label": "Pray together", "check": {"die": "party", "n": 4},
+          "ok": {"text": "Something old and wet approves of you all.", "buff": "warded", "all": True},
           "bad": {"text": "Something old and wet does not approve of you.", "buff": "soggy"}},
          {"label": "Take the offerings", "ok": {"text": "Fifteen gold richer. You feel watched.", "gold": 15, "buff": "jinx"}},
+         {"label": "Clean the shrine", "need": "mender", "ok": {"text": "You scrub the barnacles off. The water warms around everyone's ankles.", "hp": 12, "all": True}},
          {"label": "Leave", "ok": {"text": "Probably wise."}},
      ]},
     {"key": "big_crab", "title": "A Very Large Crab", "text": "It is a crab. It is the size of a cart. It is blocking the path, and it is "
      "looking at you the way you look at a buffet.",
      "choices": [
          {"label": "Fight it", "ok": {"text": "It snaps its claws. Here we go.", "fight": ["crab", "crab"]}},
-         {"label": "Sneak past", "check": 4, "ok": {"text": "You tiptoe past. It never knew.", "xp": 6},
+         {"label": "Sneak past", "check": {"die": "trinket", "n": 3},
+          "ok": {"text": "You tiptoe past. It never knew.", "xp": 6},
           "bad": {"text": "It knew.", "fight": ["crab", "crab"]}},
+         {"label": "Toss it a fish", "cost": 5, "ok": {"text": "It accepts the fish with surprising dignity and steps aside."}},
          {"label": "Stare it down", "need": "vanguard", "ok": {"text": "A long moment. The crab blinks first and scuttles off.", "xp": 12}},
      ]},
     {"key": "barrel_seer", "title": "Fortune Teller in a Barrel", "text": "A woman lives in a barrel. She says she can see the future. "
      "She says the future is mostly barrel.",
      "choices": [
-         {"label": "Pay for a fortune (5 gold)", "cost": 5, "ok": {"text": "\"You will hit things harder.\" You do feel it.", "buff": "might"}},
+         {"label": "Pay for a fortune", "cost": 5, "ok": {"text": "\"You will hit things harder.\" You do feel it.", "buff": "might"}},
          {"label": "Ask about the rising sea", "ok": {"text": "\"It rises,\" she says, and closes the lid.", "xp": 5}},
          {"label": "Compliment the barrel", "need": "herald", "ok": {"text": "Nobody ever compliments the barrel. Your fortune is free, and long.", "buff": "might", "xp": 6}},
      ]},
@@ -255,13 +270,14 @@ EVENTS = [
      "about something under the water, wearing a crown.",
      "choices": [
          {"label": "Read it all", "ok": {"text": "You know a little more about what you're up against.", "xp": 12}},
-         {"label": "Use it to start a fire", "ok": {"text": "A warm night. You sleep well.", "hp": 10}},
+         {"label": "Use it to start a fire", "ok": {"text": "A warm night. Everyone here sleeps well.", "hp": 10, "all": True}},
      ]},
     {"key": "crate", "title": "Floating Crate", "text": "A crate drifts just past the end of a broken jetty, stencilled FRAGILE and, "
      "below that, in smaller letters, VALUABLE.",
      "choices": [
-         {"label": "Fish it out", "check": 3, "ok": {"text": "You haul it in. Not that fragile, very valuable.", "item": "uncommon"},
-          "bad": {"text": "You fall in. The crate drifts away, looking smug.", "hp": -4}},
+         {"label": "Wade out and haul it in", "check": {"die": "armor", "n": 3},
+          "ok": {"text": "You haul it in. Not that fragile, very valuable.", "item": "uncommon"},
+          "bad": {"text": "The current takes your legs. The crate drifts away, looking smug.", "hp": -4}},
          {"label": "Pick the lock while it floats", "need": "scoundrel", "ok": {"text": "Easy.", "item": "rare"}},
          {"label": "Let it go", "ok": {"text": "Someone else's problem."}},
      ]},
@@ -270,12 +286,13 @@ EVENTS = [
      "choices": [
          {"label": "Take some \"for wounds\"", "ok": {"text": "You brew a tonic on the spot.", "potion": 1}},
          {"label": "Take some \"NOT for wounds\"", "ok": {"text": "That was a mistake, but an educational one.", "hp": -3, "xp": 10}},
-         {"label": "Harvest it properly", "need": "mender", "ok": {"text": "Enough for the whole party, and then some.", "potion": 2, "hp": 6}},
+         {"label": "Harvest it properly", "need": "mender", "ok": {"text": "Enough for the whole party, and then some.", "potion": 2, "hp": 6, "all": True}},
      ]},
     {"key": "revenant", "title": "Revenant at the Rail", "text": "A drowned sailor stands at the rail of a beached ship, staring out to "
      "sea, still waiting to be relieved of watch.",
      "choices": [
-         {"label": "Relieve them of watch", "check": 5, "ok": {"text": "They salute, and sink into peace. Something of their stubbornness stays with you.", "revive": 1},
+         {"label": "Relieve them of watch", "check": {"die": "best", "n": 5},
+          "ok": {"text": "They salute, and sink into peace. Something of their stubbornness stays with you.", "revive": 1},
           "bad": {"text": "They do not recognise your authority.", "fight": ["deckhand", "deckhand"]}},
          {"label": "Lay them to rest", "need": "mender", "ok": {"text": "A gentle word. They go, and leave you their luck.", "revive": 1}},
          {"label": "Leave them to it", "ok": {"text": "Someone has to keep watch."}},
@@ -292,7 +309,107 @@ EVENTS = [
      "choices": [
          {"label": "Untie the captain", "ok": {"text": "The sailors object, physically.", "fight": ["cutthroat", "cutthroat"]}},
          {"label": "Side with the crew", "ok": {"text": "They give you a cut of the captain's purse.", "gold": 14}},
+         {"label": "Duel the ringleader for him", "check": {"die": "weapon", "vs": 8},
+          "ok": {"text": "You win, the crew cheers whoever won, and the captain pays handsomely.", "gold": 22},
+          "bad": {"text": "You lose, and the crew cheers anyway. They love a show.", "hp": -6}},
          {"label": "Settle it by vote", "need": "herald", "ok": {"text": "Democracy prevails. Everybody pays you for chairing.", "gold": 20}},
+     ]},
+    {"key": "liars_dice", "title": "Liar's Dice", "text": "A grinning sailor rattles a cup of dice on an upturned barrel. \"Ten gold says "
+     "I roll higher. Twenty-five if you're brave.\" His dice look honest. His grin does not.",
+     "choices": [
+         {"label": "Take the bet", "cost": 10, "check": {"die": "best", "vs": 6},
+          "ok": {"text": "Your die comes up higher. He pays, and asks for a rematch you wisely decline.", "gold": 25},
+          "bad": {"text": "He wins. Of course he wins."}},
+         {"label": "Raise to twenty-five", "cost": 25, "check": {"die": "best", "vs": 8},
+          "ok": {"text": "A hush, a rattle, and the pot is yours.", "gold": 65},
+          "bad": {"text": "He sweeps up the coins with a sympathetic wince."}},
+         {"label": "Swap in your own dice", "need": "scoundrel", "ok": {"text": "He never notices. Or he's too polite to say.", "gold": 25}},
+         {"label": "Walk away", "ok": {"text": "The only winning move, probably."}},
+     ]},
+    {"key": "tide_bell", "title": "The Tide Bell", "text": "A bronze bell hangs from a post in the shallows, green with age. The water "
+     "around it is very still, as if it's waiting.",
+     "choices": [
+         {"label": "Ring it", "check": {"die": "party", "n": 4},
+          "ok": {"text": "The note carries for miles. The wind turns to follow you, and everyone beside you.", "buff": "swift", "all": True},
+          "bad": {"text": "The note carries for miles. Something answers it.", "fight": ["eel", "jelly"]}},
+         {"label": "Ring it in tune", "need": "herald", "ok": {"text": "A perfect note. The sea itself seems to cheer you on.", "buff": "might", "all": True}},
+         {"label": "Muffle it with your cloak and move on", "ok": {"text": "Whatever it was waiting for, it can keep waiting.", "xp": 6}},
+     ]},
+    {"key": "stuck_skiff", "title": "The Stranded Skiff", "text": "An abandoned skiff is wedged on a sandbar, oars and all. It would take "
+     "a strong back, or several, to shift it.",
+     "choices": [
+         {"label": "Heave it free (anyone on your hex helps)", "check": {"die": "party", "n": 5},
+          "ok": {"text": "It scrapes, groans and floats. It's yours now.", "skiff": True},
+          "bad": {"text": "It doesn't budge. Your back has opinions about this.", "hp": -3}},
+         {"label": "Lift it like a crate", "need": "vanguard", "ok": {"text": "You simply pick it up and put it in the water. Nobody says anything.", "skiff": True}},
+         {"label": "Strip it for parts", "ok": {"text": "Some rope, a lantern, a few coins in the bilge.", "gold": 6}},
+     ]},
+    {"key": "riddle", "title": "The Mermaid's Riddle", "text": "A mermaid lounges on a rock, combing seaweed out of her hair. \"Answer me "
+     "this: what rises without legs, and swallows without a mouth?\"",
+     "choices": [
+         {"label": "Guess", "check": {"die": "best", "n": 4},
+          "ok": {"text": "\"The sea,\" you say. She looks annoyed, then tosses you a pearl-crusted bauble.", "item": "uncommon"},
+          "bad": {"text": "Wrong. She laughs, and the laugh follows you for days.", "buff": "frail"}},
+         {"label": "Answer like a scholar", "need": "arcanist", "ok": {"text": "You give the answer, three alternatives, and a footnote. She gives you her best trinket to make you stop.", "item": "rare"}},
+         {"label": "Ask for a hint", "cost": 5, "ok": {"text": "The hint is long, and educational, and you never get round to answering.", "xp": 10}},
+     ]},
+    {"key": "cache", "title": "Under the Dock", "text": "Loose boards under a dock, and the smell of gunpowder and money. Someone has "
+     "hidden something here, and they won't be happy to find it gone.",
+     "choices": [
+         {"label": "Pry the boards up", "check": {"die": "weapon", "n": 4},
+          "ok": {"text": "A purse, fat and unattended.", "gold": 22},
+          "bad": {"text": "The boards creak. Its owners come running.", "fight": ["cutthroat", "cutthroat"]}},
+         {"label": "Find the hidden latch", "need": "scoundrel", "ok": {"text": "There's always a latch.", "gold": 30}},
+         {"label": "Take only the gunpowder", "need": "alchemist", "ok": {"text": "Into the bag it goes, to become something useful later.", "potion": 2, "gold": 6}},
+         {"label": "Leave it", "ok": {"text": "Not your gunpowder, not your problem."}},
+     ]},
+    {"key": "hawk", "title": "The Hurt Hawk", "text": "A hawk with a damaged wing hops along the beach, glaring at you as though "
+     "this is all your fault.",
+     "choices": [
+         {"label": "Offer it food", "check": {"die": "trinket", "n": 3},
+          "ok": {"text": "It eats, considers you, and drops something shiny at your feet.", "item": "common"},
+          "bad": {"text": "It takes the food and a bit of your thumb.", "hp": -2}},
+         {"label": "Splint the wing", "need": "ranger", "ok": {"text": "It lets you. When it flies off it circles twice, and you feel sharper for it.", "buff": "might", "xp": 10}},
+         {"label": "Speak to it", "need": "warden", "ok": {"text": "It tells you which way the wind will blow. It's right.", "buff": "swift", "all": True}},
+         {"label": "Leave it be", "ok": {"text": "It glares at you until you're out of sight."}},
+     ]},
+    {"key": "duel", "title": "En Garde!", "text": "A fencer in a ridiculous hat blocks the path. \"First blood buys dinner, and I am "
+     "very hungry.\"",
+     "choices": [
+         {"label": "Accept", "check": {"die": "weapon", "vs": 8},
+          "ok": {"text": "A touch! The fencer bows, pays for dinner, and wanders off still hungry.", "gold": 12, "xp": 8},
+          "bad": {"text": "A touch, on you. Dinner is on you too.", "hp": -6, "gold": -6}},
+         {"label": "Accept, with a flourish", "need": "duelist", "ok": {"text": "It's over in three moves. The hat is yours, and the respect.", "xp": 18, "gold": 10}},
+         {"label": "Just buy them dinner", "cost": 8, "ok": {"text": "Dinner is excellent, and the company better than expected.", "hp": 10, "all": True}},
+     ]},
+    {"key": "choir", "title": "The Drowned Choir", "text": "Voices rise from under the waves, singing your name, a little off-key and "
+     "getting closer.",
+     "choices": [
+         {"label": "Stand and listen", "check": {"die": "armor", "n": 3},
+          "ok": {"text": "You hold your ground. The song fades, and leaves you wiser.", "xp": 12},
+          "bad": {"text": "You wake up knee-deep in the surf with no idea how you got there.", "buff": "jinx"}},
+         {"label": "Sing back, louder", "need": "herald", "ok": {"text": "They harmonise. It's beautiful. Everyone feels better.", "hp": 10, "all": True}},
+         {"label": "Block your ears and hurry on", "ok": {"text": "The song follows you a while, then gives up."}},
+     ]},
+    {"key": "powder", "title": "The Ticking Barrel", "text": "Three barrels of powder sit under a tarp. One of them is ticking. "
+     "Barrels shouldn't tick.",
+     "choices": [
+         {"label": "Light the others and run", "check": {"die": "trinket", "n": 3, "great": 4},
+          "great": {"text": "The blast tears open a smugglers' cache, and you weren't even singed.", "item": "rare"},
+          "ok": {"text": "The blast tears open a smugglers' cache.", "item": "uncommon"},
+          "bad": {"text": "You don't run fast enough.", "hp": -6}},
+         {"label": "Defuse and decant", "need": "alchemist", "ok": {"text": "Delicate work. It yields useful mixtures and some loose change.", "potion": 2, "gold": 8}},
+         {"label": "Back away slowly", "ok": {"text": "It's still ticking when you lose sight of it."}},
+     ]},
+    {"key": "cairn", "title": "The Cairn of Skulls", "text": "A neat cairn of skulls, recently tidied. A painted sign reads TAKE ONE, "
+     "LEAVE ONE.",
+     "choices": [
+         {"label": "Take one", "check": {"die": "best", "n": 4},
+          "ok": {"text": "There's a ring still on its finger bone. Why a skull has a finger bone is not your concern.", "item": "common"},
+          "bad": {"text": "Its owner wanted it back.", "buff": "jinx"}},
+         {"label": "Add one from your collection", "need": "berserker", "ok": {"text": "The cairn accepts your offering. You feel monstrously strong.", "buff": "might", "all": True}},
+         {"label": "Leave flowers instead", "need": "warden", "ok": {"text": "Something approves. You feel hale.", "buff": "vigor", "all": True}},
+         {"label": "Leave both alone", "ok": {"text": "The sign seems disappointed."}},
      ]},
 ]
 

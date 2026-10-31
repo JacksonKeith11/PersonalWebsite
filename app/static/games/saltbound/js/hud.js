@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=32';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=32';
-import { spriteURL } from './art.js?v=32';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=32';
-import { MapView } from './hexmap.js?v=32';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=32';
-import { disconnect } from './main.js?v=32';
-import * as sfx from './audio.js?v=32';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=33';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=33';
+import { spriteURL } from './art.js?v=33';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=33';
+import { MapView } from './hexmap.js?v=33';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=33';
+import { disconnect } from './main.js?v=33';
+import * as sfx from './audio.js?v=33';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -41,7 +41,7 @@ export function renderGame() {
     teardownGame();
     root = h('div.game', null,
       h('div.map#map'),
-      h('div#topbar'), h('div#party.party'), h('div#actionbar'), h('div#log'), h('div#hint'),
+      h('div#topbar'), h('div#party.party'), h('div#forecast'), h('div#actionbar'), h('div#log'), h('div#hint'),
       h('div.zoom', null,
         h('button.btn.icon', { 'aria-label': 'Zoom in', tip: 'Zoom in\nOr use the mouse wheel', onclick: () => map?.zoomBy(1) }, icon('plus')),
         h('button.btn.icon', { 'aria-label': 'Zoom out', tip: 'Zoom out', onclick: () => map?.zoomBy(-1) }, h('span', { style: { fontSize: '20px', lineHeight: 1 } }, '−')),
@@ -56,6 +56,7 @@ export function renderGame() {
   renderTopbar();
   renderParty();
   renderActionbar();
+  renderForecast();
   renderLog();
   renderDrawer();
   renderDialogs();
@@ -115,6 +116,11 @@ function onTileHover(t, x, y) {
     const b = r.best.get(t);
     if (b && t !== g.heroes[h0].tile) {
       lines.push(h('div.cost', null, `${b.cost} of ${g.heroes[h0].moves} moves`));
+      const vis2 = visibleTiles(g);
+      const gr = g.groups.find(x => x.tile === t && vis2.has(t));
+      const near = g.heroes.map((x, i) => i).filter(i => i !== h0 && g.heroes[i].alive && g.forecast?.ends[i] !== undefined && hexDist(g.forecast.ends[i], t) <= 1).map(i => g.heroes[i].name);
+      if (gr) lines.push(h('div', { style: { color: 'var(--danger)' } }, `Walking in starts the fight.${near.length ? ` ${near.join(' and ')} would join (within a hex).` : ' Nobody else is close enough to join.'}`));
+      else if (g.groups.some(x => vis2.has(x.tile) && !x.lair && hexDist(x.tile, t) <= 1)) lines.push(h('div', { style: { color: 'var(--warn, #e0a050)' } }, 'Next to enemies: they may step onto you.'));
       const path = routeTo(r, t);
       if (JSON.stringify(path) !== JSON.stringify(UI.preview)) { UI.preview = path; updateMap(); }
     } else if (UI.preview) { UI.preview = null; updateMap(); }
@@ -271,6 +277,47 @@ function renderActionbar() {
     btns.length ? h('div.sep') : null, ...btns));
 }
 
+// ------------------------------------------------------------------ what the planned turn will do
+// The server works the turn out from what the party can see (Game.forecast): one line per hero, so
+// everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
+const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'gets a shrine’s blessing', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair' };
+function fightLine(f) {
+  const st = S.static, g = S.game;
+  const counts = {};
+  for (const k of f.foes) counts[k] = (counts[k] || 0) + 1;
+  const foes = Object.entries(counts).map(([k, c]) => st.foes[k].name + (c > 1 ? ` ×${c}` : '')).join(', ');
+  const where = f.kind === 'dungeon' ? `${st.dungeons[f.region]} (fight ${f.step + 1} of 3)` : f.kind === 'boss' ? 'the Drowned Crown' : f.kind === 'lair' ? `a lair: ${foes}` : foes;
+  return { where, with: f.heroes.map(x => g.heroes[x].name) };
+}
+export function renderForecast() {
+  const el = $('forecast');
+  if (!el) return;
+  const g = S.game, fc = g.forecast;
+  if (!fc || g.phase !== 'plan' || combatOpen()) { el.replaceChildren(); return; }
+  const lines = [];
+  g.heroes.forEach((hero, x) => {
+    if (!hero.alive) return;
+    const p = g.plans[x] || {};
+    const fight = fc.fights.find(f => f.heroes.includes(x));
+    let text;
+    if (fight) {
+      const fl = fightLine(fight);
+      const others = fl.with.filter(n => n !== hero.name);
+      text = fight.by === x ? `walks into a fight: ${fl.where}` : fight.by == null ? `is caught by ${fl.where}` : `is pulled into the fight: ${fl.where}`;
+      if (others.length) text += ` · with ${others.join(', ')}`;
+    } else if (p.rest) text = 'rests';
+    else if (fc.lands[x]) text = LAND[fc.lands[x]] || 'arrives';
+    else if (p.path?.length) text = 'moves';
+    else text = p.ready ? 'stays put' : 'hasn’t planned yet';
+    lines.push(h('div.fc-line' + (fight ? '.fight' : ''), { style: { '--seat': seat(x) } },
+      h('i.dot'), h('b', null, hero.name), h('span', null, ' ' + text), p.ready ? h('span.ok', null, ' ✓') : null));
+  });
+  const steps = fc.steps.length;
+  if (steps) lines.push(h('div.fc-line.muted', null, icon('skull'), ` ${steps} enemy group${steps > 1 ? 's' : ''} will step toward you (red arrows).`));
+  el.replaceChildren(h('div.forecast', { role: 'status', 'aria-live': 'polite' }, h('span.eyebrow', null, 'This turn'), ...lines,
+    h('div.fc-foot', null, 'Hidden enemies can still ambush you.')));
+}
+
 function restText(h0) {
   const g = S.game, hero = g.heroes[h0];
   const p = g.places[hero.tile];
@@ -388,6 +435,28 @@ function faceRow(it) {
     ...(it.die.every((f, i) => f === i + 1) ? [h('span.face', null, 'd' + it.die.length)]
       : it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), typeof f === 'string' ? { tip: faceTip(f) } : null, faceText(f)))));
 }
+// What a hero has in an item's slot now, to compare against: its die (with the change in average),
+// its actions and its passive. Null for consumables.
+function compareWith(h0, key, compact) {
+  const it = item(key);
+  if (it.slot === 'use') return null;
+  const hero = S.game.heroes[h0];
+  const curKey = hero.equip[it.slot];
+  if (!curKey) return h('div.compare.empty', null, h('span.cmp-lbl', null, 'Now'), `No ${it.slot}: this fills an empty slot.`);
+  if (curKey === key) return h('div.compare.same', null, h('span.cmp-lbl', null, 'Now'), 'You already wear one of these.');
+  const cur = item(curKey);
+  const avg = x => (x.die ? expected({ faces: x.die, dk: x.dk || [] }) : 0);
+  const diff = avg(it) - avg(cur);
+  const acts = (cur.acts || []).map(a => S.static.actions[a].name);
+  const lost = (cur.acts || []).filter(a => !(it.acts || []).includes(a)).map(a => S.static.actions[a].name);
+  return h('div.compare', null,
+    h('span.cmp-lbl', null, 'Now'),
+    h('b.rar-' + cur.rarity, null, cur.name), cur.die ? faceRow(cur) : null,
+    it.die && cur.die ? h('span.cmp-diff' + (diff > 0.05 ? '.up' : diff < -0.05 ? '.down' : ''), { tip: 'Change in the die’s average roll' },
+      diff > 0.05 ? `▲ +${diff.toFixed(1)} avg` : diff < -0.05 ? `▼ ${diff.toFixed(1)} avg` : '= same avg') : null,
+    !compact && acts.length ? h('span.cmp-acts', null, `Actions: ${acts.join(', ')}${lost.length ? ` (you'd lose ${lost.join(', ')})` : ''}`) : null,
+    !compact && cur.text ? h('span.cmp-pass', null, cur.text) : null);
+}
 function interleave(arr, sep) { return arr.flatMap((x, i) => (i ? [sep, x] : [x])); }
 function itemTip(key) {
   const it = item(key);
@@ -416,7 +485,7 @@ function townDrawer(h0, town, d) {
       h('div.section-title', null, h('h3', null, 'For sale'), h('span.chip.brass', null, icon('coin'), hero.gold)),
       ...(town.shop || []).map(k => {
         const price = Math.floor(S.static.prices[k] * (g.herald ? 0.8 : 1));
-        return itemRow(k, h('button.btn.sm' + (hero.gold >= price ? '.primary' : ''), { disabled: disabled || hero.gold < price, onclick: () => send({ t: 'buy', h: h0, item: k }) }, icon('coin'), price));
+        return itemRow(k, h('button.btn.sm' + (hero.gold >= price ? '.primary' : ''), { disabled: disabled || hero.gold < price, onclick: () => send({ t: 'buy', h: h0, item: k }) }, icon('coin'), price), compareWith(h0, k, true));
       }),
       g.herald ? h('p.muted', null, 'The Herald’s silver tongue knocks 20% off.') : null,
       hero.bag.length ? h('h3', null, 'Sell') : null,
@@ -517,6 +586,64 @@ export function skillCard(k, source = null) {
     sk.tags?.length ? h('div', { style: { display: 'flex', gap: '4px' } }, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
 }
 
+// ------------------------------------------------------------------ event checks
+// Which die an event check rolls, and the odds, worked out the way the server rolls it.
+const SLOT_NAME = { weapon: 'weapon', armor: 'armor', trinket: 'trinket' };
+function eventDie(x, which) {
+  const hero = S.game.heroes[x];
+  const top = d => Math.max(...d.faces.map(f => (typeof f === 'number' ? f : parseInt(String(f).slice(1)) || 0)));
+  if (SLOT_NAME[which]) return hero.dice.find(d => d.src === which) || { faces: [1, 2, 3, 4], dk: [], bare: true };
+  return hero.dice.reduce((a, b) => (top(b) > top(a) ? b : a), hero.dice[0]);
+}
+function faceVal(f, faces) {
+  if (typeof f === 'number') return f;
+  if (f === 'W') return Math.max(...faces.map(x => (typeof x === 'number' ? x : parseInt(String(x).slice(1)) || 0)));
+  return parseInt(String(f).slice(1)) || 0;
+}
+function eventOdds(x, spec) {
+  if (typeof spec === 'number') spec = { n: spec };
+  const g = S.game;
+  let roller = x, which = spec.die || 'best';
+  if (which === 'party') {
+    const here = g.heroes.map((y, i) => i).filter(i => g.heroes[i].alive && g.heroes[i].tile === g.heroes[x].tile);
+    const top = i => Math.max(...eventDie(i, 'best').faces.map(f => faceVal(f, eventDie(i, 'best').faces)));
+    roller = here.reduce((a, b) => (top(b) > top(a) ? b : a), x);
+    which = 'best';
+  }
+  const d = eventDie(roller, which);
+  const bonus = g.heroes[roller].skills.includes('silver_voice') ? 1 : 0;
+  const vals = d.faces.map(f => faceVal(f, d.faces) + bonus);
+  const p = spec.vs ? vals.reduce((a, v) => a + Math.max(0, Math.min(v - 1, spec.vs)) / spec.vs, 0) / vals.length
+    : vals.filter(v => v >= (spec.n ?? 4)).length / vals.length;
+  const whose = roller === x ? 'your' : `${g.heroes[roller].name}’s`;
+  const label = d.bare ? `a bare d4 (no ${which})` : `${whose} ${SLOT_NAME[which] || 'best'} die (${dieLabel(d)})`;
+  const text = spec.vs ? ` Roll ${label}, beat a d${spec.vs}:` : ` Roll ${label}, ${spec.n ?? 4}+${(spec.die === 'party') ? ' · anyone on your hex can roll it' : ''}:`;
+  return { p, text, need: spec.n ?? 4, vs: spec.vs, greatAt: spec.great };
+}
+function outcomeSummary(o) {
+  if (!o) return '';
+  const st = S.static, parts = [];
+  if (o.fight) parts.push('a fight with ' + [...new Set(o.fight)].map(k => st.foes[k].name).join(' and '));
+  if (o.item) parts.push(`${/^[aeiou]/.test(o.item) ? 'an' : 'a'} ${o.item} item`);
+  if (o.gold) parts.push(`${o.gold > 0 ? '+' : '−'}${Math.abs(o.gold)} gold`);
+  if (o.hp) parts.push(`${o.hp > 0 ? '+' : '−'}${Math.abs(o.hp)} HP`);
+  if (o.xp) parts.push(`+${o.xp} XP`);
+  if (o.potion) parts.push(`${o.potion} potion${o.potion > 1 ? 's' : ''}`);
+  if (o.buff) parts.push(`${st.buffs[o.buff].name}${st.buffs[o.buff].curse ? ' (a curse)' : ''}`);
+  if (o.revive) parts.push('+1 revive');
+  if (o.skiff) parts.push('a skiff');
+  if (!parts.length) return 'nothing much';
+  return parts.join(', ') + (o.all ? ' (everyone on your hex)' : '');
+}
+function eventRollView(r) {
+  const verdict = r.great ? 'Great!' : r.ok ? 'Success' : 'Failed';
+  return h('div.ev-roll' + (r.ok ? '.ok' : '.bad'), null,
+    h('div.big-die', null, h('span', null, r.v)),
+    r.vs ? [h('span.vs', null, 'vs'), h('div.big-die.foe', null, h('span', null, r.opp))] : null,
+    h('div.ev-need', null, r.vs ? `Beat a d${r.vs}` : `Needed ${r.need}+`, r.by != null && r.by !== undefined ? h('small', null, `${S.game.heroes[r.by].name} rolled ${dieLabel({ faces: r.faces, dk: [] })}`) : null),
+    h('div.rt-verdict.' + (r.ok ? 'hit' : 'miss'), null, verdict));
+}
+
 // ------------------------------------------------------------------ dialogs
 function renderDialogs() {
   const el = $('modal');
@@ -528,7 +655,7 @@ function renderDialogs() {
     el.replaceChildren(modal([
       h('div.eyebrow', null, o.hero),
       h('h2', null, o.title),
-      o.roll != null ? h('p.muted', null, `You rolled ${o.roll === 'S' ? 'a shield' : o.roll}.`) : null,
+      o.roll ? eventRollView(o.roll) : null,
       h('div.outcome', null, o.text),
       o.bits.length ? h('div.gains', null, ...o.bits.map(b => h('span.chip.brass', null, b))) : null,
       h('button.btn.primary', { style: { justifySelf: 'end' }, onclick: () => { UI.outcomes.shift(); renderDialogs(); } }, 'Carry on'),
@@ -549,11 +676,18 @@ function renderDialogs() {
         const missing = ch.need && !g.heroes.some(x => x.alive && x.cls === ch.need);
         const broke = (ch.cost || 0) > hero.gold;
         const tags = [];
-        if (ch.need) tags.push(`${cls(ch.need).name}`);
-        if (ch.check) tags.push(`Roll ${ch.check}+ on your best die`);
-        if (ch.cost) tags.push(`${ch.cost} gold`);
+        if (ch.need) tags.push(`${cls(ch.need).name}${missing ? ' needed' : ''}`);
+        if (ch.cost) tags.push(`${ch.cost} gold${broke ? ' (not enough)' : ''}`);
+        const ck = ch.check ? eventOdds(h0, ch.check) : null;
+        const stakes = ch.check
+          ? [ch.great ? `${ck.greatAt}+: ${outcomeSummary(ch.great)}` : null, `${ck.vs ? 'Win' : ck.need + '+'}: ${outcomeSummary(ch.ok)}`, `${ck.vs ? 'Lose' : 'Else'}: ${outcomeSummary(ch.bad)}`].filter(Boolean).join(' · ')
+          : outcomeSummary(ch.ok);
         return h('button.choice', { disabled: missing || broke, onclick: () => send({ t: 'choose', h: h0, n: i }) },
-          h('span.n', null, i + 1), h('span.grow', null, ch.label), tags.length ? h('span.tag', null, tags.join(' · ')) : null);
+          h('span.n', null, i + 1),
+          h('span.grow', null, h('span.label', null, ch.label),
+            ck ? h('span.roll', null, icon('dice'), ck.text, h('b.odds' + (ck.p >= 0.6 ? '.good' : ck.p >= 0.35 ? '.mid' : '.bad'), null, ` ${Math.round(ck.p * 100)}%`)) : null,
+            stakes ? h('span.stakes', null, stakes) : null),
+          tags.length ? h('span.tag', null, tags.join(' · ')) : null);
       })),
     ];
   } else if (d.type === 'loot') {
@@ -574,7 +708,7 @@ function renderDialogs() {
           ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
           it.mods ? h('p', null, modsText(it.mods)) : null,
           it.text ? h('p.passive', null, it.text) : null,
-          cur ? h('p.replaces', null, `Replaces ${cur.name}${curDie}${(cur.acts || []).length ? ' · ' + cur.acts.map(a => S.static.actions[a].name).join(', ') : ''}`) : null,
+          compareWith(h0, k),
           h('div.pick-btns', null,
             it.slot === 'use' || !cur ? h('button.btn.primary.sm', { onclick: () => take(true) }, it.slot === 'use' ? 'Take' : 'Put it on')
               : [h('button.btn.primary.sm', { onclick: () => take(true) }, 'Put it on'), h('button.btn.sm.ghost', { onclick: () => take(false) }, 'Into the bag')]));
@@ -600,7 +734,10 @@ function renderDialogs() {
   }
   const key = JSON.stringify([h0, d]);
   const enter = key !== UI.lastDialog; UI.lastDialog = key;
-  el.replaceChildren(modal(content, { wide: d.type !== 'event', enter }));
+  // between a dungeon's fights the party is still underground: no map behind the spoils
+  const here = g.places[hero.tile];
+  const deep = g.phase === 'reward' && here && ((here.kind === 'dungeon' && !g.cleared.includes(here.region)) || here.kind === 'peak');
+  el.replaceChildren(modal(content, { wide: d.type !== 'event', enter, backdrop: deep ? 'dungeon' : null }));
   // good loot gets a fanfare as the cards are dealt
   if (enter && d.type === 'loot') {
     const best = Math.max(...d.opts.map(k => ['common', 'uncommon', 'rare', 'legendary'].indexOf(item(k).rarity)));

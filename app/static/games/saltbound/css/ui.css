@@ -847,3 +847,48 @@ a:hover { color: var(--accent-hi); }
 .intent { max-width: 100%; }
 .intent .ln { max-width: 100%; overflow: hidden; }
 .intent .to { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* "This turn": what the planned moves will do, one line per hero, above the action bar */
+#forecast .forecast { position: absolute; left: var(--s-4); bottom: 100px; z-index: 8; display: grid; gap: 3px;
+  width: 318px; padding: 8px 14px 9px; background: rgba(16, 22, 31, 0.9);
+  border: var(--bw) solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-2); font-size: var(--fs-14); }
+.fc-line { display: block; color: var(--text-2); line-height: 1.35; }
+.fc-line b { color: var(--seat, var(--text)); font-weight: var(--fw-semibold); }
+.fc-line .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--seat); margin-right: 6px; vertical-align: 1px; }
+.fc-line.fight span { color: #ffb3a0; }
+.fc-line .ok { color: var(--ok); }
+.fc-line.muted { color: var(--muted); }
+.fc-line.muted .icon-svg { width: 13px; height: 13px; vertical-align: -2px; }
+.fc-foot { color: var(--faint); font-size: 12px; }
+@media (max-width: 1100px) { #forecast .forecast { left: 50%; transform: translateX(-50%); bottom: 96px; width: auto; max-width: calc(100% - 24px); } }
+@media (max-width: 700px) { #forecast .forecast { top: 160px; bottom: auto; font-size: 12px; padding: 6px 10px; gap: 1px; } .fc-foot { display: none; } }
+
+/* event choices: what each rolls, the odds, and what's at stake; the outcome plays the roll */
+.choice .grow { display: grid; gap: 2px; text-align: left; }
+.choice .roll { font-size: var(--fs-14); color: var(--text-2); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.choice .roll .icon-svg { width: 14px; height: 14px; }
+.choice .roll .odds.good { color: var(--ok); } .choice .roll .odds.mid { color: var(--accent); } .choice .roll .odds.bad { color: var(--danger); }
+.choice .stakes { font-size: 13px; color: var(--muted); }
+.ev-roll { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: var(--r-lg); background: rgba(9, 16, 30, 0.6); border: var(--bw) solid var(--border); justify-self: start; }
+.ev-roll.ok { border-color: var(--ok); } .ev-roll.bad { border-color: var(--danger); }
+.ev-roll .big-die { width: 56px; height: 56px; font-size: 30px; }
+.ev-roll .vs { color: var(--muted); font-weight: var(--fw-semibold); }
+.ev-need { display: grid; gap: 2px; color: var(--text-2); font-size: var(--fs-14); }
+.ev-need small { color: var(--muted); font-size: 12px; }
+.ev-roll .rt-verdict { font-size: 22px; }
+
+/* "Now": what you have in that slot, beside loot and shop items */
+.compare { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; padding: 6px 8px; border-radius: var(--r-md, 8px);
+  background: rgba(255, 255, 255, 0.03); border: var(--bw) dashed var(--border-strong); font-size: 13px; color: var(--text-2); }
+.compare .cmp-lbl { font-size: 11px; font-weight: var(--fw-semibold); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.compare .cmp-diff.up { color: var(--ok); font-weight: var(--fw-semibold); }
+.compare .cmp-diff.down { color: var(--danger); font-weight: var(--fw-semibold); }
+.compare .cmp-acts, .compare .cmp-pass { flex-basis: 100%; }
+.compare .cmp-pass { color: var(--muted); }
+.compare.empty, .compare.same { color: var(--muted); }
+
+/* spoils between a dungeon's fights: the party is still underground, so the map is hidden */
+.scrim.bd-dungeon { background: radial-gradient(ellipse at 50% 35%, rgba(52, 44, 62, 0.96), rgba(8, 7, 12, 0.995) 70%);
+  backdrop-filter: blur(6px); }
+.scrim.bd-dungeon::before { content: "Still below ground: the next fight waits"; position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+  font: var(--fw-semibold) 13px/1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(224, 187, 98, 0.75); }

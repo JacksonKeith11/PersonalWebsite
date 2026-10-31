@@ -9,6 +9,8 @@ then end-of-round effects (Burn, Doom, Lifeline, statuses running out, Armor cle
 Heroes are "h0".."h2", enemies "f<id>" and summons "s<id>" wherever the browser names a target.
 """
 
+from itertools import product
+
 from . import classes as C
 from .content import archipelago as A
 from .content import items as I
@@ -465,13 +467,20 @@ class Combat:
         d["shown"] = True
         return v
 
-    def outcomes(self, h, d):
-        """What a die might come up as, for planning: [(value, tag, chance)]. No randomness used."""
+    def die_add(self, h, d):
+        """What gets added to a die's face when it rolls (not to shield or skull faces)."""
+        return d.get("bonus", 0) + self.s["fight"].get("hymn", 0) + (1 if d.get("link") and self.mods(h).get("sleight") else 0)
+
+    def outcomes(self, h, d, raw=False):
+        """What a die might come up as, for planning: [(value, tag, chance)]. No randomness used.
+        `raw` leaves out the die's bonuses (for linked dice, which share one face)."""
         x = self.hs(h)
-        add = d.get("bonus", 0) + self.s["fight"].get("hymn", 0)
         if d.get("rolled"):
             return [(d["v"], d.get("tag"), 1.0)]
-        if d.get("v") is not None:
+        g = d.get("link")
+        if g and g in x.get("links", {}) and d.get("v") is None:
+            base = [(x["links"][g][0], x["links"][g][1], 1.0)]  # its group already rolled (a linked Seer die)
+        elif d.get("v") is not None:
             base = [(d["v"], d.get("tag"), 1.0)]
         elif d.get("fc"):
             base = [(d["fc"][0], None, 0.5), (d["fc"][1], None, 0.5)]
@@ -494,13 +503,38 @@ class Combat:
                 if "exploding" in d["dk"] and v == top and t != "W":
                     v += round(mean_face(d["faces"]))
                 base.append((v, t, 1 / len(faces)))
+        if raw:
+            return base
+        add = self.die_add(h, d)
+        return [(v + (add if t not in ("S", "X") else 0), t, p) for v, t, p in base]
+
+    def joint_outcomes(self, h, dice, cap=4000):
+        """Every way these dice could come up together: [(values, tags, chance)]. Linked dice that
+        haven't rolled share one roll, so they always match. Big sets are thinned to about `cap`."""
+        groups, where = [], {}
+        for i, d in enumerate(dice):
+            g = d.get("link") if d.get("v") is None and not d.get("rolled") else None
+            if g and g in where:
+                groups[where[g]].append(i)
+                continue
+            if g:
+                where[g] = len(groups)
+            groups.append([i])
+        per = [self.outcomes(h, dice[grp[0]], raw=len(grp) > 1) for grp in groups]
+        combos = list(product(*per)) if dice else [()]
+        if cap and len(combos) > cap:
+            combos = combos[:: len(combos) // cap + 1]
         out = []
-        for v, t, p in base:
-            if t not in ("S", "X"):
-                v += add + (1 if d.get("link") and self.mods(h).get("sleight") else 0)
-            out.append((v, t, p))
-        del x
-        return out
+        for c in combos:
+            vals, tags, pr = [0] * len(dice), [None] * len(dice), 1.0
+            for grp, (v, t, p) in zip(groups, c):
+                pr *= p
+                for i in grp:
+                    vals[i] = v + (self.die_add(h, dice[i]) if len(grp) > 1 and t not in ("S", "X") else 0)
+                    tags[i] = t
+            out.append((vals, tags, pr))
+        norm = sum(o[2] for o in out) or 1.0
+        return [(v, t, p / norm) for v, t, p in out]
 
     def resolve_target(self, h, a, tgt):
         """Check a target for an action; returns the target id (or None for untargeted)."""
@@ -779,20 +813,9 @@ class Combat:
     def estimate(self, h, a, dice, tgt):
         """What a planned action will probably do: its chance to hit, and the expected number
         (with the lowest and highest it could be) for its first damage, heal or Armor effect."""
-        from itertools import product
         target = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") else None
-        per = [self.outcomes(h, d) for d in dice] or [[]]
-        combos = list(product(*per)) if dice else [()]
-        if len(combos) > 4000:
-            combos = combos[:: len(combos) // 4000 + 1]
-            norm = sum(_p(c) for c in combos)
-        else:
-            norm = 1.0
         p_hit, ev, lo, hi, kind = 0.0, 0.0, None, None, None
-        for c in combos:
-            vals = [o[0] for o in c]
-            tags = [o[1] for o in c]
-            pr = _p(c) / norm
+        for vals, tags, pr in self.joint_outcomes(h, dice):
             hit = check_hit(a["req"], vals, tags)
             p_hit += pr if hit else 0
             ops = a["ops"] if hit else a.get("miss", [])

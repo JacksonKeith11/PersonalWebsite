@@ -411,7 +411,7 @@ def report(stats, top=12):
                 flags.append(f"{C.CLASSES[cls]['name']} spends {100 * u / total:.0f}% of its actions on {_name(key)}.")
         if cls in C.CLASSES:
             for key in C.CLASSES[cls]["start"]:
-                if f"{cls}:{key}" not in acts and key not in C.GENERIC and total >= 150:
+                if key in C.ACTIONS and f"{cls}:{key}" not in acts and key not in C.GENERIC and total >= 150:
                     flags.append(f"{C.CLASSES[cls]['name']} never used its starting action {_name(key)}.")
         _table(f"{C.CLASSES[cls]['name'] if cls in C.CLASSES else cls}: actions", ["action", "uses", "share", "hit",
                "dmg/use", "heal/use", "armor/use", "kills", "overkill", "total dmg"], rows, out)

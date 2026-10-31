@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=16';
-import { $, h, icon, toast } from './ui.js?v=16';
-import { spriteURL } from './art.js?v=16';
-import { dieLabel, dieTip } from './rules.js?v=16';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=16';
-import { connect, disconnect, debug } from './main.js?v=16';
+import { S, saved, persist, send } from './store.js?v=17';
+import { $, h, icon, toast } from './ui.js?v=17';
+import { spriteURL } from './art.js?v=17';
+import { dieLabel, dieTip } from './rules.js?v=17';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=17';
+import { connect, disconnect, debug } from './main.js?v=17';
 
 const app = () => $('app');
 
@@ -112,7 +112,7 @@ export function renderLobby() {
           h('div', null, h('b', null, 'Dice  '),
             ...c.dice.flatMap((d, j) => [j ? ' + ' : null, h('span.die-name', { tip: dieTip(d) }, dieLabel(d))]).filter(Boolean), ' + gear'),
           h('div', { tip: `${c.map.name}\n${c.map.text}` }, h('b', null, c.map.name + '  '), c.map.text),
-          h('div', null, h('b', null, 'Starts with  '), c.start.map(k => st.actions[k].name).join(', '))),
+          h('div', null, h('b', null, 'Starts with  '), c.start.map(k => (st.actions[k] || st.passives[k]).name).join(', '))),
         h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' } },
           !slot.pid && !r.resume ? h('button.btn.sm', { onclick: () => send({ t: 'claim', slot: i, cls: slot.cls }) }, 'Play this hero') : null,
           !slot.pid && r.resume ? h('button.btn.sm', { onclick: () => send({ t: 'claim', slot: i }) }, 'Play this hero') : null,

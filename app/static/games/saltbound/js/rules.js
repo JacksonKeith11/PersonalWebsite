@@ -181,11 +181,20 @@ export function hitChance(req, dice, hymn = 0) {
   if (!isRisky(req) || !dice.length) return null;
   let p = 0;
   const per = dice.map(d => outcomes(d, hymn));
-  const walk = (i, vals, tags, pr) => {
+  const add = d => (d.bonus || 0) + hymn;
+  // linked dice that haven't rolled share one roll: later ones copy the first one's face
+  const linked = d => (d.link && (d.v === null || d.v === undefined) && !d.rolled ? d.link : null);
+  const walk = (i, vals, tags, pr, faces) => {
     if (i === per.length) { if (checkHit(req, vals, tags)) p += pr; return; }
-    for (const [v, t, q] of per[i]) walk(i + 1, [...vals, v], [...tags, t], pr * q);
+    const d = dice[i], g = linked(d);
+    if (g && faces[g]) {
+      const [v0, t, a0] = faces[g];
+      walk(i + 1, [...vals, t === 'S' || t === 'X' ? v0 : v0 - a0 + add(d)], [...tags, t], pr, faces);
+      return;
+    }
+    for (const [v, t, q] of per[i]) walk(i + 1, [...vals, v], [...tags, t], pr * q, g ? { ...faces, [g]: [v, t, add(d)] } : faces);
   };
-  walk(0, [], [], 1);
+  walk(0, [], [], 1, {});
   return p;
 }
 export const expected = d => outcomes(d).reduce((a, [v, , p]) => a + v * p, 0);

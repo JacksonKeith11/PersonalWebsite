@@ -6,11 +6,11 @@ nothing to do. The party heads for one shared goal each turn so the bots stay to
 
 import heapq
 import zlib
-from itertools import combinations, product
+from itertools import combinations
 
 from . import classes as C
 from . import world as Wd
-from .combat import Invalid, _amt, _p, check_hit
+from .combat import Invalid, _amt, check_hit
 from .content import archipelago as A
 from .content import items as I
 
@@ -405,13 +405,7 @@ def dice_combos(g, h, dice):
 
 
 def _dice_combos(g, h, dice):
-    per = [g.outcomes(h, d) for d in dice]
-    combos = list(product(*per)) if dice else [()]
-    if len(combos) > COMBO_CAP:
-        combos = combos[:: len(combos) // COMBO_CAP + 1]
-    ps = [_p(c) for c in combos]
-    norm = sum(ps) or 1
-    return [([o[0] for o in c], [o[1] for o in c], pr / norm) for c, pr in zip(combos, ps)]
+    return g.joint_outcomes(h, dice, cap=COMBO_CAP)
 
 
 def new_eff():

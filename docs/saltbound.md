@@ -232,7 +232,7 @@ each pool at 6 actions, 6 passives and 2 capstones.
 | Ranger | Back | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
 | Arcanist | Back | 18 | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
 | Mender | Back | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
-| Scoundrel | Either | 22 | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
+| Scoundrel | Either | 26 | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
 | Herald | Back | 20 | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
 | Alchemist | Back | 20 | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
 | Warden | Back | 24 | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
@@ -329,8 +329,9 @@ Scoundrel's *Wayfinder* passive.
 
 ### Scoundrel
 
-- **Starts with**: Stab (any: deal its value, +2 against a target that didn't target you); Slip
-  (any: change rows for free; on a 5+, dodge the next hit).
+- **Starts with**: Stab (any: the die +1, or +4 against a target that isn't coming for you); Slip
+  (any: change rows for free; on a 4+, dodge the next hit); Evasive (passive: the first hit on you
+  each fight misses).
 - **Actions**: Envenom (any: Poison equal to half the die) [Poisons]; Garrote (≥5: its value, and
   Stun if the target is Poisoned) [Poisons]; Toxic Cloud (dice summing to 9+: Poison 3 on all
   enemies) [Poisons]; Pickpocket (≥4: reduce an enemy intent by the die and gain 3 gold) [Tricks];
@@ -514,8 +515,9 @@ dice round, all as recommended):
   action), Field Medic an extra 10% on a rest instead of half. The owner wants Hard genuinely hard
   for the bots and no class far ahead, so Hard went to 2.35× HP and 2.3× damage. Then Aegis needs
   Sanctuary to hit and gives 1 less (not 2), Aura heals only the most wounded ally, the Berserker's
-  Hack deals the die +1 and it has 30 HP. Bots win about 70% on Normal (classes 55–85%), 19% on
-  Hard (classes 10–27%) and all of Story.
+  Hack deals the die +1 and it has 30 HP. The Scoundrel, last on Hard, got 26 HP and starts with
+  Evasive; and planning now knows linked dice share one roll (`joint_outcomes`, and `hitChance` in
+  `rules.js`), so its pairs show and play as the sure things they are.
 
 ## How the classes ended up
 

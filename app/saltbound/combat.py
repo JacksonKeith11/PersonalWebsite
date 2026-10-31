@@ -18,15 +18,20 @@ from .content import items as I
 
 ROWS = ("front", "back")
 SHIELD_BLOCK = 3
-DEBUFFS = ("burn", "poison", "weak", "vuln", "mark", "root")
+DEBUFFS = ("burn", "poison", "weak", "vuln", "mark", "root", "hex")
 TICKING = ("weak", "vuln", "mark", "root")
 ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the round
-ONE_SHOT = ("stun", "freeze", "shock")
+ONE_SHOT = ("stun", "freeze", "shock", "hex")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
 # Enemy intents with a number roll it when they act: about a third either side of what they show.
 FOE_SPREAD = 0.35
 ROLLED = ("attack", "row", "all", "block", "guard", "heal")
+# Enemy dice (`dk` on an enemy) change how that roll goes: wild and steady widen or narrow the range;
+# exploding rolls again and adds on its top face; fumbling does nothing on its bottom face; twin rolls
+# two and acts twice on doubles; searing Burns whoever it hits on the top third.
+FOE_SPREAD_KIND = {"wild": 2.0, "steady": 0.5}
+CURSED_DIE = ["X", 1, 2, 3]
 
 
 class Invalid(Exception):
@@ -350,6 +355,13 @@ class Combat:
                 elif "fate" in d["dk"]:
                     inst["fc"] = [self.raw_roll(h, inst)[0], self.raw_roll(h, inst)[0]]
                 x["dice"].append(inst)
+            if x["st"].pop("hex", 0) and x["dice"]:
+                # hexed: the biggest die is swapped for a cursed one
+                big = max(x["dice"], key=lambda d: top_face(d["faces"]))
+                big.update(faces=list(CURSED_DIE), dk=[], src="hex", v=None, top=False)
+                for k2 in ("link", "sv", "stag", "hint", "fc", "tag"):
+                    big.pop(k2, None)
+                self.fx("st", to=f"h{h}", s="hexed")
             if x["st"].pop("freeze", 0) and not m.get("freeze_immune") and x["dice"]:
                 x["dice"].remove(min(x["dice"], key=_num))
         # Spirit dice for heroes who are dead
@@ -380,7 +392,7 @@ class Combat:
                 it["v"] = max(0, it["v"] - heckle)
         if it.get("v", 0) >= 2 and it["k"] in ROLLED:
             # enemies roll too: the intent shows the range, the number comes up when it acts
-            spread = max(1, round(it["v"] * FOE_SPREAD))
+            spread = max(1, round(it["v"] * FOE_SPREAD * FOE_SPREAD_KIND.get(d.get("dk"), 1)))
             it["lo"], it["hi"] = max(1, it["v"] - spread), it["v"] + spread
         if it["k"] == "attack" or it["k"] == "debuff":
             it["tgt"] = self.foe_target(it, heroes_only=it["k"] == "debuff")
@@ -637,6 +649,13 @@ class Combat:
         for d in dice:
             d["used"] = True
         self.resolve_action(h, a, dice, tgt)
+        self.maybe_resolve()
+
+    def maybe_resolve(self):
+        """Thorns or a bursting enemy can knock down the last hero still acting: then the round
+        goes on without them."""
+        if self.s["phase"] == "fight" and self.s["fight"] and not self.check_end() and not self.fight_waiting():
+            self.resolve_round()
 
     def instant(self, h, a, dice, tgt):
         """Actions that set up dice take effect the moment they're placed."""
@@ -764,7 +783,7 @@ class Combat:
             hero["bag"].pop(i)
             self.lift(hid, u["lift"])
         self.say(f"{hero['name']} uses {I.ITEMS[key]['name']}.")
-        self.check_end()
+        self.maybe_resolve()
 
     # ------------------------------------------------------------------ resolving
 
@@ -1244,6 +1263,10 @@ class Combat:
             if others:
                 near = [o for o in others if o["row"] == fo["row"]] or others
                 self.hurt_foe(near[0], n // 2, h, pure=True)
+        thorns = A.FOES[fo["k"]].get("thorns")
+        if thorns and h is not None and not pure and not bomb and n > 0 and self.active(h):
+            self.fx("st", to=f"f{fo['id']}", s="thorns")
+            self.hurt_hero(h, thorns, None, pure=True)
         if fo["hp"] <= 0:
             self.foe_dies(fo, h, bomb)
         return n
@@ -1277,6 +1300,15 @@ class Combat:
         if bomb and h is not None and self.mods(h).get("chain_reaction"):
             for o in self.foes():
                 self.hurt_foe(o, fo["max"] // 2, h, pure=True)
+        for o in self.foes():
+            if A.FOES[o["k"]].get("pack"):
+                o["might"] += A.FOES[o["k"]]["pack"]
+                self.fx("st", to=f"f{o['id']}", s="enraged")
+        if d.get("volatile"):
+            self.fx("st", to=f"f{fo['id']}", s="explodes")
+            for y in self.actives():
+                if self.hs(y)["row"] == "front":
+                    self.hurt_hero(y, d["volatile"], None, pure=True)
         if d.get("boss") and not d.get("final"):
             self.say(f"{d['name']} falls!")
 
@@ -1383,14 +1415,53 @@ class Combat:
         frozen = fo["st"].pop("freeze", 0)
         k = it.get("k")
         v = it.get("v", 0)
+        times, sear = 1, False
         if "lo" in it:
-            v = self.rng.randint(it["lo"], it["hi"])
-            self.fx("froll", f=fo["id"], v=v, lo=it["lo"], hi=it["hi"], ik=k)
+            lo, hi = it["lo"], it["hi"]
+            dk = A.FOES[fo["k"]].get("dk")
+            v = self.rng.randint(lo, hi)
+            dice, note = [v], None
+            if dk == "twin":
+                dice.append(self.rng.randint(lo, hi))
+                if dice[0] == dice[1]:
+                    times, note = 2, "doubles"
+                v = max(dice)
+            elif dk == "exploding" and v == hi and hi > lo:
+                more = self.rng.randint(1, hi - lo)
+                dice.append(more)
+                v, note = v + more, "explodes"
+            elif dk == "fumble" and v == lo:
+                note = "fumble"
+            elif dk == "searing" and v >= hi - (hi - lo) / 3:
+                sear, note = True, "sear"
+            self.fx("froll", f=fo["id"], v=v, lo=lo, hi=hi, ik=k, dice=dice, note=note)
+            if note == "fumble":
+                self.fx("fact", f=fo["id"], ik="dazed")
+                return
         if frozen:
             v //= 2
         if fo["st"].get("weak"):
             v = int(v * 0.75)
-        self.fx("fact", f=fo["id"], ik=k)
+        for _ in range(times):
+            if fo["hp"] <= 0 or not self.actives():
+                return
+            self.fx("fact", f=fo["id"], ik=k)
+            self.foe_do(fo, it, k, v, sear)
+
+    def foe_do(self, fo, it, k, v, sear=False):
+        """One enemy action landing, its roll already made."""
+        f = self.s["fight"]
+        d = A.FOES[fo["k"]]
+
+        def landed(u, n):
+            # searing Burns, leeching heals the enemy by half of what got through
+            if sear and u.startswith("h") and self.active(int(u[1:])):
+                self.hero_status(int(u[1:]), "burn", 2)
+            if d.get("leech") and n and fo["hp"] > 0:
+                got = min((n + 1) // 2, fo["max"] - fo["hp"])
+                if got:
+                    fo["hp"] += got
+                    self.fx("heal", to=f"f{fo['id']}", n=got)
         if k == "attack" or k == "debuff":
             t = it.get("tgt")
             if not self.unit_alive(t) or (k == "debuff" and t and t.startswith("s")):
@@ -1400,7 +1471,7 @@ class Combat:
             if f["taunt"] is not None and self.active(f["taunt"]):
                 t = f"h{f['taunt']}"
             if k == "attack":
-                self.hurt_unit(t, v, fo, melee=bool(it.get("melee")))
+                landed(t, self.hurt_unit(t, v, fo, melee=bool(it.get("melee"))))
             if it.get("st") and t.startswith("h") and self.active(int(t[1:])):
                 self.hero_status(int(t[1:]), it["st"], it.get("sn", 1))
         elif k in ("row", "all"):
@@ -1409,7 +1480,7 @@ class Combat:
                 want = it.get("row", "front")
                 units = [u for u in units if self.unit_row(u) == want] or units
             for u in units:
-                self.hurt_unit(u, v, fo)
+                landed(u, self.hurt_unit(u, v, fo))
                 if it.get("st") and u.startswith("h") and self.active(int(u[1:])) and self.rng.random() < it.get("chance", 1):
                     self.hero_status(int(u[1:]), it["st"], it.get("sn", 1))
         elif k == "block":

@@ -254,6 +254,7 @@ export function faceTip(f) {
 export const STATUS = {
   burn: { name: 'Burn', icon: 'flame', text: 'Takes this much damage at the end of the round, then it drops by 1.', bad: true },
   poison: { name: 'Poison', icon: 'drop', text: 'Takes this much damage at the start of each round.', bad: true },
+  hex: { name: 'Hex', icon: 'skull', text: 'Next round, your biggest die is swapped for a cursed die (skull, 1, 2, 3).', bad: true },
   freeze: { name: 'Freeze', icon: 'snow', text: 'Heroes lose their lowest die next round; enemies hit for half.', bad: true },
   shock: { name: 'Shock', icon: 'bolt', text: 'The next hit also hits a neighbour for half.', bad: true },
   weak: { name: 'Weak', icon: 'down', text: 'Deals 25% less damage.', bad: true },
@@ -269,3 +270,22 @@ export const STATUS = {
   crescendo: { name: 'Crescendo', icon: 'up', text: 'The next damaging action deals 50% more.' },
   thorns: { name: 'Thorns', icon: 'spark', text: 'Attackers take this much this round.' },
 };
+
+// Enemy dice and traits: what makes each enemy fight differently.
+export const FOE_DICE = {
+  wild: ['Wild die', 'Rolls a much wider range than most.'],
+  steady: ['Steady die', 'Rolls close to what it shows.'],
+  exploding: ['Exploding die', 'On its top roll it rolls again and adds.'],
+  fumble: ['Clumsy die', 'On its lowest roll it fumbles and does nothing.'],
+  twin: ['Twin dice', 'Rolls two and uses the higher; on doubles it acts twice.'],
+  searing: ['Searing die', 'A roll in its top third also Burns whoever it hits.'],
+};
+export function foeTraits(d) {
+  const out = [];
+  if (d.dk && FOE_DICE[d.dk]) out.push(FOE_DICE[d.dk]);
+  if (d.thorns) out.push([`Thorns ${d.thorns}`, `Whoever damages it takes ${d.thorns}.`]);
+  if (d.pack) out.push(['Pack', `Gains +${d.pack} might whenever another enemy dies.`]);
+  if (d.leech) out.push(['Leech', 'Heals half the damage it deals.']);
+  if (d.volatile) out.push([`Volatile ${d.volatile}`, `When it dies it bursts for ${d.volatile} on every front-row hero.`]);
+  return out;
+}

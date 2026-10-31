@@ -417,6 +417,29 @@ and the back row floods (heroes there must move or take damage each round); (3) 
 taking an extra intent each round. Enemies scale with the region's distance from the start and the
 number of objectives cleared.
 
+**Enemy dice and traits** (owner's request: variety instead of more damage). Each enemy can have a
+die kind (`dk` in `FOES`) that changes how its intent's number rolls, and traits that change how
+fighting it goes. They show as dashed chips beside its statuses and in its tooltip (`foeTraits` in
+`rules.js`), and odd rolls are called out in the roll tray.
+
+| Die / trait | Effect | Who |
+|---|---|---|
+| Wild | range twice as wide | Deckhound, Crag Ram, Gallows Admiral |
+| Steady | range half as wide | Brine Golem, Tide Guard, Bell-Warden |
+| Exploding | top roll rolls again and adds | Cutthroat, Corsair Captain, Thunder Wyvern |
+| Clumsy (`fumble`) | lowest roll does nothing | Drowned Deckhand, Cliff Hermit |
+| Twin | rolls two, uses the higher; doubles act twice | Reef Eel, Harpy, Drowned Crown |
+| Searing | top third also Burns 2 | Powder Monkey, Lamp Keeper |
+| Thorns N | a hero who damages it takes N (not bombs) | Crabfolk Brute |
+| Pack N | +N might when another enemy dies | Deckhound, Harpy |
+| Leech | heals half the damage it deals | Jellyfloat, Drowned Crown |
+| Volatile N | bursts for N on front-row heroes when it dies | Powder Monkey, Lightning Totem |
+| Hex (an intent) | next round the hero's biggest die becomes a cursed die (skull, 1, 2, 3) | Siren, Tide Cultist, Drowned Crown |
+
+Hard went from about 42% to about 31% for the bots with these and no change to enemy damage or HP.
+Thorns and Volatile can knock a hero down during their own turn: `maybe_resolve` ends the round if
+that leaves nobody still acting.
+
 ## Items and economy
 
 - About 50 items in v1. Weapons always give a die and 1-2 actions (a harpoon's "Reel In", a
@@ -581,11 +604,12 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand** (the smart bots, 100 runs each): about 88% on Normal and 42% on Hard
-  since actions resolve as they're played and enemies roll their numbers (seeing each roll before
-  the next move is worth a lot: before, it was about 80% and 30–35%; rolled enemies took back a
-  few points). Classes on Hard sit between 31% (Warden) and 67% (Mender). The Mender has led
-  throughout; the Warden, Arcanist and Ranger trail.
+- **Where the bots stand** (the smart bots, 100 runs each): about 81% on Normal, 31% on Hard and
+  every Story run. Actions resolving as they're played lifted the bots (to 92% and 46%: seeing each
+  roll before the next move is worth a lot), rolled enemy numbers took a few points back, and enemy
+  dice and traits brought Hard back to where it was. Classes on Hard sit between 19% (Duelist) and
+  45% (Herald); the Mender no longer leads. The Duelist and Ranger, who hit many times, suffer most
+  from Thorns.
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
   between batches by chance alone, and overall rates ±4. Treat a pick's win rate (20–40 runs) as a
   hint. Run 100 or more before changing anything, and compare like with like (same seeds: the

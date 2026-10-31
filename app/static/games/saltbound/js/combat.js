@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=30';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=30';
-import { spriteURL } from './art.js?v=30';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=30';
-import { render } from './main.js?v=30';
-import * as sfx from './audio.js?v=30';
+import { S, send, mine } from './store.js?v=31';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=31';
+import { spriteURL } from './art.js?v=31';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=31';
+import { render } from './main.js?v=31';
+import * as sfx from './audio.js?v=31';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -88,7 +88,7 @@ export function renderCombat(el) {
       h('div.uname', null, fo.name),
       hpBar(Math.max(0, fo.hp), fo.max, true),
       previewRow('f' + fo.id, prev, fo.hp),
-      statusRow(fo.st, fo.might ? [`+${fo.might} might`] : []),
+      statusRow(fo.st, fo.might ? [`+${fo.might} might`] : [], traitChips(d)),
       floats('f' + fo.id));
   };
   const unitAlly = a => {
@@ -250,7 +250,7 @@ function hpBar(hp, max, foe = false) {
   return h('div.bar' + hpClass(hp, max, foe), null, h('i', { style: { width: Math.max(0, Math.round(100 * hp / max)) + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
 }
 
-function statusRow(st, extra = []) {
+function statusRow(st, extra = [], tail = []) {
   const chips = [];
   for (const [k, v] of Object.entries(st || {})) {
     if (!v || k === 'doomt') continue;
@@ -260,7 +260,7 @@ function statusRow(st, extra = []) {
     chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k, { tip: `${s.name}${n !== '' ? ' ' + n : ''}\n${s.text}` }, icon(s.icon), n));
   }
   for (const e of extra) chips.push(h('span.st', null, e));
-  return h('div.sts', null, ...chips);
+  return h('div.sts', null, ...chips, ...tail);
 }
 
 // The dice an action just rolled, big in the middle of the fight: they tumble, land, then say hit or miss.
@@ -278,7 +278,7 @@ function rollTray() {
     return h('div.roll-tray.foe-roll' + (t.verdict && now >= t.vt ? '.' + t.verdict : ''), { style: since(t.t), role: 'status' },
       h('div.rt-info', null, h('span.rt-who', null, t.foe), h('span.rt-act', null, what), h('span.rt-need', null, `Rolls ${t.range}`)),
       h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die.foe', { style: since(x.t) }, h('span', { style: since(x.t) }, x.v)))),
-      h('div.rt-slot', null, t.verdict && now >= t.vt ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'heavy' ? 'Heavy!' : 'Glancing') : null));
+      h('div.rt-slot', null, t.verdict && now >= t.vt ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.label) : null));
   }
   return h('div.roll-tray' + (t.verdict ? '.' + t.verdict : ''), { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
     h('div.rt-info', null,
@@ -291,6 +291,10 @@ function rollTray() {
     h('div.rt-slot', null, t.verdict ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'miss' ? 'Miss' : 'Hit!') : null));
 }
 
+function traitChips(d) {
+  return foeTraits(d).map(([n, txt]) => h('span.trait', { tip: `${n}\n${txt}` }, n));
+}
+
 function floats(id) {
   const list = C.floats[id] || [];
   const now = performance.now();
@@ -299,7 +303,7 @@ function floats(id) {
 
 function foeTip(fo) {
   const d = S.static.foes[fo.k];
-  return `${d.name}\n${fo.hp} / ${fo.max} HP · ${d.row} row · speed ${d.speed}${d.undead ? ' · undead' : ''}${d.beast ? ' · beast' : ''}`;
+  return `${d.name}\n${fo.hp} / ${fo.max} HP · ${d.row} row · speed ${d.speed}${d.undead ? ' · undead' : ''}${d.beast ? ' · beast' : ''}${foeTraits(d).map(([n, t]) => `\n${n}: ${t}`).join('')}`;
 }
 
 function intentChip(fo, f) {
@@ -391,7 +395,7 @@ function dieButton(d, i, ready) {
   const tip = `${dieTip(d)}\n${src}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
   return h('button.die' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (d.src === 'spirit' ? '.spirit' : '') + (guard ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
     disabled: d.used || ready, 'aria-label': `Die ${i + 1}: ${dieLabel(d)}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
-  }, h('span.k', null, i + 1), face, ...badges, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G' }[d.src] ?? ''));
+  }, h('span.k', null, i + 1), face, ...badges, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G', hex: '☠' }[d.src] ?? ''));
 }
 
 function actionCard(f, x, k, i, selDice, ready) {
@@ -656,8 +660,11 @@ function apply(f) {
       const fo = foe('f' + f.f);
       const now = performance.now();
       const third = (f.hi - f.lo) / 3;
-      const verdict = f.hi === f.lo ? null : f.v >= f.hi - third ? 'heavy' : f.v <= f.lo + third ? 'glancing' : null;
-      C.tray = { fid: f.f, foe: fo?.name || 'Enemy', range: `${f.lo}–${f.hi}`, ik: f.ik, t: now, verdict, vt: now + 380 / (S.settings.speed || 1), dice: [{ id: 'f' + f.f, v: f.v, t: now }] };
+      const NOTE = { explodes: 'heavy', doubles: 'heavy', sear: 'heavy', fumble: 'glancing' };
+      const verdict = f.note ? NOTE[f.note] : f.hi === f.lo ? null : f.v >= f.hi - third ? 'heavy' : f.v <= f.lo + third ? 'glancing' : null;
+      const label = { explodes: 'Explodes!', doubles: 'Doubles!', sear: 'Searing!', fumble: 'Fumble' }[f.note] || (verdict === 'heavy' ? 'Heavy!' : 'Glancing');
+      C.tray = { fid: f.f, foe: fo?.name || 'Enemy', range: `${f.lo}–${f.hi}`, ik: f.ik, t: now, verdict, label, vt: now + 380 / (S.settings.speed || 1),
+        dice: (f.dice || [f.v]).map((v, j) => ({ id: 'f' + f.f + '.' + j, v, t: now })) };
       flash('f' + f.f, 'act');
       sfx.play('dice');
       if (verdict) setTimeout(render, 400 / (S.settings.speed || 1));
@@ -691,7 +698,7 @@ function apply(f) {
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', hexed: 'Hexed!' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

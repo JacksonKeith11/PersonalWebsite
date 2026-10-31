@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=19';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=19';
-import { spriteURL } from './art.js?v=19';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=19';
-import { MapView } from './hexmap.js?v=19';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=19';
-import { disconnect } from './main.js?v=19';
-import * as sfx from './audio.js?v=19';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=22';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=22';
+import { spriteURL } from './art.js?v=22';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=22';
+import { MapView } from './hexmap.js?v=22';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=22';
+import { disconnect } from './main.js?v=22';
+import * as sfx from './audio.js?v=22';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -577,7 +577,7 @@ function renderDialogs() {
       h('div.picks', null, ...d.opts.map((k, i) => {
         const sk = skillDef(k), up = k.endsWith('+');
         const isAct = !!S.static.actions[k.replace(/\+$/, '')];
-        return h('button.pick', { onclick: () => send({ t: 'choose', h: h0, n: i }) },
+        return h('button.pick', { style: { '--i': i }, onclick: () => send({ t: 'choose', h: h0, n: i }) },
           h('span.kind', null, up ? 'Upgrade' : sk.cap ? 'Capstone' : isAct ? 'New action' : 'Passive'),
           h('h3', null, sk.name + (up ? '+' : '')),
           isAct ? h('span.req', null, icon('dice'), reqText(sk.req), sk.cd ? ` · cooldown ${sk.cd}` : '') : null,
@@ -589,6 +589,11 @@ function renderDialogs() {
   const key = JSON.stringify([h0, d]);
   const enter = key !== UI.lastDialog; UI.lastDialog = key;
   el.replaceChildren(modal(content, { wide: d.type !== 'event', enter }));
+  // good loot gets a fanfare as the cards are dealt
+  if (enter && d.type === 'loot') {
+    const best = Math.max(...d.opts.map(k => ['common', 'uncommon', 'rare', 'legendary'].indexOf(item(k).rarity)));
+    if (best >= 2) setTimeout(() => sfx.play(best === 3 ? 'fanfare' : 'rare'), 250);
+  }
 }
 
 // ------------------------------------------------------------------ first-time hints
@@ -629,8 +634,8 @@ export function handleFx(list, before) {
       case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
       case 'rise': toast('The sea rises', 'big'); sfx.play('rise'); break;
       case 'tide': toast(f.tide === 'low' ? 'Low tide: the sandbars are out' : 'High tide: the shallows close'); break;
-      case 'level': toast(`The party reaches level ${f.lvl}`, 'big'); sfx.play('level'); break;
-      case 'cleared': toast(`${S.static.dungeons[f.region]} is cleared`, 'big'); sfx.play('level'); break;
+      case 'level': bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); break;
+      case 'cleared': bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); break;
       case 'buff': if (mine().includes(f.h)) toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`); break;
       case 'event':
         if (mine().includes(f.h)) {

@@ -601,6 +601,14 @@ no clock anywhere: the run changes only when someone acts.
   the fight, rerolls flash, and risky actions end with HIT or MISS. The playback looks ahead from a
   `roll` effect to its `act` to name the action. The overlay is rebuilt on every render, so animated
   elements set a negative `animation-delay` from when they started, like the floats.
+- **Big moments are animated** (`bigBanner` in `ui.js` for level-ups, cleared objectives, the
+  boss's phases, victory and defeat; the rest in `combat.js`'s playback): a hit of 12 or more (or
+  40% of the target's health) shakes the stage with a big orange number; a kill flashes and bursts
+  before the enemy fades (`dying` keeps it drawn until then); a stun, daze or freeze that lands
+  wobbles its target; risky hits and misses flash the roll tray; big heals and revives glow; loot
+  and level-up cards are dealt in, rare loot glows, legendary loot shimmers, with a fanfare. A
+  fight's last frame stays under the Victory or Defeat banner for about a second before the map
+  (and any loot) comes back. Each moment has its own synthesized sound in `audio.js`.
 - Every die has a tooltip (`dieTip`): plain dice say "Rolls 1 to N"; unusual ones list their faces,
   and each kind badge and special face has its own tooltip.
 - **Music** is synthesized in `audio.js` (`music('map' | 'fight' | null)`), scheduled a quarter

@@ -52,6 +52,14 @@ const SOUNDS = {
   win: () => [392, 523, 659, 784].forEach((f, i) => tone(f, 0.35, { type: 'triangle', gain: 0.1, delay: i * 0.1 })),
   lose: () => [392, 330, 262].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.1, delay: i * 0.15 })),
   error: () => tone(180, 0.12, { type: 'square', gain: 0.05 }),
+  crit: () => { noise(0.2, { gain: 0.3, freq: 300, q: 0.8 }); tone(90, 0.3, { type: 'square', gain: 0.08, slide: -40 }); tone(1400, 0.08, { type: 'triangle', gain: 0.06, delay: 0.02 }); },
+  kill: () => { tone(330, 0.12, { type: 'triangle', gain: 0.08 }); tone(220, 0.3, { type: 'sawtooth', gain: 0.06, slide: -120, delay: 0.06 }); noise(0.25, { gain: 0.12, freq: 1800, delay: 0.04 }); },
+  stun: () => [1320, 1760, 1320].forEach((f, i) => tone(f, 0.08, { type: 'triangle', gain: 0.06, delay: i * 0.06 })),
+  hitwin: () => { tone(784, 0.1, { type: 'triangle', gain: 0.08 }); tone(1175, 0.16, { type: 'triangle', gain: 0.08, delay: 0.07 }); },
+  rare: () => [659, 988, 1319].forEach((f, i) => tone(f, 0.3, { type: 'triangle', gain: 0.08, delay: i * 0.09 })),
+  fanfare: () => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.09, delay: i * 0.09 })); tone(2093, 0.6, { gain: 0.05, delay: 0.5 }); },
+  phase: () => { tone(98, 0.9, { type: 'sawtooth', gain: 0.1, slide: -20 }); noise(0.9, { gain: 0.14, freq: 200, q: 0.5, type: 'lowpass' }); },
+  revive: () => [392, 523, 784].forEach((f, i) => tone(f, 0.3, { gain: 0.09, delay: i * 0.08 })),
 };
 export function play(name) {
   if (volume <= 0) return;

@@ -664,3 +664,62 @@ a:hover { color: var(--accent-hi); }
   .action p { -webkit-line-clamp: 2; font-size: 12px; }
   .action .top-r .req, .action .top-r .odds { font-size: 12px; }
 }
+
+/* ------------------------------------------------------------------ big moments */
+.big-banner { position: fixed; inset: 0; z-index: 46; display: grid; place-content: center; justify-items: center; gap: 6px; pointer-events: none;
+  animation: bb-life 2200ms var(--ease) forwards; }
+.big-banner .bb-title { position: relative; font: var(--fw-bold) clamp(44px, 8vw, 84px)/1 var(--font-display); color: var(--accent-hi);
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.8), 0 0 40px rgba(224, 187, 98, 0.35); animation: bb-in 520ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.big-banner .bb-sub { position: relative; font: var(--fw-semibold) var(--fs-18)/1.3 var(--font-ui); color: var(--text); letter-spacing: 0.06em; text-transform: uppercase;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8); animation: bb-in 520ms 120ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.big-banner .bb-rays { position: absolute; left: 50%; top: 50%; width: 900px; height: 900px; margin: -450px 0 0 -450px; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(224, 187, 98, 0.16) 0deg 6deg, transparent 6deg 18deg);
+  mask: radial-gradient(circle, #000 0%, transparent 62%); -webkit-mask: radial-gradient(circle, #000 0%, transparent 62%);
+  animation: bb-spin 2400ms linear both, bb-rays 2200ms var(--ease) both; }
+.big-banner.danger .bb-title { color: var(--danger); text-shadow: 0 4px 28px rgba(0, 0, 0, 0.8), 0 0 40px rgba(208, 98, 79, 0.4); }
+.big-banner.danger .bb-rays { background: radial-gradient(circle, rgba(208, 98, 79, 0.28), transparent 60%); }
+@keyframes bb-life { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes bb-in { from { opacity: 0; transform: scale(0.6) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes bb-spin { to { transform: rotate(40deg); } }
+@keyframes bb-rays { 0% { opacity: 0; transform: scale(0.4); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.1); } }
+
+/* fights: heavy hits, kills, stuns, big heals, revives */
+.float.dmg.big { font-size: 34px; color: #ffb35c; text-shadow: 0 0 12px rgba(255, 140, 60, 0.7), 0 2px 2px rgba(0, 0, 0, 0.8); }
+.float.heal.big { font-size: 26px; text-shadow: 0 0 12px rgba(95, 176, 122, 0.7), 0 2px 2px rgba(0, 0, 0, 0.8); }
+.float.stun { font-family: var(--font-ui); font-size: var(--fs-18); font-weight: 800; color: #ffe27a; text-shadow: 0 0 10px rgba(255, 210, 80, 0.7), 0 2px 2px rgba(0, 0, 0, 0.8); }
+.stage.shake { animation: shake 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes shake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); } 30%, 50%, 70% { transform: translate(-6px, 2px); } 40%, 60% { transform: translate(6px, -1px); } }
+.unit.bighit img { animation: bighit 420ms var(--ease); }
+@keyframes bighit { 0% { filter: brightness(3) saturate(0); transform: scale(1.12); } 40% { filter: brightness(1.6); transform: translateX(8px) scale(1); } 100% { filter: none; transform: none; } }
+.unit::after { content: ""; position: absolute; left: 50%; top: 38%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; pointer-events: none; opacity: 0; }
+.unit.kill::after { animation: ring 520ms var(--ease) both; border: 3px solid #ffd27a; box-shadow: 0 0 18px rgba(255, 200, 100, 0.8); }
+.unit.kill img { animation: killflash 520ms var(--ease) both; }
+@keyframes killflash { 0% { filter: brightness(3) saturate(0); } 60% { filter: brightness(2) saturate(0); transform: scale(1.08); opacity: 1; } 100% { opacity: 0.2; transform: scale(0.9) translateY(6px); } }
+.unit.stunned::after { animation: ring 700ms var(--ease) both; border: 3px dashed #ffe27a; }
+.unit.stunned img { animation: wobble 700ms var(--ease); }
+@keyframes wobble { 20% { transform: rotate(-8deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(2deg); } }
+.unit.healbig::after { animation: ring 600ms var(--ease) both; border: 3px solid var(--ok); box-shadow: 0 0 18px rgba(95, 176, 122, 0.7); }
+.unit.revive::after { animation: pillar 800ms var(--ease) both; }
+@keyframes ring { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(14); } }
+@keyframes pillar { 0% { opacity: 0; width: 8px; height: 200px; margin: -150px 0 0 -4px; border-radius: 4px; background: linear-gradient(transparent, rgba(255, 226, 140, 0.9), transparent); }
+  30% { opacity: 1; width: 60px; margin-left: -30px; } 100% { opacity: 0; width: 90px; height: 220px; margin: -160px 0 0 -45px; border-radius: 30px; background: linear-gradient(transparent, rgba(255, 226, 140, 0.5), transparent); } }
+.roll-tray.hit { animation: rt-in 220ms var(--ease) both, rt-glow 640ms var(--ease); }
+.roll-tray.miss { animation: rt-in 220ms var(--ease) both, rt-nope 400ms var(--ease); }
+@keyframes rt-glow { 0% { box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55); } 30% { box-shadow: 0 0 0 4px rgba(95, 176, 122, 0.6), 0 0 40px rgba(95, 176, 122, 0.5); } 100% { box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55); } }
+@keyframes rt-nope { 20% { margin-left: -8px; } 40% { margin-left: 8px; } 60% { margin-left: -5px; } 80% { margin-left: 3px; } }
+
+/* loot and level-ups: the cards are dealt; rare ones glow, legendary ones shimmer */
+.scrim.enter .picks > * { animation: deal 480ms calc(var(--i, 0) * 110ms + 120ms) cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+@keyframes deal { from { opacity: 0; transform: translateY(26px) rotateX(35deg) scale(0.92); } to { opacity: 1; transform: none; } }
+.loot-card.r-rare { box-shadow: 0 0 0 1px rgba(90, 150, 230, 0.35), 0 0 26px rgba(90, 150, 230, 0.18); }
+.loot-card.r-legendary { position: relative; overflow: hidden; box-shadow: 0 0 0 1px rgba(224, 187, 98, 0.55), 0 0 34px rgba(224, 187, 98, 0.28); animation: legend-glow 2.4s ease-in-out infinite; }
+.scrim.enter .loot-card.r-legendary { animation: deal 480ms calc(var(--i, 0) * 110ms + 120ms) cubic-bezier(0.2, 1.2, 0.4, 1) both, legend-glow 2.4s 700ms ease-in-out infinite; }
+.loot-card.r-legendary::before { content: ""; position: absolute; inset: -40% -60%; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 236, 170, 0.18) 48%, rgba(255, 236, 170, 0.32) 50%, rgba(255, 236, 170, 0.18) 52%, transparent 60%);
+  animation: shimmer 3s 600ms ease-in-out infinite; }
+@keyframes shimmer { 0% { transform: translateX(-60%); } 55%, 100% { transform: translateX(60%); } }
+@keyframes legend-glow { 50% { box-shadow: 0 0 0 1px rgba(224, 187, 98, 0.8), 0 0 46px rgba(224, 187, 98, 0.42); } }
+@media (prefers-reduced-motion: reduce) {
+  .big-banner .bb-rays, .stage.shake, .unit.kill img, .unit::after, .scrim.enter .picks > *, .loot-card.r-legendary, .loot-card.r-legendary::before { animation: none !important; }
+}
+.big-banner::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 34% at 50% 50%, rgba(5, 9, 15, 0.82), rgba(5, 9, 15, 0.45) 60%, transparent 100%); }

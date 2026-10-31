@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=19';
-import { h, icon, toast, hideTip } from './ui.js?v=19';
-import { spriteURL } from './art.js?v=19';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=19';
-import { render } from './main.js?v=19';
-import * as sfx from './audio.js?v=19';
+import { S, send, mine } from './store.js?v=22';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=22';
+import { spriteURL } from './art.js?v=22';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=22';
+import { render } from './main.js?v=22';
+import * as sfx from './audio.js?v=22';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -79,7 +79,7 @@ export function renderCombat(el) {
     const d = S.static.foes[fo.k];
     const cl = ['unit', 'foe'];
     if (d.boss) cl.push('boss');
-    if (fo.hp <= 0) cl.push('dead');
+    if (fo.hp <= 0 && !fo.dying) cl.push('dead');
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
     return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, onclick: () => targetClick('f' + fo.id), tip: foeTip(fo) },
@@ -106,11 +106,11 @@ export function renderCombat(el) {
   };
   const alliesIn = row => (f.allies || []).filter(a => a.row === row && (a.hp > 0 || C.playing));
   const heroesIn = row => f.heroes.filter(x => f.hs[x].row === row);
-  const foesIn = row => f.foes.filter(fo => fo.row === row && (fo.hp > 0 || C.playing));
+  const foesIn = row => f.foes.filter(fo => fo.row === row && (fo.hp > 0 || fo.dying || C.playing));
 
   // three or more in a column: shrink them so the column fits
   const col = (label, units) => h('div.col' + (units.length >= 3 ? '.crowd' : ''), null, h('span.lbl', null, label), ...units);
-  const stage = h('div.stage', null,
+  const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), null,
     h('div.side-units', null,
       col('Back', [...heroesIn('back').map(unitHero), ...alliesIn('back').map(unitAlly)]),
       col('Front', [...heroesIn('front').map(unitHero), ...alliesIn('front').map(unitAlly)])),
@@ -280,8 +280,10 @@ function rollTray() {
   const now = performance.now();
   const since = t0 => ({ animationDelay: `-${Math.round(now - t0)}ms` });
   const ad = t.a ? S.static.actions[t.a] : null;
-  const shown = x => faceText(['S', 'X', 'W'].includes(x.tag) ? x.tag : x.tag ? x.tag + x.v : x.v);
-  return h('div.roll-tray', { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
+  // tags come as faces (S, X, W) or as the status an elemental face adds
+  const EL = { burn: 'F', freeze: 'I', poison: 'P', F: 'F', I: 'I', P: 'P' };
+  const shown = x => faceText(['S', 'X', 'W'].includes(x.tag) ? x.tag : EL[x.tag] ? EL[x.tag] + x.v : x.v);
+  return h('div.roll-tray' + (t.verdict ? '.' + t.verdict : ''), { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
     h('div.rt-info', null,
       h('span.rt-who', null, S.game.heroes[t.h].name),
       ad ? h('span.rt-act', null, ad.name) : null,
@@ -586,17 +588,23 @@ function playNext() {
 }
 
 function finish(ended) {
-  C.playing = false; C.display = null; C.hp = null; C.anim = {}; C.floats = {}; C.tray = null;
-  if (ended) banner(ended.result);
-  if (queue.length) { playNext(); return; }
+  const close = () => {
+    C.playing = false; C.display = null; C.hp = null; C.anim = {}; C.floats = {}; C.tray = null;
+    if (queue.length) { playNext(); return; }
+    render();
+  };
+  if (!ended) { close(); return; }
+  // the fight's last moment stays up under the banner; loot and the map come after
+  C.tray = null;
   render();
+  banner(ended.result);
+  setTimeout(close, 1300 / (S.settings.speed || 1));
 }
 
 function banner(result) {
   sfx.play(result === 'won' ? 'win' : 'lose');
-  const el = h('div.banner' + (result === 'won' ? '' : '.lost'), null, h('div', null, result === 'won' ? 'Victory' : 'Defeat'));
-  document.body.append(el);
-  setTimeout(() => el.remove(), 1500);
+  if (result === 'won') bigBanner('Victory', '', 'gold', 1600);
+  else bigBanner(result === 'fled' ? 'Escaped' : 'Defeat', '', 'danger', 1600);
 }
 
 let floatId = 0;
@@ -639,7 +647,11 @@ function apply(f) {
       const ad = S.static.actions[f.a];
       if (C.tray?.h === f.h && C.tray.a === f.a && !f.echo) {
         sfx.play(f.hit === false ? 'error' : 'swing');
-        if (ad && isRisky(ad.req)) { C.tray.verdict = f.hit === false ? 'miss' : 'hit'; C.tray.vt = performance.now(); return 640; }
+        if (ad && isRisky(ad.req)) {
+          C.tray.verdict = f.hit === false ? 'miss' : 'hit'; C.tray.vt = performance.now();
+          if (f.hit !== false) sfx.play('hitwin');
+          return 640;
+        }
         return 240;
       }
       addFloat('h' + f.h, (ad?.name || '') + (f.echo ? ' (echo)' : '') + (f.hit === false ? ': miss' : ''), f.hit === false ? 'miss' : 'txt');
@@ -655,32 +667,47 @@ function apply(f) {
     case 'dmg': {
       if (f.to.startsWith('h')) { const x = +f.to.slice(1); C.hp[x] = (C.hp[x] ?? 0) - f.n; }
       else if (f.to.startsWith('s')) { const al = ally(f.to); if (al) al.hp -= f.n; }
-      else { const fo = foe(f.to); if (fo) fo.hp -= f.n; }
+      else { const fo = foe(f.to); if (fo) { fo.hp -= f.n; if (fo.hp <= 0) fo.dying = true; } }
       if (f.block) addFloat(f.to, `◆${f.block}`, 'arm');
-      if (f.n > 0 || !f.block) addFloat(f.to, `−${f.n}`, 'dmg');
-      flash(f.to, 'hit');
-      sfx.play(f.n > 0 ? 'hit' : 'block');
-      return 300;
+      // a big hit: 12 or more, or 40% of its health (at least 8)
+      const max = f.to.startsWith('h') ? S.game.heroes[+f.to.slice(1)].maxhp : (foe(f.to) || ally(f.to))?.max || 99;
+      const big = f.n >= 12 || (f.n >= 8 && f.n >= max * 0.4);
+      if (f.n > 0 || !f.block) addFloat(f.to, big ? `−${f.n}!` : `−${f.n}`, big ? 'dmg.big' : 'dmg');
+      flash(f.to, big ? 'bighit' : 'hit', big ? 420 : 300);
+      if (big) { flash('stage', 'shake', 380); sfx.play('crit'); } else sfx.play(f.n > 0 ? 'hit' : 'block');
+      return big ? 460 : 300;
     }
     case 'heal': {
       if (f.to.startsWith('h')) { const x = +f.to.slice(1); C.hp[x] = (C.hp[x] ?? 0) + f.n; }
       else if (f.to.startsWith('s')) { const al = ally(f.to); if (al) al.hp += f.n; }
       else { const fo = foe(f.to); if (fo) fo.hp += f.n; }
-      if (f.n) { addFloat(f.to, `+${f.n}`, 'heal'); sfx.play('heal'); }
+      if (f.n) { addFloat(f.to, `+${f.n}`, f.n >= 10 ? 'heal.big' : 'heal'); sfx.play('heal'); if (f.n >= 10) flash(f.to, 'healbig', 600); }
       return f.n ? 260 : 60;
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
     case 'st': {
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
-      addFloat(f.to, name, 'txt');
+      const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
+      addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');
+      if (landed) { flash(f.to, 'stunned', 700); sfx.play('stun'); }
       if (f.to.startsWith('f')) { const fo = foe(f.to); if (fo && STATUS[f.s]) fo.st[f.s] = (fo.st[f.s] || 0) + 1; }
-      return 220;
+      return landed ? 380 : 220;
     }
-    case 'die': { const u = f.to.startsWith('s') ? ally(f.to) : foe(f.to); if (u) u.hp = 0; sfx.play('die'); return 320; }
+    case 'die': {
+      const u = f.to.startsWith('s') ? ally(f.to) : foe(f.to);
+      if (f.to.startsWith('f')) {
+        // a kill bursts before it fades
+        flash(f.to, 'kill', 520);
+        sfx.play('kill');
+        setTimeout(() => { if (u) { u.hp = 0; u.dying = false; } render(); }, 380 / (S.settings.speed || 1));
+        return 520;
+      }
+      if (u) u.hp = 0; sfx.play('die'); return 320;
+    }
     case 'sact': C.tray = null; flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
     case 'down': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = true; sfx.play('die'); return 380; }
-    case 'lift': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = false; C.hp[x] = f.n; addFloat(f.to, 'Back up!', 'txt'); return 300; }
+    case 'lift': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = false; C.hp[x] = f.n; addFloat(f.to, 'Back up!', 'heal.big'); flash(f.to, 'revive', 800); sfx.play('revive'); return 520; }
     case 'summon': {
       if (f.s) {
         const next = S.game.fight?.allies?.find(a => a.id === f.s);
@@ -696,7 +723,12 @@ function apply(f) {
     case 'shift': { if (d.hs[f.h]) d.hs[f.h].row = f.row; return 220; }
     case 'flee': { if (d.hs[f.h]) d.hs[f.h].fled = true; return 300; }
     case 'drag': { const fo = foe(f.to); if (fo) fo.row = 'front'; return 220; }
-    case 'phase': return 600;
+    case 'phase': {
+      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown rises', f.n === 2 ? 'The back row is flooding' : 'The Drowned Crown fights alone', 'danger', 2400);
+      flash('stage', 'shake', 500);
+      sfx.play('phase');
+      return 1400;
+    }
     default: return 120;
   }
 }

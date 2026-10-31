@@ -118,6 +118,14 @@ export function toast(text, kind = '') {
   setTimeout(() => el.remove(), kind === 'big' ? 2600 : 3200);
 }
 
+// A big moment across the middle of the screen: a title, a line under it, rays behind.
+export function bigBanner(title, sub = '', kind = 'gold', ms = 2200) {
+  const el = h('div.big-banner.' + kind, { 'aria-live': 'polite' },
+    h('div.bb-rays'), h('div.bb-title', null, title), sub ? h('div.bb-sub', null, sub) : null);
+  document.body.append(el);
+  setTimeout(() => el.remove(), ms);
+}
+
 // ------------------------------------------------------------------ modal
 export function modal(content, { wide = false, onClose = null, enter = true } = {}) {
   const box = h('div.modal.panel' + (wide ? '.wide' : ''), { role: 'dialog', 'aria-modal': 'true' }, content);

@@ -30,6 +30,8 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   code, a FastAPI WebSocket server with bots, thirty-nine minigames, two of them 3D) at `/games/board-brawl`
 - `app/static/games/song-guesser/`: Song Guesser, a name-that-tune game with synthesized arrangements at
   `/games/song-guesser`
+- `app/saltbound/` and `app/static/games/saltbound/` (planned, not built yet): Saltbound, a 1-3 player co-op
+  strategy RPG (hex overworld, dice combat, a rising sea as the clock) at `/games/saltbound`
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
   turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, and `brawl-*`, Board Brawl's)
@@ -49,6 +51,7 @@ up front. Read the matching one before you change something in that area:
 | `app/static/games/song-guesser/`, `tools/song-guesser-check.js`, `tools/song-guesser-midi/` | `docs/song-guesser.md` |
 | `app/arena/`, `app/static/games/arena/`, `tools/arena-*` | `docs/arena.md` |
 | `app/brawl/`, `app/static/games/brawl/`, `tools/brawl-*` | `docs/brawl.md` |
+| `app/saltbound/`, `app/static/games/saltbound/`, `tools/saltbound-*` | `docs/saltbound.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

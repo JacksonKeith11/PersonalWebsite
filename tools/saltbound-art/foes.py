@@ -255,3 +255,42 @@ if __name__ == '__main__':
     import sys
     items = [(f.__name__, f().strings(), f().pal) for f in ALL]
     sheet(items, (sys.argv[1] if len(sys.argv) > 1 else '.') + '/foes.png', scale=4, cols=8, bg=(16, 22, 31))
+
+
+# ---------------------------------------------------------------- the Warden's summons (hero side, drawn facing right)
+def sapling():
+    pal = {'G': '#5a9a40', 'g': '#3e7a2e', 'L': '#8ac860', 'w': '#6a4a2e', 'k': '#4a3020', 'e': E}
+    g = G(pal)
+    g.rect(13, 18, 15, 28, 'w'); g.rect(10, 28, 18, 29, 'k')
+    g.ell(14, 13, 6, 5.5, 'G'); g.ell(12.5, 11.5, 2.5, 2, 'L'); g.ell(16, 16, 3, 2, 'g')
+    g.px(12, 14, 'e'); g.px(16, 14, 'e')
+    g.line(15, 22, 19, 19, 'w'); g.ell(20, 18, 1.6, 1.4, 'G')
+    return g
+
+def bear():
+    pal = {'B': '#6a4a30', 'b': '#4e3422', 'M': '#a07a54', 'e': E, 'n': '#1a1210', 'w': '#f0f0e0'}
+    g = G(pal)
+    g.ell(13, 19, 9.5, 6.5, 'B'); g.ell(12, 22, 7, 3, 'b')
+    for x in (6, 9, 16, 19): g.rect(x, 24, x + 2, 29, 'b' if x in (9, 19) else 'B')
+    g.ell(23, 14, 5, 4.5, 'B'); g.ell(26, 16, 2.6, 2, 'M'); g.px(28, 15, 'n'); g.px(23, 12, 'e')
+    g.ell(20.5, 10, 1.6, 1.6, 'B'); g.ell(25, 10, 1.6, 1.6, 'B'); g.text(25, 18, ['w w'])
+    return g
+
+def wasps():
+    pal = {'Y': '#e0b830', 'k': '#2a2018', 'w': '#dfe8f0', 'e': E}
+    g = G(pal)
+    for cx, cy in ((9, 10), (19, 8), (14, 17), (22, 19), (7, 22)):
+        g.ell(cx, cy, 2.6, 1.8, 'Y'); g.px(cx, cy, 'k'); g.px(cx - 1, cy, 'k'); g.px(cx + 2, cy - 1, 'e')
+        g.px(cx - 1, cy - 2, 'w'); g.px(cx + 1, cy - 2, 'w')
+    return g
+
+def treant():
+    pal = {'W': '#6a4a2e', 'w': '#4e3422', 'G': '#4a8a3c', 'g': '#3a6a2e', 'L': '#6aa84a', 'e': '#ffd870', 'k': '#2a1e14'}
+    g = G(pal)
+    g.rect(10, 12, 19, 27, 'W'); g.rect(12, 14, 17, 26, 'w'); g.rect(8, 27, 12, 30, 'W'); g.rect(17, 27, 21, 30, 'W')
+    g.line(10, 15, 4, 10, 'W', 2); g.line(19, 15, 26, 9, 'W', 2)
+    g.ell(14.5, 7, 8.5, 6, 'G'); g.ell(12, 5, 3, 2, 'L'); g.ell(18, 9, 3, 2, 'g'); g.ell(4, 8, 3, 2.5, 'G'); g.ell(26, 7, 3, 2.5, 'G')
+    g.px(12, 17, 'e'); g.px(16, 17, 'e'); g.rect(12, 21, 16, 21, 'k')
+    return g
+
+SUMMONS = [sapling, bear, wasps, treant]

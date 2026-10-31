@@ -3,11 +3,11 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: build step 1 of 3.** The engine and the first three classes (Vanguard, Arcanist, Mender)
-play a whole run end to end, at the unlisted URL. The other seven classes come next, then the
-listing on `/games`. This doc began as the design the owner signed off on; "Decisions made while
-building" records the answers given since. When the build forces a change, update this doc in the
-same commit.
+**Status: build step 2 of 3.** All ten classes play whole runs end to end, at the unlisted URL.
+Step 3 is listing it on `/games` and the nav. This doc began as the design the owner signed off on;
+"Decisions made while building" records the answers given since, and "How the classes ended up"
+what changed from the first-pass skill lists below. When the build forces a change, update this
+doc in the same commit.
 
 ## What it is
 
@@ -455,6 +455,32 @@ Smaller calls made while building, not yet confirmed by the owner:
 - Movement is planned by clicking a destination; the cheapest route there is used.
 - A hero on a wreck, or picking loot, holds the next turn until they choose (it's a reward dialog).
 
+## How the classes ended up
+
+The skill lists under "The classes" were a first pass; `classes.py` is the truth for exact numbers.
+What changed while building all ten:
+
+- **Instant actions** (`"instant": True`) change dice the moment they're placed instead of joining
+  the plan: Perfect Form, Bloodprice, Loaded Dice, Inspire, Hymn of Valor, Lend a Hand, Quicksilver,
+  Bottle It. Placed dice can't be taken back once an instant has changed them.
+- **Summons**: the Warden's Sprout (sapling, HP = twice the die), Call Bear (15 HP, hits 4), Swarm
+  (one 6 HP swarm that stings every enemy for 1) and Ancient Guardian (treant, 25 HP, hits 5) stand on
+  the hero side, soak enemy attacks like heroes, act after the heroes, and last only for the fight.
+  Two per Warden at a time (Pack Leader +1); a new one replaces the oldest.
+- **The Ranger's hawk** is a die, not a unit: Companion adds a d4 every round (Alpha: a d8, and the
+  hawk strikes the weakest enemy for 3 each round). Sic 'Em and Pack Tactics work without it.
+- Capstones that teach an action: Perfect Poise (Perfect Form), Requiem, Ancient Guardian.
+- Undying Fury: when knocked down, hit back at the attacker for 8 (acting once more was awkward
+  with simultaneous planning). Thick Skull: +4 max HP and immune to Weak. Encore: +1 reroll.
+  Bottle It makes a Tonic (a Rum Ration on 5+). Pinpoint needs a die equal to the target's intent
+  number; Called Shot needs a Marked target.
+- **No endless fights**: from round 11 every enemy gains +2 might each round.
+- **Balance** (bots, which play simply): Normal enemies have 1.8× HP and 1.75× damage of the listed
+  numbers and bots win about 65%; Hard 2.05×/1.95× with a rise every 3 turns (not 2) and bots win
+  about 25%; Story 1.0×/0.95× and bots always win. Humans who coordinate should do better than bots.
+- Step 2's classes use option 1 of four sprite options each (`tools/saltbound-art/heroes2.py`,
+  built from `parts.py`) until the owner picks.
+
 ## Code map
 
 The server owns the game; the browser sends intents and draws the state it gets back. There is
@@ -499,5 +525,7 @@ no clock anywhere: the run changes only when someone acts.
 - The engine is synchronous and turn-based, so rooms need no tick loop; bots (testing only) act
   0.35 s apart through `loop.call_later`.
 - `python3 tools/saltbound-sim.py [runs] [difficulty]` plays whole runs with bots for balance.
+  `python3 tools/saltbound-check.py` forces every action and passive of every class through real
+  fights (bots never use most instant tricks); run it after touching `combat.py` or `classes.py`.
   `node tools/saltbound-shots.js [url] [dir] [WxH]` screenshots the real UI against a running server
   (bots play; it takes over a hero when a fight starts).

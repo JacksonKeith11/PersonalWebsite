@@ -326,6 +326,11 @@ a:hover { color: var(--accent-hi); }
 .st.armor { color: var(--armor); }
 .st.bad { color: var(--intent-debuff); }
 .st.burn, .st.poison { color: var(--intent-attack); }
+.col.crowd { gap: var(--s-1); }
+.col.crowd .unit { gap: 2px; padding: 2px var(--s-2); }
+.col.crowd .unit img { width: 64px; height: 64px; }
+.col.crowd .unit .sts { min-height: 0; }
+.col.crowd .intent { height: 26px; }
 .unit.target { cursor: pointer; border-color: var(--accent-ring); background: var(--accent-wash); }
 .unit.target:hover { border-color: var(--accent); }
 .unit.mine-sel { border-color: var(--border-strong); background: rgba(255, 255, 255, 0.03); }
@@ -446,6 +451,8 @@ a:hover { color: var(--accent-hi); }
   .unit img { width: 64px; height: 64px; }
   .unit.boss img { width: 88px; height: 88px; }
   .unit .sts { min-height: 0; }
+  .col.crowd .unit img { width: 48px; height: 48px; }
+  .col.crowd .uname { font-size: var(--fs-14); line-height: 1.1; }
   .combat-head { padding: var(--s-2) var(--s-6); }
   .tray { padding: var(--s-3) var(--s-6) var(--s-3); }
   .actions { max-height: 168px; }

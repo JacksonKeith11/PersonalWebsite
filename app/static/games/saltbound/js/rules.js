@@ -36,7 +36,7 @@ export function visibleTiles(game) {
   const out = new Set();
   game.heroes.forEach((hero, h) => {
     if (!hero.alive) return;
-    const r = (hero.cls === 'arcanist' ? 3 : 2) + 1;
+    const r = 3 + (hero.cls === 'arcanist' ? 1 : 0) + (hero.cls === 'ranger' ? 2 : 0) + (hero.skills.includes('wayfinder') ? 1 : 0);
     for (const t of within(hero.tile, r)) out.add(t);
   });
   return out;
@@ -110,6 +110,8 @@ export function reqText(req) {
   if (req.pair) bits.push('a pair');
   if (req.straight) bits.push('a straight');
   if (req.sum_min !== undefined) bits.push(`sum ${req.sum_min}+`);
+  if (req.match_intent) bits.push('matching its intent');
+  if (req.marked) bits.push('on a Marked enemy');
   const head = req.upto ? `Up to ${n} dice` : n === 1 ? (bits.length ? '' : 'Any die') : `${n} dice`;
   return [head, bits.join(', ')].filter(Boolean).join(': ').replace(/^: /, '');
 }
@@ -152,4 +154,8 @@ export const STATUS = {
   root: { name: 'Root', icon: 'root', text: "Can't change rows or flee.", bad: true },
   doom: { name: 'Doom', icon: 'clock', text: 'Takes this much damage at the end of next round.', bad: true },
   lifeline: { name: 'Lifeline', icon: 'heart', text: 'Heals fully at the end of the round.' },
+  dodge: { name: 'Dodge', icon: 'boot', text: 'The next hit misses.' },
+  riposte: { name: 'Riposte', icon: 'sword', text: 'If a hit is fully blocked this round, hits back for this much.' },
+  crescendo: { name: 'Crescendo', icon: 'up', text: 'The next damaging action deals 50% more.' },
+  thorns: { name: 'Thorns', icon: 'spark', text: 'Attackers take this much this round.' },
 };

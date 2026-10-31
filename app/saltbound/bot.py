@@ -44,15 +44,12 @@ def choose(g, h, d):
     hero = g.hero(h)
     if d["type"] == "event":
         ev = next(e for e in A.EVENTS if e["key"] == d["key"])
-        best = 0
-        for i, ch in enumerate(ev["choices"]):
-            if ch.get("need") and g.has_class(ch["need"]):
-                best = i
-                break
-            if ch.get("cost", 0) > hero["gold"]:
-                continue
-            if "fight" in ch["ok"] and hero["hp"] < g.maxhp(h) * 0.6:
-                continue
+        ok = [i for i, ch in enumerate(ev["choices"])
+              if (not ch.get("need") or g.has_class(ch["need"])) and ch.get("cost", 0) <= hero["gold"]]
+        best = next((i for i in ok if ev["choices"][i].get("need")), None)
+        if best is None:
+            safe = [i for i in ok if not ("fight" in ev["choices"][i]["ok"] and hero["hp"] < g.maxhp(h) * 0.6)]
+            best = (safe or ok or [0])[0]
         return {"t": "choose", "n": best}
     if d["type"] == "loot":
         opts = d["opts"]
@@ -236,6 +233,19 @@ def best_placement(g, h, free):
     return best
 
 
+def instant_value(g, h, a, dice):
+    """Instant dice tricks: only the simple, clearly-good ones."""
+    key = a["key"]
+    if key == "inspire" or key == "lend_a_hand":
+        others = [y for y in g.actives() if y != h and any(not d["used"] for d in g.hs(y)["dice"])]
+        if others and dice and dice[0]["v"] != "S" and dice[0]["v"] >= 4:
+            return [(f"h{others[0]}", 3)]
+        return []
+    if key == "bottle_it":
+        return [(None, 2.5)] if len(g.hero(h)["bag"]) < g.bag_size(h) else []
+    return []
+
+
 def planned_damage(g):
     """Damage the party has already planned on each enemy this round."""
     out = {}
@@ -254,10 +264,22 @@ def targets(g, h, a, dice, hurt, downed, foes):
     ops = [o["op"] for o in a["ops"]]
     env = g.env(h, a, dice)
     v = env["sum"] if env["n"] > 1 else env["v"]
+    if a.get("instant"):
+        return instant_value(g, h, a, dice)
     if kind == "foe":
         planned = planned_damage(g)
         pool = g.front_foes() if a.get("melee") else foes
         pool = [o for o in pool if planned.get(f"f{o['id']}", 0) < o["hp"]]
+        if a["req"].get("match_intent"):
+            pool = [o for o in pool if (o.get("intent") or {}).get("v") == v]
+        if a["req"].get("marked"):
+            pool = [o for o in pool if o["st"].get("mark")]
+        if "weaken" in ops or "retarget" in ops or "cancel" in ops:
+            pool = [o for o in pool if (o.get("intent") or {}).get("v", 0) >= 4]
+            if not pool:
+                return []
+            fo = max(pool, key=lambda o: o["intent"].get("v", 0))
+            return [(f"f{fo['id']}", fo["intent"].get("v", 0) * 0.8)]
         if not pool:
             return []
         fo = min(pool, key=lambda o: o["hp"] - planned.get(f"f{o['id']}", 0))
@@ -290,6 +312,11 @@ def targets(g, h, a, dice, hurt, downed, foes):
         if "heal" in ops:
             return [(None, 6 * len(hurt) + (1 if hurt else -1))]
         return [(None, 6)]
+    if kind == "self" and "summon" in ops:
+        mine = [al for al in g.allies() if al["owner"] == h]
+        planned = sum(1 for p in g.s["fight"]["plan"] if p["h"] == h and p["a"] in ("sprout", "call_bear", "swarm"))
+        room = C.SUMMON_CAP + g.mods(h).get("summon_cap", 0) - len(mine) - planned
+        return [(None, 9)] if room > 0 else []
     if kind == "self":
         if "armor" in ops:
             # only worth it against what's actually coming this round, less what's already planned

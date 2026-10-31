@@ -1,7 +1,7 @@
 // Screenshots of Saltbound's screens from a real game against a running server, for checking the
 // UI against its tokens before pushing (see docs/saltbound.md).
 //
-//   node tools/saltbound-shots.js [url] [out dir] [WxH]
+//   node tools/saltbound-shots.js [url] [out dir] [WxH]      (SB_CLASSES=Warden,Herald,Scoundrel for other classes)
 //
 // Plays solo with ?bots: claims the Vanguard, gives the other two heroes to bots, and shoots the
 // title, lobby, map, a fight, and whatever dialogs come up along the way.
@@ -28,12 +28,12 @@ fs.mkdirSync(out, { recursive: true });
   await page.click('text=Start a new voyage');
   await page.waitForSelector('.lobby');
   await shot('lobby-empty');
-  await page.click('.slot:nth-child(1) .class-opt:has-text("Vanguard")');
-  await page.waitForTimeout(300);
-  await page.click('.slot:nth-child(2) .class-opt:has-text("Arcanist")');
-  await page.waitForTimeout(300);
-  await page.click('.slot:nth-child(3) .class-opt:has-text("Mender")');
-  await page.waitForTimeout(300);
+  // SB_CLASSES=Warden,Herald,Scoundrel picks other classes
+  const picks = (process.env.SB_CLASSES || 'Vanguard,Arcanist,Mender').split(',');
+  for (let i = 0; i < 3; i++) {
+    await page.click(`.slot:nth-child(${i + 1}) .class-opt:has-text("${picks[i]}")`);
+    await page.waitForTimeout(300);
+  }
   await page.selectOption('.slot:nth-child(2) select', 'bot');
   await page.waitForTimeout(200);
   await page.selectOption('.slot:nth-child(3) select', 'bot');
@@ -64,6 +64,7 @@ fs.mkdirSync(out, { recursive: true });
       await page.waitForTimeout(600);
       await shot(`fight-${fights}`);
       for (let r = 0; r < 30 && await page.$('.combat .tray'); r++) {
+        if (r === 0) { await page.keyboard.press('w'); await page.waitForTimeout(200); if (await page.$('.unit.target')) await page.click('.unit.target'); }
         for (let k = 0; k < 4; k++) {
           await page.keyboard.press('q');
           await page.waitForTimeout(150);

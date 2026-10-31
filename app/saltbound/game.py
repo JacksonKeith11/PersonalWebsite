@@ -23,9 +23,9 @@ from .rng import Rng
 
 VERSION = 1
 DIFFICULTY = {
-    "story": {"rise": 4, "revives": 4, "foe_hp": 0.8, "foe_dmg": 0.8},
-    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.0, "foe_dmg": 1.0},
-    "hard": {"rise": 2, "revives": 2, "foe_hp": 1.25, "foe_dmg": 1.2},
+    "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
+    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.8, "foe_dmg": 1.75},
+    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.05, "foe_dmg": 1.95},
 }
 MOVES = 4
 VISION = 2
@@ -194,7 +194,12 @@ class Game(Combat):
         return a
 
     def moves(self, h):
-        return max(1, MOVES + self.mods(h).get("move", 0))
+        hero = self.hero(h)
+        tracker = C.CLASSES[hero["cls"]]["map"]["key"] == "tracker" and not hero["afloat"]
+        return max(1, MOVES + self.mods(h).get("move", 0) + (1 if tracker else 0))
+
+    def bag_size(self, h):
+        return BAG + self.mods(h).get("bag", 0)
 
     # ------------------------------------------------------------------ terrain
 
@@ -256,7 +261,12 @@ class Game(Combat):
             self.s["seen"][u] = 1
 
     def vision(self, h):
-        return VISION + (1 if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "farsight" else 0)
+        key = C.CLASSES[self.hero(h)["cls"]]["map"]["key"]
+        return VISION + (1 if key == "farsight" else 0) + (1 if self.mods(h).get("wayfinder") else 0)
+
+    def enemy_sight(self, h):
+        """How far a hero can see enemies (Trackers see them further off)."""
+        return self.vision(h) + 1 + (2 if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "tracker" else 0)
 
     def reveal_all(self):
         for h in self.living():
@@ -265,7 +275,7 @@ class Game(Combat):
     def visible_tiles(self):
         out = set()
         for h in self.living():
-            out |= Wd.within(self.hero(h)["tile"], self.vision(h) + 1)
+            out |= Wd.within(self.hero(h)["tile"], self.enemy_sight(h))
         return out
 
     # ------------------------------------------------------------------ enemies on the map
@@ -304,7 +314,9 @@ class Game(Combat):
         for g in self.s["groups"]:
             if g["lair"]:
                 continue
-            near = [h for h in heroes if Wd.dist(g["tile"], self.hero(h)["tile"]) <= 3]
+            beasts = all(A.FOES[f["k"]].get("beast") for f in g["foes"])
+            near = [h for h in heroes if Wd.dist(g["tile"], self.hero(h)["tile"]) <= 3 and
+                    not (beasts and C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "wildspeak")]
             if not near:
                 continue
             h = min(near, key=lambda h: Wd.dist(g["tile"], self.hero(h)["tile"]))
@@ -335,7 +347,7 @@ class Game(Combat):
             return []
         out = set(int(h) for h, q in s["pending"].items() if q)
         if s["phase"] == "plan":
-            out |= {int(h) for h, p in s["plans"].items() if not p["ready"]}
+            out |= {int(h) for h, p in s["plans"].items() if not p["ready"] and self.hero(int(h))["alive"]}
         elif s["phase"] == "fight" and s["fight"]:
             out |= set(self.fight_waiting())
         return sorted(out)
@@ -399,8 +411,13 @@ class Game(Combat):
         if self.s["pending"][str(h)]:
             raise Invalid("Answer what's in front of you first.")
         p["ready"] = bool(msg.get("on", True))
-        if all(q["ready"] for q in self.s["plans"].values()) and not any(self.s["pending"].values()):
+        if self.all_ready():
             self.resolve_turn()
+
+    def all_ready(self):
+        live = {str(h) for h in self.living()}
+        self.s["plans"] = {h: p for h, p in self.s["plans"].items() if h in live}
+        return all(q["ready"] for q in self.s["plans"].values()) and not any(self.s["pending"].values())
 
     # ------------------------------------------------------------------ resolving a turn
 
@@ -497,6 +514,7 @@ class Game(Combat):
         if s["after"] == "turn":
             self.begin_turn()
         s["phase"] = "plan"
+        s["plans"] = {h: p for h, p in s["plans"].items() if self.hero(int(h))["alive"]}
         for h in self.living():
             if str(h) not in s["plans"]:
                 s["plans"][str(h)] = {"path": [], "ready": False, "rest": False}
@@ -612,8 +630,10 @@ class Game(Combat):
         n = self.heal(h, int(self.maxhp(h) * frac + 0.5))
         self.fx("heal", to=f"h{h}", n=n)
         self.say(f"{hero['name']} rests (+{n} HP).")
-        if key == "brewer" and len(hero["bag"]) < BAG:
-            hero["bag"].append("potion")
+        if key == "brewer":
+            for _ in range(2 if self.mods(h).get("distiller") else 1):
+                if len(hero["bag"]) < self.bag_size(h):
+                    hero["bag"].append("potion")
 
     # ------------------------------------------------------------------ places
 
@@ -682,6 +702,8 @@ class Game(Combat):
             if ch.get("check"):
                 faces = max((d2["faces"] for d2 in self.dice_of(h)), key=lambda f: max(x for x in f if isinstance(x, int)))
                 roll = self.roll_face(faces)
+                if isinstance(roll, int):
+                    roll += self.mods(h).get("silver_voice", 0)
                 if not isinstance(roll, int) or roll < ch["check"]:
                     out = ch["bad"]
             self.outcome(h, out, ev, roll)
@@ -701,7 +723,7 @@ class Game(Combat):
             q.pop(0)
         if self.s["phase"] == "reward" and not any(self.waiting_reward(x) for x in range(3)):
             self.next_step()
-        elif self.s["phase"] == "plan" and all(p["ready"] for p in self.s["plans"].values()) and not any(self.s["pending"].values()):
+        elif self.s["phase"] == "plan" and self.all_ready():
             self.resolve_turn()
 
     def has_class(self, k):
@@ -771,7 +793,7 @@ class Game(Combat):
         slot = it["slot"]
         if slot != "use" and hero["equip"].get(slot) is None:
             hero["equip"][slot] = key
-        elif len(hero["bag"]) < BAG:
+        elif len(hero["bag"]) < self.bag_size(h):
             hero["bag"].append(key)
         else:
             hero["gold"] += I.price(key) * 4 // 10
@@ -878,7 +900,7 @@ class Game(Combat):
         if hero["gold"] < cost:
             raise Invalid("You can't afford that.")
         slot = I.ITEMS[key]["slot"]
-        if len(hero["bag"]) >= BAG and not (slot != "use" and hero["equip"].get(slot) is None):
+        if len(hero["bag"]) >= self.bag_size(h) and not (slot != "use" and hero["equip"].get(slot) is None):
             raise Invalid("Your bag is full.")
         hero["gold"] -= cost
         if key not in I.CONSUMABLES:
@@ -893,7 +915,7 @@ class Game(Combat):
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Sell what?")
         key = hero["bag"].pop(i)
-        n = I.price(key) * 4 // 10
+        n = I.price(key) * (6 if self.mods(h).get("haggler") else 4) // 10
         hero["gold"] += n
         self.say(f"{hero['name']} sells {I.ITEMS[key]['name']} for {n} gold.")
 
@@ -985,7 +1007,7 @@ class Game(Combat):
         slot = msg.get("slot")
         if slot not in ("armor", "trinket") or not hero["equip"].get(slot):
             raise Invalid("You can't take that off.")
-        if len(hero["bag"]) >= BAG:
+        if len(hero["bag"]) >= self.bag_size(h):
             raise Invalid("Your bag is full.")
         hero["bag"].append(hero["equip"][slot])
         hero["equip"][slot] = None
@@ -1018,7 +1040,7 @@ class Game(Combat):
         i = msg.get("bag")
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Give what?")
-        if len(other["bag"]) >= BAG:
+        if len(other["bag"]) >= self.bag_size(to):
             raise Invalid("Their bag is full.")
         other["bag"].append(hero["bag"].pop(i))
 
@@ -1063,7 +1085,7 @@ class Game(Combat):
         for h in range(3):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
-                           "moves": self.moves(h), "dice": [d["faces"] for d in self.dice_of(h)],
+                           "moves": self.moves(h), "dice": [d["faces"] for d in self.dice_of(h)], "bagsize": self.bag_size(h),
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():

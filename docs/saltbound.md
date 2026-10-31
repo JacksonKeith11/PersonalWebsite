@@ -242,8 +242,9 @@ Scoundrel's *Wayfinder* passive.
 
 ### Vanguard
 
-- **Starts with**: Strike (any die: deal its value); Guard (any die: the next hit on an ally hits
-  you instead, with Armor equal to the die).
+- **Starts with**: Strike (any die: the die +2, plus half your Armor); Guard (any die: the next hit
+  on an ally hits you instead, with Armor equal to the die); Overguard (passive: half your Armor
+  carries into the next round). Brace (a level-up pick) also gives the lowest-HP ally 2 Armor.
 - **Actions**: Taunt (≥3: all enemies target you this round) [Bulwark]; Brace (any: Armor = die ×2)
   [Bulwark]; Rally Wall (a pair: your row gains 4 Armor) [Bulwark]; Shield Bash (a shield face: 3
   damage and Stun) [Juggernaut]; Retaliate (≥4: deal damage equal to your Armor) [Juggernaut];
@@ -517,7 +518,9 @@ dice round, all as recommended):
   Sanctuary to hit and gives 1 less (not 2), Aura heals only the most wounded ally, the Berserker's
   Hack deals the die +1 and it has 30 HP. The Scoundrel, last on Hard, got 26 HP and starts with
   Evasive; and planning now knows linked dice share one roll (`joint_outcomes`, and `hitChance` in
-  `rules.js`), so its pairs show and play as the sure things they are.
+  `rules.js`), so its pairs show and play as the sure things they are. The Vanguard, then last on
+  Hard (10%), starts with Overguard, and Brace gives the lowest-HP ally 2 Armor (the `lowest` op
+  target), so its defence protects the party.
 
 ## How the classes ended up
 

@@ -655,6 +655,9 @@ def op_targets(g, h, op, base):
     if to == "myrow":
         row = g.hs(h)["row"]
         return [(("h", y), 1) for y in g.actives() if g.hs(y)["row"] == row]
+    if to == "lowest":
+        others = [y for y in g.actives() if y != h]
+        return [(("h", min(others, key=lambda y: g.hero(y)["hp"])), 1)] if others else []
     return [(t, 1) for t in base]
 
 

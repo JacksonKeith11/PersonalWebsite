@@ -1008,6 +1008,9 @@ class Combat:
             return [("h", y) for y in self.actives() if self.hs(y)["row"] == "front"]
         if to == "myrow":
             return [("h", y) for y in self.actives() if self.hs(y)["row"] == x["row"]]
+        if to == "lowest":
+            others = [y for y in self.actives() if y != h]
+            return [("h", min(others, key=lambda y: self.hero(y)["hp"]))] if others else []
         return base
 
     def run_ops(self, h, a, dice, tgt, half=False, ops=None, hit=True):

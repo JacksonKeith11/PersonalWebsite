@@ -515,9 +515,10 @@ What changed while building all ten:
   Bottle It makes a Tonic (a Rum Ration on 5+). Pinpoint needs a die equal to the target's intent
   number; Called Shot needs a Marked target.
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
-- **Balance** (bots, which play simply): Normal enemies have 1.8× HP and 1.75× damage of the listed
-  numbers and bots win about 65%; Hard 2.05×/1.95× with a rise every 3 turns (not 2) and bots win
-  about 25%; Story 1.0×/0.95× and bots always win. Humans who coordinate should do better than bots.
+- **Balance**: Normal enemies have 1.8× HP and 1.75× damage of the listed numbers; Hard 2.05×/1.95×
+  with a rise every 3 turns (not 2); Story 1.0×/0.95×. The simple bots won about 65% on Normal and
+  25% on Hard; the smarter planning bots (threat, kill chance, incoming damage) win about 84% on
+  Normal (120 runs) and 53% on Hard (60 runs), before any retuning.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others
   use option 1 until picked.
@@ -538,7 +539,7 @@ no clock anywhere: the run changes only when someone acts.
 | `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
 | `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. |
 | `app/saltbound/save.py` | SQLite saves (`data/saltbound.db`), versions and migrations. |
-| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). |
+| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). In fights they plan the whole hand with a short beam search (`plan_hand`), scoring each placement over every way its dice could roll (`evaluate`) against a `Board` of the enemies' intents and what the party already planned: damage weighted by the target's threat, kills before an enemy acts, stuns and weakens on the biggest hits, Armor and heals where damage will land. They drink potions before someone drops, and pick level-ups by a simple ranking with seeded noise so every pick gets tried. |
 | `app/saltbound/routes.py` | `GET /games/saltbound` and the WebSocket at `/games/saltbound/ws`. |
 | `app/static/games/saltbound/css/tokens.css` | Every colour, size, radius, space and timing. |
 | `css/ui.css` | The components, from tokens only. |
@@ -566,6 +567,12 @@ no clock anywhere: the run changes only when someone acts.
   previews each unit's planned damage, healing and Armor, and the damage coming at it after Armor.
   The numbers come from each plan entry's `est`, so they're estimates (statuses applied by earlier
   actions in the same round aren't counted).
+- **Rolls play back in the roll tray** (`rollTray()` in `combat.js`): big dice tumble in the middle of
+  the fight, rerolls flash, and risky actions end with HIT or MISS. The playback looks ahead from a
+  `roll` effect to its `act` to name the action. The overlay is rebuilt on every render, so animated
+  elements set a negative `animation-delay` from when they started, like the floats.
+- Every die has a tooltip (`dieTip`): plain dice say "Rolls 1 to N"; unusual ones list their faces,
+  and each kind badge and special face has its own tooltip.
 - **Music** is synthesized in `audio.js` (`music('map' | 'fight' | null)`), scheduled a quarter
   second ahead; it starts on the first click or key press, as browsers require.
 - All randomness comes from `Game.rng`; never the global `random` module, or restored runs won't
@@ -574,7 +581,15 @@ no clock anywhere: the run changes only when someone acts.
   into one starts a fight and stops you.
 - The engine is synchronous and turn-based, so rooms need no tick loop; bots (testing only) act
   0.35 s apart through `loop.call_later`.
-- `python3 tools/saltbound-sim.py [runs] [difficulty]` plays whole runs with bots for balance.
+- `python3 tools/saltbound-sim.py [runs] [difficulty] --report` plays whole runs with bots across all
+  cores and prints balance analytics (`tools/saltbound_stats.py`): class win rates and output per
+  round, fights by kind and the hardest encounters, enemies by damage dealt, each class's actions
+  (use share, hit rate, damage, healing, Armor, kills, overkill), level-up picks against win rate,
+  gear, consumables, and automatic balance flags. `--json=FILE` writes the raw numbers. The
+  analytics wrap the game's own methods on the instance (`hurt_foe`, `fight_heal`, `fx`...), so they
+  see everything without touching `combat.py`; `--saves` also checks they don't change a run.
+  The bots cache mods and max HP while they think (`bot.frozen`); anything they call must not
+  change the state.
   `python3 tools/saltbound-check.py` forces every action and passive of every class through real
   fights (bots never use most instant tricks); run it after touching `combat.py` or `classes.py`.
   `node tools/saltbound-shots.js [url] [dir] [WxH]` screenshots the real UI against a running server

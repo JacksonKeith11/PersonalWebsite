@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=12';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=12';
-import { spriteURL } from './art.js?v=12';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=12';
-import { MapView } from './hexmap.js?v=12';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=12';
-import { disconnect } from './main.js?v=12';
-import * as sfx from './audio.js?v=12';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=13';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=13';
+import { spriteURL } from './art.js?v=13';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=13';
+import { MapView } from './hexmap.js?v=13';
+import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=13';
+import { disconnect } from './main.js?v=13';
+import * as sfx from './audio.js?v=13';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -371,8 +371,10 @@ function itemRow(key, right, extra) {
 // A die's faces as little tiles, with its kinds (Seer, Fate...) in front.
 function faceRow(it) {
   const kinds = (it.dk || []).filter(k => !k.startsWith('link:') && k !== 'top');
-  return h('span.faces', null, ...kinds.map(k => h('span.chip.brass', { style: { height: '20px' } }, k[0].toUpperCase() + k.slice(1))),
-    ...it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), null, faceText(f))));
+  return h('span.faces', { tip: dieTip({ faces: it.die, dk: it.dk || [] }) },
+    ...kinds.map(k => h('span.chip.brass', { style: { height: '20px' }, tip: `${k[0].toUpperCase() + k.slice(1)} die\n${KIND_TEXT[k] || ''}` }, k[0].toUpperCase() + k.slice(1))),
+    ...(it.die.every((f, i) => f === i + 1) ? [h('span.face', null, 'd' + it.die.length)]
+      : it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), typeof f === 'string' ? { tip: faceTip(f) } : null, faceText(f)))));
 }
 function interleave(arr, sep) { return arr.flatMap((x, i) => (i ? [sep, x] : [x])); }
 function itemTip(key) {

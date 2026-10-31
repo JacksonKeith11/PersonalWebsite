@@ -508,3 +508,39 @@ a:hover { color: var(--accent-hi); }
   .tray { grid-template-columns: 1fr; }
   .brand h1 { font-size: var(--fs-48); }
 }
+.die-name { text-decoration: underline dotted var(--border-strong); text-underline-offset: 3px; cursor: help; }
+.faces [data-tip] { cursor: help; }
+
+/* the roll tray: an action's dice, big in the middle of the fight while it resolves */
+.roll-tray { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 240px; padding: 14px 24px 16px;
+  background: rgba(9, 16, 30, 0.94); border: 2px solid var(--seat, var(--accent)); border-radius: 16px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55); animation: rt-in 220ms var(--ease) both; }
+.rt-head { font-family: var(--font-display); font-size: 20px; font-weight: var(--fw-semibold); white-space: nowrap; }
+.rt-who { color: var(--seat, var(--accent)); }
+.rt-act { color: var(--text); margin-left: 10px; }
+.rt-dice { display: flex; gap: 14px; padding-bottom: 4px; }
+.big-die { position: relative; width: 78px; height: 78px; border-radius: 16px; display: grid; place-items: center;
+  background: linear-gradient(160deg, #fbf3dc, #dcc89c); color: #161d2b; font: 800 40px/1 var(--font-ui);
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.18), 0 6px 14px rgba(0, 0, 0, 0.45);
+  animation: tumble 600ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.big-die span { animation: land 600ms steps(1, end) both; }
+.big-die::before { content: "?"; position: absolute; color: rgba(22, 29, 43, 0.35); animation: unland 600ms steps(1, end) both; }
+.big-die.re { box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgba(0, 0, 0, 0.45); }
+.big-die small { position: absolute; bottom: -20px; font: var(--fw-semibold) 12px/1 var(--font-ui); color: var(--accent-hi); white-space: nowrap; }
+.rt-need { font-size: var(--fs-16); color: var(--text-2); }
+.rt-verdict { font: 800 32px/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; animation: verdict 320ms var(--ease) both; }
+.rt-verdict.hit { color: var(--ok); text-shadow: 0 0 18px rgba(95, 176, 122, 0.55); }
+.rt-verdict.miss { color: var(--danger); text-shadow: 0 0 18px rgba(208, 98, 79, 0.55); }
+@keyframes rt-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } to { opacity: 1; transform: translate(-50%, -50%); } }
+@keyframes tumble { 0% { transform: translateY(-36px) rotate(-220deg) scale(0.55); opacity: 0; }
+  55% { transform: translateY(6px) rotate(18deg) scale(1.06); opacity: 1; } 78% { transform: rotate(-6deg) scale(0.98); } 100% { transform: none; } }
+@keyframes land { 0% { opacity: 0; } 72% { opacity: 1; } }
+@keyframes unland { 0% { opacity: 1; } 72% { opacity: 0; } }
+@keyframes verdict { from { opacity: 0; transform: scale(1.9); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+  .roll-tray { min-width: 0; padding: 10px 16px 12px; gap: 8px; }
+  .big-die { width: 56px; height: 56px; font-size: 28px; border-radius: 12px; }
+  .rt-verdict { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) { .big-die, .big-die span, .big-die::before, .rt-verdict, .roll-tray { animation: none; } .big-die::before { content: none; } }

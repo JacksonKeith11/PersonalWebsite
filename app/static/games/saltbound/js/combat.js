@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=12';
-import { h, icon, toast, hideTip } from './ui.js?v=12';
-import { spriteURL } from './art.js?v=12';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=12';
-import { render } from './main.js?v=12';
-import * as sfx from './audio.js?v=12';
+import { S, send, mine } from './store.js?v=13';
+import { h, icon, toast, hideTip } from './ui.js?v=13';
+import { spriteURL } from './art.js?v=13';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=13';
+import { render } from './main.js?v=13';
+import * as sfx from './audio.js?v=13';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -116,7 +116,8 @@ export function renderCombat(el) {
       col('Front', [...heroesIn('front').map(unitHero), ...alliesIn('front').map(unitAlly)])),
     h('div.side-units', null,
       col('Front', foesIn('front').map(unitFoe)),
-      col('Back', foesIn('back').map(unitFoe))));
+      col('Back', foesIn('back').map(unitFoe))),
+    rollTray());
 
   const plan = h('div.planstrip', null, h('span.eyebrow', null, 'Plan'),
     f.plan.length ? f.plan.map((p, i) => planChip(p, i, f)) : h('span.muted', { style: { fontSize: '14px' } }, 'Placed actions show here, in the order they’ll happen.'));
@@ -264,6 +265,23 @@ function statusRow(st, extra = []) {
   }
   for (const e of extra) chips.push(h('span.st', null, e));
   return h('div.sts', null, ...chips);
+}
+
+// The dice an action just rolled, big in the middle of the fight: they tumble, land, then say hit or miss.
+function rollTray() {
+  const t = C.tray;
+  if (!t) return null;
+  const now = performance.now();
+  const since = t0 => ({ animationDelay: `-${Math.round(now - t0)}ms` });
+  const ad = t.a ? S.static.actions[t.a] : null;
+  const shown = x => faceText(['S', 'X', 'W'].includes(x.tag) ? x.tag : x.tag ? x.tag + x.v : x.v);
+  return h('div.roll-tray', { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
+    h('div.rt-head', null, h('span.rt-who', null, S.game.heroes[t.h].name), ad ? h('span.rt-act', null, ad.name) : null),
+    h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die' + (x.re ? '.re' : ''), { style: since(x.t) },
+      h('span', { style: since(x.t) }, shown(x)),
+      x.re ? h('small', null, x.re === 'steady' ? 'Steady' : 'Reroll') : null))),
+    ad && isRisky(ad.req) ? h('div.rt-need', null, `Needs ${reqText(ad.req)}`) : null,
+    t.verdict ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'miss' ? 'Miss' : 'Hit!') : null);
 }
 
 function floats(id) {
@@ -542,6 +560,7 @@ function playNext() {
   let i = 0;
   const step = () => {
     if (i >= fx.length) { finish(ended); return; }
+    C.fx = fx; C.fxAt = i;
     const f = fx[i++];
     const wait = apply(f);
     render();
@@ -551,7 +570,7 @@ function playNext() {
 }
 
 function finish(ended) {
-  C.playing = false; C.display = null; C.hp = null; C.anim = {}; C.floats = {};
+  C.playing = false; C.display = null; C.hp = null; C.anim = {}; C.floats = {}; C.tray = null;
   if (ended) banner(ended.result);
   if (queue.length) { playNext(); return; }
   render();
@@ -583,19 +602,36 @@ function apply(f) {
   const ally = id => (d.allies || []).find(a => 's' + a.id === id);
   switch (f.k) {
     case 'roll': {
-      addFloat('h' + f.h, '🎲 ' + f.dice.map(x => (x.tag ? faceText(x.tag === 'S' ? 'S' : x.tag === 'X' ? 'X' : x.v) : x.v)).join(' · '), 'roll');
+      C.tray = null;
+      if (!f.dice.length) return 0;
+      // the action these dice are for comes next
+      const act = C.fx.slice(C.fxAt).find(x => x.k === 'act' && x.h === f.h && !x.instant);
+      const now = performance.now();
+      C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now })) };
+      flash('h' + f.h, 'act');
       sfx.play('dice');
-      return 420;
+      return 760;
     }
-    case 'reroll': addFloat('h' + f.h, `${f.why === 'steady' ? 'Steady' : 'Reroll'}: ${f.v}`, 'txt'); sfx.play('dice'); return 360;
+    case 'reroll': {
+      const x = C.tray?.h === f.h && C.tray.dice.find(y => y.id === f.die);
+      if (x) { Object.assign(x, { v: f.v, tag: null, re: f.why || 'reroll', t: performance.now() }); sfx.play('dice'); return 700; }
+      addFloat('h' + f.h, `Reroll: ${f.v}`, 'txt'); sfx.play('dice'); return 360;
+    }
     case 'act': {
       if (f.instant) return 0;
       flash('h' + f.h, 'act');
-      addFloat('h' + f.h, (S.static.actions[f.a]?.name || '') + (f.echo ? ' (echo)' : '') + (f.hit === false ? ': miss' : ''), f.hit === false ? 'miss' : 'txt');
+      const ad = S.static.actions[f.a];
+      if (C.tray?.h === f.h && C.tray.a === f.a && !f.echo) {
+        sfx.play(f.hit === false ? 'error' : 'swing');
+        if (ad && isRisky(ad.req)) { C.tray.verdict = f.hit === false ? 'miss' : 'hit'; C.tray.vt = performance.now(); return 640; }
+        return 240;
+      }
+      addFloat('h' + f.h, (ad?.name || '') + (f.echo ? ' (echo)' : '') + (f.hit === false ? ': miss' : ''), f.hit === false ? 'miss' : 'txt');
       sfx.play(f.hit === false ? 'error' : 'swing');
       return 380;
     }
     case 'fact': {
+      C.tray = null;
       flash('f' + f.f, 'act');
       if (f.ik !== 'dazed') sfx.play('swing');
       return 300;
@@ -626,7 +662,7 @@ function apply(f) {
       return 220;
     }
     case 'die': { const u = f.to.startsWith('s') ? ally(f.to) : foe(f.to); if (u) u.hp = 0; sfx.play('die'); return 320; }
-    case 'sact': flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
+    case 'sact': C.tray = null; flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
     case 'down': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = true; sfx.play('die'); return 380; }
     case 'lift': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = false; C.hp[x] = f.n; addFloat(f.to, 'Back up!', 'txt'); return 300; }
     case 'summon': {

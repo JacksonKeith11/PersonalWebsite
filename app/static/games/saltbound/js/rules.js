@@ -199,6 +199,7 @@ export const KIND_TEXT = {
   steady: 'If its action misses, it rerolls once.',
   heirloom: 'Its lowest face rises every level.',
   link: 'Linked: rolls the same as the other die in its group.',
+  top: 'Always comes up on its top face.',
 };
 // "d8", "Seer d4", "◆ d6": the die's size (or its faces, when they're unusual) and its kinds.
 export function dieLabel(d) {
@@ -216,13 +217,28 @@ export const faceText = f => ({ S: '◆', X: '☠', W: '★' }[f] || (typeof f =
 export function dieTip(d) {
   const faces = Array.isArray(d) ? d : d.faces;
   const kinds = Array.isArray(d) ? [] : d.dk || [];
-  const lines = [dieLabel(d), 'Faces: ' + faces.map(faceText).join(' ')];
+  const plain = faces.every((f, i) => f === i + 1);
+  // a plain d8 needs no face list; unusual dice do
+  const lines = [dieLabel(d), plain ? `Rolls 1 to ${faces.length}.` : 'Faces: ' + faces.map(faceText).join(' ')];
   for (const k of kinds) { const key = k.startsWith('link:') ? 'link' : k; if (KIND_TEXT[key]) lines.push(KIND_TEXT[key]); }
-  if (faces.includes('S')) lines.push('◆ shield face: worth 0, blocks 3 damage.');
-  if (faces.includes('X')) lines.push('☠ skull face: worth 0, and you take 3.');
-  if (faces.includes('W')) lines.push('★ wild face: counts as the top face and passes any condition.');
-  if (faces.some(f => typeof f === 'string' && 'FIP'.includes(f[0]))) lines.push('🔥❄☣ faces also Burn, Freeze or Poison the target.');
+  const seen = new Set();
+  for (const f of faces) {
+    const key = typeof f === 'string' ? f[0] : null;
+    if (key && !seen.has(key)) { seen.add(key); lines.push(faceTip(f)); }
+  }
   return lines.join('\n');
+}
+// What a special face does (plain numbers just count their value).
+export function faceTip(f) {
+  if (typeof f !== 'string') return `${f}: counts as ${f}.`;
+  return {
+    S: '◆ Shield face: worth 0, but blocks 3 damage this round.',
+    X: '☠ Skull face: worth 0, and you take 3 damage.',
+    W: '★ Wild face: counts as the top face and passes any condition.',
+    F: `${faceText(f)} Fire face: worth ${f.slice(1)} and Burns the target.`,
+    I: `${faceText(f)} Ice face: worth ${f.slice(1)} and Freezes the target.`,
+    P: `${faceText(f)} Poison face: worth ${f.slice(1)} and Poisons the target.`,
+  }[f[0]] || faceText(f);
 }
 
 export const STATUS = {

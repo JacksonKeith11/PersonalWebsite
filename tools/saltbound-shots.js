@@ -39,6 +39,9 @@ fs.mkdirSync(out, { recursive: true });
   await page.selectOption('.slot:nth-child(3) select', 'bot');
   await page.waitForTimeout(300);
   await shot('lobby');
+  await page.hover('.slot:nth-child(1) .die-name').catch(() => {});
+  await page.waitForTimeout(300);
+  await shot('lobby-die-tip');
   await page.selectOption('.slot:nth-child(1) select', 'bot');
   await page.waitForTimeout(300);
   await page.click('text=Set sail');
@@ -72,8 +75,15 @@ fs.mkdirSync(out, { recursive: true });
         }
         if (r === 0) await shot(`fight-${fights}-planned`);
         await page.keyboard.press('Space');
-        await page.waitForTimeout(r === 0 ? 1200 : 2500);
-        if (r === 0) await shot(`fight-${fights}-resolving`);
+        if (r === 0) {
+          // the roll tray: dice tumbling, then landed with a verdict
+          await page.waitForSelector('.roll-tray', { timeout: 4000 }).catch(() => {});
+          await page.waitForTimeout(250);
+          await shot(`fight-${fights}-rolling`);
+          await page.waitForTimeout(650);
+          await shot(`fight-${fights}-rolled`);
+        }
+        await page.waitForTimeout(r === 0 ? 300 : 2500);
       }
       // hand the hero back to the bot until the next fight
       await page.evaluate(() => window.saltboundSend({ t: 'assign', h: 0, pid: 'bot' }));

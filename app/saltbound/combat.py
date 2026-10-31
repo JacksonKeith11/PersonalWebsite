@@ -27,10 +27,17 @@ class Invalid(Exception):
     """An action that isn't allowed; the message is shown to the player."""
 
 
+_CODE = {}
+_GLOBALS = {"__builtins__": {}, "max": max, "min": min}
+
+
 def _amt(expr, env):
     if isinstance(expr, (int, float)):
         return int(expr)
-    return int(eval(expr, {"__builtins__": {}, "max": max, "min": min}, env))  # expressions come only from our own data
+    code = _CODE.get(expr)
+    if code is None:
+        code = _CODE[expr] = compile(expr, "<amt>", "eval")
+    return int(eval(code, _GLOBALS, env))  # expressions come only from our own data
 
 
 TAGS = {"F": "burn", "I": "freeze", "P": "poison"}

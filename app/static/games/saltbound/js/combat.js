@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=28';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=28';
-import { spriteURL } from './art.js?v=28';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=28';
-import { render } from './main.js?v=28';
-import * as sfx from './audio.js?v=28';
+import { S, send, mine } from './store.js?v=29';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=29';
+import { spriteURL } from './art.js?v=29';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=29';
+import { render } from './main.js?v=29';
+import * as sfx from './audio.js?v=29';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -46,7 +46,7 @@ export function renderCombat(el) {
   host = el;
   const f = C.playing ? C.display : S.game.fight;
   if (!f || !combatOpen()) { el.replaceChildren(); return; }
-  if (f.id !== C.lastId) { C.lastId = f.id; C.sel.clear(); C.pending = null; C.hidden = false; if (!S.seenHints.fight) toast('Pick dice, then an action they fit. Ready up when you’re done.'); }
+  if (f.id !== C.lastId) { C.lastId = f.id; C.sel.clear(); C.pending = null; C.hidden = false; if (!S.seenHints.fight) toast('Pick dice, then an action they fit: it happens at once. Ready up when you’re done.'); }
   if (f.round !== C.lastRound) { C.lastRound = f.round; C.sel.clear(); C.pending = null; C.rolled = true; }
   const g = S.game;
   const my = mine().filter(x => f.heroes.includes(x) && heroActive(f, x));
@@ -119,12 +119,16 @@ export function renderCombat(el) {
       col('Back', foesIn('back').map(unitFoe))),
     rollTray());
 
-  const plan = h('div.planstrip', null, h('span.eyebrow', null, 'Plan'),
-    f.plan.length ? f.plan.map((p, i) => planChip(p, i, f)) : h('span.muted', { style: { fontSize: '14px' } }, 'Placed actions show here, in the order they’ll happen.'));
+  const done = f.done || [];
+  const plan = h('div.planstrip', null, h('span.eyebrow', null, 'This round'),
+    done.length ? done.map((p, i) => doneChip(p, i, f)) : h('span.muted', { style: { fontSize: '14px' } }, 'Actions happen the moment they’re played, in the order the party plays them. Enemies act once everyone is ready.'));
 
   let bottom;
   const spiritMine = mine().filter(x => f.spirit?.[x] && !f.spirit[x].used);
-  if (active !== null && !C.playing) bottom = tray(f, active, my);
+  // your dice stay on screen (locked) while an action plays out mid-round, so the next move is in view
+  const live = S.game.fight;
+  const sameRound = live && live.id === f.id && live.round === f.round;
+  if (active !== null && (!C.playing || sameRound) && live?.hs[active]) bottom = tray(live, active, my);
   else if (spiritMine.length && !C.playing) bottom = spiritBar(f, spiritMine[0]);
   else {
     const waiting = f.heroes.filter(x => heroActive(f, x) && !f.hs[x].ready).map(x => g.heroes[x].name);
@@ -150,25 +154,11 @@ export function renderCombat(el) {
 }
 
 // ------------------------------------------------------------------ what the plan and the intents will do
-// Per unit: planned damage, healing and armor from the party's placed actions, and the damage
-// enemies intend to deal it (after any Armor it has or is about to get).
+// Per unit: the damage enemies intend to deal it (after any Armor it has).
 function preview(f) {
   const out = {};
   const at = id => (out[id] ||= { dmg: 0, heal: 0, armor: 0, incoming: 0 });
   const alive = f.foes.filter(fo => fo.hp > 0);
-  for (const p of f.plan) {
-    const a = S.static.actions[p.a];
-    if (!a || !p.est) continue;
-    let ids;
-    if (p.tgt) ids = [p.tgt];
-    else if (a.tgt === 'foes') ids = alive.map(fo => 'f' + fo.id);
-    else if (a.tgt === 'front') { const fr = alive.filter(fo => fo.row === 'front'); ids = (fr.length ? fr : alive).map(fo => 'f' + fo.id); }
-    else if (a.tgt === 'party') ids = f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y);
-    else ids = ['h' + p.h];
-    const key = p.est.k === 'dmg' ? 'dmg' : p.est.k === 'armor' ? 'armor' : p.est.k === 'heal' || p.est.k === 'lift' ? 'heal' : null;
-    if (!key) continue;
-    for (const id of ids) at(id)[key] += p.est.n;
-  }
   const units = [...f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y), ...(f.allies || []).filter(a => a.hp > 0).map(a => 's' + a.id)];
   const rowOf = id => (id[0] === 'h' ? f.hs[+id.slice(1)].row : (f.allies || []).find(a => 's' + a.id === id)?.row);
   for (const fo of alive) {
@@ -319,19 +309,16 @@ function intentChip(fo, f) {
   return h('div.intent', { style: { '--c': col }, tip }, icon(ic), it.v ?? '', it.st ? icon(STATUS[it.st]?.icon || 'spark') : null, to ? h('span.to', null, '→ ' + to) : null);
 }
 
-function planChip(p, i, f) {
+function doneChip(p, i, f) {
   const a = S.static.actions[p.a];
   const g = S.game;
   let tgt = '';
   if (p.tgt?.startsWith('f')) tgt = f.foes.find(fo => 'f' + fo.id === p.tgt)?.name || '';
   else if (p.tgt?.startsWith('h')) tgt = g.heroes[+p.tgt.slice(1)].name;
-  const mineP = mine().includes(p.h) && !f.hs[p.h].ready && !C.playing;
-  return h('span.plan-chip', { style: { '--seat': `var(--hero-${p.h})` } },
-    h('span.muted', null, `${i + 1}.`), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null,
-    p.est && p.est.k ? h('span.est', { tip: `About ${p.est.n} on average (${p.est.lo}–${p.est.hi})${p.est.p != null ? `, ${Math.round(p.est.p * 100)}% to hit` : ''}` },
-      `~${p.est.n}${p.est.hi !== p.est.lo ? ` (${p.est.lo}–${p.est.hi})` : ''}${p.est.k === 'dmg' ? '' : p.est.k === 'heal' ? ' heal' : p.est.k === 'armor' ? ' armor' : ' HP'}`) : null,
-    p.est && p.est.p != null ? h('span.muted', null, `${Math.round(p.est.p * 100)}%`) : null,
-    mineP ? h('button.x', { 'aria-label': 'Undo', tip: 'Take it back', onclick: () => send({ t: 'unplace', h: p.h, i }) }, icon('x')) : h('span', { style: { width: '6px' } }));
+  const res = p.hit === true && isRisky(a.req) ? h('span.res.hit', null, 'hit') : p.hit === false ? h('span.res.miss', null, 'miss') : null;
+  return h('span.plan-chip' + (p.hit === false ? '.missed' : ''), { style: { '--seat': `var(--hero-${p.h})` }, tip: `${g.heroes[p.h].name}: ${a.name}${p.plus ? '+' : ''}${tgt ? ' → ' + tgt : ''}` },
+    h('span.muted', null, `${i + 1}.`), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
+    h('span', { style: { width: '6px' } }));
 }
 
 function tray(f, x, my) {
@@ -339,7 +326,7 @@ function tray(f, x, my) {
   const dice = hs.dice;
   const selDice = dice.filter(d => C.sel.has(d.id) && !d.used);
   const acts = hero.actions;
-  const ready = hs.ready;
+  const ready = hs.ready || C.playing;
   const waiting = f.heroes.filter(y => heroActive(f, y) && !f.hs[y].ready && y !== x).map(y => g.heroes[y].name);
   // one button per kind of consumable, using the first of them
   const uses = [];
@@ -359,14 +346,13 @@ function tray(f, x, my) {
         h('span.chip', { tip: 'Automatic rerolls\nWhen one of your actions misses, a die rolls again, as long as you have one left this fight.' }, icon('refresh'), `${hs.rr} reroll${hs.rr === 1 ? '' : 's'}`),
         f.hymn ? h('span.chip.brass', { tip: 'Hymn of Valor\nEvery die the party rolls this round is this much higher.' }, `+${f.hymn} hymn`) : null,
         hs.inspire ? h('span.chip.brass', { tip: 'Inspired\nYour next die rolls this much higher.' }, `+${hs.inspire} next die`) : null,
-        h('button.btn.sm.ghost', { disabled: ready || !f.plan.some(p => p.h === x), onclick: () => send({ t: 'unplace', h: x }) }, 'Undo', h('span.kbd', null, 'Z')),
         ...uses.map(([k, i, n]) => h('button.btn.sm.ghost', { disabled: ready, tip: `${S.static.items[k].name}\n${S.static.items[k].text}\nUsed at once; no die needed.`, onclick: () => useItem(x, k, i) }, icon('drop'), S.static.items[k].name + (n > 1 ? ` ×${n}` : ''))))),
     h('div.actions', null, ...acts.map((k, i) => actionCard(f, x, k, i, selDice, ready))),
     h('div.tray-right', null,
       C.pending ? h('p', { style: { color: 'var(--accent)', fontWeight: 600 } }, 'Choose a target', h('br'), h('span.muted', { style: { fontWeight: 400 } }, 'Esc to cancel')) : null,
-      h('p.muted', { style: { fontSize: '14px' } }, ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Resolving…') : waiting.length ? `${waiting.join(', ')} still planning` : 'Everyone else is ready'),
-      ready ? h('button.btn.lg', { onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
-        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
+      h('p.muted', { style: { fontSize: '14px' } }, C.playing ? 'Playing it out…' : hs.ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Enemies are acting…') : waiting.length ? `${waiting.join(', ')} still acting` : 'Everyone else is ready'),
+      hs.ready ? h('button.btn.lg', { disabled: C.playing, onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
+        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { disabled: C.playing, onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
 }
 
 // A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
@@ -404,19 +390,18 @@ function actionCard(f, x, k, i, selDice, ready) {
   const base = k.replace(/\+$/, '');
   const a = S.static.actions[base];
   const hs = f.hs[x];
-  const once = a.once && (hs.once.includes(base) || f.plan.some(p => p.h === x && p.a === base));
-  const spent = a.per_rest && ((S.game.heroes[x].spent || []).includes(base) || f.plan.some(p => p.h === x && p.a === base));
+  const once = a.once && hs.once.includes(base);
+  const spent = a.per_rest && (S.game.heroes[x].spent || []).includes(base);
   const cooling = a.cd ? (hs.cds?.[base] || 0) : 0;
-  const planned = a.cd && f.plan.some(p => p.h === x && p.a === base);
   const meleeBlocked = a.melee && hs.row !== 'front';
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
   const guardOff = !a.def && selDice.some(d => d.dk?.includes('guard'));
-  const fits = !ready && !once && !spent && !cooling && !planned && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
+  const fits = !ready && !once && !spent && !cooling && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
   const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : null;
-  const dis = ready || once || spent || noFlee || cooling > 0 || planned;
+  const dis = ready || once || spent || noFlee || cooling > 0;
   const why = spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
-    : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.` : planned ? '\nAlready planned this round.' : '';
+    : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.` : '';
   const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
   return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : ''), {
     disabled: dis, tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${cdText}${why}`,
@@ -426,7 +411,7 @@ function actionCard(f, x, k, i, selDice, ready) {
       h('span.top-r', null,
         cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling} rounds` : 'next round')
           : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null,
-        chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
+        cooling ? null : chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
           : h('span.req', null, reqText(a.req)))),
     h('p', null, a.text),
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
@@ -534,7 +519,6 @@ document.addEventListener('keydown', e => {
   if (!hs) return;
   if (e.code === 'Space') { e.preventDefault(); send({ t: 'fready', h: x, on: !hs.ready }); C.sel.clear(); C.pending = null; return; }
   if (hs.ready) return;
-  if (e.key === 'z' || e.key === 'Z') { send({ t: 'unplace', h: x }); return; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 9) { const d = hs.dice[n - 1]; if (d && !d.used) toggleDie(d.id); return; }
   const ai = KEYS.indexOf(e.key.toLowerCase());

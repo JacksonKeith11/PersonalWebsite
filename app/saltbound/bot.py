@@ -314,7 +314,7 @@ def base_threat(g, fo):
 
 
 class Board:
-    """The round as a player sees it: the enemies' intents, and what the party has already planned."""
+    """The round as a player sees it: the enemies' intents, and set-ups the bot is weighing in its plan."""
 
     def __init__(self, g, empty=False):
         self.dmg, self.stop, self.cut, self.armor, self.heal, self.summons = {}, {}, {}, {}, {}, {}
@@ -326,14 +326,7 @@ class Board:
         f = g.s["fight"]
         self.sanct = f["sanct"] + f["aegis"]
         self.taunt = f["taunt"]
-        for p in f["plan"]:
-            y = p["h"]
-            if not g.active(y):
-                continue
-            dice = [d for d in g.hs(y)["dice"] if d["id"] in p["dice"]]
-            a = g.action_def(y, p["a"] + ("+" if p["plus"] else ""))
-            _, eff = evaluate(g, self, y, a, dice, p["tgt"])
-            self.apply(eff)
+        # Actions happen as they're placed, so what the party has already done is in the state.
 
     def copy(self):
         b = Board(None, empty=True)
@@ -729,9 +722,9 @@ def candidates(g, h, b, free):
         a = g.action_def(h, key)
         if a["key"] == "flee" or (a.get("once") and a["key"] in x["once"]):
             continue
-        if a.get("per_rest") and (a["key"] in g.hero(h).get("spent", []) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+        if a.get("per_rest") and a["key"] in g.hero(h).get("spent", []):
             continue
-        if a.get("cd") and (g.cooling(h, a["key"]) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+        if a.get("cd") and g.cooling(h, a["key"]):
             continue
         if a.get("melee") and x["row"] != "front":
             continue

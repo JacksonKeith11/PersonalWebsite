@@ -30,6 +30,7 @@ ROOM_KEEP = 60 * 60
 MAX_PEOPLE = 8
 BOT = "bot"
 BOT_DELAY = 0.35
+BOT_FIGHT_DELAY = 1.2  # each action plays out the moment it's placed; give it time to be seen
 
 
 def _clean(text, n):
@@ -334,7 +335,8 @@ class Room:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
-        self.bot_task = loop.call_later(BOT_DELAY, self.bot_step)
+        delay = BOT_FIGHT_DELAY if self.game.s["phase"] == "fight" else BOT_DELAY
+        self.bot_task = loop.call_later(delay, self.bot_step)
 
     def spirit_bots(self):
         g = self.game

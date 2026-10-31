@@ -21,7 +21,7 @@ from .content import archipelago as A
 from .content import items as I
 from .rng import Rng
 
-VERSION = 1
+VERSION = 2
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -376,7 +376,7 @@ class Game(Combat):
             "buy": self.do_buy, "sell": self.do_sell, "inn": self.do_inn, "skiff": self.do_skiff,
             "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use,
             "give": self.do_give, "drop": self.do_drop,
-            "place": self.do_place, "unplace": self.do_unplace, "reroll": self.do_reroll,
+            "place": self.do_place, "reroll": self.do_reroll,
             "fready": self.do_fready, "spirit": self.do_spirit,
         }.get(t)
         if handler is None:

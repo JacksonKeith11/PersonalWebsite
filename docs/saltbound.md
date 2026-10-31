@@ -102,8 +102,10 @@ Keep to these. They came from the owner directly.
   value", "Fireball: two dice summing to 10+", "Lunge: exactly 6". A hero has 2 class actions,
   1-2 from their weapon, and any learned through levelling: 4-6 on screen.
 - **A round**: dice are rolled; enemies show **intents** (what they'll do and to whom); the party
-  places dice on actions together, seeing each other's placements live; everyone clicks Ready;
-  hero actions resolve, then enemies act in speed order.
+  plays dice on actions together, and **each action happens the moment it's played** (owner's
+  request, after Slay the Spire 2's multiplayer): its dice roll, it hits or misses and its effects
+  land before anyone plays another, so the order is whoever played first. There's no undo. When
+  everyone has clicked Ready, summons and pets act, then enemies in speed order.
 - **Luck you can steer**: every hero gets 1 reroll per fight (restored by resting), and some skills
   and items change dice (+1, flip, set, copy, give to an ally).
 - **Fleeing**: on their turn a hero can spend a die of 4+ to flee, going back to the hex they came
@@ -189,10 +191,10 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
   A short dismissible hint appears the first time each system shows up (first planning phase,
   first fight, first level-up, first flood), and the game remembers which have been seen.
 - **Readability**: enemy intents show an icon, a number and a colour, from a palette that's safe
-  for colourblind players. Text is at least 14 px. Hovering a placed action previews its damage
-  or healing.
+  for colourblind players. Text is at least 14 px. Each action card shows its chance to hit
+  with the dice picked before it's played.
 - **Controls**: keyboard and mouse first. 1-5 select a die, Q/W/E/R/T place it on an action, Space
-  for Ready, Z to undo. Animation speed 1×, 2× or instant. Don't break phones, but don't spend
+  for Ready. Animation speed 1×, 2× or instant. Don't break phones, but don't spend
   effort there.
 - **Audio**: sound effects and music synthesized in the browser at startup, no audio files, as in
   the other games.
@@ -542,8 +544,7 @@ dice round, all as recommended):
 The skill lists under "The classes" were a first pass; `classes.py` is the truth for exact numbers.
 What changed while building all ten:
 
-- **Instant actions** (`"instant": True`) change dice the moment they're placed instead of joining
-  the plan: Perfect Form, Bloodprice, Loaded Dice, Inspire, Hymn of Valor, Lend a Hand, Quicksilver,
+- **Instant actions** (`"instant": True`) change dice instead of rolling them for an effect of their own: Perfect Form, Bloodprice, Loaded Dice, Inspire, Hymn of Valor, Lend a Hand, Quicksilver,
   Bottle It. Placed dice can't be taken back once an instant has changed them.
 - **Summons**: the Warden's Sprout (sapling, HP = twice the die), Call Bear (15 HP, hits 4), Swarm
   (one 6 HP swarm that stings every enemy for 1) and Ancient Guardian (treant, 25 HP, hits 5) stand on
@@ -572,9 +573,10 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand** (the smart bots, 100 runs each): about 80% on Normal and 30–35% on Hard,
-  and every Story run. Classes on Hard sit roughly between 16% and 43%; on Normal between 60% and
-  90%. The Mender and Berserker have led, the Vanguard and Arcanist have trailed.
+- **Where the bots stand** (the smart bots, 100 runs each): about 92% on Normal and 46% on Hard
+  since actions resolve as they're played (seeing each roll before the next move is worth a lot;
+  before that it was about 80% and 30–35%). Classes on Hard sit between 31% (Ranger) and 60%
+  (Mender). The Mender and Berserker have led, the Ranger, Herald and Arcanist have trailed.
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
   between batches by chance alone, and overall rates ±4. Treat a pick's win rate (20–40 runs) as a
   hint. Run 100 or more before changing anything, and compare like with like (same seeds: the
@@ -608,7 +610,7 @@ no clock anywhere: the run changes only when someone acts.
 | `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
 | `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. |
 | `app/saltbound/save.py` | SQLite saves (`data/saltbound.db`), versions and migrations. |
-| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). In fights they plan the whole hand with a short beam search (`plan_hand`), scoring each placement over every way its dice could roll (`evaluate`) against a `Board` of the enemies' intents and what the party already planned: damage weighted by the target's threat, kills before an enemy acts, stuns and weakens on the biggest hits, Armor and heals where damage will land. They drink potions before someone drops, and pick level-ups by a simple ranking with seeded noise so every pick gets tried. Buffs count: `instant_value` scores Inspire, Hymn of Valor, Lend a Hand and the other instants by what they add to the party's rolls; the `Board` carries planned Vulnerable, Mark and Crescendo into later placements' damage; and `bot.order` lets heroes holding a set-up plan first (actions happen in the order they're placed), in the simulator and in rooms. |
+| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). In fights they plan the whole hand with a short beam search (`plan_hand`), scoring each placement over every way its dice could roll (`evaluate`) against a `Board` of the enemies' intents (and the set-ups earlier in its own plan); it plays the first placement, sees how it rolled, and plans again: damage weighted by the target's threat, kills before an enemy acts, stuns and weakens on the biggest hits, Armor and heals where damage will land. They drink potions before someone drops, and pick level-ups by a simple ranking with seeded noise so every pick gets tried. Buffs count: `instant_value` scores Inspire, Hymn of Valor, Lend a Hand and the other instants by what they add to the party's rolls; the `Board` carries planned Vulnerable, Mark and Crescendo into later placements' damage; and `bot.order` lets heroes holding a set-up plan first (actions happen in the order they're placed), in the simulator and in rooms. |
 | `app/saltbound/routes.py` | `GET /games/saltbound` and the WebSocket at `/games/saltbound/ws`. |
 | `app/static/games/saltbound/css/tokens.css` | Every colour, size, radius, space and timing. |
 | `css/ui.css` | The components, from tokens only. |
@@ -638,9 +640,13 @@ no clock anywhere: the run changes only when someone acts.
   (heroes walk first, enemies after), and a fight's last round plays back before the map or the end
   screen replaces it. `combatBusy()` holds the end screen until playback finishes.
 - The fight screen draws enemy intents as arrows to their targets (an SVG behind the units) and
-  previews each unit's planned damage, healing and Armor, and the damage coming at it after Armor.
-  The numbers come from each plan entry's `est`, so they're estimates (statuses applied by earlier
-  actions in the same round aren't counted).
+  previews the damage coming at each unit after its Armor.
+- **Actions resolve as they're played** (`do_place` calls `resolve_action`; `resolve_round` is only
+  summons, pets and enemies once everyone is ready). `f["done"]` lists the round's actions for the
+  "This round" strip, with hit or miss. Each play sends its own effects, so the client plays them
+  back while the hero's dice stay on screen, locked (`tray()` draws from the live state when the
+  playback is in the same round). In rooms, bots wait `BOT_FIGHT_DELAY` (1.2 s) between fight
+  moves so each one can be seen. Saves before this (v1) get any planned dice back (`save._v1`).
 - **Rolls play back in the roll tray** (`rollTray()` in `combat.js`): big dice tumble in the middle of
   the fight, rerolls flash, and risky actions end with HIT or MISS. The playback looks ahead from a
   `roll` effect to its `act` to name the action. The overlay is rebuilt on every render, so animated

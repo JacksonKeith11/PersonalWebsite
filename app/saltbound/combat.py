@@ -1,10 +1,11 @@
 """Fights: dice, actions, enemy intents, statuses, summons and the end of a fight. Mixed into `Game`.
 
 A round: every hero in the fight rolls their dice and every enemy shows its intent. The party
-places dice on actions together (each placement is a plan entry, resolved in the order placed;
-"instant" actions such as Inspire or Loaded Dice take effect as soon as they're placed) and readies
-up. Then the heroes' actions resolve, then summons and pets act, then enemies act in speed order,
-then end-of-round effects (Burn, Doom, Lifeline, statuses running out, Armor clearing).
+places dice on actions together, and each action happens the moment it's placed: its dice roll and
+its effects land before anyone places another, so the party's actions go in the order they were
+played (`f["done"]` lists them for the round). When everyone is ready, summons and pets act, then
+enemies act in speed order, then end-of-round effects (Burn, Doom, Lifeline, statuses running out,
+Armor clearing).
 
 Heroes are "h0".."h2", enemies "f<id>" and summons "s<id>" wherever the browser names a target.
 """
@@ -130,7 +131,7 @@ class Combat:
         f = {
             "id": s["fid"], "kind": spec["kind"], "tile": spec["tile"], "heroes": spec["heroes"],
             "groups": spec.get("groups", []), "region": spec.get("region"), "step": spec.get("step", 0),
-            "by": spec.get("by"), "round": 0, "foes": [], "hs": {}, "plan": [], "guard": {}, "taunt": None,
+            "by": spec.get("by"), "round": 0, "foes": [], "hs": {}, "done": [], "guard": {}, "taunt": None,
             "sanct": 0, "aegis": 0, "xp": 0, "gold": 0, "dmul": diff["foe_dmg"] * (1 + 0.1 * tier),
             "spirit": {}, "nextfoe": 1, "phase": 1, "allies": [], "nextsum": 1, "acts": {}, "pain": {},
         }
@@ -256,7 +257,7 @@ class Combat:
     def new_round(self):
         f = self.s["fight"]
         f["round"] += 1
-        f["plan"] = []
+        f["done"] = []
         f["guard"] = {}
         f["taunt"] = None
         f["sanct"] = 0
@@ -578,7 +579,7 @@ class Combat:
             raise Invalid("You're not fighting.")
         x = self.hs(h)
         if x["ready"]:
-            raise Invalid("You've readied up; unready to change your plan.")
+            raise Invalid("You've readied up; unready to act again.")
         key = msg.get("a")
         acts = self.actions_of(h)
         match = next((k for k in acts if k.rstrip("+") == key), None)
@@ -586,14 +587,13 @@ class Combat:
             raise Invalid("You don't know that action.")
         a = self.action_def(h, match)
         f = self.s["fight"]
-        if a.get("once") and (a["key"] in x["once"] or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+        if a.get("once") and a["key"] in x["once"]:
             raise Invalid("Once per fight.")
-        if a.get("per_rest") and (a["key"] in self.hero(h).get("spent", []) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+        if a.get("per_rest") and a["key"] in self.hero(h).get("spent", []):
             raise Invalid(f"{a['name']} is spent until you rest.")
-        if a.get("cd") and (x["cds"].get(a["key"]) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
-            left = x["cds"].get(a["key"], 0)
-            raise Invalid(f"{a['name']} is cooling down: ready again {'in ' + str(left) + ' rounds' if left > 1 else 'next round'}."
-                          if left else f"{a['name']} can only be used once a round.")
+        if a.get("cd") and x["cds"].get(a["key"]):
+            left = x["cds"][a["key"]]
+            raise Invalid(f"{a['name']} is cooling down: ready again {'in ' + str(left) + ' rounds' if left > 1 else 'next round'}.")
         if a.get("per_round") and a["key"] in x["round_once"]:
             raise Invalid("Once a round.")
         if a["key"] == "flee" and f["kind"] in ("dungeon", "boss"):
@@ -625,11 +625,11 @@ class Combat:
         if a.get("instant"):
             self.instant(h, a, dice, tgt)
             return
+        # Everything else happens now, in the order the party plays it: the dice roll and the action
+        # lands before anyone places another.
         for d in dice:
             d["used"] = True
-        entry = {"h": h, "a": a["key"], "plus": a["plus"], "dice": ids, "tgt": tgt}
-        entry["est"] = self.estimate(h, a, dice, tgt)
-        f["plan"].append(entry)
+        self.resolve_action(h, a, dice, tgt)
 
     def instant(self, h, a, dice, tgt):
         """Actions that set up dice take effect the moment they're placed."""
@@ -687,28 +687,8 @@ class Combat:
         for d in dice:
             if d["id"] not in keep and d in x["dice"]:
                 d["used"] = True
+        self.s["fight"]["done"].append({"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": None})
         self.fx("act", h=h, a=a["key"], tgt=tgt, instant=True)
-
-    def do_unplace(self, h, msg):
-        if not self.in_fight(h):
-            raise Invalid("You're not fighting.")
-        f = self.s["fight"]
-        x = self.hs(h)
-        if x["ready"]:
-            raise Invalid("Unready first.")
-        i = msg.get("i")
-        mine = [p for p in f["plan"] if p["h"] == h]
-        if not isinstance(i, int) or not 0 <= i < len(f["plan"]) or f["plan"][i]["h"] != h:
-            if mine and i is None:
-                i = f["plan"].index(mine[-1])
-            else:
-                raise Invalid("Undo what?")
-        p = f["plan"].pop(i)
-        for d in x["dice"]:
-            if d["id"] in p["dice"]:
-                d["used"] = False
-        if p["a"] in x["round_once"]:
-            x["round_once"].remove(p["a"])
 
     def do_reroll(self, h, msg):
         if not self.in_fight(h) or not self.active(h):
@@ -872,39 +852,35 @@ class Combat:
             n += 3
         return max(0, n)
 
-    def resolve_round(self):
+    def resolve_action(self, h, a, dice, tgt):
+        """A placed action happens: its dice roll, it hits or misses, its effects land."""
         f = self.s["fight"]
-        # Hero actions in the order they were placed; each one's dice roll as it happens.
-        for p in list(f["plan"]):
-            if self.s["fight"] is not f or not self.foes():
-                break
-            h = p["h"]
-            if not self.active(h):
-                continue
-            x = self.hs(h)
-            dice = [d for d in x["dice"] if d["id"] in p["dice"]]
-            a = self.action_def(h, p["a"] + ("+" if p["plus"] else ""))
-            if a.get("once"):
-                x["once"].append(a["key"])
-            if a.get("cd"):
-                x["cds"][a["key"]] = a["cd"]
-            if a.get("per_rest"):
-                self.hero(h).setdefault("spent", []).append(a["key"])
-            hit = self.roll_for(h, a, dice)
-            self.fx("act", h=h, a=a["key"], tgt=p["tgt"], hit=hit)
-            ops = a["ops"] if hit else a.get("miss", [])
-            self.run_ops(h, a, dice, p["tgt"], ops=ops, hit=hit)
-            self.elements(h, a, dice, p["tgt"])
-            if a["key"] == "block" and self.mods(h).get("block_heal") and self.s["fight"] is f:
-                self.fight_heal(h, self.mods(h)["block_heal"], h)
-            echo = (a.get("spell") and self.mods(h).get("spell_echo")) or (self.mods(h).get("echo_any") and a["key"] not in C.GENERIC)
-            if echo and not x["echo"] and self.s["fight"] is f:
-                x["echo"] = True
-                self.fx("act", h=h, a=a["key"], tgt=p["tgt"], echo=True)
-                self.run_ops(h, a, dice, p["tgt"], half=True, ops=ops, hit=hit)
-            f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
-            if self.s["fight"] is not f:
-                return
+        x = self.hs(h)
+        if a.get("once"):
+            x["once"].append(a["key"])
+        if a.get("cd"):
+            x["cds"][a["key"]] = a["cd"]
+        if a.get("per_rest"):
+            self.hero(h).setdefault("spent", []).append(a["key"])
+        hit = self.roll_for(h, a, dice)
+        f["done"].append({"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": hit})
+        self.fx("act", h=h, a=a["key"], tgt=tgt, hit=hit)
+        ops = a["ops"] if hit else a.get("miss", [])
+        self.run_ops(h, a, dice, tgt, ops=ops, hit=hit)
+        self.elements(h, a, dice, tgt)
+        if a["key"] == "block" and self.mods(h).get("block_heal") and self.s["fight"] is f:
+            self.fight_heal(h, self.mods(h)["block_heal"], h)
+        echo = (a.get("spell") and self.mods(h).get("spell_echo")) or (self.mods(h).get("echo_any") and a["key"] not in C.GENERIC)
+        if echo and not x["echo"] and self.s["fight"] is f:
+            x["echo"] = True
+            self.fx("act", h=h, a=a["key"], tgt=tgt, echo=True)
+            self.run_ops(h, a, dice, tgt, half=True, ops=ops, hit=hit)
+        f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
+        if self.s["fight"] is f:
+            self.check_end()
+
+    def resolve_round(self):
+        """Everyone is ready: summons and pets act, then the enemies, fastest first."""
         if self.check_end():
             return
         # Summons and pets
@@ -1384,7 +1360,6 @@ class Combat:
                 x["st"] = {}
                 self.fx("down", to=f"h{h}")
                 self.say(f"{hero['name']} is knocked down!")
-                f["plan"] = [p for p in f["plan"] if p["h"] != h]
                 fury = self.mods(h).get("undying", 0)
                 if fury and fo is not None and fo["hp"] > 0:
                     self.hurt_foe(fo, fury, h, pure=True)
@@ -1629,7 +1604,7 @@ class Combat:
         f = self.s["fight"]
         if not f:
             return None
-        out = {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "plan", "guard", "taunt",
+        out = {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "done", "guard", "taunt",
                                  "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
         out["hymn"] = f.get("hymn", 0)
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]])

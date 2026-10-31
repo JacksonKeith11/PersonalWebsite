@@ -20,8 +20,25 @@ DB_PATH = Path(os.environ.get("SALTBOUND_DB", "data/saltbound.db"))
 KEEP = 5
 _lock = threading.Lock()
 
+
+
+def _v1(state):
+    """v1 planned actions and resolved them together; v2 resolves each as it's placed. A fight saved
+    mid-plan gets its planned dice back to play again."""
+    f = state.get("fight")
+    if f:
+        for p in f.pop("plan", []):
+            x = f["hs"].get(str(p["h"]))
+            for d in (x or {}).get("dice", []):
+                if d["id"] in p["dice"]:
+                    d["used"] = False
+        f["done"] = []
+    state["v"] = 2
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {}
+MIGRATIONS = {1: _v1}
 
 
 class TooOld(Exception):

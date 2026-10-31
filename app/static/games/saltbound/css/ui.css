@@ -392,6 +392,12 @@ a:hover { color: var(--accent-hi); }
 .plan-chip .x { width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
 .plan-chip .x:hover { background: var(--panel-3); color: var(--text); }
 .plan-chip .est { color: var(--accent); font-weight: var(--fw-semibold); }
+.plan-chip .res { font-size: var(--fs-14); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.04em; }
+.plan-chip .res.hit { color: var(--ok); }
+.plan-chip .res.miss { color: var(--danger); }
+.plan-chip.missed b { color: var(--muted); }
+.plan-chip:last-child { animation: chip-in 260ms ease-out; }
+@keyframes chip-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 .tray { display: grid; grid-template-columns: auto 1fr auto; gap: var(--s-5); align-items: stretch; padding: var(--s-4) var(--s-6) var(--s-5); background: var(--panel); border-top: var(--bw) solid var(--border); }
 .tray-left { display: grid; gap: var(--s-3); align-content: start; min-width: 280px; }

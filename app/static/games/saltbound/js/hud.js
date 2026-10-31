@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=28';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=28';
-import { spriteURL } from './art.js?v=28';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=28';
-import { MapView } from './hexmap.js?v=28';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=28';
-import { disconnect } from './main.js?v=28';
-import * as sfx from './audio.js?v=28';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=29';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=29';
+import { spriteURL } from './art.js?v=29';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=29';
+import { MapView } from './hexmap.js?v=29';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=29';
+import { disconnect } from './main.js?v=29';
+import * as sfx from './audio.js?v=29';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -316,7 +316,6 @@ function renderMenu() {
       h('span', null, h('span.kbd', null, 'Space'), ' ready up'),
       h('span', null, h('span.kbd', null, '1'), '–', h('span.kbd', null, '9'), ' pick a die, or a choice in a dialog'),
       h('span', null, h('span.kbd', null, 'Q'), h('span.kbd', null, 'W'), h('span.kbd', null, 'E'), '… pick an action (a fight)'),
-      h('span', null, h('span.kbd', null, 'Z'), ' undo your last placement'),
       h('span', null, h('span.kbd', null, 'Esc'), ' close or cancel')),
     h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
       host ? h('button.btn', { onclick: () => { if (confirm('Save and take everyone back to the lobby?')) { send({ t: 'quit' }); close(); } } }, 'Save and return to lobby') : null,
@@ -612,7 +611,7 @@ function renderDialogs() {
 // ------------------------------------------------------------------ first-time hints
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
-  fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit. Actions resolve in the order the party places them, then enemies do what their intents say. Ready up when you’re done.'],
+  fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. When everyone is ready, enemies do what their intents say.'],
   sea: ['The rising sea', 'Every few turns the sea rises and the lowest land floods. Hexes about to go under glow blue. Clear the three objectives and reach the peak before the water does.'],
 };
 function renderHint() {

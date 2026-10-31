@@ -152,26 +152,37 @@ class Game(Combat):
         return hero["hp"] - before
 
     def base_dice(self, h):
+        """The class's dice, grown at levels 3 and 6: a 1..N die steps up a size, any other die gets
+        +1 on every number. Heirloom dice also raise their lowest face once per party level."""
         hero = self.hero(h)
-        dice = [list(d) for d in C.CLASSES[hero["cls"]]["dice"]]
+        dice = [dict(d, faces=list(d["faces"]), dk=list(d["dk"])) for d in C.CLASSES[hero["cls"]]["dice"]]
         for _ in range(hero["dieup"]):
-            # grow the smallest plain die a size
-            plain = [i for i, d in enumerate(dice) if all(isinstance(f, int) for f in d)]
-            if not plain:
+            grow = [d for d in dice if any(isinstance(f, int) for f in d["faces"])]
+            if not grow:
                 break
-            i = min(plain, key=lambda i: max(dice[i]))
-            top = max(dice[i])
-            nxt = next((n for n in C.DIE_LADDER if n > top), top + 2)
-            dice[i] = list(range(1, nxt + 1))
+            d = min(grow, key=lambda d: max(f for f in d["faces"] if isinstance(f, int)))
+            if d["faces"] == list(range(1, len(d["faces"]) + 1)):
+                top = len(d["faces"])
+                nxt = next((n for n in C.DIE_LADDER if n > top), top + 2)
+                d["faces"] = list(range(1, nxt + 1))
+            else:
+                d["faces"] = [f + 1 if isinstance(f, int) else f for f in d["faces"]]
         return dice
 
     def dice_of(self, h):
+        """Every die a hero rolls: {faces, dk (kinds), src}."""
         hero = self.hero(h)
-        out = [{"faces": d, "src": "base"} for d in self.base_dice(h)]
+        out = [dict(d, src="base") for d in self.base_dice(h)]
         for slot in ("weapon", "armor", "trinket"):
             it = hero["equip"].get(slot)
             if it:
-                out.append({"faces": list(I.ITEMS[it]["die"]), "src": slot})
+                out.append({"faces": list(I.ITEMS[it]["die"]), "dk": list(I.ITEMS[it].get("dk", [])), "src": slot})
+        for d in out:
+            if "heirloom" in d["dk"]:
+                for _ in range(self.s["level"] - 1):
+                    nums = [i for i, f in enumerate(d["faces"]) if isinstance(f, int)]
+                    low = min(nums, key=lambda i: d["faces"][i])
+                    d["faces"][low] += 1
         return out
 
     def actions_of(self, h):
@@ -700,11 +711,11 @@ class Game(Combat):
             out = ch["ok"]
             roll = None
             if ch.get("check"):
-                faces = max((d2["faces"] for d2 in self.dice_of(h)), key=lambda f: max(x for x in f if isinstance(x, int)))
-                roll = self.roll_face(faces)
-                if isinstance(roll, int):
-                    roll += self.mods(h).get("silver_voice", 0)
-                if not isinstance(roll, int) or roll < ch["check"]:
+                from .combat import face, top_face
+                faces = max((d2["faces"] for d2 in self.dice_of(h)), key=top_face)
+                v, t = face(self.roll_face(faces))
+                roll = (top_face(faces) if t == "W" else v) + self.mods(h).get("silver_voice", 0)
+                if roll < ch["check"]:
                     out = ch["bad"]
             self.outcome(h, out, ev, roll)
         elif d["type"] == "loot":
@@ -1085,7 +1096,7 @@ class Game(Combat):
         for h in range(3):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
-                           "moves": self.moves(h), "dice": [d["faces"] for d in self.dice_of(h)], "bagsize": self.bag_size(h),
+                           "moves": self.moves(h), "dice": [{"faces": d["faces"], "dk": d["dk"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h),
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():

@@ -33,8 +33,78 @@ def _amt(expr, env):
     return int(eval(expr, {"__builtins__": {}, "max": max, "min": min}, env))  # expressions come only from our own data
 
 
+TAGS = {"F": "burn", "I": "freeze", "P": "poison"}
+
+
+def face(f):
+    """(value, tag) for a die face: numbers, "S" shield, "X" skull, "W" wild, "F3"/"I3"/"P3"."""
+    if isinstance(f, int):
+        return f, None
+    if f in ("S", "X"):
+        return 0, f
+    if f == "W":
+        return None, "W"
+    return int(f[1:]), TAGS[f[0]]
+
+
+def top_face(faces):
+    return max([face(f)[0] for f in faces if face(f)[0] is not None] or [0])
+
+
+def mean_face(faces):
+    vals = [face(f)[0] if face(f)[1] != "W" else top_face(faces) for f in faces]
+    return sum(vals) / len(vals)
+
+
 def _num(d):
-    return d["v"] if isinstance(d["v"], int) else 0
+    """A die's value: rolled or shown, else (while planning) what it rolls on average."""
+    if isinstance(d.get("v"), int):
+        return d["v"]
+    if d.get("v") is None and "faces" in d:
+        return round(mean_face(d["faces"]))
+    return 0
+
+
+def _p(combo):
+    out = 1.0
+    for o in combo:
+        out *= o[2]
+    return out
+
+
+def check_hit(req, vals, tags):
+    """Did these rolled values meet an action's conditions? Wild faces pass any condition."""
+    for v, t in zip(vals, tags):
+        if t == "W":
+            continue
+        ok = True
+        if "min" in req and v < req["min"]:
+            ok = False
+        if "max" in req and v > req["max"]:
+            ok = False
+        if "exact" in req and v != req["exact"]:
+            ok = False
+        if req.get("odd") and v % 2 == 0:
+            ok = False
+        if req.get("even") and (v % 2 or v == 0):
+            ok = False
+        if not ok and not (req.get("or_face") and t == req["or_face"]):
+            return False
+    if req.get("pair") and not is_pair(vals, tags):
+        return False
+    if "sum_min" in req and sum(vals) < req["sum_min"]:
+        return False
+    return True
+
+
+def is_pair(vals, tags):
+    real = [v for v, t in zip(vals, tags) if t != "W"]
+    return len(vals) >= 2 and len(set(real)) <= 1
+
+
+def is_straight(vals, tags):
+    real = sorted(v for v, t in zip(vals, tags) if t != "W")
+    return len(vals) >= 3 and all(b - a == 1 for a, b in zip(real, real[1:])) and len(set(real)) == len(real)
 
 
 class Combat:
@@ -214,13 +284,18 @@ class Combat:
                     self.fx("heal", to=f"s{a['id']}", n=got)
         if self.check_end():
             return
-        # Dice
+        # Dice: most stay hidden until their action resolves; Seer dice are rolled now and shown,
+        # Augur dice are rolled now and show only high or low, Fate dice show two faces.
+        f["hymn"] = 0
         anthem = [h for h in self.actives() if self.mods(h).get("anthem")]
         for h in f["heroes"]:
             x = self.hs(h)
             x["ready"] = False
             x["dice"] = []
             x["round_once"] = []
+            x["links"] = {}
+            x["inspire"] = 0
+            x["pain_bonus"] = pain.get(str(h), 0)
             if not self.active(h):
                 continue
             if x["st"].pop("stun", 0):
@@ -232,23 +307,27 @@ class Combat:
             m = self.mods(h)
             dice = self.dice_of(h)
             if m.get("pet"):
-                dice.append({"faces": list(range(1, 9 if m.get("pet_strike") else 5)), "src": "pet"})
+                dice.append({"faces": list(range(1, 9 if m.get("pet_strike") else 5)), "dk": [], "src": "pet"})
             if any(y != h for y in anthem):
-                dice.append({"faces": [1, 2, 3, 4], "src": "anthem"})
+                dice.append({"faces": [1, 2, 3, 4], "dk": [], "src": "anthem"})
+            if m.get("deadeye") and dice:
+                big = max(dice, key=lambda d: top_face(d["faces"]))
+                big["dk"] = list(big["dk"]) + ["seer", "top"]
             for i, d in enumerate(dice):
-                v = self.roll_face(d["faces"])
-                nums = [x2 for x2 in d["faces"] if isinstance(x2, int)]
-                if m.get("overcharge") and nums and max(nums) == 12 and v == 12:
-                    v += self.roll_face(d["faces"])
-                if m.get("keen_edge") and v == 6:
-                    v = 7
-                x["dice"].append({"id": f"{h}.{f['round']}.{i}", "faces": d["faces"], "v": v, "src": d["src"], "used": False})
-            if m.get("deadeye") and x["dice"]:
-                big = max(x["dice"], key=lambda d: max([y for y in d["faces"] if isinstance(y, int)] or [0]))
-                big["v"] = max(y for y in big["faces"] if isinstance(y, int))
-            if pain.get(str(h)) and x["dice"]:
-                low = min(x["dice"], key=_num)
-                low["v"] = _num(low) + pain[str(h)]
+                inst = {"id": f"{h}.{f['round']}.{i}", "faces": d["faces"], "dk": d["dk"], "src": d["src"], "used": False,
+                        "v": None, "bonus": 0, "top": "top" in d["dk"]}
+                for k in d["dk"]:
+                    if k.startswith("link:"):
+                        inst["link"] = k[5:]
+                if "seer" in d["dk"]:
+                    inst["v"], inst["tag"] = self.raw_roll(h, inst)
+                elif "augur" in d["dk"]:
+                    inst["sv"], inst["stag"] = self.raw_roll(h, inst)
+                    lo, hi = min(face(f2)[0] or 0 for f2 in d["faces"]), top_face(d["faces"])
+                    inst["hint"] = "high" if inst["sv"] > (lo + hi) / 2 else "low"
+                elif "fate" in d["dk"]:
+                    inst["fc"] = [self.raw_roll(h, inst)[0], self.raw_roll(h, inst)[0]]
+                x["dice"].append(inst)
             if x["st"].pop("freeze", 0) and not m.get("freeze_immune") and x["dice"]:
                 x["dice"].remove(min(x["dice"], key=_num))
         # Spirit dice for heroes who are dead
@@ -304,36 +383,108 @@ class Combat:
 
     # ------------------------------------------------------------------ placing dice
 
-    def check_req(self, req, dice):
+    def count_ok(self, req, dice):
         n = req.get("n", 1)
-        if req.get("upto"):
-            if not 1 <= len(dice) <= n:
-                return False
-        elif len(dice) != n:
-            return False
-        vals = [_num(d) for d in dice]
-        for d, v in zip(dice, vals):
-            if req.get("face") == "S" and d["v"] != "S":
-                return False
-            if "min" in req and v < req["min"]:
-                return False
-            if "max" in req and v > req["max"]:
-                return False
-            if "exact" in req and v != req["exact"]:
-                return False
-            if req.get("odd") and v % 2 == 0:
-                return False
-            if req.get("even") and (v % 2 or v == 0):
-                return False
-        if req.get("pair") and len(set(vals)) != 1:
-            return False
-        if req.get("straight"):
-            sv = sorted(vals)
-            if any(b - a != 1 for a, b in zip(sv, sv[1:])):
-                return False
-        if "sum_min" in req and sum(vals) < req["sum_min"]:
-            return False
-        return True
+        return 1 <= len(dice) <= n if req.get("upto") else len(dice) == n
+
+    # ------------------------------------------------------------------ rolling
+
+    def raw_roll(self, h, d):
+        """Roll a die's face (no bonuses): (value, tag). Explodes, and links to its group."""
+        x = self.hs(h)
+        g = d.get("link")
+        if g and g in x["links"]:
+            return tuple(x["links"][g])
+        faces = d["faces"]
+        if d.get("top"):
+            v, t = top_face(faces), None
+        else:
+            v, t = face(self.roll_face(faces))
+        top = top_face(faces)
+        if t == "W":
+            v = top
+        if "exploding" in d["dk"] and v == top and t != "W":
+            for _ in range(3):
+                extra, et = face(self.roll_face(faces))
+                v += (extra if et != "W" else top) + self.mods(h).get("overcharge", 0)
+                if extra != top:
+                    break
+        if g:
+            x["links"][g] = [v, t]
+        return v, t
+
+    def roll(self, h, d):
+        """A die's final value when its action resolves (or when an instant uses it)."""
+        x = self.hs(h)
+        m = self.mods(h)
+        if d.get("rolled"):
+            return d["v"]
+        if d.get("v") is not None:  # rolled and shown while planning (Seer)
+            v, t = d["v"], d.get("tag")
+        elif "sv" in d:
+            v, t = d.pop("sv"), d.pop("stag", None)
+        elif d.get("fc"):
+            v, t = self.rng.choice(d["fc"]), None
+        else:
+            v, t = self.raw_roll(h, d)
+        if t == "X":
+            hero = self.hero(h)
+            n = min(3, hero["hp"] - 1)
+            if n > 0:
+                hero["hp"] -= n
+                self.fx("dmg", to=f"h{h}", n=n, block=0)
+        if m.get("keen_edge") and v == 6:
+            v = 7
+        if t not in ("S", "X"):
+            v += d.get("bonus", 0) + self.s["fight"].get("hymn", 0)
+            if d.get("link") and m.get("sleight"):
+                v += 1
+            if x.get("inspire"):
+                v += x["inspire"]
+                x["inspire"] = 0
+            if x.get("pain_bonus"):
+                v += x["pain_bonus"]
+                x["pain_bonus"] = 0
+        d["v"], d["tag"], d["rolled"] = v, t, True
+        d["shown"] = True
+        return v
+
+    def outcomes(self, h, d):
+        """What a die might come up as, for planning: [(value, tag, chance)]. No randomness used."""
+        x = self.hs(h)
+        add = d.get("bonus", 0) + self.s["fight"].get("hymn", 0)
+        if d.get("rolled"):
+            return [(d["v"], d.get("tag"), 1.0)]
+        if d.get("v") is not None:
+            base = [(d["v"], d.get("tag"), 1.0)]
+        elif d.get("fc"):
+            base = [(d["fc"][0], None, 0.5), (d["fc"][1], None, 0.5)]
+        elif d.get("top"):
+            base = [(top_face(d["faces"]), None, 1.0)]
+        else:
+            faces = d["faces"]
+            if d.get("hint"):
+                lo, hi = min(face(f2)[0] or 0 for f2 in faces), top_face(faces)
+                mid = (lo + hi) / 2
+                faces = [f2 for f2 in faces if (face(f2)[0] if face(f2)[1] != "W" else hi) > mid] if d["hint"] == "high" else \
+                    [f2 for f2 in faces if (face(f2)[0] if face(f2)[1] != "W" else hi) <= mid]
+                faces = faces or d["faces"]
+            top = top_face(d["faces"])
+            base = []
+            for f2 in faces:
+                v, t = face(f2)
+                if t == "W":
+                    v = top
+                if "exploding" in d["dk"] and v == top and t != "W":
+                    v += round(mean_face(d["faces"]))
+                base.append((v, t, 1 / len(faces)))
+        out = []
+        for v, t, p in base:
+            if t not in ("S", "X"):
+                v += add + (1 if d.get("link") and self.mods(h).get("sleight") else 0)
+            out.append((v, t, p))
+        del x
+        return out
 
     def resolve_target(self, h, a, tgt):
         """Check a target for an action; returns the target id (or None for untargeted)."""
@@ -390,15 +541,12 @@ class Combat:
         dice = [next((d for d in x["dice"] if d["id"] == i and not d["used"]), None) for i in ids]
         if None in dice:
             raise Invalid("Those dice are already used.")
-        if not self.check_req(a["req"], dice):
-            raise Invalid("Those dice don't fit.")
+        if not self.count_ok(a["req"], dice):
+            n = a["req"].get("n", 1)
+            raise Invalid(f"That takes {'up to ' if a['req'].get('upto') else ''}{n} {'die' if n == 1 else 'dice'}.")
         if a.get("melee") and x["row"] != "front":
             raise Invalid("You need to be in the front row.")
         tgt = self.resolve_target(h, a, msg.get("tgt"))
-        if a["req"].get("match_intent"):
-            it = self.foe(int(tgt[1:]))["intent"] or {}
-            if it.get("v") is None or _num(dice[0]) != it["v"]:
-                raise Invalid("The die has to match that enemy's intent number.")
         if a["req"].get("marked") and not self.foe(int(tgt[1:]))["st"].get("mark"):
             raise Invalid("That enemy needs to be Marked.")
         if a.get("once") and a.get("instant"):
@@ -415,21 +563,24 @@ class Combat:
         f["plan"].append(entry)
 
     def instant(self, h, a, dice, tgt):
-        """Actions that change dice take effect the moment they're placed."""
+        """Actions that set up dice take effect the moment they're placed."""
         x = self.hs(h)
         m = self.mods(h)
         keep = set()
         extra = 1 if m.get("second_verse") else 0
+        plus = 2 if a["plus"] else 0
         other = int(tgt[1:]) if isinstance(tgt, str) and tgt.startswith("h") else None
         for op in a["ops"]:
             k = op["op"]
             if k == "setdie":
                 d = dice[0]
-                d["v"] = max([y for y in d["faces"] if isinstance(y, int)] or [6])
+                d["top"] = True
+                if d.get("v") is not None and not d.get("rolled"):
+                    d["v"], d["tag"] = top_face(d["faces"]), None
                 keep.add(d["id"])
             elif k == "bump":
                 d = dice[0]
-                d["v"] = _num(d) + _amt(op["amt"], {}) + (2 if a["plus"] else 0)
+                d["bonus"] = d.get("bonus", 0) + _amt(op["amt"], {}) + plus
                 keep.add(d["id"])
             elif k == "selfdmg":
                 hero = self.hero(h)
@@ -437,39 +588,33 @@ class Combat:
                 hero["hp"] -= n
                 self.fx("dmg", to=f"h{h}", n=n, block=0)
             elif k == "loaded":
-                src, dst = dice[0], dice[1]
-                dst["v"] = src["v"]
-                keep.add(dst["id"])
-                if m.get("sleight") and "sleight" not in x["round_once"]:
-                    x["round_once"].append("sleight")
-                    keep.add(src["id"])
+                g = "L" + dice[0]["id"]
+                for d in dice:
+                    d["link"] = g
+                    keep.add(d["id"])
             elif k == "inspire":
-                pool = [d for d in self.hs(other)["dice"] if not d["used"]]
-                if pool:
-                    low = min(pool, key=_num)
-                    low["v"] = _num(low) + max(1, _num(dice[0]) // 2) + extra + (2 if a["plus"] else 0)
+                v = self.roll(h, dice[0])
+                self.hs(other)["inspire"] = self.hs(other).get("inspire", 0) + max(2, v // 2) + extra + plus
+                self.fx("st", to=f"h{other}", s="inspired")
             elif k == "hymn":
-                for y in self.actives():
-                    for d in self.hs(y)["dice"]:
-                        if not d["used"] and d["id"] not in [dd["id"] for dd in dice]:
-                            d["v"] = _num(d) + 1 + extra
+                vals = [self.roll(h, d) for d in dice]
+                f = self.s["fight"]
+                f["hymn"] = f.get("hymn", 0) + 1 + (1 if len(set(vals)) == 1 else 0) + extra
+                self.fx("st", to="party", s="hymn")
             elif k == "give":
                 d = dice[0]
                 x["dice"].remove(d)
-                self.hs(other)["dice"].append({"id": f"g{d['id']}", "faces": d["faces"], "v": _num(d) + extra if d["v"] != "S" else "S",
-                                              "src": "gift", "used": False})
+                self.hs(other)["dice"].append(dict(d, id=f"g{d['id']}", src="gift", used=False,
+                                                    bonus=d.get("bonus", 0) + extra))
                 keep.add(d["id"])
             elif k == "reroll_ally":
-                for d in self.hs(other)["dice"]:
-                    if not d["used"]:
-                        d["v"] = self.roll_face(d["faces"])
+                self.hs(other)["rr"] += 2 + (1 if a["plus"] else 0)
+                self.fx("st", to=f"h{other}", s="rerolls")
             elif k == "bottle":
-                key = "big_potion" if _num(dice[0]) >= 5 else "potion"
+                v = self.roll(h, dice[0])
+                key = "big_potion" if v >= 5 else "potion"
                 for _ in range(2 if m.get("philosopher") else 1):
                     self.gain_item(h, key)
-                if m.get("philosopher") and "philosopher" not in x["round_once"]:
-                    x["round_once"].append("philosopher")
-                    keep.add(dice[0]["id"])
         for d in dice:
             if d["id"] not in keep and d in x["dice"]:
                 d["used"] = True
@@ -567,18 +712,25 @@ class Combat:
 
     # ------------------------------------------------------------------ resolving
 
-    def env(self, h, a, dice, target=None):
-        vals = [_num(d) for d in dice]
+    def env(self, h, a, dice, target=None, vals=None, tags=None):
+        """Variables for an action's amounts. `vals`/`tags` are the rolled values (or, while
+        estimating, one possible outcome); without them, dice count at what they're showing or
+        what they roll on average."""
+        if vals is None:
+            vals = [_num(d) for d in dice]
+            tags = [d.get("tag") for d in dice]
         x = self.hs(h)
         hero = self.hero(h)
         e = {"v": vals[0] if vals else 0, "sum": sum(vals), "n": len(vals), "armor": x["st"].get("armor", 0),
              "missing": self.maxhp(h) - hero["hp"], "undead": 0, "rooted": 0, "stunned": 0, "poisoned": 0,
-             "marked": 0, "aimed": 0, "d": vals[0] if vals else 0}
+             "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
+             "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags))}
         if isinstance(target, dict):
             st = target["st"]
+            it = target.get("intent") or {}
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
-                     aimed=int((target.get("intent") or {}).get("tgt") == f"h{h}"))
+                     aimed=int(it.get("tgt") == f"h{h}"), matched=int(bool(vals) and it.get("v") is not None and vals[0] == it["v"]))
         return e
 
     def dmg_bonus(self, h, a, target):
@@ -599,24 +751,50 @@ class Combat:
         return n
 
     def estimate(self, h, a, dice, tgt):
-        """A rough number to show on a planned action."""
-        for op in a["ops"]:
-            if op["op"] in ("dmg", "heal", "armor", "lift"):
-                target = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") else None
-                env = self.env(h, a, dice, target)
-                if op.get("each"):
-                    n = sum(_amt(op["amt"], {**env, "d": _num(d)}) for d in dice)
-                else:
-                    n = _amt(op["amt"], env)
-                n += 2 if a["plus"] else 0
-                if op["op"] == "dmg":
-                    n += self.dmg_bonus(h, a, target)
-                    if target:
-                        n = self.foe_damage_after(target, n, h)
-                elif op["op"] == "heal":
-                    n += self.mods(h).get("heal_bonus", 0)
-                return {"k": op["op"], "n": max(0, n)}
-        return None
+        """What a planned action will probably do: its chance to hit, and the expected number
+        (with the lowest and highest it could be) for its first damage, heal or Armor effect."""
+        from itertools import product
+        target = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") else None
+        per = [self.outcomes(h, d) for d in dice] or [[]]
+        combos = list(product(*per)) if dice else [()]
+        if len(combos) > 4000:
+            combos = combos[:: len(combos) // 4000 + 1]
+            norm = sum(_p(c) for c in combos)
+        else:
+            norm = 1.0
+        p_hit, ev, lo, hi, kind = 0.0, 0.0, None, None, None
+        for c in combos:
+            vals = [o[0] for o in c]
+            tags = [o[1] for o in c]
+            pr = _p(c) / norm
+            hit = check_hit(a["req"], vals, tags)
+            p_hit += pr if hit else 0
+            ops = a["ops"] if hit else a.get("miss", [])
+            n = 0
+            for op in ops:
+                if op["op"] in ("dmg", "heal", "armor", "lift"):
+                    kind = kind or op["op"]
+                    if op["op"] != kind:
+                        continue
+                    env = self.env(h, a, dice, target, vals, tags)
+                    if op.get("each"):
+                        n = sum(_amt(op["amt"], {**env, "d": v}) for v in vals)
+                    else:
+                        n = _amt(op["amt"], env)
+                    n += 2 if a["plus"] else 0
+                    if kind == "dmg":
+                        n += self.dmg_bonus(h, a, target)
+                        if target:
+                            n = self.foe_damage_after(target, n, h)
+                    elif kind == "heal":
+                        n += self.mods(h).get("heal_bonus", 0)
+                    n = max(0, n)
+                    break
+            ev += pr * n
+            lo = n if lo is None else min(lo, n)
+            hi = n if hi is None else max(hi, n)
+        risky = any(k in a["req"] for k in ("min", "max", "exact", "odd", "even", "sum_min", "pair", "or_face"))
+        return {"k": kind, "n": round(ev), "lo": lo or 0, "hi": hi or 0, "p": round(p_hit, 3) if risky else None}
 
     def foe_damage_after(self, fo, n, h):
         st = fo["st"]
@@ -632,18 +810,7 @@ class Combat:
 
     def resolve_round(self):
         f = self.s["fight"]
-        # Shield faces block.
-        for p in list(f["plan"]):
-            h = p["h"]
-            if not self.active(h):
-                continue
-            x = self.hs(h)
-            shields = sum(1 for d in x["dice"] if d["id"] in p["dice"] and d["v"] == "S")
-            if shields:
-                n = shields * (SHIELD_BLOCK + self.mods(h).get("shield_block", 0))
-                x["st"]["armor"] = x["st"].get("armor", 0) + n
-                self.fx("armor", to=f"h{h}", n=n)
-        # Hero actions in the order they were placed.
+        # Hero actions in the order they were placed; each one's dice roll as it happens.
         for p in list(f["plan"]):
             if self.s["fight"] is not f or not self.foes():
                 break
@@ -655,12 +822,15 @@ class Combat:
             a = self.action_def(h, p["a"] + ("+" if p["plus"] else ""))
             if a.get("once"):
                 x["once"].append(a["key"])
-            self.fx("act", h=h, a=a["key"], tgt=p["tgt"])
-            self.run_ops(h, a, dice, p["tgt"])
+            hit = self.roll_for(h, a, dice)
+            self.fx("act", h=h, a=a["key"], tgt=p["tgt"], hit=hit)
+            ops = a["ops"] if hit else a.get("miss", [])
+            self.run_ops(h, a, dice, p["tgt"], ops=ops)
+            self.elements(h, a, dice, p["tgt"])
             if a.get("spell") and self.mods(h).get("spell_echo") and not x["echo"] and self.s["fight"] is f:
                 x["echo"] = True
                 self.fx("act", h=h, a=a["key"], tgt=p["tgt"], echo=True)
-                self.run_ops(h, a, dice, p["tgt"], half=True)
+                self.run_ops(h, a, dice, p["tgt"], half=True, ops=ops)
             f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
             if self.s["fight"] is not f:
                 return
@@ -693,6 +863,56 @@ class Combat:
                 return
         self.end_round()
 
+    def roll_for(self, h, a, dice):
+        """Roll an action's dice; a miss gets Steady dice and then an automatic reroll (if the hero
+        has one left) to try again. Shield faces block as they land. Returns whether it hit."""
+        x = self.hs(h)
+        for d in dice:
+            self.roll(h, d)
+
+        def hit():
+            return check_hit(a["req"], [d["v"] for d in dice], [d.get("tag") for d in dice])
+        self.fx("roll", h=h, dice=[{"id": d["id"], "v": d["v"], "tag": d.get("tag")} for d in dice])
+        ok = hit()
+        if not ok:
+            for d in dice:
+                if "steady" in d["dk"] and not ok:
+                    d["rolled"] = False
+                    d.pop("v", None)
+                    d["v"] = None
+                    self.roll(h, d)
+                    self.fx("reroll", h=h, die=d["id"], v=d["v"], why="steady")
+                    ok = hit()
+        if not ok and x["rr"] > 0 and dice:
+            d = min((d for d in dice if d.get("tag") != "W"), key=lambda d: d["v"], default=None)
+            if d is not None:
+                x["rr"] -= 1
+                d["rolled"] = False
+                d["v"] = None
+                self.roll(h, d)
+                self.fx("reroll", h=h, die=d["id"], v=d["v"], why="reroll")
+                ok = hit()
+        shields = sum(1 for d in dice if d.get("tag") == "S")
+        if shields:
+            n = shields * (SHIELD_BLOCK + self.mods(h).get("shield_block", 0))
+            x["st"]["armor"] = x["st"].get("armor", 0) + n
+            self.fx("armor", to=f"h{h}", n=n)
+        return ok
+
+    def elements(self, h, a, dice, tgt):
+        """Elemental faces add their status to the action's enemy target."""
+        fo = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") else None
+        if not fo or fo["hp"] <= 0:
+            return
+        for d in dice:
+            t = d.get("tag")
+            if t in ("burn", "freeze", "poison"):
+                if t == "freeze":
+                    fo["st"]["freeze"] = 1
+                else:
+                    fo["st"][t] = fo["st"].get(t, 0) + 1
+                self.fx("st", to=f"f{fo['id']}", s=t)
+
     def targets_for(self, h, a, tgt):
         kind = a["tgt"]
         if kind == "foe":
@@ -723,6 +943,8 @@ class Combat:
         x = self.hs(h)
         if to == "self":
             return [("h", h)]
+        if to == "one":
+            return base[:1]
         if to == "random":
             foes = self.foes()
             return [self.rng.choice(foes)] if foes else []
@@ -735,7 +957,7 @@ class Combat:
             return [("h", y) for y in self.actives() if self.hs(y)["row"] == x["row"]]
         return base
 
-    def run_ops(self, h, a, dice, tgt, half=False):
+    def run_ops(self, h, a, dice, tgt, half=False, ops=None):
         m = self.mods(h)
         plus = 2 if a["plus"] else 0
         base = self.targets_for(h, a, tgt)
@@ -750,7 +972,7 @@ class Combat:
         def gate(op, target=None):
             return "if" not in op or bool(_amt(op["if"], self.env(h, a, dice, target)))
 
-        for op in a["ops"]:
+        for op in (a["ops"] if ops is None else ops):
             k = op["op"]
             targets = self.op_targets(h, op, base)
             if k == "dmg":
@@ -772,7 +994,7 @@ class Combat:
                             n = n * 3 // 2
                         if m.get("eagle_eye"):
                             src = [d] if d is not None else dice
-                            if any(_num(dd) and _num(dd) >= max([y for y in dd["faces"] if isinstance(y, int)] or [99]) for dd in src):
+                            if any(_num(dd) and _num(dd) >= top_face(dd["faces"]) for dd in src):
                                 n *= 2
                         done = self.hurt_foe(t, n, h, pierce=pierce_all or op.get("pierce"), bomb=a.get("bomb"))
                         dealt_any = True
@@ -1317,5 +1539,9 @@ class Combat:
         f = self.s["fight"]
         if not f:
             return None
-        return {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "hs", "plan", "guard", "taunt",
-                                  "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
+        out = {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "plan", "guard", "taunt",
+                                 "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
+        out["hymn"] = f.get("hymn", 0)
+        out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]])
+                     for k, x in f["hs"].items()}
+        return out

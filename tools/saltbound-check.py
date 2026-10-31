@@ -11,7 +11,6 @@ round is resolved, and fights restart as they end. Any exception other than Inva
 import os
 import sys
 import traceback
-from itertools import product
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -27,25 +26,15 @@ def fight(g, heroes):
 
 
 def fit_dice(g, h, a, tgt):
-    """Set the hero's free dice so the action's requirement holds; returns their ids."""
+    """Enough free dice for the action (their rolls decide hit or miss when it resolves)."""
     x = g.hs(h)
     n = a["req"].get("n", 1)
     if n == 0:
         return []
     while len([d for d in x["dice"] if not d["used"]]) < n:
-        x["dice"].append({"id": f"t{len(x['dice'])}.{g.s['fight']['round']}", "faces": list(range(1, 9)) + ["S"], "v": 1,
-                          "src": "base", "used": False})
-    free = [d for d in x["dice"] if not d["used"]][:n]
-    want = None
-    if a["req"].get("match_intent") and tgt:
-        it = g.foe(int(tgt[1:]))["intent"] or {}
-        want = it.get("v")
-    for vals in product(list(range(1, 9)) + ["S"], repeat=n):
-        for d, v in zip(free, vals):
-            d["v"] = v
-        if g.check_req(a["req"], free) and (want is None or free[0]["v"] == want):
-            return [d["id"] for d in free]
-    return None
+        x["dice"].append({"id": f"t{len(x['dice'])}.{g.s['fight']['round']}", "faces": [1, 2, "S", "W", "F3", "X", 7, 8],
+                          "dk": ["exploding"], "src": "base", "used": False, "v": None, "bonus": 0, "top": False})
+    return [d["id"] for d in x["dice"] if not d["used"]][:n]
 
 
 def target(g, h, a):
@@ -53,8 +42,6 @@ def target(g, h, a):
     f = g.s["fight"]
     if kind == "foe":
         pool = g.front_foes() if a.get("melee") else g.foes()
-        if a["req"].get("match_intent"):
-            pool = [fo for fo in pool if (fo["intent"] or {}).get("v")]
         if not pool:
             return False
         fo = pool[0]

@@ -412,6 +412,23 @@ a:hover { color: var(--accent-hi); }
 .die.shield { background: #c7d3df; border-color: #c7d3df; }
 .die.spirit { background: #cfc4ec; border-color: #cfc4ec; }
 .die.roll { animation: roll 360ms var(--ease); }
+.die.hidden { background: #3a4558; border-color: #4e5b72; color: #dfe6ee; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.3), var(--shadow-1); }
+.die.hidden .k, .die.hidden .src { color: rgba(223, 230, 238, 0.55); }
+.die .hidden-face { font-family: var(--font-ui); font-size: var(--fs-14); font-weight: var(--fw-bold); line-height: 1.05; text-align: center; padding: 0 3px; }
+.die.augurdie { background: #d9cdf0; border-color: #d9cdf0; }
+.die.fatedie { background: #f0dfb8; border-color: #f0dfb8; }
+.die .hint { display: grid; justify-items: center; font-size: var(--fs-20); line-height: 1; }
+.die .hint small { font-family: var(--font-ui); font-size: 11px; font-weight: var(--fw-semibold); }
+.die .fate { font-size: var(--fs-18); }
+.die .fate i { font-style: normal; opacity: 0.4; margin: 0 2px; }
+.die .badge { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink); font-family: var(--font-ui); font-size: 11px; font-weight: var(--fw-bold); display: grid; place-items: center; }
+.die .badge + .badge { right: auto; left: -7px; }
+.odds { font-size: var(--fs-14); font-weight: var(--fw-bold); }
+.odds.good { color: var(--ok); }
+.odds.mid { color: var(--accent); }
+.odds.bad { color: var(--danger); }
+.float.roll { font-family: var(--font-ui); font-size: var(--fs-18); color: #f3e7c8; top: 18%; }
+.float.miss { font-family: var(--font-ui); font-size: var(--fs-16); color: var(--danger); }
 @keyframes roll { 0% { transform: rotate(-25deg) scale(0.8); opacity: 0; } 60% { transform: rotate(8deg) scale(1.05); opacity: 1; } 100% { transform: none; } }
 .tray-tools { display: flex; gap: var(--s-2); align-items: center; }
 .actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--s-2); align-content: start; max-height: 196px; overflow: auto; padding: 2px; }

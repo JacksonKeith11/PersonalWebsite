@@ -223,7 +223,7 @@ def best_placement(g, h, free):
         n = a["req"].get("n", 1)
         combos = [()] if n == 0 else combinations(free, n) if n <= 3 else []
         for dice in combos:
-            if not g.check_req(a["req"], list(dice)):
+            if not g.count_ok(a["req"], list(dice)):
                 continue
             for tgt, val in targets(g, h, a, list(dice), hurt, downed, foes):
                 if val > score:
@@ -238,7 +238,7 @@ def instant_value(g, h, a, dice):
     key = a["key"]
     if key == "inspire" or key == "lend_a_hand":
         others = [y for y in g.actives() if y != h and any(not d["used"] for d in g.hs(y)["dice"])]
-        if others and dice and dice[0]["v"] != "S" and dice[0]["v"] >= 4:
+        if others and dice and (key == "inspire" or dice[0].get("v") is not None):
             return [(f"h{others[0]}", 3)]
         return []
     if key == "bottle_it":
@@ -270,8 +270,6 @@ def targets(g, h, a, dice, hurt, downed, foes):
         planned = planned_damage(g)
         pool = g.front_foes() if a.get("melee") else foes
         pool = [o for o in pool if planned.get(f"f{o['id']}", 0) < o["hp"]]
-        if a["req"].get("match_intent"):
-            pool = [o for o in pool if (o.get("intent") or {}).get("v") == v]
         if a["req"].get("marked"):
             pool = [o for o in pool if o["st"].get("mark")]
         if "weaken" in ops or "retarget" in ops or "cancel" in ops:

@@ -110,36 +110,116 @@ export function reqText(req) {
   if (req.pair) bits.push('a pair');
   if (req.straight) bits.push('a straight');
   if (req.sum_min !== undefined) bits.push(`sum ${req.sum_min}+`);
-  if (req.match_intent) bits.push('matching its intent');
+  if (req.or_face === 'S') bits.push('or a shield');
   if (req.marked) bits.push('on a Marked enemy');
   const head = req.upto ? `Up to ${n} dice` : n === 1 ? (bits.length ? '' : 'Any die') : `${n} dice`;
   return [head, bits.join(', ')].filter(Boolean).join(': ').replace(/^: /, '');
 }
 
-export function checkReq(req, dice) {
-  const n = req.n ?? 1;
-  if (req.upto ? !(dice.length >= 1 && dice.length <= n) : dice.length !== n) return false;
-  const vals = dice.map(d => (typeof d.v === 'number' ? d.v : 0));
-  for (let i = 0; i < dice.length; i++) {
-    const v = vals[i];
-    if (req.face === 'S' && dice[i].v !== 'S') return false;
-    if (req.min !== undefined && v < req.min) return false;
-    if (req.max !== undefined && v > req.max) return false;
-    if (req.exact !== undefined && v !== req.exact) return false;
-    if (req.odd && v % 2 === 0) return false;
-    if (req.even && (v % 2 || v === 0)) return false;
+// ------------------------------------------------------------------ dice (keep in step with combat.py)
+const TAGS = { F: 'burn', I: 'freeze', P: 'poison' };
+export function face(f) {
+  if (typeof f === 'number') return [f, null];
+  if (f === 'S' || f === 'X') return [0, f];
+  if (f === 'W') return [null, 'W'];
+  return [+f.slice(1), TAGS[f[0]]];
+}
+export const topFace = faces => Math.max(0, ...faces.map(f => face(f)[0]).filter(v => v !== null));
+export const meanFace = faces => faces.reduce((a, f) => a + (face(f)[1] === 'W' ? topFace(faces) : face(f)[0]), 0) / faces.length;
+
+export function checkHit(req, vals, tags) {
+  for (let i = 0; i < vals.length; i++) {
+    const v = vals[i], t = tags[i];
+    if (t === 'W') continue;
+    let ok = true;
+    if (req.min !== undefined && v < req.min) ok = false;
+    if (req.max !== undefined && v > req.max) ok = false;
+    if (req.exact !== undefined && v !== req.exact) ok = false;
+    if (req.odd && v % 2 === 0) ok = false;
+    if (req.even && (v % 2 || v === 0)) ok = false;
+    if (!ok && !(req.or_face && t === req.or_face)) return false;
   }
-  if (req.pair && new Set(vals).size !== 1) return false;
-  if (req.straight) { const s = [...vals].sort((a, b) => a - b); for (let i = 1; i < s.length; i++) if (s[i] - s[i - 1] !== 1) return false; }
+  if (req.pair) { const real = vals.filter((v, i) => tags[i] !== 'W'); if (vals.length < 2 || new Set(real).size > 1) return false; }
   if (req.sum_min !== undefined && vals.reduce((a, b) => a + b, 0) < req.sum_min) return false;
   return true;
 }
+export const isRisky = req => ['min', 'max', 'exact', 'odd', 'even', 'sum_min', 'pair', 'or_face'].some(k => req[k] !== undefined);
+export function countOk(req, dice) {
+  const n = req.n ?? 1;
+  return req.upto ? dice.length >= 1 && dice.length <= n : dice.length === n;
+}
 
-export const dieLabel = faces => {
-  const nums = faces.filter(f => typeof f === 'number');
-  const plain = nums.length === faces.length && nums.every((f, i) => f === i + 1);
-  return plain ? 'd' + faces.length : faces.map(f => (f === 'S' ? '◆' : f)).join('·');
+// What a die might come up as while planning: [[value, tag, chance]].
+export function outcomes(d, hymn = 0) {
+  const add = (d.bonus || 0) + hymn;
+  let base;
+  if (d.rolled) return [[d.v, d.tag, 1]];
+  if (d.v !== null && d.v !== undefined) base = [[d.v, d.tag, 1]];
+  else if (d.fc) base = [[d.fc[0], null, 0.5], [d.fc[1], null, 0.5]];
+  else if (d.top) base = [[topFace(d.faces), null, 1]];
+  else {
+    let faces = d.faces;
+    const top = topFace(d.faces);
+    if (d.hint) {
+      const lo = Math.min(...d.faces.map(f => face(f)[0] ?? 0)), mid = (lo + top) / 2;
+      const val = f => (face(f)[1] === 'W' ? top : face(f)[0]);
+      faces = d.faces.filter(f => (d.hint === 'high' ? val(f) > mid : val(f) <= mid));
+      if (!faces.length) faces = d.faces;
+    }
+    base = faces.map(f => {
+      let [v, t] = face(f);
+      if (t === 'W') v = top;
+      if (d.dk?.includes('exploding') && v === top && t !== 'W') v += Math.round(meanFace(d.faces));
+      return [v, t, 1 / faces.length];
+    });
+  }
+  return base.map(([v, t, p]) => [t === 'S' || t === 'X' ? v : v + add, t, p]);
+}
+
+// Chance that these dice make an action hit.
+export function hitChance(req, dice, hymn = 0) {
+  if (!isRisky(req) || !dice.length) return null;
+  let p = 0;
+  const per = dice.map(d => outcomes(d, hymn));
+  const walk = (i, vals, tags, pr) => {
+    if (i === per.length) { if (checkHit(req, vals, tags)) p += pr; return; }
+    for (const [v, t, q] of per[i]) walk(i + 1, [...vals, v], [...tags, t], pr * q);
+  };
+  walk(0, [], [], 1);
+  return p;
+}
+export const expected = d => outcomes(d).reduce((a, [v, , p]) => a + v * p, 0);
+
+const KIND_NAME = { seer: 'Seer', augur: 'Augur', fate: 'Fate', exploding: 'Exploding', steady: 'Steady', heirloom: 'Heirloom' };
+export const KIND_TEXT = {
+  seer: 'Rolled and shown while you plan.',
+  augur: 'Shows whether it rolled high or low while you plan.',
+  fate: 'Shows two faces while you plan; one of them comes up.',
+  exploding: 'A top-face roll rolls again and adds.',
+  steady: 'If its action misses, it rerolls once.',
+  heirloom: 'Its lowest face rises every level.',
+  link: 'Linked: rolls the same as the other die in its group.',
 };
+// "d8", "Seer d4", "◆ d6": the die's size (or its faces, when they're unusual) and its kinds.
+export function dieLabel(d) {
+  const faces = Array.isArray(d) ? d : d.faces;
+  const kinds = (Array.isArray(d) ? [] : d.dk || []).filter(k => KIND_NAME[k]).map(k => KIND_NAME[k]);
+  const plain = faces.every((f, i) => f === i + 1);
+  const size = plain ? 'd' + faces.length : faces.map(f => ({ S: '◆', X: '☠', W: '★' }[f] || (typeof f === 'string' ? f.slice(1) + '*' : f))).join('·');
+  return [...kinds, size].join(' ');
+}
+export const faceText = f => ({ S: '◆', X: '☠', W: '★' }[f] || (typeof f === 'string' ? `${f.slice(1)}${{ F: '🔥', I: '❄', P: '☣' }[f[0]]}` : String(f)));
+export function dieTip(d) {
+  const faces = Array.isArray(d) ? d : d.faces;
+  const kinds = Array.isArray(d) ? [] : d.dk || [];
+  const lines = [dieLabel(d), 'Faces: ' + faces.map(faceText).join(' ')];
+  for (const k of kinds) { const key = k.startsWith('link:') ? 'link' : k; if (KIND_TEXT[key]) lines.push(KIND_TEXT[key]); }
+  if (faces.includes('S')) lines.push('◆ shield face: worth 0, blocks 3 damage.');
+  if (faces.includes('X')) lines.push('☠ skull face: worth 0, and you take 3.');
+  if (faces.includes('W')) lines.push('★ wild face: counts as the top face and passes any condition.');
+  if (faces.some(f => typeof f === 'string' && 'FIP'.includes(f[0]))) lines.push('🔥❄☣ faces also Burn, Freeze or Poison the target.');
+  return lines.join('\n');
+}
 
 export const STATUS = {
   burn: { name: 'Burn', icon: 'flame', text: 'Takes this much damage at the end of the round, then it drops by 1.', bad: true },

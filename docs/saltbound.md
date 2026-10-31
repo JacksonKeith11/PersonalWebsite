@@ -454,6 +454,39 @@ Smaller calls made while building, not yet confirmed by the owner:
 - Movement is planned by clicking a destination; the cheapest route there is used.
 - A hero on a wreck, or picking loot, holds the next turn until they choose (it's a reward dialog).
 
+## Dice (rework after launch)
+
+The owner chose hidden dice with exceptions, and kinds of dice per class and item (Q1–Q10 of the
+dice round, all as recommended):
+
+- **Dice roll when their action resolves**, not while planning. Planning shows each die face-down
+  with its kind and size, each action card shows the chance to hit with the dice picked, and plan
+  chips and unit previews show the expected number with its range. Dice flip during the playback.
+- **Exceptions**: Seer dice are rolled and shown while planning; Augur dice show only high or low;
+  Fate dice show two faces, one of which comes up. The server never sends what a hidden or Augur
+  die will roll (`fight_view` strips `sv`).
+- **Hit or miss**: `req` conditions (`min`, `odd`, `sum_min`, `or_face`...) are checked on the roll;
+  every risky action has a written `miss` (usually a weaker fallback). Risky actions pay about a
+  quarter more on average than a safe one with the same die. A miss first lets Steady dice reroll,
+  then spends one of the hero's automatic rerolls (1 per fight, more from Lucky Coin, Encore,
+  Quicksilver).
+- **Pairs and straights are bonuses** in the amounts (`pair`, `straight`), not requirements.
+- **Kinds** (`dk` on a die): seer, augur, fate, exploding, steady, heirloom, `link:<group>`; and
+  faces: numbers, `S` shield, `X` skull (0, and you take 3), `W` wild (top face, passes any
+  condition), `F3`/`I3`/`P3` (a 3 that also Burns/Freezes/Poisons the target). Weighted dice are just
+  lopsided face lists. Class dice are `CLASS_DICE` in `classes.py`; item dice follow rarity (common
+  plain/weighted; uncommon augur, steady, elemental, shield; rare seer, fate, exploding; legendary
+  combinations and wild faces).
+- **Dice tricks set things up instead of editing visible numbers**: Perfect Form makes a die roll
+  its top face; Bloodprice gives a die +3; Loaded Dice links two dice; Inspire (rolled at once) and
+  Hymn of Valor raise the next or every roll; Lend a Hand passes a die over; Quicksilver gives
+  rerolls; Bottle It rolls at once.
+- **Dominated actions removed**: Bolt is the all-rounder, Channel merges two dice into one hit
+  (sum +2), the staff's Zap trades a point for Shock; the Duelist's Riposte Cut (3+: +2) and the
+  Rapier's Jab differ in risk; the Ranger's Shoot (+1) and Sic 'Em (Weak) do different jobs; the
+  Herald's Cutting Words reaches any row. Doom now deals 20 minus the die, so low rolls are good.
+- Balance after the change (bots): Normal about 70%, Hard about 27%, unchanged multipliers.
+
 ## How the classes ended up
 
 The skill lists under "The classes" were a first pass; `classes.py` is the truth for exact numbers.

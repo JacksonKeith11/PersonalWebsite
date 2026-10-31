@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=9';
-import { h, icon, toast, hideTip } from './ui.js?v=9';
-import { spriteURL } from './art.js?v=9';
-import { reqText, checkReq, STATUS, dieLabel } from './rules.js?v=9';
-import { render } from './main.js?v=9';
-import * as sfx from './audio.js?v=9';
+import { S, send, mine } from './store.js?v=10';
+import { h, icon, toast, hideTip } from './ui.js?v=10';
+import { spriteURL } from './art.js?v=10';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=10';
+import { render } from './main.js?v=10';
+import * as sfx from './audio.js?v=10';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -300,7 +300,9 @@ function planChip(p, i, f) {
   const mineP = mine().includes(p.h) && !f.hs[p.h].ready && !C.playing;
   return h('span.plan-chip', { style: { '--seat': `var(--hero-${p.h})` } },
     h('span.muted', null, `${i + 1}.`), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null,
-    p.est ? h('span.est', null, `${p.est.n}${p.est.k === 'dmg' ? '' : p.est.k === 'heal' ? ' heal' : p.est.k === 'armor' ? ' armor' : ' HP'}`) : null,
+    p.est && p.est.k ? h('span.est', { tip: `About ${p.est.n} on average (${p.est.lo}–${p.est.hi})${p.est.p != null ? `, ${Math.round(p.est.p * 100)}% to hit` : ''}` },
+      `~${p.est.n}${p.est.hi !== p.est.lo ? ` (${p.est.lo}–${p.est.hi})` : ''}${p.est.k === 'dmg' ? '' : p.est.k === 'heal' ? ' heal' : p.est.k === 'armor' ? ' armor' : ' HP'}`) : null,
+    p.est && p.est.p != null ? h('span.muted', null, `${Math.round(p.est.p * 100)}%`) : null,
     mineP ? h('button.x', { 'aria-label': 'Undo', tip: 'Take it back', onclick: () => send({ t: 'unplace', h: p.h, i }) }, icon('x')) : h('span', { style: { width: '6px' } }));
 }
 
@@ -324,16 +326,11 @@ function tray(f, x, my) {
         my.length > 1 ? h('div.seg', null, ...my.map(y => h('button', { 'aria-pressed': String(y === x), onclick: () => { C.tab = y; C.sel.clear(); C.pending = null; render(); } }, g.heroes[y].name)))
           : h('b', { style: { color: `var(--hero-${x})` } }, hero.name),
         h('span.chip', { tip: 'Your row\nMelee actions need the front row. Back-row heroes take 2 less from melee.' }, hs.row === 'front' ? 'Front row' : 'Back row')),
-      dice.length ? h('div.dice', null, ...dice.map((d, i) => {
-        const shield = d.v === 'S';
-        return h('button.die' + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (shield ? '.shield' : '') + (d.src === 'spirit' ? '.spirit' : '') + (C.rolled ? '.roll' : ''), {
-          disabled: d.used || ready, 'aria-label': `Die ${i + 1}: ${shield ? 'shield' : d.v}`,
-          tip: `${dieLabel(d.faces)} · ${{ base: 'class die', spirit: 'spirit die from a fallen ally', pet: 'your hawk’s die', anthem: 'from the Anthem of Kings', gift: 'given by an ally' }[d.src] || 'from your ' + d.src}${shield ? '\nShield face: worth 0, blocks 3 damage when used' : ''}\nFaces: ${d.faces.map(v => (v === 'S' ? '◆' : v)).join(' ')}`,
-          onclick: () => toggleDie(d.id),
-        }, h('span.k', null, i + 1), shield ? icon('shield') : d.v, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G' }[d.src] ?? ''));
-      })) : h('p.muted', null, 'No dice this round (Stunned).'),
+      dice.length ? h('div.dice', null, ...dice.map((d, i) => dieButton(d, i, ready))) : h('p.muted', null, 'No dice this round (Stunned).'),
       h('div.tray-tools', null,
-        h('button.btn.sm', { disabled: ready || hs.rr <= 0 || selDice.length !== 1, tip: 'Reroll\nPick one unused die first.', onclick: () => { send({ t: 'reroll', h: x, die: selDice[0].id }); C.sel.clear(); sfx.play('dice'); } }, icon('refresh'), `Reroll · ${hs.rr}`),
+        h('span.chip', { tip: 'Automatic rerolls\nWhen one of your actions misses, a die rolls again, as long as you have one left this fight.' }, icon('refresh'), `${hs.rr} reroll${hs.rr === 1 ? '' : 's'}`),
+        f.hymn ? h('span.chip.brass', { tip: 'Hymn of Valor\nEvery die the party rolls this round is this much higher.' }, `+${f.hymn} hymn`) : null,
+        hs.inspire ? h('span.chip.brass', { tip: 'Inspired\nYour next die rolls this much higher.' }, `+${hs.inspire} next die`) : null,
         h('button.btn.sm.ghost', { disabled: ready || !f.plan.some(p => p.h === x), onclick: () => send({ t: 'unplace', h: x }) }, 'Undo', h('span.kbd', null, 'Z')),
         ...uses.map(([k, i, n]) => h('button.btn.sm.ghost', { disabled: ready, tip: `${S.static.items[k].name}\n${S.static.items[k].text}\nUsed at once; no die needed.`, onclick: () => useItem(x, k, i) }, icon('drop'), S.static.items[k].name + (n > 1 ? ` ×${n}` : ''))))),
     h('div.actions', null, ...acts.map((k, i) => actionCard(f, x, k, i, selDice, ready))),
@@ -344,6 +341,35 @@ function tray(f, x, my) {
         : h('button.btn.primary.lg', { onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
 }
 
+// A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
+// an Augur die (high or low) or a Fate die (two faces).
+function dieButton(d, i, ready) {
+  const src = { base: 'class die', spirit: 'spirit die from a fallen ally', pet: 'your hawk’s die', anthem: 'from the Anthem of Kings', gift: 'given by an ally' }[d.src] || 'from your ' + d.src;
+  let face, cls = '';
+  if (d.v !== null && d.v !== undefined) {
+    face = d.tag === 'S' ? icon('shield') : d.tag === 'X' ? '☠' : String(d.v);
+    cls = '.shown';
+    if (d.tag === 'S') cls += '.shield';
+  } else if (d.fc) {
+    face = h('span.fate', null, d.fc[0], h('i', null, '|'), d.fc[1]);
+    cls = '.fatedie';
+  } else if (d.hint) {
+    face = h('span.hint', null, d.hint === 'high' ? '▲' : '▼', h('small', null, d.hint));
+    cls = '.augurdie';
+  } else {
+    face = h('span.hidden-face', null, d.top ? '★' : dieLabel(d.faces));
+    cls = '.hidden';
+  }
+  const badges = [];
+  if (d.bonus) badges.push(h('span.badge', null, `+${d.bonus}`));
+  if (d.link) badges.push(h('span.badge', null, '⛓'));
+  if (d.top && d.v == null) badges.push(h('span.badge', null, 'top'));
+  const tip = `${dieTip(d)}\n${src}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
+  return h('button.die' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (d.src === 'spirit' ? '.spirit' : '') + (C.rolled ? '.roll' : ''), {
+    disabled: d.used || ready, 'aria-label': `Die ${i + 1}: ${dieLabel(d)}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
+  }, h('span.k', null, i + 1), face, ...badges, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G' }[d.src] ?? ''));
+}
+
 function actionCard(f, x, k, i, selDice, ready) {
   const base = k.replace(/\+$/, '');
   const a = S.static.actions[base];
@@ -352,14 +378,17 @@ function actionCard(f, x, k, i, selDice, ready) {
   const meleeBlocked = a.melee && hs.row !== 'front';
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
-  const fits = !ready && !once && !meleeBlocked && !noFlee && (n === 0 ? selDice.length === 0 : checkReq(a.req, selDice));
+  const fits = !ready && !once && !meleeBlocked && !noFlee && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
+  const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : null;
   const dis = ready || once || noFlee;
   const why = meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.' : '';
   return h('button.action' + (fits ? '.fits' : ''), {
     disabled: dis, tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
-    h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')), h('span.req', null, reqText(a.req))),
+    h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
+      chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
+        : h('span.req', null, reqText(a.req))),
     h('p', null, a.text),
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
 }
@@ -388,22 +417,19 @@ function pickAction(f, x, k, selDice) {
   const n = a.req.n ?? 1;
   let dice = selDice;
   if (n > 0 && !dice.length) {
-    // nothing picked: try the best single die that fits
-    const free = f.hs[x].dice.filter(d => !d.used);
-    if (n === 1) {
-      const ok = free.filter(d => checkReq(a.req, [d])).sort((p, q) => (typeof q.v === 'number' ? q.v : 0) - (typeof p.v === 'number' ? p.v : 0));
-      if (ok.length) dice = [ok[0]];
-    }
-    if (!dice.length) { toast(`Pick dice first: ${a.name} needs ${reqText(a.req).toLowerCase()}.`); return; }
+    // nothing picked: use the best free dice (by what they show, or roll on average)
+    const free = f.hs[x].dice.filter(d => !d.used).sort((p, q) => expected(q) - expected(p));
+    dice = free.slice(0, n);
+    if (!countOk(a.req, dice)) { toast(`${a.name} needs ${n} dice.`); return; }
   }
   if (n === 0 && dice.length) dice = [];
-  if (n > 0 && !checkReq(a.req, dice)) { toast(`Those dice don’t fit ${a.name}: ${reqText(a.req).toLowerCase()}.`, 'err'); sfx.play('error'); return; }
+  if (n > 0 && !countOk(a.req, dice)) { toast(`${a.name} takes ${a.req.upto ? 'up to ' : ''}${n} ${n === 1 ? 'die' : 'dice'}.`, 'err'); sfx.play('error'); return; }
   if (a.melee && f.hs[x].row !== 'front') { toast('Melee needs the front row. Use Shift to move up.', 'err'); return; }
   const msg = { t: 'place', h: x, a: base, dice: dice.map(d => d.id) };
   if (needsTarget(a)) {
     const opts = targetsFor(f, x, a, dice);
     if (!opts.length) {
-      toast(a.req.match_intent ? 'No enemy’s intent matches that die.' : a.req.marked ? 'Mark an enemy first.' : 'There’s no one to use that on.');
+      toast(a.req.marked ? 'Mark an enemy first.' : 'There’s no one to use that on.');
       return;
     }
     if (opts.length === 1) { send({ ...msg, tgt: opts[0] }); C.sel.clear(); sfx.play('place'); render(); return; }
@@ -436,7 +462,6 @@ function targetsFor(f, x, a, dice = []) {
   if (a.tgt === 'foe') {
     let pool = alive;
     if (a.melee) { const fr = alive.filter(fo => fo.row === 'front'); if (fr.length) pool = fr; }
-    if (a.req.match_intent) pool = pool.filter(fo => fo.intent?.v != null && fo.intent.v === dice[0]?.v);
     if (a.req.marked) pool = pool.filter(fo => fo.st.mark);
     return pool.map(fo => 'f' + fo.id);
   }
@@ -478,7 +503,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------------ playing back a round
-const COMBAT_FX = new Set(['sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead']);
+const COMBAT_FX = new Set(['roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead']);
 
 const queue = [];
 export function combatFx(list, before) {
@@ -551,10 +576,17 @@ function apply(f) {
   const foe = id => d.foes.find(fo => 'f' + fo.id === id);
   const ally = id => (d.allies || []).find(a => 's' + a.id === id);
   switch (f.k) {
+    case 'roll': {
+      addFloat('h' + f.h, '🎲 ' + f.dice.map(x => (x.tag ? faceText(x.tag === 'S' ? 'S' : x.tag === 'X' ? 'X' : x.v) : x.v)).join(' · '), 'roll');
+      sfx.play('dice');
+      return 420;
+    }
+    case 'reroll': addFloat('h' + f.h, `${f.why === 'steady' ? 'Steady' : 'Reroll'}: ${f.v}`, 'txt'); sfx.play('dice'); return 360;
     case 'act': {
+      if (f.instant) return 0;
       flash('h' + f.h, 'act');
-      addFloat('h' + f.h, S.static.actions[f.a]?.name + (f.echo ? ' (echo)' : ''), 'txt');
-      sfx.play('swing');
+      addFloat('h' + f.h, (S.static.actions[f.a]?.name || '') + (f.echo ? ' (echo)' : '') + (f.hit === false ? ': miss' : ''), f.hit === false ? 'miss' : 'txt');
+      sfx.play(f.hit === false ? 'error' : 'swing');
       return 380;
     }
     case 'fact': {
@@ -581,7 +613,7 @@ function apply(f) {
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       addFloat(f.to, name, 'txt');
       if (f.to.startsWith('f')) { const fo = foe(f.to); if (fo && STATUS[f.s]) fo.st[f.s] = (fo.st[f.s] || 0) + 1; }

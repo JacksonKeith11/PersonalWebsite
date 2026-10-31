@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=9';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=9';
-import { spriteURL } from './art.js?v=9';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, reqText, visibleTiles } from './rules.js?v=9';
-import { MapView } from './hexmap.js?v=9';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=9';
-import { disconnect } from './main.js?v=9';
-import * as sfx from './audio.js?v=9';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=10';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=10';
+import { spriteURL } from './art.js?v=10';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=10';
+import { MapView } from './hexmap.js?v=10';
+import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=10';
+import { disconnect } from './main.js?v=10';
+import * as sfx from './audio.js?v=10';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -204,7 +204,7 @@ function renderParty() {
         h('span', { tip: 'Moves per turn' }, icon('boot'), hero.moves),
         hero.skiff ? h('span', { tip: 'Has a skiff: can cross open water' }, icon('sail'), 'Skiff') : null,
         Object.keys(hero.buffs).length ? h('span', { tip: Object.keys(hero.buffs).map(b => `${S.static.buffs[b].name}: ${S.static.buffs[b].text} (${hero.buffs[b]} turns)`).join('\n') }, icon('spark'), Object.keys(hero.buffs).length) : null),
-      h('div.mini-dice', { tip: 'Dice\nRolled every round of a fight.' }, ...hero.dice.map(f => h('span.mini-die', null, dieLabel(f)))),
+      h('div.mini-dice', null, ...hero.dice.map(d => h('span.mini-die', { tip: dieTip(d) }, dieLabel(d)))),
       host && !isOnline(i) && hero.alive ? h('button.btn.sm', { onclick: e => { e.stopPropagation(); reassign(i); } }, 'Hand to someone') : null);
     return card;
   }));
@@ -362,17 +362,23 @@ function itemRow(key, right, extra) {
   const it = item(key);
   const sub = [];
   if (it.slot !== 'use') sub.push(it.slot[0].toUpperCase() + it.slot.slice(1));
-  if (it.die) sub.push(h('span.faces', null, ...it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), null, f === 'S' ? '◆' : f))));
+  if (it.die) sub.push(faceRow(it));
   return h('div.item.r-' + it.rarity, { tip: itemTip(key) },
     h('div.ico', null, icon(SLOT_ICON[it.slot] || 'spark')),
     h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')), extra || null),
     h('div.acts', null, right));
 }
+// A die's faces as little tiles, with its kinds (Seer, Fate...) in front.
+function faceRow(it) {
+  const kinds = (it.dk || []).filter(k => !k.startsWith('link:') && k !== 'top');
+  return h('span.faces', null, ...kinds.map(k => h('span.chip.brass', { style: { height: '20px' } }, k[0].toUpperCase() + k.slice(1))),
+    ...it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), null, faceText(f))));
+}
 function interleave(arr, sep) { return arr.flatMap((x, i) => (i ? [sep, x] : [x])); }
 function itemTip(key) {
   const it = item(key);
   const lines = [it.name, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`];
-  if (it.die) lines.push('Die: ' + it.die.map(f => (f === 'S' ? '◆ shield' : f)).join(', '));
+  if (it.die) lines.push(...dieTip({ faces: it.die, dk: it.dk || [] }).split('\n'));
   for (const a of it.acts || []) { const ad = S.static.actions[a]; lines.push(`${ad.name} (${reqText(ad.req)}): ${ad.text}`); }
   if (it.mods) lines.push(modsText(it.mods));
   if (it.text) lines.push(it.text);
@@ -469,7 +475,7 @@ function heroDrawer(h0, d) {
         h('div', null, h('h3', null, c.name), h('p.muted', null, `${c.role} · level ${g.level}`), h('p', null, `HP ${hero.hp} / ${hero.maxhp} · ${hero.moves} moves`))),
       h('div.card.skill', null, h('div.row', null, h('b', null, c.map.name), h('span.chip', null, 'Map ability')), h('p', null, c.map.text)),
       h('h3', null, 'Dice'),
-      h('div', { style: { display: 'grid', gap: '6px' } }, ...hero.dice.map((f, i) => h('div', null, h('span.faces', null, ...f.map(x => h('span.face' + (x === 'S' ? '.s' : ''), null, x === 'S' ? '◆' : x))),
+      h('div', { style: { display: 'grid', gap: '6px' } }, ...hero.dice.map((d, i) => h('div', { tip: dieTip(d) }, faceRow({ die: d.faces, dk: d.dk }),
         h('span.muted', null, '  ' + (i < c.dice.length ? 'class die' : 'from gear'))))),
       h('p.muted', null, '◆ is a shield face: worth 0, but it blocks 3 damage when you use it.'),
       Object.keys(hero.buffs).length ? h('h3', null, 'Blessings and curses') : null,
@@ -538,7 +544,8 @@ function renderDialogs() {
         return h('button.pick.r-' + it.rarity, { onclick: () => send({ t: 'choose', h: h0, n: i }) },
           h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
           h('h3.rar-' + it.rarity, null, it.name),
-          it.die ? h('span.faces', null, ...it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), null, f === 'S' ? '◆' : f))) : null,
+          it.die ? faceRow(it) : null,
+          it.dk?.length ? h('p', null, it.dk.map(k => KIND_TEXT[k]).filter(Boolean).join(' ')) : null,
           ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
           it.mods ? h('p', null, modsText(it.mods)) : null,
           it.text ? h('p', null, it.text) : null,

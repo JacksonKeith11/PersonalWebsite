@@ -450,7 +450,7 @@ Asked of the owner during step 1 (keep to these too):
 Smaller calls made while building, not yet confirmed by the owner:
 
 - Frozen enemies hit for half (instead of losing their "weakest intent"; they have only one).
-- Hard keeps a rise every 2 turns, so it has no slack before the flood; tune with the simulator.
+- Hard was first a rise every 2 turns; it's now every 3 (like Normal), and harder enemies make it hard instead.
 - The fight screen is HTML (sprites as pixelated images) rather than a Phaser scene, so targets,
   tooltips and intents are plain DOM. Phaser draws only the map.
 - Movement is planned by clicking a destination; the cheapest route there is used.
@@ -487,7 +487,7 @@ dice round, all as recommended):
   (sum +2), the staff's Zap trades a point for Shock; the Duelist's Riposte Cut (3+: +2) and the
   Rapier's Jab differ in risk; the Ranger's Shoot (+1) and Sic 'Em (Weak) do different jobs; the
   Herald's Cutting Words reaches any row. Doom now deals 20 minus the die, so low rolls are good.
-- Balance after the change (bots): Normal about 70%, Hard about 27%, unchanged multipliers.
+- Balance after the change (the old, simple bots, at the time): Normal about 70%, Hard about 27%.
 - **Cooldowns** (`"cd": N` on an action: usable every N rounds; `cds` per hero in the fight, ticking
   down at each new round, started when the action happens or, for instants, when placed). The owner
   asked that only basic attacks be usable every round, so a hero can't win by repeating one strong
@@ -535,8 +535,7 @@ dice round, all as recommended):
   Hard (10%), starts with Overguard, and Brace gives the lowest-HP ally 2 Armor (the `lowest` op
   target), so its defence protects the party; it has 40 HP. Then the bots learned to use buffs and
   set-ups, and to place them first, which lifted every class (the Herald most: 68% to 90% on
-  Normal). Bots now win about 82% on Normal (classes 69–93%), 30% on Hard (classes 24–43%) and
-  all of Story.
+  Normal). See "Balance now" for where things stand.
 
 ## How the classes ended up
 
@@ -558,13 +557,40 @@ What changed while building all ten:
   Bottle It makes a Tonic (a Rum Ration on 5+). Pinpoint needs a die equal to the target's intent
   number; Called Shot needs a Marked target.
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
-- **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.35×/2.3×
-  with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
-  incoming damage) win about 82% on Normal, 30% on Hard and every Story run; see the cooldowns entry
-  above for how that was reached.
+- **Balance**: see "Balance now" below for the current multipliers and win rates.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others
   use option 1 until picked.
+
+## Balance now
+
+The current numbers and how to change them. The owner reviews every balance change; ask before
+changing a class or the difficulty, and give the options with their trade-offs (the owner picks).
+
+- **What the owner wants**: Hard genuinely hard for the bots, and no class far stronger than
+  another. Difficulty multipliers are to stay as they are unless the owner asks.
+- **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
+  rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
+  revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
+- **Where the bots stand** (the smart bots, 100 runs each): about 80% on Normal and 30–35% on Hard,
+  and every Story run. Classes on Hard sit roughly between 16% and 43%; on Normal between 60% and
+  90%. The Mender and Berserker have led, the Vanguard and Arcanist have trailed.
+- **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
+  between batches by chance alone, and overall rates ±4. Treat a pick's win rate (20–40 runs) as a
+  hint. Run 100 or more before changing anything, and compare like with like (same seeds: the
+  simulator's runs are seeded from 1000 by default).
+- **How to tune**: `python3 tools/saltbound-sim.py 100 normal --report` and the same on hard. Read
+  the class table (win rate, output per round, downs), the action tables (a basic attack taking
+  most of a class's dice, risky actions that rarely hit, actions never used), the level-up picks
+  against the class's win rate, and the balance flags. Change one lever at a time and rerun.
+  `python3 tools/saltbound-check.py` after touching `combat.py` or `classes.py`, and `--saves`
+  after touching the engine.
+- **Bot behaviour shapes the numbers**: a class can look weak because the bot plays it badly (the
+  Herald did until the bots learned buffs and set-ups). Before buffing a class, check its actions
+  table for skills the bot never uses.
+- **Levers used so far**, for reference: HP and HP per level, a basic attack's bonus, cooldowns, a
+  free defensive basic (the Vanguard's Brace), starting passives (Overguard, Evasive), making a
+  skill once per rest (Lift), narrowing a passive (Aura, Aegis, Field Medic), and miss penalties.
 
 ## Code map
 
@@ -602,6 +628,11 @@ no clock anywhere: the run changes only when someone acts.
   caches `/static`, and a module loaded under two URLs runs twice). Bump them together:
   `grep -rn "?v=" app/static/games/saltbound`. The page's `?v=` is also how the server tells a tab
   left open across a deploy to reload.
+- **After bumping `?v=` locally, restart the server** (uvicorn reads the page's version at start):
+  otherwise every tab sees a version mismatch and reloads in a loop.
+- A browser keeps only its five newest saves (`save.KEEP`), and resuming one in a room re-saves it
+  under the room's own title. `tools/saltbound-audit.js` makes each audit save just before it
+  uses it for that reason.
 - `h('div#id.class')`: ids and classes can come in any order in the tag string.
 - **Effects play before the new state is drawn** (`main.js`): map moves start from the old hexes
   (heroes walk first, enemies after), and a fight's last round plays back before the map or the end

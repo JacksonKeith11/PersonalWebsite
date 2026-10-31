@@ -226,7 +226,7 @@ each pool at 6 actions, 6 passives and 2 capstones.
 
 | Class | Row | HP | Base dice | Map ability (hook) | Role | Tags |
 |---|---|---|---|---|---|---|
-| Vanguard | Front | 30 | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
+| Vanguard | Front | 40 | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
 | Duelist | Front | 24 | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
 | Berserker | Front | 30 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
 | Ranger | Back | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
@@ -520,7 +520,8 @@ dice round, all as recommended):
   Evasive; and planning now knows linked dice share one roll (`joint_outcomes`, and `hitChance` in
   `rules.js`), so its pairs show and play as the sure things they are. The Vanguard, then last on
   Hard (10%), starts with Overguard, and Brace gives the lowest-HP ally 2 Armor (the `lowest` op
-  target), so its defence protects the party.
+  target), so its defence protects the party; it has 40 HP. Bots now win about 77% on Normal
+  (classes 66–87%), 25% on Hard (classes 21–31%) and all of Story.
 
 ## How the classes ended up
 
@@ -544,7 +545,7 @@ What changed while building all ten:
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
 - **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.35×/2.3×
   with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
-  incoming damage) win about 70% on Normal, 19% on Hard and every Story run; see the cooldowns entry
+  incoming damage) win about 77% on Normal, 25% on Hard and every Story run; see the cooldowns entry
   above for how that was reached.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others

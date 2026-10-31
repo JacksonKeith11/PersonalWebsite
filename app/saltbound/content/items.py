@@ -128,6 +128,35 @@ ITEMS = {
                        "fight": True, "text": "In a fight: pick up a knocked-down ally with 6 HP."},
 }
 
+# Passives: gear past the starting kit does something of its own, so a find changes how a hero plays.
+# The mods are summed with passives' (game.mods); `text` is what the item says it does.
+PASSIVES = {
+    # weapons
+    "flintlock": ({"first_strike": 2}, "First shot: your first hit each fight deals +2."),
+    "coral_blade": ({"first_strike": 3}, "First blood: your first hit each fight deals +3."),
+    "tide_hammer": ({"opportunist": 2}, "Undertow: +2 damage against Stunned or Rooted enemies."),
+    "kelp_wand": ({"poison_bonus": 1}, "Your Poisons are 1 stronger."),
+    "chaplain_censer": ({"heal_armor": 2}, "Consecrate: anyone you heal also gains 2 Armor."),
+    "ember_blade": ({"burn_bonus_hit": 2}, "Kindle: +2 damage against Burning enemies."),
+    "captains_sabre": ({"kill_armor": 4}, "Boarding party: each kill gives you 4 Armor."),
+    "storm_staff": ({"frozen_bonus": 3}, "Frostbite: Frozen enemies take +3 from you."),
+    "leviathan_rod": ({"open_weak": 1}, "Tidecaller: every enemy starts the fight Weak."),
+    "crownbreaker": ({"pierce_all": 1}, "Shatter: your hits ignore Armor."),
+    "abyssal_tome": ({"echo_any": 1}, "Echo of the deep: your first action each fight happens twice, the second at half strength."),
+    # armor
+    "coral_mail": ({"block_heal": 2}, "Coral growth: Block also heals you 2."),
+    "whaleplate": ({"first_hit_soak": 3}, "Blubber: the first hit on you each round deals 3 less."),
+    "mistweave": ({"evasive": 1}, "Mist: the first hit on you each fight misses."),
+    "tidelord_aegis": ({"unbreakable": 1}, "Unbreakable: once a fight, survive a lethal hit at 1 HP."),
+    # trinkets
+    "black_pearl": ({"kill_gold": 3}, "Pirate's luck: each kill gives you 3 gold."),
+    "gamblers_bones": ({"skull_boost": 4}, "Double or nothing: a skull still hurts, but your next die rolls 4 higher."),
+    "frost_locket": ({"frozen_bonus": 2}, "Frozen enemies take +2 from you."),
+}
+for _k, (_m, _t) in PASSIVES.items():
+    ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}
+    ITEMS[_k]["text"] = (ITEMS[_k].get("text", "") + " " + _t).strip()
+
 # Guard dice: every armor's die, and a few charms', only go on defensive actions (Block, Armor,
 # healing, Dodge...), so armor protects instead of adding another attack die.
 GUARD_TRINKETS = ("lucky_shell", "pearl_charm")

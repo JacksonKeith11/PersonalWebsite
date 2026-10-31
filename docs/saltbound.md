@@ -506,6 +506,17 @@ dice round, all as recommended):
   Guard, heals, Lift, Taunt, Shift, Flee, Sanctuary, Cleanse, Weaken, Retarget, or Dodge, Riposte,
   Thorns and Lifeline statuses (`is_defensive`, sent to the client as each action's `def`). Every hero
   has Block (Armor equal to the die), so a guard die is never wasted.
+- **Item passives** (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`): gear past
+  the starting kit does something of its own. Weapons: Flintlock and Coral Blade hit harder with
+  your first hit each fight (`first_strike`); Tide Hammer +2 on Stunned or Rooted enemies; Kelp Wand
+  stronger Poison; Chaplain's Censer heals also give 2 Armor (`heal_armor`); Ember Blade +2 on
+  Burning enemies (`burn_bonus_hit`); Captain's Sabre 4 Armor per kill (`kill_armor`); Storm Staff
+  +3 on Frozen; Leviathan Rod starts every enemy Weak (`open_weak`); Crownbreaker ignores Armor
+  (`pierce_all`); Abyssal Tome echoes your first action each fight (`echo_any`). Armor: Coral Mail's
+  Block heals 2 (`block_heal`); Whaleplate takes 3 off the first hit each round (`first_hit_soak`);
+  Mistweave makes the first hit each fight miss; Tidelord's Aegis is Unbreakable. Trinkets: Black
+  Pearl 3 gold per kill (`kill_gold`); Gambler's Bones turn a skull into +4 on your next die
+  (`skull_boost`); Frost Locket +2 on Frozen. They moved the bots' win rates by about a point.
 - **Volley** hits every enemy for half of each die, rounded up: the Ranger's answer to crowds, where
   Shoot is for one target.
 - **Rebalance after all that** (smart bots): the Vanguard went to 36 HP (+5 a level), and Strike deals

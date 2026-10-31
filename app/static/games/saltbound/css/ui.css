@@ -723,3 +723,7 @@ a:hover { color: var(--accent-hi); }
   .big-banner .bb-rays, .stage.shake, .unit.kill img, .unit::after, .scrim.enter .picks > *, .loot-card.r-legendary, .loot-card.r-legendary::before { animation: none !important; }
 }
 .big-banner::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 34% at 50% 50%, rgba(5, 9, 15, 0.82), rgba(5, 9, 15, 0.45) 60%, transparent 100%); }
+/* an item's passive reads as its own line */
+.passive { color: var(--accent-hi); font-size: var(--fs-14); }
+.item .passive { font-size: 13px; margin-top: 2px; }
+.pick p.passive { padding-left: 10px; border-left: 2px solid var(--accent-lo); }

@@ -155,6 +155,9 @@ class Combat:
                 x["st"]["dodge"] = 1
             if m.get("bark"):
                 self.summon(h, "sapling", 6)
+        if any(self.mods(h).get("open_weak") for h in f["heroes"]):
+            for fo in f["foes"]:
+                fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
         f["ambush"] = spec.get("by") in f["heroes"] and \
             C.CLASSES[self.hero(spec["by"])["cls"]]["map"]["key"] == "ambush"
         names = ", ".join(fo["name"] for fo in f["foes"])
@@ -310,6 +313,7 @@ class Combat:
             x["links"] = {}
             x["inspire"] = 0
             x["pain_bonus"] = pain.get(str(h), 0)
+            x["soaked"] = False
             if not self.active(h):
                 continue
             if x["st"].pop("stun", 0):
@@ -451,6 +455,9 @@ class Combat:
             if n > 0:
                 hero["hp"] -= n
                 self.fx("dmg", to=f"h{h}", n=n, block=0)
+            if m.get("skull_boost"):
+                x["inspire"] = x.get("inspire", 0) + m["skull_boost"]
+                self.fx("st", to=f"h{h}", s="inspired")
         if m.get("keen_edge") and v == 6:
             v = 7
         if t not in ("S", "X"):
@@ -802,9 +809,13 @@ class Combat:
         n += m.get("rage", 0) * ((self.maxhp(h) - self.hero(h)["hp"]) // 5)
         if a.get("bomb"):
             n += m.get("bomb_bonus", 0)
+        if m.get("first_strike") and not self.hs(h).get("struck"):
+            n += m["first_strike"]
         if isinstance(target, dict):
             if target["st"].get("stun") or target["st"].get("root"):
                 n += m.get("opportunist", 0)
+            if target["st"].get("burn"):
+                n += m.get("burn_bonus_hit", 0)
             it = target.get("intent") or {}
             if it.get("tgt") and it.get("tgt") != f"h{h}":
                 n += m.get("backstab", 0)
@@ -880,7 +891,10 @@ class Combat:
             ops = a["ops"] if hit else a.get("miss", [])
             self.run_ops(h, a, dice, p["tgt"], ops=ops, hit=hit)
             self.elements(h, a, dice, p["tgt"])
-            if a.get("spell") and self.mods(h).get("spell_echo") and not x["echo"] and self.s["fight"] is f:
+            if a["key"] == "block" and self.mods(h).get("block_heal") and self.s["fight"] is f:
+                self.fight_heal(h, self.mods(h)["block_heal"], h)
+            echo = (a.get("spell") and self.mods(h).get("spell_echo")) or (self.mods(h).get("echo_any") and a["key"] not in C.GENERIC)
+            if echo and not x["echo"] and self.s["fight"] is f:
                 x["echo"] = True
                 self.fx("act", h=h, a=a["key"], tgt=p["tgt"], echo=True)
                 self.run_ops(h, a, dice, p["tgt"], half=True, ops=ops, hit=hit)
@@ -1052,7 +1066,7 @@ class Combat:
                             src = [d] if d is not None else dice
                             if any(_num(dd) and _num(dd) >= top_face(dd["faces"]) for dd in src):
                                 n *= 2
-                        done = self.hurt_foe(t, n, h, pierce=pierce_all or op.get("pierce"), bomb=a.get("bomb"))
+                        done = self.hurt_foe(t, n, h, pierce=pierce_all or op.get("pierce") or m.get("pierce_all"), bomb=a.get("bomb"))
                         dealt_any = True
                         if op.get("splash"):
                             for o in self.foes():
@@ -1233,6 +1247,8 @@ class Combat:
         fo["hp"] -= n
         if h is not None:
             self.s["stats"][h]["dmg"] += n
+            if n > 0 and str(h) in self.s["fight"]["hs"]:
+                self.hs(h)["struck"] = True
         self.fx("dmg", to=f"f{fo['id']}", n=n, block=blocked)
         if not pure and fo["st"].pop("shock", 0) and n > 0:
             others = [o for o in self.foes() if o is not fo]
@@ -1255,6 +1271,13 @@ class Combat:
             m = self.mods(h)
             if m.get("kill_heal") and self.active(h):
                 self.fight_heal(h, m["kill_heal"], h)
+            if m.get("kill_armor") and self.active(h):
+                st = self.hs(h)["st"]
+                st["armor"] = st.get("armor", 0) + m["kill_armor"]
+                self.fx("armor", to=f"h{h}", n=m["kill_armor"])
+            if m.get("kill_gold"):
+                self.hero(h)["gold"] += m["kill_gold"]
+                self.fx("coins", h=h, n=m["kill_gold"])
         poisoned = fo["st"].get("poison")
         if poisoned and any(self.mods(y).get("plague") for y in self.actives()):
             others = self.foes()
@@ -1275,6 +1298,9 @@ class Combat:
         hero["hp"] += got
         if by is not None:
             self.s["stats"][by]["heal"] += got
+            ha = self.mods(by).get("heal_armor", 0)
+            if ha and got > 0 and self.active(h):
+                self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + ha
             over = n - got
             if over > 0 and self.mods(by).get("overflow"):
                 self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + over
@@ -1307,6 +1333,10 @@ class Combat:
             if x["st"].pop("dodge", 0):
                 self.fx("st", to=f"h{h}", s="dodged")
                 return 0
+            soak = self.mods(h).get("first_hit_soak", 0)
+            if soak and not x.get("soaked"):
+                x["soaked"] = True
+                n -= soak
             n -= f["sanct"] + f["aegis"]
             if melee and x["row"] == "back":
                 n -= 2

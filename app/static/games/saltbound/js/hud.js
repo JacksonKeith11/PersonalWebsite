@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=22';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=22';
-import { spriteURL } from './art.js?v=22';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=22';
-import { MapView } from './hexmap.js?v=22';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=22';
-import { disconnect } from './main.js?v=22';
-import * as sfx from './audio.js?v=22';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=23';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=23';
+import { spriteURL } from './art.js?v=23';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=23';
+import { MapView } from './hexmap.js?v=23';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=23';
+import { disconnect } from './main.js?v=23';
+import * as sfx from './audio.js?v=23';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -371,7 +371,8 @@ function itemRow(key, right, extra) {
   if (it.die) sub.push(faceRow(it));
   return h('div.item.r-' + it.rarity, { tip: itemTip(key) },
     h('div.ico', null, icon(SLOT_ICON[it.slot] || 'spark')),
-    h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')), extra || null),
+    h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')),
+      it.text && it.slot !== 'use' ? h('div.passive', null, it.text) : null, extra || null),
     h('div.acts', null, right));
 }
 // A die's faces as little tiles, with its kinds (Seer, Fate...) in front.
@@ -395,7 +396,7 @@ function itemTip(key) {
 function modsText(m) {
   const out = [];
   for (const [k, v] of Object.entries(m)) {
-    out.push({ max_hp: `+${v} max HP`, heal_bonus: `+${v} to heals`, thorns: `Attackers take ${v}`, start_armor: `Start fights with ${v} Armor`,
+    out.push({ max_hp: `+${v} max HP`, heal_bonus: `+${v} to heals`, thorns: `Attackers take ${v}`, start_armor: `Start fights with ${v} Armor`, bomb_bonus: `+${v} bomb damage`,
       reroll: `+${v} reroll per fight`, move: `+${v} move`, might: `+${v} damage on every hit`, regen: `Regenerate ${v} HP a round in fights` }[k] || '');
   }
   return out.filter(Boolean).join(', ');
@@ -561,7 +562,7 @@ function renderDialogs() {
           it.dk?.length ? h('p', null, it.dk.map(k => KIND_TEXT[k]).filter(Boolean).join(' ')) : null,
           ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
           it.mods ? h('p', null, modsText(it.mods)) : null,
-          it.text ? h('p', null, it.text) : null,
+          it.text ? h('p.passive', null, it.text) : null,
           cur ? h('p.replaces', null, `Replaces ${cur.name}${curDie}${(cur.acts || []).length ? ' · ' + cur.acts.map(a => S.static.actions[a].name).join(', ') : ''}`) : null,
           h('div.pick-btns', null,
             it.slot === 'use' || !cur ? h('button.btn.primary.sm', { onclick: () => take(true) }, it.slot === 'use' ? 'Take' : 'Put it on')

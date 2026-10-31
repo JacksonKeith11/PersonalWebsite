@@ -58,6 +58,8 @@ When a change alters how an area works or turns up a new gotcha, update its doc 
 
 ## Rules
 
+- When you finish a task, send the owner a push notification (the automatic one doesn't reach them):
+  one line saying what's done or what needs their answer.
 - Never commit secrets, `.env`, or anything under `data/`.
 - Keep requests to Royal Road, AO3, fiction.live and the forums to a minimum: use notification
   emails for serial updates where a site sends them, fetch only what a reader asked for, and space

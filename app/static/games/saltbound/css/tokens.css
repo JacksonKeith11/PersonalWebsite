@@ -1,0 +1,112 @@
+/* Saltbound's design tokens. Every colour, size, radius and spacing step the UI uses lives here:
+   components refer to these, never to raw values. (See docs/saltbound.md, "UI and presentation".) */
+:root {
+  color-scheme: dark;
+
+  /* surfaces: deep navy-slate, from the page up through raised panels */
+  --bg: #0b1017;
+  --bg-2: #0e141d;
+  --panel: #10161f;
+  --panel-2: #161e2a;
+  --panel-3: #1d2734;
+  --panel-hover: #222e3d;
+  --border: #2a3646;
+  --border-strong: #3a4a5e;
+  --scrim: rgba(5, 8, 13, 0.72);
+
+  /* text */
+  --text: #e6e9ef;
+  --text-2: #b9c1cd;
+  --muted: #8d98a8;
+  --faint: #5d6878;
+
+  /* the one accent: brass */
+  --accent: #c9a24a;
+  --accent-hi: #e0bb62;
+  --accent-lo: #9a7a34;
+  --accent-ink: #1a1408;
+  --accent-wash: rgba(201, 162, 74, 0.14);
+  --accent-ring: rgba(201, 162, 74, 0.55);
+
+  /* meaning */
+  --hp: #c95a48;
+  --hp-lo: #5a2620;
+  --armor: #8fa3b8;
+  --heal: #5fb07a;
+  --danger: #d0624f;
+  --ok: #5fb07a;
+  --info: #6aa2d8;
+  --xp: var(--accent);
+  --water: #4f9fc0;
+
+  /* enemy intents: always paired with an icon and a number, never colour alone */
+  --intent-attack: #d0624f;
+  --intent-defend: #8fa3b8;
+  --intent-buff: #c9a24a;
+  --intent-debuff: #a48ad8;
+  --intent-heal: #5fb07a;
+
+  /* rarity */
+  --r-common: #aab4c0;
+  --r-uncommon: #63b77e;
+  --r-rare: #6aa2d8;
+  --r-legendary: #d6ae52;
+
+  /* the three heroes' seat colours */
+  --hero-0: #e07a5f;
+  --hero-1: #4fb3a9;
+  --hero-2: #a48ad8;
+
+  /* type */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-20: 20px;
+  --fs-24: 24px;
+  --fs-32: 32px;
+  --fs-48: 48px;
+  --fs-72: 72px;
+  --lh-tight: 1.2;
+  --lh: 1.45;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* space */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* shape */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+  --bw: 1px;
+
+  /* depth */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.38);
+  --shadow-3: 0 18px 48px rgba(0, 0, 0, 0.5);
+
+  /* motion */
+  --t-fast: 120ms;
+  --t-med: 200ms;
+  --t-slow: 240ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* layout */
+  --topbar-h: 56px;
+  --party-w: 280px;
+  --drawer-w: 440px;
+}

@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from . import auth
 from .arena import routes as arena_routes
 from .brawl import routes as brawl_routes
+from .saltbound import routes as saltbound_routes
 from .books import epub
 from .books import routes as books_routes
 from .serials import page as serials_page
@@ -115,6 +116,7 @@ if SERIALS_PATH:
 
 app.include_router(arena_routes.router)
 app.include_router(brawl_routes.router)
+app.include_router(saltbound_routes.router)
 
 # Books are behind a username rather than the password; see app/books/routes.py.
 app.include_router(books_routes.router)

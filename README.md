@@ -8,7 +8,7 @@ Cloudflare Tunnel.
 | Path | What | Access |
 |---|---|---|
 | `/`, `/resume`, `/projects`, `/recipes` | Static pages (`app/static/`) | Public |
-| `/games` | Games list; `/games/roguelike-tactics` is Roguelike Tactics, a Phaser tactics roguelike (the old `/games/threefold-path` redirects); `/games/song-guesser` is Song Guesser, a name-that-tune game played on synthesized arrangements; `/games/frag-arena` is Frag Arena, a multiplayer Quake-style shooter (WebSocket at `/games/frag-arena/ws`); `/games/board-brawl` is Board Brawl, a Mario Party-style board game for 2-4 friends with rooms by code (WebSocket at `/games/board-brawl/ws`) | Public |
+| `/games` | Games list; `/games/roguelike-tactics` is Roguelike Tactics, a Phaser tactics roguelike (the old `/games/threefold-path` redirects); `/games/song-guesser` is Song Guesser, a name-that-tune game played on synthesized arrangements; `/games/frag-arena` is Frag Arena, a multiplayer Quake-style shooter (WebSocket at `/games/frag-arena/ws`); `/games/board-brawl` is Board Brawl, a Mario Party-style board game for 2-4 friends with rooms by code (WebSocket at `/games/board-brawl/ws`); `/games/saltbound` is Saltbound, a co-op strategy RPG for 1-3 players (WebSocket at `/games/saltbound/ws`; unlisted while it's built) | Public |
 | `/<SERIALS_PATH>` | New chapters of followed web serials, from notification emails (Royal Road, AO3, fiction.live) and forum threadmarks (SpaceBattles, Sufficient Velocity, Questionable Questing) | Unlisted, password |
 | `/books` | EPUB library and reader with a story importer and Kokoro audiobook narration | Per-username |
 | `/healthz` | Health check for the deploy job | Public |
@@ -18,7 +18,8 @@ Cloudflare Tunnel.
 - `app/main.py`: routes; `app/auth.py`: the serials password gate
 - `app/arena/`: Frag Arena's server: the map, physics, match and bots
 - `app/brawl/`: Board Brawl's server: the board, rooms and turns, minigames and bots
-- `app/static/`: public pages, styles and assets, including the games (`games/threefold/`, `games/song-guesser/`, `games/arena/`, `games/brawl/`)
+- `app/saltbound/`: Saltbound's server: the run's rules, combat, rooms, saves (`data/saltbound.db`) and testing bots
+- `app/static/`: public pages, styles and assets, including the games (`games/threefold/`, `games/song-guesser/`, `games/arena/`, `games/brawl/`, `games/saltbound/`)
 - `app/serials/`: the serial updates page and its sync sources
 - `app/books/`, `app/static/books/`: the library, reader, importer and narration worker
 - `tools/`: dev scripts (Roguelike Tactics' headless autoplay test, Song Guesser's arrangement check,

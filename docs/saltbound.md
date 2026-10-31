@@ -3,10 +3,11 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: design only. Nothing is built yet.** This doc is the design the owner signed off on
-after a long question-and-answer session. Build to it; when the build forces a change, update
-this doc in the same commit. Once code exists, add a "Code map" and "Gotchas" section in the
-style of `docs/brawl.md` and trim the planned sections below to match what was built.
+**Status: build step 1 of 3.** The engine and the first three classes (Vanguard, Arcanist, Mender)
+play a whole run end to end, at the unlisted URL. The other seven classes come next, then the
+listing on `/games`. This doc began as the design the owner signed off on; "Decisions made while
+building" records the answers given since. When the build forces a change, update this doc in the
+same commit.
 
 ## What it is
 
@@ -424,26 +425,75 @@ target (roll your best die, 5+ wins). Outcomes: gold, items, HP, a revive (rare)
 curse, or a fight. The archipelago's events live with the map's content; class-gated options key
 on the class, so new maps can reuse them.
 
-## Planned shape of the code
+## Decisions made while building
 
-Follow Board Brawl's layout (`app/brawl/`) for the server and Roguelike Tactics'
-(`app/static/games/threefold/`) for the client. A sketch to start from, not a rule:
+Asked of the owner during step 1 (keep to these too):
 
-| Path | Holds |
+- **Look**: brass accent (`#c9a24a`) on deep navy-slate panels; Fraunces for headings and Inter
+  for UI text; painted pixel hex terrain.
+- **Saves belong to their players**: a save is listed for every browser (token) that played in
+  that run, and any of them can resume it into a new room.
+- **The clock**: after rise 10 (turn 30 on Normal) each rise makes the Drowned Crown 10% tougher
+  and spawns more enemies; at rise 15 (turn 45 on Normal) the peak floods and the run is lost. The
+  top bar always shows rises left.
+- **Heroes outside a fight** watch it live (read-only) and can go back to the map to pre-plan their
+  next path or shop in their town while they wait.
+- **Sprites are bespoke**, drawn by `tools/saltbound-art/` with Roguelike Tactics' pixel kit. Each
+  hero had four options (`heroes.py`); the owner hadn't picked yet, so option 1 of each is in use
+  (Harbour Guard, Tide Witch, Lamplighter). Swap a pick in `build.py`'s `PICKS` and rebuild.
+
+Smaller calls made while building, not yet confirmed by the owner:
+
+- Frozen enemies hit for half (instead of losing their "weakest intent"; they have only one).
+- Hard keeps a rise every 2 turns, so it has no slack before the flood; tune with the simulator.
+- The fight screen is HTML (sprites as pixelated images) rather than a Phaser scene, so targets,
+  tooltips and intents are plain DOM. Phaser draws only the map.
+- Movement is planned by clicking a destination; the cheapest route there is used.
+- A hero on a wreck, or picking loot, holds the next turn until they choose (it's a reward dialog).
+
+## Code map
+
+The server owns the game; the browser sends intents and draws the state it gets back. There is
+no clock anywhere: the run changes only when someone acts.
+
+| File | Holds |
 |---|---|
-| `app/saltbound/routes.py` | the page, the WebSocket (`/ws/saltbound/{code}`), the saved-runs list |
-| `app/saltbound/room.py` | lobby, clients, claiming, the host, pausing while waiting for a player |
-| `app/saltbound/rules.py` | dice, actions, statuses, damage: pure functions the simulator also uses |
-| `app/saltbound/world.py` | seeded map generation, terrain, sea rise, tides, roaming enemies |
-| `app/saltbound/combat.py` | starting a fight, rounds, intents, resolution, rewards |
-| `app/saltbound/classes.py` | the 10 generic classes, their pools and tags, map-ability hooks |
-| `app/saltbound/content/` | enemies, items and events, split per map so new maps can be added |
-| `app/saltbound/save.py` | saving, loading, `version` and migrations |
-| `app/saltbound/bot.py` | the testing bots |
-| `app/static/games/saltbound/` | `index.html`, `css/tokens.css` plus component CSS, `js/` (net, screens, map and combat scenes, audio, generated sprites) |
+| `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the sea and tides, enemy groups, places, events, loot, levelling, towns, trading, `view()`, `static()`. |
+| `app/saltbound/combat.py` | Mixed into `Game`: starting fights, rounds, dice, placing actions, intents, statuses, resolving, boss phases, the end of a fight. `Invalid` is the error shown to players. |
+| `app/saltbound/classes.py` | The generic classes, their actions and passives, levels and XP. |
+| `app/saltbound/content/items.py` | Items (generic) and the actions weapons give. |
+| `app/saltbound/content/archipelago.py` | This map's enemies, groups, lairs, dungeons, final boss, shrine blessings and events. |
+| `app/saltbound/world.py` | Hex geometry and generating a run's map from its seed. |
+| `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
+| `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. |
+| `app/saltbound/save.py` | SQLite saves (`data/saltbound.db`), versions and migrations. |
+| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). |
+| `app/saltbound/routes.py` | `GET /games/saltbound` and the WebSocket at `/games/saltbound/ws`. |
+| `app/static/games/saltbound/css/tokens.css` | Every colour, size, radius, space and timing. |
+| `css/ui.css` | The components, from tokens only. |
+| `js/main.js` | The connection and which screen to show. `?bots` turns on testing bots and exposes `window.saltbound`/`window.saltboundSend`. |
+| `js/store.js` | Shared client state, `send()`, who controls which hero. |
+| `js/screens.js` | Title, lobby, end of run, and the painted backdrop. |
+| `js/hud.js` | The map screen's HTML: top bar, party cards, action bar, log, town and hero drawers, dialogs, hints, map input, map effects. |
+| `js/combat.js` | The fight overlay and playing back a round's effects. |
+| `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, floods, reach, routes. |
+| `js/rules.js` | The client's copy of terrain, step costs and routes, and how to describe requirements and statuses. |
+| `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
+| `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound effects. |
 
-All randomness comes from one seeded RNG whose state is in the save, never from the global
-`random` module, or restored runs won't match.
+## Gotchas
 
-The client's module URLs and stylesheet links carry a `?v=` to bump on every CSS/JS change, as the
-other games do (Cloudflare caches static files).
+- **Every module URL and stylesheet link carries `?v=N`, and they must all match** (Cloudflare
+  caches `/static`, and a module loaded under two URLs runs twice). Bump them together:
+  `grep -rn "?v=" app/static/games/saltbound`. The page's `?v=` is also how the server tells a tab
+  left open across a deploy to reload.
+- `h('div#id.class')`: ids and classes can come in any order in the tag string.
+- All randomness comes from `Game.rng`; never the global `random` module, or restored runs won't
+  match. `python3 tools/saltbound-sim.py N normal --saves` checks this.
+- Hidden enemy groups don't block planned paths (that would give away where they are); walking
+  into one starts a fight and stops you.
+- The engine is synchronous and turn-based, so rooms need no tick loop; bots (testing only) act
+  0.35 s apart through `loop.call_later`.
+- `python3 tools/saltbound-sim.py [runs] [difficulty]` plays whole runs with bots for balance.
+  `node tools/saltbound-shots.js [url] [dir] [WxH]` screenshots the real UI against a running server
+  (bots play; it takes over a hero when a fight starts).

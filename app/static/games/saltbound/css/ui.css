@@ -742,3 +742,7 @@ a:hover { color: var(--accent-hi); }
 .keys .kbd { margin-right: 2px; }
 .actions { grid-auto-rows: max-content; }
 .actions { max-height: min(30vh, 236px); }
+.float.gold { font-family: var(--font-ui); font-size: var(--fs-18); font-weight: 800; color: var(--accent-hi); text-shadow: 0 2px 2px rgba(0, 0, 0, 0.8); }
+.btn.nudge { animation: nudge 1.6s ease-in-out infinite; }
+@keyframes nudge { 50% { box-shadow: 0 0 0 4px var(--accent-ring), 0 0 26px rgba(224, 187, 98, 0.45); } }
+@media (prefers-reduced-motion: reduce) { .btn.nudge { animation: none; } }

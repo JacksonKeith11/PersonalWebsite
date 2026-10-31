@@ -620,6 +620,11 @@ no clock anywhere: the run changes only when someone acts.
   and level-up cards are dealt in, rare loot glows, legendary loot shimmers, with a fanfare. A
   fight's last frame stays under the Victory or Defeat banner for about a second before the map
   (and any loot) comes back. Each moment has its own synthesized sound in `audio.js`.
+- Smaller moments get feedback too: gold earned floats up (or toasts on the map), a revive glows,
+  a hero lost for good gets a banner, the last three sea rises are announced with a banner, and the
+  fight's Ready button pulses once all your dice are placed. Dialogs take number keys (loot goes
+  straight on) and Enter; the menu lists the keys. Saved runs are titled with their difficulty,
+  turn, level and objectives.
 - Every die has a tooltip (`dieTip`): plain dice say "Rolls 1 to N"; unusual ones list their faces,
   and each kind badge and special face has its own tooltip.
 - **Music** is synthesized in `audio.js` (`music('map' | 'fight' | null)`), scheduled a quarter

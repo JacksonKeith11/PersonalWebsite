@@ -310,8 +310,11 @@ class Room:
             return
         self.saved_key = key
         try:
-            classes = ", ".join(CLASSES[h["cls"]]["name"] for h in g.s["heroes"])
-            S.save(self.run_id, self.tokens(), g, f"{classes} · turn {g.s['turn']}")
+            st = g.s
+            classes = ", ".join(CLASSES[h["cls"]]["name"] for h in st["heroes"])
+            where = " · mid-fight" if f else ""
+            S.save(self.run_id, self.tokens(), g, f"{classes} · {st['diff'].title()} · turn {st['turn']}, level {st['level']}, "
+                                                    f"{len(st['cleared'])} of 3 cleared{where}")
         except Exception:
             log.exception("saltbound: saving run %s failed", self.run_id)
 

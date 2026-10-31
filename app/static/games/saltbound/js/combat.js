@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=26';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=26';
-import { spriteURL } from './art.js?v=26';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=26';
-import { render } from './main.js?v=26';
-import * as sfx from './audio.js?v=26';
+import { S, send, mine } from './store.js?v=27';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=27';
+import { spriteURL } from './art.js?v=27';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=27';
+import { render } from './main.js?v=27';
+import * as sfx from './audio.js?v=27';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -366,7 +366,7 @@ function tray(f, x, my) {
       C.pending ? h('p', { style: { color: 'var(--accent)', fontWeight: 600 } }, 'Choose a target', h('br'), h('span.muted', { style: { fontWeight: 400 } }, 'Esc to cancel')) : null,
       h('p.muted', { style: { fontSize: '14px' } }, ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Resolving…') : waiting.length ? `${waiting.join(', ')} still planning` : 'Everyone else is ready'),
       ready ? h('button.btn.lg', { onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
-        : h('button.btn.primary.lg', { onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
+        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
 }
 
 // A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
@@ -545,7 +545,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------------ playing back a round
-const COMBAT_FX = new Set(['roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead']);
+const COMBAT_FX = new Set(['roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
 
 const queue = [];
 export function combatFx(list, before) {
@@ -723,6 +723,9 @@ function apply(f) {
     case 'shift': { if (d.hs[f.h]) d.hs[f.h].row = f.row; return 220; }
     case 'flee': { if (d.hs[f.h]) d.hs[f.h].fled = true; return 300; }
     case 'drag': { const fo = foe(f.to); if (fo) fo.row = 'front'; return 220; }
+    case 'coins': addFloat('h' + f.h, `+${f.n} gold`, 'gold'); sfx.play('coin'); return 260;
+    case 'revive': addFloat('h' + f.h, 'Revived', 'heal.big'); flash('h' + f.h, 'revive', 800); sfx.play('revive'); return 600;
+    case 'dead': bigBanner(`${S.game.heroes[f.h].name} has fallen`, 'No revives were left', 'danger', 2400); sfx.play('lose'); return 1200;
     case 'phase': {
       bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown rises', f.n === 2 ? 'The back row is flooding' : 'The Drowned Crown fights alone', 'danger', 2400);
       flash('stage', 'shake', 500);

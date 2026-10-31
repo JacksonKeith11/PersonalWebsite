@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=26';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=26';
-import { spriteURL } from './art.js?v=26';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=26';
-import { MapView } from './hexmap.js?v=26';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=26';
-import { disconnect } from './main.js?v=26';
-import * as sfx from './audio.js?v=26';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=27';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=27';
+import { spriteURL } from './art.js?v=27';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=27';
+import { MapView } from './hexmap.js?v=27';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=27';
+import { disconnect } from './main.js?v=27';
+import * as sfx from './audio.js?v=27';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -645,7 +645,15 @@ export function handleFx(list, before) {
         if (mine().includes(f.h)) sfx.play('step');
         break;
       case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
-      case 'rise': toast('The sea rises', 'big'); sfx.play('rise'); break;
+      case 'rise': {
+        // the last few rises are announced loudly
+        const left = S.game.loss_rise - S.game.rises;
+        if (left <= 3) bigBanner(left > 0 ? `${left} rise${left === 1 ? '' : 's'} left` : 'The peak is under', left > 0 ? 'The sea is closing on the peak' : '', 'danger', 2600);
+        else toast('The sea rises', 'big');
+        sfx.play('rise');
+        break;
+      }
+      case 'coins': if (mine().includes(f.h) && !combatOpen()) { toast(`${S.game.heroes[f.h].name}: +${f.n} gold`); sfx.play('coin'); } break;
       case 'tide': toast(f.tide === 'low' ? 'Low tide: the sandbars are out' : 'High tide: the shallows close'); break;
       case 'level': bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); break;
       case 'cleared': bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); break;

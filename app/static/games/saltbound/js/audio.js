@@ -59,6 +59,7 @@ const SOUNDS = {
   rare: () => [659, 988, 1319].forEach((f, i) => tone(f, 0.3, { type: 'triangle', gain: 0.08, delay: i * 0.09 })),
   fanfare: () => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.09, delay: i * 0.09 })); tone(2093, 0.6, { gain: 0.05, delay: 0.5 }); },
   phase: () => { tone(98, 0.9, { type: 'sawtooth', gain: 0.1, slide: -20 }); noise(0.9, { gain: 0.14, freq: 200, q: 0.5, type: 'lowpass' }); },
+  coin: () => { tone(1568, 0.06, { type: 'square', gain: 0.04 }); tone(2093, 0.12, { type: 'square', gain: 0.04, delay: 0.05 }); },
   revive: () => [392, 523, 784].forEach((f, i) => tone(f, 0.3, { gain: 0.09, delay: i * 0.08 })),
 };
 export function play(name) {

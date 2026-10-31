@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=27';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=27';
-import { spriteURL } from './art.js?v=27';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=27';
-import { MapView } from './hexmap.js?v=27';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=27';
-import { disconnect } from './main.js?v=27';
-import * as sfx from './audio.js?v=27';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=28';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=28';
+import { spriteURL } from './art.js?v=28';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=28';
+import { MapView } from './hexmap.js?v=28';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=28';
+import { disconnect } from './main.js?v=28';
+import * as sfx from './audio.js?v=28';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -567,7 +567,7 @@ function renderDialogs() {
         const cur = it.slot !== 'use' && hero.equip[it.slot] ? item(hero.equip[it.slot]) : null;
         const take = equip => send({ t: 'choose', h: h0, n: i, equip });
         const curDie = cur?.die ? ` · ${dieLabel({ faces: cur.die, dk: cur.dk || [] })}` : '';
-        return h('div.pick.loot-card.r-' + it.rarity, { style: { '--i': i } },
+        return h('div.pick.loot-card.r-' + it.rarity, { style: { '--i': i } }, h('span.kbd.pick-key', null, i + 1),
           h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
           h('h3.rar-' + it.rarity, null, it.name),
           it.die ? faceRow(it) : null,
@@ -590,7 +590,7 @@ function renderDialogs() {
       h('div.picks', null, ...d.opts.map((k, i) => {
         const sk = skillDef(k), up = k.endsWith('+');
         const isAct = !!S.static.actions[k.replace(/\+$/, '')];
-        return h('button.pick', { style: { '--i': i }, onclick: () => send({ t: 'choose', h: h0, n: i }) },
+        return h('button.pick', { style: { '--i': i }, onclick: () => send({ t: 'choose', h: h0, n: i }) }, h('span.kbd.pick-key', null, i + 1),
           h('span.kind', null, up ? 'Upgrade' : sk.cap ? 'Capstone' : isAct ? 'New action' : 'Passive'),
           h('h3', null, sk.name + (up ? '+' : '')),
           isAct ? h('span.req', null, icon('dice'), reqText(sk.req), sk.cd ? ` · cooldown ${sk.cd}` : '') : null,

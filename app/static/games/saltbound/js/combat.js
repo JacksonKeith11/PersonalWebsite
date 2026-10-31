@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=27';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=27';
-import { spriteURL } from './art.js?v=27';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=27';
-import { render } from './main.js?v=27';
-import * as sfx from './audio.js?v=27';
+import { S, send, mine } from './store.js?v=28';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=28';
+import { spriteURL } from './art.js?v=28';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=28';
+import { render } from './main.js?v=28';
+import * as sfx from './audio.js?v=28';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;

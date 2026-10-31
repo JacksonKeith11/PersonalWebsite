@@ -604,8 +604,9 @@ a:hover { color: var(--accent-hi); }
 .bar.ok i { background: var(--hp-ok); }
 .bar.mid i { background: var(--hp-mid); }
 .bar.low i { background: var(--hp); }
-/* the plan wraps onto a second line rather than running off the edge */
-.planstrip { flex-wrap: wrap; overflow-y: auto; max-height: 96px; row-gap: 6px; }
+/* the plan stays one row; it scrolls sideways, with a fade at the edge so you can tell there's more */
+.planstrip { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); padding-right: 56px; }
 .planstrip > * { flex: none; }
 /* action cards: three lines of text at most (the tooltip has it all) */
 .action p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -727,3 +728,17 @@ a:hover { color: var(--accent-hi); }
 .passive { color: var(--accent-hi); font-size: var(--fs-14); }
 .item .passive { font-size: 13px; margin-top: 2px; }
 .pick p.passive { padding-left: 10px; border-left: 2px solid var(--accent-lo); }
+@media (max-width: 700px) {
+  .end { width: calc(100vw - 16px); padding: var(--s-5) var(--s-3); }
+  .end h1 { font-size: clamp(30px, 9vw, 56px); }
+  .end > div { flex-wrap: wrap; }
+  .summary { font-size: 13px; width: 100%; }
+  .summary th, .summary td { padding: 6px 4px; }
+  .summary td:first-child { white-space: nowrap; }
+  .summary img { width: 24px; height: 24px; }
+}
+.keys { display: grid; gap: 4px; font-size: var(--fs-14); color: var(--text-2); }
+.keys b { color: var(--text); font-weight: var(--fw-semibold); }
+.keys .kbd { margin-right: 2px; }
+.actions { grid-auto-rows: max-content; }
+.actions { max-height: min(30vh, 236px); }

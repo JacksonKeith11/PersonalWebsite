@@ -38,10 +38,21 @@ fs.mkdirSync(out, { recursive: true });
       await page.waitForTimeout(1800);
       await shot();
       if (name === 'start') {
-        for (const label of ['Town', 'Hero']) {
-          const b = page.locator('.actionbar button', { hasText: label });
-          if (await b.count()) { await b.first().click(); await page.waitForTimeout(600); await shot(label.toLowerCase()); await page.keyboard.press('Escape'); await page.waitForTimeout(300); }
+        // the town (its button is named after the town), each of the hero sheet's tabs, and the menu
+        const town = page.locator('.actionbar button').filter({ hasNotText: /Rest|Hero|Ready/ });
+        if (await town.count()) {
+          await town.first().click(); await page.waitForTimeout(600); await shot('town');
+          for (const tab of await page.locator('.drawer .tabs button').all()) { await tab.click(); await page.waitForTimeout(300); await shot('town-' + (await tab.innerText()).toLowerCase()); }
+          await page.keyboard.press('Escape'); await page.waitForTimeout(300);
         }
+        const hero = page.locator('.actionbar button', { hasText: 'Hero' });
+        if (await hero.count()) {
+          await hero.first().click(); await page.waitForTimeout(600);
+          for (const tab of await page.locator('.drawer .tabs button').all()) { await tab.click(); await page.waitForTimeout(300); await shot('hero-' + (await tab.innerText()).toLowerCase()); }
+          await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+        }
+        const menu = page.locator('.topbar .right button').last();
+        if (await menu.count()) { await menu.click(); await page.waitForTimeout(500); await shot('menu'); await page.keyboard.press('Escape'); }
       }
       if (name === 'loot' || name === 'level' || name === 'event') {
         const pick = page.locator('.scrim .pick-btns .btn.primary, .scrim button.pick, .scrim .choice:not([disabled])').first();

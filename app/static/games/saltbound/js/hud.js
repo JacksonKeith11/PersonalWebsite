@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=23';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=23';
-import { spriteURL } from './art.js?v=23';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=23';
-import { MapView } from './hexmap.js?v=23';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=23';
-import { disconnect } from './main.js?v=23';
-import * as sfx from './audio.js?v=23';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=26';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=26';
+import { spriteURL } from './art.js?v=26';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=26';
+import { MapView } from './hexmap.js?v=26';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=26';
+import { disconnect } from './main.js?v=26';
+import * as sfx from './audio.js?v=26';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -312,6 +312,12 @@ function renderMenu() {
       oninput: e => { S.settings.music = +e.target.value; sfx.setMusicVolume(S.settings.music); saved.settings = S.settings; persist(); },
     })),
     h('p.muted', null, `Room ${S.code}. The voyage saves itself after every turn and every round of a fight.`),
+    h('div.keys', null, h('b', null, 'Keys'),
+      h('span', null, h('span.kbd', null, 'Space'), ' ready up'),
+      h('span', null, h('span.kbd', null, '1'), '–', h('span.kbd', null, '9'), ' pick a die, or a choice in a dialog'),
+      h('span', null, h('span.kbd', null, 'Q'), h('span.kbd', null, 'W'), h('span.kbd', null, 'E'), '… pick an action (a fight)'),
+      h('span', null, h('span.kbd', null, 'Z'), ' undo your last placement'),
+      h('span', null, h('span.kbd', null, 'Esc'), ' close or cancel')),
     h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
       host ? h('button.btn', { onclick: () => { if (confirm('Save and take everyone back to the lobby?')) { send({ t: 'quit' }); close(); } } }, 'Save and return to lobby') : null,
       h('button.btn.ghost', { onclick: () => { if (confirm('Leave this voyage? It’s saved, and you can rejoin with the room code.')) disconnect(); } }, 'Leave'),
@@ -468,15 +474,16 @@ function heroDrawer(h0, d) {
         ...mates.map(m => h('button.btn.sm', { disabled: hero.gold < 10, onclick: () => send({ t: 'give', h: h0, to: m, gold: 10 }) }, g.heroes[m].name))) : null,
     ];
   } else if (d.tab === 'skills') {
-    const acts = hero.actions.filter(k => !['shift', 'flee'].includes(k));
+    const acts = hero.actions.filter(k => !['block', 'shift', 'flee'].includes(k));
+    const weapon = hero.equip.weapon ? item(hero.equip.weapon) : null;
     const passives = hero.skills.filter(k => S.static.passives[k.replace(/\+$/, '')]);
     body = [
       h('h3', null, 'Actions'),
-      ...acts.map(k => skillCard(k)),
+      ...acts.map(k => skillCard(k, (weapon?.acts || []).includes(k.replace(/\+$/, '')) ? weapon.name : null)),
       h('h3', null, 'Passives'),
       passives.length ? passives.map(k => skillCard(k)) : h('p.muted', null, 'None yet: pick them as you level up.'),
       h('h3', null, 'Always available'),
-      skillCard('shift'), skillCard('flee'),
+      skillCard('block'), skillCard('shift'), skillCard('flee'),
     ];
   } else {
     body = [
@@ -495,13 +502,18 @@ function heroDrawer(h0, d) {
   return drawerShell(hero.name, `${c.name} · ${controllerName(h0)}`, [['gear', 'Gear'], ['skills', 'Skills'], ['about', 'About']], d, body);
 }
 
-export function skillCard(k) {
+export function skillCard(k, source = null) {
   const sk = skillDef(k);
   const up = k.endsWith('+');
   const isAct = !!S.static.actions[k.replace(/\+$/, '')];
+  // how often it can be used, where it comes from, and whether it takes Guard dice
+  const when = !isAct ? null : sk.cd ? `Cooldown: every ${sk.cd} rounds` : sk.once ? 'Once a fight' : sk.per_rest ? 'Once per rest' : 'Every round';
   return h('div.card.skill', null,
     h('div.row', null, h('b', null, sk.name + (up ? '+' : '')), isAct ? h('span.req', null, icon('dice'), reqText(sk.req)) : h('span.chip', null, sk.cap ? 'Capstone' : 'Passive')),
-    sk.cd ? h('span.chip', { style: { justifySelf: 'start' } }, icon('clock'), `Cooldown: every ${sk.cd} rounds`) : null,
+    isAct ? h('div.sk-tags', { style: { justifyContent: 'flex-start' } },
+      h('span.tag' + (when === 'Every round' ? '.free' : ''), null, sk.cd ? icon('clock') : null, when),
+      source ? h('span.tag', { tip: `From your ${source}` }, source) : null,
+      sk.def ? h('span.tag.def', { tip: 'Defensive: takes Guard dice.' }, icon('shield'), 'Guard dice') : null) : null,
     h('p', null, sk.text + (up ? ' Upgraded: +2 to its numbers.' : '')),
     sk.tags?.length ? h('div', { style: { display: 'flex', gap: '4px' } }, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
 }
@@ -654,6 +666,18 @@ document.addEventListener('keydown', e => {
   const g = S.game;
   if (!g || combatOpen()) return;
   if (e.key === 'Escape') { if (UI.drawer) closeDrawer(); else if (UI.menu) { UI.menu = false; renderMenu(); } }
+  // dialogs: number keys pick an option (loot goes straight on), Enter carries on
+  const scrim = document.querySelector('#modal .scrim');
+  if (scrim) {
+    const n = parseInt(e.key, 10);
+    const opts = [...scrim.querySelectorAll('.choice, button.pick, .loot-card')];
+    if (n >= 1 && n <= opts.length) {
+      const o = opts[n - 1];
+      (o.classList.contains('loot-card') ? o.querySelector('.pick-btns .btn.primary') : o)?.click();
+      e.preventDefault();
+    } else if (e.key === 'Enter' && !opts.length) scrim.querySelector('.btn.primary')?.click();
+    return;
+  }
   if (e.code === 'Space' && g.phase === 'plan') {
     const h0 = sel();
     if (mine().includes(h0) && g.plans[h0] && !g.pending[h0]?.length) { e.preventDefault(); send({ t: 'ready', h: h0, on: !g.plans[h0].ready }); }

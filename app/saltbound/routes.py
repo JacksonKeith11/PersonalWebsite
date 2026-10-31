@@ -6,9 +6,10 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from . import room as R
+from . import save as S
 from .combat import Invalid
 
 PAGE = Path(__file__).parent.parent / "static" / "games" / "saltbound" / "index.html"
@@ -22,6 +23,12 @@ router = APIRouter()
 @router.get("/games/saltbound", include_in_schema=False)
 def page():
     return FileResponse(PAGE)
+
+
+@router.get("/games/saltbound/saves", include_in_schema=False)
+def saves(token: str = ""):
+    """The runs a browser has saved, so the title screen can offer them before joining a room."""
+    return JSONResponse(S.list_for(token[:40]), headers={"Cache-Control": "no-store"})
 
 
 async def _writer(ws: WebSocket, queue: asyncio.Queue):

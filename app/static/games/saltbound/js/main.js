@@ -1,11 +1,11 @@
 // Saltbound in the browser: the connection, and choosing which screen to show from the room
 // state the server sends whenever anything changes.
-import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=18';
-import { $, toast } from './ui.js?v=18';
-import { renderTitle, renderLobby, renderEnd } from './screens.js?v=18';
-import { renderGame, handleFx, teardownGame } from './hud.js?v=18';
-import { combatBusy } from './combat.js?v=18';
-import * as sfx from './audio.js?v=18';
+import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=19';
+import { $, toast } from './ui.js?v=19';
+import { renderTitle, renderLobby, renderEnd } from './screens.js?v=19';
+import { renderGame, handleFx, teardownGame } from './hud.js?v=19';
+import { combatBusy } from './combat.js?v=19';
+import * as sfx from './audio.js?v=19';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const params = new URLSearchParams(location.search);
@@ -106,5 +106,10 @@ function renderScreen() {
 
 export const debug = DEBUG;
 if (params.get('room')) connect({ room: params.get('room').toUpperCase() });
-else render();
+else {
+  render();
+  // saved runs for the title screen, before joining any room
+  fetch(`/games/saltbound/saves?token=${encodeURIComponent(saved.token)}`, { cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : [])).then(list => { if (!S.code && list.length) { S.saves = list; render(); } }).catch(() => {});
+}
 if (DEBUG) { window.saltbound = S; window.saltboundSend = send; }

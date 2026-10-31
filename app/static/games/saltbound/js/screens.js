@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=18';
-import { $, h, icon, toast } from './ui.js?v=18';
-import { spriteURL } from './art.js?v=18';
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=18';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=18';
-import { connect, disconnect, debug } from './main.js?v=18';
+import { S, saved, persist, send } from './store.js?v=19';
+import { $, h, icon, toast } from './ui.js?v=19';
+import { spriteURL } from './art.js?v=19';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=19';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=19';
+import { connect, disconnect, debug } from './main.js?v=19';
 
 const app = () => $('app');
 
@@ -235,6 +235,13 @@ function classDetails(k) {
   ];
 }
 
+// Why a run was lost, in a sentence.
+function endCause(g) {
+  if (g.rises >= g.loss_rise) return 'The sea rose over the peak before the Drowned Crown fell.';
+  const fight = [...g.log].reverse().find(l => l.m.startsWith('Fight! '));
+  return fight ? `The party fell fighting ${fight.m.slice(7).replace(/\.$/, '')}.` : 'The whole party fell.';
+}
+
 // ------------------------------------------------------------------ the end of a run
 export function renderEnd() {
   const g = S.game, r = S.room, st = S.static;
@@ -245,11 +252,14 @@ export function renderEnd() {
       h('div.eyebrow', null, won ? 'Victory' : 'Defeat'),
       h('h1', null, won ? 'The isles are saved' : g.rises >= g.loss_rise ? 'The sea took the peak' : 'Lost at sea'),
       h('p.muted', null, `Turn ${g.turn} · party level ${g.level} · ${g.cleared.length} of 3 objectives cleared · ${g.diff[0].toUpperCase() + g.diff.slice(1)}`),
+      won ? null : h('p.cause', null, endCause(g)),
       h('table.summary', null,
         h('thead', null, h('tr', null, ...['Hero', 'Damage dealt', 'Healing', 'Kills', 'Damage taken'].map(t => h('th', null, t)))),
         h('tbody', null, ...g.heroes.map((hero, i) => h('tr', null,
-          h('td', null, h('img.pix', { src: spriteURL(hero.cls), alt: '' }), hero.name, h('span.muted', null, st.classes[hero.cls].name)),
-          h('td', null, g.stats[i].dmg), h('td', null, g.stats[i].heal), h('td', null, g.stats[i].kills), h('td', null, g.stats[i].taken))))),
+          h('td', null, h('img.pix', { src: spriteURL(hero.cls), alt: '' }), hero.name,
+            hero.name !== st.classes[hero.cls].name ? h('span.muted', null, st.classes[hero.cls].name) : null),
+          // the best in each column stands out
+          ...['dmg', 'heal', 'kills', 'taken'].map(k => h('td' + (k !== 'taken' && g.stats[i][k] > 0 && g.stats[i][k] === Math.max(...g.stats.map(x => x[k])) ? '.best' : ''), null, g.stats[i][k])))))),
       h('div', { style: { display: 'flex', gap: '12px', justifyContent: 'center' } },
         host ? h('button.btn.primary.lg', { onclick: () => send({ t: 'quit' }) }, 'Back to the lobby') : h('p.muted', null, 'The host can take everyone back to the lobby.'),
         h('button.btn.lg', { onclick: disconnect }, 'Leave')),

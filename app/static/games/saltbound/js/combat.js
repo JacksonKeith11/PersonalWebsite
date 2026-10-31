@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=18';
-import { h, icon, toast, hideTip } from './ui.js?v=18';
-import { spriteURL } from './art.js?v=18';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=18';
-import { render } from './main.js?v=18';
-import * as sfx from './audio.js?v=18';
+import { S, send, mine } from './store.js?v=19';
+import { h, icon, toast, hideTip } from './ui.js?v=19';
+import { spriteURL } from './art.js?v=19';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=19';
+import { render } from './main.js?v=19';
+import * as sfx from './audio.js?v=19';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -86,7 +86,7 @@ export function renderCombat(el) {
       intentChip(fo, f),
       h('img.pix', { src: spriteURL(fo.k), alt: '' }),
       h('div.uname', null, fo.name),
-      hpBar(Math.max(0, fo.hp), fo.max),
+      hpBar(Math.max(0, fo.hp), fo.max, true),
       previewRow('f' + fo.id, prev, fo.hp),
       statusRow(fo.st, fo.might ? [`+${fo.might} might`] : []),
       floats('f' + fo.id));
@@ -250,8 +250,14 @@ function drawArrows(box, f) {
 
 function heroActive(f, x) { const hs = f.hs[x]; return hs && !hs.down && !hs.fled; }
 
-function hpBar(hp, max) {
-  return h('div.bar', null, h('i', { style: { width: Math.max(0, Math.round(100 * hp / max)) + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
+// Heroes' bars are coloured by health (green, amber, red); enemies' stay red.
+export function hpClass(hp, max, foe) {
+  if (foe) return '.foe';
+  const f = hp / max;
+  return f > 0.6 ? '.ok' : f > 0.3 ? '.mid' : '.low';
+}
+function hpBar(hp, max, foe = false) {
+  return h('div.bar' + hpClass(hp, max, foe), null, h('i', { style: { width: Math.max(0, Math.round(100 * hp / max)) + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
 }
 
 function statusRow(st, extra = []) {
@@ -276,12 +282,14 @@ function rollTray() {
   const ad = t.a ? S.static.actions[t.a] : null;
   const shown = x => faceText(['S', 'X', 'W'].includes(x.tag) ? x.tag : x.tag ? x.tag + x.v : x.v);
   return h('div.roll-tray', { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
-    h('div.rt-head', null, h('span.rt-who', null, S.game.heroes[t.h].name), ad ? h('span.rt-act', null, ad.name) : null),
+    h('div.rt-info', null,
+      h('span.rt-who', null, S.game.heroes[t.h].name),
+      ad ? h('span.rt-act', null, ad.name) : null,
+      ad && isRisky(ad.req) ? h('span.rt-need', null, `Needs ${reqText(ad.req)}`) : null),
     h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die' + (x.re ? '.re' : ''), { style: since(x.t) },
       h('span', { style: since(x.t) }, shown(x)),
       x.re ? h('small', null, x.re === 'steady' ? 'Steady' : 'Reroll') : null))),
-    ad && isRisky(ad.req) ? h('div.rt-need', null, `Needs ${reqText(ad.req)}`) : null,
-    t.verdict ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'miss' ? 'Miss' : 'Hit!') : null);
+    h('div.rt-slot', null, t.verdict ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'miss' ? 'Miss' : 'Hit!') : null));
 }
 
 function floats(id) {

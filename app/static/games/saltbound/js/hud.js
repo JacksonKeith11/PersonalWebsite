@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=18';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=18';
-import { spriteURL } from './art.js?v=18';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=18';
-import { MapView } from './hexmap.js?v=18';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=18';
-import { disconnect } from './main.js?v=18';
-import * as sfx from './audio.js?v=18';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=19';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=19';
+import { spriteURL } from './art.js?v=19';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=19';
+import { MapView } from './hexmap.js?v=19';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=19';
+import { disconnect } from './main.js?v=19';
+import * as sfx from './audio.js?v=19';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -161,7 +161,7 @@ function renderTopbar() {
       h('div.stat.opt', { tip: `${g.tide === 'low' ? 'Low' : 'High'} tide\n${g.tide === 'low' ? 'Sandbars and shallows are walkable.' : 'Shallows are under water: skiffs only.'}\nTurns in ${g.next_tide} turn${g.next_tide === 1 ? '' : 's'}.` },
         icon('moon'), h('b', null, g.tide === 'low' ? 'Low tide' : 'High tide'), h('span.lbl', null, `· ${g.next_tide}`)),
       h('div.stat' + (left <= 3 ? '.warn' : ''), { tip: `The sea\nRises every ${g.rise_every} turns, next in ${g.next_rise}.\n${left} rises until the peak floods and the voyage is lost.${g.rises >= g.grow_from ? '\nThe Drowned Crown grows stronger with each rise.' : ''}` },
-        icon('wave'), h('b', null, `${left} left`), h('span.lbl', null, `· next in ${g.next_rise}`)),
+        icon('wave'), h('b', null, `${left} rises left`), h('span.lbl', null, `· next in ${g.next_rise}`)),
       h('div.stat', { tip: `Party level ${g.level}\n${g.xp_next ? `${g.xp} / ${g.xp_next} XP` : 'Max level'}\nXP is shared: everyone levels together.` },
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
@@ -198,7 +198,7 @@ function renderParty() {
         h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
         h('div.who', null, h('b', null, hero.name), h('span', null, `${cls(hero.cls).name} · ${controllerName(i)}${my.includes(i) ? ' (you)' : ''}`)),
         h('span.hero-state.' + (stCls || 'x'), null, stTxt)),
-      h('div.bar', null, h('i', { style: { width: pct + '%' } }), h('span', null, `${Math.max(0, hero.hp)} / ${hero.maxhp}`)),
+      h('div.bar' + hpClass(hero.hp, hero.maxhp), null, h('i', { style: { width: pct + '%' } }), h('span', null, `${Math.max(0, hero.hp)} / ${hero.maxhp}`)),
       h('div.hero-meta', null,
         h('span', { tip: 'Gold' }, icon('coin'), hero.gold),
         h('span', { tip: 'Moves per turn' }, icon('boot'), hero.moves),
@@ -328,6 +328,11 @@ function openDrawer(kind, tab) {
 function closeDrawer() { UI.drawer = null; renderDrawer(); }
 
 function renderDrawer() {
+  drawDrawer();
+  // the action bar slides left so the drawer doesn't cover Ready
+  document.body.classList.toggle('drawer-open', $('drawer').childElementCount > 0);
+}
+function drawDrawer() {
   const el = $('drawer');
   const d = UI.drawer;
   if (!d || combatOpen()) { el.replaceChildren(); return; }
@@ -451,7 +456,8 @@ function heroDrawer(h0, d) {
         return itemRow(k, [
           it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null,
           it.slot === 'use' && !it.fight ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
-          ...mates.map(m => h('button.btn.sm.ghost', { tip: `Give to ${g.heroes[m].name}`, onclick: () => send({ t: 'give', h: h0, to: m, bag: i }) }, icon('hand'), g.heroes[m].name)),
+          mates.length ? h('select.input.give', { 'aria-label': `Give ${it.name} to`, onchange: e => { if (e.target.value !== '') send({ t: 'give', h: h0, to: +e.target.value, bag: i }); } },
+            h('option', { value: '' }, 'Give to…'), ...mates.map(m => h('option', { value: m }, g.heroes[m].name))) : null,
           town ? h('button.btn.sm.ghost', { onclick: () => send({ t: 'sell', h: h0, bag: i }) }, 'Sell') : null,
           h('button.btn.sm.ghost', { 'aria-label': 'Drop', tip: 'Throw it away', onclick: () => { if (confirm(`Throw away ${it.name}?`)) send({ t: 'drop', h: h0, bag: i }); } }, icon('x')),
         ]);
@@ -542,10 +548,13 @@ function renderDialogs() {
     content = [
       h('div.eyebrow', null, hero.name),
       h('h2', null, 'Spoils'),
-      h('p.lead', null, 'Take one. Gear goes straight on if the slot is empty; otherwise into your bag.'),
-      h('div.picks', null, ...d.opts.map((k, i) => {
+      h('p.lead', null, 'Take one. Put gear on now, or keep it in your bag for later.'),
+      h('div.picks.loot', null, ...d.opts.map((k, i) => {
         const it = item(k);
-        return h('button.pick.r-' + it.rarity, { onclick: () => send({ t: 'choose', h: h0, n: i }) },
+        const cur = it.slot !== 'use' && hero.equip[it.slot] ? item(hero.equip[it.slot]) : null;
+        const take = equip => send({ t: 'choose', h: h0, n: i, equip });
+        const curDie = cur?.die ? ` · ${dieLabel({ faces: cur.die, dk: cur.dk || [] })}` : '';
+        return h('div.pick.loot-card.r-' + it.rarity, { style: { '--i': i } },
           h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
           h('h3.rar-' + it.rarity, null, it.name),
           it.die ? faceRow(it) : null,
@@ -553,7 +562,10 @@ function renderDialogs() {
           ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
           it.mods ? h('p', null, modsText(it.mods)) : null,
           it.text ? h('p', null, it.text) : null,
-          hero.equip[it.slot] ? h('p.muted', null, `Now: ${item(hero.equip[it.slot]).name}`) : null);
+          cur ? h('p.replaces', null, `Replaces ${cur.name}${curDie}${(cur.acts || []).length ? ' · ' + cur.acts.map(a => S.static.actions[a].name).join(', ') : ''}`) : null,
+          h('div.pick-btns', null,
+            it.slot === 'use' || !cur ? h('button.btn.primary.sm', { onclick: () => take(true) }, it.slot === 'use' ? 'Take' : 'Put it on')
+              : [h('button.btn.primary.sm', { onclick: () => take(true) }, 'Put it on'), h('button.btn.sm.ghost', { onclick: () => take(false) }, 'Into the bag')]));
       })),
       h('button.btn.ghost', { style: { justifySelf: 'end' }, onclick: () => send({ t: 'choose', h: h0, n: -1 }) }, 'Leave it'),
     ];

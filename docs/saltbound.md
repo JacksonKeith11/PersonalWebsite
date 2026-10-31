@@ -623,4 +623,13 @@ no clock anywhere: the run changes only when someone acts.
   `python3 tools/saltbound-check.py` forces every action and passive of every class through real
   fights (bots never use most instant tricks); run it after touching `combat.py` or `classes.py`.
   `node tools/saltbound-shots.js [url] [dir] [WxH]` screenshots the real UI against a running server
-  (bots play; it takes over a hero when a fight starts).
+  (bots play; it takes over a hero when a fight starts). `node tools/saltbound-audit.js [url] [dir]
+  [WxH] [scenario...]` is for reviewing particular moments: `tools/saltbound-audit.py` plays bots to
+  one (`start`, `loot`, `level`, `event`, `fight`, `boss`, `won`, `lost`) and saves it for the token
+  "audit", and the browser resumes that save and screenshots it. Run both at 1440x900 and 390x844.
+- The title screen gets your saved runs over HTTP (`GET /games/saltbound/saves?token=`), so they
+  show before you join a room; in a room they still come over the socket.
+- Loot can go straight on (`choose` with `equip: true`, `Game.wear`): what it replaces goes into the
+  bag, or is sold if the bag is full.
+- Phones (under 700px wide) get their own layout: the party is a strip of compact cards, and a
+  fight is one scrolling column (flex, not grid, so the plan strip keeps its height).

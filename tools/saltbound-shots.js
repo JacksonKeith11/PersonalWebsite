@@ -90,7 +90,7 @@ fs.mkdirSync(out, { recursive: true });
       took = false;
       continue;
     }
-    const pick = await page.$('.scrim .pick, .scrim .choice:not([disabled])');
+    const pick = await page.$('.scrim .pick-btns .btn.primary, .scrim button.pick, .scrim .choice:not([disabled])');
     if (pick) { dialogs++; if (dialogs <= 3) await shot(`dialog-${dialogs}`); await pick.click().catch(() => {}); await page.waitForTimeout(400); continue; }
     const ok = await page.$('.scrim .btn.primary');
     if (ok) { await ok.click().catch(() => {}); await page.waitForTimeout(300); continue; }

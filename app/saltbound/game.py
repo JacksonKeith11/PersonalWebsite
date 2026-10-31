@@ -728,7 +728,10 @@ class Game(Combat):
             elif isinstance(n, int) and 0 <= n < len(d["opts"]):
                 key = d["opts"][n]
                 q.pop(0)
-                self.gain_item(h, key)
+                if msg.get("equip") and I.ITEMS[key]["slot"] != "use":
+                    self.wear(h, key)
+                else:
+                    self.gain_item(h, key)
             else:
                 raise Invalid("Pick an item, or skip.")
         elif d["type"] == "level":
@@ -999,6 +1002,21 @@ class Game(Combat):
             self.hero(x)["gold"] += A.QUEST_REWARD
         self.offer_loot(h, 2, tier_bonus=1)
         self.say(f"Job done for {q['src']}: +{A.QUEST_REWARD} gold each.")
+
+    def wear(self, h, key):
+        """Put new gear straight on; what it replaces goes in the bag (or is sold if the bag is full)."""
+        hero = self.hero(h)
+        slot = I.ITEMS[key]["slot"]
+        old = hero["equip"].get(slot)
+        hero["equip"][slot] = key
+        if old:
+            if len(hero["bag"]) < self.bag_size(h):
+                hero["bag"].append(old)
+            else:
+                hero["gold"] += I.price(old) * 4 // 10
+                self.say(f"{hero['name']}'s bag is full, so they sell the {I.ITEMS[old]['name']}.")
+        hero["hp"] = min(hero["hp"], self.maxhp(h))
+        self.say(f"{hero['name']} puts on the {I.ITEMS[key]['name']}.")
 
     def do_equip(self, h, msg):
         if self.in_fight(h):

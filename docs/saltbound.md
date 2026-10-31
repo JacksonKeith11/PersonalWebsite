@@ -569,7 +569,7 @@ no clock anywhere: the run changes only when someone acts.
 | `css/ui.css` | The components, from tokens only. |
 | `js/main.js` | The connection and which screen to show. `?bots` turns on testing bots and exposes `window.saltbound`/`window.saltboundSend`. |
 | `js/store.js` | Shared client state, `send()`, who controls which hero. |
-| `js/screens.js` | Title, lobby, end of run, and the painted backdrop. |
+| `js/screens.js` | Title, lobby, end of run, and the painted backdrop. A chosen class shows in full in the lobby (`classDetails`): HP per level, every die with its faces and kinds (class, weapon and armor), each starting skill with its requirement and cooldown, the weapon's actions, and the map ability. |
 | `js/hud.js` | The map screen's HTML: top bar, party cards, action bar, log, town and hero drawers, dialogs, hints, map input, map effects. |
 | `js/combat.js` | The fight overlay and playing back a round's effects. |
 | `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, floods, reach, routes. |

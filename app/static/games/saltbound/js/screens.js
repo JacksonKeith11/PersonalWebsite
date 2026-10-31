@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=17';
-import { $, h, icon, toast } from './ui.js?v=17';
-import { spriteURL } from './art.js?v=17';
-import { dieLabel, dieTip } from './rules.js?v=17';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=17';
-import { connect, disconnect, debug } from './main.js?v=17';
+import { S, saved, persist, send } from './store.js?v=18';
+import { $, h, icon, toast } from './ui.js?v=18';
+import { spriteURL } from './art.js?v=18';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=18';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=18';
+import { connect, disconnect, debug } from './main.js?v=18';
 
 const app = () => $('app');
 
@@ -105,14 +105,7 @@ export function renderLobby() {
     let body;
     if (c) {
       body = [
-        h('div.portrait', null, h('img.pix', { src: spriteURL(slot.cls), alt: '' })),
-        h('div', null, h('h3', null, c.name), h('div.role', null, `${c.role} · ${c.row === 'front' ? 'Front row' : c.row === 'back' ? 'Back row' : 'Either row'}`)),
-        h('p.blurb', null, c.blurb),
-        h('div.meta', null,
-          h('div', null, h('b', null, 'Dice  '),
-            ...c.dice.flatMap((d, j) => [j ? ' + ' : null, h('span.die-name', { tip: dieTip(d) }, dieLabel(d))]).filter(Boolean), ' + gear'),
-          h('div', { tip: `${c.map.name}\n${c.map.text}` }, h('b', null, c.map.name + '  '), c.map.text),
-          h('div', null, h('b', null, 'Starts with  '), c.start.map(k => (st.actions[k] || st.passives[k]).name).join(', '))),
+        ...classDetails(slot.cls),
         h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' } },
           !slot.pid && !r.resume ? h('button.btn.sm', { onclick: () => send({ t: 'claim', slot: i, cls: slot.cls }) }, 'Play this hero') : null,
           !slot.pid && r.resume ? h('button.btn.sm', { onclick: () => send({ t: 'claim', slot: i }) }, 'Play this hero') : null,
@@ -126,8 +119,9 @@ export function renderLobby() {
         h('div.class-pick', null, ...Object.entries(st.classes).map(([k, cl]) => h('button.class-opt', {
           disabled: taken.has(k) || !canPick, 'aria-label': `${cl.name}, ${cl.role}`,
           onclick: () => (mySlot < 0 && !slot.pid) || isMine ? send({ t: 'claim', slot: i, cls: k }) : send({ t: 'setcls', slot: i, cls: k }),
-          tip: `${cl.name}\n${cl.role} · ${cl.row === 'front' ? 'front row' : cl.row === 'back' ? 'back row' : 'either row'}\n${cl.blurb}`,
-        }, h('img.pix', { src: spriteURL(k), alt: '' }), h('b', null, cl.name)))),
+          tip: `${cl.name}\n${cl.role} · ${rowName(cl.row)} · ${cl.hp} HP\n${cl.blurb}`,
+        }, h('img.pix', { src: spriteURL(k), alt: '' }),
+          h('span.co-text', null, h('b', null, cl.name), h('span', null, cl.role), h('span.co-meta', null, `${{ front: 'Front', back: 'Back', either: 'Either' }[cl.row]} · ${cl.hp} HP`))))),
       ];
     }
     return h('div.slot.card' + (isMine ? '.mine' : ''), null, h('div.slot-head', null, h('span.eyebrow', null, `Hero ${i + 1}`), ctl), ...body);
@@ -173,6 +167,72 @@ export function renderLobby() {
           host && !ready ? h('p.muted', { style: { fontSize: '14px', textAlign: 'center' } }, 'Every hero needs a class. Heroes nobody claims are played by the host.') : null)),
     ),
   ));
+}
+
+const rowName = r => (r === 'front' ? 'Front row' : r === 'back' ? 'Back row' : 'Either row');
+
+// Short notes on what a die's kinds do (the tooltip has the full text).
+const KIND_SHORT = {
+  guard: 'Defence only.', link: 'Always matches your other linked die.', steady: 'Rerolls once if its action misses.',
+  seer: 'Shown while you plan.', augur: 'Shows high or low while you plan.', fate: 'Shows two faces; one comes up.',
+  exploding: 'A top roll rolls again and adds.', heirloom: 'Its lowest face rises each level.', top: 'Always rolls its top face.',
+};
+
+// A die in full: its name, its faces (or "1 to N" when plain), and what its kinds do.
+function dieLine(d, label) {
+  const plain = d.faces.every((f, i) => f === i + 1);
+  const kinds = (d.dk || []).map(k => (k.startsWith('link:') ? 'link' : k)).filter(k => KIND_SHORT[k]);
+  return h('div.die-line', { tip: dieTip(d) },
+    h('span.die-chip' + ((d.dk || []).includes('guard') ? '.guard' : ''), null, dieLabel(d)),
+    h('span.die-desc', null,
+      label ? h('b', null, label + ' ') : null,
+      plain ? `Rolls 1 to ${d.faces.length}.` : h('span.faces', null, ...d.faces.map(f => h('span.face' + (f === 'S' ? '.s' : ''), typeof f === 'string' ? { tip: faceTip(f) } : null, faceText(f)))),
+      ...kinds.map(k => h('span.kind-note', null, ' ' + KIND_SHORT[k]))));
+}
+
+// A skill as a small card: what it needs, its cooldown, what it does.
+function skillCard(k, source) {
+  const st = S.static, a = st.actions[k];
+  if (!a) {
+    const p = st.passives[k];
+    return h('div.skill-card', null, h('div.sk-top', null, h('b', null, p.name), h('span.tag', null, 'Passive')), h('p', null, p.text));
+  }
+  return h('div.skill-card', null,
+    h('div.sk-top', null, h('b', null, a.name),
+      h('span.sk-tags', null,
+        source ? h('span.tag', { tip: `From your ${source}` }, source) : null,
+        !a.cd && !a.once && !a.per_rest ? h('span.tag.free', { tip: 'No cooldown: use it every round.' }, 'Every round') : null,
+        a.cd ? h('span.tag', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), `CD ${a.cd}`) : null,
+        a.once ? h('span.tag', null, 'Once a fight') : a.per_rest ? h('span.tag', null, 'Once per rest') : null,
+        a.def ? h('span.tag.def', { tip: 'Defensive: takes Guard dice.' }, icon('shield')) : null,
+        h('span.tag.req', null, reqText(a.req)))),
+    h('p', null, a.text));
+}
+
+// Everything a class starts with, for the lobby.
+function classDetails(k) {
+  const st = S.static, c = st.classes[k];
+  const weapon = st.items[c.weapon], armor = st.items[c.armor];
+  return [
+    h('div.hero-top', null,
+      h('div.portrait', null, h('img.pix', { src: spriteURL(k), alt: '' })),
+      h('div', null, h('h3', null, c.name), h('div.role', null, c.role),
+        h('div.hero-stats', null,
+          h('span.stat-chip', { tip: `Health\n${c.hp} to start, +${c.hp_lvl} each level.` }, icon('heart'), `${c.hp} HP`, h('small', null, ` +${c.hp_lvl}/lvl`)),
+          h('span.stat-chip', null, rowName(c.row))))),
+    h('p.blurb', null, c.blurb),
+    h('div.sec', null, h('div.sec-title', null, 'Dice'),
+      ...c.dice.map(d => dieLine(d, 'Class')),
+      weapon?.die ? dieLine({ faces: weapon.die, dk: weapon.dk || [] }, weapon.name) : null,
+      armor?.die ? dieLine({ faces: armor.die, dk: armor.dk || [] }, armor.name) : null),
+    h('div.sec', null, h('div.sec-title', null, 'Starts with'),
+      h('div.skill-list', null,
+        ...c.start.map(s => skillCard(s)),
+        ...(weapon?.acts || []).map(a => skillCard(a, `${weapon.name}`)))),
+    h('div.sec', { tip: `${c.map.name}\n${c.map.text}` }, h('div.sec-title', null, 'On the map'),
+      h('p.map-ab', null, h('b', null, c.map.name + ': '), c.map.text)),
+    h('p.muted.small', null, 'Every hero can also Block, Shift and Flee. More skills come at each level.'),
+  ];
 }
 
 // ------------------------------------------------------------------ the end of a run

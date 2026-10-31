@@ -486,6 +486,14 @@ dice round, all as recommended):
   Rapier's Jab differ in risk; the Ranger's Shoot (+1) and Sic 'Em (Weak) do different jobs; the
   Herald's Cutting Words reaches any row. Doom now deals 20 minus the die, so low rolls are good.
 - Balance after the change (bots): Normal about 70%, Hard about 27%, unchanged multipliers.
+- **Cooldowns** (`"cd": N` on an action: usable every N rounds; `cds` per hero in the fight, ticking
+  down at each new round, started when the action happens or, for instants, when placed). They go on
+  actions strong enough to be spammed: stuns (Shield Bash, Lunge, Concussion, Garrote, Earthshaker),
+  turn denial and big swings (Cacophony and Doom 3; Fireball, Firebomb, Toxic Cloud, Howl, Surge,
+  Sweep 2), party-wide protection and healing (Sanctuary, Smoke Bomb, Renew, Lifeline, Rally Wall,
+  Briar Wall, Panacea, Taunt, Crescendo, Hymn of Valor 2), summons (Call Bear 3, Swarm 2), and anything
+  that makes resources in a long fight (Pickpocket, Bottle It, Quicksilver 3). Bots skip actions that
+  are cooling down. With cooldowns, bots win about 65% on Normal and 30% on Hard.
 
 ## How the classes ended up
 

@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=10';
-import { h, icon, toast, hideTip } from './ui.js?v=10';
-import { spriteURL } from './art.js?v=10';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=10';
-import { render } from './main.js?v=10';
-import * as sfx from './audio.js?v=10';
+import { S, send, mine } from './store.js?v=12';
+import { h, icon, toast, hideTip } from './ui.js?v=12';
+import { spriteURL } from './art.js?v=12';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=12';
+import { render } from './main.js?v=12';
+import * as sfx from './audio.js?v=12';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -375,21 +375,27 @@ function actionCard(f, x, k, i, selDice, ready) {
   const a = S.static.actions[base];
   const hs = f.hs[x];
   const once = a.once && (hs.once.includes(base) || f.plan.some(p => p.h === x && p.a === base));
+  const cooling = a.cd ? (hs.cds?.[base] || 0) : 0;
+  const planned = a.cd && f.plan.some(p => p.h === x && p.a === base);
   const meleeBlocked = a.melee && hs.row !== 'front';
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
-  const fits = !ready && !once && !meleeBlocked && !noFlee && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
+  const fits = !ready && !once && !cooling && !planned && !meleeBlocked && !noFlee && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
   const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : null;
-  const dis = ready || once || noFlee;
-  const why = meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.' : '';
+  const dis = ready || once || noFlee || cooling > 0 || planned;
+  const why = meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
+    : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.` : planned ? '\nAlready planned this round.' : '';
+  const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
   return h('button.action' + (fits ? '.fits' : ''), {
-    disabled: dis, tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${why}`,
+    disabled: dis, tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${cdText}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
     h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
       chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
         : h('span.req', null, reqText(a.req))),
     h('p', null, a.text),
+    cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling} rounds` : 'next round')
+      : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}` }, icon('clock'), `CD ${a.cd}`) : null,
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
 }
 
@@ -420,7 +426,7 @@ function pickAction(f, x, k, selDice) {
     // nothing picked: use the best free dice (by what they show, or roll on average)
     const free = f.hs[x].dice.filter(d => !d.used).sort((p, q) => expected(q) - expected(p));
     dice = free.slice(0, n);
-    if (!countOk(a.req, dice)) { toast(`${a.name} needs ${n} dice.`); return; }
+    if (!countOk(a.req, dice)) { toast(`${a.name} needs ${n} ${n === 1 ? 'die' : 'dice'}, and you don’t have that many left.`); return; }
   }
   if (n === 0 && dice.length) dice = [];
   if (n > 0 && !countOk(a.req, dice)) { toast(`${a.name} takes ${a.req.upto ? 'up to ' : ''}${n} ${n === 1 ? 'die' : 'dice'}.`, 'err'); sfx.play('error'); return; }

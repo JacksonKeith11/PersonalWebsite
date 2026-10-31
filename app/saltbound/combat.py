@@ -137,7 +137,7 @@ class Combat:
             m = self.mods(h)
             row = C.CLASSES[hero["cls"]]["row"]
             x = {"row": "front" if row == "either" else row, "st": {}, "down": False, "fled": False,
-                 "dice": [], "rr": max(0, 1 + m.get("reroll", 0)), "once": [], "round_once": [], "echo": False,
+                 "dice": [], "rr": max(0, 1 + m.get("reroll", 0)), "once": [], "round_once": [], "cds": {}, "echo": False,
                  "unbreak": False, "ward": m.get("stun_ward", 0), "ready": False}
             f["hs"][str(h)] = x
             if m.get("start_armor"):
@@ -293,6 +293,7 @@ class Combat:
             x["ready"] = False
             x["dice"] = []
             x["round_once"] = []
+            x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
             x["links"] = {}
             x["inspire"] = 0
             x["pain_bonus"] = pain.get(str(h), 0)
@@ -382,6 +383,10 @@ class Combat:
         return self.rng.choice(units)
 
     # ------------------------------------------------------------------ placing dice
+
+    def cooling(self, h, key):
+        """Rounds until an action can be used again (0: ready)."""
+        return self.hs(h)["cds"].get(key, 0)
 
     def count_ok(self, req, dice):
         n = req.get("n", 1)
@@ -529,6 +534,10 @@ class Combat:
         f = self.s["fight"]
         if a.get("once") and (a["key"] in x["once"] or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
             raise Invalid("Once per fight.")
+        if a.get("cd") and (x["cds"].get(a["key"]) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+            left = x["cds"].get(a["key"], 0)
+            raise Invalid(f"{a['name']} is cooling down: ready again {'in ' + str(left) + ' rounds' if left > 1 else 'next round'}."
+                          if left else f"{a['name']} can only be used once a round.")
         if a.get("per_round") and a["key"] in x["round_once"]:
             raise Invalid("Once a round.")
         if a["key"] == "flee" and f["kind"] in ("dungeon", "boss"):
@@ -551,6 +560,8 @@ class Combat:
             raise Invalid("That enemy needs to be Marked.")
         if a.get("once") and a.get("instant"):
             x["once"].append(a["key"])
+        if a.get("cd") and a.get("instant"):
+            x["cds"][a["key"]] = a["cd"]
         if a.get("per_round"):
             x["round_once"].append(a["key"])
         if a.get("instant"):
@@ -822,6 +833,8 @@ class Combat:
             a = self.action_def(h, p["a"] + ("+" if p["plus"] else ""))
             if a.get("once"):
                 x["once"].append(a["key"])
+            if a.get("cd"):
+                x["cds"][a["key"]] = a["cd"]
             hit = self.roll_for(h, a, dice)
             self.fx("act", h=h, a=a["key"], tgt=p["tgt"], hit=hit)
             ops = a["ops"] if hit else a.get("miss", [])

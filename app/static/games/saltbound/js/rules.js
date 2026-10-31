@@ -204,8 +204,12 @@ export const KIND_TEXT = {
 export function dieLabel(d) {
   const faces = Array.isArray(d) ? d : d.faces;
   const kinds = (Array.isArray(d) ? [] : d.dk || []).filter(k => KIND_NAME[k]).map(k => KIND_NAME[k]);
+  // the size, marked with what's unusual about its faces; the tooltip lists them all
   const plain = faces.every((f, i) => f === i + 1);
-  const size = plain ? 'd' + faces.length : faces.map(f => ({ S: '◆', X: '☠', W: '★' }[f] || (typeof f === 'string' ? f.slice(1) + '*' : f))).join('·');
+  const marks = (faces.includes('S') ? '◆' : '') + (faces.includes('X') ? '☠' : '') + (faces.includes('W') ? '★' : '') +
+    (faces.some(f => typeof f === 'string' && 'FIP'.includes(f[0])) ? '✦' : '') +
+    (!plain && faces.every(f => typeof f === 'number') ? '~' : '');
+  const size = marks + 'd' + faces.length;
   return [...kinds, size].join(' ');
 }
 export const faceText = f => ({ S: '◆', X: '☠', W: '★' }[f] || (typeof f === 'string' ? `${f.slice(1)}${{ F: '🔥', I: '❄', P: '☣' }[f[0]]}` : String(f)));

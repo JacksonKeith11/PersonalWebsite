@@ -220,6 +220,8 @@ def best_placement(g, h, free):
             continue
         if a.get("once") and a["key"] in g.hs(h)["once"]:
             continue
+        if a.get("cd") and (g.cooling(h, a["key"]) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+            continue
         n = a["req"].get("n", 1)
         combos = [()] if n == 0 else combinations(free, n) if n <= 3 else []
         for dice in combos:

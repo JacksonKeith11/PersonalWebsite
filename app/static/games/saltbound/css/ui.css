@@ -444,6 +444,10 @@ a:hover { color: var(--accent-hi); }
 .action b { font-weight: var(--fw-semibold); }
 .action p { font-size: var(--fs-14); color: var(--text-2); line-height: 1.35; padding-right: 26px; }
 .action .kbd { position: absolute; right: 8px; bottom: 8px; }
+.action .cd { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--muted); }
+.action .cd .icon-svg { width: 14px; height: 14px; }
+.action .cd.on { color: var(--accent); }
+.action:disabled .cd.on { opacity: 1; }
 .tray-right { display: grid; gap: var(--s-2); align-content: end; min-width: 180px; }
 .tray-right .btn { width: 100%; }
 .watch { display: flex; align-items: center; justify-content: center; gap: var(--s-4); padding: var(--s-5) var(--s-6); background: var(--panel); border-top: var(--bw) solid var(--border); color: var(--text-2); }

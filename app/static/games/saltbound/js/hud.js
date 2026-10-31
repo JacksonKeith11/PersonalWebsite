@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=10';
-import { $, h, icon, toast, modal, hideTip } from './ui.js?v=10';
-import { spriteURL } from './art.js?v=10';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=10';
-import { MapView } from './hexmap.js?v=10';
-import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=10';
-import { disconnect } from './main.js?v=10';
-import * as sfx from './audio.js?v=10';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=12';
+import { $, h, icon, toast, modal, hideTip } from './ui.js?v=12';
+import { spriteURL } from './art.js?v=12';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, KIND_TEXT, reqText, visibleTiles } from './rules.js?v=12';
+import { MapView } from './hexmap.js?v=12';
+import { renderCombat, combatFx, combatOpen, showFight } from './combat.js?v=12';
+import { disconnect } from './main.js?v=12';
+import * as sfx from './audio.js?v=12';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -491,6 +491,7 @@ export function skillCard(k) {
   const isAct = !!S.static.actions[k.replace(/\+$/, '')];
   return h('div.card.skill', null,
     h('div.row', null, h('b', null, sk.name + (up ? '+' : '')), isAct ? h('span.req', null, icon('dice'), reqText(sk.req)) : h('span.chip', null, sk.cap ? 'Capstone' : 'Passive')),
+    sk.cd ? h('span.chip', { style: { justifySelf: 'start' } }, icon('clock'), `Cooldown: every ${sk.cd} rounds`) : null,
     h('p', null, sk.text + (up ? ' Upgraded: +2 to its numbers.' : '')),
     sk.tags?.length ? h('div', { style: { display: 'flex', gap: '4px' } }, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
 }
@@ -564,7 +565,7 @@ function renderDialogs() {
         return h('button.pick', { onclick: () => send({ t: 'choose', h: h0, n: i }) },
           h('span.kind', null, up ? 'Upgrade' : sk.cap ? 'Capstone' : isAct ? 'New action' : 'Passive'),
           h('h3', null, sk.name + (up ? '+' : '')),
-          isAct ? h('span.req', null, icon('dice'), reqText(sk.req)) : null,
+          isAct ? h('span.req', null, icon('dice'), reqText(sk.req), sk.cd ? ` · cooldown ${sk.cd}` : '') : null,
           h('p', null, up ? `${sk.text} Upgraded: +2 to its numbers.` : sk.text),
           sk.tags?.length ? h('div.tags', null, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
       })),

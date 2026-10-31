@@ -193,13 +193,13 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
 - **Screens and flow**:
   1. **Title**: New run, Resume, Join by code.
   2. **Lobby**: room code and link, players, host settings (difficulty), saved runs.
-  3. **Class claim**: a card per class with role, row, base dice, map ability and sample skills.
+  3. **Class claim**: a card per class with role, HP, base dice, map ability and sample skills.
      Players claim any free class and can swap until the host clicks Start; the host picks for
      unclaimed heroes. On resume, the saved heroes are shown instead.
   4. **Map**: the hex map in the middle; three hero cards down the left (HP, dice, moves left,
      Ready state); top bar with turn, tide and next flood; other heroes' planned paths as ghost
      trails, like Board Brawl's route previews.
-  5. **Combat overlay**: full screen; rows; intents above enemies; each hero's dice tray and action
+  5. **Combat overlay**: full screen; the party in one column, enemies in their rows; intents above enemies; each hero's dice tray and action
      cards along the bottom; allies' placements visible live.
   6. **Rewards and level-up**: gold, loot pick, then the 1-of-3 skill offer.
   7. **Town and shop panel**, **event dialog**.
@@ -248,18 +248,18 @@ are always owned; the pool is what level-ups offer. Each skill's tag is in brack
 skills have none). The lists below are the original design; `classes.py` is the truth now (heroes
 have no rows, and several skills were reworked: see "Overhaul: no rows, enemy dice, forecast").
 
-| Class | HP | Base dice | Map ability (hook) | Role | Tags |
+| Class | HP (per level) | Base dice | Map ability (hook) | Role | Tags |
 |---|---|---|---|---|---|
-| Vanguard | 40 | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
-| Duelist | 24 | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
-| Berserker | 30 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
-| Ranger | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
-| Arcanist | 18 | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
-| Mender | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
-| Scoundrel | 26 | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
-| Herald | 20 | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
-| Alchemist | 20 | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
-| Warden | 24 | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
+| Vanguard | 40 (+6) | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
+| Duelist | 24 (+3) | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
+| Berserker | 28 (+4) | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
+| Ranger | 26 (+4) | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
+| Arcanist | 21 (+3) | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
+| Mender | 20 (+3) | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
+| Scoundrel | 24 (+3) | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
+| Herald | 20 (+3) | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
+| Alchemist | 25 (+3) | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
+| Warden | 24 (+3) | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
 
 The Pathfinder was designed and dropped; its "+2 move, reveal fog along path" became the
 Scoundrel's *Wayfinder* passive.
@@ -418,7 +418,8 @@ Scoundrel's *Wayfinder* passive.
 ## Enemies
 
 About 18 regular enemies plus three dungeon bosses and the final boss for v1. Every enemy shows
-its intent each round; give each 2-3 intents so fights read clearly. First pass:
+its intent each round; give each 2-3 moves so fights read clearly. The table is the original first pass (the
+themes still hold; the moves, dice and targeting are now in `FOES`, described below):
 
 | Region | Front | Back | Dungeon boss |
 |---|---|---|---|
@@ -553,7 +554,7 @@ dice round, all as recommended):
   asked that only basic attacks be usable every round, so a hero can't win by repeating one strong
   skill: `FREE` in `classes.py` lists what's exempt (each class's basic action: Strike, Bolt, Mend,
   Slash, Hack, Shoot, Stab, Jab, Toss, Thornlash; the Vanguard's Brace, because a tank needs a defence
-  it can count on; Block, Shift and Flee). The Mender's free action is its weapon's Flare: Mend has
+  it can count on; Block and Flee). The Mender's free action is its weapon's Flare: Mend has
   a cooldown of 2 and Lift is once per rest (`per_rest`: the hero's `spent` list, cleared by resting
   or the inn). Weapon actions are free too, except Sweep and Tidal
   (2). Everything else gets 2, and Finisher, Called Shot, Reckless Swing, Doom, Cacophony, Call Bear,
@@ -563,7 +564,7 @@ dice round, all as recommended):
   modest sum does about half the die. The cooldown starts either way.
 - **Guard dice** (owner's choice): every armor's die and two charms' (Lucky Shell, Pearl Charm) carry
   the `guard` kind and only go on defensive actions: those whose ops (hit and miss) are all Armor,
-  Guard, heals, Lift, Taunt, Shift, Flee, Sanctuary, Cleanse, Weaken, Retarget, or Dodge, Riposte,
+  Guard, heals, Lift, Taunt, Flee, Sanctuary, Cleanse, Weaken, Retarget, or Dodge, Riposte,
   Thorns and Lifeline statuses (`is_defensive`, sent to the client as each action's `def`). Every hero
   has Block (Armor equal to the die), so a guard die is never wasted.
 - **Item passives** (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`): gear past

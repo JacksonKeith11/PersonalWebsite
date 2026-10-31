@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=15';
-import { h, icon, toast, hideTip } from './ui.js?v=15';
-import { spriteURL } from './art.js?v=15';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=15';
-import { render } from './main.js?v=15';
-import * as sfx from './audio.js?v=15';
+import { S, send, mine } from './store.js?v=16';
+import { h, icon, toast, hideTip } from './ui.js?v=16';
+import { spriteURL } from './art.js?v=16';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=16';
+import { render } from './main.js?v=16';
+import * as sfx from './audio.js?v=16';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -395,16 +395,17 @@ function actionCard(f, x, k, i, selDice, ready) {
   const a = S.static.actions[base];
   const hs = f.hs[x];
   const once = a.once && (hs.once.includes(base) || f.plan.some(p => p.h === x && p.a === base));
+  const spent = a.per_rest && ((S.game.heroes[x].spent || []).includes(base) || f.plan.some(p => p.h === x && p.a === base));
   const cooling = a.cd ? (hs.cds?.[base] || 0) : 0;
   const planned = a.cd && f.plan.some(p => p.h === x && p.a === base);
   const meleeBlocked = a.melee && hs.row !== 'front';
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
   const guardOff = !a.def && selDice.some(d => d.dk?.includes('guard'));
-  const fits = !ready && !once && !cooling && !planned && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
+  const fits = !ready && !once && !spent && !cooling && !planned && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
   const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : null;
-  const dis = ready || once || noFlee || cooling > 0 || planned;
-  const why = guardOff ? '\nGuard dice only go on defensive actions.' : meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
+  const dis = ready || once || spent || noFlee || cooling > 0 || planned;
+  const why = spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
     : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.` : planned ? '\nAlready planned this round.' : '';
   const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
   return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : ''), {

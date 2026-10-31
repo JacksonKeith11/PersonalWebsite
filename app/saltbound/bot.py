@@ -680,6 +680,8 @@ def candidates(g, h, b, free):
         a = g.action_def(h, key)
         if a["key"] == "flee" or (a.get("once") and a["key"] in x["once"]):
             continue
+        if a.get("per_rest") and (a["key"] in g.hero(h).get("spent", []) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+            continue
         if a.get("cd") and (g.cooling(h, a["key"]) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
             continue
         if a.get("melee") and x["row"] != "front":

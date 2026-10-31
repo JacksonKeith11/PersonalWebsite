@@ -314,7 +314,7 @@ Scoundrel's *Wayfinder* passive.
 
 ### Mender
 
-- **Starts with**: Mend (any: heal an ally the die +1; cooldown 2); Lift (any, once per fight: pick
+- **Starts with**: Mend (any: heal an ally the die +1; cooldown 2); Lift (any, once per rest: pick
   up a knocked-down ally at twice the die +2 HP).
 - **Actions**: Renew (a pair: heal the whole party the sum) [Restoration]; Lifeline (exactly 6: an
   ally heals fully at the end of the round) [Restoration]; Ward (any: an ally gains Armor = die ×2)
@@ -492,7 +492,8 @@ dice round, all as recommended):
   skill: `FREE` in `classes.py` lists what's exempt (each class's basic action: Strike, Bolt, Mend,
   Slash, Hack, Shoot, Stab, Jab, Toss, Thornlash; the Vanguard's Brace, because a tank needs a defence
   it can count on; Block, Shift and Flee). The Mender's free action is its weapon's Flare: Mend has
-  a cooldown of 2 and Lift is once per fight. Weapon actions are free too, except Sweep and Tidal
+  a cooldown of 2 and Lift is once per rest (`per_rest`: the hero's `spent` list, cleared by resting
+  or the inn). Weapon actions are free too, except Sweep and Tidal
   (2). Everything else gets 2, and Finisher, Called Shot, Reckless Swing, Doom, Cacophony, Call Bear,
   Pickpocket, Bottle It and Quicksilver get 3. Once-per-fight actions have no cooldown.
 - **Misses scale with the risk** (owner's choice): an action needing 6+, a pair or a big sum (9+ on
@@ -509,9 +510,10 @@ dice round, all as recommended):
   the die +2 plus half its Armor, so Brace then Strike is its rhythm; Stab deals the die +1 (+4 if the
   enemy isn't coming for you); Mend heals the die +1. Normal enemies have 1.9× HP; Hard 2.2× HP and
   2.1× damage. Then the Mender, whose parties won about 90% on Normal and 86% on Hard, was nerfed
-  where its strength was recovery: Lift once per fight, Mend on a cooldown of 2 (Flare is its free
-  action), Field Medic an extra 10% on a rest instead of half. Bots now win about 72% on Normal and
-  41% on Hard (Mender parties 80% and 61%) and all of Story.
+  where its strength was recovery: Lift once per rest, Mend on a cooldown of 2 (Flare is its free
+  action), Field Medic an extra 10% on a rest instead of half. The owner wants Hard genuinely hard
+  for the bots and no class far ahead, so Hard went to 2.35× HP and 2.3× damage: bots win about 73%
+  on Normal (classes 64–83%), 18% on Hard (classes 10–24%) and all of Story.
 
 ## How the classes ended up
 
@@ -533,9 +535,9 @@ What changed while building all ten:
   Bottle It makes a Tonic (a Rum Ration on 5+). Pinpoint needs a die equal to the target's intent
   number; Called Shot needs a Marked target.
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
-- **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.2×/2.1×
+- **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.35×/2.3×
   with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
-  incoming damage) win about 72% on Normal, 41% on Hard and every Story run; see the cooldowns entry
+  incoming damage) win about 73% on Normal, 18% on Hard and every Story run; see the cooldowns entry
   above for how that was reached.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others

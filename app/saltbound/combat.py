@@ -541,6 +541,8 @@ class Combat:
         f = self.s["fight"]
         if a.get("once") and (a["key"] in x["once"] or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
             raise Invalid("Once per fight.")
+        if a.get("per_rest") and (a["key"] in self.hero(h).get("spent", []) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
+            raise Invalid(f"{a['name']} is spent until you rest.")
         if a.get("cd") and (x["cds"].get(a["key"]) or any(p["h"] == h and p["a"] == a["key"] for p in f["plan"])):
             left = x["cds"].get(a["key"], 0)
             raise Invalid(f"{a['name']} is cooling down: ready again {'in ' + str(left) + ' rounds' if left > 1 else 'next round'}."
@@ -844,6 +846,8 @@ class Combat:
                 x["once"].append(a["key"])
             if a.get("cd"):
                 x["cds"][a["key"]] = a["cd"]
+            if a.get("per_rest"):
+                self.hero(h).setdefault("spent", []).append(a["key"])
             hit = self.roll_for(h, a, dice)
             self.fx("act", h=h, a=a["key"], tgt=p["tgt"], hit=hit)
             ops = a["ops"] if hit else a.get("miss", [])

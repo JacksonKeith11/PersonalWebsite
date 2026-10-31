@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=15';
+import { SPRITES } from './sprites.js?v=16';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);

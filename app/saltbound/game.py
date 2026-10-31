@@ -25,7 +25,7 @@ VERSION = 1
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
-    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.2, "foe_dmg": 2.1},
+    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.3},
 }
 MOVES = 4
 VISION = 2
@@ -632,6 +632,7 @@ class Game(Combat):
 
     def rest(self, h):
         hero = self.hero(h)
+        hero["spent"] = []  # once-per-rest actions (Lift) come back
         p = self.place(hero["tile"])
         medic = any(C.CLASSES[self.hero(x)["cls"]]["map"]["key"] == "field_medic" and self.hero(x)["tile"] == hero["tile"]
                     for x in self.living())
@@ -942,6 +943,7 @@ class Game(Combat):
         if hero["gold"] < cost:
             raise Invalid("You can't afford a room.")
         hero["gold"] -= cost
+        hero["spent"] = []
         n = self.heal(h, self.maxhp(h))
         self.fx("heal", to=f"h{h}", n=n)
         self.say(f"{hero['name']} takes a room at the inn (+{n} HP).")

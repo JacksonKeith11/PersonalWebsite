@@ -128,8 +128,8 @@ ACTIONS = {
 
     # ---- Mender
     "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+1"}], "text": "Heal an ally the die +1."},
-    "lift": {"name": "Lift", "once": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2+2"}],
-             "text": "Once per fight: pick up a knocked-down ally with twice the die +2 HP."},
+    "lift": {"name": "Lift", "per_rest": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2+2"}],
+             "text": "Once until you rest: pick up a knocked-down ally with twice the die +2 HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
               "tags": ["restoration"], "text": "Two dice: heal the whole party half the sum, or the full sum on a pair."},
     "lifeline": {"cd": 2, "name": "Lifeline", "req": {"n": 1, "min": 5}, "tgt": "ally", "tags": ["restoration"],
@@ -533,12 +533,12 @@ def is_defensive(a):
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
 FREE = {"strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "toss", "thornlash",
-        "block", "shift", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once a fight
+        "block", "shift", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3}
 
 for _k, _a in ACTIONS.items():
     _a["def"] = is_defensive(_a)
-    if _k not in FREE and not _a.get("once"):
+    if _k not in FREE and not _a.get("once") and not _a.get("per_rest"):
         _a["cd"] = max(_a.get("cd", 2), BIG.get(_k, 2))
 
 # Party XP needed for each level (index = level - 1).

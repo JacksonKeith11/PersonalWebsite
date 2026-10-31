@@ -45,7 +45,7 @@ def play(seed, classes, diff, roundtrip=False, limit=20000, stats=None):
             # dead heroes with spirit dice, or nothing to do: should never happen
             return g, steps, "stuck", run
         moved = False
-        for h in waiting:
+        for h in bot.order(g, waiting):
             msg = bot.decide(g, h)
             if msg is None:
                 continue

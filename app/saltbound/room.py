@@ -347,7 +347,7 @@ class Room:
         if not hs and self.spirit_bots():
             hs = [int(h) for h, sp in g.s["fight"]["spirit"].items() if self.ctl[int(h)] == BOT and not sp["used"]]
         acted = False
-        for h in hs:
+        for h in bot.order(g, hs):
             msg = bot.decide(g, h)
             if msg is None:
                 continue

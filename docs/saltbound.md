@@ -520,8 +520,10 @@ dice round, all as recommended):
   Evasive; and planning now knows linked dice share one roll (`joint_outcomes`, and `hitChance` in
   `rules.js`), so its pairs show and play as the sure things they are. The Vanguard, then last on
   Hard (10%), starts with Overguard, and Brace gives the lowest-HP ally 2 Armor (the `lowest` op
-  target), so its defence protects the party; it has 40 HP. Bots now win about 77% on Normal
-  (classes 66–87%), 25% on Hard (classes 21–31%) and all of Story.
+  target), so its defence protects the party; it has 40 HP. Then the bots learned to use buffs and
+  set-ups, and to place them first, which lifted every class (the Herald most: 68% to 90% on
+  Normal). Bots now win about 82% on Normal (classes 69–93%), 30% on Hard (classes 24–43%) and
+  all of Story.
 
 ## How the classes ended up
 
@@ -545,7 +547,7 @@ What changed while building all ten:
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
 - **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.35×/2.3×
   with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
-  incoming damage) win about 77% on Normal, 25% on Hard and every Story run; see the cooldowns entry
+  incoming damage) win about 82% on Normal, 30% on Hard and every Story run; see the cooldowns entry
   above for how that was reached.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others
@@ -567,7 +569,7 @@ no clock anywhere: the run changes only when someone acts.
 | `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
 | `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. |
 | `app/saltbound/save.py` | SQLite saves (`data/saltbound.db`), versions and migrations. |
-| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). In fights they plan the whole hand with a short beam search (`plan_hand`), scoring each placement over every way its dice could roll (`evaluate`) against a `Board` of the enemies' intents and what the party already planned: damage weighted by the target's threat, kills before an enemy acts, stuns and weakens on the biggest hits, Armor and heals where damage will land. They drink potions before someone drops, and pick level-ups by a simple ranking with seeded noise so every pick gets tried. |
+| `app/saltbound/bot.py` | The testing bots (map, dialogs, fights). In fights they plan the whole hand with a short beam search (`plan_hand`), scoring each placement over every way its dice could roll (`evaluate`) against a `Board` of the enemies' intents and what the party already planned: damage weighted by the target's threat, kills before an enemy acts, stuns and weakens on the biggest hits, Armor and heals where damage will land. They drink potions before someone drops, and pick level-ups by a simple ranking with seeded noise so every pick gets tried. Buffs count: `instant_value` scores Inspire, Hymn of Valor, Lend a Hand and the other instants by what they add to the party's rolls; the `Board` carries planned Vulnerable, Mark and Crescendo into later placements' damage; and `bot.order` lets heroes holding a set-up plan first (actions happen in the order they're placed), in the simulator and in rooms. |
 | `app/saltbound/routes.py` | `GET /games/saltbound` and the WebSocket at `/games/saltbound/ws`. |
 | `app/static/games/saltbound/css/tokens.css` | Every colour, size, radius, space and timing. |
 | `css/ui.css` | The components, from tokens only. |

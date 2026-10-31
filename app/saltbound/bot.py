@@ -10,7 +10,7 @@ from itertools import combinations
 
 from . import classes as C
 from . import world as Wd
-from .combat import Invalid, _amt, check_hit
+from .combat import Invalid, _amt, check_hit, top_face
 from .content import archipelago as A
 from .content import items as I
 
@@ -37,6 +37,31 @@ def decide(g, h):
     if s["phase"] == "plan":
         return plan_move(g, h)
     return None
+
+
+SETUP_OPS = {"inspire", "hymn", "give", "reroll_ally", "strip"}
+SETUP_STATUS = {"crescendo", "vuln", "mark", "weak"}
+
+
+def order(g, heroes):
+    """Who plans first in a fight: heroes holding a usable set-up (a buff, Mark, Vulnerable,
+    Crescendo...), so it resolves before the attacks it's meant to help. Actions happen in the
+    order they're placed."""
+    if g.s["phase"] != "fight" or not g.s["fight"]:
+        return list(heroes)
+
+    def setup(y):
+        if not g.in_fight(y) or not g.active(y):
+            return 1
+        x = g.hs(y)
+        for k in g.actions_of(y):
+            a = g.action_def(y, k)
+            if (a.get("cd") and g.cooling(y, a["key"])) or (a.get("once") and a["key"] in x["once"]):
+                continue
+            if any(o["op"] in SETUP_OPS or (o["op"] == "status" and o["s"] in SETUP_STATUS) for o in a["ops"]):
+                return 0
+        return 1
+    return sorted(heroes, key=setup)
 
 
 # ---------------------------------------------------------------------- dialogs
@@ -293,6 +318,9 @@ class Board:
 
     def __init__(self, g, empty=False):
         self.dmg, self.stop, self.cut, self.armor, self.heal, self.summons = {}, {}, {}, {}, {}, {}
+        # set-ups already planned: chance a foe will be Vulnerable or Marked before later hits land,
+        # and chance a hero's next damaging action gets Crescendo
+        self.vuln, self.mark, self.cresc = {}, {}, {}
         if empty:
             return
         f = g.s["fight"]
@@ -309,7 +337,7 @@ class Board:
 
     def copy(self):
         b = Board(None, empty=True)
-        for k in ("dmg", "stop", "cut", "armor", "heal", "summons"):
+        for k in ("dmg", "stop", "cut", "armor", "heal", "summons", "vuln", "mark", "cresc"):
             setattr(b, k, dict(getattr(self, k)))
         b.sanct, b.taunt = self.sanct, self.taunt
         return b
@@ -333,6 +361,12 @@ class Board:
             tgt = getattr(self, name)
             for k, v in eff[name].items():
                 tgt[k] = tgt.get(k, 0) + v
+        for name in ("vuln", "mark", "cresc"):
+            tgt = getattr(self, name)
+            for k, v in eff[name].items():
+                tgt[k] = 1 - (1 - tgt.get(k, 0)) * (1 - min(1, v))
+        for k, v in eff["cused"].items():
+            self.cresc[k] = self.cresc.get(k, 0) * (1 - min(1, v))
         self.sanct += eff["sanct"]
         if eff["taunt"] is not None:
             self.taunt = eff["taunt"]
@@ -409,7 +443,8 @@ def _dice_combos(g, h, dice):
 
 
 def new_eff():
-    return {"dmg": {}, "stop": {}, "cut": {}, "armor": {}, "heal": {}, "summons": {}, "sanct": 0.0, "taunt": None}
+    return {"dmg": {}, "stop": {}, "cut": {}, "armor": {}, "heal": {}, "summons": {}, "sanct": 0.0, "taunt": None,
+            "vuln": {}, "mark": {}, "cresc": {}, "cused": {}}
 
 
 def bump(d, k, v):
@@ -428,6 +463,7 @@ def evaluate(g, b, h, a, dice, tgt):
         hit = check_hit(a["req"], vals, tags)
         val = 0.0
         dealt = {}
+        hit_any = False
         for op in (a["ops"] if hit else a.get("miss", [])):
             k = op["op"]
             tg = op_targets(g, h, op, base)
@@ -442,9 +478,15 @@ def evaluate(g, b, h, a, dice, tgt):
                         if v is not None:
                             env["d"] = v
                         n += _amt(op["amt"], env) + plus + g.dmg_bonus(h, a, t)
-                    if g.hs(h)["st"].get("crescendo"):
-                        n = n * 3 // 2
-                    n = g.foe_damage_after(t, n, h)
+                    cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
+                    n = n * (1 + 0.5 * cres)
+                    n = g.foe_damage_after(t, int(n), h)
+                    # Vulnerable and Mark that earlier placements will have put on it
+                    if not t["st"].get("vuln"):
+                        n *= 1 + 0.25 * b.vuln.get(t["id"], 0)
+                    if not t["st"].get("mark"):
+                        n += 3 * b.mark.get(t["id"], 0)
+                    hit_any = True
                     if not op.get("pierce"):
                         n = max(0, n - t["st"].get("armor", 0))
                     if op.get("splash"):
@@ -471,7 +513,7 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, dict):
                         val += share * foe_status(g, b, op["s"], n, t, now, tb, top, eff, pr * share)
                     else:
-                        val += share * hero_status(g, h, op["s"], n, t[1], inc, big, hits)
+                        val += share * hero_status(g, b, h, op["s"], n, t[1], inc, big, hits, eff, pr * share)
             elif k == "armor":
                 n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus
                 for t, share in tg:
@@ -559,6 +601,8 @@ def evaluate(g, b, h, a, dice, tgt):
                     val += min(inc[h], 2 * hits[h]) * 0.8
                 if op is a["ops"][-1] and any(o["op"] == "status" and o["s"] == "dodge" for o in a["ops"]):
                     pass
+        if hit_any:
+            bump(eff["cused"], h, pr)  # this hit spends the hero's Crescendo
         total += pr * val
     return total, eff
 
@@ -578,10 +622,13 @@ def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
         return now[t["id"]] * 0.5
     if s == "weak":
         return 0.25 * now[t["id"]] + 0.25 * tb[t["id"]] * n
-    if s == "vuln":
-        return 2.0 * n
-    if s == "mark":
-        return min(3.0 * n, left)
+    if s in ("vuln", "mark"):
+        # worth more the more of the party's damage is still to come; later placements see it too
+        if t["st"].get(s):
+            return 0
+        fresh = 1 - getattr(b, s).get(t["id"], 0)
+        bump(eff[s], t["id"], pr)
+        return fresh * (2.0 * n if s == "vuln" else min(3.0 * n, left))
     if s == "burn":
         return min(n * (n + 1) / 2, left) * w * 0.9
     if s == "poison":
@@ -593,7 +640,7 @@ def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
     return 0.5
 
 
-def hero_status(g, h, s, n, y, inc, big, hits):
+def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
     if not g.active(y):
         return 0
     if s == "dodge":
@@ -601,7 +648,12 @@ def hero_status(g, h, s, n, y, inc, big, hits):
     if s in ("riposte", "thorns"):
         return n * hits.get(y, 0) * 0.8
     if s == "crescendo":
-        return 5
+        # half again on this hero's next damaging action (about 6), if it hasn't already got one
+        if g.hs(y)["st"].get("crescendo"):
+            return 0
+        fresh = 1 - b.cresc.get(y, 0)
+        bump(eff["cresc"], y, pr)
+        return 3.0 * fresh
     if s == "lifeline":
         hero = g.hero(y)
         return g.maxhp(y) * 0.6 if hero["hp"] <= inc.get(y, 0) + 2 else 2
@@ -743,14 +795,70 @@ def plan_hand(g, h, b, free, depth):
     return best
 
 
+RISKY_REQ = ("min", "max", "exact", "odd", "even", "sum_min", "pair", "or_face")
+
+
+def die_mean(g, h, d):
+    return sum(v * p for v, _, p in g.outcomes(h, d))
+
+
+def unrolled(g, y):
+    """Dice of a hero that will still roll this round (placed or not)."""
+    return [d for d in g.hs(y)["dice"] if not d.get("rolled")]
+
+
+def has_risky(g, y):
+    return any(any(k in g.action_def(y, k2).get("req", {}) for k in RISKY_REQ) for k2 in g.actions_of(y))
+
+
 def instant_value(g, h, a, dice):
-    """Instant dice tricks: only the simple, clearly-good ones."""
+    """Instant tricks, valued by what they add to the party's rolls this round."""
     key = a["key"]
-    if key == "inspire" or key == "lend_a_hand":
-        others = [y for y in g.actives() if y != h and any(not d["used"] for d in g.hs(y)["dice"])]
-        if others and dice and (key == "inspire" or dice[0].get("v") is not None):
-            return [(f"h{others[0]}", 3)]
-        return []
+    m = g.mods(h)
+    extra = (1 if m.get("second_verse") else 0) + (2 if a["plus"] else 0)
+    others = [y for y in g.actives() if y != h]
+    if key == "inspire":
+        # half the die (at least 2) on an ally's next roll: best on the ally with the most still to roll
+        cand = [y for y in others if unrolled(g, y)]
+        if not cand or not dice:
+            return []
+        y = max(cand, key=lambda z: (len(unrolled(g, z)), has_risky(g, z)))
+        bonus = max(2, die_mean(g, h, dice[0]) // 2) + extra
+        return [(f"h{y}", bonus * (1.3 if has_risky(g, y) else 1.1) * (0.8 if g.hs(y).get("inspire") else 1))]
+    if key == "hymn_of_valor":
+        # +1 (+2 on a match) to every die the party still rolls this round
+        if len(dice) < 2:
+            return []
+        count = sum(len(unrolled(g, y)) for y in g.actives()) - len(dice)
+        a0, b0 = dice[0], dice[1]
+        if a0.get("v") is not None and b0.get("v") is not None:
+            match = 1.0 if a0["v"] == b0["v"] else 0.0
+        else:
+            match = 1 / max(len(a0["faces"]), len(b0["faces"]))
+        return [(None, (1 + match + extra) * count * 0.9)]
+    if key == "lend_a_hand":
+        cand = [y for y in others if not g.hs(y)["ready"]]
+        if not cand or not dice:
+            return []
+        seer = dice[0].get("v") is not None
+        y = max(cand, key=lambda z: (has_risky(g, z) and seer, -len(unrolled(g, z))))
+        return [(f"h{y}", die_mean(g, h, dice[0]) + extra + (2 if seer and has_risky(g, y) else 0) - 0.5)]
+    if key == "perfect_form":
+        d = dice[0] if dice else None
+        if not d or d.get("top"):
+            return []
+        return [(None, (top_face(d["faces"]) - die_mean(g, h, d)) * 1.2)]
+    if key == "bloodprice":
+        low = g.hero(h)["hp"] < g.maxhp(h) * 0.4
+        return [(None, 3 * 1.1 - 3 * (1.5 if low else 0.5))]
+    if key == "loaded_dice":
+        pairs = any("pair" in g.action_def(h, k).get("req", {}) or "pair" in str(g.action_def(h, k).get("ops"))
+                    for k in g.actions_of(h) if not g.cooling(h, k.rstrip("+")))
+        return [(None, 3 if pairs else 0.3)]
+    if key == "quicksilver":
+        cand = others or [h]
+        y = max(cand, key=lambda z: has_risky(g, z))
+        return [(f"h{y}", 2.5 if has_risky(g, y) else 1)]
     if key == "bottle_it":
         return [(None, 2.5)] if len(g.hero(h)["bag"]) < g.bag_size(h) else []
     return []

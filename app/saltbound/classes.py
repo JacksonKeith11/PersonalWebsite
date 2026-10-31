@@ -75,13 +75,15 @@ D = lambda n: list(range(1, n + 1))
 # quarter more on average than a safe action with the same die.
 ACTIONS = {
     # ---- for everyone
+    "block": {"name": "Block", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}],
+              "text": "Gain Armor equal to the die. Takes Guard dice."},
     "shift": {"name": "Shift", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "shift"}], "text": "Change rows."},
     "flee": {"name": "Flee", "req": {"n": 1, "min": 4}, "tgt": "self", "ops": [{"op": "flee"}],
              "text": "4+: run back the way you came. Otherwise you stay. Not in dungeons or against bosses."},
 
     # ---- Vanguard
-    "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+1"}],
-               "text": "Deal the die +1."},
+    "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+2+armor//2"}],
+               "text": "Deal the die +2, plus half your Armor (Brace first)."},
     "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v", "to": "self"}],
               "text": "The next hit on an ally hits you instead. Gain Armor equal to the die."},
     "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v//2"}],
@@ -91,13 +93,13 @@ ACTIONS = {
     "rally_wall": {"cd": 2, "name": "Rally Wall", "req": {"n": 2}, "tgt": "self", "ops": [{"op": "armor", "amt": "sum//2+4*pair", "to": "myrow"}],
                    "tags": ["bulwark"], "text": "Two dice: everyone in your row gains half the sum as Armor, +4 on a pair."},
     "shield_bash": {"cd": 2, "name": "Shield Bash", "req": {"n": 1, "min": 5, "or_face": "S"}, "tgt": "foe", "melee": True,
-                    "ops": [{"op": "dmg", "amt": "4"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v"}],
-                    "tags": ["juggernaut"], "text": "A shield face or 5+: deal 4 and Stun. Otherwise deal the die."},
+                    "ops": [{"op": "dmg", "amt": "4"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                    "tags": ["juggernaut"], "text": "A shield face or 5+: deal 4 and Stun. Otherwise half the die."},
     "retaliate": {"name": "Retaliate", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "armor+v//2"}],
                   "tags": ["juggernaut"], "text": "Deal your Armor plus half the die."},
     "shoulder_charge": {"name": "Shoulder Charge", "req": {"n": 1, "min": 5}, "tgt": "foe",
-                        "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "drag"}], "miss": [{"op": "dmg", "amt": "v"}],
-                        "tags": ["juggernaut"], "text": "Any row. 5+: the die +3, and drag it to the front. Otherwise the die."},
+                        "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "drag"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                        "tags": ["juggernaut"], "text": "Any row. 5+: the die +3, and drag it to the front. Otherwise half the die."},
 
     # ---- Arcanist
     "bolt": {"name": "Bolt", "req": {"n": 1}, "tgt": "foe", "spell": True, "ops": [{"op": "dmg", "amt": "v"}],
@@ -106,33 +108,33 @@ ACTIONS = {
                 "text": "Two dice in one blast: the sum +2. Turns small dice into one big hit."},
     "fireball": {"cd": 2, "name": "Fireball", "req": {"n": 2, "sum_min": 10}, "tgt": "foes", "spell": True, "tags": ["elementalist"],
                  "ops": [{"op": "dmg", "amt": "sum//2+2"}, {"op": "status", "s": "burn", "n": 2}],
-                 "miss": [{"op": "dmg", "amt": "sum//3"}],
-                 "text": "Two dice summing to 10+: half the sum +2 to every enemy, and Burn 2. Otherwise a third of the sum to every enemy."},
+                 "miss": [],
+                 "text": "Two dice summing to 10+: half the sum +2 to every enemy, and Burn 2. Otherwise nothing."},
     "frost_lance": {"name": "Frost Lance", "req": {"n": 1, "min": 5}, "tgt": "foe", "spell": True, "tags": ["elementalist"],
-                    "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "status", "s": "freeze", "n": 1}], "miss": [{"op": "dmg", "amt": "v-1"}],
-                    "text": "5+: the die +3, and Freeze. Otherwise the die −1."},
+                    "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "status", "s": "freeze", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                    "text": "5+: the die +3, and Freeze. Otherwise half the die."},
     "chain_lightning": {"name": "Chain Lightning", "req": {"n": 1, "odd": True}, "tgt": "foe", "spell": True, "tags": ["elementalist"],
-                        "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "shock", "n": 1}], "miss": [{"op": "dmg", "amt": "v-1"}],
-                        "text": "Odd: the die +2, and Shock. Even: the die −1."},
+                        "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "shock", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                        "text": "Odd: the die +2, and Shock. Even: half the die."},
     "hex": {"name": "Hex", "req": {"n": 1}, "tgt": "foe", "spell": True,
             "ops": [{"op": "status", "s": "weak", "n": 1}, {"op": "status", "s": "vuln", "n": 1}],
             "tags": ["hexer"], "text": "Weak and Vulnerable."},
     "siphon": {"name": "Siphon", "req": {"n": 1, "min": 4}, "tgt": "foe", "spell": True, "tags": ["hexer"],
-               "ops": [{"op": "dmg", "amt": "v+1", "leech": 0.5}], "miss": [{"op": "dmg", "amt": "v-1", "leech": 0.5}],
-               "text": "4+: the die +1, healing you half. Otherwise the die −1, still healing half."},
+               "ops": [{"op": "dmg", "amt": "v+1", "leech": 0.5}], "miss": [{"op": "dmg", "amt": "v//2", "leech": 0.5}],
+               "text": "4+: the die +1, healing you half. Otherwise half the die, still healing half."},
     "doom": {"cd": 3, "name": "Doom", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["hexer"],
              "ops": [{"op": "status", "s": "doom", "n": "max(5,20-v)"}],
              "text": "The target takes 20 minus the die (at least 5) at the end of next round. Low rolls are worse news."},
 
     # ---- Mender
-    "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+2"}], "text": "Heal an ally the die +2."},
+    "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+1"}], "text": "Heal an ally the die +1."},
     "lift": {"name": "Lift", "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2+2"}],
              "text": "Pick up a knocked-down ally with twice the die +2 HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
               "tags": ["restoration"], "text": "Two dice: heal the whole party half the sum, or the full sum on a pair."},
     "lifeline": {"cd": 2, "name": "Lifeline", "req": {"n": 1, "min": 5}, "tgt": "ally", "tags": ["restoration"],
-                 "ops": [{"op": "status", "s": "lifeline", "n": 1}], "miss": [{"op": "heal", "amt": "v+3"}],
-                 "text": "5+: the ally heals fully at the end of the round. Otherwise heal them the die +3 now."},
+                 "ops": [{"op": "status", "s": "lifeline", "n": 1}], "miss": [{"op": "heal", "amt": "v//2"}],
+                 "text": "5+: the ally heals fully at the end of the round. Otherwise heal them half the die now."},
     "ward": {"name": "Ward", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "armor", "amt": "v*2"}],
              "tags": ["warding"], "text": "An ally gains twice the die as Armor."},
     "sanctuary": {"cd": 2, "name": "Sanctuary", "req": {"n": 1, "min": 5}, "tgt": "party", "tags": ["warding"],
@@ -141,13 +143,13 @@ ACTIONS = {
     "cleanse": {"name": "Cleanse", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "cleanse"}, {"op": "heal", "amt": "v"}],
                 "text": "Remove an ally's Burn, Poison, Weak, Vulnerable, Mark and Root, and heal the die."},
     "smite": {"name": "Smite", "req": {"n": 1, "min": 4}, "tgt": "foe", "ops": [{"op": "dmg", "amt": "v+3+3*undead"}],
-              "miss": [{"op": "dmg", "amt": "v-1"}], "text": "Any row. 4+: the die +3 (+3 more against the undead). Otherwise the die −1."},
+              "miss": [{"op": "dmg", "amt": "v//2"}], "text": "Any row. 4+: the die +3 (+3 more against the undead). Otherwise half the die."},
     "quick_lift": {"name": "Quick Lift", "req": {"n": 0}, "tgt": "downed", "once": True,
                    "ops": [{"op": "lift", "amt": "8"}], "text": "Once per fight, no die: pick up an ally with 8 HP."},
 
     # ---- Duelist
     "slash_d": {"name": "Riposte Cut", "req": {"n": 1, "min": 3}, "tgt": "foe", "melee": True,
-                "ops": [{"op": "dmg", "amt": "v+2"}], "miss": [{"op": "dmg", "amt": "v-1"}], "text": "3+: the die +2. Otherwise the die −1."},
+                "ops": [{"op": "dmg", "amt": "v+2"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "3+: the die +2. Otherwise half the die."},
     "parry": {"name": "Parry", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "riposte", "n": 2, "to": "self"}],
               "text": "Gain Armor equal to the die. If a hit is fully blocked this round, riposte for 2."},
     "twin_cut": {"name": "Twin Cut", "req": {"n": 2}, "tgt": "foe", "melee": True, "tags": ["flurry"],
@@ -155,8 +157,8 @@ ACTIONS = {
     "whirl": {"name": "Whirl", "req": {"n": 3, "upto": True}, "tgt": "foes", "tags": ["flurry"],
               "ops": [{"op": "dmg", "amt": "d+1", "each": True, "random": True}], "text": "Up to three dice: each hits a random enemy for the die +1."},
     "lunge": {"cd": 2, "name": "Lunge", "req": {"n": 1, "min": 6}, "tgt": "foe", "tags": ["precision"],
-              "ops": [{"op": "dmg", "amt": "v+10"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v-1"}],
-              "text": "Any row. 6+: the die +10, and Stun. Otherwise the die −1."},
+              "ops": [{"op": "dmg", "amt": "v+10"}, {"op": "status", "s": "stun", "n": 1}], "miss": [],
+              "text": "Any row. 6+: the die +10, and Stun. Otherwise nothing."},
     "finisher": {"name": "Finisher", "req": {"n": 3}, "tgt": "foe", "melee": True, "tags": ["precision"],
                  "ops": [{"op": "dmg", "amt": "sum+sum*straight"}], "text": "Three dice in one hit: the sum, doubled on a straight."},
     "pinpoint": {"name": "Pinpoint", "req": {"n": 1}, "tgt": "foe", "tags": ["precision"],
@@ -172,20 +174,20 @@ ACTIONS = {
     "bloodprice": {"name": "Bloodprice", "req": {"n": 1}, "tgt": "self", "instant": True,
                    "ops": [{"op": "selfdmg", "amt": "3"}, {"op": "bump", "amt": "3"}], "text": "Pay 3 HP: a die of yours rolls 3 higher. It stays unused."},
     "drink_deep": {"name": "Drink Deep", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True, "tags": ["bloodlust"],
-                   "ops": [{"op": "dmg", "amt": "v+2", "onkill": "v+2"}], "miss": [{"op": "dmg", "amt": "v"}],
-                   "text": "4+: the die +2, and if it kills, heal that much. Otherwise the die."},
+                   "ops": [{"op": "dmg", "amt": "v+2", "onkill": "v+2"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                   "text": "4+: the die +2, and if it kills, heal that much. Otherwise half the die."},
     "frenzy": {"name": "Frenzy", "req": {"n": 2}, "tgt": "foe", "melee": True, "tags": ["bloodlust"],
                "ops": [{"op": "dmg", "amt": "sum+3"}, {"op": "selfdmg", "amt": "2"}], "text": "Two dice in one hit: the sum +3. Take 2."},
     "cleave": {"name": "Cleave", "req": {"n": 1, "min": 5}, "tgt": "front", "melee": True, "tags": ["rampage"],
-               "ops": [{"op": "dmg", "amt": "v"}], "miss": [{"op": "dmg", "amt": "v", "to": "one"}],
-               "text": "5+: the die to the whole front row. Otherwise the die to one of them."},
+               "ops": [{"op": "dmg", "amt": "v"}], "miss": [{"op": "dmg", "amt": "v//2", "to": "one"}],
+               "text": "5+: the die to the whole front row. Otherwise half the die to one of them."},
     "earthshaker": {"cd": 2, "name": "Earthshaker", "req": {"n": 2, "sum_min": 12}, "tgt": "foes", "tags": ["rampage"],
                     "ops": [{"op": "dmg", "amt": "sum//2"}, {"op": "status", "s": "stun", "n": 1, "to": "random"}],
-                    "miss": [{"op": "dmg", "amt": "sum//3"}],
-                    "text": "Two dice summing to 12+: half the sum to every enemy, and Stun one. Otherwise a third of the sum to every enemy."},
+                    "miss": [],
+                    "text": "Two dice summing to 12+: half the sum to every enemy, and Stun one. Otherwise nothing."},
     "reckless_swing": {"name": "Reckless Swing", "req": {"n": 1, "min": 8}, "tgt": "foe", "melee": True,
-                       "ops": [{"op": "dmg", "amt": "v+12"}, {"op": "selfdmg", "amt": "3"}], "miss": [{"op": "dmg", "amt": "v"}, {"op": "selfdmg", "amt": "3"}],
-                       "text": "8+: the die +12. Otherwise the die. Take 3 either way."},
+                       "ops": [{"op": "dmg", "amt": "v+12"}, {"op": "selfdmg", "amt": "3"}], "miss": [{"op": "selfdmg", "amt": "3"}],
+                       "text": "8+: the die +12. Otherwise nothing. Take 3 either way."},
     "howl": {"cd": 2, "name": "Howl", "req": {"n": 1}, "tgt": "foes", "ops": [{"op": "status", "s": "weak", "n": 1}],
              "text": "Every enemy is Weak this round."},
 
@@ -195,44 +197,45 @@ ACTIONS = {
                      "ops": [{"op": "status", "s": "mark", "n": 1}, {"op": "dmg", "amt": "v//3"}],
                      "text": "Mark an enemy (+3 damage from every hit) and deal a third of the die."},
     "aimed_shot": {"name": "Aimed Shot", "req": {"n": 1, "min": 6}, "tgt": "foe", "tags": ["marksman"],
-                   "ops": [{"op": "dmg", "amt": "v*2+1"}], "miss": [{"op": "dmg", "amt": "v-2"}],
-                   "text": "Any row. 6+: twice the die +1. Otherwise the die −2."},
+                   "ops": [{"op": "dmg", "amt": "v*2+1"}], "miss": [],
+                   "text": "Any row. 6+: twice the die +1. Otherwise nothing."},
     "called_shot": {"name": "Called Shot", "req": {"n": 2, "marked": True}, "tgt": "foe", "tags": ["marksman"],
                     "ops": [{"op": "dmg", "amt": "sum+6*pair", "pierce": True}],
                     "text": "Two dice on a Marked enemy, ignoring Armor: the sum, +6 on a pair."},
     "sic_em": {"name": "Sic 'Em", "req": {"n": 1}, "tgt": "foe", "tags": ["beastmaster"],
                "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": 1}], "text": "Your hawk dives: deal the die to any row, and Weak."},
     "pack_tactics": {"name": "Pack Tactics", "req": {"n": 1, "min": 4}, "tgt": "foe", "tags": ["beastmaster"],
-                     "ops": [{"op": "dmg", "amt": "v+5"}], "miss": [{"op": "dmg", "amt": "v"}],
-                     "text": "Any row. 4+: you and your hawk together, the die +5. Otherwise the die."},
+                     "ops": [{"op": "dmg", "amt": "v+5"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                     "text": "Any row. 4+: you and your hawk together, the die +5. Otherwise half the die."},
     "volley": {"name": "Volley", "req": {"n": 3, "upto": True}, "tgt": "foes",
-               "ops": [{"op": "dmg", "amt": "d", "each": True, "random": True}], "text": "Up to three dice: each hits a random enemy."},
+               "ops": [{"op": "dmg", "amt": "(d+1)//2", "each": True}],
+               "text": "Up to three dice: every enemy takes half of each die (rounded up). Made for crowds."},
     "pinning_arrow": {"name": "Pinning Arrow", "req": {"n": 1, "min": 4}, "tgt": "foe",
-                      "ops": [{"op": "dmg", "amt": "v+1"}, {"op": "status", "s": "root", "n": 1}], "miss": [{"op": "dmg", "amt": "v-1"}],
-                      "text": "Any row. 4+: the die +1, and Root. Otherwise the die −1."},
+                      "ops": [{"op": "dmg", "amt": "v+1"}, {"op": "status", "s": "root", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                      "text": "Any row. 4+: the die +1, and Root. Otherwise half the die."},
 
     # ---- Scoundrel
-    "stab": {"name": "Stab", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+3*(1-aimed)"}],
-             "text": "Deal the die, +3 if the enemy isn't coming for you."},
+    "stab": {"name": "Stab", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+1+3*(1-aimed)"}],
+             "text": "Deal the die +1, or +4 if the enemy isn't coming for you."},
     "slip": {"name": "Slip", "req": {"n": 1}, "tgt": "self", "free_shift": True,
              "ops": [{"op": "shift"}, {"op": "status", "s": "dodge", "n": 1, "to": "self", "if": "v>=4"}],
              "text": "Change rows, even when Rooted. On a 4+, also dodge the next hit."},
     "envenom": {"name": "Envenom", "req": {"n": 1}, "tgt": "foe", "tags": ["poisons"],
                 "ops": [{"op": "status", "s": "poison", "n": "max(1,v//2)"}], "text": "Poison equal to half the die."},
     "garrote": {"cd": 2, "name": "Garrote", "req": {"n": 1, "min": 5}, "tgt": "foe", "melee": True, "tags": ["poisons"],
-                "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "stun", "n": 1, "if": "poisoned"}], "miss": [{"op": "dmg", "amt": "v-1"}],
-                "text": "5+: the die +2, and Stun if it's Poisoned. Otherwise the die −1."},
+                "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "stun", "n": 1, "if": "poisoned"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                "text": "5+: the die +2, and Stun if it's Poisoned. Otherwise half the die."},
     "toxic_cloud": {"cd": 2, "name": "Toxic Cloud", "req": {"n": 2, "sum_min": 9}, "tgt": "foes", "tags": ["poisons"],
-                    "ops": [{"op": "status", "s": "poison", "n": 3}], "miss": [{"op": "status", "s": "poison", "n": 1}],
-                    "text": "Two dice summing to 9+: Poison 3 on every enemy. Otherwise Poison 1."},
+                    "ops": [{"op": "status", "s": "poison", "n": 3}], "miss": [],
+                    "text": "Two dice summing to 9+: Poison 3 on every enemy. Otherwise nothing."},
     "pickpocket": {"cd": 3, "name": "Pickpocket", "req": {"n": 1, "min": 4}, "tgt": "foe", "tags": ["tricks"],
                    "ops": [{"op": "weaken", "amt": "v"}, {"op": "gold", "amt": "4"}], "miss": [{"op": "weaken", "amt": "v//2"}],
                    "text": "4+: reduce its intent by the die, and lift 4 gold. Otherwise reduce it by half the die."},
     "loaded_dice": {"name": "Loaded Dice", "req": {"n": 2}, "tgt": "self", "instant": True, "tags": ["tricks"],
                     "ops": [{"op": "loaded"}], "text": "Two of your dice become linked: the second rolls whatever the first does. Both stay unused."},
     "smoke_bomb": {"cd": 2, "name": "Smoke Bomb", "req": {"n": 2, "pair": True}, "tgt": "party",
-                   "ops": [{"op": "status", "s": "dodge", "n": 1}], "miss": [{"op": "status", "s": "dodge", "n": 1, "to": "self"}],
-                   "text": "Two dice: on a pair, everyone dodges their next hit. Otherwise just you."},
+                   "ops": [{"op": "status", "s": "dodge", "n": 1}], "miss": [],
+                   "text": "Two dice: on a pair, everyone dodges their next hit. Otherwise nothing."},
 
     # ---- Herald
     "inspire": {"name": "Inspire", "req": {"n": 1}, "tgt": "other", "instant": True,
@@ -250,8 +253,8 @@ ACTIONS = {
                        "ops": [{"op": "retarget"}], "miss": [{"op": "weaken", "amt": "2"}],
                        "text": "4+: an enemy's attack swings to someone else (or nobody). Otherwise its intent drops by 2."},
     "cacophony": {"cd": 3, "name": "Cacophony", "req": {"n": 2, "sum_min": 8}, "tgt": "foe", "tags": ["discord"],
-                  "ops": [{"op": "cancel"}], "miss": [{"op": "weaken", "amt": "sum//2"}],
-                  "text": "Two dice summing to 8+: an enemy loses its turn. Otherwise its intent drops by half the sum."},
+                  "ops": [{"op": "cancel"}], "miss": [{"op": "weaken", "amt": "sum//3"}],
+                  "text": "Two dice summing to 8+: an enemy loses its turn. Otherwise its intent drops by a third of the sum."},
     "requiem": {"name": "Requiem", "req": {"n": 0}, "tgt": "foe", "once": True, "ops": [{"op": "cancel"}],
                 "text": "Once per fight, no die: cancel an enemy's intent."},
 
@@ -261,13 +264,13 @@ ACTIONS = {
     "tonic_a": {"name": "Tonic", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+1"}], "text": "Heal an ally the die +1."},
     "firebomb": {"cd": 2, "name": "Firebomb", "req": {"n": 1, "min": 4}, "tgt": "foe", "bomb": True, "tags": ["bombs"],
                  "ops": [{"op": "dmg", "amt": "v", "to": "row"}, {"op": "status", "s": "burn", "n": 1, "to": "row"}],
-                 "miss": [{"op": "dmg", "amt": "v"}],
-                 "text": "4+: the die to the target's whole row, and Burn 1. Otherwise the die to the target."},
+                 "miss": [{"op": "dmg", "amt": "v//2"}],
+                 "text": "4+: the die to the target's whole row, and Burn 1. Otherwise half the die to the target."},
     "acid_flask": {"name": "Acid Flask", "req": {"n": 1}, "tgt": "foe", "tags": ["bombs"],
                    "ops": [{"op": "strip", "amt": "v*2"}, {"op": "status", "s": "vuln", "n": 1}], "text": "Strip twice the die in Armor, and Vulnerable."},
     "concussion": {"cd": 2, "name": "Concussion", "req": {"n": 1, "min": 5}, "tgt": "foe", "bomb": True, "tags": ["bombs"],
-                   "ops": [{"op": "dmg", "amt": "3"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v"}],
-                   "text": "5+: deal 3 and Stun. Otherwise deal the die."},
+                   "ops": [{"op": "dmg", "amt": "3"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                   "text": "5+: deal 3 and Stun. Otherwise half the die."},
     "bottle_it": {"cd": 3, "name": "Bottle It", "req": {"n": 1}, "tgt": "self", "instant": True, "tags": ["elixirs"],
                   "ops": [{"op": "bottle"}], "text": "Roll the die now and bottle it: a Tonic, or a Rum Ration on 5+."},
     "quicksilver": {"cd": 3, "name": "Quicksilver", "req": {"n": 2}, "tgt": "other", "instant": True, "tags": ["elixirs"],
@@ -282,8 +285,8 @@ ACTIONS = {
     "sprout": {"name": "Sprout", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "summon", "k": "sapling", "hp": "v*2"}],
                "text": "Grow a sapling in the front row with HP equal to twice the die. It soaks up hits."},
     "call_bear": {"cd": 3, "name": "Call Bear", "req": {"n": 2, "sum_min": 9}, "tgt": "self", "tags": ["grove"],
-                  "ops": [{"op": "summon", "k": "bear"}], "miss": [{"op": "summon", "k": "sapling", "hp": "sum"}],
-                  "text": "Two dice summing to 9+: a bear joins you (15 HP, hits for 4). Otherwise a sapling with the sum in HP."},
+                  "ops": [{"op": "summon", "k": "bear"}], "miss": [],
+                  "text": "Two dice summing to 9+: a bear joins you (15 HP, hits for 4). Otherwise nothing."},
     "swarm": {"cd": 2, "name": "Swarm", "req": {"n": 2}, "tgt": "self", "tags": ["grove"],
               "ops": [{"op": "summon", "k": "wasps", "hp": "sum"}], "text": "Two dice: a wasp swarm with the sum in HP, stinging every enemy for 1 a round."},
     "regrowth": {"name": "Regrowth", "req": {"n": 1}, "tgt": "party", "tags": ["grove"],
@@ -294,8 +297,8 @@ ACTIONS = {
                    "ops": [{"op": "armor", "amt": "sum//2+2*pair", "to": "front"}, {"op": "status", "s": "thorns", "n": 2, "to": "front"}],
                    "text": "Two dice: the front row gains half the sum as Armor (+2 on a pair) and hits back for 2 this round."},
     "strangle": {"name": "Strangle", "req": {"n": 1, "min": 4}, "tgt": "foe", "tags": ["thorns"],
-                 "ops": [{"op": "dmg", "amt": "(v+1)*(1+rooted)"}], "miss": [{"op": "dmg", "amt": "v"}],
-                 "text": "Any row. 4+: the die +1, doubled against a Rooted enemy. Otherwise the die."},
+                 "ops": [{"op": "dmg", "amt": "(v+1)*(1+rooted)"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                 "text": "Any row. 4+: the die +1, doubled against a Rooted enemy. Otherwise half the die."},
     "ancient_guardian": {"name": "Ancient Guardian", "req": {"n": 0}, "tgt": "self", "once": True,
                          "ops": [{"op": "summon", "k": "treant"}], "text": "Once per fight, no die: a treant rises (25 HP, hits for 5)."},
 }
@@ -322,7 +325,7 @@ CLASS_DICE = {
 
 CLASSES = {
     "vanguard": {
-        "name": "Vanguard", "row": "front", "hp": 30, "hp_lvl": 4, "role": "Tank",
+        "name": "Vanguard", "row": "front", "hp": 36, "hp_lvl": 5, "role": "Tank",
         "dice": [D(6), [1, 2, 3, 4, "S", "S"]], "tags": ["bulwark", "juggernaut"],
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard"], "weapon": "hand_axe", "armor": "padded_coat",
@@ -511,7 +514,32 @@ SUMMONS = {
 }
 SUMMON_CAP = 2
 
-GENERIC = ["shift", "flee"]
+GENERIC = ["block", "shift", "flee"]
+
+# Guard dice (armor and some trinkets) only go on defensive actions: ones that do nothing but
+# protect, heal, move or blunt the enemies' attacks.
+DEF_OPS = {"armor", "guard", "heal", "lift", "taunt", "shift", "flee", "sanct", "cleanse", "heal_summons", "weaken", "retarget"}
+DEF_STATUS = {"dodge", "riposte", "thorns", "lifeline"}
+
+
+def is_defensive(a):
+    ops = list(a["ops"]) + list(a.get("miss", []))
+    return bool(ops) and not a.get("instant") and all(
+        o["op"] in DEF_OPS or (o["op"] == "status" and o["s"] in DEF_STATUS) for o in ops)
+
+
+# Cooldowns: only each class's basic action (the Vanguard's Brace too: a tank needs a defence it can
+# count on every round), Block, Shift, Flee and Lift (plus weapon actions, in
+# items.py) can be used every round. Everything else waits at least a round after use, so a hero
+# can't win with one strong skill on repeat. `cd` N means usable every N rounds.
+FREE = {"strike", "brace", "bolt", "mend", "slash_d", "hack_b", "shoot_r", "stab", "jab", "toss", "thornlash",
+        "block", "shift", "flee", "lift"}
+BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3}
+
+for _k, _a in ACTIONS.items():
+    _a["def"] = is_defensive(_a)
+    if _k not in FREE and not _a.get("once"):
+        _a["cd"] = max(_a.get("cd", 2), BIG.get(_k, 2))
 
 # Party XP needed for each level (index = level - 1).
 XP_FOR = [0, 20, 50, 90, 140, 200, 270, 350]

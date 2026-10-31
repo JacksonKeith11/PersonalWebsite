@@ -694,6 +694,8 @@ def candidates(g, h, b, free):
                 sig = tuple(sorted(die_sig(d) for d in dice))
                 if sig in seen or not g.count_ok(a["req"], list(dice)):
                     continue
+                if not a["def"] and any("guard" in (d.get("dk") or []) for d in dice):
+                    continue
                 seen.add(sig)
                 dice = list(dice)
                 msg = {"t": "place", "a": a["key"], "dice": [d["id"] for d in dice]}

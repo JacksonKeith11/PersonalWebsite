@@ -544,3 +544,10 @@ a:hover { color: var(--accent-hi); }
   .rt-verdict { font-size: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .big-die, .big-die span, .big-die::before, .rt-verdict, .roll-tray { animation: none; } .big-die::before { content: none; } }
+
+/* Guard dice (armor and some charms): defence only */
+.die.guard { border-color: var(--armor); }
+.die .badge.guard, .die .badge + .badge.guard { top: auto; bottom: -7px; left: -7px; right: auto; background: var(--armor); color: #10161f; }
+.die .badge.guard svg { width: 12px; height: 12px; }
+.action.guard-off { opacity: 0.45; }
+.action .top-r { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }

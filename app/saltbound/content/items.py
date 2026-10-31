@@ -13,7 +13,7 @@ RARITIES = ["common", "uncommon", "rare", "legendary"]
 # Actions that come with weapons, in the same shape as classes.ACTIONS.
 WEAPON_ACTIONS = {
     "hack": {"name": "Hack", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True,
-             "ops": [{"op": "dmg", "amt": "v+3"}], "miss": [{"op": "dmg", "amt": "v-1"}], "text": "4+: the die +3. Otherwise the die −1."},
+             "ops": [{"op": "dmg", "amt": "v+3"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "4+: the die +3. Otherwise half the die."},
     "zap": {"name": "Zap", "req": {"n": 1}, "tgt": "foe", "spell": True,
             "ops": [{"op": "dmg", "amt": "v-1"}, {"op": "status", "s": "shock", "n": 1}],
             "text": "Any row: the die −1, and Shock (its next hit also hits a neighbour)."},
@@ -22,21 +22,21 @@ WEAPON_ACTIONS = {
     "jab": {"name": "Jab", "req": {"n": 1}, "tgt": "foe", "melee": True,
             "ops": [{"op": "dmg", "amt": "v"}], "text": "Deal the die."},
     "harpoon": {"name": "Reel In", "req": {"n": 1, "min": 4}, "tgt": "foe",
-                "ops": [{"op": "dmg", "amt": "v"}, {"op": "drag"}], "miss": [{"op": "dmg", "amt": "v-1"}],
-                "text": "Any row. 4+: the die, and drag it to the front. Otherwise the die −1."},
+                "ops": [{"op": "dmg", "amt": "v"}, {"op": "drag"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                "text": "Any row. 4+: the die, and drag it to the front. Otherwise half the die."},
     "shoot": {"name": "Aim and Loose", "req": {"n": 1, "min": 5}, "tgt": "foe",
-              "ops": [{"op": "dmg", "amt": "v+4"}], "miss": [{"op": "dmg", "amt": "v-1"}], "text": "Any row. 5+: the die +4. Otherwise the die −1."},
+              "ops": [{"op": "dmg", "amt": "v+4"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "Any row. 5+: the die +4. Otherwise half the die."},
     "slash": {"name": "Slash", "req": {"n": 1}, "tgt": "foe", "melee": True,
               "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Deal the die +1."},
     "crush": {"name": "Crush", "req": {"n": 1, "min": 5}, "tgt": "foe", "melee": True,
-              "ops": [{"op": "dmg", "amt": "v+5"}], "miss": [{"op": "dmg", "amt": "v-1"}], "text": "5+: the die +5. Otherwise the die −1."},
+              "ops": [{"op": "dmg", "amt": "v+5"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "5+: the die +5. Otherwise half the die."},
     "sweep": {"cd": 2, "name": "Sweep", "req": {"n": 2}, "tgt": "front", "melee": True,
               "ops": [{"op": "dmg", "amt": "sum//2+3*pair"}], "text": "Two dice: half the sum to the whole front row, +3 on a pair."},
     "tidal": {"cd": 2, "name": "Surge", "req": {"n": 2}, "tgt": "foes", "spell": True,
               "ops": [{"op": "dmg", "amt": "sum//2+3*pair"}], "text": "Two dice: half the sum to every enemy, +3 on a pair."},
     "storm_bolt": {"name": "Storm Bolt", "req": {"n": 1, "min": 6}, "tgt": "foe", "spell": True,
-                   "ops": [{"op": "dmg", "amt": "v+4"}, {"op": "status", "s": "shock", "n": 1}], "miss": [{"op": "dmg", "amt": "v-1"}],
-                   "text": "Any row. 6+: the die +4, and Shock. Otherwise the die −1."},
+                   "ops": [{"op": "dmg", "amt": "v+4"}, {"op": "status", "s": "shock", "n": 1}], "miss": [],
+                   "text": "Any row. 6+: the die +4, and Shock. Otherwise nothing."},
     "venom_stab": {"name": "Venom Stab", "req": {"n": 1}, "tgt": "foe", "melee": True,
                    "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "poison", "n": 2}], "text": "Half the die, and Poison 2."},
     "blessing": {"name": "Blessing", "req": {"n": 1}, "tgt": "ally",
@@ -127,6 +127,13 @@ ITEMS = {
     "smelling_salts": {"name": "Smelling Salts", "slot": "use", "rarity": "uncommon", "price": 14, "use": {"lift": 6},
                        "fight": True, "text": "In a fight: pick up a knocked-down ally with 6 HP."},
 }
+
+# Guard dice: every armor's die, and a few charms', only go on defensive actions (Block, Armor,
+# healing, Dodge...), so armor protects instead of adding another attack die.
+GUARD_TRINKETS = ("lucky_shell", "pearl_charm")
+for _k, _v in ITEMS.items():
+    if _v["slot"] == "armor" or _k in GUARD_TRINKETS:
+        _v["dk"] = ["guard"] + list(_v.get("dk", []))
 
 CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use"]
 GEAR = [k for k, v in ITEMS.items() if v["slot"] != "use" and not v.get("start")]

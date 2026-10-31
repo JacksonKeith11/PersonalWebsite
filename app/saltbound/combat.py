@@ -557,6 +557,8 @@ class Combat:
         dice = [next((d for d in x["dice"] if d["id"] == i and not d["used"]), None) for i in ids]
         if None in dice:
             raise Invalid("Those dice are already used.")
+        if not a["def"] and any("guard" in (d.get("dk") or []) for d in dice):
+            raise Invalid("Guard dice only go on defensive actions: Block, Armor, healing and the like.")
         if not self.count_ok(a["req"], dice):
             n = a["req"].get("n", 1)
             raise Invalid(f"That takes {'up to ' if a['req'].get('upto') else ''}{n} {'die' if n == 1 else 'dice'}.")

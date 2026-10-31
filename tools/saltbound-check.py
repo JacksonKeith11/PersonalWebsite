@@ -31,10 +31,11 @@ def fit_dice(g, h, a, tgt):
     n = a["req"].get("n", 1)
     if n == 0:
         return []
-    while len([d for d in x["dice"] if not d["used"]]) < n:
+    ok = lambda d: not d["used"] and (a.get("def") or "guard" not in (d.get("dk") or []))
+    while len([d for d in x["dice"] if ok(d)]) < n:
         x["dice"].append({"id": f"t{len(x['dice'])}.{g.s['fight']['round']}", "faces": [1, 2, "S", "W", "F3", "X", 7, 8],
                           "dk": ["exploding"], "src": "base", "used": False, "v": None, "bonus": 0, "top": False})
-    return [d["id"] for d in x["dice"] if not d["used"]][:n]
+    return [d["id"] for d in x["dice"] if ok(d)][:n]
 
 
 def target(g, h, a):

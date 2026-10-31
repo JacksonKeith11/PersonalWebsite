@@ -487,13 +487,28 @@ dice round, all as recommended):
   Herald's Cutting Words reaches any row. Doom now deals 20 minus the die, so low rolls are good.
 - Balance after the change (bots): Normal about 70%, Hard about 27%, unchanged multipliers.
 - **Cooldowns** (`"cd": N` on an action: usable every N rounds; `cds` per hero in the fight, ticking
-  down at each new round, started when the action happens or, for instants, when placed). They go on
-  actions strong enough to be spammed: stuns (Shield Bash, Lunge, Concussion, Garrote, Earthshaker),
-  turn denial and big swings (Cacophony and Doom 3; Fireball, Firebomb, Toxic Cloud, Howl, Surge,
-  Sweep 2), party-wide protection and healing (Sanctuary, Smoke Bomb, Renew, Lifeline, Rally Wall,
-  Briar Wall, Panacea, Taunt, Crescendo, Hymn of Valor 2), summons (Call Bear 3, Swarm 2), and anything
-  that makes resources in a long fight (Pickpocket, Bottle It, Quicksilver 3). Bots skip actions that
-  are cooling down. With cooldowns, bots win about 65% on Normal and 30% on Hard.
+  down at each new round, started when the action happens or, for instants, when placed). The owner
+  asked that only basic attacks be usable every round, so a hero can't win by repeating one strong
+  skill: `FREE` in `classes.py` lists what's exempt (each class's basic action: Strike, Bolt, Mend,
+  Slash, Hack, Shoot, Stab, Jab, Toss, Thornlash; the Vanguard's Brace, because a tank needs a defence
+  it can count on; Block, Shift, Flee and Lift). Weapon actions are free too, except Sweep and Tidal
+  (2). Everything else gets 2, and Finisher, Called Shot, Reckless Swing, Doom, Cacophony, Call Bear,
+  Pickpocket, Bottle It and Quicksilver get 3. Once-per-fight actions have no cooldown.
+- **Misses scale with the risk** (owner's choice): an action needing 6+, a pair or a big sum (9+ on
+  two dice) does nothing on a miss (Reckless Swing still costs 3 HP); one needing 3+ to 5+, odd, or a
+  modest sum does about half the die. The cooldown starts either way.
+- **Guard dice** (owner's choice): every armor's die and two charms' (Lucky Shell, Pearl Charm) carry
+  the `guard` kind and only go on defensive actions: those whose ops (hit and miss) are all Armor,
+  Guard, heals, Lift, Taunt, Shift, Flee, Sanctuary, Cleanse, Weaken, Retarget, or Dodge, Riposte,
+  Thorns and Lifeline statuses (`is_defensive`, sent to the client as each action's `def`). Every hero
+  has Block (Armor equal to the die), so a guard die is never wasted.
+- **Volley** hits every enemy for half of each die, rounded up: the Ranger's answer to crowds, where
+  Shoot is for one target.
+- **Rebalance after all that** (smart bots): the Vanguard went to 36 HP (+5 a level), and Strike deals
+  the die +2 plus half its Armor, so Brace then Strike is its rhythm; Stab deals the die +1 (+4 if the
+  enemy isn't coming for you); Mend heals the die +1. Normal enemies have 1.9× HP; Hard 2.2× HP and
+  2.1× damage. Bots win about 75% on Normal, 46% on Hard and all of Story. The Mender's parties still
+  win most (about 90% and 80%).
 
 ## How the classes ended up
 
@@ -515,10 +530,10 @@ What changed while building all ten:
   Bottle It makes a Tonic (a Rum Ration on 5+). Pinpoint needs a die equal to the target's intent
   number; Called Shot needs a Marked target.
 - **No endless fights**: from round 11 every enemy gains +2 might each round.
-- **Balance**: Normal enemies have 1.8× HP and 1.75× damage of the listed numbers; Hard 2.05×/1.95×
-  with a rise every 3 turns (not 2); Story 1.0×/0.95×. The simple bots won about 65% on Normal and
-  25% on Hard; the smarter planning bots (threat, kill chance, incoming damage) win about 84% on
-  Normal (120 runs) and 53% on Hard (60 runs), before any retuning.
+- **Balance**: Normal enemies have 1.9× HP and 1.75× damage of the listed numbers; Hard 2.2×/2.1×
+  with a rise every 3 turns (not 2); Story 1.0×/0.95×. The smart planning bots (threat, kill chance,
+  incoming damage) win about 75% on Normal, 46% on Hard and every Story run; see the cooldowns entry
+  above for how that was reached.
 - Step 2's classes had four sprite options each (`tools/saltbound-art/heroes2.py`, built from
   `parts.py`). The owner picked the Huntress for the Ranger (`STEP2_PICKS` in `build.py`); the others
   use option 1 until picked.

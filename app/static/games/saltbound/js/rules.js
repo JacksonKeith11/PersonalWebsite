@@ -190,8 +190,9 @@ export function hitChance(req, dice, hymn = 0) {
 }
 export const expected = d => outcomes(d).reduce((a, [v, , p]) => a + v * p, 0);
 
-const KIND_NAME = { seer: 'Seer', augur: 'Augur', fate: 'Fate', exploding: 'Exploding', steady: 'Steady', heirloom: 'Heirloom' };
+const KIND_NAME = { guard: 'Guard', seer: 'Seer', augur: 'Augur', fate: 'Fate', exploding: 'Exploding', steady: 'Steady', heirloom: 'Heirloom' };
 export const KIND_TEXT = {
+  guard: 'Defence only: goes on Block, Armor, healing and other defensive actions.',
   seer: 'Rolled and shown while you plan.',
   augur: 'Shows whether it rolled high or low while you plan.',
   fate: 'Shows two faces while you plan; one of them comes up.',

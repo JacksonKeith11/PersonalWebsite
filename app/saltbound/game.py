@@ -24,8 +24,8 @@ from .rng import Rng
 VERSION = 1
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
-    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.8, "foe_dmg": 1.75},
-    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.05, "foe_dmg": 1.95},
+    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
+    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.2, "foe_dmg": 2.1},
 }
 MOVES = 4
 VISION = 2
@@ -202,6 +202,7 @@ class Game(Combat):
         a.update(self.mods(h)["override"].get(base, {}))
         a["key"] = base
         a["plus"] = key.endswith("+")
+        a["def"] = C.is_defensive(a)
         return a
 
     def moves(self, h):
@@ -1125,7 +1126,7 @@ class Game(Combat):
 
 def static():
     """Content the browser needs once: classes, actions, items, foes, events, buffs."""
-    acts = {**C.ACTIONS, **I.WEAPON_ACTIONS}
+    acts = {k: {**v, "def": C.is_defensive(v)} for k, v in {**C.ACTIONS, **I.WEAPON_ACTIONS}.items()}
     return {
         "classes": C.CLASSES, "actions": acts, "passives": C.PASSIVES, "items": I.ITEMS, "foes": A.FOES,
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,

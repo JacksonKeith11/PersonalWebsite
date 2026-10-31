@@ -1,12 +1,12 @@
 // The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=13';
-import { h, icon, toast, hideTip } from './ui.js?v=13';
-import { spriteURL } from './art.js?v=13';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=13';
-import { render } from './main.js?v=13';
-import * as sfx from './audio.js?v=13';
+import { S, send, mine } from './store.js?v=14';
+import { h, icon, toast, hideTip } from './ui.js?v=14';
+import { spriteURL } from './art.js?v=14';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText } from './rules.js?v=14';
+import { render } from './main.js?v=14';
+import * as sfx from './audio.js?v=14';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -382,8 +382,10 @@ function dieButton(d, i, ready) {
   if (d.bonus) badges.push(h('span.badge', null, `+${d.bonus}`));
   if (d.link) badges.push(h('span.badge', null, '⛓'));
   if (d.top && d.v == null) badges.push(h('span.badge', null, 'top'));
+  const guard = d.dk?.includes('guard');
+  if (guard) badges.push(h('span.badge.guard', null, icon('shield')));
   const tip = `${dieTip(d)}\n${src}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
-  return h('button.die' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (d.src === 'spirit' ? '.spirit' : '') + (C.rolled ? '.roll' : ''), {
+  return h('button.die' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (d.src === 'spirit' ? '.spirit' : '') + (guard ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
     disabled: d.used || ready, 'aria-label': `Die ${i + 1}: ${dieLabel(d)}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
   }, h('span.k', null, i + 1), face, ...badges, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G' }[d.src] ?? ''));
 }
@@ -398,22 +400,24 @@ function actionCard(f, x, k, i, selDice, ready) {
   const meleeBlocked = a.melee && hs.row !== 'front';
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
-  const fits = !ready && !once && !cooling && !planned && !meleeBlocked && !noFlee && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
+  const guardOff = !a.def && selDice.some(d => d.dk?.includes('guard'));
+  const fits = !ready && !once && !cooling && !planned && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
   const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : null;
   const dis = ready || once || noFlee || cooling > 0 || planned;
-  const why = meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
+  const why = guardOff ? '\nGuard dice only go on defensive actions.' : meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
     : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.` : planned ? '\nAlready planned this round.' : '';
   const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
-  return h('button.action' + (fits ? '.fits' : ''), {
+  return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : ''), {
     disabled: dis, tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${cdText}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
     h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
-      chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
-        : h('span.req', null, reqText(a.req))),
+      h('span.top-r', null,
+        cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling} rounds` : 'next round')
+          : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null,
+        chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
+          : h('span.req', null, reqText(a.req)))),
     h('p', null, a.text),
-    cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling} rounds` : 'next round')
-      : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}` }, icon('clock'), `CD ${a.cd}`) : null,
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
 }
 
@@ -442,11 +446,14 @@ function pickAction(f, x, k, selDice) {
   let dice = selDice;
   if (n > 0 && !dice.length) {
     // nothing picked: use the best free dice (by what they show, or roll on average)
-    const free = f.hs[x].dice.filter(d => !d.used).sort((p, q) => expected(q) - expected(p));
+    // Guard dice go to defensive actions first, and never to anything else
+    const guard = d => (d.dk?.includes('guard') ? 1 : 0);
+    const free = f.hs[x].dice.filter(d => !d.used && (a.def || !guard(d))).sort((p, q) => (a.def ? guard(q) - guard(p) : 0) || expected(q) - expected(p));
     dice = free.slice(0, n);
     if (!countOk(a.req, dice)) { toast(`${a.name} needs ${n} ${n === 1 ? 'die' : 'dice'}, and you don’t have that many left.`); return; }
   }
   if (n === 0 && dice.length) dice = [];
+  if (!a.def && dice.some(d => d.dk?.includes('guard'))) { toast('Guard dice only go on defensive actions: Block, Armor, healing and the like.', 'err'); sfx.play('error'); return; }
   if (n > 0 && !countOk(a.req, dice)) { toast(`${a.name} takes ${a.req.upto ? 'up to ' : ''}${n} ${n === 1 ? 'die' : 'dice'}.`, 'err'); sfx.play('error'); return; }
   if (a.melee && f.hs[x].row !== 'front') { toast('Melee needs the front row. Use Shift to move up.', 'err'); return; }
   const msg = { t: 'place', h: x, a: base, dice: dice.map(d => d.id) };

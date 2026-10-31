@@ -291,11 +291,20 @@ def _fight_move(g, h, x):
 
 # ---- what the enemies will do
 
+def hits_of(it):
+    """How many hits an intent lands (separate dice, or a sweep)."""
+    if it.get("each"):
+        return len(it.get("dice") or []) or 1
+    if it.get("sweep"):
+        return it["sweep"]
+    return 1
+
+
 def foe_value(it):
     """How much an intent matters, in rough HP-to-the-party terms."""
     k, v = it.get("k"), it.get("v", 0)
-    return {"attack": v, "row": v * 2, "all": v * 2.5, "heal": v * 0.7, "buff": v * 3, "summon": 5,
-            "block": v * 0.3, "guard": v * 0.4, "debuff": 3}.get(k, 0) + (2 if it.get("st") else 0)
+    return {"attack": v * hits_of(it), "all": v * 2.5, "heal": v * 0.7, "buff": v * 3, "summon": 5, "charge": 4,
+            "block": v * 0.3, "guard": v * 0.4, "debuff": 4}.get(k, 0) + (2 if it.get("st") else 0)
 
 
 _BASE = {}
@@ -303,12 +312,24 @@ _BASE = {}
 
 def base_threat(g, fo):
     """What this kind of enemy is worth stopping on an average round."""
+    from .foes import die_mean
     key = fo["k"]
     if key not in _BASE:
         d = A.FOES[key]
-        ints = d.get("seq") or d["ints"]
-        w = [i.get("w", 1) for i in ints]
-        _BASE[key] = sum(foe_value(i) * wi for i, wi in zip(ints, w)) / sum(w)
+        moves = d["moves"]
+        keys = d.get("seq") or list(moves)
+        tot = wt = 0
+        for k in keys:
+            mv = moves[k]
+            idx = mv.get("use") or list(range(mv.get("n", 0)))
+            dice = [d["dice"][i] for i in idx]
+            v = sum(die_mean(x["faces"], x.get("dk", [])) for x in dice)
+            if mv.get("each") and dice:
+                v /= len(dice)
+            w = 1 if d.get("seq") else mv.get("w", 1)
+            tot += foe_value(dict(mv, v=v if mv["k"] != "buff" else mv.get("v", 2), dice=dice)) * w
+            wt += w
+        _BASE[key] = tot / max(1, wt)
     f = g.s["fight"]
     return _BASE[key] * f["dmul"] + fo["might"] * 1.5
 
@@ -369,7 +390,7 @@ def foe_hits(g, b, fo):
     """[(unit, damage)] this enemy's intent will do this round, as things stand."""
     it = fo.get("intent") or {}
     k = it.get("k")
-    if k not in ("attack", "row", "all", "debuff") or fo["st"].get("stun"):
+    if k not in ("attack", "all", "debuff") or fo["st"].get("stun"):
         return []
     live = 1 - b.stop.get(fo["id"], 0)
     v = max(0, it.get("v", 0) - b.cut.get(fo["id"], 0))
@@ -377,18 +398,20 @@ def foe_hits(g, b, fo):
         v //= 2
     if fo["st"].get("weak"):
         v = int(v * 0.75)
-    v = (0 if k == "debuff" else v) + (2 if it.get("st") else 0)
+    v = (0 if k == "debuff" else v) + (2 if it.get("st") else 0) + (4 if k == "debuff" else 0)
     units = g.party_units()
-    if k in ("attack", "debuff"):
-        t = it.get("tgt")
-        if b.taunt is not None and g.active(b.taunt):
-            t = f"h{b.taunt}"
-        hit = [t] if t in units else []
-    elif k == "row":
-        hit = [u for u in units if g.unit_row(u) == it.get("row", "front")] or units
-    else:
+    if k == "all":
         hit = units
-    return [(u, max(0, v - (b.sanct if u.startswith("h") else 0)) * live) for u in hit]
+    else:
+        hit = list(it.get("tgts") or ([it["tgt"]] if it.get("tgt") else []))
+        if b.taunt is not None and g.active(b.taunt):
+            hit = [f"h{b.taunt}"] * len(hit)
+        hit = [t for t in hit if t in units]
+    out = [(u, max(0, v - (b.sanct if u.startswith("h") else 0)) * live) for u in hit]
+    if it.get("chain") and out:
+        others = [u for u in units if u not in hit]
+        out += [(u, out[0][1] / 2 / len(others)) for u in others]
+    return out
 
 
 def threat_now(g, b, fo):
@@ -397,7 +420,7 @@ def threat_now(g, b, fo):
     if fo["st"].get("stun"):
         return 0
     live = 1 - b.stop.get(fo["id"], 0)
-    if it.get("k") in ("attack", "row", "all", "debuff"):
+    if it.get("k") in ("attack", "all", "debuff"):
         return sum(n if u.startswith("h") else n / 2 for u, n in foe_hits(g, b, fo))
     return foe_value(it) * live
 
@@ -569,6 +592,13 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, dict):
                         val += share * now[t["id"]] * 0.4
+            elif k == "steal":
+                for t, share in tg:
+                    it = t.get("intent") if isinstance(t, dict) else None
+                    if it and it.get("dice") and it.get("k") in ("attack", "all"):
+                        frac = 1 / len(it["dice"]) if len(it["dice"]) > 1 else 1
+                        val += share * now[t["id"]] * min(1, frac * 1.3)
+                        bump(eff["cut"], t["id"], pr * share * it.get("v", 0) * frac)
             elif k == "strip":
                 n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus
                 for t, share in tg:
@@ -585,15 +615,6 @@ def evaluate(g, b, h, a, dice, tgt):
                     bump(eff["summons"], h, pr)
             elif k == "gold":
                 val += 3
-            elif k == "shift":
-                x = g.hs(h)
-                melee_only = all(g.action_def(h, kk).get("melee") for kk in g.actions_of(h) if kk not in C.GENERIC)
-                if x["row"] == "back" and melee_only:
-                    val += 6
-                elif x["row"] == "front" and not melee_only and g.hero(h)["hp"] < g.maxhp(h) * 0.4 and inc.get(h, 0) > 0:
-                    val += min(inc[h], 2 * hits[h]) * 0.8
-                if op is a["ops"][-1] and any(o["op"] == "status" and o["s"] == "dodge" for o in a["ops"]):
-                    pass
         if hit_any:
             bump(eff["cused"], h, pr)  # this hit spends the hero's Crescendo
         total += pr * val
@@ -695,11 +716,8 @@ def op_targets(g, h, op, base):
     if to == "row":
         first = next((t for t in base if isinstance(t, dict)), None)
         return [(fo, 1) for fo in g.foes() if first and fo["row"] == first["row"]]
-    if to == "front":
-        return [(("h", y), 1) for y in g.actives() if g.hs(y)["row"] == "front"]
-    if to == "myrow":
-        row = g.hs(h)["row"]
-        return [(("h", y), 1) for y in g.actives() if g.hs(y)["row"] == row]
+    if to == "party":
+        return [(("h", y), 1) for y in g.actives()]
     if to == "lowest":
         others = [y for y in g.actives() if y != h]
         return [(("h", min(others, key=lambda y: g.hero(y)["hp"])), 1)] if others else []
@@ -725,8 +743,6 @@ def candidates(g, h, b, free):
         if a.get("per_rest") and a["key"] in g.hero(h).get("spent", []):
             continue
         if a.get("cd") and g.cooling(h, a["key"]):
-            continue
-        if a.get("melee") and x["row"] != "front":
             continue
         n = a["req"].get("n", 1)
         sizes = range(1, n + 1) if a["req"].get("upto") else [n]

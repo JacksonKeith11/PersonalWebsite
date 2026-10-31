@@ -764,3 +764,86 @@ a:hover { color: var(--accent-hi); }
 /* enemy traits: their dice and quirks, under the statuses */
 .trait { font-size: 12px; line-height: 1; padding: 3px 6px; white-space: nowrap; border-radius: var(--r-pill); border: var(--bw) dashed var(--border-strong); color: var(--text-2); cursor: help; }
 @media (max-width: 700px) { .trait { font-size: 11px; padding: 2px 5px; } }
+
+/* no hero rows: one party column (plus allies), and enemies hold their places all fight */
+.side-units.solo { grid-template-columns: 1fr; }
+.unit.gone { visibility: hidden; }
+.intent .mv { font-weight: var(--fw-semibold); color: var(--text-2); font-size: 12px; line-height: 1; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.intent .x { font-size: 12px; color: var(--text-2); }
+.intent.sure { box-shadow: 0 0 0 2px var(--danger); }
+.intent.fizzle { opacity: 0.6; text-decoration: line-through; }
+.unit.swung .intent { animation: swung 700ms var(--ease); }
+@keyframes swung { 0% { transform: scale(1); } 30% { transform: scale(1.18); box-shadow: 0 0 0 3px var(--accent); } 100% { transform: scale(1); } }
+.stage svg.arrows .arrow.swing { stroke-dasharray: 8 6; animation: swing-dash 900ms linear; opacity: 1; stroke-width: 3; }
+@keyframes swing-dash { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
+.rt-bonus { align-self: center; font: 800 26px/1 var(--font-ui); color: var(--text-2); }
+.rt-total { font: 800 28px/1 var(--font-display); color: var(--text); animation: verdict 320ms var(--ease) both; }
+.rt-slot { display: grid; gap: 4px; justify-items: center; }
+.big-die.foe small { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; white-space: nowrap; color: var(--text-2); }
+
+/* the roll tray has a band of its own at the top of the stage, so it never covers a unit or an
+   intent, and nothing moves when it appears */
+.stage { padding-top: 92px; }
+.roll-tray { top: 6px; padding: 6px 14px 8px; gap: 14px; }
+.roll-tray .big-die { width: 56px; height: 56px; font-size: 30px; border-radius: 12px; }
+.roll-tray .rt-act { font-size: 19px; }
+.roll-tray .rt-verdict { font-size: 26px; }
+.col { justify-content: space-evenly; height: 100%; }
+/* crowded columns (and the party, always) use compact cards: portrait left, name, health and
+   statuses right, the intent above */
+.col.crowd .unit { width: 236px; grid-template-columns: 56px minmax(0, 1fr); justify-items: start; align-items: center;
+  column-gap: 10px; row-gap: 3px; padding: 6px 8px; }
+.col.crowd .unit > * { grid-column: 2; }
+.col.crowd .unit > .intent { grid-column: 1 / -1; justify-self: center; height: 26px; }
+.col.crowd .unit > img { grid-column: 1; grid-row: 2 / span 4; width: 56px; height: 56px; }
+.col.crowd .unit .uname { text-align: left; }
+.col.crowd .unit .bar { width: 100%; }
+.col.crowd .unit .preview, .col.crowd .unit .sts { justify-content: flex-start; min-height: 0; }
+.col.crowd .unit .preview:empty, .col.crowd .unit .sts:empty { display: none; }
+.col.herocol .unit > .intent { position: absolute; top: -10px; right: 8px; height: 24px; z-index: 3; }
+.col.herocol .unit > img { grid-row: 1 / span 4; }
+.unit.boss img { width: 112px; height: 112px; }
+@media (max-width: 700px) {
+  .stage { padding-top: 70px; }
+  .roll-tray .big-die { width: 42px; height: 42px; font-size: 22px; }
+  .roll-tray .rt-act { font-size: 15px; }
+  .intent .mv { display: none; }
+}
+.unit img { width: 80px; height: 80px; }
+.unit .preview:empty, .unit .sts:empty { display: none; }
+.unit { gap: 4px; }
+
+/* a skill no die left can take is greyed out; hovering a skill lights the dice a click would use */
+.action.nodice { opacity: 0.38; filter: grayscale(0.6); }
+.die.auto { box-shadow: 0 0 0 3px var(--accent), 0 0 18px rgba(224, 187, 98, 0.45); transform: translateY(-3px); }
+.odds.auto { border-style: dashed; }
+.intent.guarded { border-style: dashed; }
+.intent .gd { color: var(--armor); display: inline-flex; }
+/* an intent is two lines: the move's name, then icon, range, hits and target */
+.intent:not(.none) { flex-direction: column; align-items: center; gap: 2px; height: auto; padding: 4px 10px; border-radius: 12px; }
+.intent .ln { display: inline-flex; align-items: center; gap: 5px; }
+.col.crowd .unit > .intent { height: auto; }
+.col.herocol .unit > .intent { flex-direction: row; padding: 0 8px; height: 24px; border-radius: var(--r-pill); }
+.col { justify-content: center; gap: 12px; }
+@media (max-width: 700px) { .intent .mv { display: block; font-size: 11px; max-width: 120px; } }
+
+/* phones: the later fight rules above are for wide screens; here everything stacks */
+@media (max-width: 700px) {
+  .stage { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+  .side-units { height: auto; flex: none; }
+  .col { height: auto; justify-content: flex-start; gap: 6px; }
+  .unit img, .col.crowd .unit > img { width: 44px; height: 44px; }
+  .unit.boss img { width: 64px; height: 64px; }
+  .col.crowd .unit { width: 100%; max-width: 190px; grid-template-columns: 44px minmax(0, 1fr); column-gap: 6px; padding: 4px; }
+  .side-units.solo { justify-items: stretch; }
+  .col.herocol { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: stretch; width: 100%; }
+  .col.herocol .lbl { width: 100%; text-align: center; }
+  .col.herocol .unit { width: 112px; grid-template-columns: 1fr; justify-items: center; }
+  .col.herocol .unit > * { grid-column: auto; }
+  .col.herocol .unit > img { grid-row: auto; }
+  .col.herocol .unit .uname, .col.herocol .unit .preview, .col.herocol .unit .sts { text-align: center; justify-content: center; }
+  .intent:not(.none) { padding: 3px 7px; }
+}
+.intent { max-width: 100%; }
+.intent .ln { max-width: 100%; overflow: hidden; }
+.intent .to { overflow: hidden; text-overflow: ellipsis; min-width: 0; }

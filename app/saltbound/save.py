@@ -37,8 +37,21 @@ def _v1(state):
     return state
 
 
+def _v2(state):
+    """v3 enemies roll dice and heroes have no rows. A fight saved mid-round: the enemies' old
+    intents can't be rolled, so they spend that round regrouping."""
+    f = state.get("fight")
+    if f:
+        for fo in f["foes"]:
+            fo["intent"] = {"k": "dazed", "name": "Regrouping"}
+        for x in f["hs"].values():
+            x.pop("row", None)
+    state["v"] = 3
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1}
+MIGRATIONS = {1: _v1, 2: _v2}
 
 
 class TooOld(Exception):

@@ -8,11 +8,11 @@ An action is a card with dice slots:
 - `req`: what dice it takes. `n` dice (0 for a free action), and any of `min`, `max`, `exact`,
   `odd`, `even` (each die), `pair`, `straight`, `sum_min` (the set), `face: "S"` (a shield face),
   `upto: True` (1..n dice).
-- `tgt`: `foe`, `ally`, `other` (an ally but not yourself), `downed`, `self`, `foes`, `front`,
-  `party`.
+- `tgt`: `foe`, `ally`, `other` (an ally but not yourself), `downed`, `self`, `foes`, `front`
+  (the enemies' front row), `party`.
 - `ops`: what it does, in order. Amounts are expressions over `v` (the first die), `sum`, `n`,
   `armor` (yours), `missing` (your missing HP) and `undead` (1 if the target is).
-- `melee`: you must be in the front row, and it hits the front row while there is one.
+- `melee`: reaches only the enemies' front row while there is one. Heroes have no rows.
 - `spell`: counts for Spell Echo. `once`: once per fight.
 
 Learning an action you already have upgrades it (`strike+`): +2 to every amount and +1 to every
@@ -77,7 +77,6 @@ ACTIONS = {
     # ---- for everyone
     "block": {"name": "Block", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}],
               "text": "Gain Armor equal to the die. Takes Guard dice."},
-    "shift": {"name": "Shift", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "shift"}], "text": "Change rows."},
     "flee": {"name": "Flee", "req": {"n": 1, "min": 4}, "tgt": "self", "ops": [{"op": "flee"}],
              "text": "4+: run back the way you came. Otherwise you stay. Not in dungeons or against bosses."},
 
@@ -90,8 +89,8 @@ ACTIONS = {
               "tags": ["bulwark"], "text": "Every enemy attack this round comes at you. Gain half the die as Armor."},
     "brace": {"name": "Brace", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v*2"}, {"op": "armor", "amt": "2", "to": "lowest"}],
               "tags": ["bulwark"], "text": "Gain Armor equal to twice the die. The ally with the lowest HP gains 2 Armor."},
-    "rally_wall": {"cd": 2, "name": "Rally Wall", "req": {"n": 2}, "tgt": "self", "ops": [{"op": "armor", "amt": "sum//2+4*pair", "to": "myrow"}],
-                   "tags": ["bulwark"], "text": "Two dice: everyone in your row gains half the sum as Armor, +4 on a pair."},
+    "rally_wall": {"cd": 2, "name": "Rally Wall", "req": {"n": 2}, "tgt": "self", "ops": [{"op": "armor", "amt": "sum//3+3*pair", "to": "party"}],
+                   "tags": ["bulwark"], "text": "Two dice: the whole party gains a third of the sum as Armor, +3 each on a pair."},
     "shield_bash": {"cd": 2, "name": "Shield Bash", "req": {"n": 1, "min": 5, "or_face": "S"}, "tgt": "foe", "melee": True,
                     "ops": [{"op": "dmg", "amt": "4"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
                     "tags": ["juggernaut"], "text": "A shield face or 5+: deal 4 and Stun. Otherwise half the die."},
@@ -162,8 +161,8 @@ ACTIONS = {
     "finisher": {"name": "Finisher", "req": {"n": 3}, "tgt": "foe", "melee": True, "tags": ["precision"],
                  "ops": [{"op": "dmg", "amt": "sum+sum*straight"}], "text": "Three dice in one hit: the sum, doubled on a straight."},
     "pinpoint": {"name": "Pinpoint", "req": {"n": 1}, "tgt": "foe", "tags": ["precision"],
-                 "ops": [{"op": "dmg", "amt": "v+14*matched", "pierce": True}],
-                 "text": "Any row, ignoring Armor: the die, +14 if it equals the target's intent number."},
+                 "ops": [{"op": "dmg", "amt": "(v+1)*(1+aimed)", "pierce": True}],
+                 "text": "Any row, ignoring Armor: the die +1, doubled if that enemy is aiming at you. Bait it, then punish it."},
     "feint": {"name": "Feint", "req": {"n": 1}, "tgt": "foe", "ops": [{"op": "weaken", "amt": "v"}],
               "text": "Reduce an enemy's intent by the die."},
     "perfect_form": {"name": "Perfect Form", "req": {"n": 1}, "tgt": "self", "instant": True, "per_round": True,
@@ -217,9 +216,9 @@ ACTIONS = {
     # ---- Scoundrel
     "stab": {"name": "Stab", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+1+3*(1-aimed)"}],
              "text": "Deal the die +1, or +4 if the enemy isn't coming for you."},
-    "slip": {"name": "Slip", "req": {"n": 1}, "tgt": "self", "free_shift": True,
-             "ops": [{"op": "shift"}, {"op": "status", "s": "dodge", "n": 1, "to": "self", "if": "v>=4"}],
-             "text": "Change rows, even when Rooted. On a 4+, also dodge the next hit."},
+    "slip": {"name": "Slip", "req": {"n": 1, "min": 4}, "tgt": "self",
+             "ops": [{"op": "status", "s": "dodge", "n": 1, "to": "self"}], "miss": [{"op": "armor", "amt": "v"}],
+             "text": "4+: dodge the next hit on you. Otherwise gain the die as Armor."},
     "envenom": {"name": "Envenom", "req": {"n": 1}, "tgt": "foe", "tags": ["poisons"],
                 "ops": [{"op": "status", "s": "poison", "n": "max(1,v//2)"}], "text": "Poison equal to half the die."},
     "garrote": {"cd": 2, "name": "Garrote", "req": {"n": 1, "min": 5}, "tgt": "foe", "melee": True, "tags": ["poisons"],
@@ -229,8 +228,8 @@ ACTIONS = {
                     "ops": [{"op": "status", "s": "poison", "n": 3}], "miss": [],
                     "text": "Two dice summing to 9+: Poison 3 on every enemy. Otherwise nothing."},
     "pickpocket": {"cd": 3, "name": "Pickpocket", "req": {"n": 1, "min": 4}, "tgt": "foe", "tags": ["tricks"],
-                   "ops": [{"op": "weaken", "amt": "v"}, {"op": "gold", "amt": "4"}], "miss": [{"op": "weaken", "amt": "v//2"}],
-                   "text": "4+: reduce its intent by the die, and lift 4 gold. Otherwise reduce it by half the die."},
+                   "ops": [{"op": "steal"}, {"op": "gold", "amt": "4"}], "miss": [{"op": "weaken", "amt": "v//2"}],
+                   "text": "4+: snatch the biggest die from its intent, and lift 4 gold. Otherwise its intent drops by half the die."},
     "loaded_dice": {"name": "Loaded Dice", "req": {"n": 2}, "tgt": "self", "instant": True, "tags": ["tricks"],
                     "ops": [{"op": "loaded"}], "text": "Two of your dice become linked: the second rolls whatever the first does. Both stay unused."},
     "smoke_bomb": {"cd": 2, "name": "Smoke Bomb", "req": {"n": 2, "pair": True}, "tgt": "party",
@@ -283,7 +282,7 @@ ACTIONS = {
     "thornlash": {"name": "Thornlash", "req": {"n": 1}, "tgt": "foe",
                   "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "root", "n": 1, "if": "v>=5"}], "text": "Any row: deal the die; on a 5+, Root."},
     "sprout": {"name": "Sprout", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "summon", "k": "sapling", "hp": "v*2"}],
-               "text": "Grow a sapling in the front row with HP equal to twice the die. It soaks up hits."},
+               "text": "Grow a sapling with HP equal to twice the die. Enemies hit it like anyone else, sparing you."},
     "call_bear": {"cd": 3, "name": "Call Bear", "req": {"n": 2, "sum_min": 9}, "tgt": "self", "tags": ["grove"],
                   "ops": [{"op": "summon", "k": "bear"}], "miss": [],
                   "text": "Two dice summing to 9+: a bear joins you (15 HP, hits for 4). Otherwise nothing."},
@@ -294,8 +293,8 @@ ACTIONS = {
     "entangle": {"name": "Entangle", "req": {"n": 1}, "tgt": "foe", "tags": ["thorns"],
                  "ops": [{"op": "status", "s": "root", "n": 1}, {"op": "status", "s": "weak", "n": 1}], "text": "Root and Weak."},
     "briar_wall": {"cd": 2, "name": "Briar Wall", "req": {"n": 2}, "tgt": "self", "tags": ["thorns"],
-                   "ops": [{"op": "armor", "amt": "sum//2+2*pair", "to": "front"}, {"op": "status", "s": "thorns", "n": 2, "to": "front"}],
-                   "text": "Two dice: the front row gains half the sum as Armor (+2 on a pair) and hits back for 2 this round."},
+                   "ops": [{"op": "armor", "amt": "sum//3+2*pair", "to": "party"}, {"op": "status", "s": "thorns", "n": 2, "to": "party"}],
+                   "text": "Two dice: the party gains a third of the sum as Armor (+2 each on a pair) and hits back for 2 this round."},
     "strangle": {"name": "Strangle", "req": {"n": 1, "min": 4}, "tgt": "foe", "tags": ["thorns"],
                  "ops": [{"op": "dmg", "amt": "(v+1)*(1+rooted)"}], "miss": [{"op": "dmg", "amt": "v//2"}],
                  "text": "Any row. 4+: the die +1, doubled against a Rooted enemy. Otherwise half the die."},
@@ -325,27 +324,27 @@ CLASS_DICE = {
 
 CLASSES = {
     "vanguard": {
-        "name": "Vanguard", "row": "front", "hp": 40, "hp_lvl": 5, "role": "Tank",
+        "name": "Vanguard", "hp": 40, "hp_lvl": 5, "role": "Tank",
         "dice": [D(6), [1, 2, 3, 4, "S", "S"]], "tags": ["bulwark", "juggernaut"],
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard", "overguard"], "weapon": "hand_axe", "armor": "padded_coat",
         "pool": ["taunt", "brace", "rally_wall", "shield_bash", "retaliate", "shoulder_charge",
                  "thick_hide", "iron_will", "steady", "spiked_plate", "last_stand",
                  "unbreakable", "avalanche"],
-        "blurb": "Stands in front and takes the hits meant for everyone else.",
+        "blurb": "Wades in, armoured, and takes the hits meant for everyone else.",
     },
     "arcanist": {
-        "name": "Arcanist", "row": "back", "hp": 18, "hp_lvl": 2, "role": "Area damage and burst",
+        "name": "Arcanist", "hp": 18, "hp_lvl": 2, "role": "Area damage and burst",
         "dice": [D(12), D(4)], "tags": ["elementalist", "hexer"],
         "map": {"key": "farsight", "name": "Farsight", "text": "See 3 hexes around you, and spot cursed items in loot."},
         "start": ["bolt", "channel"], "weapon": "oak_staff", "armor": "wool_robe",
         "pool": ["fireball", "frost_lance", "chain_lightning", "hex", "siphon", "doom",
                  "overcharge", "kindling", "cold_snap", "malediction", "arcane_shield", "spell_echo",
                  "cataclysm", "grand_curse"],
-        "blurb": "Wild dice and big spells. Fragile; keep them in the back.",
+        "blurb": "Wild dice and big spells. Fragile; keep them covered.",
     },
     "mender": {
-        "name": "Mender", "row": "back", "hp": 22, "hp_lvl": 3, "role": "Healer",
+        "name": "Mender", "hp": 22, "hp_lvl": 3, "role": "Healer",
         "dice": [D(6), D(6)], "tags": ["restoration", "warding"],
         "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals an extra 10% of their max HP."},
         "start": ["mend", "lift"], "weapon": "lantern_rod", "armor": "nurses_apron",
@@ -431,7 +430,7 @@ PASSIVES.update({
 
 CLASSES.update({
     "duelist": {
-        "name": "Duelist", "row": "front", "hp": 24, "hp_lvl": 3, "role": "Single-target damage",
+        "name": "Duelist", "hp": 24, "hp_lvl": 3, "role": "Single-target damage",
         "dice": [D(8), D(6)], "tags": ["flurry", "precision"],
         "map": {"key": "ambush", "name": "Ambush", "text": "A fight you start gives the party a free first round."},
         "start": ["slash_d", "parry"], "weapon": "rapier", "armor": "padded_coat",
@@ -441,7 +440,7 @@ CLASSES.update({
         "blurb": "Fast, precise and deadly against one target at a time.",
     },
     "berserker": {
-        "name": "Berserker", "row": "front", "hp": 30, "hp_lvl": 4, "role": "High-risk damage",
+        "name": "Berserker", "hp": 30, "hp_lvl": 4, "role": "High-risk damage",
         "dice": [D(10), D(4)], "tags": ["bloodlust", "rampage"],
         "map": {"key": "forage", "name": "Forage", "text": "Resting at a camp heals you fully."},
         "start": ["hack_b", "bloodprice"], "weapon": "great_axe", "armor": "hide_vest",
@@ -451,17 +450,17 @@ CLASSES.update({
         "blurb": "Trades blood for power, and gets more dangerous the more it's hurt.",
     },
     "ranger": {
-        "name": "Ranger", "row": "back", "hp": 22, "hp_lvl": 3, "role": "Ranged damage",
+        "name": "Ranger", "hp": 22, "hp_lvl": 3, "role": "Ranged damage",
         "dice": [D(8), D(6)], "tags": ["marksman", "beastmaster"],
         "map": {"key": "tracker", "name": "Tracker", "text": "+1 move on land, and you see enemies 2 hexes further off."},
         "start": ["shoot_r", "hunters_mark"], "weapon": "short_bow", "armor": "padded_coat",
         "pool": ["aimed_shot", "called_shot", "sic_em", "pack_tactics", "volley", "pinning_arrow",
                  "eagle_eye", "companion", "field_dressing", "quiver", "long_mark", "camouflage",
                  "deadeye", "alpha"],
-        "blurb": "Picks enemies off from the back row, with a hawk for company.",
+        "blurb": "Picks enemies off from afar, with a hawk for company.",
     },
     "scoundrel": {
-        "name": "Scoundrel", "row": "either", "hp": 26, "hp_lvl": 3, "role": "Debuffs and loot",
+        "name": "Scoundrel", "hp": 26, "hp_lvl": 3, "role": "Debuffs and loot",
         "dice": [D(6), D(6)], "tags": ["poisons", "tricks"],
         "map": {"key": "light_fingers", "name": "Light Fingers", "text": "One more choice whenever you loot a wreck or a chest."},
         "start": ["stab", "slip", "evasive"], "weapon": "daggers", "armor": "padded_coat",
@@ -471,7 +470,7 @@ CLASSES.update({
         "blurb": "Poisons, dirty tricks and loaded dice. Always comes out ahead.",
     },
     "herald": {
-        "name": "Herald", "row": "back", "hp": 20, "hp_lvl": 3, "role": "Buffs for allies",
+        "name": "Herald", "hp": 20, "hp_lvl": 3, "role": "Buffs for allies",
         "dice": [D(6), D(4)], "tags": ["anthem", "discord"],
         "map": {"key": "silver_tongue", "name": "Silver Tongue", "text": "Shops and inns are 20% cheaper, and some events open up."},
         "start": ["inspire", "jab"], "weapon": "lute", "armor": "padded_coat",
@@ -481,7 +480,7 @@ CLASSES.update({
         "blurb": "Makes everyone else's dice better, and throws enemies off their stride.",
     },
     "alchemist": {
-        "name": "Alchemist", "row": "back", "hp": 20, "hp_lvl": 3, "role": "Items and gadgets",
+        "name": "Alchemist", "hp": 20, "hp_lvl": 3, "role": "Items and gadgets",
         "dice": [D(6), D(6)], "tags": ["bombs", "elixirs"],
         "map": {"key": "brewer", "name": "Brewer", "text": "Brew a potion whenever you rest."},
         "start": ["toss", "tonic_a"], "weapon": "sling", "armor": "leather_apron",
@@ -491,7 +490,7 @@ CLASSES.update({
         "blurb": "Bombs for the enemy, potions for friends, and never enough bag space.",
     },
     "warden": {
-        "name": "Warden", "row": "back", "hp": 24, "hp_lvl": 3, "role": "Summons and control",
+        "name": "Warden", "hp": 24, "hp_lvl": 3, "role": "Summons and control",
         "dice": [D(8), D(6)], "tags": ["grove", "thorns"],
         "map": {"key": "wildspeak", "name": "Wildspeak", "text": "Forest costs you 1 move, and wild beasts won't hunt you."},
         "start": ["thornlash", "sprout"], "weapon": "gnarled_staff", "armor": "hide_vest",
@@ -514,11 +513,11 @@ SUMMONS = {
 }
 SUMMON_CAP = 2
 
-GENERIC = ["block", "shift", "flee"]
+GENERIC = ["block", "flee"]
 
 # Guard dice (armor and some trinkets) only go on defensive actions: ones that do nothing but
 # protect, heal, move or blunt the enemies' attacks.
-DEF_OPS = {"armor", "guard", "heal", "lift", "taunt", "shift", "flee", "sanct", "cleanse", "heal_summons", "weaken", "retarget"}
+DEF_OPS = {"armor", "guard", "heal", "lift", "taunt", "flee", "sanct", "cleanse", "heal_summons", "weaken", "retarget"}
 DEF_STATUS = {"dodge", "riposte", "thorns", "lifeline"}
 
 
@@ -529,11 +528,11 @@ def is_defensive(a):
 
 
 # Cooldowns: only each class's basic action (the Vanguard's Brace too: a tank needs a defence it can
-# count on every round), Block, Shift, Flee and Lift (plus weapon actions, in
+# count on every round), Block, Flee and Lift (plus weapon actions, in
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
 FREE = {"strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "toss", "thornlash",
-        "block", "shift", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
+        "block", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3}
 
 for _k, _a in ACTIONS.items():

@@ -21,7 +21,7 @@ from .content import archipelago as A
 from .content import items as I
 from .rng import Rng
 
-VERSION = 2
+VERSION = 3
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},

@@ -89,8 +89,6 @@ def main():
                         g.hs(0)["ready"] = False
                     g.hs(0)["st"].pop("root", None)
                     a = g.action_def(0, key)
-                    if a.get("melee"):
-                        g.hs(0)["row"] = "front"
                     tgt = target(g, 0, a)
                     if tgt is False:
                         continue

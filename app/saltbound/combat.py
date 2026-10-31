@@ -14,6 +14,7 @@ from itertools import product
 
 from . import classes as C
 from .content import archipelago as A
+from .foes import Foes, die_range
 from .content import items as I
 
 ROWS = ("front", "back")
@@ -24,13 +25,6 @@ ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the
 ONE_SHOT = ("stun", "freeze", "shock", "hex")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
-# Enemy intents with a number roll it when they act: about a third either side of what they show.
-FOE_SPREAD = 0.35
-ROLLED = ("attack", "row", "all", "block", "guard", "heal")
-# Enemy dice (`dk` on an enemy) change how that roll goes: wild and steady widen or narrow the range;
-# exploding rolls again and adds on its top face; fumbling does nothing on its bottom face; twin rolls
-# two and acts twice on doubles; searing Burns whoever it hits on the top third.
-FOE_SPREAD_KIND = {"wild": 2.0, "steady": 0.5}
 CURSED_DIE = ["X", 1, 2, 3]
 
 
@@ -125,7 +119,7 @@ def is_straight(vals, tags):
     return len(vals) >= 3 and all(b - a == 1 for a, b in zip(real, real[1:])) and len(set(real)) == len(real)
 
 
-class Combat:
+class Combat(Foes):
     # ------------------------------------------------------------------ starting
 
     def in_fight(self, h):
@@ -153,8 +147,7 @@ class Combat:
         for h in f["heroes"]:
             hero = self.hero(h)
             m = self.mods(h)
-            row = C.CLASSES[hero["cls"]]["row"]
-            x = {"row": "front" if row == "either" else row, "st": {}, "down": False, "fled": False,
+            x = {"st": {}, "down": False, "fled": False,
                  "dice": [], "rr": max(0, 1 + m.get("reroll", 0)), "once": [], "round_once": [], "cds": {}, "echo": False,
                  "unbreak": False, "ward": m.get("stun_ward", 0), "ready": False}
             f["hs"][str(h)] = x
@@ -238,12 +231,6 @@ class Combat:
     def fight_waiting(self):
         f = self.s["fight"]
         return [h for h in f["heroes"] if self.active(h) and not self.hs(h)["ready"]]
-
-    def unit_row(self, uid):
-        if uid.startswith("h"):
-            return self.hs(int(uid[1:]))["row"]
-        a = self.ally(int(uid[1:]))
-        return a["row"] if a else "front"
 
     def unit_alive(self, uid):
         if not uid:
@@ -371,53 +358,6 @@ class Combat:
         for fo in self.foes():
             self.choose_intent(fo)
         self.fx("round", n=f["round"])
-
-    def choose_intent(self, fo):
-        f = self.s["fight"]
-        d = A.FOES[fo["k"]]
-        if f["ambush"] and f["round"] == 1:
-            fo["intent"] = {"k": "dazed"}
-            return
-        if d.get("seq"):
-            it = dict(d["seq"][fo["seq"] % len(d["seq"])])
-            fo["seq"] += 1
-        else:
-            it = dict(self.rng.weighted([(i, i.get("w", 1)) for i in d["ints"]]))
-        if it["k"] == "summon" and len(self.foes()) >= 5:
-            it = {"k": "attack", "v": 5}
-        if "v" in it and it["k"] in ("attack", "row", "all"):
-            it["v"] = max(1, round(it["v"] * f["dmul"])) + fo["might"]
-            if f["round"] == 1:
-                heckle = max([self.mods(h).get("heckler", 0) for h in self.actives()] or [0])
-                it["v"] = max(0, it["v"] - heckle)
-        if it.get("v", 0) >= 2 and it["k"] in ROLLED:
-            # enemies roll too: the intent shows the range, the number comes up when it acts
-            spread = max(1, round(it["v"] * FOE_SPREAD * FOE_SPREAD_KIND.get(d.get("dk"), 1)))
-            it["lo"], it["hi"] = max(1, it["v"] - spread), it["v"] + spread
-        if it["k"] == "attack" or it["k"] == "debuff":
-            it["tgt"] = self.foe_target(it, heroes_only=it["k"] == "debuff")
-        elif it["k"] == "row":
-            it["row"] = it.get("reach") == "back" and "back" or "front"
-        it.pop("w", None)
-        fo["intent"] = it
-
-    def foe_target(self, it, heroes_only=False, exclude=None):
-        units = [f"h{h}" for h in self.actives()] if heroes_only else self.party_units()
-        units = [u for u in units if u != exclude]
-        if not units:
-            return None
-        f = self.s["fight"]
-        if f["taunt"] is not None and self.active(f["taunt"]) and f"h{f['taunt']}" != exclude:
-            return f"h{f['taunt']}"
-        seen = [u for u in units if not (u.startswith("h") and self.mods(int(u[1:])).get("camouflage"))]
-        units = seen or units
-        if it.get("weakest"):
-            return min(units, key=lambda u: self.hero(int(u[1:]))["hp"] if u.startswith("h") else self.ally(int(u[1:]))["hp"])
-        if it.get("melee"):
-            units = [u for u in units if self.unit_row(u) == "front"] or units
-        elif it.get("reach") == "back":
-            units = [u for u in units if self.unit_row(u) == "back"] or units
-        return self.rng.choice(units)
 
     # ------------------------------------------------------------------ placing dice
 
@@ -589,8 +529,6 @@ class Combat:
             if kind == "other" and hid == h:
                 raise Invalid("Pick someone else.")
             return tgt
-        if a.get("melee") and x["row"] != "front":
-            raise Invalid("You need to be in the front row.")
         return None
 
     def do_place(self, h, msg):
@@ -617,7 +555,7 @@ class Combat:
             raise Invalid("Once a round.")
         if a["key"] == "flee" and f["kind"] in ("dungeon", "boss"):
             raise Invalid("There's no running from this one.")
-        if a["key"] in ("flee", "shift") and x["st"].get("root"):
+        if a["key"] == "flee" and x["st"].get("root"):
             raise Invalid("You're Rooted.")
         ids = msg.get("dice") or []
         if not isinstance(ids, list) or len(set(ids)) != len(ids):
@@ -630,8 +568,6 @@ class Combat:
         if not self.count_ok(a["req"], dice):
             n = a["req"].get("n", 1)
             raise Invalid(f"That takes {'up to ' if a['req'].get('upto') else ''}{n} {'die' if n == 1 else 'dice'}.")
-        if a.get("melee") and x["row"] != "front":
-            raise Invalid("You need to be in the front row.")
         tgt = self.resolve_target(h, a, msg.get("tgt"))
         if a["req"].get("marked") and not self.foe(int(tgt[1:]))["st"].get("mark"):
             raise Invalid("That enemy needs to be Marked.")
@@ -805,7 +741,7 @@ class Combat:
             it = target.get("intent") or {}
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
-                     aimed=int(it.get("tgt") == f"h{h}"), matched=int(bool(vals) and it.get("v") is not None and vals[0] == it["v"]))
+                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0)
         return e
 
     def dmg_bonus(self, h, a, target):
@@ -826,8 +762,8 @@ class Combat:
                 n += m.get("burn_bonus_hit", 0)
             if target["hp"] * 2 < target["max"]:
                 n += m.get("execute_bonus", 0)
-            it = target.get("intent") or {}
-            if it.get("tgt") and it.get("tgt") != f"h{h}":
+            aims = self.intent_aims(target.get("intent") or {})
+            if aims and f"h{h}" not in aims:
                 n += m.get("backstab", 0)
         return n
 
@@ -1024,10 +960,8 @@ class Combat:
         if to == "row":
             first = next((t for t in base if isinstance(t, dict)), None)
             return [fo for fo in self.foes() if first and fo["row"] == first["row"]]
-        if to == "front":
-            return [("h", y) for y in self.actives() if self.hs(y)["row"] == "front"]
-        if to == "myrow":
-            return [("h", y) for y in self.actives() if self.hs(y)["row"] == x["row"]]
+        if to == "party":
+            return [("h", y) for y in self.actives()]
         if to == "lowest":
             others = [y for y in self.actives() if y != h]
             return [("h", min(others, key=lambda y: self.hero(y)["hp"]))] if others else []
@@ -1146,11 +1080,6 @@ class Combat:
                         else:
                             t["st"][s] = t["st"].get(s, 0) + n
                         self.fx("st", to=f"f{t['id']}", s=s)
-            elif k == "shift":
-                if x["st"].get("root") and not a.get("free_shift"):
-                    continue
-                x["row"] = "back" if x["row"] == "front" else "front"
-                self.fx("shift", h=h, row=x["row"])
             elif k == "flee":
                 x["fled"] = True
                 hero = self.hero(h)
@@ -1160,15 +1089,15 @@ class Combat:
             elif k == "guard":
                 for t in targets:
                     if isinstance(t, tuple):
-                        self.s["fight"]["guard"][str(t[1])] = h
+                        # the first attack aimed at them swings to you, in plain sight; with none,
+                        # you take the next hit that lands on them
+                        if not self.retarget_intents(f"h{h}", frm=f"h{t[1]}", first_only=True):
+                            self.s["fight"]["guard"][str(t[1])] = h
                         self.fx("st", to=f"h{t[1]}", s="guarded")
             elif k == "taunt":
                 f = self.s["fight"]
                 f["taunt"] = h
-                for fo in self.foes():
-                    it = fo["intent"] or {}
-                    if it.get("k") in ("attack", "debuff"):
-                        it["tgt"] = f"h{h}"
+                self.retarget_intents(f"h{h}")
                 self.fx("st", to=f"h{h}", s="taunt")
             elif k == "drag":
                 for t in targets:
@@ -1197,26 +1126,43 @@ class Combat:
                 n = scale(_amt(op["amt"], self.env(h, a, dice)) + plus)
                 for t in targets:
                     it = t.get("intent") if isinstance(t, dict) else None
-                    if it and it.get("v") is not None:
-                        it["v"] = max(0, it["v"] - n)
-                        if "lo" in it:
-                            it["lo"], it["hi"] = max(0, it["lo"] - n), max(0, it["hi"] - n)
+                    if it and it.get("dice") and it["k"] in ("attack", "all", "block", "guard", "heal"):
+                        it["bonus"] = it.get("bonus", 0) - n
+                        self.intent_numbers(it)
                         self.fx("st", to=f"f{t['id']}", s="weakened")
             elif k == "retarget":
                 for t in targets:
                     it = t.get("intent") if isinstance(t, dict) else None
-                    if it and it.get("tgt"):
-                        new = self.foe_target(it, exclude=it["tgt"])
+                    if it and (it.get("tgt") or it.get("tgts")):
+                        old = it.get("tgt") or it["tgts"][0]
+                        new = self.foe_target(dict(it, tgt_kind="random"), exclude=old)
                         if new is None:
-                            t["intent"] = {"k": "dazed"}
-                        else:
+                            t["intent"] = {"k": "dazed", "name": "Distracted"}
+                        elif it.get("tgt"):
                             it["tgt"] = new
+                        else:
+                            it["tgts"] = [new if u == old else u for u in it["tgts"]]
+                        self.fx("retarget", f=t["id"], to=new)
                         self.fx("st", to=f"f{t['id']}", s="distracted")
             elif k == "cancel":
                 for t in targets:
                     if isinstance(t, dict) and t["hp"] > 0:
-                        t["intent"] = {"k": "dazed"}
+                        t["intent"] = {"k": "dazed", "name": "Lost its turn"}
                         self.fx("st", to=f"f{t['id']}", s="dazed")
+            elif k == "steal":
+                for t in targets:
+                    it = t.get("intent") if isinstance(t, dict) else None
+                    if not it or not it.get("dice"):
+                        continue
+                    i = max(range(len(it["dice"])), key=lambda j: die_range(it["dice"][j]["faces"])[1])
+                    it["dice"].pop(i)
+                    if it.get("tgts") and it.get("each") and i < len(it["tgts"]):
+                        it["tgts"].pop(i)
+                    if not it["dice"]:
+                        t["intent"] = {"k": "dazed", "name": "Robbed blind"}
+                    else:
+                        self.intent_numbers(it)
+                    self.fx("st", to=f"f{t['id']}", s="robbed")
             elif k == "gold":
                 n = _amt(op["amt"], {})
                 self.hero(h)["gold"] += n
@@ -1255,6 +1201,7 @@ class Combat:
         fo["hp"] -= n
         if h is not None:
             self.s["stats"][h]["dmg"] += n
+            fo.setdefault("hurt_by", {})[str(h)] = fo.get("hurt_by", {}).get(str(h), 0) + n
             if n > 0 and str(h) in self.s["fight"]["hs"]:
                 self.hs(h)["struck"] = True
         self.fx("dmg", to=f"f{fo['id']}", n=n, block=blocked)
@@ -1307,8 +1254,7 @@ class Combat:
         if d.get("volatile"):
             self.fx("st", to=f"f{fo['id']}", s="explodes")
             for y in self.actives():
-                if self.hs(y)["row"] == "front":
-                    self.hurt_hero(y, d["volatile"], None, pure=True)
+                self.hurt_hero(y, d["volatile"], None, pure=True)
         if d.get("boss") and not d.get("final"):
             self.say(f"{d['name']} falls!")
 
@@ -1359,8 +1305,6 @@ class Combat:
                 x["soaked"] = True
                 n -= soak
             n -= f["sanct"] + f["aegis"]
-            if melee and x["row"] == "back":
-                n -= 2
             if fo is not None and fo["row"] == "back":
                 n -= self.mods(h).get("footwork", 0)
             if x["st"].get("vuln"):
@@ -1405,105 +1349,6 @@ class Combat:
                 if fury and fo is not None and fo["hp"] > 0:
                     self.hurt_foe(fo, fury, h, pure=True)
         return n
-
-    def foe_act(self, fo):
-        f = self.s["fight"]
-        it = fo["intent"] or {}
-        if fo["st"].pop("stun", 0):
-            self.fx("st", to=f"f{fo['id']}", s="stunned")
-            return
-        frozen = fo["st"].pop("freeze", 0)
-        k = it.get("k")
-        v = it.get("v", 0)
-        times, sear = 1, False
-        if "lo" in it:
-            lo, hi = it["lo"], it["hi"]
-            dk = A.FOES[fo["k"]].get("dk")
-            v = self.rng.randint(lo, hi)
-            dice, note = [v], None
-            if dk == "twin":
-                dice.append(self.rng.randint(lo, hi))
-                if dice[0] == dice[1]:
-                    times, note = 2, "doubles"
-                v = max(dice)
-            elif dk == "exploding" and v == hi and hi > lo:
-                more = self.rng.randint(1, hi - lo)
-                dice.append(more)
-                v, note = v + more, "explodes"
-            elif dk == "fumble" and v == lo:
-                note = "fumble"
-            elif dk == "searing" and v >= hi - (hi - lo) / 3:
-                sear, note = True, "sear"
-            self.fx("froll", f=fo["id"], v=v, lo=lo, hi=hi, ik=k, dice=dice, note=note)
-            if note == "fumble":
-                self.fx("fact", f=fo["id"], ik="dazed")
-                return
-        if frozen:
-            v //= 2
-        if fo["st"].get("weak"):
-            v = int(v * 0.75)
-        for _ in range(times):
-            if fo["hp"] <= 0 or not self.actives():
-                return
-            self.fx("fact", f=fo["id"], ik=k)
-            self.foe_do(fo, it, k, v, sear)
-
-    def foe_do(self, fo, it, k, v, sear=False):
-        """One enemy action landing, its roll already made."""
-        f = self.s["fight"]
-        d = A.FOES[fo["k"]]
-
-        def landed(u, n):
-            # searing Burns, leeching heals the enemy by half of what got through
-            if sear and u.startswith("h") and self.active(int(u[1:])):
-                self.hero_status(int(u[1:]), "burn", 2)
-            if d.get("leech") and n and fo["hp"] > 0:
-                got = min((n + 1) // 2, fo["max"] - fo["hp"])
-                if got:
-                    fo["hp"] += got
-                    self.fx("heal", to=f"f{fo['id']}", n=got)
-        if k == "attack" or k == "debuff":
-            t = it.get("tgt")
-            if not self.unit_alive(t) or (k == "debuff" and t and t.startswith("s")):
-                t = self.foe_target(it, heroes_only=k == "debuff")
-            if t is None:
-                return
-            if f["taunt"] is not None and self.active(f["taunt"]):
-                t = f"h{f['taunt']}"
-            if k == "attack":
-                landed(t, self.hurt_unit(t, v, fo, melee=bool(it.get("melee"))))
-            if it.get("st") and t.startswith("h") and self.active(int(t[1:])):
-                self.hero_status(int(t[1:]), it["st"], it.get("sn", 1))
-        elif k in ("row", "all"):
-            units = self.party_units()
-            if k == "row":
-                want = it.get("row", "front")
-                units = [u for u in units if self.unit_row(u) == want] or units
-            for u in units:
-                landed(u, self.hurt_unit(u, v, fo))
-                if it.get("st") and u.startswith("h") and self.active(int(u[1:])) and self.rng.random() < it.get("chance", 1):
-                    self.hero_status(int(u[1:]), it["st"], it.get("sn", 1))
-        elif k == "block":
-            fo["st"]["armor"] = fo["st"].get("armor", 0) + v
-            self.fx("armor", to=f"f{fo['id']}", n=v)
-        elif k == "guard":
-            ally = min(self.foes(), key=lambda o: o["hp"] / o["max"])
-            ally["st"]["armor"] = ally["st"].get("armor", 0) + v
-            self.fx("armor", to=f"f{ally['id']}", n=v)
-        elif k == "heal":
-            ally = min(self.foes(), key=lambda o: o["hp"] / o["max"])
-            got = min(v, ally["max"] - ally["hp"])
-            ally["hp"] += got
-            self.fx("heal", to=f"f{ally['id']}", n=got)
-        elif k == "buff":
-            for o in self.foes():
-                o["might"] += v
-            self.fx("st", to="foes", s="might")
-        elif k == "summon":
-            if len(self.foes()) < 5:
-                new = self.add_foe(it["f"])
-                new["intent"] = {"k": "dazed"}
-                self.fx("summon", f=new["id"])
 
     def hero_status(self, h, s, n):
         x = self.hs(h)
@@ -1563,7 +1408,7 @@ class Combat:
         frac = crown["hp"] / crown["max"]
         if f["phase"] == 1 and frac <= 0.66:
             f["phase"] = 2
-            self.say("The sea pours over the peak: the back row is flooding!")
+            self.say("The sea pours over the peak: everyone takes 2 a round now!")
             self.fx("phase", n=2)
         elif f["phase"] == 2 and frac <= 0.33:
             f["phase"] = 3
@@ -1575,8 +1420,7 @@ class Combat:
             self.fx("phase", n=3)
         if f["phase"] >= 2:
             for h in self.actives():
-                if self.hs(h)["row"] == "back":
-                    self.hurt_hero(h, 3, None, pure=True)
+                self.hurt_hero(h, 2, None, pure=True)
 
     # ------------------------------------------------------------------ the end of a fight
 

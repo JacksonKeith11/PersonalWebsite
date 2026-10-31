@@ -1,12 +1,12 @@
-// The fight overlay: the two sides in their rows, enemy intents, the party's plan, and your dice
+// The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=31';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=31';
-import { spriteURL } from './art.js?v=31';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=31';
-import { render } from './main.js?v=31';
-import * as sfx from './audio.js?v=31';
+import { S, send, mine } from './store.js?v=32';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=32';
+import { spriteURL } from './art.js?v=32';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=32';
+import { render } from './main.js?v=32';
+import * as sfx from './audio.js?v=32';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -22,13 +22,13 @@ export function combatBusy() { return C.playing || queue.length > 0; }
 
 const KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
 const INTENT = {
-  attack: ['sword', 'var(--intent-attack)'], row: ['sword', 'var(--intent-attack)'], all: ['skull', 'var(--intent-attack)'],
+  attack: ['sword', 'var(--intent-attack)'], all: ['skull', 'var(--intent-attack)'],
   block: ['shield', 'var(--intent-defend)'], guard: ['shield', 'var(--intent-defend)'], heal: ['plus', 'var(--intent-heal)'],
   buff: ['up', 'var(--intent-buff)'], debuff: ['eye', 'var(--intent-debuff)'], summon: ['spark', 'var(--intent-buff)'],
   charge: ['bolt', 'var(--intent-buff)'], dazed: ['clock', 'var(--muted)'],
 };
 const INTENT_TEXT = {
-  attack: 'Attack', row: 'Hits a whole row', all: 'Hits everyone', block: 'Defend', guard: 'Shields an ally', heal: 'Heals an ally',
+  attack: 'Attack', all: 'Hits everyone', block: 'Defend', guard: 'Shields an ally', heal: 'Heals an ally',
   buff: 'Strengthens allies for the rest of the fight', debuff: 'Curses a hero', summon: 'Calls for help', charge: 'Gathering power…', dazed: 'Caught off guard: does nothing this round',
 };
 
@@ -79,7 +79,7 @@ export function renderCombat(el) {
     const d = S.static.foes[fo.k];
     const cl = ['unit', 'foe'];
     if (d.boss) cl.push('boss');
-    if (fo.hp <= 0 && !fo.dying) cl.push('dead');
+    if (fo.hp <= 0 && !fo.dying) cl.push('dead', 'gone');
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
     return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, onclick: () => targetClick('f' + fo.id), tip: foeTip(fo) },
@@ -104,16 +104,17 @@ export function renderCombat(el) {
       h('div.sts'),
       floats('s' + a.id));
   };
-  const alliesIn = row => (f.allies || []).filter(a => a.row === row && (a.hp > 0 || C.playing));
-  const heroesIn = row => f.heroes.filter(x => f.hs[x].row === row);
-  const foesIn = row => f.foes.filter(fo => fo.row === row && (fo.hp > 0 || fo.dying || C.playing));
+  // Every enemy keeps its place for the whole fight (the fallen leave a gap), so nothing jumps around
+  // while a round plays out.
+  const allies = (f.allies || []).filter(a => a.hp > 0 || (C.playing && a.wasUp));
+  const foesIn = row => f.foes.filter(fo => fo.row === row || (row === 'front' && fo.row !== 'back'));
 
   // three or more in a column: shrink them so the column fits
-  const col = (label, units) => h('div.col' + (units.length >= 3 ? '.crowd' : ''), null, h('span.lbl', null, label), ...units);
+  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 3 || party ? '.crowd' : ''), null, h('span.lbl', null, label), ...units);
   const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), null,
-    h('div.side-units', null,
-      col('Back', [...heroesIn('back').map(unitHero), ...alliesIn('back').map(unitAlly)]),
-      col('Front', [...heroesIn('front').map(unitHero), ...alliesIn('front').map(unitAlly)])),
+    h('div.side-units' + (allies.length ? '' : '.solo'), null,
+      allies.length ? col('Allies', allies.map(unitAlly)) : null,
+      col('Party', f.heroes.map(unitHero), true)),
     h('div.side-units', null,
       col('Front', foesIn('front').map(unitFoe)),
       col('Back', foesIn('back').map(unitFoe))),
@@ -146,7 +147,7 @@ export function renderCombat(el) {
     h('div.combat-head', null,
       h('span.round', null, `Round ${f.round}`),
       h('h2', null, fightTitle(f)),
-      f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), 'The back row is flooding: 3 damage a round') : null,
+      f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), 'The peak is flooding: everyone takes 2 a round') : null,
       !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null),
     stage, plan, bottom);
   C.rolled = false;
@@ -159,21 +160,44 @@ function preview(f) {
   const out = {};
   const at = id => (out[id] ||= { dmg: 0, heal: 0, armor: 0, incoming: 0, lo: 0, hi: 0 });
   const alive = f.foes.filter(fo => fo.hp > 0);
-  const units = [...f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y), ...(f.allies || []).filter(a => a.hp > 0).map(a => 's' + a.id)];
-  const rowOf = id => (id[0] === 'h' ? f.hs[+id.slice(1)].row : (f.allies || []).find(a => 's' + a.id === id)?.row);
+  const units = partyUnits(f);
   for (const fo of alive) {
     const it = fo.intent;
-    if (!it || !it.v || !['attack', 'row', 'all'].includes(it.k)) continue;
-    for (const id of intentTargets(it, units, rowOf)) { const u = at(id); u.incoming += it.v; u.lo += it.lo ?? it.v; u.hi += it.hi ?? it.v; }
+    if (!it || it.lo == null || !['attack', 'all'].includes(it.k) || fo.st.stun) continue;
+    for (const id of intentTargets(it, units)) { const u = at(id); u.incoming += it.v; u.lo += it.lo; u.hi += it.hi; }
   }
   return out;
 }
 
-function intentTargets(it, units, rowOf) {
-  if (it.k === 'attack') return it.tgt && units.includes(it.tgt) ? [it.tgt] : [];
+function partyUnits(f) {
+  return [...f.heroes.filter(y => !f.hs[y].down && !f.hs[y].fled).map(y => 'h' + y), ...(f.allies || []).filter(a => a.hp > 0).map(a => 's' + a.id)];
+}
+
+// Who an intent will hit, once per hit (a unit can appear twice when two dice go its way).
+function intentTargets(it, units) {
   if (it.k === 'all') return units;
-  if (it.k === 'row') { const r = units.filter(u => rowOf(u) === (it.row || 'front')); return r.length ? r : units; }
-  return [];
+  if (!['attack', 'debuff'].includes(it.k)) return [];
+  return (it.tgts || (it.tgt ? [it.tgt] : [])).filter(u => units.includes(u));
+}
+
+// "2d6+3", with special dice marked: d6! explodes, d8~ steady, [4] already rolled, 3|5 one of two.
+export function diceText(it) {
+  const dice = it.dice || [];
+  if (!dice.length) return '';
+  const parts = [];
+  const plain = {};
+  for (const d of dice) {
+    const nums = d.faces.map(x => (typeof x === 'number' ? x : parseInt(String(x).slice(1)) || 0));
+    const top = Math.max(...nums);
+    const odd = d.faces.some(x => typeof x !== 'number');
+    if (d.v != null) parts.push(`[${d.tag === 'W' ? 'W' : d.v}]`);
+    else if (d.fc) parts.push(d.fc.map(x => x[0] ?? 'W').join('|'));
+    else if (odd || d.dk.length) parts.push(`d${top}${d.dk.includes('exploding') ? '!' : d.dk.includes('steady') ? '~' : ''}${odd ? '*' : ''}`);
+    else plain[top] = (plain[top] || 0) + 1;
+  }
+  const groups = Object.entries(plain).sort((a, b) => b[0] - a[0]).map(([n, c]) => `${c > 1 ? c : ''}d${n}`);
+  const b = it.bonus || 0;
+  return [...groups, ...parts].join('+') + (b > 0 ? `+${b}` : b < 0 ? `−${-b}` : '');
 }
 
 function previewRow(id, prev, hp) {
@@ -193,12 +217,13 @@ function previewRow(id, prev, hp) {
 }
 
 // Curved arrows from each enemy to whoever its intent targets.
-const ARROW = { attack: '#d0624f', row: '#d0624f', all: '#d0624f', debuff: '#a48ad8' };
+const ARROW = { attack: '#d0624f', all: '#d0624f', debuff: '#a48ad8' };
 function drawArrows(box, f) {
   const stage = box.querySelector('.stage');
   if (!stage) return;
   stage.querySelector('svg.arrows')?.remove();
-  if (C.playing) return;
+  // arrows stay up while the party's own actions play out, so a Guard or Taunt visibly swings them
+  if (C.playing && S.game.fight?.round !== f.round) return;
   const sr = stage.getBoundingClientRect();
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'arrows');
@@ -209,7 +234,6 @@ function drawArrows(box, f) {
   }
   svg.append(defs);
   const units = [...stage.querySelectorAll('.unit.hero:not(.down):not(.fled):not(.dead)')].map(el => el.dataset.uid);
-  const rowOf = id => (id[0] === 'h' ? f.hs[+id.slice(1)].row : (f.allies || []).find(a => 's' + a.id === id)?.row);
   const pos = (el, side) => {
     const r = el.querySelector('img').getBoundingClientRect();
     return [side === 'left' ? r.left - sr.left - 4 : r.right - sr.left + 4, r.top - sr.top + r.height * 0.45];
@@ -219,7 +243,7 @@ function drawArrows(box, f) {
     if (fo.hp <= 0 || !it || !ARROW[it.k]) continue;
     const fromEl = stage.querySelector(`[data-uid="f${fo.id}"]`);
     if (!fromEl) continue;
-    const targets = it.k === 'debuff' ? (it.tgt ? [it.tgt] : []) : intentTargets(it, units, rowOf);
+    const targets = [...new Set(intentTargets(it, units))];
     const [x0, y0] = pos(fromEl, 'left');
     for (const t of targets) {
       const toEl = stage.querySelector(`[data-uid="${t}"]`);
@@ -228,7 +252,7 @@ function drawArrows(box, f) {
       const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 40 - Math.abs(x0 - x1) * 0.06;
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', `M${x0},${y0} Q${mx},${my} ${x1},${y1}`);
-      path.setAttribute('class', 'arrow');
+      path.setAttribute('class', 'arrow' + (C.swung?.[fo.id] && performance.now() - C.swung[fo.id] < 900 ? ' swing' : ''));
       path.setAttribute('stroke', ARROW[it.k]);
       path.setAttribute('marker-end', `url(#ah-${it.k === 'debuff' ? 'violet' : 'red'})`);
       if (it.k !== 'attack') path.setAttribute('stroke-dasharray', '6 5');
@@ -274,11 +298,16 @@ function rollTray() {
   const EL = { burn: 'F', freeze: 'I', poison: 'P', F: 'F', I: 'I', P: 'P' };
   const shown = x => faceText(['S', 'X', 'W'].includes(x.tag) ? x.tag : EL[x.tag] ? EL[x.tag] + x.v : x.v);
   if (t.foe) {
-    const what = { attack: 'Attack', row: 'Row attack', all: 'Hits everyone', block: 'Defend', guard: 'Shield', heal: 'Heal' }[t.ik] || 'Rolls';
-    return h('div.roll-tray.foe-roll' + (t.verdict && now >= t.vt ? '.' + t.verdict : ''), { style: since(t.t), role: 'status' },
-      h('div.rt-info', null, h('span.rt-who', null, t.foe), h('span.rt-act', null, what), h('span.rt-need', null, `Rolls ${t.range}`)),
-      h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die.foe', { style: since(x.t) }, h('span', { style: since(x.t) }, x.v)))),
-      h('div.rt-slot', null, t.verdict && now >= t.vt ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.label) : null));
+    const late = now >= t.vt;
+    const foeFace = x => (x.tag === 'X' || x.tag === 'S' || x.tag === 'W' ? faceText(x.tag) : x.tag ? faceText(x.tag + x.v) : x.v);
+    return h('div.roll-tray.foe-roll' + (t.verdict && late ? '.' + t.verdict : ''), { style: since(t.t), role: 'status' },
+      h('div.rt-info', null, h('span.rt-who', null, t.foe), h('span.rt-act', null, t.name || 'Attack'), h('span.rt-need', null, t.range ? `Rolls ${t.range}` : '')),
+      h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die.foe' + (x.re != null ? '.re' : ''), { style: since(x.t) },
+        h('span', { style: since(x.t) }, foeFace(x)),
+        x.re != null ? h('small', null, `${x.re} → again`) : x.ex != null ? h('small', null, `boom +${x.ex}`) : null)),
+        t.bonus ? h('div.rt-bonus', null, `${t.bonus > 0 ? '+' : '−'}${Math.abs(t.bonus)}`) : null),
+      h('div.rt-slot', null, late && t.total != null ? h('div.rt-total', { style: since(t.vt) }, `= ${t.total}`) : null,
+        t.verdict && late ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.label) : null));
   }
   return h('div.roll-tray' + (t.verdict ? '.' + t.verdict : ''), { style: { '--seat': `var(--hero-${t.h})`, ...since(t.t) }, role: 'status' },
     h('div.rt-info', null,
@@ -303,22 +332,58 @@ function floats(id) {
 
 function foeTip(fo) {
   const d = S.static.foes[fo.k];
-  return `${d.name}\n${fo.hp} / ${fo.max} HP · ${d.row} row · speed ${d.speed}${d.undead ? ' · undead' : ''}${d.beast ? ' · beast' : ''}${foeTraits(d).map(([n, t]) => `\n${n}: ${t}`).join('')}`;
+  return `${d.name}\n${fo.hp} / ${fo.max} HP · ${d.row} row · acts ${speedWord(d.speed)}${d.undead ? ' · undead' : ''}${d.beast ? ' · beast' : ''}${foeTraits(d).map(([n, t]) => `\n${n}: ${t}`).join('')}`;
 }
 
+function speedWord(n) { return n >= 7 ? 'very fast' : n >= 5 ? 'fast' : n >= 3 ? 'at a steady pace' : 'slowly'; }
+
+function unitName(f, u) {
+  if (!u) return '';
+  if (u.startsWith('h')) return S.game.heroes[+u.slice(1)].name;
+  return (f.allies || []).find(a => 's' + a.id === u)?.name || 'a summon';
+}
+
+// An enemy's intent: what move, which dice, the range, and who it's aimed at. The tooltip spells
+// out every rule the move has.
 function intentChip(fo, f) {
   const it = fo.intent;
   if (!it || fo.hp <= 0) return h('div.intent.none', null, '·');
   const [ic, col] = INTENT[it.k] || ['spark', 'var(--muted)'];
-  let to = '';
-  if (it.tgt?.startsWith('h')) to = S.game.heroes[+it.tgt.slice(1)].name;
-  else if (it.tgt?.startsWith('s')) to = (f.allies || []).find(a => 's' + a.id === it.tgt)?.name || 'a summon';
-  else if (it.k === 'row') to = it.row === 'back' ? 'back row' : 'front row';
-  else if (it.k === 'all') to = 'everyone';
-  const stTxt = it.st ? ` + ${STATUS[it.st]?.name || it.st}` : '';
-  const range = it.lo != null ? `${it.lo}–${it.hi}` : null;
-  const tip = `${INTENT_TEXT[it.k] || it.k}${range ? ` for ${range} (rolled when it acts)` : it.v ? ` for ${it.v}` : ''}${stTxt}${to ? `\nTarget: ${to}` : ''}`;
-  return h('div.intent', { style: { '--c': col }, tip }, icon(ic), range ?? it.v ?? '', it.st ? icon(STATUS[it.st]?.icon || 'spark') : null, to ? h('span.to', null, '→ ' + to) : null);
+  const aims = it.k === 'all' ? ['everyone'] : (it.tgts || (it.tgt ? [it.tgt] : [])).map(u => unitName(f, u));
+  const counts = {};
+  for (const a of aims) counts[a] = (counts[a] || 0) + 1;
+  const to = Object.entries(counts).map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(', ');
+  const range = it.lo != null ? (it.lo === it.hi ? `${it.lo}` : `${it.lo}–${it.hi}`) : it.k === 'buff' ? `+${it.v}` : '';
+  const hits = it.each ? (it.dice || []).length : it.sweep || 1;
+  const lines = [it.name || INTENT_TEXT[it.k] || it.k];
+  const dt = diceText(it);
+  if (it.k === 'attack') lines.push(`Rolls ${dt}: ${range} damage${it.each ? ' with each die, a separate hit' : it.sweep ? ` to ${it.sweep} of you at once` : ''}.`);
+  else if (it.k === 'all') lines.push(`Rolls ${dt}: ${range} damage to everyone.`);
+  else if (['block', 'guard', 'heal'].includes(it.k)) lines.push(`Rolls ${dt}: ${range} ${it.k === 'heal' ? 'healing for its most hurt ally' : it.k === 'guard' ? 'Armor for its most hurt ally' : 'Armor for itself'}.`);
+  else if (it.k === 'buff') lines.push(`Every enemy gains +${it.v} might for the rest of the fight.`);
+  else if (it.k === 'summon') lines.push(`Calls a ${S.static.foes[it.f]?.name || 'friend'} into the fight.`);
+  else if (it.k === 'charge') lines.push(A_CHARGE(fo));
+  else if (it.k === 'dazed') lines.push('Does nothing this round.');
+  if (it.st) lines.push(`${it.st_min ? `If a die rolls ${it.st_min}+: ` : it.k === 'debuff' ? '' : 'On a hit: '}${STATUS[it.st]?.name || it.st}${it.k === 'debuff' && it.dice?.[0]?.v != null ? ` (its die shows ${it.dice[0].v}${it.st_min ? it.dice[0].v >= it.st_min ? ': it will land' : ': it will miss' : ''})` : ''}.`);
+  if (it.pair) lines.push(`On doubles: ${it.pair.again ? 'it strikes twice' : STATUS[it.pair.st]?.name || it.pair.st}.`);
+  if (it.chain) lines.push('Then arcs to someone else for half.');
+  if (it.charged) lines.push('Charged: rolls an extra die.');
+  if (it.guarded != null) lines.push(`Guarded: it now comes at ${unitName(f, it.guarded)}.`);
+  if (to) lines.push(`Target: ${to}`);
+  const sure = it.k === 'debuff' && it.st_min && it.dice?.[0]?.v != null ? (it.dice[0].v >= it.st_min ? '.sure' : '.fizzle') : '';
+  const short = it.k === 'all' ? 'all' : Object.entries(counts).map(([n, c]) => n.split(' ')[0] + (c > 1 && hits > 1 && Object.keys(counts).length > 1 ? `×${c}` : '')).join(', ');
+  return h('div.intent' + sure + (it.guarded != null ? '.guarded' : ''), { style: { '--c': col }, tip: lines.join('\n') },
+    h('span.mv', null, it.name || INTENT_TEXT[it.k] || ''),
+    h('span.ln', null, icon(ic),
+      it.guarded != null ? h('span.gd', null, icon('shield')) : null,
+      range ? h('b', null, range) : null, hits > 1 ? h('span.x', null, `×${hits}`) : null,
+      it.st ? icon(STATUS[it.st]?.icon || 'spark') : null,
+      short ? h('span.to', null, '→ ' + short) : null));
+}
+
+function A_CHARGE(fo) {
+  const d = S.static.foes[fo.k];
+  return d.dice.some(x => (x.dk || []).includes('grow')) ? 'Its die grows 4 faces bigger.' : 'Its next attack rolls an extra die.';
 }
 
 function doneChip(p, i, f) {
@@ -352,7 +417,7 @@ function tray(f, x, my) {
       h('div.who', null,
         my.length > 1 ? h('div.seg', null, ...my.map(y => h('button', { 'aria-pressed': String(y === x), onclick: () => { C.tab = y; C.sel.clear(); C.pending = null; render(); } }, g.heroes[y].name)))
           : h('b', { style: { color: `var(--hero-${x})` } }, hero.name),
-        h('span.chip', { tip: 'Your row\nMelee actions need the front row. Back-row heroes take 2 less from melee.' }, hs.row === 'front' ? 'Front row' : 'Back row')),
+        null),
       dice.length ? h('div.dice', null, ...dice.map((d, i) => dieButton(d, i, ready))) : h('p.muted', null, 'No dice this round (Stunned).'),
       h('div.tray-tools', null,
         h('span.chip', { tip: 'Automatic rerolls\nWhen one of your actions misses, a die rolls again, as long as you have one left this fight.' }, icon('refresh'), `${hs.rr} reroll${hs.rr === 1 ? '' : 's'}`),
@@ -394,7 +459,7 @@ function dieButton(d, i, ready) {
   if (guard) badges.push(h('span.badge.guard', null, icon('shield')));
   const tip = `${dieTip(d)}\n${src}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
   return h('button.die' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (d.src === 'spirit' ? '.spirit' : '') + (guard ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
-    disabled: d.used || ready, 'aria-label': `Die ${i + 1}: ${dieLabel(d)}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
+    disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${dieLabel(d)}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
   }, h('span.k', null, i + 1), face, ...badges, h('span.src', null, { base: '', weapon: 'W', armor: 'A', trinket: 'T', spirit: '✦', pet: 'P', anthem: '♪', gift: 'G', hex: '☠' }[d.src] ?? ''));
 }
 
@@ -405,25 +470,32 @@ function actionCard(f, x, k, i, selDice, ready) {
   const once = a.once && hs.once.includes(base);
   const spent = a.per_rest && (S.game.heroes[x].spent || []).includes(base);
   const cooling = a.cd ? (hs.cds?.[base] || 0) : 0;
-  const meleeBlocked = a.melee && hs.row !== 'front';
+  const meleeBlocked = false;
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
   const guardOff = !a.def && selDice.some(d => d.dk?.includes('guard'));
   const fits = !ready && !once && !spent && !cooling && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
-  const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : null;
-  const dis = ready || once || spent || noFlee || cooling > 0;
-  const why = spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : meleeBlocked ? '\nNeeds the front row.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
-    : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.` : '';
+  // with nothing picked, the dice a click would use: shown on hover, and their odds on the card
+  const auto = n > 0 && !selDice.length ? autoDice(f, x, a) : null;
+  const noDice = n > 0 && !selDice.length && !auto;
+  const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : auto && isRisky(a.req) ? hitChance(a.req, auto, f.hymn || 0) : null;
+  const dis = ready || once || spent || noFlee || cooling > 0 || noDice;
+  const why = spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
+    : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.`
+    : noDice ? `\nNo dice left that it can take${!a.def && hs.dice.some(d => !d.used && d.dk?.includes('guard')) ? ' (Guard dice only go on defensive actions)' : ''}.`
+    : auto ? `\nClick to use ${auto.map(d => dieLabel(d)).join(' + ')}: the dice lit up below.` : '';
+  const ids = auto ? auto.map(d => d.id) : [];
+  const light = on => { for (const id of ids) document.querySelector(`.tray .die[data-id="${CSS.escape(id)}"]`)?.classList.toggle('auto', on); };
   const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
-  return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : ''), {
-    disabled: dis, tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${cdText}${why}`,
+  return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : '') + (noDice ? '.nodice' : ''), {
+    disabled: dis, onmouseenter: () => light(true), onmouseleave: () => light(false), onfocus: () => light(true), onblur: () => light(false), tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${cdText}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
     h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
       h('span.top-r', null,
         cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling} rounds` : 'next round')
           : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null,
-        cooling ? null : chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad'), { tip: `Chance to hit with the dice you've picked: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
+        cooling ? null : chance !== null ? h('span.odds' + (chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad') + (auto ? '.auto' : ''), { tip: `Chance to hit with ${auto ? 'the dice it would use' : 'the dice you\'ve picked'}: ${Math.round(chance * 100)}%` }, `${Math.round(chance * 100)}%`)
           : h('span.req', null, reqText(a.req)))),
     h('p', null, a.text),
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
@@ -445,6 +517,30 @@ function toggleDie(id) {
   render();
 }
 
+// The dice a click on an action uses when none are picked. Guard dice go to defensive actions first
+// and never to anything else. A risky action takes the dice likeliest to hit it; anything else the
+// best ones (by what they show, or roll on average). Null when no dice fit.
+function autoDice(f, x, a) {
+  const n = a.req.n ?? 1;
+  const guard = d => (d.dk?.includes('guard') ? 1 : 0);
+  const free = f.hs[x].dice.filter(d => !d.used && (a.def || !guard(d)))
+    .sort((p, q) => (a.def ? guard(q) - guard(p) : 0) || expected(q) - expected(p));
+  if (a.req.upto) return free.length ? free.slice(0, n) : null;
+  if (free.length < n) return null;
+  if (!isRisky(a.req) || free.length === n) return countOk(a.req, free.slice(0, n)) ? free.slice(0, n) : null;
+  let best = null, bestP = -1;
+  const pick = (start, combo) => {
+    if (combo.length === n) {
+      const p = hitChance(a.req, combo, f.hymn || 0);
+      if (p > bestP + 1e-9) { bestP = p; best = combo.slice(); }
+      return;
+    }
+    for (let i = start; i < free.length; i++) { combo.push(free[i]); pick(i + 1, combo); combo.pop(); }
+  };
+  pick(0, []);
+  return best && countOk(a.req, best) ? best : null;
+}
+
 function needsTarget(a) { return ['foe', 'ally', 'other', 'downed'].includes(a.tgt); }
 
 function pickAction(f, x, k, selDice) {
@@ -453,17 +549,12 @@ function pickAction(f, x, k, selDice) {
   const n = a.req.n ?? 1;
   let dice = selDice;
   if (n > 0 && !dice.length) {
-    // nothing picked: use the best free dice (by what they show, or roll on average)
-    // Guard dice go to defensive actions first, and never to anything else
-    const guard = d => (d.dk?.includes('guard') ? 1 : 0);
-    const free = f.hs[x].dice.filter(d => !d.used && (a.def || !guard(d))).sort((p, q) => (a.def ? guard(q) - guard(p) : 0) || expected(q) - expected(p));
-    dice = free.slice(0, n);
-    if (!countOk(a.req, dice)) { toast(`${a.name} needs ${n} ${n === 1 ? 'die' : 'dice'}, and you don’t have that many left.`); return; }
+    dice = autoDice(f, x, a);
+    if (!dice) { toast(`${a.name} needs ${n} ${n === 1 ? 'die' : 'dice'}, and you don’t have that many left.`); return; }
   }
   if (n === 0 && dice.length) dice = [];
   if (!a.def && dice.some(d => d.dk?.includes('guard'))) { toast('Guard dice only go on defensive actions: Block, Armor, healing and the like.', 'err'); sfx.play('error'); return; }
   if (n > 0 && !countOk(a.req, dice)) { toast(`${a.name} takes ${a.req.upto ? 'up to ' : ''}${n} ${n === 1 ? 'die' : 'dice'}.`, 'err'); sfx.play('error'); return; }
-  if (a.melee && f.hs[x].row !== 'front') { toast('Melee needs the front row. Use Shift to move up.', 'err'); return; }
   const msg = { t: 'place', h: x, a: base, dice: dice.map(d => d.id) };
   if (needsTarget(a)) {
     const opts = targetsFor(f, x, a, dice);
@@ -657,18 +748,25 @@ function apply(f) {
       return 380;
     }
     case 'froll': {
+      // an enemy rolls its dice in the open: each die lands, then the total (or what went wrong)
       const fo = foe('f' + f.f);
       const now = performance.now();
-      const third = (f.hi - f.lo) / 3;
-      const NOTE = { explodes: 'heavy', doubles: 'heavy', sear: 'heavy', fumble: 'glancing' };
-      const verdict = f.note ? NOTE[f.note] : f.hi === f.lo ? null : f.v >= f.hi - third ? 'heavy' : f.v <= f.lo + third ? 'glancing' : null;
-      const label = { explodes: 'Explodes!', doubles: 'Doubles!', sear: 'Searing!', fumble: 'Fumble' }[f.note] || (verdict === 'heavy' ? 'Heavy!' : 'Glancing');
-      C.tray = { fid: f.f, foe: fo?.name || 'Enemy', range: `${f.lo}–${f.hi}`, ik: f.ik, t: now, verdict, label, vt: now + 380 / (S.settings.speed || 1),
-        dice: (f.dice || [f.v]).map((v, j) => ({ id: 'f' + f.f + '.' + j, v, t: now })) };
+      const dice = f.dice || [];
+      const each = fo?.intent?.each;
+      const total = each || !dice.length ? null : Math.max(0, dice.reduce((a, x) => a + (x.v || 0), 0) + (f.bonus || 0));
+      const span = (f.hi ?? 0) - (f.lo ?? 0), third = span / 3;
+      const NOTE = { explodes: ['heavy', 'Explodes!'], doubles: ['heavy', 'Doubles!'], skull: ['glancing', 'Skull!'], rider: ['heavy', fo?.intent?.st ? `${STATUS[fo.intent.st]?.name || ''}!` : 'Lands!'] };
+      let [verdict, label] = NOTE[f.note] || [null, null];
+      if (!verdict && total != null && span > 2) {
+        if (total >= f.hi - third) [verdict, label] = ['heavy', 'Heavy!'];
+        else if (total <= f.lo + third) [verdict, label] = ['glancing', 'Glancing'];
+      }
+      C.tray = { fid: f.f, foe: fo?.name || 'Enemy', name: f.name, range: f.lo != null ? `${f.lo}–${f.hi}` : '', t: now, verdict, label, total,
+        bonus: f.bonus || 0, vt: now + 420 / (S.settings.speed || 1), dice: dice.map((x, j) => ({ ...x, id: 'f' + f.f + '.' + j, t: now })) };
       flash('f' + f.f, 'act');
       sfx.play('dice');
-      if (verdict) setTimeout(render, 400 / (S.settings.speed || 1));
-      return 640;
+      setTimeout(render, 440 / (S.settings.speed || 1));
+      return 760;
     }
     case 'fact': {
       if (C.tray?.fid !== f.f) C.tray = null;
@@ -698,7 +796,7 @@ function apply(f) {
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', hexed: 'Hexed!' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');
@@ -732,14 +830,24 @@ function apply(f) {
       if (next && !d.foes.some(fo => fo.id === f.f)) d.foes.push(JSON.parse(JSON.stringify(next)));
       return 300;
     }
-    case 'shift': { if (d.hs[f.h]) d.hs[f.h].row = f.row; return 220; }
+    case 'retarget': {
+      // a Guard, Taunt or distraction swings an enemy's attack: copy the new aim and flash it
+      const fo = foe('f' + f.f);
+      const live = S.game.fight?.foes.find(x => x.id === f.f);
+      if (fo && live?.intent) fo.intent = JSON.parse(JSON.stringify(live.intent));
+      (C.swung ||= {})[f.f] = performance.now();
+      flash('f' + f.f, 'swung', 700);
+      addFloat('f' + f.f, `→ ${unitName(d, f.to)}`, 'txt');
+      sfx.play('block');
+      return 520;
+    }
     case 'flee': { if (d.hs[f.h]) d.hs[f.h].fled = true; return 300; }
     case 'drag': { const fo = foe(f.to); if (fo) fo.row = 'front'; return 220; }
     case 'coins': addFloat('h' + f.h, `+${f.n} gold`, 'gold'); sfx.play('coin'); return 260;
     case 'revive': addFloat('h' + f.h, 'Revived', 'heal.big'); flash('h' + f.h, 'revive', 800); sfx.play('revive'); return 600;
     case 'dead': bigBanner(`${S.game.heroes[f.h].name} has fallen`, 'No revives were left', 'danger', 2400); sfx.play('lose'); return 1200;
     case 'phase': {
-      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown rises', f.n === 2 ? 'The back row is flooding' : 'The Drowned Crown fights alone', 'danger', 2400);
+      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown rises', f.n === 2 ? 'The peak floods: 2 damage a round' : 'The Drowned Crown fights alone', 'danger', 2400);
       flash('stage', 'shake', 500);
       sfx.play('phase');
       return 1400;

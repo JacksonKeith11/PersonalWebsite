@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=33';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=33';
-import { spriteURL } from './art.js?v=33';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=33';
-import { MapView } from './hexmap.js?v=33';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=33';
-import { disconnect } from './main.js?v=33';
-import * as sfx from './audio.js?v=33';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=35';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=35';
+import { spriteURL } from './art.js?v=35';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=35';
+import { MapView } from './hexmap.js?v=35';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass } from './combat.js?v=35';
+import { disconnect } from './main.js?v=35';
+import * as sfx from './audio.js?v=35';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -551,7 +551,7 @@ function heroDrawer(h0, d) {
       h('h3', null, 'Passives'),
       passives.length ? passives.map(k => skillCard(k)) : h('p.muted', null, 'None yet: pick them as you level up.'),
       h('h3', null, 'Always available'),
-      skillCard('block'), skillCard('shift'), skillCard('flee'),
+      skillCard('block'), skillCard('flee'),
     ];
   } else {
     body = [

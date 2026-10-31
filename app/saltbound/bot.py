@@ -226,9 +226,13 @@ def route(g, h, goal):
         k = prev[k]
     steps.reverse()
     out, spent, af, at = [], 0, hero["afloat"], hero["tile"]
+    # a party travelling together moves at its slowest member's pace, so a quick hero (a Tracker,
+    # Wayfinder) doesn't arrive first and fight alone
+    mates = [y for y in g.living() if Wd.dist(g.hero(y)["tile"], hero["tile"]) <= 3]
+    pace = min(g.moves(y) for y in mates) if len(mates) == len(g.living()) else g.moves(h)
     for t, _ in steps:
         st = g.step_cost(h, at, t, af)
-        if st is None or spent + st[0] > g.moves(h):
+        if st is None or spent + st[0] > pace:
             break
         spent += st[0]
         out.append(t)
@@ -592,6 +596,11 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, dict):
                         val += share * now[t["id"]] * 0.4
+            elif k == "foresee":
+                for t, share in tg:
+                    it = t.get("intent") if isinstance(t, dict) else None
+                    if it and any(d.get("v") is None for d in it.get("dice") or []):
+                        val += share * 0.8
             elif k == "steal":
                 for t, share in tg:
                     it = t.get("intent") if isinstance(t, dict) else None
@@ -858,8 +867,9 @@ def instant_value(g, h, a, dice):
             return []
         return [(None, (top_face(d["faces"]) - die_mean(g, h, d)) * 1.2)]
     if key == "bloodprice":
+        # the +3 lands on a die the plan then uses (the search can't see that), so count it here
         low = g.hero(h)["hp"] < g.maxhp(h) * 0.4
-        return [(None, 3 * 1.1 - 3 * (1.5 if low else 0.5))]
+        return [(None, 2 * 1.6 - 3 * (1.5 if low else 0.4))]
     if key == "loaded_dice":
         pairs = any("pair" in g.action_def(h, k).get("req", {}) or "pair" in str(g.action_def(h, k).get("ops"))
                     for k in g.actions_of(h) if not g.cooling(h, k.rstrip("+")))

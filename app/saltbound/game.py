@@ -616,6 +616,10 @@ class Game(Combat):
         for h in self.living():
             if str(h) not in s["plans"]:
                 s["plans"][str(h)] = {"path": [], "ready": False, "rest": False}
+        # a fight from an event can start mid-plan and take out the only hero not yet ready: then
+        # everyone left is ready, so the turn goes on
+        if s["after"] == "plan" and s["plans"] and self.all_ready():
+            self.resolve_turn()
 
     def waiting_reward(self, h):
         return any(d["type"] in ("loot", "level") for d in self.s["pending"][str(h)])

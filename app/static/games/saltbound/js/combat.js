@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=33';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=33';
-import { spriteURL } from './art.js?v=33';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=33';
-import { render } from './main.js?v=33';
-import * as sfx from './audio.js?v=33';
+import { S, send, mine } from './store.js?v=35';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=35';
+import { spriteURL } from './art.js?v=35';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=35';
+import { render } from './main.js?v=35';
+import * as sfx from './audio.js?v=35';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -488,7 +488,7 @@ function actionCard(f, x, k, i, selDice, ready) {
   const light = on => { for (const id of ids) document.querySelector(`.tray .die[data-id="${CSS.escape(id)}"]`)?.classList.toggle('auto', on); };
   const cdText = a.cd ? `\nCooldown: after using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'} before using it again.` : '';
   return h('button.action' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : '') + (noDice ? '.nodice' : ''), {
-    disabled: dis, onmouseenter: () => light(true), onmouseleave: () => light(false), onfocus: () => light(true), onblur: () => light(false), tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches the front row.' : ''}${cdText}${why}`,
+    disabled: dis, onmouseenter: () => light(true), onmouseleave: () => light(false), onfocus: () => light(true), onblur: () => light(false), tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches only the enemies’ front row.' : ''}${cdText}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
     h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
@@ -633,7 +633,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------------ playing back a round
-const COMBAT_FX = new Set(['froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'shift', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
+const COMBAT_FX = new Set(['froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'retarget', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
 
 const queue = [];
 export function combatFx(list, before) {

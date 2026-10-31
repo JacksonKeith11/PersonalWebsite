@@ -102,7 +102,7 @@ FOES = {
                                "hide": {"name": "Hide in the Rocks", "k": "block", "n": 2}}},
     "harpy": {"name": "Harpy", "hp": 9, "row": "back", "speed": 7, "beast": True, "xp": 4, "gold": 3, "pack": 2,
               "dice": [_d(4), _d(6)],
-              "moves": {"talons": {"name": "Raking Talons", "k": "attack", "n": 2, "each": True, "tgt": "weakest"}}},
+              "moves": {"talons": {"name": "Raking Talons", "k": "attack", "n": 2, "each": True}}},
     "storm_wisp": {"name": "Storm Wisp", "hp": 8, "row": "back", "speed": 6, "xp": 4, "gold": 3,
                    "dice": [_d(6)],
                    "moves": {"arc": {"name": "Arc", "k": "attack", "n": 1, "chain": True, "st": "shock", "sn": 1, "st_min": 5}}},

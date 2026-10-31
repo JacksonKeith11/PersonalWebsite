@@ -156,7 +156,7 @@ class Combat(Foes):
             if m.get("evasive"):
                 x["st"]["dodge"] = 1
             if m.get("bark"):
-                self.summon(h, "sapling", 6)
+                self.summon(h, "sapling", 10)
         if any(self.mods(h).get("open_weak") for h in f["heroes"]):
             for fo in f["foes"]:
                 fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
@@ -285,7 +285,7 @@ class Combat(Foes):
             got = (aura if h == aura_to else 0) + m.get("regen", 0)
             if got:
                 self.fight_heal(h, got, None)
-            if m.get("last_stand") and self.hero(h)["hp"] <= self.maxhp(h) // 4:
+            if m.get("last_stand") and self.hero(h)["hp"] <= self.maxhp(h) // 2:
                 st["armor"] = st.get("armor", 0) + m["last_stand"]
         sregen = sum(self.mods(h).get("summon_regen", 0) for h in self.actives())
         if sregen:
@@ -321,7 +321,7 @@ class Combat(Foes):
             m = self.mods(h)
             dice = self.dice_of(h)
             if m.get("pet"):
-                dice.append({"faces": list(range(1, 9 if m.get("pet_strike") else 5)), "dk": [], "src": "pet"})
+                dice.append({"faces": list(range(1, (8 if m.get("pet_strike") else min(8, m["pet"])) + 1)), "dk": [], "src": "pet"})
             if any(y != h for y in anthem):
                 dice.append({"faces": [1, 2, 3, 4], "dk": [], "src": "anthem"})
             if m.get("deadeye") and dice:
@@ -735,10 +735,12 @@ class Combat(Foes):
         e = {"v": vals[0] if vals else 0, "sum": sum(vals), "n": len(vals), "armor": x["st"].get("armor", 0),
              "missing": self.maxhp(h) - hero["hp"], "undead": 0, "rooted": 0, "stunned": 0, "poisoned": 0,
              "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
-             "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags))}
+             "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0}
         if isinstance(target, dict):
             st = target["st"]
             it = target.get("intent") or {}
+            known = [d["v"] for d in it.get("dice") or [] if d.get("v") is not None]
+            e["outroll"] = int(bool(vals) and bool(known) and len(known) == len(it.get("dice") or []) and vals[0] > max(known))
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
                      aimed=int(f"h{h}" in self.intent_aims(it)), matched=0)
@@ -1019,7 +1021,7 @@ class Combat(Foes):
                         if op.get("leech") and done:
                             self.fight_heal(h, int(done * op["leech"]), h)
                         if m.get("red_mist") and done and self.hero(h)["hp"] < self.maxhp(h) / 2:
-                            self.fight_heal(h, done // 2, h)
+                            self.fight_heal(h, done // 3, h)
                         if op.get("onkill") and t["hp"] <= 0:
                             self.fight_heal(h, _amt(op["onkill"], env), h)
             elif k == "selfdmg":
@@ -1149,6 +1151,18 @@ class Combat(Foes):
                     if isinstance(t, dict) and t["hp"] > 0:
                         t["intent"] = {"k": "dazed", "name": "Lost its turn"}
                         self.fx("st", to=f"f{t['id']}", s="dazed")
+            elif k == "foresee":
+                # the enemy's dice roll now, in the open: its intent shows exactly what it will do
+                for t in targets:
+                    it = t.get("intent") if isinstance(t, dict) else None
+                    if not it or not it.get("dice"):
+                        continue
+                    for d in it["dice"]:
+                        if d.get("v") is None:
+                            d.pop("fc", None)
+                            d["v"], d["tag"] = self.foe_roll_face(d["faces"])
+                    self.intent_numbers(it)
+                    self.fx("st", to=f"f{t['id']}", s="foreseen")
             elif k == "steal":
                 for t in targets:
                     it = t.get("intent") if isinstance(t, dict) else None

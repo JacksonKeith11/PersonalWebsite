@@ -52,6 +52,16 @@ Keep to these. They came from the owner directly.
 - **Map turns are planned simultaneously.** Each player queues their hero's path, sees the other
   heroes' planned paths as ghost trails, and clicks Ready. When all three are ready, everyone
   moves at once. No timer.
+- **Vision outruns movement** (owner's request): heroes see land 5 hexes around them (Farsight and
+  Wayfinder +1, Trackers spot enemies 2 further), more than a turn's walk, so the result of a move is
+  in view. **The turn is forecast** (`Game.forecast`, sent with every view): from what the party
+  can see, where each planned route ends, where each visible enemy group will step (red arrows),
+  which fights start and who'll be pulled in (a crossed-swords marker with a dot per hero, dashed
+  lines from each joiner), and what each hero lands on. A "This turn" panel says it in words, one
+  line per hero, and the hex tooltip says whether walking there starts a fight and who'd join. The
+  reachable area is lit, with a bold outline and red rings on enemies you could walk into. The
+  forecast uses the same rules as the turn (`group_step` is shared with `move_groups`), and in
+  testing matched what happened every time; hidden enemies can still ambush.
 - **Movement is a fixed 4 points per turn** (changed by class and gear), spent on terrain costs.
   Not rolled: you can't plan together around unknown numbers.
 
@@ -92,9 +102,11 @@ Keep to these. They came from the owner directly.
 
 - **Starting a fight**: walking into an enemy starts a fight. Every hero within 1 hex of that
   hex joins, and so does every enemy within 1 hex. Moving together is how you team up.
-- **Rows**: two per side, front and back. At most 5 enemies (3 front, 2 back), 3 heroes. Melee
-  can only hit the front row unless it's empty. Back-row heroes take less damage from melee, but
-  some actions need the front. Moving rows costs a die (some skills make it free).
+- **Rows are for enemies only** (owner's request: hero rows let one person soak everything while
+  the others took nothing, which feels bad in a multiplayer game). At most 5 enemies (3 front, 2
+  back); melee reaches only their front row while it has anyone. Heroes and summons are one group:
+  enemies pick targets by their own rule (random, weakest, strongest, or whoever hurt them most last
+  round), so damage spreads unless someone chooses to take it (Guard, Taunt). There's no Shift.
 - **Dice**: each hero has 2 base dice from their class plus one die each from weapon, armor and
   trinket: 5 at most. All of a hero's dice are rolled at the start of each round. Sizes d4-d12,
   plus special dice with custom faces (shield faces, blanks, ×2) from uncommon rarity up.
@@ -109,11 +121,13 @@ Keep to these. They came from the owner directly.
   the last weak enemy while the first roll is still animating; an action whose enemy died first
   goes to the weakest enemy in reach instead. When everyone has clicked Ready, summons and pets
   act, then enemies in speed order.
-- **Enemies roll too** (owner's request): an intent with a number (attack, row, all, block, guard,
-  heal) shows a range, about a third either side of its value (`FOE_SPREAD` in `combat.py`, as
-  `lo`/`hi` on the intent; `v` stays the middle, which the bots and Weaken use), and rolls it when
-  the enemy acts (an `froll` effect, shown in the roll tray: "Heavy!" in the top third, "Glancing"
-  in the bottom). Weaken lowers the whole range.
+- **Enemies roll real dice** (owner's request: the same dice system as the heroes, so a "d6 attack"
+  is visibly a d6). Each enemy has a pool of dice and named moves that use some of them (see
+  Enemies). The intent shows the move's name, its dice and flat bonus ("2d6+3"), the range, any
+  rider ("on doubles: Root", "5+: Stun") and who it's aimed at; when the enemy acts it rolls those
+  dice in the roll tray, face by face, then shows the total. Weaken (Feint and the like) lowers the
+  bonus; Pickpocket snatches the biggest die out of an intent; Spotter and Read the Blade make an
+  enemy roll its dice early, so the intent shows the exact number.
 - **Luck you can steer**: every hero gets 1 reroll per fight (restored by resting), and some skills
   and items change dice (+1, flip, set, copy, give to an ally).
 - **Fleeing**: on their turn a hero can spend a die of 4+ to flee, going back to the hex they came
@@ -231,21 +245,21 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
 
 HP is at level 1. A shield face blocks 3 damage when placed on any action. "Starts with" actions
 are always owned; the pool is what level-ups offer. Each skill's tag is in brackets (untagged
-skills have none). The skill lists are a first pass: tune numbers with the simulator, and keep
-each pool at 6 actions, 6 passives and 2 capstones.
+skills have none). The lists below are the original design; `classes.py` is the truth now (heroes
+have no rows, and several skills were reworked: see "Overhaul: no rows, enemy dice, forecast").
 
-| Class | Row | HP | Base dice | Map ability (hook) | Role | Tags |
-|---|---|---|---|---|---|---|
-| Vanguard | Front | 40 | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
-| Duelist | Front | 24 | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
-| Berserker | Front | 30 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
-| Ranger | Back | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
-| Arcanist | Back | 18 | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
-| Mender | Back | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
-| Scoundrel | Either | 26 | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
-| Herald | Back | 20 | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
-| Alchemist | Back | 20 | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
-| Warden | Back | 24 | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
+| Class | HP | Base dice | Map ability (hook) | Role | Tags |
+|---|---|---|---|---|---|
+| Vanguard | 40 | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
+| Duelist | 24 | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
+| Berserker | 30 | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
+| Ranger | 22 | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
+| Arcanist | 18 | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
+| Mender | 22 | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
+| Scoundrel | 26 | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
+| Herald | 20 | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
+| Alchemist | 20 | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
+| Warden | 24 | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
 
 The Pathfinder was designed and dropped; its "+2 move, reveal fog along path" became the
 Scoundrel's *Wayfinder* passive.
@@ -413,32 +427,41 @@ its intent each round; give each 2-3 intents so fights read clearly. First pass:
 | Stormcrag | Crag Ram (charges, knocks back), Cliff Hermit (Root) | Harpy (strikes the back row), Storm Wisp (Shock), Lightning Totem (charges a big hit), Thunder Wyvern (elite) | **The Lamp Keeper** (Lighthouse): a beam that sweeps rows, intents shift each round |
 
 **The Drowned Crown**, in three phases: (1) on the peak with tide guards; (2) the sea rises mid-fight
-and the back row floods (heroes there must move or take damage each round); (3) the Crown alone,
-taking an extra intent each round. Enemies scale with the region's distance from the start and the
-number of objectives cleared.
+and the peak floods (every hero takes 2 a round); (3) the Crown alone. Enemies scale with the
+region's distance from the start and the number of objectives cleared.
 
-**Enemy dice and traits** (owner's request: variety instead of more damage). Each enemy can have a
-die kind (`dk` in `FOES`) that changes how its intent's number rolls, and traits that change how
-fighting it goes. They show as dashed chips beside its statuses and in its tooltip (`foeTraits` in
-`rules.js`), and odd rolls are called out in the roll tray.
+**Enemy dice and moves** (owner's request, replacing an earlier "rolled range" version whose wild
+and steady kinds looked no different from a wider range). The engine is `app/saltbound/foes.py`;
+the roster is `FOES` in `content/archipelago.py`. Each enemy has `dice` (a pool, the same face and
+kind vocabulary as heroes) and `moves`; each round it picks a move (`w` weights, or a boss's `seq`).
+A move rolls the dice it names (`use` indices or the first `n`) and adds a flat bonus: the dice's
+average times the difficulty-and-region multiplier above 1, plus might (so difficulty shows as
+"+5", not as different dice).
 
-| Die / trait | Effect | Who |
-|---|---|---|
-| Wild | range twice as wide | Deckhound, Crag Ram, Gallows Admiral |
-| Steady | range half as wide | Brine Golem, Tide Guard, Bell-Warden |
-| Exploding | top roll rolls again and adds | Cutthroat, Corsair Captain, Thunder Wyvern |
-| Clumsy (`fumble`) | lowest roll does nothing | Drowned Deckhand, Cliff Hermit |
-| Twin | rolls two, uses the higher; doubles act twice | Reef Eel, Harpy, Drowned Crown |
-| Searing | top third also Burns 2 | Powder Monkey, Lamp Keeper |
-| Thorns N | a hero who damages it takes N (not bombs) | Crabfolk Brute |
-| Pack N | +N might when another enemy dies | Deckhound, Harpy |
-| Leech | heals half the damage it deals | Jellyfloat, Drowned Crown |
-| Volatile N | bursts for N on front-row heroes when it dies | Powder Monkey, Lightning Totem |
-| Hex (an intent) | next round the hero's biggest die becomes a cursed die (skull, 1, 2, 3) | Siren, Tide Cultist, Drowned Crown |
-
-Hard went from about 42% to about 31% for the bots with these and no change to enemy damage or HP.
-Thorns and Volatile can knock a hero down during their own turn: `maybe_resolve` ends the round if
-that leaves nobody still acting.
+- **Move kinds**: attack (one target; `each` makes every die its own hit on its own target, e.g. a
+  Harpy's two talons; `sweep: N` hits N of you with the total; `chain` arcs to another for half),
+  all, block, guard (Armor for its most hurt ally), heal, buff (might for every enemy), debuff (a
+  status, with `st_min` a die gate), summon, charge (a Ram's next attack rolls an extra die; a
+  Lightning Totem's growing die gets 4 faces bigger).
+- **Riders**: `st`/`sn` on a hit; `st_min` only if a die rolls that much (a Siren's Seer die shows
+  in advance whether its Lullaby will land); `pair` on doubles (Root, Stun, or `again`: strike
+  twice).
+- **Dice kinds and faces**: exploding (Cutthroat, Corsair Captain, the Admiral), steady (a roll in
+  its bottom third rolls again: Brine Golem), seer (rolled when the intent is chosen, shown: Siren,
+  Tide Cultist, the Bell-Warden's bell), fate (two faces shown: Cliff Hermit), grow (Lightning
+  Totem); skull faces (the die is 0 and the enemy takes 2: Drowned Deckhand), shield faces (0, and
+  it gains 3 Armor: Crabfolk, Tide Guard), fire, ice and poison faces (Powder Monkey, Lamp Keeper,
+  the Crown, Jellyfloat).
+- **Targeting** (`tgt`): random, weakest (Deckhound, Harpy, the Crown's curse), strongest, vengeful
+  (whoever hurt it most last round: `hurt_by` on the enemy).
+- **Traits**: Thorns N (whoever damages it takes N, not bombs: Crabfolk), Pack N (+N might when
+  another enemy dies: Deckhound, Harpy), Leech (heals half what it deals: Jellyfloat, the Crown),
+  Volatile N (bursts for N on every hero when it dies: Powder Monkey, Lightning Totem), and Hex (a
+  debuff: next round the hero's biggest die becomes a cursed die, skull, 1, 2, 3).
+- Thorns and Volatile can knock a hero down during their own turn: `maybe_resolve` ends the round if
+  that leaves nobody still acting.
+- Guard and Taunt swing intents in the open (`retarget_intents`): Guard moves the first attack aimed
+  at the ally onto the Vanguard (the intent turns dashed with a shield), Taunt moves every attack.
 
 ## Items and economy
 
@@ -453,11 +476,15 @@ that leaves nobody still acting.
 
 ## Events
 
-About 25 in v1, light and wry. Each has 2-4 choices; some need a class (the Herald talks their way
-out, the Scoundrel picks the lock, the Arcanist reads the runes) or a die check against a stat-free
-target (roll your best die, 5+ wins). Outcomes: gold, items, HP, a revive (rare), a shrine buff, a
-curse, or a fight. The archipelago's events live with the map's content; class-gated options key
-on the class, so new maps can reuse them.
+24 events (`EVENTS` in `content/archipelago.py`), light and wry. Each has 2-4 choices; every class
+has at least one event where it opens a special option. A check names the die it rolls
+(`Game.event_roll`): your weapon, armor or trinket die (a bare d4 if that slot is empty), your best
+die, or **party** (the best die of anyone standing on your hex: bring friends). It can be a target
+(`n`), a contest against an opponent's die (`vs`: Liar's Dice, duels), and have a `great` tier.
+Outcomes: gold (also lost), items, HP, XP, potions, a revive (rare), a buff or curse, a skiff, a
+fight, and `all` (healing and buffs reach everyone on your hex). Each choice shows the die it rolls,
+the odds and what's at stake ("4+: an item · Else: −4 HP"); the result plays the roll (both dice in
+a contest) with the verdict.
 
 ## Decisions made while building
 
@@ -604,16 +631,11 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand** (the smart bots, 100 runs each): about 81% on Normal, 31% on Hard and
-  every Story run. Actions resolving as they're played lifted the bots (to 92% and 46%: seeing each
-  roll before the next move is worth a lot), rolled enemy numbers took a few points back, and enemy
-  dice and traits brought Hard back to where it was. Classes on Hard sit between 19% (Duelist) and
-  45% (Herald); the Mender no longer leads. The Duelist and Ranger, who hit many times, suffer most
-  from Thorns.
+- **Where the bots stand**: see "Overhaul: no rows, enemy dice, forecast" for the latest numbers.
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
-  between batches by chance alone, and overall rates ±4. Treat a pick's win rate (20–40 runs) as a
-  hint. Run 100 or more before changing anything, and compare like with like (same seeds: the
-  simulator's runs are seeded from 1000 by default).
+  between batches by chance alone, and overall rates ±4; a class can swing 20 points between two
+  150-run batches after unrelated changes. Judge classes on 300 runs (`--seed=5000` for a second
+  set of seeds), and treat a pick's win rate (20–40 runs) as a hint.
 - **How to tune**: `python3 tools/saltbound-sim.py 100 normal --report` and the same on hard. Read
   the class table (win rate, output per round, downs), the action tables (a basic attack taking
   most of a class's dice, risky actions that rarely hit, actions never used), the level-up picks
@@ -625,7 +647,56 @@ changing a class or the difficulty, and give the options with their trade-offs (
   table for skills the bot never uses.
 - **Levers used so far**, for reference: HP and HP per level, a basic attack's bonus, cooldowns, a
   free defensive basic (the Vanguard's Brace), starting passives (Overguard, Evasive), making a
-  skill once per rest (Lift), narrowing a passive (Aura, Aegis, Field Medic), and miss penalties.
+  skill once per rest (Lift), narrowing a passive (Aura, Aegis, Field Medic), miss penalties, and
+  (the owner's preference since the overhaul) level-up skills: reworking a dull pick into one that
+  makes you think, or tuning a pool skill, rather than touching the class's basics.
+
+## Overhaul: no rows, enemy dice, forecast
+
+One long autonomous pass at the owner's request (they were away); everything below is in the code.
+
+- **Heroes have no rows**; enemies keep theirs. Shift is gone; Slip is now "4+: dodge the next hit";
+  Rally Wall and Briar Wall cover the whole party; the Drowned Crown's flood hits everyone for 2.
+- **Enemies roll real dice with named moves** (`foes.py`, see Enemies). Every enemy was redesigned
+  around its dice. Saves go to v3 (`save._v2`): a fight saved mid-round has its enemies regroup for
+  that round, and replaced skills are swapped on load.
+- **Fight screen**: the party is one column of compact cards; enemies keep their places all fight
+  (the fallen leave a gap) so nothing jumps when a round plays out; the roll tray has its own band
+  at the top of the stage; intents are two lines (the move's name, then icon, range, hits and
+  target); enemy rolls show every die face, rerolls and explosions, then the total. A skill no
+  remaining die can take is greyed out; hovering a skill lights the dice a click would use (the
+  likeliest to hit for a risky skill) and shows their odds. Guard and Taunt swing intents visibly.
+- **Map**: vision 5, the turn forecast, a clearer reach outline (see The world). Bots travel at the
+  party's slowest pace while together.
+- **Events**: 24, each check naming its die, with odds and stakes on the button (see Events).
+- **Gear**: shop rows and loot cards show what you wear in that slot now ("Now": its die, the
+  change in average, the actions you'd lose, its passive). Spoils between a dungeon's fights hide
+  the map behind a below-ground backdrop.
+- **Skills reworked to make you think**: Pinpoint (doubled if that enemy is aiming at you: bait it),
+  Pickpocket (snatches the biggest die from an intent), Read the Blade (Duelist, replaces Riposte+:
+  the enemy rolls early; doubled if your die beats all of theirs), Spotter (Ranger, replaces Quiver:
+  every enemy rolls early, so the party sees exactly what's coming), Covering Fire (Ranger, replaces
+  Pinning Arrow: its attack drops by the die), Acid Flask (also deals damage), Field Kit (Alchemist,
+  replaces Safety Goggles: heals also give 3 Armor).
+- **Balance** (300 runs on Hard, 150 on Normal, after all of the above): see the numbers at the end
+  of this section. The class changes made on the way: Arcanist 21 HP (+3 a level), Ranger 26 (+4),
+  Alchemist 25, Mender 20, Berserker 28, Scoundrel 24, Vanguard +6 a level; Guard gives the die +2
+  Armor; Mend heals the die; Stab +3 only against an enemy not aiming at you; Thornlash the die +1;
+  Bloodprice +2; level-up tuning: Thick Hide +10 HP, Iron Will also softens the first hit each
+  round, Last Stand at half HP, Field Dressing 3, Companion a d6, Volatile and Shrapnel +3,
+  Bloodlust heals 2, Red Mist a third, Ward one and a half times the die, Bedside Manner +1, Howl a
+  cooldown of 3, Arcane Shield 10 Armor, Sanctuary 2 (not 3), Bramble Skin 3, Bark a 10 HP sapling;
+  the staff's Zap deals the full die; Harpies attack at random (Deckhounds still hunt the weakest,
+  which with no rows focused the lowest-HP hero, usually the Arcanist). Two bot fixes mattered: Bloodprice is valued for the die it boosts (the search
+  can't see that), and quick heroes no longer run ahead into fights alone.
+- **Where the bots stand after it**: Hard 35% (300 runs, seeds from 5000), Normal 91% (150 runs),
+  every Story run. On Hard: Mender 46%, Alchemist 42%, Vanguard 40%, Scoundrel 36%, Ranger 34%,
+  Berserker 33%, Herald 33%, Duelist 31%, Warden 28%, Arcanist 25%. Normal is above the old 80%
+  (the squishies' HP, vision and smarter bot pacing all helped); the multipliers were left alone, as
+  the owner asked, so raising Normal's is the obvious lever if it should be harder.
+- **Bugs fixed on the way**: an event fight mid-plan that took out the only hero not yet ready left
+  the turn stuck (`next_step` now resolves it); `.party` is the map's party panel class, so the
+  fight's party column is `.herocol`.
 
 ## Code map
 
@@ -635,7 +706,8 @@ no clock anywhere: the run changes only when someone acts.
 | File | Holds |
 |---|---|
 | `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the sea and tides, enemy groups, places, events, loot, levelling, towns, trading, `view()`, `static()`. |
-| `app/saltbound/combat.py` | Mixed into `Game`: starting fights, rounds, dice, placing actions, intents, statuses, resolving, boss phases, the end of a fight. `Invalid` is the error shown to players. |
+| `app/saltbound/combat.py` | Mixed into `Game`: starting fights, rounds, dice, placing actions, statuses, resolving, boss phases, the end of a fight. `Invalid` is the error shown to players. |
+| `app/saltbound/foes.py` | Mixed into `Combat`: enemies' dice and moves, choosing intents (`choose_intent`, `intent_numbers`), targeting, swinging intents (`retarget_intents`), and rolling and acting (`foe_act`, `foe_do`). |
 | `app/saltbound/classes.py` | The generic classes, their actions and passives, levels and XP. |
 | `app/saltbound/content/items.py` | Items (generic) and the actions weapons give. |
 | `app/saltbound/content/archipelago.py` | This map's enemies, groups, lairs, dungeons, final boss, shrine blessings and events. |
@@ -730,3 +802,11 @@ no clock anywhere: the run changes only when someone acts.
   bag, or is sold if the bag is full.
 - Phones (under 700px wide) get their own layout: the party is a strip of compact cards, and a
   fight is one scrolling column (flex, not grid, so the plan strip keeps its height).
+- `ui.css` has grown in layers: a later wide-screen rule silently beats an earlier phone rule of the
+  same specificity, so the fight's phone overrides live in a block at the very end of the file.
+  On phones the stage is a flex column with `align-items: stretch` (a centred grid let the party
+  row collapse to zero width and the enemy side cover it).
+- A combat effect the client should play must be listed in `COMBAT_FX` in `combat.js` (`froll`,
+  `retarget`...), or it's silently dropped.
+- Bots and the forecast must not disagree about the map rules: `Game.group_step` is the one copy of
+  how a roaming group steps.

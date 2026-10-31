@@ -46,6 +46,10 @@ def _v2(state):
             fo["intent"] = {"k": "dazed", "name": "Regrouping"}
         for x in f["hs"].values():
             x.pop("row", None)
+    # skills that were replaced: Quiver by Spotter, Riposte+ by Read the Blade, Pinning Arrow by Covering Fire
+    swap = {"quiver": "spotter", "riposte_plus": "read_blade", "pinning_arrow": "covering_fire"}
+    for hero in state.get("heroes", []):
+        hero["skills"] = [swap.get(k, k) for k in hero.get("skills", [])]
     state["v"] = 3
     return state
 

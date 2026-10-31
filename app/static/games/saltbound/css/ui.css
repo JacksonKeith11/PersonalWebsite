@@ -892,3 +892,6 @@ a:hover { color: var(--accent-hi); }
   backdrop-filter: blur(6px); }
 .scrim.bd-dungeon::before { content: "Still below ground: the next fight waits"; position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
   font: var(--fw-semibold) 13px/1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(224, 187, 98, 0.75); }
+@media (max-width: 700px) { .scrim.bd-dungeon::before { content: none; } }
+.intent:not(.none) { max-width: 210px; }
+.intent .ln { min-width: 0; }

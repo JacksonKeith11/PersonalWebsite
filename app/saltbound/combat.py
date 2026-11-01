@@ -25,6 +25,7 @@ ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the
 ONE_SHOT = ("stun", "freeze", "shock", "hex")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
+ROAM_HP = 1.5   # enemies met on the map (roaming groups and lairs) have this much more health
 CURSED_DIE = ["X", 1, 2, 3]
 
 # Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).
@@ -148,6 +149,8 @@ class Combat(Foes):
         s["fight"] = f
         s["phase"] = "fight"
         grow = max(0, s["rises"] - 10) * 0.1 if spec["kind"] == "boss" else 0
+        if spec["kind"] in ("roam", "lair"):
+            grow = ROAM_HP - 1
         for k in spec["foes"]:
             key, hp, aff = (k["k"], k.get("hp"), k.get("aff")) if isinstance(k, dict) else (k, None, None)
             self.add_foe(key, hp, grow, aff)

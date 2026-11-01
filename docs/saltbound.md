@@ -734,7 +734,9 @@ move pools, bigger single threats), more rule-bending items, and cross-hero comb
   move ("Bloodied" tag). They hold champion halls and, from two objectives cleared, roam alone (15%
   of spawns). Sprites are in `tools/saltbound-art/foes.py`.
 - **Longer fights**: every non-boss enemy has 1.35x its listed health (`FOE_HP`). Dungeon fights now
-  take 3.2 rounds on Normal (3.0 before), 3.7 on Hard.
+  take 3.2 rounds on Normal (3.0 before), 3.7 on Hard. Enemies met on the map (roaming groups and
+  lairs) get another 1.5x (`ROAM_HP` in `combat.py`), so a roaming fight takes 2.6 rounds on Normal
+  (1.9 before) and 2.7 on Hard (2.1), at Normal 78% and Hard 30% (100 runs each).
 - **Cross-hero combos** (`COMBOS` in `classes.py` for the words, numbers at the top of `combat.py`):
   Pincer (your die shows a number an ally's die showed against that enemy this round: +3), Covered
   (your first hit after an ally Guards or Taunts for you this round: +3), Shatter (hitting an enemy

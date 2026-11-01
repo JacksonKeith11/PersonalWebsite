@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=36';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=36';
-import { spriteURL } from './art.js?v=36';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=36';
-import { render } from './main.js?v=36';
-import * as sfx from './audio.js?v=36';
+import { S, send, mine } from './store.js?v=37';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=37';
+import { spriteURL } from './art.js?v=37';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=37';
+import { render } from './main.js?v=37';
+import * as sfx from './audio.js?v=37';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -70,6 +70,7 @@ export function renderCombat(el) {
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
+      (f.covered || []).includes(x) ? h('div.covered-chip', { tip: `Covered\n${S.static.combos.covered.text}` }, `Covered: next hit +3`) : null,
       hpBar(hpOf(x), max),
       previewRow('h' + x, prev),
       statusRow(st, hs?.down ? ['Knocked down'] : []),
@@ -78,7 +79,7 @@ export function renderCombat(el) {
   const unitFoe = fo => {
     const d = S.static.foes[fo.k];
     const cl = ['unit', 'foe'];
-    if (d.boss) cl.push('boss');
+    if (d.boss || d.big) cl.push('boss');
     if (fo.hp <= 0 && !fo.dying) cl.push('dead', 'gone');
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
@@ -86,6 +87,10 @@ export function renderCombat(el) {
       intentChip(fo, f),
       h('img.pix', { src: spriteURL(fo.k), alt: '' }),
       h('div.uname', null, fo.name),
+      fo.aff || d.big || fo.bl ? h('div.foe-tags', null,
+        fo.aff ? h('span.foe-tag', { tip: `${S.static.elites[fo.aff].name}\n${S.static.elites[fo.aff].text}` }, 'Elite') : null,
+        d.big && !fo.bl ? h('span.foe-tag', { tip: `Big threat\nAt half health it's bloodied: ${d.bloodied?.text || ''}` }, 'Big') : null,
+        fo.bl ? h('span.foe-tag.bloodied', { tip: `Bloodied\n${d.bloodied?.text || ''}` }, 'Bloodied') : null) : null,
       hpBar(Math.max(0, fo.hp), fo.max, true),
       previewRow('f' + fo.id, prev, fo.hp),
       statusRow(fo.st, fo.might ? [`+${fo.might} might`] : [], traitChips(d)),
@@ -121,7 +126,10 @@ export function renderCombat(el) {
     rollTray());
 
   const done = f.done || [];
+  const combos = S.static.combos || {};
+  const comboTip = 'Combos: what two heroes do together\n' + Object.values(combos).map(c => `${c.name}: ${c.text}`).join('\n');
   const plan = h('div.planstrip', null, h('span.eyebrow', null, 'This round'),
+    h('span.chip.brass.combo-help', { tip: comboTip }, icon('spark'), 'Combos'),
     done.length ? done.map((p, i) => doneChip(p, i, f)) : h('span.muted', { style: { fontSize: '14px' } }, 'Actions happen the moment they’re played, in the order the party plays them. Enemies act once everyone is ready.'));
 
   let bottom;
@@ -332,7 +340,14 @@ function floats(id) {
 
 function foeTip(fo) {
   const d = S.static.foes[fo.k];
-  return `${d.name}\n${fo.hp} / ${fo.max} HP · ${d.row} row · acts ${speedWord(d.speed)}${d.undead ? ' · undead' : ''}${d.beast ? ' · beast' : ''}${foeTraits(d).map(([n, t]) => `\n${n}: ${t}`).join('')}`;
+  const all = { ...d.moves, ...(d.pool || {}), ...(d.bloodied?.moves || {}) };
+  const moves = (fo.mv || Object.keys(d.moves)).map(k => all[k]?.name).filter(Boolean);
+  const el = fo.aff ? S.static.elites[fo.aff] : null;
+  return `${fo.name}\n${fo.hp} / ${fo.max} HP · ${d.row} row · acts ${speedWord(d.speed)}${d.undead ? ' · undead' : ''}${d.beast ? ' · beast' : ''}`
+    + `\nMoves: ${moves.join(', ')}`
+    + (el ? `\nElite (${el.name}): ${el.text}` : '')
+    + (d.bloodied ? `\n${fo.bl ? 'Bloodied' : 'At half health'}: ${d.bloodied.text}` : '')
+    + foeTraits(d).map(([n, t]) => `\n${n}: ${t}`).join('');
 }
 
 function speedWord(n) { return n >= 7 ? 'very fast' : n >= 5 ? 'fast' : n >= 3 ? 'at a steady pace' : 'slowly'; }
@@ -359,8 +374,8 @@ function intentChip(fo, f) {
   const dt = diceText(it);
   if (it.k === 'attack') lines.push(`Rolls ${dt}: ${range} damage${it.each ? ' with each die, a separate hit' : it.sweep ? ` to ${it.sweep} of you at once` : ''}.`);
   else if (it.k === 'all') lines.push(`Rolls ${dt}: ${range} damage to everyone.`);
-  else if (['block', 'guard', 'heal'].includes(it.k)) lines.push(`Rolls ${dt}: ${range} ${it.k === 'heal' ? 'healing for its most hurt ally' : it.k === 'guard' ? 'Armor for its most hurt ally' : 'Armor for itself'}.`);
-  else if (it.k === 'buff') lines.push(`Every enemy gains +${it.v} might for the rest of the fight.`);
+  else if (['block', 'guard', 'heal'].includes(it.k)) lines.push(`Rolls ${dt}: ${range} ${it.k === 'heal' ? (it.self ? 'healing for itself' : 'healing for its most hurt ally') : it.k === 'guard' ? (it.all ? 'Armor for every enemy' : 'Armor for its most hurt ally') : 'Armor for itself'}.`);
+  else if (it.k === 'buff') lines.push(it.self ? `It gains +${it.v} might for the rest of the fight.` : `Every enemy gains +${it.v} might for the rest of the fight.`);
   else if (it.k === 'summon') lines.push(`Calls a ${S.static.foes[it.f]?.name || 'friend'} into the fight.`);
   else if (it.k === 'charge') lines.push(A_CHARGE(fo));
   else if (it.k === 'dazed') lines.push('Does nothing this round.');
@@ -678,7 +693,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------------ playing back a round
-const COMBAT_FX = new Set(['froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'retarget', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
+const COMBAT_FX = new Set(['combo', 'froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'retarget', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
 
 const queue = [];
 export function combatFx(list, before) {
@@ -840,8 +855,14 @@ function apply(f) {
       return f.n ? 260 : 60;
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
+    case 'combo': {
+      const name = S.static.combos?.[f.c]?.name || f.c;
+      addFloat(f.to, `${name}! +${f.n}`, 'combo');
+      sfx.play('rare');
+      return 420;
+    }
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

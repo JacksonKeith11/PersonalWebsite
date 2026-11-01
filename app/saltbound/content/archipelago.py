@@ -125,6 +125,38 @@ FOES = {
                               "focus": {"name": "Focused Beam", "k": "attack", "use": [0, 1, 2], "tgt": "strongest"},
                               "storm": {"name": "Call the Storm", "k": "summon", "f": "storm_wisp"}}},
 
+    # ---------------------------------------------------------------- big single threats (champion halls, late roamers)
+    "reef_maw": {"name": "The Reef Maw", "hp": 46, "row": "front", "speed": 2, "beast": True, "elite": True, "big": True,
+                 "xp": 16, "gold": 14, "thorns": 1,
+                 "dice": [_d(8), _d(8), SHELL],
+                 "moves": {"engulf": {"name": "Engulf", "k": "attack", "use": [0, 1], "tgt": "strongest", "st": "root", "sn": 1, "w": 2},
+                           "undertow": {"name": "Undertow", "k": "all", "use": [0], "st": "weak", "sn": 1, "st_min": 6},
+                           "clamp": {"name": "Clamp Shut", "k": "block", "use": [1, 2]}},
+                 "pool": {"polyps": {"name": "Spawn Polyps", "k": "summon", "f": "jelly"},
+                          "spray": {"name": "Brine Spray", "k": "attack", "use": [0, 1], "each": True}},
+                 "bloodied": {"might": 2, "text": "it thrashes wildly and hits harder.",
+                              "moves": {"thrash": {"name": "Thrash", "k": "attack", "use": [0, 1, 2], "each": True}}}},
+    "iron_bosun": {"name": "The Iron Bosun", "hp": 44, "row": "front", "speed": 3, "elite": True, "big": True, "xp": 16, "gold": 18,
+                   "dice": [_d(10, "steady"), _d(6, "exploding"), _d(6)],
+                   "moves": {"anchor": {"name": "Anchor Swing", "k": "attack", "use": [0], "sweep": 2, "w": 2},
+                             "grapple": {"name": "Grapple", "k": "attack", "use": [1], "tgt": "weakest", "st": "root", "sn": 1},
+                             "grog": {"name": "Swig of Grog", "k": "heal", "use": [2], "self": True}},
+                   "pool": {"whistle": {"name": "Bosun's Whistle", "k": "summon", "f": "deckhound"},
+                            "chainlash": {"name": "Chain Lash", "k": "attack", "use": [0, 2], "chain": True}},
+                   "bloodied": {"might": 2, "text": "he roars for the crew and swings the anchor two-handed.",
+                                "moves": {"keelhaul": {"name": "Keelhaul", "k": "attack", "use": [0, 1, 2], "tgt": "vengeful",
+                                                       "st": "stun", "sn": 1, "st_min": 8}}}},
+    "storm_roc": {"name": "The Storm Roc", "hp": 40, "row": "back", "speed": 6, "beast": True, "elite": True, "big": True,
+                  "xp": 16, "gold": 14,
+                  "dice": [_d(8), _d(8), _d(6)],
+                  "moves": {"dive": {"name": "Dive", "k": "attack", "use": [0, 1], "tgt": "weakest", "pair": {"again": True}, "w": 2},
+                            "gale": {"name": "Gale", "k": "all", "use": [2], "st": "stun", "sn": 1, "st_min": 6},
+                            "talons": {"name": "Talons", "k": "attack", "use": [0, 1, 2], "each": True}},
+                  "pool": {"flock": {"name": "Call the Flock", "k": "summon", "f": "harpy"},
+                           "feathers": {"name": "Lightning Feathers", "k": "attack", "use": [0], "chain": True, "st": "shock", "sn": 1}},
+                  "bloodied": {"might": 2, "text": "it shrieks, and the storm answers.",
+                               "moves": {"thunderclap": {"name": "Thunderclap", "k": "all", "use": [0, 1]}}}},
+
     # ---------------------------------------------------------------- the peak
     "tide_guard": {"name": "Tide Guard", "hp": 16, "row": "front", "speed": 3, "undead": True, "xp": 6, "gold": 0,
                    "dice": [_d(6), SHELL],
@@ -140,6 +172,66 @@ FOES = {
                                 "surge": {"name": "Freezing Surge", "k": "attack", "use": [0], "sweep": 2},
                                 "curse": {"name": "Drowned Curse", "k": "debuff", "use": [3], "st": "hex", "sn": 1, "tgt": "weakest"}}},
 }
+
+# Move pools: every enemy draws one of these when it appears, on top of its own moves.
+POOLS = {
+    "deckhand": {"drag_under": {"name": "Drag Under", "k": "attack", "n": 1, "st": "root", "sn": 1},
+                 "rot_breath": {"name": "Rotten Breath", "k": "debuff", "n": 1, "st": "weak", "sn": 1, "st_min": 3}},
+    "crab": {"crush_claw": {"name": "Crushing Claw", "k": "attack", "n": 2, "st": "vuln", "sn": 1, "st_min": 5},
+             "shell_wall": {"name": "Shell Wall", "k": "guard", "n": 2, "all": True}},
+    "jelly": {"bloom": {"name": "Bloom", "k": "summon", "f": "jelly"},
+              "numb": {"name": "Numbing Touch", "k": "attack", "n": 1, "st": "stun", "sn": 1, "st_min": 4}},
+    "eel": {"coil": {"name": "Coil", "k": "charge"},
+            "lurk": {"name": "Lurk in the Reef", "k": "block", "n": 2}},
+    "barnacle_priest": {"barnacle_ward": {"name": "Barnacle Ward", "k": "guard", "use": [0], "all": True},
+                        "sermon": {"name": "Drowned Sermon", "k": "buff", "v": 1}},
+    "siren": {"charm": {"name": "Charm", "k": "debuff", "n": 1, "st": "vuln", "sn": 2},
+              "wail": {"name": "Wail", "k": "all", "n": 1, "st": "weak", "sn": 1, "st_min": 6}},
+    "bell_warden": {"dirge": {"name": "Funeral Dirge", "k": "debuff", "use": [2], "st": "hex", "sn": 1, "tgt": "strongest"},
+                    "barnacled": {"name": "Barnacled Bronze", "k": "block", "use": [0, 1]}},
+    "cutthroat": {"throat": {"name": "Go for the Throat", "k": "attack", "n": 1, "tgt": "weakest"},
+                  "sand": {"name": "Sand in the Eyes", "k": "debuff", "n": 1, "st": "weak", "sn": 1}},
+    "deckhound": {"howl": {"name": "Howl", "k": "buff", "v": 1},
+                  "lunge": {"name": "Lunge", "k": "attack", "n": 2, "tgt": "weakest", "pair": {"st": "vuln", "sn": 1}}},
+    "brine_golem": {"salt_wave": {"name": "Salt Wave", "k": "all", "use": [0]},
+                    "bulwark": {"name": "Brine Bulwark", "k": "guard", "n": 2, "all": True}},
+    "powder_monkey": {"long_fuse": {"name": "Long Fuse", "k": "charge"},
+                      "pitch": {"name": "Pitch Pot", "k": "attack", "n": 1, "st": "burn", "sn": 2}},
+    "tide_cultist": {"call_deep": {"name": "Call the Deep", "k": "summon", "f": "deckhand"},
+                     "drown": {"name": "Drowning Prayer", "k": "debuff", "use": [1], "st": "stun", "sn": 1, "st_min": 4}},
+    "corsair_captain": {"parley": {"name": "Dirty Parley", "k": "debuff", "use": [1], "st": "vuln", "sn": 2},
+                        "boarding": {"name": "Boarding Hook", "k": "attack", "use": [0, 1], "st": "root", "sn": 1}},
+    "gallows_admiral": {"grog": {"name": "Grog Ration", "k": "heal", "use": [0, 3], "self": True},
+                        "keelhaul": {"name": "Keelhaul", "k": "attack", "use": [0, 2], "tgt": "weakest", "st": "root", "sn": 1}},
+    "crag_ram": {"stampede": {"name": "Stampede", "k": "attack", "n": 2, "sweep": 2},
+                 "headbutt": {"name": "Headbutt", "k": "attack", "n": 1, "st": "stun", "sn": 1, "st_min": 6}},
+    "cliff_hermit": {"rockslide": {"name": "Rockslide", "k": "all", "use": [1]},
+                     "hermit_curse": {"name": "Hermit's Curse", "k": "debuff", "use": [0], "st": "hex", "sn": 1, "st_min": 4}},
+    "harpy": {"screech": {"name": "Screech", "k": "debuff", "n": 1, "st": "weak", "sn": 1, "st_min": 3},
+              "snatch": {"name": "Snatch", "k": "attack", "use": [1], "tgt": "weakest", "st": "vuln", "sn": 1}},
+    "storm_wisp": {"flicker": {"name": "Flicker", "k": "block", "n": 1},
+                   "static": {"name": "Static Field", "k": "all", "n": 1, "st": "shock", "sn": 1, "st_min": 6}},
+    "lightning_totem": {"overload": {"name": "Overload", "k": "attack", "n": 1, "chain": True},
+                        "grounding": {"name": "Grounding Field", "k": "guard", "n": 1, "all": True}},
+    "thunder_wyvern": {"thunder_dive": {"name": "Thunder Dive", "k": "attack", "use": [0, 1], "tgt": "weakest"},
+                       "roost": {"name": "Roost", "k": "heal", "use": [1], "self": True}},
+    "lamp_keeper": {"glare": {"name": "Lens Glare", "k": "debuff", "use": [2], "st": "weak", "sn": 2, "tgt": "strongest"},
+                    "refract": {"name": "Refracted Beam", "k": "attack", "use": [0, 1], "sweep": 2}},
+    "tide_guard": {"phalanx": {"name": "Phalanx", "k": "guard", "n": 2, "all": True},
+                   "hook": {"name": "Halberd Hook", "k": "attack", "use": [0], "st": "root", "sn": 1}},
+    "drowned_crown": {"maelstrom": {"name": "Maelstrom", "k": "all", "use": [2], "st": "weak", "sn": 1, "st_min": 6},
+                      "undertow": {"name": "Undertow", "k": "attack", "use": [1, 3], "tgt": "strongest", "st": "stun", "sn": 1, "st_min": 8}},
+}
+for _k, _v in POOLS.items():
+    FOES[_k]["pool"] = _v
+
+# Fights last longer than in the first pass: every enemy but the bosses has this much more health
+# than its listed hp.
+FOE_HP = 1.35
+for _v in FOES.values():
+    if not _v.get("boss"):
+        _v["hp"] = round(_v["hp"] * FOE_HP)
+
 
 # Who roams each region, by how many objectives the party has cleared (more cleared, more
 # dangerous mixes). Each entry is a group.
@@ -162,16 +254,69 @@ LAIRS = {
     "storm": [["crag_ram", "cliff_hermit", "thunder_wyvern"], ["lightning_totem", "harpy", "harpy", "storm_wisp"]],
 }
 
+# Each objective is three fights: an opening fight (drawn from `open`), a fork between two paths
+# (`PATHS`; a passage from `mid`, a champion from `champ`, a vault, or a shrine with no fight), then
+# a second fork for how to take on the boss (its escort drawn from `escort`). A lineup entry is an
+# enemy key, or {"k": key, "aff": affix} for an elite.
 DUNGEONS = {
-    "coral": {"name": "The Sunken Chapel", "fights": [["deckhand", "deckhand", "eel"], ["crab", "jelly", "barnacle_priest", "siren"],
-                                                   ["deckhand", "bell_warden", "barnacle_priest"]]},
-    "keys": {"name": "The Black Fort", "fights": [["cutthroat", "deckhound", "powder_monkey"],
-                                               ["brine_golem", "cutthroat", "tide_cultist", "powder_monkey"],
-                                               ["cutthroat", "cutthroat", "gallows_admiral"]]},
-    "storm": {"name": "The Lighthouse", "fights": [["crag_ram", "harpy", "storm_wisp"],
-                                                ["cliff_hermit", "crag_ram", "lightning_totem", "harpy"],
-                                                ["cliff_hermit", "lamp_keeper", "storm_wisp"]]},
+    "coral": {"name": "The Sunken Chapel", "boss": "bell_warden",
+              "open": [["deckhand", "deckhand", "eel"], ["crab", "jelly", "jelly"], ["deckhand", "barnacle_priest", "eel"]],
+              "mid": [["crab", "jelly", "barnacle_priest", "siren"], ["deckhand", "deckhand", "siren", "eel"],
+                      ["crab", "crab", "barnacle_priest"]],
+              "champ": [["reef_maw"], [{"k": "crab", "aff": "hulking"}, "jelly"],
+                        [{"k": "siren", "aff": "warlord"}, "deckhand", "deckhand"]],
+              "escort": [["deckhand", "barnacle_priest"], ["deckhand", "eel"], ["barnacle_priest", "siren"]]},
+    "keys": {"name": "The Black Fort", "boss": "gallows_admiral",
+             "open": [["cutthroat", "deckhound", "powder_monkey"], ["deckhound", "deckhound", "cutthroat"],
+                      ["cutthroat", "tide_cultist", "powder_monkey"]],
+             "mid": [["brine_golem", "cutthroat", "tide_cultist", "powder_monkey"],
+                     ["cutthroat", "cutthroat", "powder_monkey", "deckhound"], ["brine_golem", "tide_cultist", "tide_cultist"]],
+             "champ": [["iron_bosun"], [{"k": "corsair_captain", "aff": "frenzied"}, "deckhound"],
+                       [{"k": "brine_golem", "aff": "ironclad"}, "powder_monkey"]],
+             "escort": [["cutthroat", "cutthroat"], ["cutthroat", "powder_monkey"], ["deckhound", "tide_cultist"]]},
+    "storm": {"name": "The Lighthouse", "boss": "lamp_keeper",
+              "open": [["crag_ram", "harpy", "storm_wisp"], ["harpy", "harpy", "cliff_hermit"], ["crag_ram", "storm_wisp", "storm_wisp"]],
+              "mid": [["cliff_hermit", "crag_ram", "lightning_totem", "harpy"], ["harpy", "harpy", "storm_wisp", "lightning_totem"],
+                      ["crag_ram", "crag_ram", "cliff_hermit"]],
+              "champ": [["storm_roc"], [{"k": "thunder_wyvern", "aff": "vampiric"}, "storm_wisp"],
+                        [{"k": "crag_ram", "aff": "hulking"}, "cliff_hermit"]],
+              "escort": [["cliff_hermit", "storm_wisp"], ["harpy", "storm_wisp"], ["cliff_hermit", "lightning_totem"]]},
 }
+DUNGEON_STEPS = 3
+
+# The paths a fork can offer. `step` is the fight they lead to (1: the middle, 2: the boss).
+PATHS = {
+    "open": {"name": "The Way In", "step": 0, "text": "The first room.", "reward": "Loot: two to choose from."},
+    "passage": {"name": "The Main Passage", "step": 1, "text": "More of the same, by the main way.",
+                "reward": "Loot: two to choose from."},
+    "champion": {"name": "The Champion's Hall", "step": 1, "text": "One big threat holds this hall.",
+                 "reward": "Better loot: a rarity up, three to choose from."},
+    "vault": {"name": "The Flooded Vault", "step": 1, "text": "A guarded treasure room. One guard is an elite.",
+              "reward": "+12 gold each, and loot."},
+    "shrine": {"name": "A Quiet Shrine", "step": 1, "text": "No fight: rest a moment by the old altar.",
+               "reward": "Everyone heals 35% and shakes off curses. No loot."},
+    "gate": {"name": "Storm the Hall", "step": 2, "text": "Straight at the boss and its escort.",
+             "reward": "The boss's hoard: three to choose from."},
+    "rest": {"name": "Rest at the Threshold", "step": 2, "text": "Catch your breath first. The escort grows while you wait.",
+             "reward": "Heal 30% first, but one more enemy. Three to choose from."},
+    "sneak": {"name": "The Back Way", "step": 2, "text": "Slip in behind them: they're caught off guard for a round.",
+              "reward": "An ambush, but the hoard is half buried: two to choose from."},
+}
+MID_PATHS = ["passage", "champion", "vault", "shrine"]
+BOSS_PATHS = ["gate", "rest", "sneak"]
+
+# Elite affixes: more health, a twist, and double the XP and gold.
+ELITES = {
+    "hulking": {"name": "Hulking", "hp": 2.0, "text": "Twice the health. Its attacks roll an extra die."},
+    "frenzied": {"name": "Frenzied", "hp": 1.6, "text": "Every die it rolls explodes on its top face."},
+    "ironclad": {"name": "Ironclad", "hp": 1.6, "text": "Gains 4 Armor at the start of every round."},
+    "venomous": {"name": "Venomous", "hp": 1.6, "text": "Its hits Poison 2."},
+    "warlord": {"name": "Warlord", "hp": 1.6, "text": "Every round from the second, the other enemies gain +1 might."},
+    "vampiric": {"name": "Vampiric", "hp": 1.6, "text": "Heals half the damage it deals."},
+}
+BIG = {"coral": "reef_maw", "keys": "iron_bosun", "storm": "storm_roc"}
+ROAM_ELITES = ["hulking", "frenzied", "ironclad", "venomous", "vampiric"]
+
 FINAL = ["tide_guard", "tide_guard", "drowned_crown"]
 
 REGION_NAMES = {"coral": "Coral Shallows", "keys": "Smugglers' Keys", "storm": "Stormcrag", "peak": "the Peak"}

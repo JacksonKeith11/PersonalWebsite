@@ -32,11 +32,28 @@ def decide(g, h):
             if sp and not sp["used"] and g.actives():
                 return {"t": "spirit", "to": g.actives()[0]}
         return None
+    if s["phase"] == "fork" and s.get("fork") and str(h) not in s["fork"]["votes"]:
+        return {"t": "fork", "n": fork_pick(g, s["fork"])}
     if s["phase"] == "fight" and g.in_fight(h):
         return fight_move(g, h)
     if s["phase"] == "plan":
         return plan_move(g, h)
     return None
+
+
+FORK_PREF = {"champion": 3, "vault": 2, "passage": 1, "shrine": 0, "gate": 2, "sneak": 3, "rest": 1}
+
+
+def fork_pick(g, fk):
+    """A path: rest when the party is hurt, otherwise the better loot."""
+    heroes = [y for y in fk["heroes"] if g.hero(y)["alive"]]
+    hp = sum(g.hero(y)["hp"] for y in heroes) / max(1, sum(g.maxhp(y) for y in heroes))
+    def score(i):
+        p = fk["opts"][i]["path"]
+        if p in ("shrine", "rest"):
+            return 5 if hp < 0.55 else 0
+        return FORK_PREF.get(p, 1)
+    return max(range(len(fk["opts"])), key=score)
 
 
 SETUP_OPS = {"inspire", "hymn", "give", "reroll_ally", "strip"}
@@ -763,7 +780,7 @@ def candidates(g, h, b, free):
                 sig = tuple(sorted(die_sig(d) for d in dice))
                 if sig in seen or not g.count_ok(a["req"], list(dice)):
                     continue
-                if not a["def"] and any("guard" in (d.get("dk") or []) for d in dice):
+                if not a["def"] and not g.mods(h).get("guard_free") and any("guard" in (d.get("dk") or []) for d in dice):
                     continue
                 seen.add(sig)
                 dice = list(dice)

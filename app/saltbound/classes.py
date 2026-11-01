@@ -625,4 +625,14 @@ SHORT = {
     "sweep": ("sword", "front row: ½ sum · pair +3", None), "tidal": ("wave", "all: ½ sum · pair +3", None),
     "storm_bolt": ("bolt", "die +4 · Shock", "nothing"), "venom_stab": ("drop", "½ die · Poison 2", None),
     "blessing": ("plus", "heal die · 2 Armor", None),
+    "pass_die": ("spark", "give a die to an ally", None),
+}
+
+# Cross-hero combos (the numbers are in combat.py): what two heroes do together.
+COMBOS = {
+    "pincer": {"name": "Pincer", "text": "Your die shows a number an ally's die showed against that enemy this round: +3 damage."},
+    "covered": {"name": "Covered", "text": "Your first hit after an ally Guards or Taunts for you this round: +3 damage."},
+    "shatter": {"name": "Shatter", "text": "Hit an enemy an ally Froze: the ice breaks for +4 damage (and the Freeze ends)."},
+    "wildfire": {"name": "Wildfire", "text": "Burn meets an ally's Poison on one enemy (or Poison meets Burn): it erupts "
+                                         "for Burn + Poison, and half that to every other enemy. Once per enemy."},
 }

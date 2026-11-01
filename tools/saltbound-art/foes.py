@@ -247,9 +247,43 @@ def drowned_crown():  # the Drowned Crown: a towering drowned king in sea-green 
     g.text(9, 0, ['C  C  C  C', 'CC CC CC C', 'YYYYYYYYYY', 'Y y  y  yY'])
     return g
 
+def reef_maw():  # the Reef Maw: a huge coral-crusted clam-mouth, all teeth and tendrils
+    pal = {'C': '#c86a6a', 'c': '#9a4a50', 'O': '#e8a070', 'w': '#f4ecd8', 'm': '#3a1424', 'e': '#ffe080', 'K': '#4a8a6a', 'k': '#356a50'}
+    g = G(pal)
+    g.ell(15, 22, 13, 7, 'c'); g.ell(15, 11, 13, 7, 'C')
+    g.ell(16, 17, 10, 3.5, 'm')
+    for x in range(7, 26, 3): g.px(x, 14, 'w'); g.px(x + 1, 20, 'w')
+    for x, y in ((6, 8), (11, 6), (18, 6), (23, 9), (9, 25), (20, 26), (25, 23)): g.px(x, y, 'O'); g.px(x + 1, y, 'O')
+    g.px(10, 9, 'e'); g.px(20, 9, 'e')
+    for x in (4, 8, 22, 27): g.line(x, 27, x + (1 if x > 14 else -1), 31, 'K')
+    g.line(2, 18, 0, 24, 'k'); g.line(29, 17, 31, 22, 'k')
+    return g
+
+def iron_bosun():  # the Iron Bosun: a huge sailor in an iron-banded coat, chain over the shoulder, anchor in hand
+    pal = {'s': '#d8a882', 'B': '#3a4a62', 'b': '#2a3648', 'I': '#8a929e', 'i': '#5e6672', 'H': '#4a2e1e', 'k': '#24202a', 'L': '#2a2430', 'e': E}
+    g = G(pal)
+    legs(g, 'L')
+    g.rect(6, 12, 21, 24, 'B'); g.rect(6, 17, 21, 18, 'I'); g.rect(6, 21, 21, 22, 'I'); g.rect(12, 12, 15, 24, 'b')
+    g.line(6, 12, 21, 23, 'i', 1)
+    g.rect(2, 13, 5, 21, 'B'); g.rect(22, 13, 25, 20, 's')
+    face(g, 9, 4, 10, 7); g.rect(9, 9, 18, 11, 'H'); g.rect(8, 2, 19, 4, 'b')
+    g.rect(26, 4, 27, 26, 'I'); g.rect(23, 24, 30, 25, 'I'); g.px(23, 23, 'I'); g.px(30, 23, 'I'); g.ell(26.5, 4, 2, 1.5, 'i')
+    return g
+
+def storm_roc():  # the Storm Roc: a vast storm-grey bird, wings spread, lightning in its feathers
+    pal = {'G': '#6a7488', 'g': '#4a5266', 'W': '#e8ecf4', 'Y': '#e8c84a', 'y': '#b89a30', 'e': '#ffe080', 'k': '#22283a'}
+    g = G(pal)
+    g.tri([(14, 16), (0, 4), (4, 20)], 'g'); g.tri([(14, 16), (31, 3), (27, 20)], 'g')
+    g.tri([(14, 15), (2, 7), (6, 17)], 'G'); g.tri([(14, 15), (29, 6), (25, 17)], 'G')
+    g.line(4, 9, 8, 13, 'Y'); g.line(27, 8, 23, 13, 'Y')
+    g.ell(15, 18, 6, 7, 'G'); g.ell(15, 20, 3.5, 4.5, 'W')
+    g.ell(15, 9, 4, 3.5, 'G'); g.tri([(18, 9), (23, 10), (18, 11)], 'Y'); g.px(16, 8, 'e')
+    g.rect(12, 25, 12, 29, 'y'); g.rect(18, 25, 18, 29, 'y'); g.text(10, 29, ['y y']); g.text(16, 29, ['y y'])
+    return g
+
 ALL = [deckhand, crab, jelly, eel, barnacle_priest, siren, bell_warden, cutthroat, deckhound, brine_golem, powder_monkey,
        tide_cultist, corsair_captain, gallows_admiral, crag_ram, cliff_hermit, harpy, storm_wisp, lightning_totem,
-       thunder_wyvern, lamp_keeper, tide_guard, drowned_crown]
+       thunder_wyvern, lamp_keeper, tide_guard, drowned_crown, reef_maw, iron_bosun, storm_roc]
 
 if __name__ == '__main__':
     import sys

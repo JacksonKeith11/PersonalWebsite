@@ -27,6 +27,12 @@ UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
 CURSED_DIE = ["X", 1, 2, 3]
 
+# Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).
+PINCER = 3      # your die matches the last die an ally rolled at that enemy this round
+COVERED = 3     # your first hit after an ally Guarded or Taunted for you this round
+SHATTER = 4     # hitting an enemy an ally Froze breaks the ice
+WILDFIRE = 1    # Burn meets an ally's Poison (or the reverse): it erupts for (Burn + Poison) x this
+
 
 class Invalid(Exception):
     """An action that isn't allowed; the message is shown to the player."""
@@ -133,6 +139,7 @@ class Combat(Foes):
         f = {
             "id": s["fid"], "kind": spec["kind"], "tile": spec["tile"], "heroes": spec["heroes"],
             "groups": spec.get("groups", []), "region": spec.get("region"), "step": spec.get("step", 0),
+            "path": spec.get("path"),
             "by": spec.get("by"), "round": 0, "foes": [], "hs": {}, "done": [], "guard": {}, "taunt": None,
             "sanct": 0, "aegis": 0, "xp": 0, "gold": 0, "dmul": diff["foe_dmg"] * (1 + 0.1 * tier),
             "spirit": {}, "nextfoe": 1, "phase": 1, "allies": [], "nextsum": 1, "acts": {}, "pain": {},
@@ -142,8 +149,8 @@ class Combat(Foes):
         s["phase"] = "fight"
         grow = max(0, s["rises"] - 10) * 0.1 if spec["kind"] == "boss" else 0
         for k in spec["foes"]:
-            key, hp = (k["k"], k.get("hp")) if isinstance(k, dict) else (k, None)
-            self.add_foe(key, hp, grow)
+            key, hp, aff = (k["k"], k.get("hp"), k.get("aff")) if isinstance(k, dict) else (k, None, None)
+            self.add_foe(key, hp, grow, aff)
         for h in f["heroes"]:
             hero = self.hero(h)
             m = self.mods(h)
@@ -160,20 +167,23 @@ class Combat(Foes):
         if any(self.mods(h).get("open_weak") for h in f["heroes"]):
             for fo in f["foes"]:
                 fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
-        f["ambush"] = spec.get("by") in f["heroes"] and \
-            C.CLASSES[self.hero(spec["by"])["cls"]]["map"]["key"] == "ambush"
+        f["ambush"] = bool(spec.get("ambush_foes")) or (spec.get("by") in f["heroes"] and
+                                                        C.CLASSES[self.hero(spec["by"])["cls"]]["map"]["key"] == "ambush")
         names = ", ".join(fo["name"] for fo in f["foes"])
         self.say(f"Fight! {names}.")
         self.fx("fight", fk=f["kind"], tile=f["tile"])
         self.new_round()
 
-    def add_foe(self, key, hp=None, grow=0.0):
+    def add_foe(self, key, hp=None, grow=0.0, aff=None):
         f = self.s["fight"]
         d = A.FOES[key]
         mult = self.diff()["foe_hp"] * (1 + 0.15 * self.tier()) * (1 + grow)
         mx = max(1, round(d["hp"] * mult))
-        fo = {"id": f["nextfoe"], "k": key, "name": d["name"], "hp": min(hp or mx, mx), "max": mx, "row": d["row"],
+        fo = {"id": f["nextfoe"], "k": key, "name": d["name"], "hp": mx, "max": mx, "row": d["row"],
               "st": {}, "intent": None, "seq": 0, "might": 0}
+        self.foe_setup(fo, aff)
+        if hp:
+            fo["hp"] = min(hp, fo["max"])
         f["nextfoe"] += 1
         f["foes"].append(fo)
         return fo
@@ -254,6 +264,8 @@ class Combat(Foes):
         f["round"] += 1
         f["done"] = []
         f["guard"] = {}
+        f["lastdie"] = {}
+        f["covered"] = []
         f["taunt"] = None
         f["sanct"] = 0
         f["acts"] = {}
@@ -265,6 +277,15 @@ class Combat(Foes):
             if f["round"] == ENRAGE_FROM + 1:
                 self.say("The enemies grow desperate: they hit harder every round now.")
         # Crown of Thorns, Poison, regeneration, Last Stand
+        for fo in self.foes():
+            if fo.get("aff") == "ironclad":
+                fo["st"]["armor"] = fo["st"].get("armor", 0) + 4
+                self.fx("armor", to=f"f{fo['id']}", n=4)
+            if fo.get("aff") == "warlord" and f["round"] > 1:
+                for o in self.foes():
+                    if o is not fo:
+                        o["might"] += 1
+                self.fx("st", to=f"f{fo['id']}", s="rallies")
         thorns = sum(self.mods(h).get("crown_thorns", 0) for h in self.actives())
         for fo in self.foes():
             if thorns:
@@ -303,6 +324,13 @@ class Combat(Foes):
         for h in f["heroes"]:
             x = self.hs(h)
             x["ready"] = False
+            if self.mods(h).get("hoard") and x["dice"]:
+                # Slack Water: the biggest die left unused carries over
+                left = [d for d in x["dice"] if not d["used"] and d["src"] not in ("hoard", "gift", "hex")]
+                if left:
+                    big = max(left, key=lambda d: top_face(d["faces"]))
+                    x["hoard"] = {"faces": big["faces"], "src": "hoard",
+                                  "dk": [k for k in big["dk"] if k not in ("seer", "augur", "fate", "top") and not k.startswith("link:")]}
             x["dice"] = []
             x["round_once"] = []
             x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
@@ -324,6 +352,10 @@ class Combat(Foes):
                 dice.append({"faces": list(range(1, (8 if m.get("pet_strike") else min(8, m["pet"])) + 1)), "dk": [], "src": "pet"})
             if any(y != h for y in anthem):
                 dice.append({"faces": [1, 2, 3, 4], "dk": [], "src": "anthem"})
+            if x.get("hoard"):
+                dice.append(x.pop("hoard"))
+            if m.get("all_explode"):
+                dice = [dict(d, dk=list(d["dk"]) + (["exploding"] if "exploding" not in d["dk"] else [])) for d in dice]
             if m.get("deadeye") and dice:
                 big = max(dice, key=lambda d: top_face(d["faces"]))
                 big["dk"] = list(big["dk"]) + ["seer", "top"]
@@ -420,6 +452,8 @@ class Combat(Foes):
                 self.fx("st", to=f"h{h}", s="inspired")
         if t == "W" and m.get("wild_heal") and self.active(h):
             self.fight_heal(h, m["wild_heal"], h)
+        if m.get("one_is_top") and v == 1 and t is None:
+            v = top_face(d["faces"])
         if m.get("keen_edge") and v == 6:
             v = 7
         if t not in ("S", "X"):
@@ -563,7 +597,7 @@ class Combat(Foes):
         dice = [next((d for d in x["dice"] if d["id"] == i and not d["used"]), None) for i in ids]
         if None in dice:
             raise Invalid("Those dice are already used.")
-        if not a["def"] and any("guard" in (d.get("dk") or []) for d in dice):
+        if not a["def"] and not self.mods(h).get("guard_free") and any("guard" in (d.get("dk") or []) for d in dice):
             raise Invalid("Guard dice only go on defensive actions: Block, Armor, healing and the like.")
         if not self.count_ok(a["req"], dice):
             n = a["req"].get("n", 1)
@@ -792,6 +826,10 @@ class Combat(Foes):
                     n += 2 if a["plus"] else 0
                     if kind == "dmg":
                         n += self.dmg_bonus(h, a, target)
+                        if h in self.s["fight"].get("covered", []):
+                            n += COVERED
+                        if target and target["st"].get("freeze") and target.get("st_by", {}).get("freeze") not in (None, h):
+                            n += SHATTER
                         if target:
                             n = self.foe_damage_after(target, n, h)
                     elif kind == "heal":
@@ -832,6 +870,8 @@ class Combat(Foes):
         ops = a["ops"] if hit else a.get("miss", [])
         self.run_ops(h, a, dice, tgt, ops=ops, hit=hit)
         self.elements(h, a, dice, tgt)
+        if self.s["fight"] is f and a["tgt"] == "foe" and dice and isinstance(tgt, str) and tgt.startswith("f"):
+            f.setdefault("lastdie", {})[tgt[1:]] = [h, [_num(d) for d in dice]]
         if a["key"] == "block" and self.mods(h).get("block_heal") and self.s["fight"] is f:
             self.fight_heal(h, self.mods(h)["block_heal"], h)
         echo = (a.get("spell") and self.mods(h).get("spell_echo")) or (self.mods(h).get("echo_any") and a["key"] not in C.GENERIC)
@@ -903,6 +943,17 @@ class Combat(Foes):
                 self.roll(h, d)
                 self.fx("reroll", h=h, die=d["id"], v=d["v"], why="reroll")
                 ok = hit()
+        cost = self.mods(h).get("blood_reroll", 0)
+        if not ok and cost and x["rr"] <= 0 and dice and self.hero(h)["hp"] > cost + 1:
+            d = min((d for d in dice if d.get("tag") != "W"), key=lambda d: d["v"], default=None)
+            if d is not None:
+                self.hero(h)["hp"] -= cost
+                self.fx("dmg", to=f"h{h}", n=cost, block=0)
+                d["rolled"] = False
+                d["v"] = None
+                self.roll(h, d)
+                self.fx("reroll", h=h, die=d["id"], v=d["v"], why="blood")
+                ok = hit()
         shields = sum(1 for d in dice if d.get("tag") == "S")
         if shields:
             n = shields * (SHIELD_BLOCK + self.mods(h).get("shield_block", 0))
@@ -923,6 +974,56 @@ class Combat(Foes):
                 else:
                     fo["st"][t] = fo["st"].get(t, 0) + 1
                 self.fx("st", to=f"f{fo['id']}", s=t)
+                self.foe_status_by(fo, t, h)
+                if fo["hp"] <= 0:
+                    return
+
+    # ------------------------------------------------------------------ cross-hero combos
+
+    def cover(self, y):
+        f = self.s["fight"]
+        if y not in f.setdefault("covered", []):
+            f["covered"].append(y)
+
+    def combo_bonus(self, h, a, dice, t, used):
+        """Extra damage a hit gets from what an ally did first: Pincer, Covered, Shatter."""
+        f = self.s["fight"]
+        n = 0
+        up = self.mods(h).get("combo_up", 0)
+        if "covered" not in used and h in f.get("covered", []):
+            used.add("covered")
+            f["covered"].remove(h)
+            n += COVERED + up
+            self.fx("combo", to=f"f{t['id']}", c="covered", n=COVERED + up)
+        last = f.get("lastdie", {}).get(str(t["id"]))
+        if "pincer" not in used and last and last[0] != h and dice and \
+                any(_num(d) and _num(d) in last[1] for d in dice):
+            used.add("pincer")
+            n += PINCER + up
+            self.fx("combo", to=f"f{t['id']}", c="pincer", n=PINCER + up)
+        by = t.setdefault("st_by", {})
+        if "shatter" not in used and t["st"].get("freeze") and by.get("freeze") not in (None, h):
+            used.add("shatter")
+            t["st"].pop("freeze", None)
+            n += SHATTER + up
+            self.fx("combo", to=f"f{t['id']}", c="shatter", n=SHATTER + up)
+        return n
+
+    def foe_status_by(self, fo, s, h):
+        """Who put a status on an enemy, and Wildfire when Burn meets an ally's Poison."""
+        if fo["hp"] <= 0 or h is None:
+            return
+        by = fo.setdefault("st_by", {})
+        other = {"burn": "poison", "poison": "burn"}.get(s)
+        if other and fo["st"].get(other) and by.get(other) not in (None, h) and not fo.get("wildfire"):
+            fo["wildfire"] = True
+            n = (fo["st"].get("burn", 0) + fo["st"].get("poison", 0)) * WILDFIRE + self.mods(h).get("combo_up", 0)
+            self.fx("combo", to=f"f{fo['id']}", c="wildfire", n=n)
+            self.hurt_foe(fo, n, h, pure=True)
+            for o in self.foes():
+                if o is not fo:
+                    self.hurt_foe(o, n // 2, h, pure=True)
+        by[s] = h
 
     def targets_for(self, h, a, tgt):
         kind = a["tgt"]
@@ -977,6 +1078,7 @@ class Combat(Foes):
         pierce_all = bool(m.get("unstoppable")) and a["key"] in UNSTOPPABLE
         crescendo = x["st"].get("crescendo")
         dealt_any = False
+        combo_used = set()
 
         def scale(n):
             return n // 2 if half else n
@@ -1002,6 +1104,7 @@ class Combat(Foes):
                         if d is not None:
                             env["d"] = _num(d)
                         n = scale(_amt(op["amt"], env) + plus) + self.dmg_bonus(h, a, t)
+                        n += self.combo_bonus(h, a, dice, t, combo_used)
                         if crescendo:
                             n = n * 3 // 2
                         if m.get("eagle_eye"):
@@ -1010,6 +1113,13 @@ class Combat(Foes):
                                 n *= 2
                         done = self.hurt_foe(t, n, h, pierce=pierce_all or op.get("pierce") or m.get("pierce_all"), bomb=a.get("bomb"))
                         dealt_any = True
+                        if a.get("spell") and m.get("spell_chain") and a["tgt"] == "foe" and "chain" not in combo_used:
+                            combo_used.add("chain")
+                            others = [o for o in self.foes() if o is not t]
+                            if others:
+                                o = self.rng.choice(others)
+                                self.fx("st", to=f"f{o['id']}", s="arced")
+                                self.hurt_foe(o, n // 2, h)
                         if op.get("splash"):
                             for o in self.foes():
                                 if o is not t and o["row"] == t["row"]:
@@ -1082,6 +1192,7 @@ class Combat(Foes):
                         else:
                             t["st"][s] = t["st"].get(s, 0) + n
                         self.fx("st", to=f"f{t['id']}", s=s)
+                        self.foe_status_by(t, s, h)
             elif k == "flee":
                 x["fled"] = True
                 hero = self.hero(h)
@@ -1096,11 +1207,16 @@ class Combat(Foes):
                         if not self.retarget_intents(f"h{h}", frm=f"h{t[1]}", first_only=True):
                             self.s["fight"]["guard"][str(t[1])] = h
                         self.fx("st", to=f"h{t[1]}", s="guarded")
+                        if t[1] != h:
+                            self.cover(t[1])
             elif k == "taunt":
                 f = self.s["fight"]
                 f["taunt"] = h
                 self.retarget_intents(f"h{h}")
                 self.fx("st", to=f"h{h}", s="taunt")
+                for y in self.actives():
+                    if y != h:
+                        self.cover(y)
             elif k == "drag":
                 for t in targets:
                     if not isinstance(t, tuple) and t["hp"] > 0 and not t["st"].get("root"):
@@ -1230,14 +1346,16 @@ class Combat(Foes):
             self.hurt_hero(h, thorns, None, pure=True)
         if fo["hp"] <= 0:
             self.foe_dies(fo, h, bomb)
+        else:
+            self.foe_bloodied(fo)
         return n
 
     def foe_dies(self, fo, h, bomb=False):
         f = self.s["fight"]
         fo["hp"] = 0
         d = A.FOES[fo["k"]]
-        f["xp"] += d["xp"]
-        f["gold"] += d["gold"]
+        f["xp"] += d["xp"] * (2 if fo.get("aff") else 1)
+        f["gold"] += d["gold"] * (2 if fo.get("aff") else 1)
         self.fx("die", to=f"f{fo['id']}")
         if h is not None and self.hero(h)["alive"]:
             self.s["stats"][h]["kills"] += 1
@@ -1344,6 +1462,9 @@ class Combat(Foes):
             th = self.mods(h).get("thorns", 0) + x["st"].get("thorns", 0)
             if th and fo["hp"] > 0:
                 self.hurt_foe(fo, th, h, pure=True)
+            if self.mods(h).get("mark_attacker") and fo["hp"] > 0 and not fo["st"].get("mark"):
+                fo["st"]["mark"] = 1
+                self.fx("st", to=f"f{fo['id']}", s="mark")
             if x["st"].pop("shock", 0) and n > 0:
                 others = [y for y in self.actives() if y != h]
                 if others:
@@ -1498,18 +1619,29 @@ class Combat(Foes):
                 for q in s["quests"]:
                     if q["kind"] == "lair" and q["group"] in f["groups"] and not q["done"]:
                         self.complete_quest(q, winners[0] if winners else party[0])
+            final = f["kind"] == "dungeon" and f["step"] >= A.DUNGEON_STEPS - 1
+            path = f.get("path")
             for h in winners:
-                if f["kind"] in ("lair", "dungeon"):
-                    bonus = 2 if f["kind"] == "dungeon" and f["step"] == len(A.DUNGEONS[f["region"]]["fights"]) - 1 else 1
-                    self.offer_loot(h, 3 if bonus == 2 else 2, tier_bonus=bonus)
+                if f["kind"] == "dungeon":
+                    if final:
+                        self.offer_loot(h, 2 if path == "sneak" else 3, tier_bonus=2)
+                    elif path == "champion":
+                        self.offer_loot(h, 3, tier_bonus=2)
+                    else:
+                        self.offer_loot(h, 2, tier_bonus=1)
+                    if path == "vault":
+                        self.hero(h)["gold"] += 12
+                elif f["kind"] == "lair" or any(fo.get("aff") or A.FOES[fo["k"]].get("big") for fo in f["foes"]):
+                    self.offer_loot(h, 2, tier_bonus=1)
                 elif self.rng.chance(0.35):
                     self.offer_loot(h, 2)
+            if path == "vault" and winners:
+                self.say("The vault gives up its gold: +12 each.")
             if f["kind"] == "dungeon":
                 reg = f["region"]
                 step = f["step"] + 1
                 s["dungeon"][reg] = step
-                fights = A.DUNGEONS[reg]["fights"]
-                if step >= len(fights):
+                if step >= A.DUNGEON_STEPS:
                     s["cleared"].append(reg)
                     self.say(f"{A.DUNGEONS[reg]['name']} is cleared! ({len(s['cleared'])} of 3)")
                     self.fx("cleared", region=reg)
@@ -1518,8 +1650,10 @@ class Combat(Foes):
                 else:
                     still = [h for h in party if self.hero(h)["alive"] and not self.hs_from(f, h)["fled"]]
                     if still:
-                        s["fights"].insert(0, {"kind": "dungeon", "tile": f["tile"], "heroes": still, "region": reg,
-                                               "step": step, "foes": list(fights[step]), "by": None})
+                        self.make_fork(reg, step, f["tile"], still)
+                    else:
+                        s["dnext"][reg] = {"path": "passage" if step == 1 else "gate",
+                                           "foes": self.dungeon_lineup(reg, "passage" if step == 1 else "gate")}
             self.gain_xp(f["xp"])
         else:
             # Lost: anyone still standing (or revived) falls back; the enemies keep their wounds.
@@ -1530,7 +1664,8 @@ class Combat(Foes):
             alive = {fo["id"]: fo for fo in f["foes"] if fo["hp"] > 0}
             for g in s["groups"]:
                 if g["id"] in f["groups"]:
-                    g["foes"] = [{"k": fo["k"], "hp": fo["hp"]} for fo in alive.values()][:5]
+                    g["foes"] = [dict({"k": fo["k"], "hp": fo["hp"]}, **({"aff": fo["aff"]} if fo.get("aff") else {}))
+                                  for fo in alive.values()][:5]
                     alive = {}
             s["groups"] = [g for g in s["groups"] if g["foes"]]
             self.say("The party falls back." if f["kind"] != "event" else "You get away, battered.")
@@ -1547,6 +1682,9 @@ class Combat(Foes):
             return None
         out = {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "done", "guard", "taunt",
                                  "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
+        out["covered"] = f.get("covered", [])
+        out["lastdie"] = f.get("lastdie", {})
+        out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]])
                      for k, x in f["hs"].items()}

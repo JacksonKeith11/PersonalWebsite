@@ -54,8 +54,28 @@ def _v2(state):
     return state
 
 
+def _v3(state):
+    """v4 dungeons have lineup pools and forks. A dungeon part-way through goes on with the first
+    lineup of its next step (no fork for a step already reached)."""
+    from .content import archipelago as A
+    state.setdefault("fork", None)
+    nxt = state.setdefault("dnext", {})
+    for reg, D in A.DUNGEONS.items():
+        if reg in nxt:
+            continue
+        step = state.get("dungeon", {}).get(reg, 0)
+        if step == 0:
+            nxt[reg] = {"path": "open", "foes": list(D["open"][0])}
+        elif step == 1:
+            nxt[reg] = {"path": "passage", "foes": list(D["mid"][0])}
+        else:
+            nxt[reg] = {"path": "gate", "foes": D["escort"][0][:1] + [D["boss"]] + D["escort"][0][1:]}
+    state["v"] = 4
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3}
 
 
 class TooOld(Exception):

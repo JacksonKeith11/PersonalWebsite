@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=36';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=36';
-import { spriteURL } from './art.js?v=36';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=36';
-import { MapView } from './hexmap.js?v=36';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=36';
-import { disconnect } from './main.js?v=36';
-import * as sfx from './audio.js?v=36';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=37';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=37';
+import { spriteURL } from './art.js?v=37';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=37';
+import { MapView } from './hexmap.js?v=37';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=37';
+import { disconnect } from './main.js?v=37';
+import * as sfx from './audio.js?v=37';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -30,6 +30,7 @@ function canPlan(h) {
   const g = S.game;
   if (!g.plans[h] || !g.heroes[h].alive) return false;
   if (g.phase === 'plan') return true;
+  if (g.phase === 'fork') return !g.fork?.heroes.includes(h);
   return (g.phase === 'fight' || g.phase === 'reward') && !(g.fight && g.fight.heroes.includes(h));
 }
 function inTown(h) { const p = S.game.places[S.game.heroes[h].tile]; return p && p.kind === 'town' ? p : null; }
@@ -106,7 +107,11 @@ function onTileHover(t, x, y) {
     lines.push(h('div.muted', null, `${TERRAIN_NAME[ter] || ter}${S.world.reg[t] ? ' · ' + regions[S.world.reg[t]] : ''}`));
     const vis = visibleTiles(g);
     const gr = g.groups.find(x => x.tile === t);
-    if (gr && (vis.has(t) || gr.lair)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.lair ? 'Lair: ' : 'Enemies: ') + gr.foes.map(k => S.static.foes[k].name).join(', ')));
+    if (gr && (vis.has(t) || gr.lair)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.lair ? 'Lair: ' : 'Enemies: ') + gr.foes.map((k, i) => foeName(k, gr.aff?.[i])).join(', ')));
+    if (p?.kind === 'dungeon' && !g.cleared?.includes(p.region) && g.dnext?.[p.region]) {
+      const nx = g.dnext[p.region], step = (g.dungeon?.[p.region] || 0) + 1;
+      lines.push(h('div', { style: { color: 'var(--danger)' } }, `Fight ${step} of 3 (${S.static.paths[nx.path]?.name || ''}): ` + nx.foes.map(x => typeof x === 'string' ? foeName(x) : foeName(x.k, x.aff)).join(', ')));
+    }
     if ((g.floods || []).includes(t)) lines.push(h('div', { style: { color: 'var(--info)' } }, 'Floods at the next rise.'));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
     if (heroesHere.length) lines.push(h('div', null, heroesHere.join(', ')));
@@ -144,7 +149,7 @@ function placeText(p) {
   const g = S.game;
   switch (p.kind) {
     case 'town': return 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.');
-    case 'dungeon': return g.cleared.includes(p.region) ? 'Cleared.' : `An objective: ${3 - (g.dungeon[p.region] || 0)} fights deep, no retreat.`;
+    case 'dungeon': return g.cleared.includes(p.region) ? 'Cleared.' : `An objective: ${3 - (g.dungeon[p.region] || 0)} fights deep, the way forking between them. No retreat.`;
     case 'peak': return g.cleared.length >= 3 ? 'The Drowned Crown waits at the top.' : `Sealed until all three objectives are cleared (${g.cleared.length} of 3).`;
     case 'shrine': return 'A blessing, once for each hero.';
     case 'camp': return 'Rest here to heal half your HP.';
@@ -243,6 +248,9 @@ function renderActionbar() {
     sub = g.revives > 0 ? 'They’ll be back next turn: the party has a revive.' : 'Give your spirit die to an ally in fights.';
   } else if (g.pending[h0]?.length) {
     title = 'Something needs your answer'; sub = 'Choose in the dialog to carry on.';
+  } else if (g.phase === 'fork') {
+    title = 'The party in the dungeon is picking a path';
+    sub = 'Plan your next move or visit a town while you wait.';
   } else if (g.phase === 'fight' || g.phase === 'reward') {
     title = g.phase === 'fight' ? 'A fight is under way' : 'Waiting for picks';
     sub = 'Plan your next move or visit a town while you wait.';
@@ -281,11 +289,16 @@ function renderActionbar() {
 // The server works the turn out from what the party can see (Game.forecast): one line per hero, so
 // everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
 const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'gets a shrine’s blessing', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair' };
+// An enemy's name, with its elite affix ("Hulking Crabfolk Brute").
+export function foeName(k, aff) {
+  const st = S.static;
+  return (aff && st.elites?.[aff] ? st.elites[aff].name + ' ' : '') + (st.foes[k]?.name || k);
+}
 function fightLine(f) {
   const st = S.static, g = S.game;
   const counts = {};
-  for (const k of f.foes) counts[k] = (counts[k] || 0) + 1;
-  const foes = Object.entries(counts).map(([k, c]) => st.foes[k].name + (c > 1 ? ` ×${c}` : '')).join(', ');
+  f.foes.forEach((k, i) => { const n = foeName(k, f.aff?.[i]); counts[n] = (counts[n] || 0) + 1; });
+  const foes = Object.entries(counts).map(([n, c]) => n + (c > 1 ? ` ×${c}` : '')).join(', ');
   const where = f.kind === 'dungeon' ? `${st.dungeons[f.region]} (fight ${f.step + 1} of 3)` : f.kind === 'boss' ? 'the Drowned Crown' : f.kind === 'lair' ? `a lair: ${foes}` : foes;
   return { where, with: f.heroes.map(x => g.heroes[x].name) };
 }
@@ -674,6 +687,14 @@ function renderDialogs() {
     ], { enter }));
     return;
   }
+  if (g.phase === 'fork' && g.fork && !combatOpen() && !mine().some(x => g.pending[x]?.length)) {
+    const fk = forkView(g.fork);
+    if (fk) {
+      const enter = UI.lastDialog !== 'fork' + g.fork.step; UI.lastDialog = 'fork' + g.fork.step;
+      el.replaceChildren(modal(fk, { wide: true, enter, backdrop: 'dungeon' }));
+      return;
+    }
+  }
   const h0 = mine().find(x => g.pending[x]?.length && (x === sel() || true));
   if (h0 === undefined || combatOpen()) { el.replaceChildren(); UI.lastDialog = null; return; }
   const d = g.pending[h0][0], hero = g.heroes[h0];
@@ -758,10 +779,48 @@ function renderDialogs() {
   }
 }
 
+// ------------------------------------------------------------------ a fork in a dungeon
+// After a dungeon fight the party picks one of two ways on. Everyone in the dungeon votes (one
+// click votes for every hero you play); the most votes wins, a tie is a coin toss.
+function forkView(fk) {
+  const g = S.game, st = S.static;
+  const mineIn = mine().filter(x => fk.heroes.includes(x) && g.heroes[x].alive);
+  if (!mineIn.length) return null;
+  const vote = n => mineIn.forEach(x => send({ t: 'fork', h: x, n }));
+  const waiting = fk.heroes.filter(x => g.heroes[x].alive && fk.votes[x] === undefined).map(x => g.heroes[x].name);
+  const lines = fk.opts.map((o, i) => {
+    const p = st.paths[o.path];
+    const voters = fk.heroes.filter(x => fk.votes[x] === i);
+    const foes = o.foes.map(x => typeof x === 'string' ? { k: x } : x);
+    const affs = [...new Set(foes.map(x => x.aff).filter(Boolean))];
+    const big = foes.find(x => st.foes[x.k]?.big);
+    const boss = foes.find(x => st.foes[x.k]?.boss);
+    const kind = !foes.length ? 'No fight' : boss ? 'The boss' : big || affs.length ? 'Elite fight' : 'Fight';
+    const mine_ = mineIn.every(x => fk.votes[x] === i);
+    return h('button.pick.fork' + (mine_ ? '.chosen' : ''), { style: { '--i': i }, onclick: () => vote(i) },
+      h('span.kbd.pick-key', null, i + 1),
+      h('span.kind', null, kind),
+      h('h3', null, p.name),
+      h('p', null, p.text),
+      foes.length ? h('div.fork-foes', null, ...foes.map(x => h('span.chip' + (x.aff || st.foes[x.k]?.big || st.foes[x.k]?.boss ? '.danger' : ''), null, foeName(x.k, x.aff)))) : null,
+      ...affs.map(a => h('p.muted.small', null, `${st.elites[a].name}: ${st.elites[a].text}`)),
+      big ? h('p.muted.small', null, `${st.foes[big.k].name}: a big threat. At half health it's bloodied: ${st.foes[big.k].bloodied.text}`) : null,
+      h('div.gains', null, h('span.chip.brass', null, p.reward)),
+      h('div.fork-votes', null, ...voters.map(x => h('span.vote', { style: { '--c': `var(--hero-${x})` } }, g.heroes[x].name))));
+  });
+  return [
+    h('div.eyebrow', null, `${st.dungeons[fk.region]} · fight ${fk.step + 1} of 3 next`),
+    h('h2', null, 'The way forks'),
+    h('p.lead', null, fk.heroes.length > 1 ? 'Pick a path together. Most votes wins; a tie is a coin toss.' : 'Pick a path.'),
+    h('div.picks', null, ...lines),
+    waiting.length ? h('p.muted', null, `Waiting for ${waiting.join(', ')}.`) : null,
+  ];
+}
+
 // ------------------------------------------------------------------ first-time hints
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
-  fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. When everyone is ready, enemies do what their intents say.'],
+  fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
   sea: ['The rising sea', 'Every few turns the sea rises and the lowest land floods. Hexes about to go under glow blue. Clear the three objectives and reach the peak before the water does.'],
 };
 function renderHint() {

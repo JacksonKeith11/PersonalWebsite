@@ -17,6 +17,12 @@ hits N different targets with the total, `chain` jumps to a second target for ha
 hero and summon), block (Armor for itself), guard (Armor for its most hurt ally), heal (its most
 hurt ally), buff (`v` might for every enemy), debuff (a status), summon (`f`), charge (Rams: the
 next attack rolls an extra die; growing dice: one size up).
+Move pools: `pool` holds extra moves; each enemy draws one when it appears (bosses add theirs to
+the end of their `seq`), so two Cutthroats can fight differently. Its moves are `fo["mv"]`.
+Elites: an enemy can carry an affix (`fo["aff"]`, `ELITES` in the content): more health and a twist
+(an extra die, exploding dice, Armor every round, Poison, rallying, leeching), and double the XP
+and gold. `bloodied`: when a big enemy drops to half health it gains might and new moves, once.
+Options: `self` on buff/heal (only itself), `all` on guard (every enemy).
 Riders: `st`/`sn` a status on whoever is hit; `st_min` only if a die rolls at least that; `pair`
 something extra on doubles (`st`/`sn`, or `again` to hit a second time). Targeting (`tgt`): random
 (default), weakest, strongest, vengeful (whoever hurt it most last round).
@@ -72,7 +78,44 @@ class Foes:
     # ------------------------------------------------------------------ choosing a move
 
     def foe_moves(self, fo):
-        return A.FOES[fo["k"]]["moves"]
+        """This enemy's moves: its kind's, plus the pool move it drew, plus bloodied ones."""
+        d = A.FOES[fo["k"]]
+        allm = {**d["moves"], **d.get("pool", {}), **(d.get("bloodied", {}).get("moves", {}))}
+        keys = fo.get("mv") or list(d["moves"])
+        return {k: allm[k] for k in keys if k in allm}
+
+    def foe_setup(self, fo, aff=None, rng=True):
+        """A new enemy draws its pool move and takes its affix."""
+        d = A.FOES[fo["k"]]
+        fo["mv"] = list(d["moves"])
+        pool = list(d.get("pool", {}))
+        if pool and rng:
+            extra = self.rng.choice(pool)
+            if d.get("seq"):
+                fo["sq"] = list(d["seq"]) + [extra]
+            fo["mv"].append(extra)
+        if aff and aff in A.ELITES:
+            e = A.ELITES[aff]
+            fo["aff"] = aff
+            fo["name"] = e["name"] + " " + fo["name"]
+            old = fo["max"]
+            fo["max"] = max(1, round(old * e["hp"]))
+            if fo["hp"] >= old:
+                fo["hp"] = fo["max"]
+
+    def foe_bloodied(self, fo):
+        """A big enemy at half health: once, it gains might and its bloodied moves."""
+        b = A.FOES[fo["k"]].get("bloodied")
+        if not b or fo.get("bl") or fo["hp"] <= 0 or fo["hp"] * 2 > fo["max"]:
+            return
+        fo["bl"] = True
+        fo["might"] += b.get("might", 0)
+        fo["mv"] = list(fo.get("mv") or A.FOES[fo["k"]]["moves"]) + list(b.get("moves", {}))
+        self.fx("st", to=f"f{fo['id']}", s="bloodied")
+        self.say(f"{fo['name']} is bloodied: {b['text']}")
+
+    def foe_leech(self, fo):
+        return A.FOES[fo["k"]].get("leech") or fo.get("aff") == "vampiric"
 
     def choose_intent(self, fo):
         f = self.s["fight"]
@@ -80,10 +123,13 @@ class Foes:
         if f["ambush"] and f["round"] == 1:
             fo["intent"] = {"k": "dazed", "name": "Caught off guard"}
             return
-        moves = d["moves"]
+        moves = self.foe_moves(fo)
         if d.get("seq"):
-            key = d["seq"][fo["seq"] % len(d["seq"])]
+            seq = fo.get("sq") or d["seq"]
+            key = seq[fo["seq"] % len(seq)]
             fo["seq"] += 1
+            if fo.get("bl") and d.get("bloodied") and self.rng.chance(0.5):
+                key = self.rng.choice(list(d["bloodied"]["moves"]))
         else:
             keys = list(moves)
             if fo.get("charged"):
@@ -95,7 +141,7 @@ class Foes:
             key = next((k for k in moves if moves[k]["k"] == "attack"), key)
             mv = moves[key]
         it = {"k": mv["k"], "m": key, "name": mv["name"]}
-        for opt in ("each", "sweep", "chain", "st", "sn", "st_min", "pair", "v", "f"):
+        for opt in ("each", "sweep", "chain", "st", "sn", "st_min", "pair", "v", "f", "self", "all"):
             if opt in mv:
                 it[opt] = mv[opt]
         it["tgt_kind"] = mv.get("tgt", "random")
@@ -110,7 +156,13 @@ class Foes:
                     die["v"], die["tag"] = self.foe_roll_face(die["faces"])
                 elif "fate" in die["dk"]:
                     die["fc"] = [self.foe_roll_face(die["faces"]), self.foe_roll_face(die["faces"])]
+                if fo.get("aff") == "frenzied" and "exploding" not in die["dk"]:
+                    die["dk"].append("exploding")
                 dice.append(die)
+            if fo.get("aff") == "hulking" and mv["k"] in ("attack", "all") and dice:
+                extra = dict(dice[0], dk=[k for k in dice[0]["dk"] if k not in ("seer", "fate")])
+                extra.pop("v", None), extra.pop("fc", None), extra.pop("tag", None)
+                dice.append(extra)
             if fo.get("charged") and mv["k"] in ("attack", "all"):
                 extra = dict(dice[0], dk=[k for k in dice[0]["dk"] if k not in ("seer", "fate")])
                 extra.pop("v", None), extra.pop("fc", None), extra.pop("tag", None)
@@ -362,7 +414,9 @@ class Foes:
                     self.hero_status(y, s, sn)
                 for e in elems:
                     self.hero_status(y, e, 2 if e != "freeze" else 1)
-            if d.get("leech") and n and fo["hp"] > 0:
+            if fo.get("aff") == "venomous" and n and u.startswith("h") and self.active(int(u[1:])):
+                self.hero_status(int(u[1:]), "poison", 2)
+            if self.foe_leech(fo) and n and fo["hp"] > 0:
                 got = min((n + 1) // 2, fo["max"] - fo["hp"])
                 if got:
                     fo["hp"] += got
@@ -421,6 +475,11 @@ class Foes:
             n = sum(vals)
             fo["st"]["armor"] = fo["st"].get("armor", 0) + n
             self.fx("armor", to=f"f{fo['id']}", n=n)
+        elif k == "guard" and it.get("all"):
+            n = sum(vals)
+            for o in self.foes():
+                o["st"]["armor"] = o["st"].get("armor", 0) + n
+                self.fx("armor", to=f"f{o['id']}", n=n)
         elif k == "guard":
             n = sum(vals)
             others = [o for o in self.foes() if o is not fo] or [fo]
@@ -429,14 +488,14 @@ class Foes:
             self.fx("armor", to=f"f{ally['id']}", n=n)
         elif k == "heal":
             n = sum(vals)
-            ally = min(self.foes(), key=lambda o: o["hp"] / o["max"])
+            ally = fo if it.get("self") else min(self.foes(), key=lambda o: o["hp"] / o["max"])
             got = min(n, ally["max"] - ally["hp"])
             ally["hp"] += got
             self.fx("heal", to=f"f{ally['id']}", n=got)
         elif k == "buff":
-            for o in self.foes():
+            for o in ([fo] if it.get("self") else self.foes()):
                 o["might"] += it.get("v", 2)
-            self.fx("st", to="foes", s="might")
+            self.fx("st", to=f"f{fo['id']}" if it.get("self") else "foes", s="might")
         elif k == "summon":
             if len(self.foes()) < 5:
                 new = self.add_foe(it["f"])

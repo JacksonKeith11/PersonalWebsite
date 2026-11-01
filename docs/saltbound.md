@@ -91,7 +91,7 @@ Keep to these. They came from the owner directly.
 - **Regions and objectives**: clear all three objectives in any order to unlock the final boss.
   Towns also offer side quests.
 
-  | Region | Enemies | Objective (dungeon, 3-4 fights) |
+  | Region | Enemies | Objective (dungeon: 3 fights with two forks; see "Dungeon forks") |
   |---|---|---|
   | Coral Shallows | drowned sailors, crabfolk, reef creatures | the Sunken Chapel |
   | Smugglers' Keys | pirates and a tide cult | the Black Fort |
@@ -632,7 +632,8 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand**: see "Overhaul: no rows, enemy dice, forecast" for the latest numbers.
+- **Where the bots stand**: see "Dungeon forks, elites, combos and rule-benders" for the latest
+  numbers (and "Overhaul: no rows, enemy dice, forecast" for the class-by-class pass before it).
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
   between batches by chance alone, and overall rates ±4; a class can swing 20 points between two
   150-run batches after unrelated changes. Judge classes on 300 runs (`--seed=5000` for a second
@@ -699,6 +700,61 @@ One long autonomous pass at the owner's request (they were away); everything bel
   the turn stuck (`next_step` now resolves it); `.party` is the map's party panel class, so the
   fight's party column is `.herocol`.
 
+## Dungeon forks, elites, combos and rule-benders
+
+The owner asked for dungeons with lineup pools and forks, longer and more varied fights (enemy
+move pools, bigger single threats), more rule-bending items, and cross-hero combos.
+
+- **Dungeons** (`DUNGEONS`, `PATHS` in `content/archipelago.py`; `dungeon_lineup`, `make_fork`,
+  `do_fork`, `take_path` in `game.py`): three fights. The first is drawn from the dungeon's `open`
+  pool. After it, and again after the second, the party reaches a **fork**: two paths drawn at
+  random, shown with their enemies and rewards. Middle paths: the Main Passage (a lineup from
+  `mid`), the Champion's Hall (one big threat or an elite and a minion from `champ`; loot a rarity
+  up, three picks), the Flooded Vault (a `mid` lineup with one elite; +12 gold each) and a Quiet
+  Shrine (no fight: heal 35%, curses lifted, no loot; the boss fork follows at once). Boss paths:
+  Storm the Hall (the boss and an escort from `escort`), Rest at the Threshold (heal 30% first, one
+  more escort) and the Back Way (the enemies are caught off guard for a round; two picks, not
+  three). Everyone in the dungeon votes (`{"t": "fork", "n"}`; one click votes for every hero you
+  play); most votes wins and a tie is a coin toss. The game is in phase `fork` meanwhile; heroes
+  outside the dungeon can keep planning. The next fight's lineup is stored per dungeon in
+  `s["dnext"]` (so the forecast and hex tooltip can show it, and a party that loses meets the same
+  enemies again). Bots take a shrine or rest when the party is under 55% health, otherwise the
+  better loot.
+- **Enemy move pools** (`POOLS`): every enemy draws one extra move when it appears (`fo["mv"]`;
+  bosses add theirs to the end of their sequence), so two Cutthroats can fight differently. The
+  enemy's tooltip lists its moves. New move options: `self` on heal and buff, `all` on guard.
+- **Elites** (`ELITES`): an affix on one enemy: Hulking (twice the health, attacks roll an extra
+  die), Frenzied (every die explodes), Ironclad (4 Armor every round), Venomous (hits Poison 2),
+  Warlord (the others gain +1 might a round from the second), Vampiric (heals half the damage it
+  deals). Elites have 1.6x health (Hulking 2x), give double XP and gold, and drop loot. They lead
+  some roaming groups from the first objective on (25%), sit in vaults and champion halls, and show
+  an "Elite" tag; names read "Hulking Crabfolk Brute".
+- **Big single threats**: the Reef Maw (Coral), the Iron Bosun (Keys) and the Storm Roc (Stormcrag):
+  three dice, several moves, a pool move, and `bloodied`: at half health, once, +2 might and a new
+  move ("Bloodied" tag). They hold champion halls and, from two objectives cleared, roam alone (15%
+  of spawns). Sprites are in `tools/saltbound-art/foes.py`.
+- **Longer fights**: every non-boss enemy has 1.35x its listed health (`FOE_HP`). Dungeon fights now
+  take 3.2 rounds on Normal (3.0 before), 3.7 on Hard.
+- **Cross-hero combos** (`COMBOS` in `classes.py` for the words, numbers at the top of `combat.py`):
+  Pincer (your die shows a number an ally's die showed against that enemy this round: +3), Covered
+  (your first hit after an ally Guards or Taunts for you this round: +3), Shatter (hitting an enemy
+  an ally Froze: +4, the Freeze ends), Wildfire (Burn meets an ally's Poison, or the reverse: it
+  erupts for Burn + Poison and half that to every other enemy, once per enemy). They float over the
+  target in gold; the fight's "This round" bar has a Combos chip listing them; a Covered hero's card
+  says so. Who put each status on an enemy is in `fo["st_by"]`; the last dice each enemy was hit
+  with this round are in `f["lastdie"]`.
+- **Rule-bending items** (end of `ITEMS` and `PASSIVES` in `items.py`): Forked Staff (a spell on one
+  enemy also hits another for half), Siren's Conch (armor: whoever hits you is Marked), Tide
+  Hourglass (your biggest unused die carries over to next round), Powder Heart (all your dice
+  explode, -6 max HP), Weighted Coin (a 1 counts as the top face), Bloodstone (out of rerolls, a miss
+  rerolls anyway for 3 HP), Bosun's Whistle (your combos +2), Bosun's Bell (an action: pass one of
+  your dice to an ally) and Sea-Glass Lens (your armor's die can go on attacks). Trinkets can now
+  give actions, as weapons do.
+- **Balance after it** (100 runs each): Normal 80% (was 91%, back at the old target), Hard 30% (was
+  35%; classes 22-38%, inside the noise of 100 runs). The multipliers are untouched.
+- **Saves are v4** (`save._v3`): a dungeon part-way through goes on with the first lineup of its next
+  step.
+
 ## Code map
 
 The server owns the game; the browser sends intents and draws the state it gets back. There is
@@ -708,7 +764,7 @@ no clock anywhere: the run changes only when someone acts.
 |---|---|
 | `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the sea and tides, enemy groups, places, events, loot, levelling, towns, trading, `view()`, `static()`. |
 | `app/saltbound/combat.py` | Mixed into `Game`: starting fights, rounds, dice, placing actions, statuses, resolving, boss phases, the end of a fight. `Invalid` is the error shown to players. |
-| `app/saltbound/foes.py` | Mixed into `Combat`: enemies' dice and moves, choosing intents (`choose_intent`, `intent_numbers`), targeting, swinging intents (`retarget_intents`), and rolling and acting (`foe_act`, `foe_do`). |
+| `app/saltbound/foes.py` | Mixed into `Combat`: enemies' dice and moves, each enemy's own moves and elite affix (`foe_moves`, `foe_setup`, `foe_bloodied`), choosing intents (`choose_intent`, `intent_numbers`), targeting, swinging intents (`retarget_intents`), and rolling and acting (`foe_act`, `foe_do`). |
 | `app/saltbound/classes.py` | The generic classes, their actions and passives, levels and XP. |
 | `app/saltbound/content/items.py` | Items (generic) and the actions weapons give. |
 | `app/saltbound/content/archipelago.py` | This map's enemies, groups, lairs, dungeons, final boss, shrine blessings and events. |
@@ -731,6 +787,13 @@ no clock anywhere: the run changes only when someone acts.
 | `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound effects. |
 
 ## Gotchas
+
+- **A group's or lineup's enemy can be a dict** (`{"k": key, "aff": affix, "hp": wounds}`) rather
+  than a key. The view and the forecast send keys plus a parallel `aff` list; the hex tooltip and
+  fork dialog name elites with `foeName(k, aff)` in `hud.js`.
+- **Action keys are one namespace across classes and items**: the Alchemist already has `toss`,
+  which is why the Bosun's Bell's action is `pass_die` (the weapon Jab became `thrust` for the same
+  reason).
 
 - **Every module URL and stylesheet link carries `?v=N`, and they must all match** (Cloudflare
   caches `/static`, and a module loaded under two URLs runs twice). Bump them together:

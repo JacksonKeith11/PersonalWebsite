@@ -21,7 +21,7 @@ from .content import archipelago as A
 from .content import items as I
 from .rng import Rng
 
-VERSION = 3
+VERSION = 4
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -71,8 +71,11 @@ class Game(Combat):
             "groups": [], "gid": 1, "plans": {}, "pending": {"0": [], "1": [], "2": []}, "fights": [],
             "fight": None, "after": "turn", "quests": [], "shops": {}, "fx": [], "fxid": 0, "log": [],
             "stats": [{"dmg": 0, "heal": 0, "kills": 0, "taken": 0} for _ in range(3)], "fid": 1,
+            "dnext": {}, "fork": None,
         }
         g = cls(s)
+        for reg in A.DUNGEONS:
+            s["dnext"][reg] = {"path": "open", "foes": g.dungeon_lineup(reg, "open")}
         for h in range(3):
             g.hero(h)["hp"] = g.maxhp(h)
         g.reveal_all()
@@ -189,9 +192,10 @@ class Game(Combat):
         """The keys of the actions a hero can use (with '+' for upgraded ones)."""
         hero = self.hero(h)
         out = [k for k in hero["skills"] if k.rstrip("+") in C.ACTIONS]
-        w = hero["equip"].get("weapon")
-        if w:
-            out += [a for a in I.ITEMS[w].get("acts", []) if a not in out]
+        for slot in ("weapon", "trinket"):
+            w = hero["equip"].get(slot)
+            if w:
+                out += [a for a in I.ITEMS[w].get("acts", []) if a not in out]
         out += [g for g in self.mods(h)["grant"] if g not in out]
         out += C.GENERIC
         return out
@@ -299,7 +303,7 @@ class Game(Combat):
         return len(self.s["cleared"])
 
     def add_group(self, t, foes, lair=False):
-        g = {"id": self.s["gid"], "tile": t, "foes": [{"k": k} for k in foes], "lair": lair,
+        g = {"id": self.s["gid"], "tile": t, "foes": [dict(k) if isinstance(k, dict) else {"k": k} for k in foes], "lair": lair,
              "reg": self.s["world"]["reg"][t]}
         self.s["gid"] += 1
         self.s["groups"].append(g)
@@ -317,7 +321,16 @@ class Game(Combat):
         pool = A.GROUPS[reg]
         hi = min(len(pool), 3 + self.tier() * 2 + (2 if self.s["rises"] > GROW_FROM else 0))
         lo = max(0, hi - 4)
-        self.add_group(t, list(self.rng.choice(pool[lo:hi])))
+        foes = list(self.rng.choice(pool[lo:hi]))
+        tier = self.tier()
+        if tier >= 2 and self.rng.chance(0.15):
+            # a big single threat, alone
+            foes = [A.BIG.get(reg) or self.rng.choice(list(A.BIG.values()))]
+        elif tier >= 1 and self.rng.chance(0.25):
+            # an elite leads the group
+            i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
+            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+        self.add_group(t, foes)
 
     def move_groups(self):
         """Enemies near a hero on land take a step toward them. Returns tiles where they caught someone."""
@@ -407,19 +420,21 @@ class Game(Combat):
             if p and p["kind"] == "peak":
                 fight.update(kind="boss", foes=list(A.FINAL))
             elif p and p["kind"] == "dungeon" and p["region"] not in s["cleared"]:
-                step = s["dungeon"].get(p["region"], 0)
-                fight.update(kind="dungeon", region=p["region"], step=step, foes=list(A.DUNGEONS[p["region"]]["fights"][step]))
+                fight.update(self.dungeon_spec(p["region"]))
             else:
                 main = next((g for g in s["groups"] if tile_of[g["id"]] == tile), None)
                 if main is None:
                     continue
                 near = [g for g in s["groups"] if g is not main and not g["lair"] and tile_of[g["id"]] in vis
                         and Wd.dist(tile_of[g["id"]], tile) <= 1]
-                foes = [f["k"] for f in main["foes"]]
+                foes = list(main["foes"])
                 for g in near:
                     if len(foes) + len(g["foes"]) <= 5:
-                        foes += [f["k"] for f in g["foes"]]
+                        foes += g["foes"]
                 fight.update(kind="lair" if main["lair"] else "roam", foes=foes[:5])
+            # the view wants keys, with any elite affixes alongside
+            fight["aff"] = [k.get("aff") if isinstance(k, dict) else None for k in fight["foes"]]
+            fight["foes"] = [k["k"] if isinstance(k, dict) else k for k in fight["foes"]]
             fights.append(fight)
         lands = {}
         for h, (t, af) in pos.items():
@@ -448,6 +463,8 @@ class Game(Combat):
             out |= {int(h) for h, p in s["plans"].items() if not p["ready"] and self.hero(int(h))["alive"]}
         elif s["phase"] == "fight" and s["fight"]:
             out |= set(self.fight_waiting())
+        elif s["phase"] == "fork" and s.get("fork"):
+            out |= {y for y in s["fork"]["heroes"] if str(y) not in s["fork"]["votes"] and self.hero(y)["alive"]}
         return sorted(out)
 
     def act(self, h, msg):
@@ -463,7 +480,7 @@ class Game(Combat):
             "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use,
             "give": self.do_give, "drop": self.do_drop,
             "place": self.do_place, "reroll": self.do_reroll,
-            "fready": self.do_fready, "spirit": self.do_spirit,
+            "fready": self.do_fready, "spirit": self.do_spirit, "fork": self.do_fork,
         }.get(t)
         if handler is None:
             raise Invalid("Unknown action.")
@@ -481,6 +498,8 @@ class Game(Combat):
         if self.s["phase"] == "plan":
             return True
         f = self.s["fight"]
+        if self.s["phase"] == "fork":
+            return h not in self.s["fork"]["heroes"]
         return self.s["phase"] in ("fight", "reward") and (not f or h not in f["heroes"])
 
     def do_path(self, h, msg):
@@ -578,9 +597,7 @@ class Game(Combat):
         if p and p["kind"] == "peak" and len(self.s["cleared"]) >= 3:
             return {"kind": "boss", "tile": tile, "heroes": heroes, "foes": list(A.FINAL), "by": by}
         if p and p["kind"] == "dungeon" and p["region"] not in self.s["cleared"]:
-            step = self.s["dungeon"].get(p["region"], 0)
-            return {"kind": "dungeon", "tile": tile, "heroes": heroes, "region": p["region"], "step": step,
-                    "foes": list(A.DUNGEONS[p["region"]]["fights"][step]), "by": by}
+            return dict(self.dungeon_spec(p["region"]), tile=tile, heroes=heroes, by=by)
         groups = [g for g in self.s["groups"] if Wd.dist(g["tile"], tile) <= 1 and not g.get("busy")]
         main = self.group_at(tile)
         if main is None:
@@ -596,6 +613,90 @@ class Game(Combat):
         return {"kind": "lair" if main["lair"] else "roam", "tile": tile, "heroes": heroes, "groups": gids,
                 "foes": foes[:5], "by": by}
 
+    # ------------------------------------------------------------------ dungeons: lineups and forks
+
+    def dungeon_lineup(self, reg, path):
+        """Roll the enemies down a dungeon path."""
+        D = A.DUNGEONS[reg]
+        if path == "open":
+            return list(self.rng.choice(D["open"]))
+        if path == "passage":
+            return list(self.rng.choice(D["mid"]))
+        if path == "champion":
+            return list(self.rng.choice(D["champ"]))
+        if path == "vault":
+            foes = list(self.rng.choice(D["mid"]))
+            i = self.rng.randint(0, len(foes) - 1)
+            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            return foes
+        if path == "shrine":
+            return []
+        esc = list(self.rng.choice(D["escort"]))
+        foes = esc[:1] + [D["boss"]] + esc[1:]
+        if path == "rest":
+            foes.append(self.rng.choice([k for e in D["escort"] for k in e]))
+        return foes
+
+    def dungeon_spec(self, reg):
+        """The next fight in a dungeon, as the party will meet it."""
+        nxt = self.s["dnext"][reg]
+        return {"kind": "dungeon", "region": reg, "step": self.s["dungeon"].get(reg, 0), "foes": list(nxt["foes"]),
+                "path": nxt["path"], "ambush_foes": nxt["path"] == "sneak"}
+
+    def make_fork(self, reg, step, tile, heroes):
+        """After a dungeon fight: the party picks one of two ways on."""
+        paths = self.rng.sample(A.MID_PATHS if step == 1 else A.BOSS_PATHS, 2)
+        self.s["fork"] = {"region": reg, "step": step, "tile": tile, "heroes": list(heroes), "votes": {},
+                          "opts": [{"path": p, "foes": self.dungeon_lineup(reg, p)} for p in paths]}
+        self.say("The way forks. Pick a path.")
+
+    def do_fork(self, h, msg):
+        fk = self.s["fork"]
+        if self.s["phase"] != "fork" or not fk or h not in fk["heroes"]:
+            raise Invalid("There's no fork to choose at.")
+        n = msg.get("n")
+        if not isinstance(n, int) or not 0 <= n < len(fk["opts"]):
+            raise Invalid("Pick one of the paths.")
+        fk["votes"][str(h)] = n
+        alive = [y for y in fk["heroes"] if self.hero(y)["alive"]]
+        if any(str(y) not in fk["votes"] for y in alive):
+            return
+        tally = {}
+        for y in alive:
+            tally[fk["votes"][str(y)]] = tally.get(fk["votes"][str(y)], 0) + 1
+        top = max(tally.values())
+        pick = self.rng.choice(sorted(i for i, c in tally.items() if c == top))
+        self.take_path(fk, fk["opts"][pick])
+        self.next_step()
+
+    def take_path(self, fk, opt):
+        s = self.s
+        reg, path = fk["region"], opt["path"]
+        s["fork"] = None
+        info = A.PATHS[path]
+        self.say(f"The party takes {info['name']}.")
+        heal = {"shrine": 0.35, "rest": 0.3}.get(path, 0)
+        for y in fk["heroes"]:
+            hero = self.hero(y)
+            if not hero["alive"]:
+                continue
+            if heal:
+                got = min(self.maxhp(y) - hero["hp"], round(self.maxhp(y) * heal))
+                hero["hp"] += got
+                if got:
+                    self.fx("heal", to=f"h{y}", n=got)
+            if path == "shrine":
+                for b in [b for b in hero["buffs"] if A.BUFFS.get(b, {}).get("curse")]:
+                    del hero["buffs"][b]
+        s["dungeon"][reg] = fk["step"]
+        if path == "shrine":
+            self.make_fork(reg, fk["step"] + 1, fk["tile"], fk["heroes"])
+            return
+        s["dnext"][reg] = {"path": path, "foes": opt["foes"]}
+        heroes = [y for y in fk["heroes"] if self.hero(y)["alive"]]
+        if heroes:
+            s["fights"].insert(0, dict(self.dungeon_spec(reg), tile=fk["tile"], heroes=heroes, by=None))
+
     def next_step(self):
         """After a turn, a fight or a reward: start the next fight, wait for picks, or go on."""
         s = self.s
@@ -603,6 +704,9 @@ class Game(Combat):
             return
         if any(s["pending"][str(h)] for h in range(3) if self.waiting_reward(h)):
             s["phase"] = "reward"
+            return
+        if s.get("fork"):
+            s["phase"] = "fork"
             return
         if s["fights"]:
             self.start_fight(s["fights"].pop(0))
@@ -1252,7 +1356,8 @@ class Game(Combat):
     def view(self):
         s = self.s
         vis = self.visible_tiles()
-        groups = [{"id": g["id"], "tile": g["tile"], "lair": g["lair"], "foes": [f["k"] for f in g["foes"]]}
+        groups = [{"id": g["id"], "tile": g["tile"], "lair": g["lair"], "foes": [f["k"] for f in g["foes"]],
+                   "aff": [f.get("aff") for f in g["foes"]]}
                   for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]])]
         heroes = []
         for h in range(3):
@@ -1278,7 +1383,7 @@ class Game(Combat):
             "seen": "".join(map(str, s["seen"])), "places": places, "groups": groups, "heroes": heroes,
             "xp": s["xp"], "level": s["level"], "xp_next": C.XP_FOR[s["level"]] if s["level"] < C.MAX_LEVEL else None,
             "xp_this": C.XP_FOR[s["level"] - 1], "revives": s["revives"], "cleared": s["cleared"],
-            "dungeon": s["dungeon"], "plans": s["plans"], "pending": s["pending"], "fight": self.fight_view(),
+            "dungeon": s["dungeon"], "fork": s.get("fork"), "dnext": s.get("dnext", {}), "plans": s["plans"], "pending": s["pending"], "fight": self.fight_view(),
             "forecast": self.forecast(),
             "quests": s["quests"], "floods": self.floods_next(), "log": s["log"][-12:], "fx": s["fx"][-60:],
             "stats": s["stats"], "waiting": self.waiting(), "inn": self.inn_cost(),
@@ -1292,6 +1397,6 @@ def static():
     return {
         "classes": C.CLASSES, "actions": acts, "passives": C.PASSIVES, "items": I.ITEMS, "foes": A.FOES,
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,
-        "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "xp_for": C.XP_FOR,
+        "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "paths": A.PATHS, "elites": A.ELITES, "combos": C.COMBOS, "xp_for": C.XP_FOR,
         "prices": {k: I.price(k) for k in I.ITEMS},
     }

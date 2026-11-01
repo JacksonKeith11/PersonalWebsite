@@ -39,6 +39,8 @@ WEAPON_ACTIONS = {
                    "text": "Any row. 6+: the die +4, and Shock. Otherwise nothing."},
     "venom_stab": {"name": "Venom Stab", "req": {"n": 1}, "tgt": "foe", "melee": True,
                    "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "poison", "n": 2}], "text": "Half the die, and Poison 2."},
+    "pass_die": {"name": "Pass a Die", "req": {"n": 1}, "tgt": "other", "instant": True,
+             "ops": [{"op": "give"}], "text": "Give one of your dice to an ally to use this round."},
     "blessing": {"name": "Blessing", "req": {"n": 1}, "tgt": "ally",
                  "ops": [{"op": "heal", "amt": "v"}, {"op": "armor", "amt": "2"}], "text": "Heal an ally the die and give 2 Armor."},
 }
@@ -115,6 +117,17 @@ ITEMS = {
     "gamblers_bones": {"name": "Gambler's Bones", "slot": "trinket", "rarity": "rare", "die": ["X", "X", 8, 10, 12, 12]},
     "frost_locket": {"name": "Frost Locket", "slot": "trinket", "rarity": "uncommon", "die": [1, "I2", 3, "I4", 5, 6]},
 
+    # ---- rule-benders: gear that changes how you play rather than adding numbers
+    "forked_staff": {"name": "Forked Staff", "slot": "weapon", "rarity": "rare", "die": D(8), "acts": ["zap"]},
+    "siren_conch": {"name": "Siren's Conch", "slot": "armor", "rarity": "uncommon", "die": [1, 2, 3, "S", "S", 5]},
+    "tide_hourglass": {"name": "Tide Hourglass", "slot": "trinket", "rarity": "legendary", "die": D(8)},
+    "powder_heart": {"name": "Powder Heart", "slot": "trinket", "rarity": "rare", "die": D(6)},
+    "weighted_coin": {"name": "Weighted Coin", "slot": "trinket", "rarity": "uncommon", "die": D(6)},
+    "bloodstone": {"name": "Bloodstone", "slot": "trinket", "rarity": "rare", "die": D(6)},
+    "bosuns_whistle": {"name": "Bosun's Whistle", "slot": "trinket", "rarity": "uncommon", "die": D(6)},
+    "bosuns_bell": {"name": "Bosun's Bell", "slot": "trinket", "rarity": "uncommon", "die": D(6), "acts": ["pass_die"]},
+    "sea_glass_lens": {"name": "Sea-Glass Lens", "slot": "trinket", "rarity": "rare", "die": D(6), "dk": ["seer"]},
+
     # ---- consumables
     "potion": {"name": "Tonic", "slot": "use", "rarity": "common", "price": 8, "use": {"heal": 10},
                "text": "Heal 10."},
@@ -155,6 +168,16 @@ PASSIVES = {
     "shark_tooth": ({"execute_bonus": 2}, "Bloodscent: +2 damage against enemies below half health."),
     "drowned_idol": ({"wild_heal": 4}, "The drowned god's favour: a wild face also heals you 4."),
     "cork_vest": ({"rest_bonus": 0.1}, "Buoyant: resting heals an extra 10% of your max HP."),
+    # rule-benders
+    "forked_staff": ({"spell_chain": 1}, "Forked lightning: a spell that hits one enemy also hits another for half."),
+    "siren_conch": ({"mark_attacker": 1}, "Echoing shell: whoever hits you is Marked (allies deal +3 to it)."),
+    "tide_hourglass": ({"hoard": 1}, "Slack water: your biggest unused die carries over to next round as an extra die."),
+    "powder_heart": ({"all_explode": 1, "max_hp": -6}, "Powder heart: all your dice explode on their top face. −6 max HP."),
+    "weighted_coin": ({"one_is_top": 1}, "Heads I win: a 1 you roll counts as the die's top face."),
+    "bloodstone": ({"blood_reroll": 3}, "Blood price: out of rerolls, a miss rerolls anyway for 3 HP."),
+    "bosuns_whistle": ({"combo_up": 2}, "All hands: your combos deal +2 more."),
+    "bosuns_bell": ({}, "Ring it: hand one of your dice to an ally."),
+    "sea_glass_lens": ({"guard_free": 1}, "Clear sight: your armor's die can go on attacks too."),
 }
 for _k, (_m, _t) in PASSIVES.items():
     ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}

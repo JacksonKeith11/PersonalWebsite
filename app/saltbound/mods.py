@@ -19,7 +19,7 @@ MODS = {
     "backstab": "+n against enemies aiming at someone else",
     "frozen_bonus": "+n against Frozen enemies",
     "hymn_aura": "+n damage for the whole party while standing",
-    "eagle_eye": "a die showing its top face deals double",
+    "eagle_eye": "a die showing its top face deals half again",
     "keen_edge": "6s count as 7",
     "one_is_top": "a rolled 1 counts as the die's top face",
     "pierce_all": "every hit ignores Armor",

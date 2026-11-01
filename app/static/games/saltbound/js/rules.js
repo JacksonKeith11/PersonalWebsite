@@ -146,9 +146,19 @@ export function countOk(req, dice) {
   return req.upto ? dice.length >= 1 && dice.length <= n : dice.length === n;
 }
 
-// What a die might come up as while planning: [[value, tag, chance]].
-export function outcomes(d, hymn = 0) {
-  const add = (d.bonus || 0) + hymn;
+// What a passive makes of a face before bonuses (Combat.face_rules): `rm` is the hero's `rollmods`.
+function faceRules(d, v, t, rm) {
+  if (rm.shield_top && t === 'S') v = topFace(d.faces);
+  if (rm.one_is_top && v === 1 && !t) v = topFace(d.faces);
+  if (rm.keen_edge && v === 6) v = 7;
+  return v;
+}
+// What gets added to a face when it rolls (Combat.die_add): its bonus, Hymn, Sleight of Hand on a linked die.
+const dieAdd = (d, hymn, rm) => (d.bonus || 0) + hymn + (d.link && rm.sleight ? 1 : 0);
+
+// What a die might come up as while planning: [[value, tag, chance]]. `rm`: the hero's rollmods.
+export function outcomes(d, hymn = 0, rm = {}) {
+  const add = dieAdd(d, hymn, rm);
   let base;
   if (d.rolled) return [[d.v, d.tag, 1]];
   if (d.v !== null && d.v !== undefined) base = [[d.v, d.tag, 1]];
@@ -170,15 +180,16 @@ export function outcomes(d, hymn = 0) {
       return [v, t, 1 / faces.length];
     });
   }
-  return base.map(([v, t, p]) => [t === 'S' || t === 'X' ? v : v + add, t, p]);
+  return base.map(([v, t, p]) => [faceRules(d, v, t, rm), t, p])
+    .map(([v, t, p]) => [t === 'S' || t === 'X' ? v : v + add, t, p]);
 }
 
 // Chance that these dice make an action hit.
-export function hitChance(req, dice, hymn = 0) {
+export function hitChance(req, dice, hymn = 0, rm = {}) {
   if (!isRisky(req) || !dice.length) return null;
   let p = 0;
-  const per = dice.map(d => outcomes(d, hymn));
-  const add = d => (d.bonus || 0) + hymn;
+  const per = dice.map(d => outcomes(d, hymn, rm));
+  const add = d => dieAdd(d, hymn, rm);
   // linked dice that haven't rolled share one roll: later ones copy the first one's face
   const linked = d => (d.link && (d.v === null || d.v === undefined) && !d.rolled ? d.link : null);
   const walk = (i, vals, tags, pr, faces) => {
@@ -261,7 +272,7 @@ export const STATUS = {
   mark: { name: 'Mark', icon: 'target', text: 'Takes +3 damage from every hit.', bad: true },
   root: { name: 'Root', icon: 'root', text: "Can't change rows or flee.", bad: true },
   doom: { name: 'Doom', icon: 'clock', text: 'Takes this much damage at the end of next round.', bad: true },
-  lifeline: { name: 'Lifeline', icon: 'heart', text: 'Heals fully at the end of the round.' },
+  lifeline: { name: 'Lifeline', icon: 'heart', text: 'Heals half their max HP at the end of the round.' },
   dodge: { name: 'Dodge', icon: 'boot', text: 'The next hit misses.' },
   riposte: { name: 'Riposte', icon: 'sword', text: 'If a hit is fully blocked this round, hits back for this much.' },
   crescendo: { name: 'Crescendo', icon: 'up', text: 'The next damaging action deals 50% more.' },

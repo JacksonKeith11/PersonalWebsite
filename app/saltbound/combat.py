@@ -18,7 +18,7 @@ from .content import archipelago as A
 from .content import items as I
 from .dice import Dice, face, num, top_face
 from .foes import Foes
-from .tuning import CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
+from .tuning import ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
 
 class Invalid(Exception):
@@ -816,7 +816,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.hurt_hero(h, st["burn"], None, pure=True)
                 st["burn"] -= 1
             if st.pop("lifeline", 0) and self.active(h):
-                self.fight_heal(h, self.maxhp(h), None)
+                self.fight_heal(h, self.maxhp(h) // 2, None)
             for s in TICKING:
                 if st.get(s):
                     st[s] -= 1
@@ -979,6 +979,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         out["pincered"] = f.get("pincered", [])
         out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)
-        out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]])
+        out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]],
+                             rollmods={m: v for m, v in self.mods(int(k)).items() if m in ROLL_MODS and v})
                      for k, x in f["hs"].items()}
         return out

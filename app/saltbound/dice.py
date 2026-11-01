@@ -148,12 +148,7 @@ class Dice:
                 self.fx("st", to=f"h{h}", s="inspired")
         if t == "W" and m.get("wild_heal") and self.active(h):
             self.fight_heal(h, m["wild_heal"], h)
-        if m.get("shield_top") and t == "S":
-            v = top_face(d["faces"])  # Bulwark Faces: still a shield (it blocks), and worth the top face
-        if m.get("one_is_top") and v == 1 and t is None:
-            v = top_face(d["faces"])
-        if m.get("keen_edge") and v == 6:
-            v = 7
+        v = self.face_rules(h, d, v, t)
         if x.get("static") and t not in ("S", "X", "W") and v is not None and v <= 2 and self.active(h):
             self.fx("st", to=f"h{h}", s="static")
             self.hurt_hero(h, 3, None, pure=True)
@@ -169,6 +164,19 @@ class Dice:
                 x["pain_bonus"] = 0
         d["v"], d["tag"], d["rolled"] = v, t, True
         d["shown"] = True
+        return v
+
+    def face_rules(self, h, d, v, t):
+        """What a hero's passives make of a face before bonuses: Bulwark Faces (a shield still
+        blocks, and is worth the top face), Weighted Coin (a 1 is the top face), Keen Edge (6 is 7).
+        Rolling and planning (`outcomes`) both use this."""
+        m = self.mods(h)
+        if m.get("shield_top") and t == "S":
+            v = top_face(d["faces"])
+        if m.get("one_is_top") and v == 1 and t is None:
+            v = top_face(d["faces"])
+        if m.get("keen_edge") and v == 6:
+            v = 7
         return v
 
     def die_add(self, h, d):
@@ -207,6 +215,7 @@ class Dice:
                 if "exploding" in d["dk"] and v == top and t != "W":
                     v += round(mean_face(d["faces"]))
                 base.append((v, t, 1 / len(faces)))
+        base = [(self.face_rules(h, d, v, t), t, p) for v, t, p in base]
         if raw:
             return base
         add = self.die_add(h, d)

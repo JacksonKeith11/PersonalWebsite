@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=43';
-import { $, h, icon, toast } from './ui.js?v=43';
-import { spriteURL } from './art.js?v=43';
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=43';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=43';
-import { connect, disconnect, debug } from './main.js?v=43';
+import { S, saved, persist, send } from './store.js?v=44';
+import { $, h, icon, toast } from './ui.js?v=44';
+import { spriteURL } from './art.js?v=44';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=44';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=44';
+import { connect, disconnect, debug } from './main.js?v=44';
 
 const app = () => $('app');
 

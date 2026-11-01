@@ -342,14 +342,14 @@ this part is right, and `classes.py`, `content/` and the code are the last word 
 
 | Class | HP (per level) | Map ability | Role | Tags |
 |---|---|---|---|---|
-| Vanguard | 48 (+7) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
+| Vanguard | 50 (+7) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
 | Duelist | 24 (+3) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
 | Berserker | 32 (+4) | **Forage**: camps heal them fully | High-risk damage | Bloodlust, Rampage |
-| Ranger | 26 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
-| Arcanist | 25 (+4) | **Farsight**: sees 1 hex further; spots cursed loot | AoE and burst | Elementalist, Hexer |
-| Mender | 19 (+3) | **Field Medic**: resting on their hex heals everyone there an extra 10% | Healer | Restoration, Warding |
-| Scoundrel | 24 (+3) | **Light Fingers**: +1 loot choice | Debuffs and loot | Poisons, Tricks |
-| Herald | 20 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
+| Ranger | 24 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
+| Arcanist | 23 (+4) | **Farsight**: sees 1 hex further; spots cursed loot | AoE and burst | Elementalist, Hexer |
+| Mender | 17 (+3) | **Field Medic**: resting on their hex heals everyone there an extra 10% | Healer | Restoration, Warding |
+| Scoundrel | 22 (+3) | **Light Fingers**: +1 loot choice | Debuffs and loot | Poisons, Tricks |
+| Herald | 18 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
 | Alchemist | 21 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
 | Warden | 26 (+3) | **Wildspeak**: forest costs 1 | Summons and control | Grove, Thorns |
 
@@ -452,12 +452,27 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
   every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand** (300 runs on Hard from seed 5000, 150 on Normal), after the bots learned to
-  score hits with the fight's own sums: **Hard 33.7%**: Alchemist 40%, Ranger 38%, Mender 36%,
-  Scoundrel 35%, Arcanist 35%, Warden 34%, Herald 33%, Duelist 30%, Berserker 30%, Vanguard 26%.
-  **Normal 83%**, Story every run. The Ranger rose 6 points when the bots started valuing Eagle Eye;
-  Vanguard is still at the bottom. Normal is above the old 80%; raising its multiplier is the lever if
-  it should be harder (the owner's call).
+- **Where the bots stand** (600 runs on Hard: 300 from seed 5000 and 300 from seed 9000, which plays
+  easier; 150 on Normal): **Hard 39%**: Mender 43%, Herald 43%, Ranger 43%, Scoundrel 40%, Alchemist
+  40%, Warden 40%, Berserker 38%, Vanguard 37%, Arcanist 35%, Duelist 30%. **Normal 89%**, Story every
+  run. Hard is above the 30–35% target because the bots got better (the verification below), not the
+  game easier; the class trims brought it from 42% back to 39%, and the owner's options from here are
+  more class trims or Hard's multiplier. Duelist is now last.
+- **The last pass** (owner's request: buff the Vanguard, trim the top classes rather than touch the
+  multipliers): Vanguard 50 HP, Guard and Taunt give the die +3 Armor (was +2), Brace gives the weakest
+  ally 3, Last Stand 6 Armor, Iron Will softens the first hit by 3. Extra HP alone did nothing for it
+  (it falls from the hits it pulls); Armor on its pulls moved it most. Trims: Mender 17 HP, Lifeline
+  heals half max HP (was full), Mend cools 3 rounds, Lift twice the die (was +2 more), Quick Lift once
+  per rest at 6 HP (was once per fight at 8); Ranger 24 HP and Eagle Eye half again (was double);
+  Arcanist 23 HP; Herald 18; Scoundrel 22.
+- **Bot verification** (what the bots valued wrongly, all fixed): Lifeline was thrown on heroes about to
+  drop, where it does nothing (a downed hero loses their statuses); gear and loot were picked by rarity
+  alone (now `item_score`: rarity, die, and a passive only if the hero has actions it works with, e.g.
+  no bomb bonuses on a hero without bombs); the Armor on Taunt and Guard ignored the hits they pull in;
+  Bottle It was worth a flat 2.5 (now a share of the potion it makes); and planning odds ignored
+  Bulwark Faces, Weighted Coin, Keen Edge and (in the browser) Sleight of Hand. Low use that's fair:
+  Grafting (only worth it for a 9+ sum), Spotter, Splitting Flask. Lifeline's heal shows as 0 in the
+  report because the heal isn't credited to the Mender.
 - **Noise**: 300 runs gives each class about 90, so a class's rate moves about ±5 points between
   batches by chance and the overall ±3. Judge classes on 300 runs (`--seed=5000` for a second set), and
   a level-up pick's win rate (20–40 runs) as a hint.
@@ -534,6 +549,10 @@ clock anywhere: the run changes only when someone acts.
 
 ## Gotchas
 
+- **Planning odds use the same face rules as rolling** (`face_rules` in `dice.py`: Bulwark Faces,
+  Weighted Coin, Keen Edge); the browser gets each hero's `rollmods` in the fight view for its hit
+  chances, and the bots' odds cache keys on them (`ROLL_MODS` in `tuning.py`). A new passive that
+  changes what a die shows belongs in all three.
 - **The bots score a hit with the fight's own sums** (`hit_base`, `hit_finish`, `foe_damage_after`,
   `foe_soak`, `hit_spill`, `status_amount` in `actions.py`). A new damage rule belongs there, not
   inline in `_op_dmg`, or the bots won't see it. Their own additions are only guesses about what

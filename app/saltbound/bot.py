@@ -12,6 +12,8 @@ from . import classes as C
 from . import world as Wd
 from .combat import Invalid
 from .dice import amt, check_hit, top_face
+from .dice import face as face_of
+from .tuning import ROLL_MODS
 from .content import archipelago as A
 from .content import items as I
 
@@ -96,13 +98,56 @@ def choose(g, h, d):
             best = (safe or ok or [0])[0]
         return {"t": "choose", "n": best}
     if d["type"] == "loot":
+        # the pick that most improves on what's worn in its slot (consumables by rarity)
         opts = d["opts"]
-        best = max(range(len(opts)), key=lambda i: RANK[I.ITEMS[opts[i]]["rarity"]])
-        return {"t": "choose", "n": best}
+
+        def gain(k):
+            it = I.ITEMS[k]
+            if it["slot"] == "use":
+                return RANK[it["rarity"]] * 1.5
+            cur = hero["equip"].get(it["slot"])
+            return item_score(g, h, k) - (item_score(g, h, cur) if cur else 0)
+        return {"t": "choose", "n": max(range(len(opts)), key=lambda i: gain(opts[i]))}
     if d["type"] == "level":
         opts = d["opts"]
         return {"t": "choose", "n": max(range(len(opts)), key=lambda i: level_score(g, h, d["lvl"], opts[i]))}
     return None
+
+
+# Item passives that only do something with the right actions: (mods, what the hero needs)
+NEEDS = [
+    ({"bomb_bonus", "splash_bonus", "chain_reaction"}, lambda a: a.get("bomb")),
+    ({"spell_burn", "spell_chain", "spell_echo"}, lambda a: a.get("spell")),
+    ({"heal_bonus", "heal_armor", "overflow"}, lambda a: any(o["op"] == "heal" for o in a["ops"])),
+    ({"summon_cap", "summon_hp", "summon_regen"}, lambda a: any(o["op"] == "summon" for o in a["ops"])),
+    ({"poison_bonus", "plague"}, lambda a: any(o["op"] == "status" and o["s"] == "poison" for o in a["ops"])),
+    ({"burn_bonus"}, lambda a: any(o["op"] == "status" and o["s"] == "burn" for o in a["ops"])),
+    ({"mark_ext"}, lambda a: any(o["op"] == "status" and o["s"] == "mark" for o in a["ops"])),
+    ({"root_ext"}, lambda a: any(o["op"] == "status" and o["s"] == "root" for o in a["ops"])),
+]
+
+
+def item_score(g, h, key):
+    """Roughly what a piece of gear is worth to this hero: its rarity, its die, and its passive
+    unless the passive needs actions the hero doesn't have (bomb bonuses on someone with no bombs)."""
+    it = I.ITEMS[key]
+    acts = [g.action_def(h, k) for k in g.actions_of(h)] + \
+        [g.action_def(h, k) for k in it.get("acts", []) if k in I.WEAPON_ACTIONS or k in C.ACTIONS]
+    score = RANK[it["rarity"]] * 2.5
+    die = it.get("die")
+    if die:
+        score += sum(v if v is not None else 0 for v, _ in map(face_of, die)) / len(die) * 0.5
+    mods = set(it.get("mods", {})) - {"max_hp", "move"}
+    for keys, need in NEEDS:
+        if mods & keys and not any(need(a) for a in acts):
+            score -= 3
+    return score + it.get("mods", {}).get("max_hp", 0) * 0.3
+
+
+def better(g, h, key):
+    """Would wearing this beat what's in its slot?"""
+    cur = g.hero(h)["equip"].get(I.ITEMS[key]["slot"])
+    return cur is None or item_score(g, h, key) > item_score(g, h, cur) + 0.5
 
 
 def level_score(g, h, lvl, key):
@@ -136,10 +181,8 @@ def plan_move(g, h):
     # gear from the bag
     for i, key in enumerate(hero["bag"]):
         it = I.ITEMS[key]
-        if it["slot"] != "use":
-            cur = hero["equip"].get(it["slot"])
-            if cur is None or RANK[it["rarity"]] > RANK[I.ITEMS[cur]["rarity"]]:
-                return {"t": "equip", "bag": i}
+        if it["slot"] != "use" and better(g, h, key):
+            return {"t": "equip", "bag": i}
     if place and place["kind"] == "town":
         if hero["hp"] < mx * 0.7 and hero["gold"] >= g.inn_cost():
             return {"t": "inn"}
@@ -150,9 +193,7 @@ def plan_move(g, h):
             it = I.ITEMS[key]
             if it["slot"] == "use":
                 continue
-            cur = hero["equip"].get(it["slot"])
-            if (cur is None or RANK[it["rarity"]] > RANK[I.ITEMS[cur]["rarity"]]) and hero["gold"] >= g.price_for(h, key) \
-                    and len(hero["bag"]) < 4:
+            if better(g, h, key) and hero["gold"] >= g.price_for(h, key) and len(hero["bag"]) < 4:
                 return {"t": "buy", "item": key}
         if hero["gold"] >= 30 and hero["bag"].count("potion") < 2 and len(hero["bag"]) < 4:
             return {"t": "buy", "item": "potion"}
@@ -477,7 +518,8 @@ def dice_combos(g, h, dice):
     """Every way these dice could come up, [(values, tags, chance, dice variables)], cached: the
     same dice are scored on many actions and targets."""
     x = g.hs(h)
-    key = (h, g.s["fight"].get("hymn", 0), g.mods(h).get("sleight", 0), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
+    m = g.mods(h)
+    key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:
@@ -511,6 +553,13 @@ def evaluate(g, b, h, a, dice, tgt):
         if t["id"] not in bonus:
             bonus[t["id"]] = g.dmg_bonus(h, a, t)
         return bonus[t["id"]]
+    # hits a Taunt or Guard in this action pulls onto the hero, for the Armor op after it
+    pulled = 0.0
+    for o in a["ops"]:
+        if o["op"] == "taunt":
+            pulled = sum(n for y, n in inc.items() if y != h)
+        elif o["op"] == "guard" and base and isinstance(base[0], tuple) and base[0][1] != h:
+            pulled = big.get(base[0][1], 0)
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         val = 0.0
@@ -582,7 +631,7 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, tuple):
                         y = t[1]
-                        need = max(0, inc.get(y, 0) - g.hs(y)["st"].get("armor", 0) - b.armor.get(y, 0))
+                        need = max(0, inc.get(y, 0) + (pulled if y == h else 0) - g.hs(y)["st"].get("armor", 0) - b.armor.get(y, 0))
                         val += share * (min(n, need) + n * (0.5 if m.get("overguard") else 0.15))
                         bump(eff["armor"], y, pr * share * n)
             elif k == "heal":
@@ -721,8 +770,14 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
         bump(eff["cresc"], y, pr)
         return 3.0 * fresh
     if s == "lifeline":
-        hero = g.hero(y)
-        return g.maxhp(y) * 0.6 if hero["hp"] <= inc.get(y, 0) + 2 else 2
+        # half their max HP at the end of the round, but only if they're still standing then (a knocked
+        # down hero loses their statuses): worth what they'll be missing after this round's hits
+        if g.hs(y)["st"].get("lifeline"):
+            return 0
+        left = g.hero(y)["hp"] + g.hs(y)["st"].get("armor", 0) - inc.get(y, 0)
+        if left <= 0:
+            return 0
+        return min(g.maxhp(y) // 2, g.maxhp(y) - left) * 0.6
     return 1
 
 
@@ -922,7 +977,14 @@ def instant_value(g, h, a, dice):
         y = max(cand, key=lambda z: has_risky(g, z))
         return [(f"h{y}", 2.5 if has_risky(g, y) else 1)]
     if key == "bottle_it":
-        return [(None, 2.5)] if len(g.hero(h)["bag"]) < g.bag_size(h) else []
+        # a potion kept for later: a Tonic (heals 10), or a Rum Ration (22) on a 5+; a stored heal is
+        # worth about a third of what it heals (the bots drink potions only when someone would drop)
+        if len(g.hero(h)["bag"]) >= g.bag_size(h) or not dice:
+            return []
+        out = g.outcomes(h, dice[0])
+        big = sum(p for v, _, p in out if v >= 5)
+        heal = big * I.ITEMS["big_potion"]["use"]["heal"] + (1 - big) * I.ITEMS["potion"]["use"]["heal"]
+        return [(None, heal * 0.35 * (2 if g.mods(h).get("philosopher") else 1))]
     if key == "encore":
         # Counterpoint: a low roll turns high; worth about a quarter of the die's size
         d = dice[0] if dice else None

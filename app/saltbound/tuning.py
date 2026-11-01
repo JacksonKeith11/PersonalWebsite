@@ -31,3 +31,7 @@ COVERED = 3     # your first hit after an ally Guarded or Taunted for you this r
 SHATTER = 4     # hitting an enemy an ally Froze breaks the ice
 WILDFIRE = 1    # Burn meets an ally's Poison (or the reverse): it erupts for (Burn + Poison) x this
 SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of its health
+
+# Passives that change what a die can show while planning (the bots' odds cache and the browser's
+# hit chances need them): Sleight of Hand, Bulwark Faces, Weighted Coin, Keen Edge.
+ROLL_MODS = ("sleight", "shield_top", "one_is_top", "keen_edge")

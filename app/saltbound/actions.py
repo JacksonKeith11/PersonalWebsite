@@ -154,7 +154,7 @@ class Actions:
 
     def hit_finish(self, h, n, dice, vals, i=None, cresc=0):
         """A hit's amount after combos: Crescendo (half again; the bots pass the chance they'll
-        have it) and Eagle Eye (double when a die shows its top face)."""
+        have it) and Eagle Eye (half again when a die shows its top face)."""
         if cresc >= 1:
             n = n * 3 // 2
         elif cresc > 0:
@@ -162,7 +162,7 @@ class Actions:
         if self.mods(h).get("eagle_eye"):
             src = [i] if i is not None else range(len(dice))
             if any(vals[j] and vals[j] >= top_face(dice[j]["faces"]) for j in src):
-                n *= 2
+                n = n * 3 // 2
         return n
 
     def hit_pierces(self, h, a, op):

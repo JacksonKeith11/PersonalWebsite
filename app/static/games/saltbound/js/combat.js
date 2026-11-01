@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=43';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=43';
-import { spriteURL } from './art.js?v=43';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=43';
-import { render } from './main.js?v=43';
-import * as sfx from './audio.js?v=43';
+import { S, send, mine } from './store.js?v=44';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=44';
+import { spriteURL } from './art.js?v=44';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=44';
+import { render } from './main.js?v=44';
+import * as sfx from './audio.js?v=44';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -586,7 +586,7 @@ function actionCard(f, x, k, i, selDice, ready) {
   // with nothing picked, the dice a click would use: shown on hover, and their odds on the card
   const auto = n > 0 && !selDice.length ? autoDice(f, x, a) : null;
   const noDice = n > 0 && !selDice.length && !auto;
-  const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0) : auto && isRisky(a.req) ? hitChance(a.req, auto, f.hymn || 0) : null;
+  const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0, hs.rollmods) : auto && isRisky(a.req) ? hitChance(a.req, auto, f.hymn || 0, hs.rollmods) : null;
   const dis = ready || once || spent || noFlee || cooling > 0 || noDice;
   const why = spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
     : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.`
@@ -643,7 +643,7 @@ function autoDice(f, x, a) {
   let best = null, bestP = -1;
   const pick = (start, combo) => {
     if (combo.length === n) {
-      const p = hitChance(a.req, combo, f.hymn || 0);
+      const p = hitChance(a.req, combo, f.hymn || 0, f.hs[x]?.rollmods);
       if (p > bestP + 1e-9) { bestP = p; best = combo.slice(); }
       return;
     }

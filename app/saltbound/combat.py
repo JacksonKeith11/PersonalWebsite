@@ -29,10 +29,19 @@ ENRAGE_FROM = 10
 # take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
 ROAM_HP = 2.2
 ROAM_DMG = 0.55
+# Event fights: whoever is on or next to the hex joins; a hero alone meets weaker enemies.
+EVENT_DMG = 0.7
+EVENT_HP = {1: 0.9, 2: 1.4, 3: 1.9}
+# The Drowned Crown: warded while a Tide Guard stands (phase 1), drags one hero under each round
+# (the Undertow, phases 2 and 3: Armor or a Guard stops it), and alone it's exposed and furious.
+CROWN_WARD = 0.5
+CROWN_EXPOSED = 1.5
+UNDERTOW = 3    # times the fight's damage multiplier
 CURSED_DIE = ["X", 1, 2, 3]
 
 # Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).
-PINCER = 3      # your die matches the last die an ally rolled at that enemy this round
+PINCER = 2      # the first hit on an enemy after an ally hit it this round...
+PINCER_MATCH = 3  # ...and this much more if one of your dice shows a number one of theirs showed
 COVERED = 3     # your first hit after an ally Guarded or Taunted for you this round
 SHATTER = 4     # hitting an enemy an ally Froze breaks the ice
 WILDFIRE = 1    # Burn meets an ally's Poison (or the reverse): it erupts for (Burn + Poison) x this
@@ -155,6 +164,9 @@ class Combat(Foes):
         roam = spec["kind"] in ("roam", "lair")
         if roam:
             f["dmul"] *= ROAM_DMG
+        if spec["kind"] == "event":
+            f["dmul"] *= EVENT_DMG
+            grow = EVENT_HP.get(len(spec["heroes"]), 1.0) - 1
         for k in spec["foes"]:
             key, hp, aff = (k["k"], k.get("hp"), k.get("aff")) if isinstance(k, dict) else (k, None, None)
             if roam and not aff and not A.FOES[key].get("big"):
@@ -276,6 +288,7 @@ class Combat(Foes):
         f["done"] = []
         f["guard"] = {}
         f["lastdie"] = {}
+        f["pincered"] = []
         f["covered"] = []
         f["taunt"] = None
         f["sanct"] = 0
@@ -397,6 +410,7 @@ class Combat(Foes):
         # Spirit dice for heroes who are dead
         f["spirit"] = {str(h): {"v": self.rng.randint(1, 6), "used": False}
                        for h in range(3) if not self.hero(h)["alive"]}
+        self.crown_round()
         # Intents
         for fo in self.foes():
             self.choose_intent(fo)
@@ -837,11 +851,8 @@ class Combat(Foes):
                     n += 2 if a["plus"] else 0
                     if kind == "dmg":
                         n += self.dmg_bonus(h, a, target)
-                        if h in self.s["fight"].get("covered", []):
-                            n += COVERED
-                        if target and target["st"].get("freeze") and target.get("st_by", {}).get("freeze") not in (None, h):
-                            n += SHATTER
                         if target:
+                            n += sum(b for _, b in self.combo_peek(h, target, vals))
                             n = self.foe_damage_after(target, n, h)
                     elif kind == "heal":
                         n += self.mods(h).get("heal_bonus", 0)
@@ -863,7 +874,15 @@ class Combat(Foes):
             n = int(n * 1.25 + 0.5)
         if st.get("mark"):
             n += 3
+        if A.FOES[fo["k"]].get("final"):
+            if self.crown_warded(fo):
+                n = int(n * CROWN_WARD)
+            elif self.s["fight"].get("phase", 1) >= 3:
+                n = int(n * CROWN_EXPOSED + 0.5)
         return max(0, n)
+
+    def crown_warded(self, fo):
+        return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
 
     def resolve_action(self, h, a, dice, tgt):
         """A placed action happens: its dice roll, it hits or misses, its effects land."""
@@ -996,28 +1015,36 @@ class Combat(Foes):
         if y not in f.setdefault("covered", []):
             f["covered"].append(y)
 
+    def combo_peek(self, h, t, vals, used=()):
+        """The combos a hit by hero h on enemy t would score with these die values, without
+        scoring them: [(name, bonus)]."""
+        f = self.s["fight"]
+        up = self.mods(h).get("combo_up", 0)
+        out = []
+        if "covered" not in used and h in f.get("covered", []):
+            out.append(("covered", COVERED + up))
+        last = f.get("lastdie", {}).get(str(t["id"]))
+        if "pincer" not in used and last and last[0] != h and t["id"] not in f.get("pincered", []):
+            match = any(v and v in last[1] for v in vals)
+            out.append(("pincer", PINCER + (PINCER_MATCH if match else 0) + up))
+        if "shatter" not in used and t["st"].get("freeze") and t.get("st_by", {}).get("freeze") not in (None, h):
+            out.append(("shatter", SHATTER + up))
+        return out
+
     def combo_bonus(self, h, a, dice, t, used):
-        """Extra damage a hit gets from what an ally did first: Pincer, Covered, Shatter."""
+        """Extra damage a hit gets from what an ally did first (Covered, Pincer, Shatter), scored."""
         f = self.s["fight"]
         n = 0
-        up = self.mods(h).get("combo_up", 0)
-        if "covered" not in used and h in f.get("covered", []):
-            used.add("covered")
-            f["covered"].remove(h)
-            n += COVERED + up
-            self.fx("combo", to=f"f{t['id']}", c="covered", n=COVERED + up)
-        last = f.get("lastdie", {}).get(str(t["id"]))
-        if "pincer" not in used and last and last[0] != h and dice and \
-                any(_num(d) and _num(d) in last[1] for d in dice):
-            used.add("pincer")
-            n += PINCER + up
-            self.fx("combo", to=f"f{t['id']}", c="pincer", n=PINCER + up)
-        by = t.setdefault("st_by", {})
-        if "shatter" not in used and t["st"].get("freeze") and by.get("freeze") not in (None, h):
-            used.add("shatter")
-            t["st"].pop("freeze", None)
-            n += SHATTER + up
-            self.fx("combo", to=f"f{t['id']}", c="shatter", n=SHATTER + up)
+        for name, bonus in self.combo_peek(h, t, [_num(d) for d in dice], used):
+            used.add(name)
+            n += bonus
+            if name == "covered":
+                f["covered"].remove(h)
+            elif name == "pincer":
+                f.setdefault("pincered", []).append(t["id"])
+            elif name == "shatter":
+                t["st"].pop("freeze", None)
+            self.fx("combo", to=f"f{t['id']}", c=name, n=bonus)
         return n
 
     def foe_status_by(self, fo, s, h):
@@ -1224,6 +1251,10 @@ class Combat(Foes):
                         self.fx("st", to=f"h{t[1]}", s="guarded")
                         if t[1] != h:
                             self.cover(t[1])
+                            if m.get("guard_share"):
+                                st = self.hs(t[1])["st"]
+                                st["armor"] = st.get("armor", 0) + m["guard_share"]
+                                self.fx("armor", to=f"h{t[1]}", n=m["guard_share"])
             elif k == "taunt":
                 f = self.s["fight"]
                 f["taunt"] = h
@@ -1232,6 +1263,10 @@ class Combat(Foes):
                 for y in self.actives():
                     if y != h:
                         self.cover(y)
+                        if m.get("guard_share"):
+                            st = self.hs(y)["st"]
+                            st["armor"] = st.get("armor", 0) + 2
+                            self.fx("armor", to=f"h{y}", n=2)
             elif k == "drag":
                 for t in targets:
                     if not isinstance(t, tuple) and t["hp"] > 0 and not t["st"].get("root"):
@@ -1404,6 +1439,10 @@ class Combat(Foes):
                 self.hurt_hero(y, d["volatile"], None, pure=True)
         if d.get("boss") and not d.get("final"):
             self.say(f"{d['name']} falls!")
+        if fo["k"] == "tide_guard":
+            crown = next((o for o in self.foes() if A.FOES[o["k"]].get("final")), None)
+            if crown and not self.crown_warded(crown) and crown["st"].pop("warded", None):
+                self.fx("st", to=f"f{crown['id']}", s="unwarded")
 
     def fight_heal(self, h, n, by):
         hero = self.hero(h)
@@ -1514,6 +1553,7 @@ class Combat(Foes):
         self.fx("st", to=f"h{h}", s=s)
 
     def end_round(self):
+        self.undertow()
         for fo in self.foes():
             st = fo["st"]
             if st.get("burn"):
@@ -1551,6 +1591,9 @@ class Combat(Foes):
             self.new_round()
 
     def boss_phase(self):
+        """The Drowned Crown's phases. 1: warded while a Tide Guard stands. 2 (two thirds health):
+        the Undertow drags one hero under each round. 3 (a third): its guards drown, and it fights
+        alone, exposed (takes 50% more) and furious (every attack rolls an extra die)."""
         f = self.s["fight"]
         crown = next((fo for fo in self.foes() if A.FOES[fo["k"]].get("final")), None)
         if not crown:
@@ -1558,7 +1601,7 @@ class Combat(Foes):
         frac = crown["hp"] / crown["max"]
         if f["phase"] == 1 and frac <= 0.66:
             f["phase"] = 2
-            self.say("The sea pours over the peak: everyone takes 2 a round now!")
+            self.say("The sea pours over the peak: each round the Undertow drags someone under. Armor or a Guard stops it.")
             self.fx("phase", n=2)
         elif f["phase"] == 2 and frac <= 0.33:
             f["phase"] = 3
@@ -1566,11 +1609,35 @@ class Combat(Foes):
                 if fo is not crown:
                     fo["hp"] = 0
                     self.fx("die", to=f"f{fo['id']}")
-            self.say("The Drowned Crown stands alone, and furious.")
+            crown["fury"] = True
+            self.say("The Drowned Crown stands alone: exposed, and furious.")
             self.fx("phase", n=3)
-        if f["phase"] >= 2:
-            for h in self.actives():
-                self.hurt_hero(h, 2, None, pure=True)
+
+    def crown_round(self):
+        """At the start of a round: show the Crown's ward, and pick who the Undertow drags."""
+        f = self.s["fight"]
+        crown = next((fo for fo in self.foes() if A.FOES[fo["k"]].get("final")), None)
+        if not crown:
+            return
+        crown["st"].pop("warded", None)
+        crown["st"].pop("exposed", None)
+        if self.crown_warded(crown):
+            crown["st"]["warded"] = 1
+        elif f["phase"] >= 3:
+            crown["st"]["exposed"] = 1
+        if f["phase"] >= 2 and self.actives():
+            y = self.rng.choice(self.actives())
+            n = max(1, round(UNDERTOW * f["dmul"]))
+            self.hs(y)["st"]["undertow"] = n
+            self.fx("st", to=f"h{y}", s="undertow")
+
+    def undertow(self):
+        """At the end of a round: the Undertow lands (Armor blocks it; a Guard takes it)."""
+        for h in self.actives():
+            n = self.hs(h)["st"].pop("undertow", 0)
+            if n:
+                self.fx("st", to=f"h{h}", s="dragged")
+                self.hurt_hero(h, n, None)
 
     # ------------------------------------------------------------------ the end of a fight
 
@@ -1699,6 +1766,7 @@ class Combat(Foes):
                                  "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
         out["covered"] = f.get("covered", [])
         out["lastdie"] = f.get("lastdie", {})
+        out["pincered"] = f.get("pincered", [])
         out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]])

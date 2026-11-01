@@ -1022,7 +1022,11 @@ class Game(Combat):
         self.fx("event", h=h, key=ev["key"], text=out.get("text", ""), roll=roll, bits=bits)
         self.say(f"{hero['name']} — {ev['title']}: {out.get('text', '')}" + (f" ({', '.join(bits)})" if bits else ""))
         if out.get("fight"):
-            self.s["fights"].append({"kind": "event", "tile": hero["tile"], "heroes": [h], "foes": list(out["fight"]), "by": h})
+            # anyone on or next to the hex (and not already in a fight) joins in
+            busy = {y for fs in self.s["fights"] for y in fs["heroes"]} | set((self.s["fight"] or {}).get("heroes", []))
+            heroes = [h] + [y for y in self.living() if y != h and y not in busy
+                            and Wd.dist(self.hero(y)["tile"], hero["tile"]) <= 1]
+            self.s["fights"].append({"kind": "event", "tile": hero["tile"], "heroes": heroes, "foes": list(out["fight"]), "by": h})
             if self.s["phase"] == "plan":
                 self.s["after"] = "plan"
                 self.next_step()

@@ -162,7 +162,7 @@ FOES = {
                    "dice": [_d(6), SHELL],
                    "moves": {"halberd": {"name": "Halberd", "k": "attack", "use": [0], "w": 2},
                              "brace": {"name": "Shield the Crown", "k": "guard", "n": 2}}},
-    "drowned_crown": {"name": "The Drowned Crown", "hp": 120, "row": "back", "speed": 4, "boss": True, "final": True,
+    "drowned_crown": {"name": "The Drowned Crown", "hp": 100, "row": "back", "speed": 4, "boss": True, "final": True,
                       "xp": 0, "gold": 0, "leech": True,
                       "dice": [FROST, _d(10), _d(8), _d(6)],
                       "seq": ["wave", "depths", "rise", "surge", "curse"],

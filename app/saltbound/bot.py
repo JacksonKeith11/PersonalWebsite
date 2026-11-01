@@ -56,7 +56,7 @@ def fork_pick(g, fk):
     return max(range(len(fk["opts"])), key=score)
 
 
-SETUP_OPS = {"inspire", "hymn", "give", "reroll_ally", "strip"}
+SETUP_OPS = {"inspire", "hymn", "give", "reroll_ally", "strip", "guard", "taunt"}
 SETUP_STATUS = {"crescendo", "vuln", "mark", "weak"}
 
 
@@ -457,6 +457,13 @@ def incoming(g, b):
                 inc[y] += n
                 big[y] = max(big[y], n)
                 hits[y] += 1
+    for y in inc:
+        # the Drowned Crown's Undertow lands at the end of the round (Armor stops it)
+        n = g.hs(y)["st"].get("undertow", 0)
+        if n:
+            inc[y] += n
+            big[y] = max(big[y], n)
+            hits[y] += 1
     return inc, big, hits
 
 
@@ -517,6 +524,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         n += _amt(op["amt"], env) + plus + g.dmg_bonus(h, a, t)
                     cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
                     n = n * (1 + 0.5 * cres)
+                    n += sum(bn for _, bn in g.combo_peek(h, t, vals))  # Pincer, Covered, Shatter
                     n = g.foe_damage_after(t, int(n), h)
                     # Vulnerable and Mark that earlier placements will have put on it
                     if not t["st"].get("vuln"):

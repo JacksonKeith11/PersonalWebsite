@@ -1006,3 +1006,8 @@ a:hover { color: var(--accent-hi); }
 .foe-tag.bloodied { color: #fff; background: rgba(170, 20, 30, 0.7); }
 .covered-chip { font-size: 11px; font-weight: 800; color: #ffd36b; }
 .pick.fork .chip { white-space: normal; height: auto; min-height: 26px; padding: 3px var(--s-2); line-height: 1.3; }
+.combo-hints { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 2px; }
+.combo-hint { font: 700 11px/1 var(--font-ui); color: #ffd36b; padding: 3px 7px; border-radius: var(--r-pill);
+  background: rgba(255, 196, 80, 0.12); border: 1px dashed rgba(255, 196, 80, 0.6); white-space: nowrap; }
+.die.tile.combo { box-shadow: 0 0 0 2px #ffd36b, 0 0 14px rgba(255, 200, 80, 0.55); }
+.covered-chip.undertow { color: #8fd8ff; }

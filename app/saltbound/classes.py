@@ -25,7 +25,8 @@ PASSIVES = {
     "thick_hide": {"name": "Thick Hide", "mods": {"max_hp": 10}, "text": "+10 max HP."},
     "iron_will": {"name": "Iron Will", "mods": {"stun_ward": 1, "first_hit_soak": 2},
                   "text": "Ignore the first Stun each fight, and the first hit on you each round deals 2 less."},
-    "steady": {"name": "Shieldwall", "mods": {"shield_block": 1}, "tags": ["bulwark"], "text": "Shield faces block 4."},
+    "steady": {"name": "Shieldwall", "mods": {"guard_share": 3, "shield_block": 1}, "tags": ["bulwark"],
+               "text": "Your Guard also gives the guarded ally 3 Armor, your Taunt gives every ally 2, and your shield faces block 4."},
     "spiked_plate": {"name": "Spiked Plate", "mods": {"thorns": 2}, "tags": ["juggernaut"],
                      "text": "Attackers take 2."},
     "overguard": {"name": "Overguard", "mods": {"overguard": 1}, "tags": ["bulwark"],
@@ -87,8 +88,8 @@ ACTIONS = {
                "text": "Deal the die +2, plus half your Armor (Brace first)."},
     "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+2", "to": "self"}],
               "text": "The first attack aimed at an ally swings to you instead. Gain the die +2 as Armor."},
-    "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v//2"}],
-              "tags": ["bulwark"], "text": "Every enemy attack this round comes at you. Gain half the die as Armor."},
+    "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+2"}],
+              "tags": ["bulwark"], "text": "Every enemy attack this round comes at you. Gain the die +2 as Armor."},
     "brace": {"name": "Brace", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v*2"}, {"op": "armor", "amt": "2", "to": "lowest"}],
               "tags": ["bulwark"], "text": "Gain Armor equal to twice the die. The ally with the lowest HP gains 2 Armor."},
     "rally_wall": {"cd": 2, "name": "Rally Wall", "req": {"n": 2}, "tgt": "self", "ops": [{"op": "armor", "amt": "sum//3+3*pair", "to": "party"}],
@@ -333,7 +334,7 @@ CLASS_DICE = {
 
 CLASSES = {
     "vanguard": {
-        "name": "Vanguard", "hp": 44, "hp_lvl": 7, "role": "Tank",
+        "name": "Vanguard", "hp": 48, "hp_lvl": 7, "role": "Tank",
         "dice": [D(6), [1, 2, 3, 4, "S", "S"]], "tags": ["bulwark", "juggernaut"],
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard", "overguard"], "weapon": "hand_axe", "armor": "padded_coat",
@@ -353,7 +354,7 @@ CLASSES = {
         "blurb": "Wild dice and big spells. Fragile; keep them covered.",
     },
     "mender": {
-        "name": "Mender", "hp": 20, "hp_lvl": 3, "role": "Healer",
+        "name": "Mender", "hp": 19, "hp_lvl": 3, "role": "Healer",
         "dice": [D(6), D(6)], "tags": ["restoration", "warding"],
         "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals an extra 10% of their max HP."},
         "start": ["mend", "lift"], "weapon": "lantern_rod", "armor": "nurses_apron",
@@ -448,7 +449,7 @@ CLASSES.update({
         "blurb": "Fast, precise and deadly against one target at a time.",
     },
     "berserker": {
-        "name": "Berserker", "hp": 30, "hp_lvl": 4, "role": "High-risk damage",
+        "name": "Berserker", "hp": 32, "hp_lvl": 4, "role": "High-risk damage",
         "dice": [D(10), D(4)], "tags": ["bloodlust", "rampage"],
         "map": {"key": "forage", "name": "Forage", "text": "Resting at a camp heals you fully."},
         "start": ["hack_b", "bloodprice"], "weapon": "great_axe", "armor": "hide_vest",
@@ -488,7 +489,7 @@ CLASSES.update({
         "blurb": "Makes everyone else's dice better, and throws enemies off their stride.",
     },
     "alchemist": {
-        "name": "Alchemist", "hp": 23, "hp_lvl": 3, "role": "Items and gadgets",
+        "name": "Alchemist", "hp": 21, "hp_lvl": 3, "role": "Items and gadgets",
         "dice": [D(6), D(6)], "tags": ["bombs", "elixirs"],
         "map": {"key": "brewer", "name": "Brewer", "text": "Brew a potion whenever you rest."},
         "start": ["toss", "tonic_a"], "weapon": "sling", "armor": "leather_apron",
@@ -575,7 +576,7 @@ def skill_def(key):
 SHORT = {
     "block": ("shield", "die as Armor", None), "flee": ("boot", "run away", "stay"),
     "strike": ("sword", "die +2 + ½ Armor", None), "guard": ("shield", "take an ally's hit · die +2 Armor", None),
-    "taunt": ("target", "all attacks on you · ½ die Armor", None), "brace": ("shield", "2× die Armor · +2 to the weakest", None),
+    "taunt": ("target", "all attacks on you · die +2 Armor", None), "brace": ("shield", "2× die Armor · +2 to the weakest", None),
     "rally_wall": ("shield", "party: ⅓ sum Armor · pair +3", None), "shield_bash": ("sword", "4 + Stun", "½ die"),
     "retaliate": ("sword", "your Armor + ½ die", None), "shoulder_charge": ("sword", "die +3 · drag to front", "½ die"),
     "bolt": ("sword", "die", None), "channel": ("sword", "sum +2", None),
@@ -631,7 +632,8 @@ SHORT = {
 
 # Cross-hero combos (the numbers are in combat.py): what two heroes do together.
 COMBOS = {
-    "pincer": {"name": "Pincer", "text": "Your die shows a number an ally's die showed against that enemy this round: +3 damage."},
+    "pincer": {"name": "Pincer", "text": "Your first hit on an enemy an ally already hit this round: +2 damage, or +5 if one of your "
+                                       "dice shows a number one of theirs showed. Once per enemy per round."},
     "covered": {"name": "Covered", "text": "Your first hit after an ally Guards or Taunts for you this round: +3 damage."},
     "shatter": {"name": "Shatter", "text": "Hit an enemy an ally Froze: the ice breaks for +4 damage (and the Freeze ends)."},
     "wildfire": {"name": "Wildfire", "text": "Burn meets an ally's Poison on one enemy (or Poison meets Burn): it erupts "

@@ -270,6 +270,9 @@ export const STATUS = {
   riposte: { name: 'Riposte', icon: 'sword', text: 'If a hit is fully blocked this round, hits back for this much.' },
   crescendo: { name: 'Crescendo', icon: 'up', text: 'The next damaging action deals 50% more.' },
   thorns: { name: 'Thorns', icon: 'spark', text: 'Attackers take this much this round.' },
+  undertow: { name: 'Undertow', icon: 'wave', text: 'The tide drags at you at the end of the round for this much. Armor blocks it; an ally’s Guard takes it for you.', bad: true },
+  warded: { name: 'Warded', icon: 'shield', text: 'Takes half damage while a Tide Guard stands. Kill the guards first.' },
+  exposed: { name: 'Exposed', icon: 'crack', text: 'Takes 50% more damage. Its attacks roll an extra die.', bad: true },
 };
 
 // Enemy dice and traits: what makes each enemy fight differently.

@@ -250,15 +250,15 @@ have no rows, and several skills were reworked: see "Overhaul: no rows, enemy di
 
 | Class | HP (per level) | Base dice | Map ability (hook) | Role | Tags |
 |---|---|---|---|---|---|
-| Vanguard | 44 (+7) | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
+| Vanguard | 48 (+7) | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
 | Duelist | 24 (+3) | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
-| Berserker | 30 (+4) | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
+| Berserker | 32 (+4) | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
 | Ranger | 26 (+4) | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
 | Arcanist | 25 (+4) | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
-| Mender | 20 (+3) | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
+| Mender | 19 (+3) | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
 | Scoundrel | 24 (+3) | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
 | Herald | 20 (+3) | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
-| Alchemist | 23 (+3) | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
+| Alchemist | 21 (+3) | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
 | Warden | 26 (+3) | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
 
 The Pathfinder was designed and dropped; its "+2 move, reveal fog along path" became the
@@ -632,8 +632,8 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand**: see "Dungeon forks, elites, combos and rule-benders" for the latest
-  numbers (and "Overhaul: no rows, enemy dice, forecast" for the class-by-class pass before it).
+- **Where the bots stand**: see "Plannable combos, the Crown's phases, fair event fights" for the
+  latest numbers (and "Overhaul: no rows, enemy dice, forecast" for the class-by-class pass before it).
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
   between batches by chance alone, and overall rates ±4; a class can swing 20 points between two
   150-run batches after unrelated changes. Judge classes on 300 runs (`--seed=5000` for a second
@@ -765,6 +765,41 @@ move pools, bigger single threats), more rule-bending items, and cross-hero comb
   rebalance above. The multipliers are untouched.
 - **Saves are v4** (`save._v3`): a dungeon part-way through goes on with the first lineup of its next
   step.
+
+## Plannable combos, the Crown's phases, fair event fights
+
+The owner asked for combos you can plan, a better final boss, and better event fights.
+
+- **Combos you can plan.** Pincer is now "your first hit on an enemy an ally already hit this round:
+  +2, or +5 if one of your dice shows a number one of theirs showed; once per enemy per round", so
+  focusing fire always scores and a matching die is the bonus. The fight shows what's on offer for
+  the hero you're playing: gold chips under an enemy ("Pincer +2 · 3/5: +5", "Shatter +4",
+  "Wildfire: Poison it" / "Burn it"), and a gold ring on any known die (Seer, Fate) that would score
+  the +5. A Covered hero's card says so. Action previews (`estimate`) count combos over every way
+  the dice could roll (`combo_peek` in `combat.py`, which scores nothing; `combo_bonus` scores).
+  The bots value combos the same way and Guard and Taunt are set-ups (`bot.SETUP_OPS`), so the
+  Vanguard guards before the others attack: Covered went from about 5 per 30 runs to 5 a run.
+- **The Drowned Crown** (`boss_phase`, `crown_round`, `undertow` in `combat.py`): phase 1, warded
+  (half damage) while a Tide Guard stands, so kill the guards first (it summons them only in phase
+  1); phase 2 (two thirds health), the **Undertow**: at the start of each round it marks one hero,
+  who takes 3x the fight's damage multiplier at the end of the round unless Armor or an ally's
+  Guard stops it (replaces the old 2 to everyone); phase 3 (a third), its guards drown and it's
+  **exposed** (takes 50% more) and **furious** (an extra die on every attack). 100 HP (was 120). The
+  Crown's card and tooltip spell out the phases; the hero's card shows "Undertow: N at round end".
+  Bots count the Undertow as incoming damage. On Hard the boss is won 63% of the time (58% before),
+  in 8.1 rounds.
+- **Event fights** were the deadliest thing in the game (won 27% on Hard, 81% of the party's health
+  lost): one hero went in alone against full-strength enemies. Now anyone on or next to the hex
+  (and not in another fight) joins, the enemies deal 0.7x damage (`EVENT_DMG`), and their health
+  scales with who's there (`EVENT_HP`: 0.9x alone, 1.4x for two, 1.9x for three). Hard: won almost
+  every time, 3.3 rounds, 18% of health lost.
+- **Classes**: Vanguard 48 HP; Berserker 32; Alchemist 21; Mender 19; Taunt gives the die +2 as Armor
+  (was half the die); Shieldwall, a dull pick, now also makes your Guard give the guarded ally 3
+  Armor and your Taunt give every ally 2.
+- **Where the bots stand** (300 runs on Hard from seed 5000, 150 on Normal): Hard 32%: Herald 37%,
+  Mender 36%, Scoundrel 35%, Duelist 34%, Ranger 32%, Arcanist 32%, Berserker 31%, Alchemist 30%,
+  Vanguard 26%, Warden 24%. Normal 88% (the multipliers are untouched; raising Normal's is the lever
+  if it should be harder).
 
 ## Code map
 

@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=37';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=37';
-import { spriteURL } from './art.js?v=37';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=37';
-import { render } from './main.js?v=37';
-import * as sfx from './audio.js?v=37';
+import { S, send, mine } from './store.js?v=38';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=38';
+import { spriteURL } from './art.js?v=38';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=38';
+import { render } from './main.js?v=38';
+import * as sfx from './audio.js?v=38';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -70,6 +70,7 @@ export function renderCombat(el) {
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
+      hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
       (f.covered || []).includes(x) ? h('div.covered-chip', { tip: `Covered\n${S.static.combos.covered.text}` }, `Covered: next hit +3`) : null,
       hpBar(hpOf(x), max),
       previewRow('h' + x, prev),
@@ -93,7 +94,8 @@ export function renderCombat(el) {
         fo.bl ? h('span.foe-tag.bloodied', { tip: `Bloodied\n${d.bloodied?.text || ''}` }, 'Bloodied') : null) : null,
       hpBar(Math.max(0, fo.hp), fo.max, true),
       previewRow('f' + fo.id, prev, fo.hp),
-      statusRow(fo.st, fo.might ? [`+${fo.might} might`] : [], traitChips(d)),
+      statusRow(fo.st, [...(fo.might ? [`+${fo.might} might`] : []), ...(fo.st.warded ? ['Warded: ½ damage'] : []), ...(fo.st.exposed ? ['Exposed: +50%'] : [])], traitChips(d)),
+      fo.hp > 0 ? comboHints(fo, f) : null,
       floats('f' + fo.id));
   };
   const unitAlly = a => {
@@ -155,7 +157,7 @@ export function renderCombat(el) {
     h('div.combat-head', null,
       h('span.round', null, `Round ${f.round}`),
       h('h2', null, fightTitle(f)),
-      f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), 'The peak is flooding: everyone takes 2 a round') : null,
+      f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), f.phase >= 3 ? 'The Crown is alone: exposed and furious' : 'The Undertow drags someone under each round') : null,
       !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null),
     stage, plan, bottom);
   C.rolled = false;
@@ -270,6 +272,27 @@ function drawArrows(box, f) {
   stage.prepend(svg);
 }
 
+// What the acting hero could score on this enemy from what allies have already done this round:
+// Pincer (an ally hit it), Shatter (an ally Froze it), Wildfire (an ally Burned or Poisoned it).
+export function pincerNums(fo, f, x) {
+  const last = f.lastdie?.[fo.id];
+  if (!last || last[0] === x || (f.pincered || []).includes(fo.id)) return null;
+  return [...new Set(last[1].filter(Boolean))].sort((a, b) => a - b);
+}
+function comboHints(fo, f) {
+  const x = C.tab;
+  if (x == null || !f.heroes.includes(x)) return null;
+  const by = fo.st_by || {}, chips = [];
+  const nums = pincerNums(fo, f, x);
+  if (nums) chips.push(h('span.combo-hint', { tip: `Pincer\n${S.game.heroes[f.lastdie[fo.id][0]].name} hit it this round: your first hit on it deals +2, or +5 if one of your dice shows ${nums.join(' or ')}.` }, `Pincer +2 · ${nums.join('/')}: +5`));
+  if (fo.st.freeze && by.freeze != null && by.freeze !== x) chips.push(h('span.combo-hint', { tip: 'Shatter\nAn ally Froze it: your next hit on it breaks the ice for +4 (the Freeze ends).' }, 'Shatter +4'));
+  if (!fo.wildfire) {
+    if (fo.st.burn && by.burn != null && by.burn !== x && !fo.st.poison) chips.push(h('span.combo-hint', { tip: 'Wildfire\nAn ally Burned it: Poison it and it erupts for Burn + Poison, and half that to every other enemy.' }, 'Wildfire: Poison it'));
+    if (fo.st.poison && by.poison != null && by.poison !== x && !fo.st.burn) chips.push(h('span.combo-hint', { tip: 'Wildfire\nAn ally Poisoned it: Burn it and it erupts for Burn + Poison, and half that to every other enemy.' }, 'Wildfire: Burn it'));
+  }
+  return chips.length ? h('div.combo-hints', null, ...chips) : null;
+}
+
 function heroActive(f, x) { const hs = f.hs[x]; return hs && !hs.down && !hs.fled; }
 
 // Heroes' bars are coloured by health (green, amber, red); enemies' stay red.
@@ -285,10 +308,10 @@ function hpBar(hp, max, foe = false) {
 function statusRow(st, extra = [], tail = []) {
   const chips = [];
   for (const [k, v] of Object.entries(st || {})) {
-    if (!v || k === 'doomt') continue;
+    if (!v || ['doomt', 'warded', 'exposed', 'undertow'].includes(k)) continue;
     const s = STATUS[k];
     if (!s) continue;
-    const n = k === 'stun' || k === 'freeze' || k === 'shock' ? '' : v;
+    const n = ['stun', 'freeze', 'shock', 'warded', 'exposed'].includes(k) ? '' : v;
     chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k, { tip: `${s.name}${n !== '' ? ' ' + n : ''}\n${s.text}` }, icon(s.icon), n));
   }
   for (const e of extra) chips.push(h('span.st', null, e));
@@ -347,6 +370,7 @@ function foeTip(fo) {
     + `\nMoves: ${moves.join(', ')}`
     + (el ? `\nElite (${el.name}): ${el.text}` : '')
     + (d.bloodied ? `\n${fo.bl ? 'Bloodied' : 'At half health'}: ${d.bloodied.text}` : '')
+    + (d.final ? '\nPhase 1: warded (half damage) while a Tide Guard stands.\nPhase 2, from two thirds health: the Undertow drags one hero under each round (Armor or a Guard stops it).\nPhase 3, from a third: alone, exposed (+50% damage taken) and furious (an extra die on every attack).' : '')
     + foeTraits(d).map(([n, t]) => `\n${n}: ${t}`).join('');
 }
 
@@ -492,7 +516,10 @@ function dieButton(d, i, ready) {
   const marks = [];
   if (d.bonus) marks.push(h('span.mk.bonus', null, `+${d.bonus}`));
   if (d.link) marks.push(h('span.mk', null, icon('link')));
-  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}`;
+  const f0 = S.game.fight;
+  const pinc = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && pincerNums(fo, f0, C.tab)?.includes(d.v)).map(fo => fo.name) : [];
+  if (pinc.length) cls += '.combo';
+  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nPincer +5 on ${pinc.join(', ')}: it matches an ally's die.` : ''}`;
   return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
     style: { '--src': srcCol }, disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${size}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
   }, h('span.k', null, i + 1), face,
@@ -862,7 +889,7 @@ function apply(f) {
       return 420;
     }
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', unwarded: 'Ward broken!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');
@@ -913,7 +940,7 @@ function apply(f) {
     case 'revive': addFloat('h' + f.h, 'Revived', 'heal.big'); flash('h' + f.h, 'revive', 800); sfx.play('revive'); return 600;
     case 'dead': bigBanner(`${S.game.heroes[f.h].name} has fallen`, 'No revives were left', 'danger', 2400); sfx.play('lose'); return 1200;
     case 'phase': {
-      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown rises', f.n === 2 ? 'The peak floods: 2 damage a round' : 'The Drowned Crown fights alone', 'danger', 2400);
+      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown stands alone', f.n === 2 ? 'Each round the Undertow drags someone under: Armor or a Guard stops it' : 'Exposed: it takes 50% more, but every attack rolls an extra die', 'danger', 2600);
       flash('stage', 'shake', 500);
       sfx.play('phase');
       return 1400;

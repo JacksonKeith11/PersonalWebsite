@@ -137,7 +137,7 @@ class Foes:
                 keys = [k for k in keys if moves[k]["k"] in ("attack", "all")] or keys
             key = self.rng.weighted([(k, moves[k].get("w", 1)) for k in keys])
         mv = moves[key]
-        if mv["k"] == "summon" and len(self.foes()) >= 5:
+        if mv["k"] == "summon" and (len(self.foes()) >= 5 or (d.get("final") and f.get("phase", 1) >= 2)):
             key = next((k for k in moves if moves[k]["k"] == "attack"), key)
             mv = moves[key]
         it = {"k": mv["k"], "m": key, "name": mv["name"]}
@@ -159,7 +159,7 @@ class Foes:
                 if fo.get("aff") == "frenzied" and "exploding" not in die["dk"]:
                     die["dk"].append("exploding")
                 dice.append(die)
-            if fo.get("aff") == "hulking" and mv["k"] in ("attack", "all") and dice:
+            if (fo.get("aff") == "hulking" or fo.get("fury")) and mv["k"] in ("attack", "all") and dice:
                 extra = dict(dice[0], dk=[k for k in dice[0]["dk"] if k not in ("seer", "fate")])
                 extra.pop("v", None), extra.pop("fc", None), extra.pop("tag", None)
                 dice.append(extra)

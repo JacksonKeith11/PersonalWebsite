@@ -514,7 +514,7 @@ def evaluate(g, b, h, a, dice, tgt):
             if k == "dmg":
                 each = vals if op.get("each") else [None]
                 for t, share in tg:
-                    if not isinstance(t, dict):
+                    if not isinstance(t, dict) or (t.get("air") and a.get("melee")):
                         continue
                     env = g.env(h, a, dice, t, vals, tags)
                     n = 0
@@ -761,8 +761,9 @@ def op_targets(g, h, op, base):
 # ---- planning the hand
 
 def die_sig(d):
-    return (tuple(map(str, d["faces"])), tuple(d.get("dk") or ()), d.get("v"), tuple(d.get("fc") or ()), d.get("hint"),
-            d.get("bonus", 0), d.get("link"), d.get("top"))
+    # every part sortable (None and numbers don't compare): dice are sorted by this signature
+    return (tuple(map(str, d["faces"])), tuple(d.get("dk") or ()), str(d.get("v")), str(d.get("fc") or ()), str(d.get("hint")),
+            d.get("bonus", 0), str(d.get("link")), bool(d.get("top")))
 
 
 def candidates(g, h, b, free):
@@ -905,6 +906,31 @@ def instant_value(g, h, a, dice):
         return [(f"h{y}", 2.5 if has_risky(g, y) else 1)]
     if key == "bottle_it":
         return [(None, 2.5)] if len(g.hero(h)["bag"]) < g.bag_size(h) else []
+    if key == "encore":
+        # Counterpoint: a low roll turns high; worth about a quarter of the die's size
+        d = dice[0] if dice else None
+        if not d or d.get("v") is not None and d["v"] > top_face(d["faces"]) / 2:
+            return []
+        return [(None, top_face(d["faces"]) * 0.3 + (1 if has_risky(g, h) else 0))]
+    if key == "potency":
+        # Splitting Flask: one more action to spend (the Alchemist's Toss)
+        d = dice[0] if dice else None
+        return [(None, 2.0)] if d and top_face(d["faces"]) >= 6 else []
+    if key == "bramble_skin":
+        # Grafting: worth it when a big roll is needed (Call Bear 9+, Strangle on a Rooted foe)
+        needs = any(g.action_def(h, k)["req"].get("sum_min", 0) >= 9 for k in g.actions_of(h) if not g.cooling(h, k.rstrip("+")))
+        return [(None, 2.5)] if needs and len(dice) == 2 else []
+    if key == "aura":
+        cand = [y for y in others if unrolled(g, y)]
+        if not cand:
+            return []
+        y = max(cand, key=lambda z: (has_risky(g, z), len(unrolled(g, z))))
+        return [(f"h{y}", 2.5 + (1.5 if has_risky(g, y) else 0))]
+    if key == "transfusion":
+        cand = others or [h]
+        y = max(cand, key=lambda z: g.maxhp(z) - g.hero(z)["hp"])
+        miss = g.maxhp(y) - g.hero(y)["hp"]
+        return [(f"h{y}", min(miss, die_mean(g, h, dice[0]) if dice else 0) * 0.8 + 2)]
     return []
 
 

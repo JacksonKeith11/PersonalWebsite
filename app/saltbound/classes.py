@@ -22,7 +22,8 @@ status that stacks (Burn, Poison, Sanctuary).
 # A passive's `mods` are read by the game where they apply. `override` replaces parts of an action.
 PASSIVES = {
     # ---- Vanguard
-    "thick_hide": {"name": "Thick Hide", "mods": {"max_hp": 10}, "text": "+10 max HP."},
+    "thick_hide": {"name": "Bulwark Faces", "mods": {"shield_top": 1, "max_hp": 4}, "tags": ["bulwark"],
+                   "text": "Your shield faces also count as your die's top face (and still block). +4 max HP."},
     "iron_will": {"name": "Iron Will", "mods": {"stun_ward": 1, "first_hit_soak": 2},
                   "text": "Ignore the first Stun each fight, and the first hit on you each round deals 2 less."},
     "steady": {"name": "Shieldwall", "mods": {"guard_share": 3, "shield_block": 1}, "tags": ["bulwark"],
@@ -55,13 +56,13 @@ PASSIVES = {
                     "text": "Hex hits every enemy."},
 
     # ---- Mender
-    "bedside_manner": {"name": "Bedside Manner", "mods": {"heal_bonus": 1}, "tags": ["restoration"],
-                       "text": "+1 to all your heals."},
+    "bedside_manner": {"name": "Diagnosis", "mods": {"seer_small": 1}, "tags": ["restoration"],
+                       "text": "Your smallest die is a Seer die: rolled and shown while you plan, so you know what your heal will be."},
     "overflow": {"name": "Overflow", "mods": {"overflow": 1}, "tags": ["warding"], "text": "Your overhealing becomes Armor."},
     "quick_hands": {"name": "Quick Hands", "mods": {"grant": "quick_lift"}, "tags": ["restoration"],
                     "text": "Learn Quick Lift: once per fight, pick up an ally without a die."},
-    "blessed_supplies": {"name": "Blessed Supplies", "mods": {"potion_bonus": 0.5}, "text": "Potions you use heal 50% more."},
-    "aura": {"name": "Aura", "mods": {"aura": 1}, "tags": ["warding"], "text": "In your fights, your most wounded ally heals 1 HP each round."},
+    "blessed_supplies": {"name": "Triage", "mods": {"triage": 1}, "tags": ["restoration"],
+                         "text": "At the end of each round, your biggest unused die rolls and heals your most wounded ally half that."},
     "calm": {"name": "Calm", "mods": {"freeze_immune": 1}, "text": "Your dice can't be Frozen."},
     "miracle": {"name": "Miracle", "cap": True, "mods": {"miracle": 1}, "tags": ["restoration"],
                 "text": "Once per run, a revive that would be spent isn't."},
@@ -359,7 +360,7 @@ CLASSES = {
         "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals an extra 10% of their max HP."},
         "start": ["mend", "lift"], "weapon": "lantern_rod", "armor": "nurses_apron",
         "pool": ["renew", "lifeline", "ward", "sanctuary", "cleanse", "smite",
-                 "bedside_manner", "overflow", "quick_hands", "blessed_supplies", "aura", "calm",
+                 "bedside_manner", "overflow", "quick_hands", "blessed_supplies", "aura", "calm", "transfusion",
                  "miracle", "aegis"],
         "blurb": "Keeps the party standing, and picks them up when they don't.",
     },
@@ -371,7 +372,8 @@ PASSIVES.update({
     "keen_edge": {"name": "Keen Edge", "mods": {"keen_edge": 1}, "tags": ["precision"], "text": "Your 6s count as 7."},
     "footwork": {"name": "Footwork", "mods": {"footwork": 2}, "text": "Back-row enemies deal 2 less to you."},
     "opportunist": {"name": "Opportunist", "mods": {"opportunist": 3}, "text": "+3 damage against Stunned or Rooted enemies."},
-    "second_wind": {"name": "Second Wind", "mods": {"kill_heal": 3}, "text": "Heal 3 whenever you kill an enemy."},
+    "second_wind": {"name": "Steal Tempo", "mods": {"tempo": 1},
+                    "text": "When your die beats every die an enemy has shown (Read the Blade, Spotter), you gain a fresh d6 this round."},
     "thousand_cuts": {"name": "Thousand Cuts", "cap": True, "tags": ["flurry"], "mods": {"override": {"twin_cut": {"req": {"n": 4, "upto": True}}}},
                       "text": "Twin Cut takes up to four dice."},
     "perfect_poise": {"name": "Perfect Poise", "cap": True, "tags": ["precision"], "mods": {"grant": "perfect_form"},
@@ -409,13 +411,11 @@ PASSIVES.update({
     "heckler": {"name": "Heckler", "mods": {"heckler": 3}, "tags": ["discord"], "text": "Enemies' first attacks each fight are 3 weaker."},
     "haggler": {"name": "Haggler", "mods": {"haggler": 1}, "text": "Sell for 60% instead of 40%."},
     "silver_voice": {"name": "Silver Voice", "mods": {"silver_voice": 1}, "text": "+1 to every event roll."},
-    "encore": {"name": "Encore", "mods": {"reroll": 1}, "text": "+1 automatic reroll per fight: a die that misses rolls again."},
     "anthem_of_kings": {"name": "Anthem of Kings", "cap": True, "mods": {"anthem": 1}, "tags": ["anthem"], "text": "Every ally rolls an extra d4 each round."},
     "requiem_cap": {"name": "Requiem", "cap": True, "mods": {"grant": "requiem"}, "tags": ["discord"], "text": "Learn Requiem: once per fight, cancel an enemy's intent without a die."},
     # ---- Alchemist
     "volatile": {"name": "Volatile", "mods": {"bomb_bonus": 3}, "tags": ["bombs"], "text": "Your bombs deal +3."},
     "shrapnel": {"name": "Shrapnel", "mods": {"splash_bonus": 3}, "tags": ["bombs"], "text": "Your bombs' splash deals +3."},
-    "potency": {"name": "Potency", "mods": {"potion_bonus": 0.5}, "tags": ["elixirs"], "text": "Potions you use heal 50% more."},
     "distiller": {"name": "Distiller", "mods": {"distiller": 1}, "tags": ["elixirs"], "text": "Resting brews two potions instead of one."},
     "deep_pockets": {"name": "Deep Pockets", "mods": {"bag": 2}, "text": "+2 bag slots."},
     "safety_goggles": {"name": "Field Kit", "mods": {"heal_armor": 2, "burn_immune": 1}, "tags": ["elixirs"],
@@ -427,7 +427,6 @@ PASSIVES.update({
     # ---- Warden
     "deep_roots": {"name": "Deep Roots", "mods": {"summon_hp": 0.5}, "tags": ["grove"], "text": "Your summons have 50% more HP."},
     "pack_leader": {"name": "Pack Leader", "mods": {"summon_cap": 1}, "tags": ["grove"], "text": "Keep one more summon at a time."},
-    "bramble_skin": {"name": "Bramble Skin", "mods": {"thorns": 3}, "tags": ["thorns"], "text": "Attackers take 3."},
     "overgrowth": {"name": "Overgrowth", "mods": {"root_ext": 1}, "tags": ["thorns"], "text": "Your Roots last a round longer."},
     "verdant": {"name": "Verdant", "mods": {"summon_regen": 2}, "text": "Your summons heal 2 a round."},
     "bark": {"name": "Bark", "mods": {"bark": 1}, "text": "Start every fight with a 10 HP sapling."},
@@ -521,6 +520,20 @@ SUMMONS = {
     "treant": {"name": "Treant", "hp": 25, "atk": 5, "row": "front"},
 }
 SUMMON_CAP = 2
+
+# Dice verbs and the Mender's rework: actions that change dice rather than add numbers.
+ACTIONS.update({
+    "encore": {"name": "Counterpoint", "req": {"n": 1}, "tgt": "self", "instant": True, "tags": ["anthem"],
+               "ops": [{"op": "flip"}], "text": "Roll a die now, in the open. If it's in the bottom half, flip it to the opposite face (a 2 on a d6 becomes a 5). It stays unused."},
+    "potency": {"name": "Splitting Flask", "req": {"n": 1}, "tgt": "self", "instant": True, "tags": ["elixirs"],
+                "ops": [{"op": "split"}], "text": "Split a die into two dice half its size (a d8 becomes two d4s). Two more things to throw."},
+    "bramble_skin": {"name": "Grafting", "req": {"n": 2}, "tgt": "self", "instant": True, "tags": ["grove"],
+                     "ops": [{"op": "merge"}], "text": "Graft two dice into one: their sizes add (a d6 and a d4 make a d10). For the big rolls."},
+    "aura": {"name": "Second Opinion", "req": {"n": 1}, "tgt": "other", "instant": True, "tags": ["warding"],
+             "ops": [{"op": "second_opinion"}], "text": "An ally's biggest hidden die rolls twice now, in the open, and keeps the better."},
+    "transfusion": {"name": "Transfusion", "req": {"n": 1}, "tgt": "other", "instant": True, "tags": ["restoration"],
+                    "ops": [{"op": "transfusion"}], "text": "Roll the die now: heal an ally that much, and their next die rolls 1 higher."},
+})
 
 GENERIC = ["block", "flee"]
 
@@ -628,6 +641,9 @@ SHORT = {
     "storm_bolt": ("bolt", "die +4 · Shock", "nothing"), "venom_stab": ("drop", "½ die · Poison 2", None),
     "blessing": ("plus", "heal die · 2 Armor", None),
     "pass_die": ("spark", "give a die to an ally", None),
+    "encore": ("refresh", "flip a low die", None), "potency": ("spark", "split a die in two", None),
+    "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of two", None),
+    "transfusion": ("plus", "heal die · ally's next die +1", None),
 }
 
 # Cross-hero combos (the numbers are in combat.py): what two heroes do together.

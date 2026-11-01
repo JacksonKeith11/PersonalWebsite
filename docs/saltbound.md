@@ -632,8 +632,8 @@ changing a class or the difficulty, and give the options with their trade-offs (
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a
   rise every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2
   revives, a rise every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand**: see "Plannable combos, the Crown's phases, fair event fights" for the
-  latest numbers (and "Overhaul: no rows, enemy dice, forecast" for the class-by-class pass before it).
+- **Where the bots stand**: see "Dice-attacking enemies, puzzle bosses, dice verbs" for the latest
+  numbers (and "Overhaul: no rows, enemy dice, forecast" for the class-by-class pass before it).
 - **Noise**: 100 runs gives each class about 30, so a class's win rate moves about ±8 points
   between batches by chance alone, and overall rates ±4; a class can swing 20 points between two
   150-run batches after unrelated changes. Judge classes on 300 runs (`--seed=5000` for a second
@@ -735,7 +735,7 @@ move pools, bigger single threats), more rule-bending items, and cross-hero comb
   of spawns). Sprites are in `tools/saltbound-art/foes.py`.
 - **Longer fights**: every non-boss enemy has 1.35x its listed health (`FOE_HP`). Dungeon fights now
   take 3.2 rounds on Normal (3.0 before), 3.7 on Hard. Enemies met on the map (roaming groups and
-  lairs) get another 2.2x (`ROAM_HP` in `combat.py`) but deal 0.55x damage (`ROAM_DMG`), so a
+  lairs) get another 2.2x (`ROAM_HP` in `combat.py`) but deal less damage (`ROAM_DMG`, now 0.65x), so a
   roaming fight lasts longer without being deadlier: 3.4 rounds on Normal and 3.9 on Hard (it was
   1.9 and 2.1). Elites and big threats skip both: they're meant to be dangerous. Every fight kind
   now averages 3+ rounds.
@@ -800,6 +800,59 @@ The owner asked for combos you can plan, a better final boss, and better event f
   Mender 36%, Scoundrel 35%, Duelist 34%, Ranger 32%, Arcanist 32%, Berserker 31%, Alchemist 30%,
   Vanguard 26%, Warden 24%. Normal 88% (the multipliers are untouched; raising Normal's is the lever
   if it should be harder).
+
+## Dice-attacking enemies, puzzle bosses, dice verbs
+
+The owner asked for every recommendation of the enemy and skill audit (inventiveness and fun against
+For The King, Slay the Spire, Dicey Dungeons, Into the Breach, Darkest Dungeon).
+
+- **Enemies that attack your dice** (new hero statuses, applied on the enemies' turn and resolved
+  when the next round's dice are dealt, in `new_round`): the Barnacle Priest's Barnacle Crust (`lock`:
+  your biggest die is crusted over, so it's dealt but unusable), the Cutthroat's Filch (`steal`: your
+  biggest die is gone next round), the Storm Wisp's Static Charge (`static`: next round any of your
+  dice rolling 1 or 2 shocks you for 3; `hs.static`).
+- **Puzzle bosses** (`foe_round` in `combat.py` sets their per-round state):
+  the Bell-Warden shows a bell number (1-6) each round; hitting it with a die showing that number
+  cracks the bell (+6, and it loses its next action; scored through `combo_peek` as "bell", so
+  previews, bots and the gold die ring all see it). The Lamp Keeper is **lit** (half damage) until
+  three different heroes (or all standing, if fewer) hit it in one round: the lamp goes out, it loses
+  its next action and takes full damage through the next round. The Gallows Admiral runs out **Deck
+  Cannons** (`cannon`, new sprite): Load, Load, Broadside (a charged die on everyone), so kill the
+  guns before they fire.
+- **Filler enemies got a hook each**: Harpies Snatch a potion from a hero's bag and fly off with it
+  after two rounds unless killed (the killer gets it back; thief intents); Storm Wisps Merge (health
+  adds, an extra die per merge); Jellyfloats split the first time they're hurt (`splits`); the
+  Thunder Wyvern must Draw Breath before Storm Breath (a charge move with `next`, and the breath has
+  weight 0); the Brine Golem's crust ignores hits under 4 (`shell_min`).
+- **Bloodied changes the rules** (`bloodied.rule`, `foe_bloodied`): the Reef Maw swallows a hero (no
+  dice, damage every round, spat out after the Maw takes 15% of its health, or if nobody else is
+  left); the Iron Bosun calls a Deckhound every round; the Storm Roc takes to the air (melee can't
+  reach it: `fo.air`, skipped in `run_ops` and by the bots).
+- **Reactive elites**: Spiteful (+1 might whenever a hero buffs, heals or shields) and Splitting
+  (hit by two different heroes in one round, it splits in two, once).
+- **The Mender's rework**: Second Opinion (an ally's biggest hidden die rolls twice in the open and
+  keeps the better; key `aura`), Transfusion (heal the die, and the ally's next die +1), Triage
+  (key `blessed_supplies`: at the end of each round your biggest unused die heals your most wounded
+  ally half its roll), Diagnosis (key `bedside_manner`: your smallest die is a Seer die).
+- **Dice verbs replace duplicates and flat passives** (the keys stay, so saves load unchanged; some
+  moved from passives to actions): Counterpoint (Herald, key `encore`: roll a die in the open and
+  flip a low roll to its opposite face), Splitting Flask (Alchemist, key `potency`: split a die into
+  two half its size), Grafting (Warden, key `bramble_skin`: two dice become one with their sizes
+  added), Steal Tempo (Duelist, key `second_wind`: beat every die an enemy has shown and gain a d6
+  this round), Bulwark Faces (Vanguard, key `thick_hide`: shield faces also count as the top face).
+  New dice join mid-round through `new_die` (sources `split`, `graft`, `tempo`).
+- **Fight UI**: enemies show their state in words (the bell number, "Lit: ½ damage · 1/3 heroes",
+  "Airborne: no melee", "Has Tonic · flees in 1", "Merged ×2", "Spits out in N dmg"); heroes show
+  Swallowed and Static; a crusted die is dark with a tooltip; enemy columns with two or more enemies
+  use the compact layout so tall cards fit.
+- **Bugs found on the way**: the swallow could knock out the last hero at the start of a round
+  without ending the fight, and a party whose only standing hero was swallowed never ended either
+  (both fixed in `new_round`); the bots' dice signature compared None with numbers once dice could be
+  revealed mid-round (`die_sig` is all strings now).
+- **Balance after it** (300 runs on Hard from seed 5000, 150 on Normal): roaming enemies deal 0.65x
+  (`ROAM_DMG`) and every non-boss enemy has 1.45x its listed health (`FOE_HP`). Hard 33%: Mender 41%,
+  Scoundrel 39%, Herald 37%, Alchemist 36%, Duelist 33%, Ranger 32%, Warden 30%, Berserker 30%,
+  Arcanist 28%, Vanguard 25%. Normal 87%.
 
 ## Code map
 

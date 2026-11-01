@@ -22,13 +22,13 @@ SHIELD_BLOCK = 3
 DEBUFFS = ("burn", "poison", "weak", "vuln", "mark", "root", "hex")
 TICKING = ("weak", "vuln", "mark", "root")
 ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the round
-ONE_SHOT = ("stun", "freeze", "shock", "hex")
+ONE_SHOT = ("stun", "freeze", "shock", "hex", "lock", "steal", "static")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
 # Enemies met on the map (roaming groups and lairs) last longer but hit softer, so those fights
 # take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
 ROAM_HP = 2.2
-ROAM_DMG = 0.55
+ROAM_DMG = 0.65
 # Event fights: whoever is on or next to the hex joins; a hero alone meets weaker enemies.
 EVENT_DMG = 0.7
 EVENT_HP = {1: 0.9, 2: 1.4, 3: 1.9}
@@ -37,6 +37,9 @@ EVENT_HP = {1: 0.9, 2: 1.4, 3: 1.9}
 CROWN_WARD = 0.5
 CROWN_EXPOSED = 1.5
 UNDERTOW = 3    # times the fight's damage multiplier
+BELL_CRACK = 6  # hitting the Bell-Warden with a die showing its bell number
+LAMP_DOUSE = 3  # different heroes hitting the Lamp Keeper in one round put its lamp out
+SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of its health
 CURSED_DIE = ["X", 1, 2, 3]
 
 # Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).
@@ -211,6 +214,13 @@ class Combat(Foes):
         f["foes"].append(fo)
         return fo
 
+    def new_die(self, h, faces, src, dk=None):
+        """A die that joins a hero's hand mid-round (split, grafted, stolen tempo...)."""
+        x = self.hs(h)
+        x["nid"] = x.get("nid", 0) + 1
+        return {"id": f"{h}.{self.s['fight']['round']}.n{x['nid']}", "faces": faces, "dk": list(dk or []), "src": src,
+                "used": False, "v": None, "bonus": 0, "top": False}
+
     def summon(self, h, kind, hp=None):
         f = self.s["fight"]
         d = C.SUMMONS[kind]
@@ -275,7 +285,7 @@ class Combat(Foes):
 
     def party_units(self):
         """Everything enemies can hit: standing heroes and summons."""
-        return [f"h{h}" for h in self.actives()] + [f"s{a['id']}" for a in self.allies()]
+        return [f"h{h}" for h in self.actives() if not self.hs(h).get("swallowed")] + [f"s{a['id']}" for a in self.allies()]
 
     def herald_aura(self):
         return sum(self.mods(h).get("hymn_aura", 0) for h in self.actives())
@@ -359,10 +369,15 @@ class Combat(Foes):
             x["round_once"] = []
             x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
             x["links"] = {}
+            x["tempo"] = False
             x["inspire"] = 0
             x["pain_bonus"] = pain.get(str(h), 0)
             x["soaked"] = False
             if not self.active(h):
+                continue
+            if x.get("swallowed"):
+                self.fx("st", to=f"h{h}", s="swallowed")
+                self.hurt_hero(h, max(2, round(f["dmul"] * 1.5)), None, pure=True)
                 continue
             if x["st"].pop("stun", 0):
                 if x["ward"] > 0:
@@ -407,10 +422,34 @@ class Combat(Foes):
                 self.fx("st", to=f"h{h}", s="hexed")
             if x["st"].pop("freeze", 0) and not m.get("freeze_immune") and x["dice"]:
                 x["dice"].remove(min(x["dice"], key=_num))
+            # enemies that attack your dice: Barnacles lock one, thieves steal one, static shocks low rolls
+            if x["st"].pop("steal", 0) and x["dice"]:
+                x["dice"].remove(max(x["dice"], key=lambda d: top_face(d["faces"])))
+                self.fx("st", to=f"h{h}", s="robbed")
+            if x["st"].pop("lock", 0) and x["dice"]:
+                big = max(x["dice"], key=lambda d: top_face(d["faces"]))
+                big["used"], big["locked"] = True, True
+                self.fx("st", to=f"h{h}", s="locked")
+            x["static"] = bool(x["st"].pop("static", 0))
+            if m.get("seer_small"):
+                hid = [d for d in x["dice"] if not d["used"] and d.get("v") is None and not d.get("fc")]
+                if hid:
+                    d = min(hid, key=lambda d: top_face(d["faces"]))
+                    d["v"], d["tag"] = self.raw_roll(h, d)
+                    for k2 in ("sv", "stag", "hint"):
+                        d.pop(k2, None)
+        # the swallow can knock the last hero down; and with nobody else left to fight, the Maw spits its prey out
+        if self.check_end():
+            return
+        if all(self.hs(y).get("swallowed") for y in self.actives()):
+            for fo in self.foes():
+                if fo.get("gut") is not None:
+                    self.release_swallowed(fo)
         # Spirit dice for heroes who are dead
         f["spirit"] = {str(h): {"v": self.rng.randint(1, 6), "used": False}
                        for h in range(3) if not self.hero(h)["alive"]}
         self.crown_round()
+        self.foe_round()
         # Intents
         for fo in self.foes():
             self.choose_intent(fo)
@@ -477,10 +516,15 @@ class Combat(Foes):
                 self.fx("st", to=f"h{h}", s="inspired")
         if t == "W" and m.get("wild_heal") and self.active(h):
             self.fight_heal(h, m["wild_heal"], h)
+        if m.get("shield_top") and t == "S":
+            v = top_face(d["faces"])  # Bulwark Faces: still a shield (it blocks), and worth the top face
         if m.get("one_is_top") and v == 1 and t is None:
             v = top_face(d["faces"])
         if m.get("keen_edge") and v == 6:
             v = 7
+        if x.get("static") and t not in ("S", "X", "W") and v is not None and v <= 2 and self.active(h):
+            self.fx("st", to=f"h{h}", s="static")
+            self.hurt_hero(h, 3, None, pure=True)
         if t not in ("S", "X"):
             v += d.get("bonus", 0) + self.s["fight"].get("hymn", 0)
             if d.get("link") and m.get("sleight"):
@@ -700,6 +744,49 @@ class Combat(Foes):
             elif k == "reroll_ally":
                 self.hs(other)["rr"] += 2 + (1 if a["plus"] else 0)
                 self.fx("st", to=f"h{other}", s="rerolls")
+            elif k == "flip":
+                # Counterpoint: roll it in the open; a low roll turns to its opposite face
+                d = dice[0]
+                v, t = (d["v"], d.get("tag")) if d.get("v") is not None else self.raw_roll(h, d)
+                nums = [face(f2)[0] for f2 in d["faces"] if face(f2)[0] is not None]
+                lo, hi = min(nums), max(nums)
+                if t not in ("S", "X", "W") and v is not None and v <= (lo + hi) / 2:
+                    v = lo + hi - v
+                    self.fx("st", to=f"h{h}", s="flipped")
+                d["v"], d["tag"] = v, (t if t in ("S", "X", "W") else None)
+                for k2 in ("sv", "stag", "hint", "fc"):
+                    d.pop(k2, None)
+                keep.add(d["id"])
+            elif k == "split":
+                d = dice[0]
+                x["dice"].remove(d)
+                half = max(2, top_face(d["faces"]) // 2)
+                for _ in range(2):
+                    x["dice"].append(self.new_die(h, list(range(1, half + 1)), "split"))
+                keep.add(d["id"])
+                self.fx("st", to=f"h{h}", s="split")
+            elif k == "merge":
+                size = min(20, sum(top_face(d["faces"]) for d in dice))
+                for d in dice:
+                    x["dice"].remove(d)
+                    keep.add(d["id"])
+                x["dice"].append(self.new_die(h, list(range(1, size + 1)), "graft"))
+                self.fx("st", to=f"h{h}", s="grafted")
+            elif k == "second_opinion":
+                hid = [d for d in self.hs(other)["dice"] if not d["used"] and d.get("v") is None and not d.get("fc")]
+                if hid:
+                    d = max(hid, key=lambda d: top_face(d["faces"]))
+                    rolls = [self.raw_roll(other, d) for _ in range(2)]
+                    v, t = max(rolls, key=lambda r: (r[1] not in ("X", "S"), r[0] or 0))
+                    d["v"], d["tag"] = v, t
+                    for k2 in ("sv", "stag", "hint"):
+                        d.pop(k2, None)
+                    self.fx("st", to=f"h{other}", s="second_opinion")
+            elif k == "transfusion":
+                v = self.roll(h, dice[0])
+                self.fight_heal(other, v + m.get("heal_bonus", 0) + plus, h)
+                self.hs(other)["inspire"] = self.hs(other).get("inspire", 0) + 1 + extra
+                self.fx("st", to=f"h{other}", s="inspired")
             elif k == "bottle":
                 v = self.roll(h, dice[0])
                 key = "big_potion" if v >= 5 else "potion"
@@ -710,6 +797,7 @@ class Combat(Foes):
                 d["used"] = True
         self.s["fight"]["done"].append({"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": None})
         self.fx("act", h=h, a=a["key"], tgt=tgt, instant=True)
+        self.spite(a)
 
     def do_reroll(self, h, msg):
         if not self.in_fight(h) or not self.active(h):
@@ -874,6 +962,8 @@ class Combat(Foes):
             n = int(n * 1.25 + 0.5)
         if st.get("mark"):
             n += 3
+        if fo["k"] == "lamp_keeper" and fo.get("lit", True):
+            n = int(n * 0.5)
         if A.FOES[fo["k"]].get("final"):
             if self.crown_warded(fo):
                 n = int(n * CROWN_WARD)
@@ -884,10 +974,19 @@ class Combat(Foes):
     def crown_warded(self, fo):
         return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
 
+    def spite(self, a):
+        """Spiteful elites gain might when a hero buffs, heals or shields."""
+        if a.get("def") or a.get("instant") or a["tgt"] in ("ally", "other", "party"):
+            for fo in self.foes():
+                if fo.get("aff") == "spiteful":
+                    fo["might"] += 1
+                    self.fx("st", to=f"f{fo['id']}", s="spite")
+
     def resolve_action(self, h, a, dice, tgt):
         """A placed action happens: its dice roll, it hits or misses, its effects land."""
         f = self.s["fight"]
         x = self.hs(h)
+        self.spite(a)
         if a.get("once"):
             x["once"].append(a["key"])
         if a.get("cd"):
@@ -902,6 +1001,12 @@ class Combat(Foes):
         self.elements(h, a, dice, tgt)
         if self.s["fight"] is f and a["tgt"] == "foe" and dice and isinstance(tgt, str) and tgt.startswith("f"):
             f.setdefault("lastdie", {})[tgt[1:]] = [h, [_num(d) for d in dice]]
+            fo = self.foe(int(tgt[1:]))
+            known = [d["v"] for d in ((fo or {}).get("intent") or {}).get("dice") or [] if d.get("v") is not None]
+            if self.mods(h).get("tempo") and known and not x.get("tempo") and max(_num(d) for d in dice) > max(known):
+                x["tempo"] = True
+                x["dice"].append(self.new_die(h, list(range(1, 7)), "tempo"))
+                self.fx("st", to=f"h{h}", s="tempo")
         if a["key"] == "block" and self.mods(h).get("block_heal") and self.s["fight"] is f:
             self.fight_heal(h, self.mods(h)["block_heal"], h)
         echo = (a.get("spell") and self.mods(h).get("spell_echo")) or (self.mods(h).get("echo_any") and a["key"] not in C.GENERIC)
@@ -1029,6 +1134,8 @@ class Combat(Foes):
             out.append(("pincer", PINCER + (PINCER_MATCH if match else 0) + up))
         if "shatter" not in used and t["st"].get("freeze") and t.get("st_by", {}).get("freeze") not in (None, h):
             out.append(("shatter", SHATTER + up))
+        if "bell" not in used and t.get("bell") and not t.get("cracked") and t["bell"] in vals:
+            out.append(("bell", BELL_CRACK))
         return out
 
     def combo_bonus(self, h, a, dice, t, used):
@@ -1044,6 +1151,10 @@ class Combat(Foes):
                 f.setdefault("pincered", []).append(t["id"])
             elif name == "shatter":
                 t["st"].pop("freeze", None)
+            elif name == "bell":
+                t["cracked"] = True
+                t["st"]["stun"] = 1
+                self.say("The bell cracks! The Bell-Warden loses its next action.")
             self.fx("combo", to=f"f{t['id']}", c=name, n=bonus)
         return n
 
@@ -1137,6 +1248,9 @@ class Combat(Foes):
                                 break
                             t = self.rng.choice(foes)
                         if isinstance(t, tuple) or t["hp"] <= 0 or not gate(op, t):
+                            continue
+                        if t.get("air") and a.get("melee"):
+                            self.fx("st", to=f"f{t['id']}", s="out of reach")
                             continue
                         env = self.env(h, a, dice, t)
                         if d is not None:
@@ -1373,6 +1487,9 @@ class Combat(Foes):
             return 0
         if not pure:
             n = self.foe_damage_after(fo, n, h)
+        if not pure and h is not None and A.FOES[fo["k"]].get("shell_min") and 0 < n < A.FOES[fo["k"]]["shell_min"]:
+            self.fx("st", to=f"f{fo['id']}", s="shrugs")  # the Brine Golem's crust: small hits don't get through
+            n = 0
         arm = 0 if pierce else fo["st"].get("armor", 0)
         blocked = min(arm, n)
         if blocked:
@@ -1397,6 +1514,7 @@ class Combat(Foes):
         if fo["hp"] <= 0:
             self.foe_dies(fo, h, bomb)
         else:
+            self.foe_hit_hooks(fo, n, h, pure)
             self.foe_bloodied(fo)
         return n
 
@@ -1404,6 +1522,11 @@ class Combat(Foes):
         f = self.s["fight"]
         fo["hp"] = 0
         d = A.FOES[fo["k"]]
+        if fo.get("loot") and h is not None and self.hero(h)["alive"]:
+            self.gain_item(h, fo.pop("loot"))
+            self.fx("st", to=f"h{h}", s="recovered")
+        if fo.get("gut") is not None or any(x.get("swallowed") == fo["id"] for x in f["hs"].values()):
+            self.release_swallowed(fo)
         f["xp"] += d["xp"] * (2 if fo.get("aff") else 1)
         f["gold"] += d["gold"] * (2 if fo.get("aff") else 1)
         self.fx("die", to=f"f{fo['id']}")
@@ -1554,6 +1677,18 @@ class Combat(Foes):
 
     def end_round(self):
         self.undertow()
+        for h in self.actives():
+            if not self.mods(h).get("triage"):
+                continue
+            left = [d for d in self.hs(h)["dice"] if not d["used"]]
+            hurt = [y for y in self.actives() if self.hero(y)["hp"] < self.maxhp(y)]
+            if left and hurt:
+                d = max(left, key=lambda d: top_face(d["faces"]))
+                v = self.roll(h, d)
+                d["used"] = True
+                y = min(hurt, key=lambda y: self.hero(y)["hp"] / self.maxhp(y))
+                self.fx("st", to=f"h{h}", s="triage")
+                self.fight_heal(y, (v + 1) // 2, h)
         for fo in self.foes():
             st = fo["st"]
             if st.get("burn"):
@@ -1612,6 +1747,67 @@ class Combat(Foes):
             crown["fury"] = True
             self.say("The Drowned Crown stands alone: exposed, and furious.")
             self.fx("phase", n=3)
+
+    def foe_round(self):
+        """Start-of-round enemy upkeep: the Bell-Warden's bell number, the Lamp Keeper's lamp, the Iron
+        Bosun's crew, Harpies running off with loot, Splitting elites."""
+        f = self.s["fight"]
+        for fo in list(self.foes()):
+            fo["hitr"] = []
+            if fo["k"] == "bell_warden":
+                fo["bell"] = self.rng.randint(1, 6)
+                fo["cracked"] = False
+            if fo["k"] == "lamp_keeper":
+                fo["lit"] = f["round"] > fo.get("dark_until", 0)
+            if fo.get("bl") and A.FOES[fo["k"]].get("bloodied", {}).get("rule") == "allhands" and len(self.foes()) < 5:
+                new = self.add_foe("deckhound")
+                new["intent"] = {"k": "dazed", "name": "Just arrived"}
+                self.fx("summon", f=new["id"])
+            if fo.get("loot"):
+                fo["flee_in"] = fo.get("flee_in", 2) - 1
+                if fo["flee_in"] <= 0:
+                    fo["hp"] = 0
+                    self.fx("st", to=f"f{fo['id']}", s="flees")
+                    self.fx("die", to=f"f{fo['id']}")
+                    self.say(f"{fo['name']} flies off with the loot.")
+
+    def foe_hit_hooks(self, fo, n, h, pure):
+        """After a hero's hit lands on an enemy (and it lived): Splitting elites, Jellyfloats, the Lamp
+        Keeper's lamp, the Reef Maw's gut."""
+        f = self.s["fight"]
+        d = A.FOES[fo["k"]]
+        if h is not None and n > 0:
+            fo.setdefault("hitr", [])
+            if h not in fo["hitr"]:
+                fo["hitr"].append(h)
+        if fo["k"] == "lamp_keeper" and fo.get("lit", True) and len(fo.get("hitr", [])) >= min(LAMP_DOUSE, len(self.actives())):
+            fo["lit"] = False
+            fo["dark_until"] = f["round"] + 1
+            fo["st"]["stun"] = 1
+            self.fx("st", to=f"f{fo['id']}", s="doused")
+            self.say("The lamp goes out! The Lamp Keeper reels in the dark.")
+        splits = (d.get("splits") and n > 0) or (fo.get("aff") == "splitting" and len(fo.get("hitr", [])) >= 2)
+        if splits and not fo.get("split") and fo["hp"] >= 4 and len(self.foes()) < 5:
+            fo["split"] = True
+            half = fo["hp"] // 2
+            fo["hp"] -= half
+            new = self.add_foe(fo["k"], half)
+            new["split"] = True
+            new["intent"] = {"k": "dazed", "name": "Just split off"}
+            self.fx("summon", f=new["id"])
+            self.fx("st", to=f"f{fo['id']}", s="splits")
+        if fo.get("gut") and n > 0:
+            fo["gut"] -= n
+            if fo["gut"] <= 0:
+                self.release_swallowed(fo)
+
+    def release_swallowed(self, fo):
+        fo.pop("gut", None)
+        for k, x in self.s["fight"]["hs"].items():
+            if x.get("swallowed") == fo["id"]:
+                x.pop("swallowed")
+                self.fx("st", to=f"h{k}", s="spat out")
+                self.say(f"{self.hero(int(k))['name']} is spat out!")
 
     def crown_round(self):
         """At the start of a round: show the Crown's ward, and pick who the Undertow drags."""

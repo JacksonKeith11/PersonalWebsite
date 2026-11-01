@@ -31,7 +31,7 @@ FOES = {
              "moves": {"pinch": {"name": "Pinch", "k": "attack", "n": 1, "w": 2},
                        "clamp": {"name": "Clamp", "k": "attack", "n": 2, "pair": {"st": "root", "sn": 1}},
                        "shell": {"name": "Shell Up", "k": "block", "n": 2}}},
-    "jelly": {"name": "Jellyfloat", "hp": 8, "row": "front", "speed": 4, "beast": True, "xp": 3, "gold": 2, "leech": True,
+    "jelly": {"name": "Jellyfloat", "hp": 8, "row": "front", "speed": 4, "beast": True, "xp": 3, "gold": 2, "leech": True, "splits": True,
               "dice": [TOXIC],
               "moves": {"sting": {"name": "Sting", "k": "attack", "n": 1}}},
     "eel": {"name": "Reef Eel", "hp": 9, "row": "back", "speed": 6, "beast": True, "xp": 4, "gold": 3,
@@ -41,7 +41,8 @@ FOES = {
     "barnacle_priest": {"name": "Barnacle Priest", "hp": 10, "row": "back", "speed": 2, "undead": True, "xp": 5, "gold": 5,
                         "dice": [_d(6), _d(4)],
                         "moves": {"mend": {"name": "Mend Flesh", "k": "heal", "n": 2, "w": 2},
-                                  "spit": {"name": "Brine Spit", "k": "attack", "use": [1], "st": "weak", "sn": 1}}},
+                                  "spit": {"name": "Brine Spit", "k": "attack", "use": [1], "st": "weak", "sn": 1},
+                                  "crust": {"name": "Barnacle Crust", "k": "debuff", "use": [1], "st": "lock", "sn": 1, "tgt": "strongest"}}},
     "siren": {"name": "Siren", "hp": 9, "row": "back", "speed": 5, "xp": 5, "gold": 5,
               "dice": [_d(6, "seer")],
               "moves": {"lullaby": {"name": "Lullaby", "k": "debuff", "n": 1, "st": "stun", "sn": 1, "st_min": 4},
@@ -60,11 +61,12 @@ FOES = {
     "cutthroat": {"name": "Cutthroat", "hp": 11, "row": "front", "speed": 7, "xp": 4, "gold": 5,
                   "dice": [_d(6, "exploding")],
                   "moves": {"shiv": {"name": "Shiv", "k": "attack", "n": 1, "st": "vuln", "sn": 1, "w": 2},
-                            "low_blow": {"name": "Low Blow", "k": "attack", "n": 1, "st": "weak", "sn": 1, "tgt": "vengeful"}}},
+                            "low_blow": {"name": "Low Blow", "k": "attack", "n": 1, "st": "weak", "sn": 1, "tgt": "vengeful"},
+                            "filch": {"name": "Filch", "k": "attack", "n": 1, "st": "steal", "sn": 1, "tgt": "strongest"}}},
     "deckhound": {"name": "Deckhound", "hp": 9, "row": "front", "speed": 8, "beast": True, "xp": 3, "gold": 1, "pack": 2,
                   "dice": [_d(4), _d(4)],
                   "moves": {"savage": {"name": "Savage", "k": "attack", "n": 2, "each": True, "tgt": "weakest"}}},
-    "brine_golem": {"name": "Brine Golem", "hp": 24, "row": "front", "speed": 1, "xp": 7, "gold": 3,
+    "brine_golem": {"name": "Brine Golem", "hp": 24, "row": "front", "speed": 1, "xp": 7, "gold": 3, "shell_min": 4,
                     "dice": [_d(8, "steady"), _d(8, "steady")],
                     "moves": {"slam": {"name": "Slam", "k": "attack", "n": 2, "pair": {"st": "stun", "sn": 1}, "w": 2},
                               "harden": {"name": "Harden", "k": "block", "n": 2}}},
@@ -85,9 +87,10 @@ FOES = {
     "gallows_admiral": {"name": "The Gallows Admiral", "hp": 80, "row": "back", "speed": 3, "boss": True,
                         "xp": 40, "gold": 40,
                         "dice": [_d(8), _d(8, "exploding"), _d(8), _d(6)],
-                        "seq": ["broadside", "boarders", "volley", "noose"],
+                        "seq": ["guns", "volley", "boarders", "noose", "broadside"],
                         "moves": {"broadside": {"name": "Broadside", "k": "all", "use": [0]},
                                   "boarders": {"name": "Boarders, Away!", "k": "summon", "f": "cutthroat"},
+                                  "guns": {"name": "Run Out the Guns", "k": "summon", "f": "cannon"},
                                   "volley": {"name": "Pistol Volley", "k": "attack", "use": [0, 1, 2], "each": True},
                                   "noose": {"name": "Hang 'em High", "k": "attack", "use": [1, 3], "st": "root", "sn": 1, "tgt": "strongest"}}},
 
@@ -102,10 +105,13 @@ FOES = {
                                "hide": {"name": "Hide in the Rocks", "k": "block", "n": 2}}},
     "harpy": {"name": "Harpy", "hp": 9, "row": "back", "speed": 7, "beast": True, "xp": 4, "gold": 3, "pack": 2,
               "dice": [_d(4), _d(6)],
-              "moves": {"talons": {"name": "Raking Talons", "k": "attack", "n": 2, "each": True}}},
+              "moves": {"talons": {"name": "Raking Talons", "k": "attack", "n": 2, "each": True, "w": 2},
+                        "snatch_potion": {"name": "Snatch", "k": "thief"}}},
     "storm_wisp": {"name": "Storm Wisp", "hp": 8, "row": "back", "speed": 6, "xp": 4, "gold": 3,
                    "dice": [_d(6)],
-                   "moves": {"arc": {"name": "Arc", "k": "attack", "n": 1, "chain": True, "st": "shock", "sn": 1, "st_min": 5}}},
+                   "moves": {"arc": {"name": "Arc", "k": "attack", "n": 1, "chain": True, "st": "shock", "sn": 1, "st_min": 5},
+                             "static_charge": {"name": "Static Charge", "k": "debuff", "n": 1, "st": "static", "sn": 1},
+                             "merge": {"name": "Merge", "k": "merge", "w": 2}}},
     "lightning_totem": {"name": "Lightning Totem", "hp": 14, "row": "back", "speed": 1, "xp": 5, "gold": 4, "volatile": 5,
                         "dice": [_d(4, "grow")],
                         "seq": ["charge", "charge", "discharge"],
@@ -114,7 +120,8 @@ FOES = {
     "thunder_wyvern": {"name": "Thunder Wyvern", "hp": 22, "row": "back", "speed": 5, "beast": True, "elite": True,
                        "xp": 10, "gold": 10,
                        "dice": [_d(8), _d(8)],
-                       "moves": {"breath": {"name": "Storm Breath", "k": "all", "use": [0], "st": "shock", "sn": 1, "st_min": 7},
+                       "moves": {"breath": {"name": "Storm Breath", "k": "all", "use": [0], "st": "shock", "sn": 1, "st_min": 7, "w": 0},
+                                 "inhale": {"name": "Draw Breath", "k": "charge", "next": "breath"},
                                  "rend": {"name": "Rend", "k": "attack", "n": 2, "pair": {"again": True}, "w": 2}}},
     "lamp_keeper": {"name": "The Lamp Keeper", "hp": 75, "row": "back", "speed": 3, "boss": True,
                     "xp": 40, "gold": 35,
@@ -134,7 +141,7 @@ FOES = {
                            "clamp": {"name": "Clamp Shut", "k": "block", "use": [1, 2]}},
                  "pool": {"polyps": {"name": "Spawn Polyps", "k": "summon", "f": "jelly"},
                           "spray": {"name": "Brine Spray", "k": "attack", "use": [0, 1], "each": True}},
-                 "bloodied": {"might": 2, "text": "it thrashes wildly and hits harder.",
+                 "bloodied": {"might": 2, "rule": "swallow", "text": "it swallows a hero whole. Hit it hard to make it spit them out.",
                               "moves": {"thrash": {"name": "Thrash", "k": "attack", "use": [0, 1, 2], "each": True}}}},
     "iron_bosun": {"name": "The Iron Bosun", "hp": 44, "row": "front", "speed": 3, "elite": True, "big": True, "xp": 16, "gold": 18,
                    "dice": [_d(10, "steady"), _d(6, "exploding"), _d(6)],
@@ -143,7 +150,7 @@ FOES = {
                              "grog": {"name": "Swig of Grog", "k": "heal", "use": [2], "self": True}},
                    "pool": {"whistle": {"name": "Bosun's Whistle", "k": "summon", "f": "deckhound"},
                             "chainlash": {"name": "Chain Lash", "k": "attack", "use": [0, 2], "chain": True}},
-                   "bloodied": {"might": 2, "text": "he roars for the crew and swings the anchor two-handed.",
+                   "bloodied": {"might": 2, "rule": "allhands", "text": "he roars for the crew: a Deckhound joins every round.",
                                 "moves": {"keelhaul": {"name": "Keelhaul", "k": "attack", "use": [0, 1, 2], "tgt": "vengeful",
                                                        "st": "stun", "sn": 1, "st_min": 8}}}},
     "storm_roc": {"name": "The Storm Roc", "hp": 40, "row": "back", "speed": 6, "beast": True, "elite": True, "big": True,
@@ -154,8 +161,14 @@ FOES = {
                             "talons": {"name": "Talons", "k": "attack", "use": [0, 1, 2], "each": True}},
                   "pool": {"flock": {"name": "Call the Flock", "k": "summon", "f": "harpy"},
                            "feathers": {"name": "Lightning Feathers", "k": "attack", "use": [0], "chain": True, "st": "shock", "sn": 1}},
-                  "bloodied": {"might": 2, "text": "it shrieks, and the storm answers.",
+                  "bloodied": {"might": 2, "rule": "air", "text": "it takes to the air: only ranged attacks and spells can reach it.",
                                "moves": {"thunderclap": {"name": "Thunderclap", "k": "all", "use": [0, 1]}}}},
+
+    "cannon": {"name": "Deck Cannon", "hp": 14, "row": "back", "speed": 2, "xp": 3, "gold": 0, "object": True,
+               "dice": [_d(6), _d(6)],
+               "seq": ["load", "load", "fire"],
+               "moves": {"load": {"name": "Load the Cannon", "k": "charge"},
+                         "fire": {"name": "Broadside!", "k": "all", "use": [0]}}},
 
     # ---------------------------------------------------------------- the peak
     "tide_guard": {"name": "Tide Guard", "hp": 16, "row": "front", "speed": 3, "undead": True, "xp": 6, "gold": 0,
@@ -227,7 +240,7 @@ for _k, _v in POOLS.items():
 
 # Fights last longer than in the first pass: every enemy but the bosses has this much more health
 # than its listed hp.
-FOE_HP = 1.35
+FOE_HP = 1.45
 for _v in FOES.values():
     if not _v.get("boss"):
         _v["hp"] = round(_v["hp"] * FOE_HP)
@@ -313,9 +326,11 @@ ELITES = {
     "venomous": {"name": "Venomous", "hp": 1.6, "text": "Its hits Poison 2."},
     "warlord": {"name": "Warlord", "hp": 1.6, "text": "Every round from the second, the other enemies gain +1 might."},
     "vampiric": {"name": "Vampiric", "hp": 1.6, "text": "Heals half the damage it deals."},
+    "spiteful": {"name": "Spiteful", "hp": 1.6, "text": "Gains +1 might whenever a hero buffs, heals or shields."},
+    "splitting": {"name": "Splitting", "hp": 1.6, "text": "Hit by two different heroes in one round, it splits in two (once)."},
 }
 BIG = {"coral": "reef_maw", "keys": "iron_bosun", "storm": "storm_roc"}
-ROAM_ELITES = ["hulking", "frenzied", "ironclad", "venomous", "vampiric"]
+ROAM_ELITES = ["hulking", "frenzied", "ironclad", "venomous", "vampiric", "spiteful", "splitting"]
 
 FINAL = ["tide_guard", "tide_guard", "drowned_crown"]
 

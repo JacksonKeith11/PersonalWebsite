@@ -281,9 +281,19 @@ def storm_roc():  # the Storm Roc: a vast storm-grey bird, wings spread, lightni
     g.rect(12, 25, 12, 29, 'y'); g.rect(18, 25, 18, 29, 'y'); g.text(10, 29, ['y y']); g.text(16, 29, ['y y'])
     return g
 
+def cannon():  # deck cannon: a black iron barrel on a wooden carriage, a lit fuse
+    pal = {'I': '#3a3a44', 'i': '#24242c', 'W': '#7a5232', 'w': '#5a3a22', 'Y': '#ffd060', 'R': '#e0603a', 'g': '#8a8a96'}
+    g = G(pal)
+    g.rect(5, 21, 24, 25, 'W'); g.rect(5, 25, 24, 26, 'w')
+    g.ell(9, 27, 3, 3, 'w'); g.ell(21, 27, 3, 3, 'w'); g.px(9, 27, 'g'); g.px(21, 27, 'g')
+    g.line(7, 18, 26, 12, 'I', 5); g.ell(27, 12, 2.5, 3, 'i'); g.px(27, 12, 'i')
+    g.rect(8, 15, 10, 17, 'g')
+    g.line(6, 17, 3, 12, 'w'); g.px(3, 11, 'R'); g.px(2, 10, 'Y'); g.px(4, 10, 'Y')
+    return g
+
 ALL = [deckhand, crab, jelly, eel, barnacle_priest, siren, bell_warden, cutthroat, deckhound, brine_golem, powder_monkey,
        tide_cultist, corsair_captain, gallows_admiral, crag_ram, cliff_hermit, harpy, storm_wisp, lightning_totem,
-       thunder_wyvern, lamp_keeper, tide_guard, drowned_crown, reef_maw, iron_bosun, storm_roc]
+       thunder_wyvern, lamp_keeper, tide_guard, drowned_crown, reef_maw, iron_bosun, storm_roc, cannon]
 
 if __name__ == '__main__':
     import sys

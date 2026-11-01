@@ -1028,3 +1028,4 @@ a:hover { color: var(--accent-hi); }
 .bag-acts .input.give { height: 30px; }
 .item .acts:empty { display: none; }
 .item:has(> .acts:empty) { grid-template-columns: auto minmax(0, 1fr); }
+.col.crowd .unit.boss > img { width: 72px; height: 72px; }

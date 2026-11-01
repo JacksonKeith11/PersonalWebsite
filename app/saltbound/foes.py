@@ -33,6 +33,7 @@ from .content import archipelago as A
 ELEMENT = {"F": "burn", "I": "freeze", "P": "poison"}
 SKULL_SELF = 2
 SHIELD_FACE = 3
+SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of its health
 
 
 def _face(f):
@@ -113,6 +114,17 @@ class Foes:
         fo["mv"] = list(fo.get("mv") or A.FOES[fo["k"]]["moves"]) + list(b.get("moves", {}))
         self.fx("st", to=f"f{fo['id']}", s="bloodied")
         self.say(f"{fo['name']} is bloodied: {b['text']}")
+        rule = b.get("rule")
+        if rule == "air":
+            fo["air"] = True
+        elif rule == "swallow":
+            prey = [y for y in self.actives() if not self.hs(y).get("swallowed")]
+            if prey:
+                y = self.rng.choice(prey)
+                self.hs(y)["swallowed"] = fo["id"]
+                fo["gut"] = max(8, round(fo["max"] * SWALLOW_GUT))
+                self.fx("st", to=f"h{y}", s="swallowed")
+                self.say(f"{fo['name']} swallows {self.hero(y)['name']}!")
 
     def foe_leech(self, fo):
         return A.FOES[fo["k"]].get("leech") or fo.get("aff") == "vampiric"
@@ -130,6 +142,8 @@ class Foes:
             fo["seq"] += 1
             if fo.get("bl") and d.get("bloodied") and self.rng.chance(0.5):
                 key = self.rng.choice(list(d["bloodied"]["moves"]))
+        elif fo.get("next") in moves:
+            key = fo.pop("next")  # a telegraphed follow-up (the Wyvern's breath after Draw Breath)
         else:
             keys = list(moves)
             if fo.get("charged"):
@@ -140,11 +154,22 @@ class Foes:
         if mv["k"] == "summon" and (len(self.foes()) >= 5 or (d.get("final") and f.get("phase", 1) >= 2)):
             key = next((k for k in moves if moves[k]["k"] == "attack"), key)
             mv = moves[key]
+        thief_to = None
+        if mv["k"] == "thief":
+            from .content import items as I
+            marks = [y for y in self.actives() if any(I.ITEMS[it]["slot"] == "use" for it in self.hero(y)["bag"])]
+            thief_to = self.rng.choice(marks) if marks and not fo.get("loot") else None
+        if (mv["k"] == "thief" and thief_to is None) or \
+                (mv["k"] == "merge" and not any(o is not fo and o["k"] == fo["k"] for o in self.foes())):
+            key = next((k for k in moves if moves[k]["k"] == "attack"), key)
+            mv = moves[key]
         it = {"k": mv["k"], "m": key, "name": mv["name"]}
-        for opt in ("each", "sweep", "chain", "st", "sn", "st_min", "pair", "v", "f", "self", "all"):
+        for opt in ("each", "sweep", "chain", "st", "sn", "st_min", "pair", "v", "f", "self", "all", "next"):
             if opt in mv:
                 it[opt] = mv[opt]
         it["tgt_kind"] = mv.get("tgt", "random")
+        if thief_to is not None:
+            it["tgt"] = f"h{thief_to}"
         if mv["k"] in ("attack", "all", "block", "guard", "heal", "debuff") and (mv.get("use") or mv.get("n")):
             idx = mv.get("use") or list(range(mv["n"]))
             dice = []
@@ -159,10 +184,12 @@ class Foes:
                 if fo.get("aff") == "frenzied" and "exploding" not in die["dk"]:
                     die["dk"].append("exploding")
                 dice.append(die)
-            if (fo.get("aff") == "hulking" or fo.get("fury")) and mv["k"] in ("attack", "all") and dice:
-                extra = dict(dice[0], dk=[k for k in dice[0]["dk"] if k not in ("seer", "fate")])
-                extra.pop("v", None), extra.pop("fc", None), extra.pop("tag", None)
-                dice.append(extra)
+            more = (1 if fo.get("aff") == "hulking" or fo.get("fury") else 0) + fo.get("merged", 0)
+            if more and mv["k"] in ("attack", "all") and dice:
+                for _ in range(more):
+                    extra = dict(dice[0], dk=[k for k in dice[0]["dk"] if k not in ("seer", "fate")])
+                    extra.pop("v", None), extra.pop("fc", None), extra.pop("tag", None)
+                    dice.append(extra)
             if fo.get("charged") and mv["k"] in ("attack", "all"):
                 extra = dict(dice[0], dk=[k for k in dice[0]["dk"] if k not in ("seer", "fate")])
                 extra.pop("v", None), extra.pop("fc", None), extra.pop("tag", None)
@@ -316,6 +343,9 @@ class Foes:
             return
         if k == "charge":
             self.fx("fact", f=fo["id"], ik="charge")
+            nxt = self.foe_moves(fo).get(it.get("m"), {}).get("next")
+            if nxt:
+                fo["next"] = nxt
             if any("grow" in (d.get("dk") if isinstance(d, dict) else []) for d in A.FOES[fo["k"]]["dice"]):
                 fo["grow"] = fo.get("grow", 0) + 1
                 self.fx("st", to=f"f{fo['id']}", s="grows")
@@ -325,7 +355,7 @@ class Foes:
             return
         if it.get("charged"):
             fo.pop("charged", None)
-        if k in ("buff", "summon"):
+        if k in ("buff", "summon", "thief", "merge"):
             self.fx("fact", f=fo["id"], ik=k)
             self.foe_do(fo, it, k, [], [])
             return
@@ -496,6 +526,27 @@ class Foes:
             for o in ([fo] if it.get("self") else self.foes()):
                 o["might"] += it.get("v", 2)
             self.fx("st", to=f"f{fo['id']}" if it.get("self") else "foes", s="might")
+        elif k == "thief":
+            # the Harpy snatches a potion; kill it within two rounds to get it back
+            from .content import items as I
+            y = int(it["tgt"][1:]) if it.get("tgt") else None
+            if y is not None and self.active(y):
+                bag = self.hero(y)["bag"]
+                got = next((i for i, x in enumerate(bag) if I.ITEMS[x]["slot"] == "use"), None)
+                if got is not None:
+                    fo["loot"] = bag.pop(got)
+                    fo["flee_in"] = 2
+                    self.fx("st", to=f"f{fo['id']}", s="snatched")
+                    self.say(f"{fo['name']} snatches {self.hero(y)['name']}'s {I.ITEMS[fo['loot']]['name']}! Kill it within two rounds to get it back.")
+        elif k == "merge":
+            other = next((o for o in self.foes() if o is not fo and o["k"] == fo["k"]), None)
+            if other:
+                fo["hp"] += other["hp"]
+                fo["max"] += other["max"]
+                fo["merged"] = fo.get("merged", 0) + 1 + other.get("merged", 0)
+                other["hp"] = 0
+                self.fx("die", to=f"f{other['id']}")
+                self.fx("st", to=f"f{fo['id']}", s="merged")
         elif k == "summon":
             if len(self.foes()) < 5:
                 new = self.add_foe(it["f"])

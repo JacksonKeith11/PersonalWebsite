@@ -273,6 +273,9 @@ export const STATUS = {
   undertow: { name: 'Undertow', icon: 'wave', text: 'The tide drags at you at the end of the round for this much. Armor blocks it; an ally’s Guard takes it for you.', bad: true },
   warded: { name: 'Warded', icon: 'shield', text: 'Takes half damage while a Tide Guard stands. Kill the guards first.' },
   exposed: { name: 'Exposed', icon: 'crack', text: 'Takes 50% more damage. Its attacks roll an extra die.', bad: true },
+  lock: { name: 'Crusted', icon: 'lock', text: 'Next round your biggest die is crusted over: you can’t use it.', bad: true },
+  steal: { name: 'Robbed', icon: 'coin', text: 'Next round your biggest die is missing: a thief has it.', bad: true },
+  static: { name: 'Static', icon: 'bolt', text: 'Next round, any of your dice that rolls 1 or 2 shocks you for 3.', bad: true },
 };
 
 // Enemy dice and traits: what makes each enemy fight differently.
@@ -290,6 +293,8 @@ export function foeTraits(d) {
   if (d.thorns) out.push([`Thorns ${d.thorns}`, `Whoever damages it takes ${d.thorns}.`]);
   if (d.pack) out.push(['Pack', `Gains +${d.pack} might whenever another enemy dies.`]);
   if (d.leech) out.push(['Leech', 'Heals half the damage it deals.']);
+  if (d.shell_min) out.push(['Brine crust', `Hits of less than ${d.shell_min} do nothing to it. Hit it big.`]);
+  if (d.splits) out.push(['Splits', 'The first time it’s hurt, half its health splits off as a second one.']);
   if (d.volatile) out.push([`Volatile ${d.volatile}`, `When it dies it bursts for ${d.volatile} on every front-row hero.`]);
   return out;
 }

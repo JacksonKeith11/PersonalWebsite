@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=40';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=40';
-import { spriteURL } from './art.js?v=40';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=40';
-import { render } from './main.js?v=40';
-import * as sfx from './audio.js?v=40';
+import { S, send, mine } from './store.js?v=41';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=41';
+import { spriteURL } from './art.js?v=41';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=41';
+import { render } from './main.js?v=41';
+import * as sfx from './audio.js?v=41';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -26,10 +26,11 @@ const INTENT = {
   block: ['shield', 'var(--intent-defend)'], guard: ['shield', 'var(--intent-defend)'], heal: ['plus', 'var(--intent-heal)'],
   buff: ['up', 'var(--intent-buff)'], debuff: ['eye', 'var(--intent-debuff)'], summon: ['spark', 'var(--intent-buff)'],
   charge: ['bolt', 'var(--intent-buff)'], dazed: ['clock', 'var(--muted)'],
+  thief: ['coin', 'var(--intent-debuff)'], merge: ['spark', 'var(--intent-buff)'],
 };
 const INTENT_TEXT = {
   attack: 'Attack', all: 'Hits everyone', block: 'Defend', guard: 'Shields an ally', heal: 'Heals an ally',
-  buff: 'Strengthens allies for the rest of the fight', debuff: 'Curses a hero', summon: 'Calls for help', charge: 'Gathering power…', dazed: 'Caught off guard: does nothing this round',
+  buff: 'Strengthens allies for the rest of the fight', debuff: 'Curses a hero', summon: 'Calls for help', charge: 'Gathering power…', dazed: 'Caught off guard: does nothing this round', thief: 'Snatches a potion', merge: 'Merges with another',
 };
 
 function fightTitle(f) {
@@ -70,6 +71,8 @@ export function renderCombat(el) {
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
+      hs?.swallowed ? h('div.covered-chip.undertow', { tip: 'Swallowed: no dice, and you take damage each round until the Reef Maw spits you out.' }, 'Swallowed!') : null,
+      hs?.static ? h('div.covered-chip.undertow', { tip: 'Static: any of your dice that rolls 1 or 2 shocks you for 3 this round.' }, 'Static: 1–2 shocks you') : null,
       hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
       (f.covered || []).includes(x) ? h('div.covered-chip', { tip: `Covered\n${S.static.combos.covered.text}` }, `Covered: next hit +3`) : null,
       hpBar(hpOf(x), max),
@@ -95,6 +98,7 @@ export function renderCombat(el) {
       hpBar(Math.max(0, fo.hp), fo.max, true),
       previewRow('f' + fo.id, prev, fo.hp),
       statusRow(fo.st, [...(fo.might ? [`+${fo.might} might`] : []), ...(fo.st.warded ? ['Warded: ½ damage'] : []), ...(fo.st.exposed ? ['Exposed: +50%'] : [])], traitChips(d)),
+      fo.hp > 0 ? foeState(fo, f) : null,
       fo.hp > 0 ? comboHints(fo, f) : null,
       floats('f' + fo.id));
   };
@@ -117,7 +121,7 @@ export function renderCombat(el) {
   const foesIn = row => f.foes.filter(fo => fo.row === row || (row === 'front' && fo.row !== 'back'));
 
   // three or more in a column: shrink them so the column fits
-  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 3 || party ? '.crowd' : '') + (!units.length ? '.empty' : ''), null, h('span.lbl', null, label), ...units);
+  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 2 || party ? '.crowd' : '') + (!units.length ? '.empty' : ''), null, h('span.lbl', null, label), ...units);
   const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), null,
     h('div.side-units' + (allies.length ? '' : '.solo'), null,
       allies.length ? col('Allies', allies.map(unitAlly)) : null,
@@ -279,6 +283,19 @@ export function pincerNums(fo, f, x) {
   if (!last || last[0] === x || (f.pincered || []).includes(fo.id)) return null;
   return [...new Set(last[1].filter(Boolean))].sort((a, b) => a - b);
 }
+function foeState(fo, f) {
+  // what makes this enemy different right now, in words
+  const chips = [];
+  const live = f.heroes.filter(y => f.hs[y] && !f.hs[y].down && !f.hs[y].fled).length;
+  if (fo.bell && !fo.cracked) chips.push(h('span.combo-hint', { tip: `The bell\nHit the Bell-Warden with a die showing ${fo.bell} to crack the bell: +6 damage, and it loses its next action.` }, `Bell ${fo.bell}: hit it with a ${fo.bell}`));
+  if (fo.k === 'lamp_keeper') chips.push(fo.lit === false ? h('span.st', { tip: 'The lamp is out: full damage until the end of next round.' }, 'Dark: full damage')
+    : h('span.combo-hint', { tip: `Lit\nTakes half damage. Hit it with ${Math.min(3, live)} different heroes in one round to put the lamp out (it loses its next action).` }, `Lit: ½ damage · ${(fo.hitr || []).length}/${Math.min(3, live)} heroes`));
+  if (fo.air) chips.push(h('span.st.bad', { tip: 'Airborne: melee attacks can’t reach it. Use ranged attacks and spells.' }, 'Airborne: no melee'));
+  if (fo.loot) chips.push(h('span.st.bad', { tip: 'It has your potion. Kill it before it flies off to get it back.' }, `Has ${S.static.items[fo.loot]?.name || 'loot'} · flees in ${fo.flee_in}`));
+  if (fo.merged) chips.push(h('span.st', { tip: 'Merged: every attack rolls an extra die for each merge.' }, `Merged ×${fo.merged + 1}`));
+  if (fo.gut) chips.push(h('span.st.bad', { tip: 'A hero is inside. Deal this much more damage to it and it spits them out.' }, `Spits out in ${fo.gut} dmg`));
+  return chips.length ? h('div.combo-hints', null, ...chips) : null;
+}
 function comboHints(fo, f) {
   const x = C.tab;
   if (x == null || !f.heroes.includes(x)) return null;
@@ -404,7 +421,9 @@ function intentChip(fo, f) {
   else if (['block', 'guard', 'heal'].includes(it.k)) lines.push(`Rolls ${dt}: ${range} ${it.k === 'heal' ? (it.self ? 'healing for itself' : 'healing for its most hurt ally') : it.k === 'guard' ? (it.all ? 'Armor for every enemy' : 'Armor for its most hurt ally') : 'Armor for itself'}.`);
   else if (it.k === 'buff') lines.push(it.self ? `It gains +${it.v} might for the rest of the fight.` : `Every enemy gains +${it.v} might for the rest of the fight.`);
   else if (it.k === 'summon') lines.push(`Calls a ${S.static.foes[it.f]?.name || 'friend'} into the fight.`);
-  else if (it.k === 'charge') lines.push(A_CHARGE(fo));
+  else if (it.k === 'charge') lines.push(A_CHARGE(fo) + (it.next ? ` Next round: ${S.static.foes[fo.k].moves[it.next]?.name || 'something big'}.` : ''));
+  else if (it.k === 'thief') lines.push('Snatches a potion from this hero’s bag. Kill it within two rounds of the theft to get it back.');
+  else if (it.k === 'merge') lines.push('Merges with another of its kind: their health adds up, and it rolls an extra die.');
   else if (it.k === 'dazed') lines.push('Does nothing this round.');
   if (it.st) lines.push(`${it.st_min ? `If a die rolls ${it.st_min}+: ` : it.k === 'debuff' ? '' : 'On a hit: '}${STATUS[it.st]?.name || it.st}${it.k === 'debuff' && it.dice?.[0]?.v != null ? ` (its die shows ${it.dice[0].v}${it.st_min ? it.dice[0].v >= it.st_min ? ': it will land' : ': it will miss' : ''})` : ''}.`);
   if (it.pair) lines.push(`On doubles: ${it.pair.again ? 'it strikes twice' : STATUS[it.pair.st]?.name || it.pair.st}.`);
@@ -498,7 +517,8 @@ function tray(f, x, my) {
 // coloured top edge for where it comes from, and one icon for anything special about it.
 const SRC = { base: ['Class die', 'var(--src-class)'], weapon: ['Weapon die', 'var(--src-weapon)'], armor: ['Armor die', 'var(--src-armor)'],
   trinket: ['Trinket die', 'var(--src-trinket)'], spirit: ['Spirit die from a fallen ally', 'var(--src-spirit)'], pet: ['Your hawk’s die', 'var(--src-pet)'],
-  anthem: ['From the Anthem of Kings', 'var(--src-spirit)'], gift: ['Given by an ally', 'var(--src-spirit)'], hex: ['Cursed: a hex swapped your biggest die', 'var(--danger)'] };
+  anthem: ['From the Anthem of Kings', 'var(--src-spirit)'], gift: ['Given by an ally', 'var(--src-spirit)'], hex: ['Cursed: a hex swapped your biggest die', 'var(--danger)'],
+  split: ['Split off by your flask', 'var(--src-class)'], graft: ['Grafted from two dice', 'var(--src-class)'], tempo: ['Stolen tempo: a fresh die', 'var(--src-spirit)'] };
 const KIND_ICON = { seer: 'eye', exploding: 'spark', steady: 'refresh', heirloom: 'star', guard: 'shield' };
 function dieButton(d, i, ready) {
   const [srcName, srcCol] = SRC[d.src] || [`From your ${d.src}`, 'var(--border-strong)'];
@@ -521,8 +541,10 @@ function dieButton(d, i, ready) {
   if (d.link) marks.push(h('span.mk', null, icon('link')));
   const f0 = S.game.fight;
   const pinc = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && pincerNums(fo, f0, C.tab)?.includes(d.v)).map(fo => fo.name) : [];
-  if (pinc.length) cls += '.combo';
-  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nPincer +5 on ${pinc.join(', ')}: it matches an ally's die.` : ''}`;
+  const bells = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && fo.bell && !fo.cracked && fo.bell === d.v) : [];
+  if (pinc.length || bells.length) cls += '.combo';
+  if (d.locked) cls += '.locked';
+  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nPincer +5 on ${pinc.join(', ')}: it matches an ally's die.` : ''}${bells.length ? '\nMatches the bell: hit the Bell-Warden with it to crack the bell.' : ''}${d.locked ? '\nCrusted over by a Barnacle Priest: you can’t use it this round.' : ''}`;
   return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
     style: { '--src': srcCol }, disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${size}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
   }, h('span.k', null, i + 1), face,
@@ -886,13 +908,14 @@ function apply(f) {
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
     case 'combo': {
-      const name = S.static.combos?.[f.c]?.name || f.c;
+      const name = S.static.combos?.[f.c]?.name || { bell: 'Bell cracked' }[f.c] || f.c;
       addFloat(f.to, `${name}! +${f.n}`, 'combo');
       sfx.play('rare');
       return 420;
     }
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', unwarded: 'Ward broken!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', unwarded: 'Ward broken!',
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

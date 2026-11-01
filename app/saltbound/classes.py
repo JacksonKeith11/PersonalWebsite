@@ -38,7 +38,8 @@ PASSIVES = {
 
     # ---- Arcanist
     "overcharge": {"name": "Overcharge", "mods": {"overcharge": 2}, "text": "Whenever one of your dice explodes, it adds 2 more."},
-    "kindling": {"name": "Kindling", "mods": {"burn_bonus": 1}, "tags": ["elementalist"], "text": "Your Burns tick 1 harder."},
+    "kindling": {"name": "Kindling", "mods": {"spell_burn": 1, "burn_bonus": 1}, "tags": ["elementalist"],
+                 "text": "Your spell hits also Burn 1, and your Burns tick 1 harder."},
     "cold_snap": {"name": "Cold Snap", "mods": {"frozen_bonus": 3}, "tags": ["elementalist"],
                   "text": "Frozen targets take +3 from you."},
     "malediction": {"name": "Malediction", "mods": {"debuff_ext": 1}, "tags": ["hexer"],
@@ -332,7 +333,7 @@ CLASS_DICE = {
 
 CLASSES = {
     "vanguard": {
-        "name": "Vanguard", "hp": 40, "hp_lvl": 6, "role": "Tank",
+        "name": "Vanguard", "hp": 44, "hp_lvl": 7, "role": "Tank",
         "dice": [D(6), [1, 2, 3, 4, "S", "S"]], "tags": ["bulwark", "juggernaut"],
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard", "overguard"], "weapon": "hand_axe", "armor": "padded_coat",
@@ -342,7 +343,7 @@ CLASSES = {
         "blurb": "Wades in, armoured, and takes the hits meant for everyone else.",
     },
     "arcanist": {
-        "name": "Arcanist", "hp": 21, "hp_lvl": 3, "role": "Area damage and burst",
+        "name": "Arcanist", "hp": 25, "hp_lvl": 4, "role": "Area damage and burst",
         "dice": [D(12), D(4)], "tags": ["elementalist", "hexer"],
         "map": {"key": "farsight", "name": "Farsight", "text": "See 3 hexes around you, and spot cursed items in loot."},
         "start": ["bolt", "channel"], "weapon": "oak_staff", "armor": "wool_robe",
@@ -416,8 +417,8 @@ PASSIVES.update({
     "potency": {"name": "Potency", "mods": {"potion_bonus": 0.5}, "tags": ["elixirs"], "text": "Potions you use heal 50% more."},
     "distiller": {"name": "Distiller", "mods": {"distiller": 1}, "tags": ["elixirs"], "text": "Resting brews two potions instead of one."},
     "deep_pockets": {"name": "Deep Pockets", "mods": {"bag": 2}, "text": "+2 bag slots."},
-    "safety_goggles": {"name": "Field Kit", "mods": {"heal_armor": 3, "burn_immune": 1}, "tags": ["elixirs"],
-                       "text": "Your heals also give 3 Armor, and you can't be Burned."},
+    "safety_goggles": {"name": "Field Kit", "mods": {"heal_armor": 2, "burn_immune": 1}, "tags": ["elixirs"],
+                       "text": "Your heals also give 2 Armor, and you can't be Burned."},
     "chain_reaction": {"name": "Chain Reaction", "cap": True, "mods": {"chain_reaction": 1}, "tags": ["bombs"],
                        "text": "Enemies your bombs kill explode for half their max HP."},
     "philosophers_draught": {"name": "Philosopher's Draught", "cap": True, "mods": {"philosopher": 1}, "tags": ["elixirs"],
@@ -447,7 +448,7 @@ CLASSES.update({
         "blurb": "Fast, precise and deadly against one target at a time.",
     },
     "berserker": {
-        "name": "Berserker", "hp": 28, "hp_lvl": 4, "role": "High-risk damage",
+        "name": "Berserker", "hp": 30, "hp_lvl": 4, "role": "High-risk damage",
         "dice": [D(10), D(4)], "tags": ["bloodlust", "rampage"],
         "map": {"key": "forage", "name": "Forage", "text": "Resting at a camp heals you fully."},
         "start": ["hack_b", "bloodprice"], "weapon": "great_axe", "armor": "hide_vest",
@@ -487,7 +488,7 @@ CLASSES.update({
         "blurb": "Makes everyone else's dice better, and throws enemies off their stride.",
     },
     "alchemist": {
-        "name": "Alchemist", "hp": 25, "hp_lvl": 3, "role": "Items and gadgets",
+        "name": "Alchemist", "hp": 23, "hp_lvl": 3, "role": "Items and gadgets",
         "dice": [D(6), D(6)], "tags": ["bombs", "elixirs"],
         "map": {"key": "brewer", "name": "Brewer", "text": "Brew a potion whenever you rest."},
         "start": ["toss", "tonic_a"], "weapon": "sling", "armor": "leather_apron",
@@ -497,7 +498,7 @@ CLASSES.update({
         "blurb": "Bombs for the enemy, potions for friends, and never enough bag space.",
     },
     "warden": {
-        "name": "Warden", "hp": 24, "hp_lvl": 3, "role": "Summons and control",
+        "name": "Warden", "hp": 26, "hp_lvl": 3, "role": "Summons and control",
         "dice": [D(8), D(6)], "tags": ["grove", "thorns"],
         "map": {"key": "wildspeak", "name": "Wildspeak", "text": "Forest costs you 1 move, and wild beasts won't hunt you."},
         "start": ["thornlash", "sprout"], "weapon": "gnarled_staff", "armor": "hide_vest",

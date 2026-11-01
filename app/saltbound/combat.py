@@ -25,7 +25,10 @@ ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the
 ONE_SHOT = ("stun", "freeze", "shock", "hex")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
-ROAM_HP = 1.5   # enemies met on the map (roaming groups and lairs) have this much more health
+# Enemies met on the map (roaming groups and lairs) last longer but hit softer, so those fights
+# take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
+ROAM_HP = 2.2
+ROAM_DMG = 0.55
 CURSED_DIE = ["X", 1, 2, 3]
 
 # Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).
@@ -149,10 +152,15 @@ class Combat(Foes):
         s["fight"] = f
         s["phase"] = "fight"
         grow = max(0, s["rises"] - 10) * 0.1 if spec["kind"] == "boss" else 0
-        if spec["kind"] in ("roam", "lair"):
-            grow = ROAM_HP - 1
+        roam = spec["kind"] in ("roam", "lair")
+        if roam:
+            f["dmul"] *= ROAM_DMG
         for k in spec["foes"]:
             key, hp, aff = (k["k"], k.get("hp"), k.get("aff")) if isinstance(k, dict) else (k, None, None)
+            if roam and not aff and not A.FOES[key].get("big"):
+                grow = ROAM_HP - 1
+            elif roam:
+                grow = 0
             self.add_foe(key, hp, grow, aff)
         for h in f["heroes"]:
             hero = self.hero(h)
@@ -1116,6 +1124,10 @@ class Combat(Foes):
                                 n *= 2
                         done = self.hurt_foe(t, n, h, pierce=pierce_all or op.get("pierce") or m.get("pierce_all"), bomb=a.get("bomb"))
                         dealt_any = True
+                        if a.get("spell") and m.get("spell_burn") and done and t["hp"] > 0:
+                            t["st"]["burn"] = t["st"].get("burn", 0) + 1
+                            self.fx("st", to=f"f{t['id']}", s="burn")
+                            self.foe_status_by(t, "burn", h)
                         if a.get("spell") and m.get("spell_chain") and a["tgt"] == "foe" and "chain" not in combo_used:
                             combo_used.add("chain")
                             others = [o for o in self.foes() if o is not t]

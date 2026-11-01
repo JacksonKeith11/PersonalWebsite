@@ -250,16 +250,16 @@ have no rows, and several skills were reworked: see "Overhaul: no rows, enemy di
 
 | Class | HP (per level) | Base dice | Map ability (hook) | Role | Tags |
 |---|---|---|---|---|---|
-| Vanguard | 40 (+6) | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
+| Vanguard | 44 (+7) | d6, Shield die (1-4, two shield faces) | **Trailbreaker**: rough terrain costs 1 (`on_move_cost`) | Tank | Bulwark, Juggernaut |
 | Duelist | 24 (+3) | d8, d6 | **Ambush**: a fight they start gives the party a free first round (`on_combat_start`) | Single-target damage | Flurry, Precision |
-| Berserker | 28 (+4) | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
+| Berserker | 30 (+4) | d10, d4 | **Forage**: camps heal them fully (`on_rest`) | High-risk damage | Bloodlust, Rampage |
 | Ranger | 26 (+4) | d8, d6 | **Tracker**: sees enemy moves 2 turns ahead; +1 move off roads (`on_reveal`, `on_move_cost`) | Ranged damage | Marksman, Beastmaster |
-| Arcanist | 21 (+3) | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
+| Arcanist | 25 (+4) | d12, d4 | **Farsight**: reveals fog in radius 3; spots cursed items in loot (`on_reveal`, `on_loot`) | AoE and burst | Elementalist, Hexer |
 | Mender | 20 (+3) | d6, d6 | **Field Medic**: resting on their hex heals everyone there an extra 10% of max HP (`rest`) | Healer | Restoration, Warding |
 | Scoundrel | 24 (+3) | d6, d6 | **Light Fingers**: +1 loot choice; disarms traps (`on_loot`, `on_event`) | Debuffs and loot | Poisons, Tricks |
 | Herald | 20 (+3) | d6, d4 | **Silver Tongue**: shops 20% cheaper; extra event options (`on_shop`, `on_event`) | Buffs for allies | Anthem, Discord |
-| Alchemist | 25 (+3) | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
-| Warden | 24 (+3) | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
+| Alchemist | 23 (+3) | d6, d6 | **Brewer**: makes a potion at each rest (`on_rest`) | Items and gadgets | Bombs, Elixirs |
+| Warden | 26 (+3) | d8, d6 | **Wildspeak**: neutral beasts ignore them; forest costs 1 (`on_combat_start`, `on_move_cost`) | Summons and control | Grove, Thorns |
 
 The Pathfinder was designed and dropped; its "+2 move, reveal fog along path" became the
 Scoundrel's *Wayfinder* passive.
@@ -330,7 +330,7 @@ Scoundrel's *Wayfinder* passive.
   die: its value and Shock) [Elementalist]; Hex (any: Weak and Vulnerable) [Hexer]; Siphon (≥4:
   deal its value, heal half) [Hexer]; Doom (exactly 1: the target takes 20 at the end of next
   round) [Hexer].
-- **Passives**: Overcharge (a d12 showing 12 is rolled again and added); Kindling (Burn ticks +1)
+- **Passives**: Overcharge (a d12 showing 12 is rolled again and added); Kindling (your spell hits Burn 1, and Burn ticks +1)
   [Elementalist]; Cold Snap (Frozen targets take +3) [Elementalist]; Malediction (your debuffs last
   1 round longer) [Hexer]; Arcane Shield (start each fight with 6 Armor); Spell Echo (your first
   spell each fight casts twice, the second at half strength).
@@ -735,8 +735,17 @@ move pools, bigger single threats), more rule-bending items, and cross-hero comb
   of spawns). Sprites are in `tools/saltbound-art/foes.py`.
 - **Longer fights**: every non-boss enemy has 1.35x its listed health (`FOE_HP`). Dungeon fights now
   take 3.2 rounds on Normal (3.0 before), 3.7 on Hard. Enemies met on the map (roaming groups and
-  lairs) get another 1.5x (`ROAM_HP` in `combat.py`), so a roaming fight takes 2.6 rounds on Normal
-  (1.9 before) and 2.7 on Hard (2.1), at Normal 78% and Hard 30% (100 runs each).
+  lairs) get another 2.2x (`ROAM_HP` in `combat.py`) but deal 0.55x damage (`ROAM_DMG`), so a
+  roaming fight lasts longer without being deadlier: 3.4 rounds on Normal and 3.9 on Hard (it was
+  1.9 and 2.1). Elites and big threats skip both: they're meant to be dangerous. Every fight kind
+  now averages 3+ rounds.
+- **Class rebalance after the longer fights** (the first try, 1.5x health and full damage, dropped
+  Hard to 18%): Vanguard 44 HP (+7 a level), Arcanist 25 (+4), Berserker 30, Warden 26, Alchemist 23;
+  Field Kit gives 2 Armor per heal (not 3); Kindling, a dull pick, now also makes your spell hits
+  Burn 1 (it feeds Wildfire). Hard 28% over 300 runs (seeds from 5000): Mender 36%, Alchemist 34%,
+  Duelist 31%, Scoundrel 29%, Warden 27%, Berserker 26%, Herald 26%, Ranger 25%, Vanguard 23%,
+  Arcanist 22% (it was 10% to 27% before the pass). Normal 85% (150 runs). Hard runs mostly end
+  around level 4-5, so HP per level barely moves them; starting HP does.
 - **Cross-hero combos** (`COMBOS` in `classes.py` for the words, numbers at the top of `combat.py`):
   Pincer (your die shows a number an ally's die showed against that enemy this round: +3), Covered
   (your first hit after an ally Guards or Taunts for you this round: +3), Shatter (hitting an enemy
@@ -752,8 +761,8 @@ move pools, bigger single threats), more rule-bending items, and cross-hero comb
   rerolls anyway for 3 HP), Bosun's Whistle (your combos +2), Bosun's Bell (an action: pass one of
   your dice to an ally) and Sea-Glass Lens (your armor's die can go on attacks). Trinkets can now
   give actions, as weapons do.
-- **Balance after it** (100 runs each): Normal 80% (was 91%, back at the old target), Hard 30% (was
-  35%; classes 22-38%, inside the noise of 100 runs). The multipliers are untouched.
+- **Balance after it** (100 runs each): Normal 80% (was 91%), Hard 30% (was 35%). Superseded by the
+  rebalance above. The multipliers are untouched.
 - **Saves are v4** (`save._v3`): a dungeon part-way through goes on with the first lineup of its next
   step.
 

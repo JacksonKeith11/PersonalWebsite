@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=38';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=38';
-import { spriteURL } from './art.js?v=38';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=38';
-import { MapView } from './hexmap.js?v=38';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=38';
-import { disconnect } from './main.js?v=38';
-import * as sfx from './audio.js?v=38';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=39';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=39';
+import { spriteURL } from './art.js?v=39';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=39';
+import { MapView } from './hexmap.js?v=39';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=39';
+import { disconnect } from './main.js?v=39';
+import * as sfx from './audio.js?v=39';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -433,10 +433,13 @@ function itemRow(key, right, extra) {
   const it = item(key);
   const sub = [];
   if (it.slot !== 'use') sub.push(it.slot[0].toUpperCase() + it.slot.slice(1));
-  if (it.die) sub.push(faceRow(it));
+  // a long die (8+ faces) gets its own line rather than wrapping after a dangling separator
+  const long = it.die && it.die.length > 6;
+  if (it.die && !long) sub.push(faceRow(it));
   return h('div.item.r-' + it.rarity, { tip: itemTip(key) },
     h('div.ico', null, icon(SLOT_ICON[it.slot] || 'spark')),
     h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')),
+      long ? h('div.sub', null, faceRow(it)) : null,
       it.text && it.slot !== 'use' ? h('div.passive', null, it.text) : null, extra || null),
     h('div.acts', null, right));
 }
@@ -468,6 +471,7 @@ function compareWith(h0, key, compact) {
     it.die && cur.die ? h('span.cmp-diff' + (diff > 0.05 ? '.up' : diff < -0.05 ? '.down' : ''), { tip: 'Change in the die’s average roll' },
       diff > 0.05 ? `▲ +${diff.toFixed(1)} avg` : diff < -0.05 ? `▼ ${diff.toFixed(1)} avg` : '= same avg') : null,
     !compact && acts.length ? h('span.cmp-acts', null, `Actions: ${acts.join(', ')}${lost.length ? ` (you'd lose ${lost.join(', ')})` : ''}`) : null,
+    compact && lost.length ? h('span.cmp-acts', null, `You'd lose ${lost.join(', ')}`) : null,
     !compact && cur.text ? h('span.cmp-pass', null, cur.text) : null);
 }
 function interleave(arr, sep) { return arr.flatMap((x, i) => (i ? [sep, x] : [x])); }

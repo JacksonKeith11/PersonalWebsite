@@ -904,8 +904,8 @@ no clock anywhere: the run changes only when someone acts.
   `node tools/saltbound-shots.js [url] [dir] [WxH]` screenshots the real UI against a running server
   (bots play; it takes over a hero when a fight starts). `node tools/saltbound-audit.js [url] [dir]
   [WxH] [scenario...]` is for reviewing particular moments: `tools/saltbound-audit.py` plays bots to
-  one (`start`, `loot`, `level`, `event`, `fight`, `boss`, `won`, `lost`) and saves it for the token
-  "audit", and the browser resumes that save and screenshots it. Run both at 1440x900 and 390x844.
+  one (`start`, `loot`, `level`, `event`, `fight`, `fork`, `boss`, `won`, `lost`) and saves it for the token
+  "audit", and the browser resumes that save and screenshots it. Run both at 1440x900 and 390x844; set `SALTBOUND_DB` the same for the server and the tool when testing on a scratch database.
 - The title screen gets your saved runs over HTTP (`GET /games/saltbound/saves?token=`), so they
   show before you join a room; in a room they still come over the socket.
 - Loot can go straight on (`choose` with `equip: true`, `Game.wear`): what it replaces goes into the

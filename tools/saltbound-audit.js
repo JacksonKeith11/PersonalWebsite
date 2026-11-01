@@ -11,7 +11,7 @@ const { execFileSync } = require('child_process');
 const base = process.argv[2] || 'http://localhost:8765';
 const out = process.argv[3] || 'audit';
 const [W, H] = (process.argv[4] || '1440x900').split('x').map(Number);
-const names = process.argv.slice(5).length ? process.argv.slice(5) : ['start', 'loot', 'level', 'event', 'fight', 'boss', 'won', 'lost'];
+const names = process.argv.slice(5).length ? process.argv.slice(5) : ['start', 'loot', 'level', 'event', 'fight', 'fork', 'boss', 'won', 'lost'];
 fs.mkdirSync(out, { recursive: true });
 
 (async () => {

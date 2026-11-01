@@ -85,7 +85,7 @@ ACTIONS = {
 
     # ---- Vanguard
     "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+2+armor//2"}],
-               "text": "Deal the die +2, plus half your Armor (Brace first)."},
+               "text": "Deal the die +2, plus half your Armor (gain Armor first: Block, Guard...)."},
     "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+2", "to": "self"}],
               "text": "The first attack aimed at an ally swings to you instead. Gain the die +2 as Armor."},
     "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+2"}],

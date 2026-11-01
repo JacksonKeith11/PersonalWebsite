@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=38';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=38';
-import { spriteURL } from './art.js?v=38';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=38';
-import { render } from './main.js?v=38';
-import * as sfx from './audio.js?v=38';
+import { S, send, mine } from './store.js?v=39';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=39';
+import { spriteURL } from './art.js?v=39';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=39';
+import { render } from './main.js?v=39';
+import * as sfx from './audio.js?v=39';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -117,7 +117,7 @@ export function renderCombat(el) {
   const foesIn = row => f.foes.filter(fo => fo.row === row || (row === 'front' && fo.row !== 'back'));
 
   // three or more in a column: shrink them so the column fits
-  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 3 || party ? '.crowd' : ''), null, h('span.lbl', null, label), ...units);
+  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 3 || party ? '.crowd' : '') + (!units.length ? '.empty' : ''), null, h('span.lbl', null, label), ...units);
   const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), null,
     h('div.side-units' + (allies.length ? '' : '.solo'), null,
       allies.length ? col('Allies', allies.map(unitAlly)) : null,

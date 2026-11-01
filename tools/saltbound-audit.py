@@ -32,6 +32,7 @@ SCENARIOS = {
     "fight": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and g.s["fight"]["round"] >= 2
     and not g.s["pending"]["0"],
     "boss": lambda g: g.s["phase"] == "fight" and g.s["fight"]["kind"] == "boss",
+    "fork": lambda g: g.s["phase"] == "fork" and 0 in g.s["fork"]["heroes"],
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }

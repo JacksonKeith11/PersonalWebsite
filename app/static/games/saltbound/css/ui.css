@@ -1011,3 +1011,12 @@ a:hover { color: var(--accent-hi); }
   background: rgba(255, 196, 80, 0.12); border: 1px dashed rgba(255, 196, 80, 0.6); white-space: nowrap; }
 .die.tile.combo { box-shadow: 0 0 0 2px #ffd36b, 0 0 14px rgba(255, 200, 80, 0.55); }
 .covered-chip.undertow { color: #8fd8ff; }
+
+/* audit fixes: an empty enemy row keeps its place but drops its label; phones give the roll tray room */
+.col.empty .lbl { visibility: hidden; }
+@media (max-width: 700px) {
+  .stage { padding-top: 80px; }
+  .col.empty { display: none; }
+  .roll-tray .rt-need { display: none; }
+  .planstrip > span.muted { display: none; }
+}

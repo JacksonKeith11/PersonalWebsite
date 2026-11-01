@@ -2,9 +2,9 @@
 // Halloween, so these keep a plain look, close to the Mario Party games they're based on.
 // They're made for a keyboard and mouse.
 
-import { Game, TEAM_COLORS } from './base.js?v=7';
-import { Arena } from './games-live.js?v=7';
-import * as art from './art.js?v=7';
+import { Game, TEAM_COLORS } from './base.js?v=8';
+import { Arena } from './games-live.js?v=8';
+import * as art from './art.js?v=8';
 
 const now = () => performance.now() / 1000;
 const ARROWS = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'];

@@ -2,10 +2,11 @@
 // what you can do this turn, the log) and the minigame overlays. The server sends the whole
 // room state whenever it changes, and this redraws from it.
 
-import { Board, ROUTE_COLORS } from './board.js?v=7';
-import { Stage } from './mg.js?v=7';
-import { TEAM_COLORS } from './base.js?v=7';
-import * as sfx from './audio.js?v=7';
+import { Board, ROUTE_COLORS } from './board.js?v=8';
+import { Stage } from './mg.js?v=8';
+import { TEAM_COLORS } from './base.js?v=8';
+import * as sfx from './audio.js?v=8';
+import { GameSocket, identity } from '../../shared/net.js?v=1';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -13,17 +14,7 @@ const now = () => performance.now() / 1000;
 
 // ---------------------------------------------------------------- who this browser is
 
-const KEY = 'brawl';
-const randomId = () => Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-let saved = {};
-try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch { /* private mode */ }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* private mode */ } };
-if (!saved.token) { saved.token = randomId(); save(); }
-let tab = '';
-try {
-  tab = sessionStorage.getItem(`${KEY}-tab`) || randomId();
-  sessionStorage.setItem(`${KEY}-tab`, tab);
-} catch { tab = randomId(); }
+const { saved, save, tab } = identity('brawl');
 
 const S = { you: null, code: null, board: null, items: {}, prizes: {}, st: null, waitUntil: null, picking: null, lastCur: null };
 let board = null;
@@ -31,42 +22,26 @@ const stage = new Stage($('mg-stage'), $('mg'), $('mg-text'));
 
 // ---------------------------------------------------------------- the connection
 
-let ws = null, wanted = false, retry = 1, join = null;
-
-function connect(opts) {
-  join = opts;
-  wanted = true;
-  open();
-}
+let join = null;
 
 // this page's ?v=, so the server can tell a tab left open across a deploy to reload
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 
-function open() {
-  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/games/board-brawl/ws`);
-  ws = sock;
-  status('Connecting…');
-  sock.onopen = () => {
-    retry = 1;
-    sock.send(JSON.stringify({
-      t: 'hello', v: VERSION, name: saved.name || 'Player', token: saved.token, tab,
-      room: S.code || join.room || '', create: !S.code && !!join.create,
-    }));
-  };
-  sock.onmessage = e => receive(JSON.parse(e.data));
-  sock.onclose = () => {
-    if (ws !== sock) return;
-    ws = null;
-    if (!wanted) return;
-    status(`Disconnected. Reconnecting in ${retry}s…`);
-    setTimeout(() => { if (wanted && !ws) open(); }, retry * 1000);
-    retry = Math.min(retry * 2, 16);
-  };
+const sock = new GameSocket('/games/board-brawl/ws', {
+  hello: () => ({
+    t: 'hello', v: VERSION, name: saved.name || 'Player', token: saved.token, tab,
+    room: S.code || join.room || '', create: !S.code && !!join.create,
+  }),
+  onMessage: m => receive(m),
+  onStatus: text => status(text),
+});
+
+function connect(opts) {
+  join = opts;
+  sock.open();
 }
 
-function send(m) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(m));
-}
+function send(m) { sock.send(m); }
 
 function status(text) {
   $('status').textContent = text;
@@ -95,11 +70,11 @@ function receive(m) {
     // once per version, in case something keeps serving the old page
     let tried = null;
     try { tried = sessionStorage.getItem('brawl-reload'); sessionStorage.setItem('brawl-reload', VERSION); } catch {}
-    wanted = false;
+    sock.stop();
     if (tried !== VERSION) location.reload();
     else status('Board Brawl has just been updated: reload the page to play.');
   } else if (m.t === 'error') {
-    wanted = false;
+    sock.stop();
     S.code = null;
     history.replaceState(null, '', '/games/board-brawl');
     show('menu');

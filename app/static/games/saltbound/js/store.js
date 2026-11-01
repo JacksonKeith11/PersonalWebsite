@@ -1,19 +1,17 @@
 // Shared client state and the socket's send(), so screens don't import each other.
+import { identity } from '../../shared/net.js?v=1';
+
 export const S = {
   you: null, code: null, static: null, world: null, room: null, game: null, saves: [],
   sel: null, lastFx: 0, fresh: true, settings: { speed: 1, volume: 0.6, music: 0.5 }, seenHints: {},
 };
 
-const KEY = 'saltbound';
-const randomId = () => Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-export let saved = {};
-try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch { /* private mode */ }
-export function persist() { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* private mode */ } }
-if (!saved.token) { saved.token = randomId(); persist(); }
+const me = identity('saltbound');
+export const saved = me.saved;
+export const persist = me.save;
+export const tab = me.tab;
 if (saved.settings) Object.assign(S.settings, saved.settings);
 if (saved.hints) S.seenHints = saved.hints;
-export let tab = '';
-try { tab = sessionStorage.getItem(`${KEY}-tab`) || randomId(); sessionStorage.setItem(`${KEY}-tab`, tab); } catch { tab = randomId(); }
 
 let sender = () => {};
 export function setSender(fn) { sender = fn; }

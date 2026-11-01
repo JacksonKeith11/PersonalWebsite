@@ -3,13 +3,13 @@
 // screen's shape. It runs the 3-2-1 countdown, the timer
 // and the FINISH banner, and hands games the keyboard, pointer and server snapshots.
 
-import * as sfx from './audio.js?v=7';
-import { SOLO } from './games-solo.js?v=7';
-import { LIVE } from './games-live.js?v=7';
-import { MORE } from './games-more.js?v=7';
-import { CLASSIC } from './games-classic.js?v=7';
-import { SHOWDOWN } from './games-showdown.js?v=7';
-import { Game, TEAM_COLORS } from './base.js?v=7';
+import * as sfx from './audio.js?v=8';
+import { SOLO } from './games-solo.js?v=8';
+import { LIVE } from './games-live.js?v=8';
+import { MORE } from './games-more.js?v=8';
+import { CLASSIC } from './games-classic.js?v=8';
+import { SHOWDOWN } from './games-showdown.js?v=8';
+import { Game, TEAM_COLORS } from './base.js?v=8';
 
 const GAMES = { ...SOLO, ...LIVE, ...MORE, ...CLASSIC, ...SHOWDOWN };
 const now = () => performance.now() / 1000;

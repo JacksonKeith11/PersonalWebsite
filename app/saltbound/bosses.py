@@ -1,0 +1,121 @@
+"""Bosses and enemies with rules of their own: the Drowned Crown's phases and Undertow, the
+Bell-Warden's bell, the Lamp Keeper's lamp, the Iron Bosun's crew, thieving Harpies, splitting
+enemies and the Reef Maw's swallow. Mixed into `Game` through `Combat`."""
+
+from .content import archipelago as A
+from .tuning import LAMP_DOUSE, UNDERTOW
+
+
+class Bosses:
+    def crown_warded(self, fo):
+        return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
+
+    def boss_phase(self):
+        """The Drowned Crown's phases. 1: warded while a Tide Guard stands. 2 (two thirds health):
+        the Undertow drags one hero under each round. 3 (a third): its guards drown, and it fights
+        alone, exposed (takes 50% more) and furious (every attack rolls an extra die)."""
+        f = self.s["fight"]
+        crown = next((fo for fo in self.foes() if A.FOES[fo["k"]].get("final")), None)
+        if not crown:
+            return
+        frac = crown["hp"] / crown["max"]
+        if f["phase"] == 1 and frac <= 0.66:
+            f["phase"] = 2
+            self.say("The sea pours over the peak: each round the Undertow drags someone under. Armor or a Guard stops it.")
+            self.fx("phase", n=2)
+        elif f["phase"] == 2 and frac <= 0.33:
+            f["phase"] = 3
+            for fo in self.foes():
+                if fo is not crown:
+                    fo["hp"] = 0
+                    self.fx("die", to=f"f{fo['id']}")
+            crown["fury"] = True
+            self.say("The Drowned Crown stands alone: exposed, and furious.")
+            self.fx("phase", n=3)
+
+    def foe_round(self):
+        """Start-of-round enemy upkeep: the Bell-Warden's bell number, the Lamp Keeper's lamp, the Iron
+        Bosun's crew, Harpies running off with loot, Splitting elites."""
+        f = self.s["fight"]
+        for fo in list(self.foes()):
+            fo["hitr"] = []
+            if fo["k"] == "bell_warden":
+                fo["bell"] = self.rng.randint(1, 6)
+                fo["cracked"] = False
+            if fo["k"] == "lamp_keeper":
+                fo["lit"] = f["round"] > fo.get("dark_until", 0)
+            if fo.get("bl") and A.FOES[fo["k"]].get("bloodied", {}).get("rule") == "allhands" and len(self.foes()) < 5:
+                new = self.add_foe("deckhound")
+                new["intent"] = {"k": "dazed", "name": "Just arrived"}
+                self.fx("summon", f=new["id"])
+            if fo.get("loot"):
+                fo["flee_in"] = fo.get("flee_in", 2) - 1
+                if fo["flee_in"] <= 0:
+                    fo["hp"] = 0
+                    self.fx("st", to=f"f{fo['id']}", s="flees")
+                    self.fx("die", to=f"f{fo['id']}")
+                    self.say(f"{fo['name']} flies off with the loot.")
+
+    def foe_hit_hooks(self, fo, n, h, pure):
+        """After a hero's hit lands on an enemy (and it lived): Splitting elites, Jellyfloats, the Lamp
+        Keeper's lamp, the Reef Maw's gut."""
+        f = self.s["fight"]
+        d = A.FOES[fo["k"]]
+        if h is not None and n > 0:
+            fo.setdefault("hitr", [])
+            if h not in fo["hitr"]:
+                fo["hitr"].append(h)
+        if fo["k"] == "lamp_keeper" and fo.get("lit", True) and len(fo.get("hitr", [])) >= min(LAMP_DOUSE, len(self.actives())):
+            fo["lit"] = False
+            fo["dark_until"] = f["round"] + 1
+            fo["st"]["stun"] = 1
+            self.fx("st", to=f"f{fo['id']}", s="doused")
+            self.say("The lamp goes out! The Lamp Keeper reels in the dark.")
+        splits = (d.get("splits") and n > 0) or (fo.get("aff") == "splitting" and len(fo.get("hitr", [])) >= 2)
+        if splits and not fo.get("split") and fo["hp"] >= 4 and len(self.foes()) < 5:
+            fo["split"] = True
+            half = fo["hp"] // 2
+            fo["hp"] -= half
+            new = self.add_foe(fo["k"], half)
+            new["split"] = True
+            new["intent"] = {"k": "dazed", "name": "Just split off"}
+            self.fx("summon", f=new["id"])
+            self.fx("st", to=f"f{fo['id']}", s="splits")
+        if fo.get("gut") and n > 0:
+            fo["gut"] -= n
+            if fo["gut"] <= 0:
+                self.release_swallowed(fo)
+
+    def release_swallowed(self, fo):
+        fo.pop("gut", None)
+        for k, x in self.s["fight"]["hs"].items():
+            if x.get("swallowed") == fo["id"]:
+                x.pop("swallowed")
+                self.fx("st", to=f"h{k}", s="spat out")
+                self.say(f"{self.hero(int(k))['name']} is spat out!")
+
+    def crown_round(self):
+        """At the start of a round: show the Crown's ward, and pick who the Undertow drags."""
+        f = self.s["fight"]
+        crown = next((fo for fo in self.foes() if A.FOES[fo["k"]].get("final")), None)
+        if not crown:
+            return
+        crown["st"].pop("warded", None)
+        crown["st"].pop("exposed", None)
+        if self.crown_warded(crown):
+            crown["st"]["warded"] = 1
+        elif f["phase"] >= 3:
+            crown["st"]["exposed"] = 1
+        if f["phase"] >= 2 and self.actives():
+            y = self.rng.choice(self.actives())
+            n = max(1, round(UNDERTOW * f["dmul"]))
+            self.hs(y)["st"]["undertow"] = n
+            self.fx("st", to=f"h{y}", s="undertow")
+
+    def undertow(self):
+        """At the end of a round: the Undertow lands (Armor blocks it; a Guard takes it)."""
+        for h in self.actives():
+            n = self.hs(h)["st"].pop("undertow", 0)
+            if n:
+                self.fx("st", to=f"h{h}", s="dragged")
+                self.hurt_hero(h, n, None)

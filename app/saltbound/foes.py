@@ -29,11 +29,11 @@ something extra on doubles (`st`/`sn`, or `again` to hit a second time). Targeti
 """
 
 from .content import archipelago as A
+from .tuning import SWALLOW_GUT
 
 ELEMENT = {"F": "burn", "I": "freeze", "P": "poison"}
 SKULL_SELF = 2
 SHIELD_FACE = 3
-SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of its health
 
 
 def _face(f):
@@ -418,7 +418,6 @@ class Foes:
     def foe_do(self, fo, it, k, rolled, tags, frozen=False, pair=False):
         """An enemy's move landing, its dice already rolled."""
         f = self.s["fight"]
-        d = A.FOES[fo["k"]]
         vals = [r["v"] for r in rolled]
         bonus = it.get("bonus", 0)
         top = max(vals) if vals else 0

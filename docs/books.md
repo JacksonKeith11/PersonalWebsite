@@ -52,8 +52,9 @@ Read this before changing `app/books/` or `app/static/books/`.
 
 ## Gotchas
 
-- **Bump `ASSET_VERSION`** in `pages.py` when changing any `app/static/books/` file. Cloudflare
-  caches `/static`, and the service worker keys its shell cache on that version.
+- **Bump `ASSET_VERSION`** in `pages.py` when changing any `app/static/books/` file (`python3
+  tools/bump-version.py app/static/books` does it). Cloudflare caches `/static`, and the service
+  worker keys its shell cache on that version.
 - **Bump `FORMAT`** in `epub.py` when changing how chapters come out of an EPUB. At startup
   `refresh_all` rebuilds older books from their stored EPUB. Narration survives if the spoken text
   is unchanged.

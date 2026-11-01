@@ -1,57 +1,42 @@
 // Saltbound in the browser: the connection, and choosing which screen to show from the room
 // state the server sends whenever anything changes.
-import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=41';
-import { $, toast } from './ui.js?v=41';
-import { renderTitle, renderLobby, renderEnd } from './screens.js?v=41';
-import { renderGame, handleFx, teardownGame } from './hud.js?v=41';
-import { combatBusy } from './combat.js?v=41';
-import * as sfx from './audio.js?v=41';
+import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=43';
+import { $, toast } from './ui.js?v=43';
+import { renderTitle, renderLobby, renderEnd } from './screens.js?v=43';
+import { renderGame, handleFx, teardownGame } from './hud.js?v=43';
+import { combatBusy } from './combat.js?v=43';
+import * as sfx from './audio.js?v=43';
+import { GameSocket } from '../../shared/net.js?v=1';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('bots');
 
-let ws = null, wanted = false, retry = 1, join = null;
+let join = null;
+const sock = new GameSocket('/games/saltbound/ws', {
+  hello: () => ({
+    t: 'hello', v: VERSION, name: saved.name || 'Sailor', token: saved.token, tab, debug: DEBUG,
+    room: S.code || join.room || '', create: !S.code && !!join.create,
+  }),
+  onMessage: m => receive(m),
+  onStatus: text => setStatus(text),
+  onClose: retry => { if (retry) toast(`Connection lost. Reconnecting in ${retry}s…`, 'err'); },
+});
 
 export function connect(opts) {
   join = opts;
-  wanted = true;
-  open();
+  sock.open();
 }
 
 export function disconnect() {
-  wanted = false;
   S.code = null; S.room = null; S.game = null; S.world = null;
-  if (ws) ws.close();
+  sock.close();
   history.replaceState(null, '', location.pathname + (DEBUG ? '?bots' : ''));
   teardownGame();
   render();
 }
 
-function open() {
-  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/games/saltbound/ws`);
-  ws = sock;
-  setStatus('Connecting…');
-  sock.onopen = () => {
-    retry = 1;
-    sock.send(JSON.stringify({
-      t: 'hello', v: VERSION, name: saved.name || 'Sailor', token: saved.token, tab, debug: DEBUG,
-      room: S.code || join.room || '', create: !S.code && !!join.create,
-    }));
-  };
-  sock.onmessage = e => receive(JSON.parse(e.data));
-  sock.onclose = () => {
-    if (ws !== sock) return;
-    ws = null;
-    if (!wanted) return;
-    setStatus(`Disconnected. Reconnecting in ${retry}s…`);
-    toast(`Connection lost. Reconnecting in ${retry}s…`, 'err');
-    setTimeout(() => { if (wanted && !ws) open(); }, retry * 1000);
-    retry = Math.min(retry * 2, 16);
-  };
-}
-
-setSender(m => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); });
+setSender(m => sock.send(m));
 
 function setStatus(text) { const el = $('status'); if (el) el.textContent = text; }
 
@@ -82,7 +67,7 @@ function receive(m) {
       break;
     }
     case 'err': toast(m.msg, 'err'); sfx.play('error'); break;
-    case 'error': wanted = false; S.code = null; render(); setStatus(m.msg); toast(m.msg, 'err'); break;
+    case 'error': sock.stop(); S.code = null; render(); setStatus(m.msg); toast(m.msg, 'err'); break;
     case 'reload': location.reload(); break;
   }
 }

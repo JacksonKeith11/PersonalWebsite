@@ -181,7 +181,7 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
 | `app/brawl/classics.py` | Minigames from the owner's friends' favourites thread. |
 | `app/brawl/showdown.py` | More one-against-the-rest minigames. |
 | `app/brawl/content.py` | Trivia questions, draw-and-guess words, potion sums. |
-| `app/brawl/routes.py` | `GET /games/board-brawl` and the WebSocket at `/games/board-brawl/ws`. |
+| `app/brawl/routes.py` | `GET /games/board-brawl` and the WebSocket at `/games/board-brawl/ws`, through the shared `app/rooms.py` (`docs/site.md`); rooms by code are `game.ROOMS`. |
 | `app/static/games/brawl/index.html`, `game.css` | The page: menu, lobby, board screen, overlays. |
 | `js/main.js` | The connection, rendering the room state, the turn controls, the overlays. |
 | `js/board.js` | Draws the board, scenery, pieces, dice and effects on a canvas. |
@@ -219,8 +219,8 @@ report `prog` and `done`; their bots are scripted (`Scripted.plans`). Team games
   corners are, and a smaller cutoff turned the points where three tiles meet into holes, so
   people fell while crossing the board.
 - **Every module URL carries `?v=N`, and they must all match** (Cloudflare caches `/static`, and a
-  module loaded under two URLs runs twice). When changing any of the game's JS or CSS, bump them
-  together: `grep -rn "?v=" app/static/games/brawl`.
+  module loaded under two URLs runs twice). After changing any of the game's JS or CSS, run
+  `python3 tools/bump-version.py app/static/games/brawl`: it bumps every link together.
 - `base.js` exists so the game modules and `mg.js` don't import each other (a circular import
   would hit `Game` before it's defined).
 - The minigame canvas is 420-800 logical units wide (the screen's width in CSS pixels, within

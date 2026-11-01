@@ -10,7 +10,8 @@ from itertools import combinations
 
 from . import classes as C
 from . import world as Wd
-from .combat import Invalid, _amt, check_hit, top_face
+from .combat import Invalid
+from .dice import amt, check_hit, top_face
 from .content import archipelago as A
 from .content import items as I
 
@@ -473,17 +474,18 @@ _COMBOS = {}
 
 
 def dice_combos(g, h, dice):
-    key = (h, g.s["fight"].get("hymn", 0), g.mods(h).get("sleight", 0), tuple(die_sig(d) + (d.get("rolled"), d.get("tag")) for d in dice))
+    """Every way these dice could come up, [(values, tags, chance, dice variables)], cached: the
+    same dice are scored on many actions and targets."""
+    x = g.hs(h)
+    key = (h, g.s["fight"].get("hymn", 0), g.mods(h).get("sleight", 0), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
+           tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:
         if len(_COMBOS) > 4096:
             _COMBOS.clear()
-        got = _COMBOS[key] = _dice_combos(g, h, dice)
+        got = _COMBOS[key] = [(vals, tags, pr, g.dice_env(h, vals, tags))
+                              for vals, tags, pr in g.joint_outcomes(h, dice, cap=COMBO_CAP)]
     return got
-
-
-def _dice_combos(g, h, dice):
-    return g.joint_outcomes(h, dice, cap=COMBO_CAP)
 
 
 def new_eff():
@@ -503,7 +505,13 @@ def evaluate(g, b, h, a, dice, tgt):
     plus = 2 if a["plus"] else 0
     eff = new_eff()
     total = 0.0
-    for vals, tags, pr in dice_combos(g, h, dice):
+    bonus = {}  # the hero's flat damage bonus on each target: the same for every outcome
+
+    def dmg_bonus(t):
+        if t["id"] not in bonus:
+            bonus[t["id"]] = g.dmg_bonus(h, a, t)
+        return bonus[t["id"]]
+    for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         val = 0.0
         dealt = {}
@@ -512,30 +520,36 @@ def evaluate(g, b, h, a, dice, tgt):
             k = op["op"]
             tg = op_targets(g, h, op, base)
             if k == "dmg":
-                each = vals if op.get("each") else [None]
+                # worked out with the fight's own sums (Combat.hit_base, hit_finish, foe_soak, hit_spill)
+                each = range(len(vals)) if op.get("each") else [None]
+                pierce = g.hit_pierces(h, a, op)
+                cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
                 for t, share in tg:
                     if not isinstance(t, dict) or (t.get("air") and a.get("melee")):
                         continue
-                    env = g.env(h, a, dice, t, vals, tags)
+                    env = g.target_env(de, h, t, vals)
+                    if "if" in op and not amt(op["if"], env):
+                        continue
                     n = 0
-                    for v in each:
-                        if v is not None:
-                            env["d"] = v
-                        n += _amt(op["amt"], env) + plus + g.dmg_bonus(h, a, t)
-                    cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
-                    n = n * (1 + 0.5 * cres)
-                    n += sum(bn for _, bn in g.combo_peek(h, t, vals))  # Pincer, Covered, Shatter
-                    n = g.foe_damage_after(t, int(n), h)
-                    # Vulnerable and Mark that earlier placements will have put on it
-                    if not t["st"].get("vuln"):
-                        n *= 1 + 0.25 * b.vuln.get(t["id"], 0)
-                    if not t["st"].get("mark"):
-                        n += 3 * b.mark.get(t["id"], 0)
+                    spill = 0.0
+                    for j, i in enumerate(each):
+                        raw, _ = g.hit_base(h, a, op, t, dice, vals, tags, i, env=env, bonus=dmg_bonus(t))
+                        if j == 0:
+                            raw += sum(bn for _, bn in g.combo_peek(h, t, vals))  # Pincer, Covered, Shatter, the bell
+                        raw = g.hit_finish(h, raw, dice, vals, i, cres)
+                        got = g.foe_damage_after(t, int(raw), h)
+                        # Vulnerable and Mark that earlier placements will have put on it
+                        if not t["st"].get("vuln"):
+                            got *= 1 + 0.25 * b.vuln.get(t["id"], 0)
+                        if not t["st"].get("mark"):
+                            got += 3 * b.mark.get(t["id"], 0)
+                        n += g.foe_soak(t, got, h, pierce=pierce)[0]
+                        for kind, kn in g.hit_spill(h, a, op, int(raw)):
+                            hit_by = g.spill_targets(kind, t)
+                            part = 1 / len(hit_by) if kind == "chain" and hit_by else 1
+                            spill += sum(min(kn, o["hp"]) * 0.8 * part for o in hit_by)
                     hit_any = True
-                    if not op.get("pierce"):
-                        n = max(0, n - t["st"].get("armor", 0))
-                    if op.get("splash"):
-                        val += share * sum(min(op["splash"], o["hp"]) * 0.8 for o in foes if o is not t and o["row"] == t["row"])
+                    val += share * spill
                     left = t["hp"] - b.dmg.get(t["id"], 0) - dealt.get(t["id"], 0)
                     if left <= 0:
                         val += share * 0.05 * n
@@ -545,22 +559,26 @@ def evaluate(g, b, h, a, dice, tgt):
                     if n >= left:
                         val += share * (now[t["id"]] + 2 + 0.5 * tb[t["id"]])
                         bump(eff["stop"], t["id"], pr * share)
+                    elif n > 0 and a.get("spell") and m.get("spell_burn"):
+                        val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share)
                     if op.get("leech") or op.get("onkill"):
                         val += share * min(n, left) * 0.3
+                    if m.get("red_mist") and g.hero(h)["hp"] < g.maxhp(h) / 2:
+                        val += share * heal_value(g, b, h, min(n, left) // 3, inc)
                     dealt[t["id"]] = dealt.get(t["id"], 0) + n * share
                     bump(eff["dmg"], t["id"], pr * share * min(n, left))
             elif k == "status":
                 for t, share in tg:
-                    env = g.env(h, a, dice, t if isinstance(t, dict) else None, vals, tags)
-                    if "if" in op and not _amt(op["if"], env):
+                    env = g.target_env(de, h, t, vals) if isinstance(t, dict) else de
+                    if "if" in op and not amt(op["if"], env):
                         continue
-                    n = _amt(op["n"], env)
+                    n = g.status_amount(h, a, op["s"], amt(op["n"], env))
                     if isinstance(t, dict):
                         val += share * foe_status(g, b, op["s"], n, t, now, tb, top, eff, pr * share)
                     else:
                         val += share * hero_status(g, b, h, op["s"], n, t[1], inc, big, hits, eff, pr * share)
             elif k == "armor":
-                n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus
+                n = amt(op["amt"], de) + plus
                 for t, share in tg:
                     if isinstance(t, tuple):
                         y = t[1]
@@ -568,7 +586,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         val += share * (min(n, need) + n * (0.5 if m.get("overguard") else 0.15))
                         bump(eff["armor"], y, pr * share * n)
             elif k == "heal":
-                n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus + m.get("heal_bonus", 0)
+                n = amt(op["amt"], de) + plus + m.get("heal_bonus", 0)
                 for t, share in tg:
                     if isinstance(t, tuple):
                         val += share * heal_value(g, b, t[1], n, inc)
@@ -578,10 +596,10 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple) and g.hs(t[1])["down"]:
                         val += share * 30
             elif k == "heal_summons":
-                n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus
+                n = amt(op["amt"], de) + plus
                 val += sum(min(n, al["max"] - al["hp"]) * 0.4 for al in g.allies())
             elif k == "selfdmg":
-                n = _amt(op["amt"], {})
+                n = amt(op["amt"], {})
                 low = g.hero(h)["hp"] - inc.get(h, 0) < g.maxhp(h) * 0.35
                 val -= n * (1.5 if low else 0.4)
             elif k == "guard":
@@ -606,7 +624,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         st = g.hs(t[1])["st"]
                         val += share * (st.get("burn", 0) + 2 * st.get("poison", 0) + 2 * sum(1 for s in ("weak", "vuln", "mark", "root") if st.get(s)))
             elif k == "weaken":
-                n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus
+                n = amt(op["amt"], de) + plus
                 for t, share in tg:
                     if isinstance(t, dict) and (t.get("intent") or {}).get("v") is not None:
                         v = t["intent"]["v"]
@@ -634,7 +652,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         val += share * now[t["id"]] * min(1, frac * 1.3)
                         bump(eff["cut"], t["id"], pr * share * it.get("v", 0) * frac)
             elif k == "strip":
-                n = _amt(op["amt"], g.env(h, a, dice, None, vals, tags)) + plus
+                n = amt(op["amt"], de) + plus
                 for t, share in tg:
                     if isinstance(t, dict):
                         val += share * min(n, t["st"].get("armor", 0)) * 0.8
@@ -767,7 +785,6 @@ def die_sig(d):
 
 
 def candidates(g, h, b, free):
-    f = g.s["fight"]
     x = g.hs(h)
     foes = g.foes()
     out = []

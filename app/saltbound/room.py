@@ -12,11 +12,11 @@ in, broadcasts the new state, and autosaves when a map turn or combat round has 
 """
 
 import asyncio
-import json
 import logging
 import secrets
 import time
 
+from ..rooms import Codes, clean, dumps, push
 from . import bot
 from . import game as G
 from . import save as S
@@ -25,16 +25,11 @@ from .combat import Invalid
 
 log = logging.getLogger("saltbound")
 
-CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 ROOM_KEEP = 60 * 60
 MAX_PEOPLE = 8
 BOT = "bot"
 BOT_DELAY = 0.35
 BOT_FIGHT_DELAY = 1.2  # each action plays out the moment it's placed; give it time to be seen
-
-
-def _clean(text, n):
-    return "".join(c for c in str(text or "") if c.isprintable()).strip()[:n]
 
 
 class Person:
@@ -70,18 +65,11 @@ class Room:
     def send(self, p, data):
         if not p.connected or p.closing or p.queue is None:
             return
-        text = data if isinstance(data, str) else json.dumps(data, separators=(",", ":"))
-        try:
-            p.queue.put_nowait(text)
-        except asyncio.QueueFull:
-            log.info("saltbound: dropping %s, send queue full", p.name)
-            while not p.queue.empty():
-                p.queue.get_nowait()
-            p.queue.put_nowait(None)
+        if not push(p.queue, data, p.name, "saltbound"):
             p.closing = True
 
     def everyone(self, data):
-        text = json.dumps(data, separators=(",", ":"))
+        text = dumps(data)
         for p in self.people.values():
             self.send(p, text)
 
@@ -112,7 +100,7 @@ class Room:
     # ---------------------------------------------------------------- joining and leaving
 
     def join(self, queue, name, token, tab):
-        token, tab, name = _clean(token, 40), _clean(tab, 40), _clean(name, 16) or "Sailor"
+        token, tab, name = clean(token, 40), clean(tab, 40), clean(name, 16) or "Sailor"
         p = next((q for q in self.people.values() if token and q.token == token), None)
         if p is not None and p.connected and p.tab != tab:
             p, token = None, token + ":" + tab  # a second tab of one browser is someone else
@@ -156,12 +144,12 @@ class Room:
         t = msg.get("t")
         try:
             if t == "name":
-                p.name = _clean(msg.get("name"), 16) or p.name
+                p.name = clean(msg.get("name"), 16) or p.name
             elif t == "saves":
                 self.send(p, {"t": "saves", "list": S.list_for(p.token.split(":")[0])})
                 return
             elif t == "delsave":
-                S.delete(_clean(msg.get("id"), 40), p.token.split(":")[0])
+                S.delete(clean(msg.get("id"), 40), p.token.split(":")[0])
                 self.send(p, {"t": "saves", "list": S.list_for(p.token.split(":")[0])})
                 return
             elif self.game is None:
@@ -221,7 +209,7 @@ class Room:
             self.diff = msg["d"]
         elif t == "resume":
             self.host_only(p)
-            rid = _clean(msg.get("id"), 40)
+            rid = clean(msg.get("id"), 40)
             try:
                 st = S.load(rid, p.token.split(":")[0])
             except S.TooOld as e:
@@ -371,24 +359,4 @@ class Room:
 
 STATIC = G.static()
 
-ROOMS: dict[str, Room] = {}
-
-
-def sweep():
-    now = time.monotonic()
-    for code in [c for c, r in ROOMS.items() if r.empty_since and now - r.empty_since > ROOM_KEEP]:
-        del ROOMS[code]
-
-
-def new_room(debug=False):
-    sweep()
-    while True:
-        code = "".join(secrets.choice(CODE_LETTERS) for _ in range(4))
-        if code not in ROOMS:
-            ROOMS[code] = Room(code, debug)
-            return ROOMS[code]
-
-
-def find_room(code):
-    sweep()
-    return ROOMS.get(_clean(code, 8).upper())
+ROOMS = Codes(ROOM_KEEP)

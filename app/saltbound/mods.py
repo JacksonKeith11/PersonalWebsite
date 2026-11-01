@@ -1,0 +1,121 @@
+"""Every passive modifier a skill, item or blessing can grant (its `mods`), and what it does.
+
+`Game.mods(h)` sums a hero's mods into one dict, and the rules read them by name
+(`m.get("might", 0)`). A name that isn't listed here would be silently ignored, so `check_content()`
+(run when game.py loads) refuses any content that grants an unknown one, and tools/saltbound-check.py
+fails if the code reads a name nobody grants. To add a passive effect: list it here, grant it in the
+content, and read it in the rules.
+"""
+
+MODS = {
+    # damage
+    "might": "flat damage on every hit",
+    "momentum": "+n damage per action already taken this round",
+    "rage": "+n damage per 5 HP missing",
+    "first_strike": "+n on the hero's first hit each fight",
+    "opportunist": "+n against Stunned or Rooted enemies",
+    "burn_bonus_hit": "+n against Burning enemies",
+    "execute_bonus": "+n against enemies below half health",
+    "backstab": "+n against enemies aiming at someone else",
+    "frozen_bonus": "+n against Frozen enemies",
+    "hymn_aura": "+n damage for the whole party while standing",
+    "eagle_eye": "a die showing its top face deals double",
+    "keen_edge": "6s count as 7",
+    "one_is_top": "a rolled 1 counts as the die's top face",
+    "pierce_all": "every hit ignores Armor",
+    "unstoppable": "Cleave and Earthshaker ignore Armor; Cleave reaches any row",
+    "wide_arcs": "Cleave also hits the back row for half",
+    "spell_burn": "spell hits also Burn 1",
+    "spell_chain": "a single-target spell also hits another enemy for half",
+    "spell_echo": "the first spell each fight happens twice, the second at half",
+    "echo_any": "the first action each fight happens twice, the second at half",
+    "combo_up": "+n on every combo",
+    "red_mist": "under half HP, damage dealt heals a third of it",
+    # bombs and statuses
+    "bomb_bonus": "+n bomb damage",
+    "splash_bonus": "+n bomb splash",
+    "chain_reaction": "enemies killed by bombs explode for half their max HP",
+    "burn_bonus": "Burns are n stronger",
+    "poison_bonus": "Poisons are n stronger",
+    "plague": "a Poisoned enemy's Poison spreads when it dies",
+    "debuff_ext": "Weak, Vulnerable and Mark last n rounds longer",
+    "mark_ext": "Marks last n rounds longer",
+    "root_ext": "Roots last n rounds longer",
+    "mark_attacker": "whoever hits the hero is Marked",
+    "open_weak": "every enemy starts the fight Weak",
+    "crown_thorns": "every enemy takes n at the start of each round",
+    "heckler": "enemies' first attacks each fight are n weaker",
+    # dice
+    "reroll": "+n automatic rerolls per fight",
+    "blood_reroll": "out of rerolls, a miss rerolls anyway for n HP",
+    "all_explode": "every die explodes on its top face",
+    "overcharge": "an exploding die adds n more",
+    "deadeye": "the biggest die is a Seer die showing its top face",
+    "seer_small": "the smallest die is rolled and shown while planning",
+    "sleight": "linked dice roll n higher",
+    "shield_top": "shield faces also count as the die's top face",
+    "shield_block": "+n Armor per shield face",
+    "skull_boost": "a skull makes the next die roll n higher",
+    "wild_heal": "a wild face heals n",
+    "pain_engine": "each hit taken makes the first die next round roll 1 higher",
+    "hoard": "the biggest unused die carries over to next round",
+    "tempo": "a die beating every shown enemy die gives a free d6",
+    "guard_free": "guard dice can go on any action",
+    "freeze_immune": "dice can't be Frozen",
+    "anthem": "every ally rolls an extra d4 each round",
+    "second_verse": "dice given or boosted get +n",
+    "pet": "a pet adds a die this big each round",
+    "pet_strike": "the pet's die is a d8 and it hits the weakest enemy for 3 each round",
+    # defence and healing
+    "max_hp": "+n max HP",
+    "start_armor": "n Armor at the start of each fight",
+    "evasive": "the first hit each fight misses",
+    "first_hit_soak": "the first hit each round deals n less",
+    "footwork": "back-row enemies deal n less",
+    "stun_ward": "ignore the first n Stuns each fight",
+    "weak_immune": "can't be made Weak",
+    "burn_immune": "can't be Burned",
+    "thorns": "attackers take n",
+    "last_stand": "at half HP or less, n Armor each round",
+    "overguard": "half of Armor carries into the next round",
+    "guard_share": "Guard also gives the ally n Armor; Taunt gives every ally 2",
+    "block_heal": "Block also heals n",
+    "unbreakable": "once per fight, survive a lethal hit at 1 HP",
+    "undying": "when knocked down, hit back for n",
+    "camouflage": "enemies attack the hero only when there's nobody else",
+    "regen": "heal n each round in fights",
+    "heal_bonus": "+n on heals",
+    "heal_armor": "heals also give n Armor",
+    "overflow": "overhealing becomes Armor",
+    "triage": "the biggest unused die heals the most wounded ally for half at round end",
+    "aegis": "a Sanctuary that hits leaves every hit on the party n weaker for the fight",
+    "miracle": "once per run, a revive that would be spent isn't",
+    "kill_heal": "heal n per kill",
+    "kill_armor": "n Armor per kill",
+    # summons
+    "bark": "start each fight with a sapling",
+    "summon_cap": "n more summons at a time",
+    "summon_hp": "summons have this share more HP",
+    "summon_regen": "summons heal n each round",
+    # the map, the bag and gold
+    "move": "+n move",
+    "wayfinder": "see further along the path",
+    "bag": "+n bag slots",
+    "rest_bonus": "resting heals this share of max HP more",
+    "distiller": "resting brews two potions",
+    "philosopher": "Bottle It makes two potions",
+    "haggler": "sell for 60% instead of 40%",
+    "silver_voice": "+n on event rolls",
+    "kill_gold": "n gold per kill",
+    "sticky": "+n gold after every fight won",
+    # structural (not summed)
+    "override": "changes to one action's definition: {action: {field: value}}",
+    "grant": "an action the hero learns",
+}
+
+
+def check_content(sources):
+    """Raise if any content grants a mod that isn't in MODS. `sources`: [(where, mods dict)]."""
+    bad = [f"{where}: {k}" for where, m in sources for k in m if k not in MODS]
+    if bad:
+        raise ValueError("unknown passive mods (add them to app/saltbound/mods.py): " + ", ".join(bad))

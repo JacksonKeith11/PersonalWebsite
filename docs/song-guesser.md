@@ -97,14 +97,12 @@ as an ES module.
 2. If it was in `EXTRA`, take it out there (the check flags duplicates).
 3. Run `node tools/song-guesser-check.js`. It arranges every song, checks bar lengths and the guess
    list, and lists notes outside the key the chords imply (often typos).
-4. Bump `?v=` (see below).
+4. Bump `?v=`: `python3 tools/bump-version.py app/static/games/song-guesser`.
 
 ## Gotchas
 
-- **Every URL carries `?v=N`, and they must all match.** Cloudflare caches `/static`. When changing
-  any file, bump `?v=` together on the `game.css` link and the `main.js` script tag in
-  `index.html`, and the two imports at the top of `main.js`. `grep -rn "?v=" app/static/games/song-guesser`
-  finds them.
+- **Every URL carries `?v=N`, and they must all match.** Cloudflare caches `/static`. After changing
+  any file, run `python3 tools/bump-version.py app/static/games/song-guesser`.
 - **Rendering is the slow part.** A part takes a few hundred milliseconds to render, so `main.js`
   renders every stage in the background as soon as a round starts. Offline rendering keeps every
   node alive until the end, so `synth.js` reuses a small pool of filter/envelope chains per part

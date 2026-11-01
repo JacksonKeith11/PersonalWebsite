@@ -15,6 +15,7 @@ Phases: `plan` (map turns), `fight`, `reward` (after a fight, until everyone's p
 """
 
 from . import classes as C
+from . import mods as M
 from . import world as Wd
 from .combat import Combat, Invalid
 from .content import archipelago as A
@@ -41,6 +42,11 @@ BAG = 4
 FLOOD_DAMAGE = 4
 LOG_KEEP = 40
 FX_KEEP = 200
+
+
+M.check_content([(f"passive {k}", p["mods"]) for k, p in C.PASSIVES.items()]
+                + [(f"item {k}", {**it.get("mods", {}), **it.get("cursed_mods", {})}) for k, it in I.ITEMS.items()]
+                + [(f"blessing {k}", b["mods"]) for k, b in A.BUFFS.items()])
 
 
 class Game(Combat):
@@ -247,10 +253,7 @@ class Game(Combat):
         if t == "shoal":
             return (1, True) if afloat else (2, False)
         cost = Wd.COST.get(t, 1)
-        key = C.CLASSES[hero["cls"]]["map"]["key"]
-        if key == "trailbreaker" and t in ("forest", "hills", "peak"):
-            cost = 1
-        if key == "wildspeak" and t == "forest":
+        if t in Wd.FAST.get(C.CLASSES[hero["cls"]]["map"]["key"], ()):
             cost = 1
         return cost + (1 if afloat else 0), False
 
@@ -941,7 +944,7 @@ class Game(Combat):
     def event_die(self, h, which):
         """The die an event check rolls: a slot's item die (a bare d4 with nothing there), or the
         hero's best die."""
-        from .combat import top_face
+        from .dice import top_face
         dice = self.dice_of(h)
         if which in ("weapon", "armor", "trinket"):
             d = next((d for d in dice if d["src"] == which), None)
@@ -952,7 +955,7 @@ class Game(Combat):
         """Roll an event check. `spec` is a number (best die, that much or more) or {die: weapon,
         armor, trinket, best or party (the best die of anyone on your hex), n: the target, vs: an
         opponent's die size to beat instead, great: a roll for the best outcome}."""
-        from .combat import face, top_face
+        from .dice import face, top_face
         if isinstance(spec, int):
             spec = {"n": spec}
         which = spec.get("die", "best")
@@ -1154,7 +1157,7 @@ class Game(Combat):
         return p
 
     def do_buy(self, h, msg):
-        p = self.town(h)
+        self.town(h)  # checks the hero can shop
         t = self.hero(h)["tile"]
         stock = self.shop(t)
         key = msg.get("item")
@@ -1343,8 +1346,7 @@ class Game(Combat):
         if not isinstance(to, int) or not 0 <= to < 3 or not self.hero(to)["alive"] or self.hero(to)["tile"] != hero["tile"]:
             raise Invalid("Use it on whom?")
         hero["bag"].pop(i)
-        bonus = 1 + self.mods(h).get("potion_bonus", 0)
-        n = self.heal(to, int(it["use"]["heal"] * bonus))
+        n = self.heal(to, int(it["use"]["heal"]))
         self.fx("heal", to=f"h{to}", n=n)
 
     # ------------------------------------------------------------------ the end
@@ -1367,7 +1369,7 @@ class Game(Combat):
         for h in range(3):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
-                           "moves": self.moves(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h),
+                           "moves": self.moves(h), "sight": self.enemy_sight(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h),
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():
@@ -1403,4 +1405,5 @@ def static():
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,
         "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "paths": A.PATHS, "elites": A.ELITES, "combos": C.COMBOS, "xp_for": C.XP_FOR,
         "prices": {k: I.price(k) for k in I.ITEMS},
+        "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST},
     }

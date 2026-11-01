@@ -1,32 +1,22 @@
 // Frag Arena's client: input, your own movement (predicted here, reported to the server),
 // firing, the server's events, the camera and the HUD.
-import { Net } from './net.js?v=5';
-import { View, POWER_COLOR } from './render.js?v=5';
-import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=5';
-import { initAudio, sfx, setListener, setVolume } from './audio.js?v=5';
+import { Net } from './net.js?v=6';
+import { View, POWER_COLOR } from './render.js?v=6';
+import { setWorld, setPhys, move, rayWorld, rayBox, playerBox } from './physics.js?v=6';
+import { initAudio, sfx, setListener, setVolume } from './audio.js?v=6';
+import { identity } from '../../shared/net.js?v=1';
 
 const $ = id => document.getElementById(id);
 const MG = 0, RL = 2, KN = 8;
 const STEP = 1 / 125;
 const KEY = 'frag-arena';
 
-function loadSettings() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
+// Settings, who this browser is and which tab, so leaving and coming back, or a reload, puts you
+// back in as the same player.
+const { saved: settings, save: saveSettings, tab } = identity(KEY);
+for (const [k, v] of Object.entries({ name: '', sens: 2.5, fov: 100, volume: 70, invert: false })) {
+  if (!(k in settings)) settings[k] = v;
 }
-const settings = Object.assign({ name: '', sens: 2.5, fov: 100, volume: 70, invert: false }, loadSettings());
-function saveSettings() {
-  try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* private mode */ }
-}
-const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
-
-// Who this browser is (kept), and which tab (kept through reloads of that tab), so leaving and
-// coming back, or a reload, puts you back in as the same player.
-if (!settings.token) { settings.token = randomId(); saveSettings(); }
-let tab = '';
-try {
-  tab = sessionStorage.getItem(`${KEY}-tab`) || randomId();
-  sessionStorage.setItem(`${KEY}-tab`, tab);
-} catch { tab = randomId(); }
 
 const view = new View($('view'));
 view.setFov(settings.fov);

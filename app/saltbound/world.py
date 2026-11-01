@@ -21,6 +21,8 @@ REGIONS = ["coral", "keys", "storm"]
 
 # Terrain costs on foot. Shallows and water are handled in `step_cost`.
 COST = {"beach": 1, "grass": 1, "forest": 2, "hills": 2, "peak": 2, "town": 1}
+# Map talents that make rough ground cost 1: the class's map key -> terrain
+FAST = {"trailbreaker": ["forest", "hills", "peak"], "wildspeak": ["forest"]}
 
 
 # ---------------------------------------------------------------- geometry

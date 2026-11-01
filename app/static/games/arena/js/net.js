@@ -1,20 +1,25 @@
 // The WebSocket to the match, the clock shared with the server, and the snapshot buffer that
 // other players are drawn from (INTERP seconds in the past, smoothly interpolated).
 
+import { GameSocket } from '../../shared/net.js?v=1';
+
 const now = () => performance.now() / 1000;
 
 export class Net {
   constructor(h) {
     this.h = h;  // onWelcome, onMap, onRules, onSnap, onRoster, onStatus
-    this.ws = null;
     this.name = '';
     this.offset = null;  // server time minus local time
     this.samples = [];
     this.rtt = 0;
     this.snaps = [];
     this.interp = 0.1;
-    this.wanted = false;
-    this.retry = 1;
+    this.sock = new GameSocket('/games/frag-arena/ws', {
+      hello: () => ({ t: 'hello', name: this.name, ...this.ident }),
+      onMessage: m => this.receive(m),
+      onStatus: text => this.h.onStatus(text),
+      onClose: () => { clearInterval(this.pinger); this.snaps = []; },
+    });
   }
 
   // `ident` is {token, tab}: who this browser is and which tab, so a reload or a dropped
@@ -22,31 +27,11 @@ export class Net {
   connect(name, ident = this.ident) {
     this.name = name;
     this.ident = ident;
-    this.wanted = true;
-    if (this.ws && this.ws.readyState <= 1) return;
-    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/games/frag-arena/ws`;
-    const ws = new WebSocket(url);
-    this.ws = ws;
-    this.h.onStatus('Connecting…');
-    ws.onopen = () => {
-      this.retry = 1;
-      ws.send(JSON.stringify({ t: 'hello', name: this.name, ...this.ident }));
-    };
-    ws.onmessage = e => this.receive(JSON.parse(e.data));
-    ws.onclose = () => {
-      if (this.ws !== ws) return;
-      this.ws = null;
-      clearInterval(this.pinger);
-      this.snaps = [];
-      if (!this.wanted) return;
-      this.h.onStatus(`Disconnected. Reconnecting in ${this.retry}s…`);
-      setTimeout(() => this.connect(this.name), this.retry * 1000);
-      this.retry = Math.min(this.retry * 2, 16);
-    };
+    this.sock.open();
   }
 
   send(obj) {
-    if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj));
+    this.sock.send(obj);
   }
 
   receive(m) {
@@ -86,7 +71,7 @@ export class Net {
     } else if (m.t === 'roster') {
       this.h.onRoster(m.list);
     } else if (m.t === 'full') {
-      this.wanted = false;
+      this.sock.stop();
       this.h.onStatus('The arena is full (12 players). Try again in a bit.');
     }
   }

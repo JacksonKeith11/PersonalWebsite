@@ -32,9 +32,12 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   `/games/song-guesser`
 - `app/saltbound/` and `app/static/games/saltbound/`: Saltbound, a 1-3 player co-op strategy RPG (hex overworld,
   dice combat, a rising sea as the clock; FastAPI WebSocket server, Phaser map) at `/games/saltbound`
+- `app/rooms.py` and `app/static/games/shared/net.js`: what the three multiplayer games share (the WebSocket loop,
+  sending, room codes; the browser's identity and reconnecting socket)
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
-  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's)
+  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `check-all.sh`, every fast check, and
+  `bump-version.py`, the cache versions)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
 ## Area docs
@@ -44,7 +47,7 @@ up front. Read the matching one before you change something in that area:
 
 | Changing... | Read |
 |---|---|
-| `app/main.py`, `app/auth.py`, public pages, `style.css`, the nav bar, Dockerfiles, compose, deploy | `docs/site.md` |
+| `app/main.py`, `app/auth.py`, `app/rooms.py`, `games/shared/`, public pages, `style.css`, the nav bar, Dockerfiles, compose, deploy, `tools/check-all.sh`, `tools/bump-version.py` | `docs/site.md` |
 | `app/serials/` | `docs/serials.md` |
 | `app/books/`, `app/static/books/` | `docs/books.md` |
 | `app/static/games/threefold/`, `tools/threefold-autoplay.js`, `tools/threefold-art/` | `docs/game.md` |
@@ -65,6 +68,8 @@ When a change alters how an area works or turns up a new gotcha, update its doc 
   emails for serial updates where a site sends them, fetch only what a reader asked for, and space
   requests out (the books importer waits a second between them).
 - Private pages stay noindex and `no-store`; serials stay behind `auth`, books behind a username.
-- Cloudflare caches static files: when changing CSS/JS, bump its `?v=` (`style.css` links,
-  `ASSET_VERSION` in `app/books/pages.py`, or the game's module URLs; see the area docs).
+- Cloudflare caches static files: when changing CSS/JS, bump its `?v=` with
+  `python3 tools/bump-version.py <folder or file>` (a game's folder, `app/static/books`, or
+  `app/static/style.css`); it updates every link together.
+- Run `tools/check-all.sh` before pushing: the fast checks for every area, in about a minute.
 - Test the reader against public-domain EPUBs (e.g. Project Gutenberg), not the owner's books.

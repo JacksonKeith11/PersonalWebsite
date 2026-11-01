@@ -130,4 +130,4 @@ The Dark Knight is `knight_dark()` there, and its art key is `knight`.
 2. Point its art key at the drawing in `picks.py`. New enemies also go in `monsters.KEYS`.
 3. Run `python3 build.py`, which regenerates `app/static/games/threefold/js/sprites.js`. Never edit
    that file by hand.
-4. Bump the game's `?v=`, check it in a browser, and commit the Python and `sprites.js` together.
+4. Bump the game's `?v=` (`python3 tools/bump-version.py app/static/games/<game>`), check it in a browser, and commit the Python and `sprites.js` together.

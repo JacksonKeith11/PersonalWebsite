@@ -12,6 +12,7 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import game as G
@@ -82,33 +83,37 @@ class TooOld(Exception):
     pass
 
 
+_con = None
+
+
+@contextmanager
 def _db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
-    con.execute("""CREATE TABLE IF NOT EXISTS runs (
-        id TEXT PRIMARY KEY, created REAL, updated REAL, version INTEGER, title TEXT,
-        tokens TEXT, state TEXT)""")
-    return con
+    """The database, one connection for the process (made on first use), held under the lock:
+    the event loop and the threadpool's `saves` route both use it."""
+    global _con
+    with _lock:
+        if _con is None:
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _con = sqlite3.connect(DB_PATH, check_same_thread=False)
+            _con.execute("""CREATE TABLE IF NOT EXISTS runs (
+                id TEXT PRIMARY KEY, created REAL, updated REAL, version INTEGER, title TEXT,
+                tokens TEXT, state TEXT)""")
+        yield _con
 
 
 def save(run_id, tokens, g, title):
     state = json.dumps(g.s, separators=(",", ":"))
     now = time.time()
-    with _lock:
-        con = _db()
-        try:
-            with con:
-                old = con.execute("SELECT tokens FROM runs WHERE id = ?", (run_id,)).fetchone()
-                if old:
-                    tokens = sorted(set(json.loads(old[0])) | set(tokens))
-                    con.execute("UPDATE runs SET updated = ?, version = ?, title = ?, tokens = ?, state = ? WHERE id = ?",
-                                (now, g.s["v"], title, json.dumps(tokens), state, run_id))
-                else:
-                    con.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                (run_id, now, now, g.s["v"], title, json.dumps(sorted(tokens)), state))
-                    _prune(con, tokens, run_id)
-        finally:
-            con.close()
+    with _db() as con, con:
+        old = con.execute("SELECT tokens FROM runs WHERE id = ?", (run_id,)).fetchone()
+        if old:
+            tokens = sorted(set(json.loads(old[0])) | set(tokens))
+            con.execute("UPDATE runs SET updated = ?, version = ?, title = ?, tokens = ?, state = ? WHERE id = ?",
+                        (now, g.s["v"], title, json.dumps(tokens), state, run_id))
+        else:
+            con.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (run_id, now, now, g.s["v"], title, json.dumps(sorted(tokens)), state))
+            _prune(con, tokens, run_id)
 
 
 def _prune(con, tokens, keep_id):
@@ -123,23 +128,15 @@ def _prune(con, tokens, keep_id):
 def list_for(token):
     if not token:
         return []
-    with _lock:
-        con = _db()
-        try:
-            rows = con.execute("SELECT id, updated, title, tokens, version FROM runs ORDER BY updated DESC").fetchall()
-        finally:
-            con.close()
+    with _db() as con:
+        rows = con.execute("SELECT id, updated, title, tokens, version FROM runs ORDER BY updated DESC").fetchall()
     return [{"id": r[0], "updated": r[1], "title": r[2], "ok": r[4] <= G.VERSION}
             for r in rows if token in json.loads(r[3])][:KEEP]
 
 
 def load(run_id, token):
-    with _lock:
-        con = _db()
-        try:
-            row = con.execute("SELECT tokens, state FROM runs WHERE id = ?", (run_id,)).fetchone()
-        finally:
-            con.close()
+    with _db() as con:
+        row = con.execute("SELECT tokens, state FROM runs WHERE id = ?", (run_id,)).fetchone()
     if not row or token not in json.loads(row[0]):
         return None
     state = json.loads(row[1])
@@ -158,12 +155,7 @@ def migrate(state):
 
 
 def delete(run_id, token):
-    with _lock:
-        con = _db()
-        try:
-            with con:
-                row = con.execute("SELECT tokens FROM runs WHERE id = ?", (run_id,)).fetchone()
-                if row and token in json.loads(row[0]):
-                    con.execute("DELETE FROM runs WHERE id = ?", (run_id,))
-        finally:
-            con.close()
+    with _db() as con, con:
+        row = con.execute("SELECT tokens FROM runs WHERE id = ?", (run_id,)).fetchone()
+        if row and token in json.loads(row[0]):
+            con.execute("DELETE FROM runs WHERE id = ?", (run_id,))

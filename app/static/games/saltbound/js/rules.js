@@ -1,8 +1,8 @@
-// The client's copy of the map rules (terrain, step costs, routes) and how to describe actions.
-// The server checks everything again; keep this in step with game.py.
+// The map rules the browser needs to plan routes (terrain, step costs, sight) and how to describe
+// actions. The numbers come from the server (`static.map`, each hero's `sight`); the server checks
+// every move again. W and H must match world.py (tools/saltbound-check.py checks).
 
 export const W = 30, H = 22;
-export const COST = { beach: 1, grass: 1, forest: 2, hills: 2, peak: 2, town: 1 };
 export const TERRAIN_NAME = { deep: 'Open water', shoal: 'Shallows', beach: 'Beach', grass: 'Grassland', forest: 'Forest', hills: 'Hills', peak: 'Peak', town: 'Town' };
 
 export const qr = i => [i % W, Math.floor(i / W)];
@@ -36,9 +36,7 @@ export function visibleTiles(game) {
   const out = new Set();
   game.heroes.forEach((hero, h) => {
     if (!hero.alive) return;
-    // matches Game.enemy_sight: vision 5, Farsight +1, Wayfinder +1, Trackers see enemies 2 further
-    const r = 5 + (hero.cls === 'arcanist' ? 1 : 0) + (hero.cls === 'ranger' ? 2 : 0) + (hero.skills.includes('wayfinder') ? 1 : 0);
-    for (const t of within(hero.tile, r)) out.add(t);
+    for (const t of within(hero.tile, hero.sight)) out.add(t);  // Game.enemy_sight
   });
   return out;
 }
@@ -50,10 +48,8 @@ export function stepCost(world, game, static_, h, a, b, afloat) {
   const t = terrain(world, game, b);
   if (t === 'deep') return hero.skiff ? [afloat ? 1 : 2, true] : null;
   if (t === 'shoal') return afloat ? [1, true] : [2, false];
-  let c = COST[t] ?? 1;
-  const key = static_.classes[hero.cls].map.key;
-  if (key === 'trailbreaker' && ['forest', 'hills', 'peak'].includes(t)) c = 1;
-  if (key === 'wildspeak' && t === 'forest') c = 1;
+  let c = static_.map.cost[t] ?? 1;
+  if ((static_.map.fast[static_.classes[hero.cls].map.key] || []).includes(t)) c = 1;
   return [c + (afloat ? 1 : 0), false];
 }
 

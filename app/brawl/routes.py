@@ -1,19 +1,17 @@
 """Board Brawl's page and its WebSocket."""
 
-import asyncio
-import json
-import re
 from pathlib import Path
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket
 from fastapi.responses import FileResponse
 
+from ..rooms import Refused, page_version, serve
 from . import game
 
 PAGE = Path(__file__).parent.parent / "static" / "games" / "brawl" / "index.html"
-# The page's ?v=: a tab opened before a deploy runs the old game code, which can't play the new
-# server's minigames, so it's told to reload.
-VERSION = re.search(r"\?v=(\d+)", PAGE.read_text()).group(1)
+# A tab opened before a deploy runs the old game code, which can't play the new server's
+# minigames, so it's told to reload.
+VERSION = page_version(PAGE)
 
 router = APIRouter()
 
@@ -23,51 +21,16 @@ def page():
     return FileResponse(PAGE)
 
 
-async def _writer(ws: WebSocket, queue: asyncio.Queue):
-    while True:
-        text = await queue.get()
-        if text is None:
-            await ws.close()
-            return
-        await ws.send_text(text)
+def enter(hello, queue):
+    if str(hello.get("v")) != VERSION:
+        raise Refused({"t": "reload"} if hello.get("v") else
+                      {"t": "error", "msg": "Board Brawl has just been updated: reload the page to play."})
+    room = game.ROOMS.new(game.Room) if hello.get("create") else game.ROOMS.find(hello.get("room"))
+    if room is None:
+        raise Refused({"t": "error", "msg": "There's no room with that code."})
+    return room, room.join(queue, hello.get("name"), hello.get("token"), hello.get("tab"))
 
 
 @router.websocket("/games/board-brawl/ws")
 async def socket(ws: WebSocket):
-    await ws.accept()
-    room = player = writer = None
-    queue = asyncio.Queue(maxsize=200)
-    try:
-        hello = json.loads(await asyncio.wait_for(ws.receive_text(), 10))
-        if not isinstance(hello, dict):
-            return
-        if str(hello.get("v")) != VERSION:
-            stale = {"t": "reload"} if hello.get("v") else \
-                {"t": "error", "msg": "Board Brawl has just been updated: reload the page to play."}
-            await ws.send_text(json.dumps(stale))
-            await ws.close()
-            return
-        room = game.new_room() if hello.get("create") else game.find_room(hello.get("room"))
-        if room is None:
-            await ws.send_text(json.dumps({"t": "error", "msg": "There's no room with that code."}))
-            await ws.close()
-            return
-        player = room.join(queue, hello.get("name"), hello.get("token"), hello.get("tab"))
-        writer = asyncio.create_task(_writer(ws, queue))
-        while True:
-            text = await ws.receive_text()
-            if len(text) > 2000:
-                continue
-            try:
-                msg = json.loads(text)
-            except ValueError:
-                continue
-            if isinstance(msg, dict):
-                room.handle(player, msg)
-    except (WebSocketDisconnect, TimeoutError, ValueError, RuntimeError):
-        pass
-    finally:
-        if player is not None:
-            room.leave(player, queue)
-        if writer is not None:
-            writer.cancel()
+    await serve(ws, enter, max_text=2000)

@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=41';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=41';
-import { spriteURL } from './art.js?v=41';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=41';
-import { MapView } from './hexmap.js?v=41';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=41';
-import { disconnect } from './main.js?v=41';
-import * as sfx from './audio.js?v=41';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=43';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=43';
+import { spriteURL } from './art.js?v=43';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=43';
+import { MapView } from './hexmap.js?v=43';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=43';
+import { disconnect } from './main.js?v=43';
+import * as sfx from './audio.js?v=43';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;

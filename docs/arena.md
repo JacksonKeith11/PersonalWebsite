@@ -126,11 +126,11 @@ How it's built:
 |---|---|
 | `app/arena/world.py` | The maps and `load_map`, box/ray geometry, the movement physics (`move`), and the bots' waypoint graph (`build_graph`, `path`). |
 | `app/arena/game.py` | `Game`: joining and rejoining, the 30 Hz tick, messages from clients, hitscan with lag compensation, projectiles, black holes, splash, damage, frags, pickups, power weapons, respawns, rounds, modes and mutators, and the bots' brains. `GAME` is the one room. |
-| `app/arena/routes.py` | `GET /games/frag-arena` (the page) and the WebSocket at `/games/frag-arena/ws`. |
+| `app/arena/routes.py` | `GET /games/frag-arena` (the page) and the WebSocket at `/games/frag-arena/ws`, through the shared `app/rooms.py` (`docs/site.md`). |
 | `app/static/games/arena/index.html` | The page: HUD, the menu (name, Play, bots, settings, controls), and the import map for three.js. |
 | `js/main.js` | The client: input, your own movement, firing, server events, the camera, HUD and menu. |
 | `js/physics.js` | **A copy of `world.py`'s physics** (and ray tests) for your own player. |
-| `js/net.js` | The socket, the clock shared with the server, and the snapshot buffer other players are interpolated from. |
+| `js/net.js` | The socket (the shared `games/shared/net.js`'s `GameSocket`), the clock shared with the server, and the snapshot buffer other players are interpolated from. |
 | `js/render.js` | three.js: map meshes with canvas-drawn textures, player and pickup models, the held weapon, effects. |
 | `js/audio.js` | Every sound, synthesized with Web Audio when it plays, panned by position. |
 | `game.css` | HUD and menu. The menu is the site's paper card. |
@@ -211,8 +211,8 @@ and walking links never cross a pad.
 - **The tick only runs while someone is connected.** `Game.run` starts on the first join and
   stops, clearing bots and rockets, when the last person leaves.
 - **Every module URL carries `?v=N`, and they must all match** (Cloudflare caches `/static`, and a
-  module loaded under two URLs runs twice). When changing any of the game's JS or CSS, bump them
-  together: `grep -rn "?v=" app/static/games/arena`.
+  module loaded under two URLs runs twice). After changing any of the game's JS or CSS, run
+  `python3 tools/bump-version.py app/static/games/arena`: it bumps every link together.
 - **Effects live in `View.fx`**, a list of update functions that return false when done (and
   remove their meshes then). An effect may start others (the vortex spawns sparks every frame), so
   `frame` swaps in a fresh list before running them; filtering the list in place lost those, and

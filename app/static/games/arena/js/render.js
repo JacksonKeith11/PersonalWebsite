@@ -2,7 +2,7 @@
 // weapon in your hands, and effects. No lights are added or removed after startup (that makes
 // three.js recompile shaders); flashes borrow from a fixed pool of point lights.
 import * as THREE from 'three';
-import { rayWorld } from './physics.js?v=5';
+import { rayWorld } from './physics.js?v=6';
 
 const TEX_METRES = 2;  // one texture repeat covers 2 m
 

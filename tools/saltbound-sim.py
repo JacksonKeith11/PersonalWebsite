@@ -133,6 +133,8 @@ def main():
         with open(opt["json"], "w") as fh:
             json.dump(total.t, fh, indent=1, sort_keys=True)
         print(f"Wrote {opt['json']}")
+    # a stuck run, one that hit the step limit, or a save that doesn't load back the same
+    sys.exit(1 if any(o[4] for o in out) else 0)
 
 
 if __name__ == "__main__":

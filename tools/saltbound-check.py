@@ -6,15 +6,22 @@ play never reaches (instant dice tricks, summons, intent tricks, capstones).
 For each class: a hero who knows every skill in the class's pool (every passive and capstone
 too) fights a mixed group; each action is placed with dice that fit and a valid target, the
 round is resolved, and fights restart as they end. Any exception other than Invalid is a bug.
+
+It also checks the passive mods (app/saltbound/mods.py): every name the rules read must be listed
+there and granted by some skill, item or blessing, or it's dead code (or a typo).
 """
 
+import glob
 import os
+import re
 import sys
 import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.saltbound import classes as C, game  # noqa: E402
+from app.saltbound import mods as M  # noqa: E402
+from app.saltbound.content import archipelago as A, items as I  # noqa: E402
 from app.saltbound.combat import Invalid  # noqa: E402
 
 FOES = ["cutthroat", "crab", "eel", "barnacle_priest", "storm_wisp"]
@@ -62,7 +69,41 @@ def target(g, h, a):
     return None
 
 
+# a mods dict read by name: m.get("x"), m["x"], self.mods(h).get("x"), g.mods(y)["x"]
+MOD_READ = re.compile(r'(?:\bm|\bmods\([^()]*(?:\([^()]*\))?[^()]*\))(?:\.get\(|\[)"([a-z_]+)"')
+
+
+def check_mods():
+    """Problems with the passive mods: [text]."""
+    here = os.path.join(os.path.dirname(__file__), "..", "app", "saltbound")
+    read = set()
+    for path in glob.glob(os.path.join(here, "*.py")):
+        read |= set(MOD_READ.findall(open(path).read()))
+    granted = set()
+    for m in [p["mods"] for p in C.PASSIVES.values()] + [b["mods"] for b in A.BUFFS.values()] + \
+             [{**it.get("mods", {}), **it.get("cursed_mods", {})} for it in I.ITEMS.values()]:
+        granted |= set(m)
+    out = [f"the rules read mod {k!r}, which isn't in mods.py" for k in sorted(read - set(M.MODS))]
+    out += [f"the rules read mod {k!r}, which nothing grants" for k in sorted(read - granted)]
+    out += [f"mods.py lists {k!r}, which nothing grants" for k in sorted(set(M.MODS) - granted)]
+    out += [f"mods.py lists {k!r}, which the rules never read" for k in sorted(set(M.MODS) - read - {"override", "grant"})]
+    return out
+
+
+def check_client():
+    """The browser's own copy of the map size (js/rules.js) must match the server's."""
+    from app.saltbound import world
+    js = open(os.path.join(os.path.dirname(__file__), "..", "app", "static", "games", "saltbound", "js", "rules.js")).read()
+    m = re.search(r"export const W = (\d+), H = (\d+);", js)
+    if not m or (int(m[1]), int(m[2])) != (world.W, world.H):
+        return [f"js/rules.js's map size isn't world.py's {world.W}x{world.H}"]
+    return []
+
+
 def main():
+    problems = check_mods() + check_client()
+    for p in problems:
+        print("  problem:", p)
     bad = 0
     tried = 0
     for k, c in C.CLASSES.items():
@@ -110,8 +151,8 @@ def main():
                     print(f"  {k}/{key}: CRASH")
                     traceback.print_exc()
                     break
-    print(f"{tried} placements, {bad} crashes")
-    sys.exit(1 if bad else 0)
+    print(f"{tried} placements, {bad} crashes, {len(problems)} other problems")
+    sys.exit(1 if bad or problems else 0)
 
 
 if __name__ == "__main__":

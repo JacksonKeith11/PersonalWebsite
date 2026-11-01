@@ -20,10 +20,10 @@ import asyncio
 import json
 import logging
 import random
-import secrets
 import time
 from collections import deque
 
+from ..rooms import Codes, clean, dumps, hang_up, push
 from . import board as B
 from . import minigames as M
 
@@ -38,7 +38,6 @@ CROWN_COST = 20
 STEP_TIME = 0.32  # seconds per space walked
 MAX_ITEMS = 3
 ROOM_KEEP = 30 * 60  # how long a room with nobody connected lingers, for rejoining
-CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # no I or O
 
 PRIZES = [10, 6, 3, 1]  # free-for-all, by place
 TEAM_PRIZE, TEAM_DRAW = 8, 3  # 2 v 2, each
@@ -79,11 +78,6 @@ EVENTS = [("shower", 1, 4), ("tax", 1, 2), ("gift", 1, 3), ("express", 1, 2),
 
 # Humans get this long to act before the game does it for them.
 WAIT = {"roll": 40, "path": 25, "buy": 25, "broke": 6, "shop": 30, "duel": 25, "ready": 25}
-
-
-def _clean(text, n):
-    text = str(text or "")
-    return "".join(c for c in text if c.isprintable()).strip()[:n]
 
 
 class Player:
@@ -180,22 +174,11 @@ class Room:
     def send(self, p, data):
         if p.bot or not p.connected or p.closing or p.queue is None:
             return
-        text = data if isinstance(data, str) else json.dumps(data, separators=(",", ":"))
-        try:
-            p.queue.put_nowait(text)
-        except asyncio.QueueFull:
-            log.info("brawl: dropping %s, send queue full", p.name)
-            self.hang_up(p.queue)
+        if not push(p.queue, data, p.name, "brawl"):
             p.closing = True
 
-    @staticmethod
-    def hang_up(queue):
-        while not queue.empty():
-            queue.get_nowait()
-        queue.put_nowait(None)
-
     def everyone(self, data):
-        text = json.dumps(data, separators=(",", ":"))
+        text = dumps(data)
         for p in self.players.values():
             self.send(p, text)
 
@@ -262,13 +245,13 @@ class Room:
     # ------------------------------------------------------------ joining and leaving
 
     def join(self, queue, name, token, tab):
-        token, tab, name = _clean(token, 40), _clean(tab, 40), _clean(name, 16) or "Player"
+        token, tab, name = clean(token, 40), clean(tab, 40), clean(name, 16) or "Player"
         p = next((q for q in self.players.values() if token and q.token == token and not q.bot), None)
         if p is not None and p.connected and p.tab != tab:
             p, token = None, ""  # a second tab of the same browser: someone new
         if p is not None:
             if p.connected and p.queue is not None:
-                self.hang_up(p.queue)
+                hang_up(p.queue)
             p.queue, p.tab, p.connected, p.closing = queue, tab, True, False
             if p.name != name:
                 p.name = self.unique_name(name, skip=p)
@@ -355,7 +338,7 @@ class Room:
         t = msg.get("t")
         host = p.id == self.host
         if t == "name" and self.phase == "lobby":
-            p.name = self.unique_name(_clean(msg.get("name"), 16) or p.name, skip=p)
+            p.name = self.unique_name(clean(msg.get("name"), 16) or p.name, skip=p)
             self.dirty = True
         elif t == "bot" and host:
             self.add_bot() if msg.get("op") == "add" else self.remove_bot()
@@ -1057,24 +1040,4 @@ class Room:
             log.info("brawl: room %s idle", self.code)
 
 
-ROOMS: dict[str, Room] = {}
-
-
-def sweep():
-    now = time.monotonic()
-    for code in [c for c, r in ROOMS.items() if r.empty_since and now - r.empty_since > ROOM_KEEP]:
-        del ROOMS[code]
-
-
-def new_room():
-    sweep()
-    while True:
-        code = "".join(secrets.choice(CODE_LETTERS) for _ in range(4))
-        if code not in ROOMS:
-            ROOMS[code] = Room(code)
-            return ROOMS[code]
-
-
-def find_room(code):
-    sweep()
-    return ROOMS.get(_clean(code, 8).upper())
+ROOMS = Codes(ROOM_KEEP)

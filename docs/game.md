@@ -319,7 +319,7 @@ Keep it that way.
   - Sprites: every hero and monster is hand-drawn at 32×32. **Read `docs/game-art.md`** before
     drawing or changing one: it has the art direction, the palette, and what each chosen hero looks
     like. The drawings live in `tools/threefold-art/` (Python with Pillow). `picks.py` maps each art
-    key to its drawing, and `python3 build.py` writes `js/sprites.js`. Then bump the game's `?v=`.
+    key to its drawing, and `python3 build.py` writes `js/sprites.js`. Then bump the game's `?v=` (`tools/bump-version.py`).
   - Ground follows the owner's grassland reference
     (<https://img.craftpix.net/2023/04/Grassland-Top-Down-Tileset-Pixel-Art.jpg>): calm, warm
     and flat. Greenwood grass is olive `#a1b159` with sparse leafy tufts in clumps, rare small flowers
@@ -416,10 +416,9 @@ ended with, so comparing within runs that reached act 3 evens out "found late"; 
 - Summoning stops at 3 of a kind on a side (`scoreAction`), which is what keeps the Hydra's
   regrowing heads in check.
 
-- **Every module URL carries `?v=N`, and they must all match.** Cloudflare caches `/static`, and a
-  module loaded under two URLs runs twice. When changing any JS, bump `?v=` together in every
-  `import` line in `js/`, the `main.js` script tag in `index.html`, and the `game.css` link.
-  `grep -rn "?v=" app/static/games/threefold` finds them.
+- **Every module URL carries `?v=N`, and they must all match** (Cloudflare caches `/static`, and a
+  module loaded under two URLs runs twice). After changing any of the game's JS or CSS, run
+  `python3 tools/bump-version.py app/static/games/threefold`: it bumps every link together.
 - **Bump `SAVE_KEY` in `main.js`** when the run or hero format changes. Old saves are then ignored
   instead of crashing the new code.
 - **Phaser swallows errors thrown in a scene's `create()`:** no page error, the board may still draw,

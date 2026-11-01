@@ -1,12 +1,11 @@
 """Frag Arena's page and its WebSocket."""
 
-import asyncio
-import json
 from pathlib import Path
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket
 from fastapi.responses import FileResponse
 
+from ..rooms import Refused, serve
 from .game import GAME
 
 PAGE = Path(__file__).parent.parent / "static" / "games" / "arena" / "index.html"
@@ -19,44 +18,13 @@ def page():
     return FileResponse(PAGE)
 
 
-async def _writer(ws: WebSocket, queue: asyncio.Queue):
-    while True:
-        text = await queue.get()
-        if text is None:
-            await ws.close()
-            return
-        await ws.send_text(text)
+def enter(hello, queue):
+    player = GAME.join(queue, hello.get("name"), hello.get("token"), hello.get("tab"))
+    if player is None:
+        raise Refused({"t": "full"})
+    return GAME, player
 
 
 @router.websocket("/games/frag-arena/ws")
 async def socket(ws: WebSocket):
-    await ws.accept()
-    player = None
-    writer = None
-    try:
-        hello = json.loads(await asyncio.wait_for(ws.receive_text(), 10))
-        queue = asyncio.Queue(maxsize=90)
-        if not isinstance(hello, dict):
-            return
-        player = GAME.join(queue, hello.get("name"), hello.get("token"), hello.get("tab"))
-        if player is None:
-            await ws.send_text(json.dumps({"t": "full"}))
-            await ws.close()
-            return
-        writer = asyncio.create_task(_writer(ws, queue))
-        while True:
-            text = await ws.receive_text()
-            if len(text) > 4000:
-                continue
-            try:
-                msg = json.loads(text)
-            except ValueError:
-                continue
-            GAME.handle(player, msg)
-    except (WebSocketDisconnect, TimeoutError, ValueError, RuntimeError):
-        pass
-    finally:
-        if player is not None:
-            GAME.leave(player, queue)
-        if writer is not None:
-            writer.cancel()
+    await serve(ws, enter, queue_size=90)

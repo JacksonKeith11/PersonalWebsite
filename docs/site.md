@@ -14,9 +14,17 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   `serials_auth`, and `PRIVATE_HEADERS` (`noindex`, `no-store`) for every private response.
   `POST /login` belongs to the serials page. The books library has its own `/books/login`
   (a username, no password; see `docs/books.md`).
-- `app/arena/routes.py` adds Frag Arena's page and WebSocket (`docs/arena.md`), and
-  `app/brawl/routes.py` Board Brawl's (`docs/brawl.md`). Their games live in the web process's
-  memory, so uvicorn must keep running a single worker.
+- `app/arena/routes.py` adds Frag Arena's page and WebSocket (`docs/arena.md`),
+  `app/brawl/routes.py` Board Brawl's (`docs/brawl.md`) and `app/saltbound/routes.py` Saltbound's
+  (`docs/saltbound.md`). Their games live in the web process's memory, so uvicorn must keep running
+  a single worker.
+- `app/rooms.py` is what the three multiplayer games share on the server: the WebSocket loop
+  (`serve(ws, enter)`: a first `hello`, then each message to `room.handle`, `room.leave` on close),
+  sending to one connection through its own queue (`push`, hanging up a connection too far behind),
+  `Refused` to turn a browser away with a message, rooms by four-letter code (`Codes`), `clean` for
+  browser text and `page_version` for a page's `?v=`. In the browser,
+  `app/static/games/shared/net.js` is the shared half: `identity(key)` (the localStorage token and
+  per-tab id) and `GameSocket` (connects, says hello, reconnects after 1, 2, 4… 16 s).
 - `data/` holds runtime state (`serials.db`, `books/`). It's mounted into both containers and is
   gitignored.
 
@@ -49,9 +57,13 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
 - **The nav bar exists in six places:** `index.html`, `resume.html`, `projects.html`,
   `recipes.html`, `games.html`, and the `NAV` string in `app/books/pages.py`. Each copy marks its
   own page with `aria-current="page"`. Add or rename links in all of them.
-- **Cloudflare caches `/static`.** After changing `style.css`, bump `?v=` on every link to it: the
-  five public pages, Song Guesser's `index.html`, and `STYLE` in `app/books/pages.py`. The books service worker caches `STYLE`
-  too, so changing that also needs a bump of `ASSET_VERSION` there.
+- **Cloudflare caches `/static`.** After changing `style.css`, run `python3 tools/bump-version.py
+  app/static/style.css`: it bumps every link to it (the public pages, Song Guesser's `index.html`,
+  `STYLE` in `app/books/pages.py`) and `ASSET_VERSION`, since the books service worker caches `STYLE`.
+  `python3 tools/bump-version.py --check` lists any file linked with two different versions.
+- **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about a minute): the app
+  imports, cache versions agree, and each game's own checks. Browser smoke tests need a running
+  server and live in each area's doc.
 - **The serials route is registered at import time.** It's only registered if `SERIALS_PATH` was
   set when the app started. Changing `.env` needs a restart.
 - uvicorn runs with `--proxy-headers` because requests arrive through the tunnel. Cookies are set

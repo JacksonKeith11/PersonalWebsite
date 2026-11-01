@@ -13,6 +13,7 @@ import random
 import time
 from collections import deque
 
+from ..rooms import clean, hang_up, push
 from . import world
 from .world import PHYS
 
@@ -127,12 +128,6 @@ def _r(x):
 
 def _rv(v):
     return [round(c, 3) for c in v]
-
-
-def _clean(text, n):
-    if not isinstance(text, str):
-        return ""
-    return "".join(ch for ch in text if ch.isprintable()).strip()[:n]
 
 
 class Player:
@@ -269,20 +264,9 @@ class Game:
     def send(self, p, data):
         if p.bot or p.closing:
             return
-        text = data if isinstance(data, str) else json.dumps(data, separators=(",", ":"))
-        try:
-            p.queue.put_nowait(text)
-        except asyncio.QueueFull:
-            # Too far behind to catch up: drop them and let the client reconnect.
-            log.info("arena: dropping %s, send queue full", p.name)
-            self.hang_up(p.queue)
+        # too far behind to catch up: drop them and let the client reconnect
+        if not push(p.queue, data, p.name, "arena"):
             p.closing = True
-
-    @staticmethod
-    def hang_up(queue):
-        while not queue.empty():
-            queue.get_nowait()
-        queue.put_nowait(None)  # tells the connection's writer to close the socket
 
     def broadcast_msg(self, text):
         self.events.append({"k": "msg", "text": text})
@@ -297,7 +281,7 @@ class Game:
         now = self.now()
         for k in [k for k, p in self.away.items() if now - p.left_at > AWAY_KEEP]:
             del self.away[k]
-        token, tab, name = _clean(token, 40), _clean(tab, 40), _clean(name, 16)
+        token, tab, name = clean(token, 40), clean(tab, 40), clean(name, 16)
         live = next((p for p in self.humans() if token and p.token == token), None)
         if live is not None and live.tab != tab:
             token = ""  # a second tab of the same browser: a separate player, not remembered
@@ -309,7 +293,7 @@ class Game:
             live.closing = False
             live.events = []
             live.playing = live.alive
-            self.hang_up(old)
+            hang_up(old)
             p = live
         elif token and token in self.away:
             if len(self.humans()) >= MAX_PLAYERS:
@@ -462,7 +446,7 @@ class Game:
                     self.new_round()
                     self.broadcast_msg(f"{p.name} switched to {self.describe()}")
             elif t == "name":
-                name = _clean(msg.get("name"), 16)
+                name = clean(msg.get("name"), 16)
                 if name and name != p.name:
                     new = self.unique_name(name, skip=p)
                     self.broadcast_msg(f"{p.name} is now {new}")

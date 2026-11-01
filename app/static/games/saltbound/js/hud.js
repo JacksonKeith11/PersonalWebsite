@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=39';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=39';
-import { spriteURL } from './art.js?v=39';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=39';
-import { MapView } from './hexmap.js?v=39';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=39';
-import { disconnect } from './main.js?v=39';
-import * as sfx from './audio.js?v=39';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=40';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=40';
+import { spriteURL } from './art.js?v=40';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=40';
+import { MapView } from './hexmap.js?v=40';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=40';
+import { disconnect } from './main.js?v=40';
+import * as sfx from './audio.js?v=40';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -511,7 +511,9 @@ function townDrawer(h0, town, d) {
   } else if (d.tab === 'inn') {
     body = [h('h3', null, 'The inn'), h('p.muted', null, 'A hot meal and a dry bed. Heals you to full straight away.'),
       h('div', null, `HP ${hero.hp} / ${hero.maxhp}`),
-      h('button.btn.primary', { disabled: disabled || hero.hp >= hero.maxhp || hero.gold < g.inn, onclick: () => send({ t: 'inn', h: h0 }) }, icon('bed'), `Take a room · ${g.inn} gold`)];
+      hero.hp >= hero.maxhp ? h('div.chip.brass', null, icon('check'), 'You’re at full health: no need for a room')
+        : h('button.btn.primary', { disabled: disabled || hero.gold < g.inn, onclick: () => send({ t: 'inn', h: h0 }) }, icon('bed'), `Take a room · ${g.inn} gold`),
+      hero.hp < hero.maxhp && hero.gold < g.inn ? h('p.muted', null, `You need ${g.inn - hero.gold} more gold.`) : null];
   } else if (d.tab === 'docks') {
     body = town.docks ? [h('h3', null, 'The docks'), h('p.muted', null, 'A skiff lets you cross open water. Boarding or landing costs a move; on water every hex costs 1.'),
       hero.skiff ? h('div.chip.brass', null, icon('check'), 'You have a skiff')
@@ -545,14 +547,14 @@ function heroDrawer(h0, d) {
       h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} of ${hero.bagsize}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
       ...hero.bag.map((k, i) => {
         const it = item(k);
-        return itemRow(k, [
+        // the bag's buttons go in one row under the item, not squeezed into the right-hand column
+        return itemRow(k, null, h('div.bag-acts', null,
           it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null,
           it.slot === 'use' && !it.fight ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
           mates.length ? h('select.input.give', { 'aria-label': `Give ${it.name} to`, onchange: e => { if (e.target.value !== '') send({ t: 'give', h: h0, to: +e.target.value, bag: i }); } },
             h('option', { value: '' }, 'Give to…'), ...mates.map(m => h('option', { value: m }, g.heroes[m].name))) : null,
           town ? h('button.btn.sm.ghost', { onclick: () => send({ t: 'sell', h: h0, bag: i }) }, 'Sell') : null,
-          h('button.btn.sm.ghost', { 'aria-label': 'Drop', tip: 'Throw it away', onclick: () => { if (confirm(`Throw away ${it.name}?`)) send({ t: 'drop', h: h0, bag: i }); } }, icon('x')),
-        ]);
+          h('button.btn.sm.ghost', { 'aria-label': 'Drop', tip: 'Throw it away', onclick: () => { if (confirm(`Throw away ${it.name}?`)) send({ t: 'drop', h: h0, bag: i }); } }, icon('x'), 'Drop')));
       }),
       !hero.bag.length ? h('p.muted', null, 'Your bag is empty.') : null,
       mates.length && hero.gold > 0 ? h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } }, h('span.muted', null, 'Give 10 gold to'),

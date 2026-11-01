@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=39';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=39';
-import { spriteURL } from './art.js?v=39';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=39';
-import { render } from './main.js?v=39';
-import * as sfx from './audio.js?v=39';
+import { S, send, mine } from './store.js?v=40';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=40';
+import { spriteURL } from './art.js?v=40';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=40';
+import { render } from './main.js?v=40';
+import * as sfx from './audio.js?v=40';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -305,6 +305,7 @@ function hpBar(hp, max, foe = false) {
   return h('div.bar' + hpClass(hp, max, foe), null, h('i', { style: { width: Math.max(0, Math.round(100 * hp / max)) + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
 }
 
+const ST_SHORT = { vuln: 'Vuln', stun: 'Stunned', freeze: 'Frozen', root: 'Rooted', shock: 'Shocked', hex: 'Hexed', crescendo: 'Crescendo', lifeline: 'Lifeline' };
 function statusRow(st, extra = [], tail = []) {
   const chips = [];
   for (const [k, v] of Object.entries(st || {})) {
@@ -312,7 +313,9 @@ function statusRow(st, extra = [], tail = []) {
     const s = STATUS[k];
     if (!s) continue;
     const n = ['stun', 'freeze', 'shock', 'warded', 'exposed'].includes(k) ? '' : v;
-    chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k, { tip: `${s.name}${n !== '' ? ' ' + n : ''}\n${s.text}` }, icon(s.icon), n));
+    // icon, short name and number, so a status reads at a glance ("Armor 3", "Rooted")
+    chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k, { tip: `${s.name}${n !== '' ? ' ' + n : ''}\n${s.text}` }, icon(s.icon),
+      h('span.st-name', null, ST_SHORT[k] || s.name), n !== '' ? h('b', null, n) : null));
   }
   for (const e of extra) chips.push(h('span.st', null, e));
   return h('div.sts', null, ...chips, ...tail);

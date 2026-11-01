@@ -1020,3 +1020,11 @@ a:hover { color: var(--accent-hi); }
   .roll-tray .rt-need { display: none; }
   .planstrip > span.muted { display: none; }
 }
+
+/* statuses say their name; the bag's buttons sit in a row under the item */
+.st .st-name { font-size: 12px; font-weight: 600; }
+.st b { font-weight: 800; }
+.bag-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.bag-acts .input.give { height: 30px; }
+.item .acts:empty { display: none; }
+.item:has(> .acts:empty) { grid-template-columns: auto minmax(0, 1fr); }

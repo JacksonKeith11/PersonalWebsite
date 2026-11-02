@@ -78,7 +78,8 @@ When a change alters how an area works or turns up a new gotcha, update its doc 
   run is needed, use the smallest that settles it (about two minutes), say how long before starting,
   run it in the background, and never queue several big batches at once.
 - When building many changes in one batch, run the big balance test once, at the end. While
-  iterating, use small spot tests only (`tools/check-all.sh`, a dozen runs, a scratch script that
-  plays two or three seeds and counts what happened). If the end result needs a tuning pass, change
+  iterating, use small spot tests only (`tools/check-all.sh`, `python3 tools/saltbound-sim.py 40
+  normal --fast`, about 15 s, whose tally shows what happened, or a scratch script on two or three
+  seeds). Full-bot batches are only for changes that directly affect game balance. If the end result needs a tuning pass, change
   everything you mean to change first, then test once; don't run a big batch per adjustment.
 - Test the reader against public-domain EPUBs (e.g. Project Gutenberg), not the owner's books.

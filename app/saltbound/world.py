@@ -57,6 +57,11 @@ _ODD = [(1, 0), (1, -1), (0, -1), (-1, 0), (0, 1), (1, 1)]
 
 
 def neighbors(i):
+    """The tiles next to i (a fresh list; computed once per tile)."""
+    return list(_NEIGH[i])
+
+
+def _neighbors(i):
     q, r = qr(i)
     out = []
     for dq, dr in (_ODD if r & 1 else _EVEN):
@@ -64,6 +69,9 @@ def neighbors(i):
         if inside(nq, nr):
             out.append(idx(nq, nr))
     return out
+
+
+_NEIGH = [tuple(_neighbors(i)) for i in range(W * H)]
 
 
 def within(i, n):

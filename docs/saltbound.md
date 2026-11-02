@@ -716,17 +716,28 @@ clock anywhere: the run changes only when someone acts.
 - `python3 tools/saltbound-check.py` forces every action and passive of every class through real
   fights (bots never use most instant tricks), checks the passive mods against `mods.py`, and that
   `js/rules.js`'s map size matches the server's. Run it after touching the rules or classes.
-- `python3 tools/saltbound-sim.py [runs] [difficulty] [--report] [--seed=N] [--saves] [--with=class]` plays whole runs
-  with bots across all cores. **It's slow**: 12 runs ~15 s, 100 ~1-2 min, 300 ~3-5 min, and batches
-  run side by side slow each other. Batches of 50+ save their output to `data/saltbound-sim/`
-  (`last-<difficulty>.txt`, with the date and commit); `--last [difficulty]` prints them without
+- `python3 tools/saltbound-sim.py [runs] [difficulty] [--report] [--seed=N] [--saves] [--with=class] [--fast] [--tally]`
+  plays whole runs with bots across all cores. **Two kinds of test** (owner's rule):
+  - **`--fast` checks that a feature works**: greedy bots (the best single placement per fight move, no
+    look-ahead), about 4x quicker; they play worse, so their win rates say nothing about balance, but
+    on Normal they still finish runs and reach every part of one. It prints a tally of what happened
+    (fights by kind, log lines such as jobs done or opportunities sighted, effects, every event seen),
+    so a new feature can be seen firing. 12 runs ~6 s, 40 ~15 s. Use it while building, with
+    `--saves` for anything that touches the state. `tools/check-all.sh` runs `12 normal --saves --fast`.
+  - **The full bots are for balance**, only for changes that directly affect it, and once, at the end
+    of a batch of changes: 12 runs ~12 s, 100 ~1-1.5 min, 300 ~3-4 min (batches side by side slow
+    each other). 100 runs pins a win rate to about ±10 points, 300 to about ±5: 100 for "did this swing
+    difficulty a lot", 300 for class rates or a final number. `--tally` adds the tally.
+
+  Batches of 50+ save their output to `data/saltbound-sim/` (`last-<difficulty>.txt`, `--fast` ones as
+  `last-fast-<difficulty>.txt`, with the date and commit); `--last [difficulty]` prints them without
   playing. Answer balance questions from those or from "Balance now" first, and run fresh only when
-  the code changed since and the question needs it; 100 runs is enough for a shape, 300 for class
-  rates. `--with=<class>` puts that class in every party, for studying its picks (500-600
-  runs per class; a whole sweep of ten takes about 1h45 on four cores). `--report` prints balance analytics (`tools/saltbound_stats.py`): class
-  win rates and output, fights by kind, enemies, each class's actions, level-up picks, gear, flags.
-  `--saves` checks a run saved and restored at every step finishes identically, and that the analytics
-  hooks don't change a run. It exits non-zero on a stuck run or a save mismatch.
+  the code changed since and the question needs it. `--with=<class>` puts that class in every party,
+  for studying its picks (500-600 runs per class). `--report` prints balance analytics
+  (`tools/saltbound_stats.py`): class win rates and output, fights by kind, enemies, each class's
+  actions, level-up picks, gear, flags. `--saves` checks a run saved and restored at every step
+  finishes identically, and that the analytics hooks don't change a run. It exits non-zero on a stuck
+  run or a save mismatch.
 - `node tools/saltbound-mp.js [url] [out dir]` plays a **two-player fight** in two browsers (after
   `python3 tools/saltbound-audit.py fight`): Alice resumes the save, Bob joins by code, each plays a
   hero while the other watches, both ready up, and screenshots of both screens go to the out dir.
@@ -742,6 +753,13 @@ clock anywhere: the run changes only when someone acts.
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
 ## Gotchas
+
+- **The bots' scoring works out once per target what doesn't depend on the roll** (`evaluate`'s
+  `prep`): `target_part`/`target_env_from` split `target_env`, `combo_parts`/`combo_sum` split
+  `combo_peek` (in `combos.py`, beside it), and `die_sig` is cached while a bot thinks (`frozen`). A
+  change to `target_env` or `combo_peek` belongs in its split too. This made the full bots about 25%
+  faster with identical runs: check a change like it with run fingerprints (play fixed seeds, hash
+  `g.s`, compare before and after), which must not change.
 
 - **The view sends every key of a seen place** (all but a town's `quest`), so a place dict holds only
   what players may see; that's how an event's `ev`, a wreck's `rarity` and a town's `spec` reach the

@@ -11,6 +11,34 @@ class Combos:
         if y not in f.setdefault("covered", []):
             f["covered"].append(y)
 
+    def combo_parts(self, h, t):
+        """`combo_peek` split for the bots, who score many rolls against one target: (the bonus that
+        doesn't depend on the dice, the die values that would add Pincer's match bonus or None, the
+        bell number or None). `combo_sum` finishes it for a roll."""
+        f = self.s["fight"]
+        up = self.mods(h).get("combo_up", 0)
+        fixed = 0
+        if h in f.get("covered", []):
+            fixed += COVERED + up
+        last = f.get("lastdie", {}).get(str(t["id"]))
+        match = None
+        if last and last[0] != h and t["id"] not in f.get("pincered", []):
+            fixed += PINCER + up
+            match = last[1]
+        if t["st"].get("freeze") and t.get("st_by", {}).get("freeze") not in (None, h):
+            fixed += SHATTER + up
+        bell = t["bell"] if t.get("bell") and not t.get("cracked") else None
+        return fixed, match, bell
+
+    @staticmethod
+    def combo_sum(parts, vals):
+        fixed, match, bell = parts
+        if match is not None and any(v and v in match for v in vals):
+            fixed += PINCER_MATCH
+        if bell is not None and bell in vals:
+            fixed += BELL_CRACK
+        return fixed
+
     def combo_peek(self, h, t, vals, used=()):
         """The combos a hit by hero h on enemy t would score with these die values, without
         scoring them: [(name, bonus)]."""

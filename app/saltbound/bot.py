@@ -407,8 +407,12 @@ class frozen:
         g.mods = lambda y: mods[y] if y in mods else mods.setdefault(y, cm(g, y))
         g.maxhp = lambda y: maxhp[y] if y in maxhp else maxhp.setdefault(y, cx(g, y))
         g.herald_aura = lambda: aura[0] if aura else (aura.append(ca(g)) or aura[0])
+        global _SIGS
+        _SIGS = {}
 
     def __exit__(self, *exc):
+        global _SIGS
+        _SIGS = None
         for k in ("mods", "maxhp", "herald_aura"):
             self.g.__dict__.pop(k, None)
 
@@ -634,38 +638,62 @@ def evaluate(g, b, h, a, dice, tgt):
             pulled = sum(n for y, n in inc.items() if y != h)
         elif o["op"] == "guard" and base and isinstance(base[0], tuple) and base[0][1] != h:
             pulled = big.get(base[0][1], 0)
+    # What doesn't change from one way the dice could roll to the next is worked out once here: each
+    # op's targets, and for a damage op what it needs to know about each target. The sums below are
+    # in the same order as ever, so this only saves time (the run fingerprints must not change).
+    cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
+    spell_burn = bool(a.get("spell") and m.get("spell_burn"))
+    red_mist = bool(m.get("red_mist") and g.hero(h)["hp"] < g.maxhp(h) / 2)
+    melee = a.get("melee")
+
+    def prep(ops):
+        out = []
+        for op in ops:
+            k = op["op"]
+            tg = op_targets(g, h, op, base)
+            info = None
+            if k == "dmg":
+                per = []
+                for t, share in tg:
+                    if not isinstance(t, dict) or (t.get("air") and melee):
+                        continue
+                    tid = t["id"]
+                    st = t["st"]
+                    per.append((t, share, g.target_part(h, t), dmg_bonus(t), g.combo_parts(h, t),
+                                None if st.get("vuln") else 1 + 0.25 * b.vuln.get(tid, 0),
+                                None if st.get("mark") else 3 * b.mark.get(tid, 0),
+                                t["hp"] - b.dmg.get(tid, 0), 0.75 + 0.5 * tb[tid] / top, now[tid] + 2 + 0.5 * tb[tid]))
+                info = (per, op.get("each"), g.hit_pierces(h, a, op), "if" in op, bool(op.get("leech") or op.get("onkill")))
+            out.append((op, k, tg, info))
+        return out
+    hit_ops, miss_ops = prep(a["ops"]), prep(a.get("miss", []))
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         val = 0.0
         dealt = {}
         hit_any = False
-        for op in (a["ops"] if hit else a.get("miss", [])):
-            k = op["op"]
-            tg = op_targets(g, h, op, base)
+        for op, k, tg, info in (hit_ops if hit else miss_ops):
             if k == "dmg":
                 # worked out with the fight's own sums (Combat.hit_base, hit_finish, foe_soak, hit_spill)
-                each = range(len(vals)) if op.get("each") else [None]
-                pierce = g.hit_pierces(h, a, op)
-                cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
-                for t, share in tg:
-                    if not isinstance(t, dict) or (t.get("air") and a.get("melee")):
-                        continue
-                    env = g.target_env(de, h, t, vals)
-                    if "if" in op and not amt(op["if"], env):
+                per, each_op, pierce, cond, leech = info
+                each = range(len(vals)) if each_op else [None]
+                for t, share, part_env, bonus_t, combo, vfac, madd, left0, w, stopv in per:
+                    env = g.target_env_from(de, part_env, t, vals)
+                    if cond and not amt(op["if"], env):
                         continue
                     n = 0
                     spill = 0.0
                     for j, i in enumerate(each):
-                        raw, _ = g.hit_base(h, a, op, t, dice, vals, tags, i, env=env, bonus=dmg_bonus(t))
+                        raw, _ = g.hit_base(h, a, op, t, dice, vals, tags, i, env=env, bonus=bonus_t)
                         if j == 0:
-                            raw += sum(bn for _, bn in g.combo_peek(h, t, vals))  # Pincer, Covered, Shatter, the bell
+                            raw += g.combo_sum(combo, vals)  # Pincer, Covered, Shatter, the bell (as combo_peek)
                         raw = g.hit_finish(h, raw, dice, vals, i, cres)
                         got = g.foe_damage_after(t, int(raw), h)
                         # Vulnerable and Mark that earlier placements will have put on it
-                        if not t["st"].get("vuln"):
-                            got *= 1 + 0.25 * b.vuln.get(t["id"], 0)
-                        if not t["st"].get("mark"):
-                            got += 3 * b.mark.get(t["id"], 0)
+                        if vfac is not None:
+                            got *= vfac
+                        if madd is not None:
+                            got += madd
                         n += g.foe_soak(t, got, h, pierce=pierce)[0]
                         for kind, kn in g.hit_spill(h, a, op, int(raw)):
                             hit_by = g.spill_targets(kind, t)
@@ -673,23 +701,23 @@ def evaluate(g, b, h, a, dice, tgt):
                             spill += sum(min(kn, o["hp"]) * 0.8 * part for o in hit_by)
                     hit_any = True
                     val += share * spill
-                    left = t["hp"] - b.dmg.get(t["id"], 0) - dealt.get(t["id"], 0)
+                    tid = t["id"]
+                    left = left0 - dealt.get(tid, 0)
                     if left <= 0:
                         val += share * 0.05 * n
                         continue
-                    w = 0.75 + 0.5 * tb[t["id"]] / top
                     val += share * min(n, left) * w
                     if n >= left:
-                        val += share * (now[t["id"]] + 2 + 0.5 * tb[t["id"]])
-                        bump(eff["stop"], t["id"], pr * share)
-                    elif n > 0 and a.get("spell") and m.get("spell_burn"):
+                        val += share * stopv
+                        bump(eff["stop"], tid, pr * share)
+                    elif n > 0 and spell_burn:
                         val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share)
-                    if op.get("leech") or op.get("onkill"):
+                    if leech:
                         val += share * min(n, left) * 0.3
-                    if m.get("red_mist") and g.hero(h)["hp"] < g.maxhp(h) / 2:
+                    if red_mist:
                         val += share * heal_value(g, b, h, min(n, left) // 3, inc)
-                    dealt[t["id"]] = dealt.get(t["id"], 0) + n * share
-                    bump(eff["dmg"], t["id"], pr * share * min(n, left))
+                    dealt[tid] = dealt.get(tid, 0) + n * share
+                    bump(eff["dmg"], tid, pr * share * min(n, left))
             elif k == "status":
                 for t, share in tg:
                     env = g.target_env(de, h, t, vals) if isinstance(t, dict) else de
@@ -911,8 +939,22 @@ def op_targets(g, h, op, base):
 
 # ---- planning the hand
 
+_SIGS = None  # die signatures while a bot thinks (`frozen`): id -> (the die, its signature)
+
+
 def die_sig(d):
     # every part sortable (None and numbers don't compare): dice are sorted by this signature
+    if _SIGS is not None:
+        got = _SIGS.get(id(d))
+        if got is not None and got[0] is d:
+            return got[1]
+        sig = _die_sig(d)
+        _SIGS[id(d)] = (d, sig)  # holding the die keeps its id from being reused meanwhile
+        return sig
+    return _die_sig(d)
+
+
+def _die_sig(d):
     return (tuple(map(str, d["faces"])), tuple(d.get("dk") or ()), str(d.get("v")), str(d.get("fc") or ()), str(d.get("hint")),
             d.get("bonus", 0), str(d.get("link")), bool(d.get("top")))
 

@@ -52,6 +52,29 @@ class Actions:
                      aimed=int(f"h{h}" in self.intent_aims(it)), matched=0)
         return e
 
+    def target_part(self, h, target):
+        """What `target_env` adds for this target that doesn't depend on the dice (the bots work it out
+        once per target and finish it per roll with `target_env_from`)."""
+        if not isinstance(target, dict):
+            return None
+        st = target["st"]
+        it = target.get("intent") or {}
+        dice = it.get("dice") or []
+        known = [d["v"] for d in dice if d.get("v") is not None]
+        top = max(known) if known and len(known) == len(dice) else None
+        return top, {"undead": int(bool(A.FOES[target["k"]].get("undead"))), "rooted": int(bool(st.get("root"))),
+                     "stunned": int(bool(st.get("stun"))), "poisoned": int(bool(st.get("poison"))),
+                     "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0}
+
+    def target_env_from(self, e, part, target, vals):
+        """`target_env`, from a `target_part` worked out earlier."""
+        e = dict(e)
+        if part is not None:
+            top, add = part
+            e["outroll"] = int(bool(vals) and top is not None and vals[0] > top)
+            e.update(add)
+        return e
+
     def dmg_bonus(self, h, a, target):
         """Flat damage a hero adds to every hit of this action on this target."""
         m = self.mods(h)

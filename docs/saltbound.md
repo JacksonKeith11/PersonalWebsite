@@ -520,7 +520,10 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   a level-up pick's win rate (20–40 runs) as a hint. Judge picks by **vs passed** (runs that took it
   against runs offered it at the same moment that took something else), not **vs class**: a pick only
   counts once a run reaches its level, so vs class flatters late picks and capstones (in 600 Hard runs,
-  137 of 139 picks beat their class's rate).
+  137 of 139 picks beat their class's rate). At 300 runs a pick is taken ~20 times, so vs passed swings about
+  ±25 points by chance: in 300 Hard runs (current build) its spread across picks (sd 14) was about
+  what chance alone gives (13), and no pick stood out as harmful. It takes a targeted run
+  (`--classes=`) to test one.
 - **How to tune**: `python3 tools/saltbound-sim.py 300 hard --seed=5000 --report`. Read the class
   table (win rate, output per round, downs), the action tables (a basic attack taking most of a class's
   dice, risky actions that rarely hit, actions never used), level-up picks against win rate, and the

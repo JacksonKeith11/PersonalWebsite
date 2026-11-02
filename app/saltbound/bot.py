@@ -288,8 +288,10 @@ def party_goal(g):
         if o["kind"] == "drift" or (o["kind"] == "healer" and weakest < 0.75 and len(o["used"]) < len(alive)) \
                 or (o["kind"] == "ship" and lead["gold"] >= 40):
             return o["tile"]
-    # a job, while there's time to finish it
-    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed")]
+    # a job, while there's time to finish it, unless it's time for a dungeon
+    ready_for = 2 + 2 * len(s["cleared"])
+    due = s["level"] >= ready_for or s["rises"] >= 8
+    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed") and not due]
     for q in sorted(jobs, key=lambda q: q["until"]):
         goal = g.job_goal(q)
         trip = Wd.dist(goal, at) + (Wd.dist(goal, q["src_tile"]) if q["kind"] == "salvage" and q.get("stage") == "fetch" else 0)

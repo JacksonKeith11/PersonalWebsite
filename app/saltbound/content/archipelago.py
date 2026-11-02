@@ -386,7 +386,7 @@ OPP_RANGE = {"ship": (4, 14), "drift": (4, 10), "healer": (3, 12)}  # how far fr
 # add an escort to its boss fight; past that its boss gets `GARRISON_BOSS` more health per growth.
 # An objective cleared before its garrison ever grew weakens the Drowned Crown by `CROWN_CUT`.
 GARRISON_EVERY = 6
-GARRISON_MAX = 4
+GARRISON_MAX = 6
 GARRISON_ESCORTS = 2
 GARRISON_BOSS = 0.15
 CROWN_CUT = 0.1

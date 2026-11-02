@@ -176,7 +176,7 @@ function garrisonText(reg) {
   if (!gs) return '';
   const now = gs.n ? `Garrison: ${gs.foes.map(k => foeName(k)).join(', ')} join the boss fight${gs.boss ? `, and the boss has ${gs.boss}% more health` : ''}.`
     : 'Garrison: none yet. Clear it before it grows to weaken the Drowned Crown.';
-  return `${now} Grows in ${g.garrison_next} turn${g.garrison_next === 1 ? '' : 's'}${gs.n >= 4 ? ' (at its largest)' : ''}.`;
+  return `${now} Grows in ${g.garrison_next} turn${g.garrison_next === 1 ? '' : 's'}${gs.n >= 6 ? ' (at its largest)' : ''}.`;
 }
 function placeText(p) {
   const g = S.game;

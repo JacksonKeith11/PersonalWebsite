@@ -515,10 +515,14 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   each fight; guard share 4, shields block 5), Shoulder Charge (no roll, cooldown 2: the die as Armor,
   die +2, drag). Berserker: 30 HP, 3 per level. Each round's new "worst" picks were mostly last
   round's fine ones (noise); the z spread fell from 1.42 to about 1.2.
-- **Brace is the Vanguard's must-pick** (+18 to +20 points vs passed, z +3.6 to +4.2, every round),
-  and every Vanguard action looks bad partly because taking one passes Brace up. The clean fix is
-  Brace in the Vanguard's starting kit (with a new pick in its place), which touches the class's
-  basics: left for the owner to decide.
+- **Brace was the Vanguard's must-pick** (+18 to +20 points vs passed, every round). The owner asked
+  for it weaker and the rest stronger: Brace is now the die +2 as Armor and 2 to the lowest ally (was
+  twice the die and 3), and neutral as a pick; Rally Wall became **Hold the Line** (one die, cooldown 2:
+  every hit on the party deals 2 less this round, you gain the die +3 Armor; same key); Shield Bash
+  deals the die +3 (at least 6) and Stuns; Taunt adds thorns 2; Guard and Taunt give the die +4
+  Armor; Spiked Plate thorns 3; Vanguard 54 HP. Those alone left Vanguard parties at 23% (500 runs):
+  Brace really was its survival. So the starting passive Overguard also gives **8 Armor at the start
+  of each fight**, which brought them back to 32% (200 runs; 5 Armor gave 30%, the old Brace 32%).
 - **Bloodlust reworked** (owner's request; it looked worst in a 300-run pick comparison, −28, though
   within noise): heal 4 per kill (was 2), and the first kill each round gives a fresh d6 (`kill_die`),
   so a kill rolls into the next swing. Not yet measured.
@@ -526,6 +530,8 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   losses): by turn 1-9 5%, 10-19 19%, 20-29 17%, 30-39 34%, 40-49 21%, 50+ 4%; by objectives cleared
   0: 42%, 1: 26%, 2: 20%, 3 (at the Drowned Crown) 11%. Most losses come late, but four in ten losing
   parties never clear an objective.
+- **Now** (the second trinket slot removed again, the Vanguard rework above): **Hard 38%** (300 runs,
+  seed 30000, before the Vanguard's Overguard Armor), Vanguard parties 32%. Back near the target.
 - **After the overnight pass** (second trinket slot, 21 new items, the 4-item pool, the reworks above;
   600 Hard runs on seed 30000): **Hard 51%**: Berserker 56%, Herald 55%, Mender 54%, Ranger 54%,
   Alchemist 52%, Duelist 52%, Scoundrel 50%, Warden 48%, Arcanist 47%, Vanguard 45%. **Normal 90%.**

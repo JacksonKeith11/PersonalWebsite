@@ -11,10 +11,12 @@ import os
 import posixpath
 import re
 import shutil
+import struct
 import time
 import uuid
-import zipfile
 import unicodedata
+import zipfile
+import zlib
 from html import escape
 from html.entities import name2codepoint
 from urllib.parse import quote, unquote
@@ -101,6 +103,94 @@ class _Epub(zipfile.ZipFile):
         if isinstance(name, str) and name not in self.NameToInfo:
             name = self._loose.get(self._key(name), name)
         return super().read(name, pwd)
+
+
+def _salvage(data: bytes) -> bytes | None:
+    """Rebuild a zip whose index (the central directory at its end) is damaged or cut short,
+    from the entries themselves, as Apple Books and most readers manage to. Entries cut off
+    partway are left out. None if nothing could be recovered."""
+    out, found, view = io.BytesIO(), 0, memoryview(data)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        pos = data.find(b"PK\x03\x04")
+        while 0 <= pos and pos + 30 <= len(data):
+            _, _, flags, method, _, _, _, size, _, name_len, extra_len = struct.unpack("<IHHHHHIIIHH", data[pos:pos + 30])
+            raw = data[pos + 30:pos + 30 + name_len]
+            name = _name(raw)
+            start = pos + 30 + name_len + extra_len
+            content = None
+            if method == zipfile.ZIP_DEFLATED:
+                d = zlib.decompressobj(-15)
+                try:
+                    content = d.decompress(view[start:])
+                except zlib.error:
+                    content = None
+                if content is not None and d.eof:
+                    end = len(data) - len(d.unused_data)
+                else:
+                    content, end = None, start + 1
+            elif method == zipfile.ZIP_STORED:
+                if flags & 0x08 and not size:  # size only in a descriptor after the data
+                    nxt = [i for i in (data.find(b"PK\x07\x08", start), data.find(b"PK\x03\x04", start)) if i >= 0]
+                    end = min(nxt) if nxt else len(data)
+                else:
+                    end = start + size
+                content = data[start:end] if end <= len(data) else None
+            else:
+                end = start + 1
+            if content is not None and name and not name.endswith("/"):
+                z.writestr(name, bytes(content))
+                found += 1
+            pos = data.find(b"PK\x03\x04", end)
+    return out.getvalue() if found else None
+
+
+def _name(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("cp437")
+
+
+def _what_it_is(data: bytes) -> str:
+    """Why a file that won't open as a zip isn't an EPUB, as best it can be told."""
+    head = data[:2048].lstrip().lower()
+    if not data:
+        return "the file is empty"
+    if data[60:68] in (b"BOOKMOBI", b"TEXtREAd"):
+        return "it's a Kindle book (MOBI or AZW3), not an EPUB; Calibre can convert it"
+    if head.startswith(b"%pdf"):
+        return "it's a PDF, not an EPUB"
+    if head.startswith((b"<!doctype html", b"<html")) or b"<html" in head:
+        return "it's a web page, not an EPUB, so the download probably failed; download it again"
+    if data.startswith((b"Rar!", b"7z\xbc\xaf", b"\x1f\x8b")):
+        return "it's a compressed archive (RAR, 7z or gzip) with something inside, not an EPUB; unpack it first"
+    if data.startswith(b"PK"):
+        return "it's a damaged zip archive with nothing recoverable in it (the download may be incomplete); download it again"
+    return "it isn't a zip archive, which every EPUB is (it may be damaged or another kind of file)"
+
+
+def repair(data: bytes) -> bytes:
+    """The EPUB's bytes, rebuilt if its zip index is damaged. Raises EpubError saying what the file
+    is instead when it can't be read as an EPUB at all."""
+    try:
+        zipfile.ZipFile(io.BytesIO(data)).close()
+        return data
+    except (zipfile.BadZipFile, ValueError, struct.error, EOFError):
+        pass
+    fixed = _salvage(data) if data.startswith(b"PK") or b"PK\x03\x04" in data[:4096] else None
+    if fixed:
+        # A file cut off early can be missing the part that says what's in the book.
+        try:
+            z = open_epub(fixed)
+            z.read(_xml(z.read("META-INF/container.xml")).find(".//rootfile").get("full-path"))
+        except (KeyError, AttributeError, TypeError, ElementTree.ParseError):
+            raise EpubError(
+                "That doesn't look like a valid EPUB file: it's incomplete (cut off partway, as an "
+                "interrupted download is) and the part listing what's in the book is missing; download it again."
+            ) from None
+        log.info("Rebuilt a damaged zip index (%d bytes)", len(data))
+        return fixed
+    raise EpubError(f"That doesn't look like a valid EPUB file: {_what_it_is(data)}.")
 
 
 def open_epub(file) -> zipfile.ZipFile:
@@ -496,6 +586,7 @@ def save(data: bytes, owner: str, source: str = "") -> str:
     book_id = book_id_for(owner, data)
     if store.book_dir(book_id):
         return book_id
+    data = repair(data)  # stored repaired, so the reader's later reads of it work
     book, sections = _read(data, book_id, 0)
     book.update(owner=owner, added=time.time(), source=source)
 
@@ -522,6 +613,7 @@ def update(book_id: str, data: bytes) -> str | None:
     old = folder and store.read_json(folder / "book.json")
     if not old:
         return None
+    data = repair(data)
     book, sections = _read(data, book_id, old.get("rev", 0) + 1)
     book.update(owner=old["owner"], added=old["added"], source=old.get("source", ""), updated=time.time())
 

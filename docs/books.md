@@ -63,6 +63,10 @@ Read this before changing `app/books/` or `app/static/books/`.
   percent-encoded in links, HTML entities (`&rsquo;`) or bare `&` in the package XML, a byte-order
   mark. Open EPUBs with `epub.open_epub` (not `zipfile.ZipFile`) and parse their XML with `_xml`,
   which tolerate these. "Not a valid EPUB" errors name the part that failed.
+- **Damaged zips are rebuilt.** `epub.repair` (run by `save` and `update`) rebuilds a zip whose
+  index is cut off, damaged or missing from its entries, as other readers do; the repaired file is
+  what's stored, while the book id still hashes the uploaded bytes. A file that isn't a zip gets
+  told apart (a web page from a failed download, a Kindle book, a PDF, an archive).
 - **Uploading several books at once** sends them one at a time. A failure (a bad file, a dropped
   connection) doesn't stop the rest; the summary lists what was added, what was already there
   (`/upload` answers `existing`), and each failure with its reason.

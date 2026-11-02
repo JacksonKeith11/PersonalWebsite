@@ -133,7 +133,7 @@ class Foes:
         f = self.s["fight"]
         d = A.FOES[fo["k"]]
         if f["ambush"] and f["round"] == 1:
-            fo["intent"] = {"k": "dazed", "name": "Caught off guard"}
+            fo["intent"] = {"k": "dazed", "name": "Caught off guard", "by_hero": True}
             return
         moves = self.foe_moves(fo)
         if d.get("seq"):
@@ -335,11 +335,14 @@ class Foes:
         it = fo["intent"] or {}
         if fo["st"].pop("stun", 0):
             self.fx("st", to=f"f{fo['id']}", s="stunned")
+            self.lost_action(fo)
             return
         frozen = fo["st"].pop("freeze", 0)
         k = it.get("k")
         if k in (None, "dazed"):
             self.fx("fact", f=fo["id"], ik="dazed")
+            if it.get("by_hero"):
+                self.lost_action(fo)
             return
         if k == "charge":
             self.fx("fact", f=fo["id"], ik="charge")

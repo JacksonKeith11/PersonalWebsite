@@ -417,7 +417,7 @@ PASSIVES.update({
     "volatile": {"name": "Volatile", "mods": {"bomb_bonus": 3}, "tags": ["bombs"], "text": "Your bombs deal +3."},
     "shrapnel": {"name": "Shrapnel", "mods": {"splash_bonus": 3}, "tags": ["bombs"], "text": "Your bombs' splash deals +3."},
     "distiller": {"name": "Distiller", "mods": {"distiller": 1}, "tags": ["elixirs"], "text": "Resting brews two potions instead of one."},
-    "deep_pockets": {"name": "Deep Pockets", "mods": {"bag": 2}, "text": "+2 bag slots."},
+    "deep_pockets": {"name": "Deep Pockets", "mods": {"reroll": 1, "sticky": 3}, "text": "Spares for everything: +1 automatic reroll per fight, and +3 gold after every fight you win."},
     "safety_goggles": {"name": "Field Kit", "mods": {"heal_armor": 2, "burn_immune": 1}, "tags": ["elixirs"],
                        "text": "Your heals also give 2 Armor, and you can't be Burned."},
     "chain_reaction": {"name": "Chain Reaction", "cap": True, "mods": {"chain_reaction": 1}, "tags": ["bombs"],

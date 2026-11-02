@@ -100,7 +100,6 @@ MODS = {
     # the map, the bag and gold
     "move": "+n move",
     "wayfinder": "see further along the path",
-    "bag": "+n bag slots",
     "rest_bonus": "resting heals this share of max HP more",
     "distiller": "resting brews two potions",
     "philosopher": "Bottle It makes two potions",

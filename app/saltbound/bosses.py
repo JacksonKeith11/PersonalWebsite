@@ -7,6 +7,29 @@ from .tuning import LAMP_DOUSE, UNDERTOW
 
 
 class Bosses:
+    # ---- Steeled: no boss or big threat can be shut down two rounds running. One that loses an
+    # action (Stunned, its turn cancelled, distracted at nobody, robbed of every die) is Steeled for
+    # the next round: Stuns and cancels don't take, and it always acts.
+    def boss_like(self, fo):
+        d = A.FOES[fo["k"]]
+        return bool(d.get("boss") or d.get("big") or d.get("final"))
+
+    def steeled(self, fo):
+        return self.boss_like(fo) and fo.get("steel", 0) >= self.s["fight"]["round"]
+
+    def resist(self, fo):
+        """A Steeled enemy shrugs off a Stun or a lost turn: True if it resisted."""
+        if self.steeled(fo):
+            self.fx("st", to=f"f{fo['id']}", s="steeled")
+            return True
+        return False
+
+    def lost_action(self, fo):
+        """A boss-like enemy just lost its action: Steel it for the next round."""
+        if self.boss_like(fo):
+            fo["steel"] = self.s["fight"]["round"] + 1
+            fo["st"]["steeled"] = 1
+
     def crown_warded(self, fo):
         return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
 
@@ -44,6 +67,8 @@ class Bosses:
                 fo["cracked"] = False
             if fo["k"] == "lamp_keeper":
                 fo["lit"] = f["round"] > fo.get("dark_until", 0)
+            if not self.steeled(fo):
+                fo["st"].pop("steeled", None)
             if fo.get("bl") and A.FOES[fo["k"]].get("bloodied", {}).get("rule") == "allhands" and len(self.foes()) < 5:
                 new = self.add_foe("deckhound")
                 new["intent"] = {"k": "dazed", "name": "Just arrived"}
@@ -68,9 +93,9 @@ class Bosses:
         if fo["k"] == "lamp_keeper" and fo.get("lit", True) and len(fo.get("hitr", [])) >= min(LAMP_DOUSE, len(self.actives())):
             fo["lit"] = False
             fo["dark_until"] = f["round"] + 1
-            fo["st"]["stun"] = 1
+            fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
             self.fx("st", to=f"f{fo['id']}", s="doused")
-            self.say("The lamp goes out! The Lamp Keeper reels in the dark.")
+            self.say("The lamp goes out! In the dark the Lamp Keeper takes full damage, and its next attack is Weak.")
         splits = (d.get("splits") and n > 0) or (fo.get("aff") == "splitting" and len(fo.get("hitr", [])) >= 2)
         if splits and not fo.get("split") and fo["hp"] >= 4 and len(self.foes()) < 5:
             fo["split"] = True

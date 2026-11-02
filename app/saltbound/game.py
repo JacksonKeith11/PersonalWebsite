@@ -38,7 +38,6 @@ MAX_GROUPS = 12
 INN_COST = 8
 SKIFF_COST = 10
 START_GOLD = 20
-BAG = 4
 POOL_EXTRA = 2  # a fight's loot pool holds this many more items than the winners' picks
 LOG_KEEP = 40
 FX_KEEP = 200
@@ -220,8 +219,6 @@ class Game(Combat):
         tracker = C.CLASSES[hero["cls"]]["map"]["key"] == "tracker" and not hero["afloat"]
         return max(1, MOVES + self.mods(h).get("move", 0) + (1 if tracker else 0))
 
-    def bag_size(self, h):
-        return BAG + self.mods(h).get("bag", 0)
 
     # ------------------------------------------------------------------ terrain
 
@@ -814,8 +811,7 @@ class Game(Combat):
         self.say(f"{hero['name']} rests (+{n} HP).")
         if key == "brewer":
             for _ in range(2 if self.mods(h).get("distiller") else 1):
-                if len(hero["bag"]) < self.bag_size(h):
-                    hero["bag"].append("potion")
+                hero["bag"].append("potion")
 
     # ------------------------------------------------------------------ places
 
@@ -1032,10 +1028,6 @@ class Game(Combat):
             raise Invalid("Give it to whom?")
         if Wd.dist(self.hero(to)["tile"], self.hero(h)["tile"]) > 1:
             raise Invalid("They're too far away.")
-        other = self.hero(to)
-        slot = I.ITEMS[key]["slot"]
-        if (slot == "use" or other["equip"].get(slot)) and len(other["bag"]) >= self.bag_size(to):
-            raise Invalid("Their bag is full.")
         return to
 
     def take_loot(self, h, key, to, equip):
@@ -1090,12 +1082,8 @@ class Game(Combat):
         slot = it["slot"]
         if slot != "use" and hero["equip"].get(slot) is None:
             hero["equip"][slot] = key
-        elif len(hero["bag"]) < self.bag_size(h):
-            hero["bag"].append(key)
         else:
-            hero["gold"] += self.sell_price(h, key)
-            self.say(f"{hero['name']}'s bag is full, so they sell the {it['name']}.")
-            return
+            hero["bag"].append(key)
         self.say(f"{hero['name']} gets {it['name']}.")
         if slot != "use" and slot in hero["equip"] and hero["equip"][slot] != key:
             pass
@@ -1196,9 +1184,6 @@ class Game(Combat):
         cost = self.price_for(h, key)
         if hero["gold"] < cost:
             raise Invalid("You can't afford that.")
-        slot = I.ITEMS[key]["slot"]
-        if len(hero["bag"]) >= self.bag_size(h) and not (slot != "use" and hero["equip"].get(slot) is None):
-            raise Invalid("Your bag is full.")
         hero["gold"] -= cost
         if key not in I.CONSUMABLES:
             stock.remove(key)
@@ -1290,17 +1275,13 @@ class Game(Combat):
         self.say(f"Job done for {q['src']}: +{A.QUEST_REWARD} gold each.")
 
     def wear(self, h, key):
-        """Put new gear straight on; what it replaces goes in the bag (or is sold if the bag is full)."""
+        """Put new gear straight on; what it replaces goes in the bag."""
         hero = self.hero(h)
         slot = I.ITEMS[key]["slot"]
         old = hero["equip"].get(slot)
         hero["equip"][slot] = key
         if old:
-            if len(hero["bag"]) < self.bag_size(h):
-                hero["bag"].append(old)
-            else:
-                hero["gold"] += self.sell_price(h, old)
-                self.say(f"{hero['name']}'s bag is full, so they sell the {I.ITEMS[old]['name']}.")
+            hero["bag"].append(old)
         hero["hp"] = min(hero["hp"], self.maxhp(h))
         self.say(f"{hero['name']} puts on the {I.ITEMS[key]['name']}.")
 
@@ -1327,8 +1308,6 @@ class Game(Combat):
         slot = msg.get("slot")
         if slot not in ("armor", "trinket") or not hero["equip"].get(slot):
             raise Invalid("You can't take that off.")
-        if len(hero["bag"]) >= self.bag_size(h):
-            raise Invalid("Your bag is full.")
         hero["bag"].append(hero["equip"][slot])
         hero["equip"][slot] = None
         hero["hp"] = min(hero["hp"], self.maxhp(h))
@@ -1360,8 +1339,6 @@ class Game(Combat):
         i = msg.get("bag")
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Give what?")
-        if len(other["bag"]) >= self.bag_size(to):
-            raise Invalid("Their bag is full.")
         other["bag"].append(hero["bag"].pop(i))
 
     def do_use(self, h, msg):
@@ -1405,7 +1382,7 @@ class Game(Combat):
         for h in range(3):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
-                           "moves": self.moves(h), "sight": self.enemy_sight(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h), "sellrate": self.sell_rate(h),
+                           "moves": self.moves(h), "sight": self.enemy_sight(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "sellrate": self.sell_rate(h),
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():

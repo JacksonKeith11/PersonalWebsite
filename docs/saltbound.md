@@ -180,7 +180,7 @@ Keep to these. They came from the owner directly.
   else their bag). Heroes can trade freely on a shared hex or in a town. Every item shows what a town
   pays for it (40%, 60% with Haggler; `Game.sell_price`).
 - **Items**: weapon, armor and trinket slots (each gives a die and maybe an action or passive) plus
-  4 bag slots (`BAG`; Deep Pockets +2). 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
+  a bag with no limit (owner's request; Deep Pockets became +1 reroll and +3 gold a win). 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
   bombs, scrolls.
 - **Healing**: HP carries over between fights. Heal at inns (gold), at camps (spend the turn, heal
   half), with potions, or from the Mender. Wearing the party down is part of the time pressure.
@@ -215,7 +215,13 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      lunge and slash, an arrow, a spell orb and burst, a thrown bomb, a green glow on whoever is
      healed, a blue shimmer for Armor); and the "This round" strip lists each action with who did
      it, the damage, healing, Armor and kills it caused (`done[i].out`, from `Game.act_outcome`),
-     with the roll and the details on hover. Hovering an ally's portrait lists their actions.
+     with the roll and the details on hover. Hovering an ally's portrait lists their actions, and
+     clicking one (when not aiming) opens their full sheet over the stage: every action with its
+     cooldown, their passives and this round's dice (`allyPanel`); clicking your own other hero
+     switches your tray to them. The big skills have signature effects (`SIGNATURE` in `combat.js`:
+     Fireball's orb and explosions, Earthshaker's quake, Chain Lightning's bolt, Cleave's arc, Lunge's
+     thrust, Volley's arrow rain, Doom's sigil, Renew's party glow, Sanctuary's dome, Hymn's notes,
+     summoning circles and more); anything else uses the generic effect for its kind.
      Clicking an ally's hero card on the map opens their sheet read-only (skills, gear, about).
   6. **Rewards and level-up**: gold, loot pick, then the 1-of-3 skill offer.
   7. **Town and shop panel**, **event dialog**.
@@ -426,11 +432,18 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   the Roc takes to the **air** (melee can't reach it). They hold champion halls and roam alone from
   two objectives cleared.
 - **Dungeon bosses are puzzles** (`bosses.py`): the **Bell-Warden** shows a bell number each round;
-  a hit with a die showing it cracks the bell (+6, `BELL_CRACK`, and it loses its next action; scored
+  a hit with a die showing it cracks the bell (+6, `BELL_CRACK`, and its next attack is Weak; scored
   as a combo, so previews and bots see it). The **Lamp Keeper** takes half damage while lit, until
-  three different heroes (or all standing, if fewer: `LAMP_DOUSE`) hit it in one round; then it loses
-  its next action and takes full damage through the next round. The **Gallows Admiral** runs out
+  three different heroes (or all standing, if fewer: `LAMP_DOUSE`) hit it in one round; then its next
+  attack is Weak and it takes full damage through the next round. The **Gallows Admiral** runs out
   Deck Cannons that Load, Load, then Broadside everyone: kill the guns first.
+- **No boss can be locked down** (owner's request): the bell and the lamp once made their boss lose
+  its next action, and with three heroes the bell matched almost every round (the Bell-Warden lost 62%
+  of its actions, the Lamp Keeper 42%, in bot runs); with skill Stuns on top a boss never acted. Now
+  they Weaken instead, and **Steeled** (`bosses.py`) covers every boss and big threat: one that loses
+  an action (Stunned, cancelled by Cacophony or Requiem, distracted at nobody, robbed of every die) is
+  Steeled for the next round, when Stuns and cancels don't take, so it acts at least every other
+  round. Intents set by heroes (and an ambush's free first round) carry `by_hero`, which is what Steels.
 - **The Drowned Crown** (100 HP): phase 1, **warded** (half damage, `CROWN_WARD`) while a Tide Guard
   stands; it summons guards only in this phase. Phase 2 (two thirds health): the **Undertow** marks
   one hero each round, who takes 3× the fight's damage multiplier (`UNDERTOW`) at round end unless
@@ -474,6 +487,9 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
   every 3. Enemies also gain 15% HP and 10% damage per tier, and `SURGE` per rise of the tide.
+- **Now** (no bag limit, Steeled bosses, the bell and lamp Weaken instead of stunning): **Hard 37%**
+  (35% seed 5000, 39% seed 9000), **Normal 86%**. Above the Hard target again: the unlimited bag
+  (bots keep every potion and no gear is auto-sold) outweighed the tougher bosses. The owner's call.
 - **Where the bots stand** (after the rising tide became `SURGE` and loot became a shared pool; 600
   runs on Hard from seeds 5000 and 9000, 200 on Normal): **Hard 29%** (28% and 31%), classes 24–35%
   on seed 9000 (Berserker 35, Alchemist 33, Ranger 33, Scoundrel 32, Duelist 32, Warden 31, Arcanist

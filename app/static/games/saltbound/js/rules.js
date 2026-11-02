@@ -268,6 +268,7 @@ export const STATUS = {
   weak: { name: 'Weak', icon: 'down', text: 'Deals 25% less damage.', bad: true },
   vuln: { name: 'Vulnerable', icon: 'crack', text: 'Takes 25% more damage.', bad: true },
   stun: { name: 'Stun', icon: 'spark', text: 'Skips its next action.', bad: true },
+  steeled: { name: 'Steeled', icon: 'shield', text: 'This boss lost an action last round, so this round it can’t be Stunned or lose its turn. No boss can be shut down two rounds running.' },
   armor: { name: 'Armor', icon: 'shield', text: 'Blocks this much damage. Clears at the end of the round.' },
   mark: { name: 'Mark', icon: 'target', text: 'Takes +3 damage from every hit.', bad: true },
   root: { name: 'Root', icon: 'root', text: "Can't change rows or flee.", bad: true },

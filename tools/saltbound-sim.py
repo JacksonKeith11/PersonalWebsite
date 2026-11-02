@@ -1,6 +1,6 @@
 """Plays whole Saltbound runs with bots on the server's own rules, for balance and save checks.
 
-    python3 tools/saltbound-sim.py [runs] [difficulty] [--classes=a,b,c] [--saves] [--report]
+    python3 tools/saltbound-sim.py [runs] [difficulty] [--classes=a,b,c] [--with=class] [--saves] [--report]
                                    [--json=out.json] [--jobs=N] [--seed=1000]
 
 Prints wins, losses and why, run length in map turns, the party's level, and any runs that got
@@ -189,6 +189,8 @@ def play_batch(args, opt):
     diff = args[1] if len(args) > 1 else "normal"
     seed0 = int(opt.get("seed", 1000))
     combos = [opt["classes"].split(",")] if "classes" in opt else [list(c) for c in combinations(sorted(CLASSES), 3)]
+    if "with" in opt:  # every party includes this class (its picks are offered three times as often)
+        combos = [c for c in combos if opt["with"] in c]
     random.Random(seed0).shuffle(combos)  # so a short batch still sees every class
     jobs = [(seed0 + i, combos[i % len(combos)], diff, "saves" in opt) for i in range(runs)]
     workers = int(opt.get("jobs", os.cpu_count() or 1))

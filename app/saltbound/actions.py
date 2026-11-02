@@ -133,6 +133,11 @@ class Actions:
             return [fo for fo in self.foes() if first and fo["row"] == first["row"]]
         if to == "party":
             return [("h", y) for y in self.actives()]
+        if to == "another":
+            # a different enemy from the action's target, at random (a bolt arcing on)
+            first = next((t for t in base if isinstance(t, dict)), None)
+            others = [fo for fo in self.foes() if fo is not first]
+            return [self.rng.choice(others)] if others else []
         if to == "lowest":
             others = [y for y in self.actives() if y != h]
             return [("h", min(others, key=lambda y: self.hero(y)["hp"]))] if others else []
@@ -548,11 +553,14 @@ class Actions:
     def _inst_give(self, c, op):
         d = c.dice[0]
         c.x["dice"].remove(d)
-        self.hs(c.other)["dice"].append(dict(d, id=f"g{d['id']}", src="gift", used=False, bonus=d.get("bonus", 0) + c.extra))
+        self.hs(c.other)["dice"].append(dict(d, id=f"g{d['id']}", src="gift", used=False,
+                                             bonus=d.get("bonus", 0) + c.extra + op.get("bonus", 0)))
         c.keep.add(d["id"])
 
     def _inst_reroll_ally(self, c, op):
-        self.hs(c.other)["rr"] += 2 + (1 if c.a["plus"] else 0)
+        y = self.hs(c.other)
+        y["rr"] += 2 + (1 if c.a["plus"] else 0)
+        y["inspire"] = y.get("inspire", 0) + 2 + c.extra
         self.fx("st", to=f"h{c.other}", s="rerolls")
 
     def _inst_flip(self, c, op):
@@ -562,7 +570,7 @@ class Actions:
         nums = [face(f2)[0] for f2 in d["faces"] if face(f2)[0] is not None]
         lo, hi = min(nums), max(nums)
         if t not in ("S", "X", "W") and v is not None and v <= (lo + hi) / 2:
-            v = lo + hi - v
+            v = lo + hi - v + 1
             self.fx("st", to=f"h{c.h}", s="flipped")
         self.show_die(d, v, t if t in ("S", "X", "W") else None)
         d.pop("fc", None)
@@ -595,9 +603,9 @@ class Actions:
 
     def _inst_transfusion(self, c, op):
         v = self.roll(c.h, c.dice[0])
-        self.fight_heal(c.other, v + c.m.get("heal_bonus", 0) + c.plus, c.h)
+        self.fight_heal(c.other, v + 2 + c.m.get("heal_bonus", 0) + c.plus, c.h)
         y = self.hs(c.other)
-        y["inspire"] = y.get("inspire", 0) + 1 + c.extra
+        y["inspire"] = y.get("inspire", 0) + 2 + c.extra
         self.fx("st", to=f"h{c.other}", s="inspired")
 
     def _inst_bottle(self, c, op):

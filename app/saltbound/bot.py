@@ -852,6 +852,10 @@ def op_targets(g, h, op, base):
     if to == "row":
         first = next((t for t in base if isinstance(t, dict)), None)
         return [(fo, 1) for fo in g.foes() if first and fo["row"] == first["row"]]
+    if to == "another":
+        first = next((t for t in base if isinstance(t, dict)), None)
+        others = [fo for fo in g.foes() if fo is not first]
+        return [(fo, 1 / len(others)) for fo in others]
     if to == "party":
         return [(("h", y), 1) for y in g.actives()]
     if to == "lowest":

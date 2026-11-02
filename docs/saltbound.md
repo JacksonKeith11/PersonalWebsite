@@ -492,6 +492,32 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
   every 3. Enemies also gain 15% HP and 10% damage per tier, and `SURGE` per rise of the tide.
+- **The overnight pick study** (owner's request: test skill win rates with long runs and rebalance
+  outliers, optimising for skills that are interesting to play). Method: `--with=<class>` (every party
+  includes that class, so its picks come up three times as often), 600 Hard runs per class, each pick
+  judged by vs passed with a standard error (z). The spread of z was 1.4 (1.0 would be pure noise),
+  and 20 of 144 picks were past ±2. **Almost every clearly bad pick was an action** that costs a die
+  and a level but does less than the class's basic attack; the good ones were passives and upgrades
+  of the basic attack. So the fix was to make those actions worth a die, not to nerf passives:
+  Acid Flask (now a bomb: strip all Armor, Vulnerable 2, deal the die; was z −4.2), Shoulder Charge
+  (½ die Armor, 4+: die +3 and drag; −3.7), Twin Cut (each die +2; −3.4), Volley (½ each die +1;
+  −3.1), Aimed Shot (5+, a miss deals half; −3.0), Transfusion (heal die +2, next die +2; −2.9),
+  Strangle (3+, die +2; −2.5), Lend a Hand (the die rolls 2 higher; −2.5), Swarm (wasps sting 2;
+  −2.3), Entangle (also ½ die; −2.3), Smite (die +4, the lowest ally heals 2; −2.2), Rally Wall (½ sum
+  Armor; −2.0), Doom (26 − die, at least 8; −1.9), Silver Voice (also +1 reroll; −2.1, a map-only
+  pick). The strongest picks (Brace +4.2, Toss+ and Thornlash+ upgrades) were left alone: Brace's
+  Vanguard is the weakest class, and upgrades look strong only because the bots rarely take them.
+  Rounds two to four (500 runs per changed class each) reworked what was still low: Chain Lightning
+  (odd: die +3, Shock, arcs to another enemy for half, `"to": "another"`; even: the die), Siphon (die
+  +2), Retaliate (Armor + the whole die), Finisher (sum +3), Quicksilver (one die; the ally's next die
+  +2), Counterpoint (a flipped die +1), Undying Fury (12), Shieldwall (also 6 Armor at the start of
+  each fight; guard share 4, shields block 5), Shoulder Charge (no roll, cooldown 2: the die as Armor,
+  die +2, drag). Berserker: 30 HP, 3 per level. Each round's new "worst" picks were mostly last
+  round's fine ones (noise); the z spread fell from 1.42 to about 1.2.
+- **Brace is the Vanguard's must-pick** (+18 to +20 points vs passed, z +3.6 to +4.2, every round),
+  and every Vanguard action looks bad partly because taking one passes Brace up. The clean fix is
+  Brace in the Vanguard's starting kit (with a new pick in its place), which touches the class's
+  basics: left for the owner to decide.
 - **Bloodlust reworked** (owner's request; it looked worst in a 300-run pick comparison, −28, though
   within noise): heal 4 per kill (was 2), and the first kill each round gives a fresh d6 (`kill_die`),
   so a kill rolls into the next swing. Not yet measured.
@@ -499,6 +525,12 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   losses): by turn 1-9 5%, 10-19 19%, 20-29 17%, 30-39 34%, 40-49 21%, 50+ 4%; by objectives cleared
   0: 42%, 1: 26%, 2: 20%, 3 (at the Drowned Crown) 11%. Most losses come late, but four in ten losing
   parties never clear an objective.
+- **After the overnight pass** (second trinket slot, 21 new items, the 4-item pool, the reworks above;
+  600 Hard runs on seed 30000): **Hard 51%**: Berserker 56%, Herald 55%, Mender 54%, Ranger 54%,
+  Alchemist 52%, Duelist 52%, Scoundrel 50%, Warden 48%, Arcanist 47%, Vanguard 45%. **Normal 90%.**
+  The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
+  moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
+  multipliers, or a later second trinket slot).
 - **Now** (no bag limit, Steeled bosses, the bell and lamp Weaken instead of stunning): **Hard 37%**
   (35% seed 5000, 39% seed 9000), **Normal 86%**. Above the Hard target again: the unlimited bag
   (bots keep every potion and no gear is auto-sold) outweighed the tougher bosses. The owner's call.
@@ -590,13 +622,14 @@ clock anywhere: the run changes only when someone acts.
 - `python3 tools/saltbound-check.py` forces every action and passive of every class through real
   fights (bots never use most instant tricks), checks the passive mods against `mods.py`, and that
   `js/rules.js`'s map size matches the server's. Run it after touching the rules or classes.
-- `python3 tools/saltbound-sim.py [runs] [difficulty] [--report] [--seed=N] [--saves]` plays whole runs
+- `python3 tools/saltbound-sim.py [runs] [difficulty] [--report] [--seed=N] [--saves] [--with=class]` plays whole runs
   with bots across all cores. **It's slow**: 12 runs ~15 s, 100 ~1-2 min, 300 ~3-5 min, and batches
   run side by side slow each other. Batches of 50+ save their output to `data/saltbound-sim/`
   (`last-<difficulty>.txt`, with the date and commit); `--last [difficulty]` prints them without
   playing. Answer balance questions from those or from "Balance now" first, and run fresh only when
   the code changed since and the question needs it; 100 runs is enough for a shape, 300 for class
-  rates. `--report` prints balance analytics (`tools/saltbound_stats.py`): class
+  rates. `--with=<class>` puts that class in every party, for studying its picks (500-600
+  runs per class; a whole sweep of ten takes about 1h45 on four cores). `--report` prints balance analytics (`tools/saltbound_stats.py`): class
   win rates and output, fights by kind, enemies, each class's actions, level-up picks, gear, flags.
   `--saves` checks a run saved and restored at every step finishes identically, and that the analytics
   hooks don't change a run. It exits non-zero on a stuck run or a save mismatch.

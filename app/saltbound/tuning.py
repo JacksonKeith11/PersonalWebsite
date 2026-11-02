@@ -8,6 +8,9 @@ ROUND_ONLY = ("riposte", "thorns")  # hero statuses that clear at the end of the
 ONE_SHOT = ("stun", "freeze", "shock", "hex", "lock", "steal", "static")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
+# The rising tide: each rise makes every enemy this share stronger, HP and damage (rises come every
+# few turns, by difficulty; see DIFFICULTY in game.py).
+SURGE = 0.025
 # Enemies met on the map (roaming groups and lairs) last longer but hit softer, so those fights
 # take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
 ROAM_HP = 2.2

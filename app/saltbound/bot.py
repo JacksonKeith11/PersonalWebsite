@@ -100,18 +100,27 @@ def choose(g, h, d):
     if d["type"] == "loot":
         # the pick that most improves on what's worn in its slot (consumables by rarity)
         opts = d["opts"]
-
-        def gain(k):
-            it = I.ITEMS[k]
-            if it["slot"] == "use":
-                return RANK[it["rarity"]] * 1.5
-            cur = hero["equip"].get(it["slot"])
-            return item_score(g, h, k) - (item_score(g, h, cur) if cur else 0)
-        return {"t": "choose", "n": max(range(len(opts)), key=lambda i: gain(opts[i]))}
+        return {"t": "choose", "n": max(range(len(opts)), key=lambda i: loot_gain(g, h, opts[i]))}
+    if d["type"] == "pool":
+        # claim the unclaimed item that most improves on what's worn (consumables by rarity)
+        pool = g.s["pools"][str(d["id"])]
+        free = [i for i in range(len(pool["items"])) if str(i) not in pool["taken"]]
+        if not free:
+            return {"t": "choose", "n": -1}
+        return {"t": "choose", "n": max(free, key=lambda i: loot_gain(g, h, pool["items"][i]))}
     if d["type"] == "level":
         opts = d["opts"]
         return {"t": "choose", "n": max(range(len(opts)), key=lambda i: level_score(g, h, d["lvl"], opts[i]))}
     return None
+
+
+def loot_gain(g, h, k):
+    """How much an item improves on what's worn in its slot (consumables by rarity)."""
+    it = I.ITEMS[k]
+    if it["slot"] == "use":
+        return RANK[it["rarity"]] * 1.5
+    cur = g.hero(h)["equip"].get(it["slot"])
+    return item_score(g, h, k) - (item_score(g, h, cur) if cur else 0)
 
 
 # Item passives that only do something with the right actions: (mods, what the hero needs)
@@ -193,9 +202,9 @@ def plan_move(g, h):
             it = I.ITEMS[key]
             if it["slot"] == "use":
                 continue
-            if better(g, h, key) and hero["gold"] >= g.price_for(h, key) and len(hero["bag"]) < 4:
+            if better(g, h, key) and hero["gold"] >= g.price_for(h, key) and len(hero["bag"]) < g.bag_size(h):
                 return {"t": "buy", "item": key}
-        if hero["gold"] >= 30 and hero["bag"].count("potion") < 2 and len(hero["bag"]) < 4:
+        if hero["gold"] >= 30 and hero["bag"].count("potion") < 2 and len(hero["bag"]) < g.bag_size(h):
             return {"t": "buy", "item": "potion"}
     if hero["hp"] < mx * 0.45 and "potion" in hero["bag"]:
         return {"t": "use", "bag": hero["bag"].index("potion")}
@@ -212,6 +221,9 @@ def plan_move(g, h):
                 return {"t": "path", "path": path}
             except Invalid:
                 pass
+    # nowhere to go (already at the goal, say a town whose inn is too dear): rest while hurt
+    if hero["hp"] < mx and not p["path"] and not p["rest"]:
+        return {"t": "rest"}
     return {"t": "ready"}
 
 

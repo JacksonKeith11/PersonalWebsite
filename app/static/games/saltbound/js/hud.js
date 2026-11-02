@@ -429,6 +429,13 @@ function drawerShell(title, sub, tabList, d, body) {
 }
 
 const SLOT_ICON = { weapon: 'sword', armor: 'shield', trinket: 'star', use: 'drop' };
+// What the hero would get for selling an item in a town (40% of its price, 60% with Haggler).
+function sellValue(key, h0 = sel()) {
+  return Math.floor(S.static.prices[key] * (S.game.heroes[h0]?.sellrate ?? 40) / 100);
+}
+function sellChip(key, h0) {
+  return h('span.sells', { tip: 'What a town pays for it' }, icon('coin'), `sells ${sellValue(key, h0)}`);
+}
 function itemRow(key, right, extra) {
   const it = item(key);
   const sub = [];
@@ -436,6 +443,7 @@ function itemRow(key, right, extra) {
   // a long die (8+ faces) gets its own line rather than wrapping after a dangling separator
   const long = it.die && it.die.length > 6;
   if (it.die && !long) sub.push(faceRow(it));
+  sub.push(sellChip(key));
   return h('div.item.r-' + it.rarity, { tip: itemTip(key) },
     h('div.ico', null, icon(SLOT_ICON[it.slot] || 'spark')),
     h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')),
@@ -506,7 +514,7 @@ function townDrawer(h0, town, d) {
       }),
       g.herald ? h('p.muted', null, 'The Herald’s silver tongue knocks 20% off.') : null,
       hero.bag.length ? h('h3', null, 'Sell') : null,
-      ...hero.bag.map((k, i) => itemRow(k, h('button.btn.sm', { disabled, onclick: () => send({ t: 'sell', h: h0, bag: i }) }, `Sell · ${Math.floor(S.static.prices[k] * 0.4)}`))),
+      ...hero.bag.map((k, i) => itemRow(k, h('button.btn.sm', { disabled, onclick: () => send({ t: 'sell', h: h0, bag: i }) }, `Sell · ${sellValue(k, h0)}`))),
     ];
   } else if (d.tab === 'inn') {
     body = [h('h3', null, 'The inn'), h('p.muted', null, 'A hot meal and a dry bed. Heals you to full straight away.'),
@@ -704,6 +712,8 @@ function renderDialogs() {
   const h0 = mine().find(x => g.pending[x]?.length && (x === sel() || true));
   if (h0 === undefined || combatOpen()) { el.replaceChildren(); UI.lastDialog = null; return; }
   const d = g.pending[h0][0], hero = g.heroes[h0];
+  // allies who could take loot from this hero: anyone alive within a hex (who'd have joined the fight)
+  const mates = g.heroes.map((x, i) => i).filter(i => i !== h0 && g.heroes[i].alive && hexDist(g.heroes[i].tile, hero.tile) <= 1);
   let content;
   if (d.type === 'event') {
     const ev = S.static.events[d.key];
@@ -733,11 +743,14 @@ function renderDialogs() {
     content = [
       h('div.eyebrow', null, hero.name),
       h('h2', null, 'Spoils'),
-      h('p.lead', null, 'Take one. Put gear on now, or keep it in your bag for later.'),
+      h('p.lead', null, mates.length ? 'Take one, or hand it to an ally nearby. Put gear on now, or keep it in a bag for later.'
+        : 'Take one. Put gear on now, or keep it in your bag for later.'),
       h('div.picks.loot', null, ...d.opts.map((k, i) => {
         const it = item(k);
         const cur = it.slot !== 'use' && hero.equip[it.slot] ? item(hero.equip[it.slot]) : null;
         const take = equip => send({ t: 'choose', h: h0, n: i, equip });
+        // an ally takes it into an empty slot if it has one, else into their bag
+        const give = m => send({ t: 'choose', h: h0, n: i, to: m, equip: it.slot !== 'use' && !g.heroes[m].equip[it.slot] });
         const curDie = cur?.die ? ` · ${dieLabel({ faces: cur.die, dk: cur.dk || [] })}` : '';
         return h('div.pick.loot-card.r-' + it.rarity, { style: { '--i': i } }, h('span.kbd.pick-key', null, i + 1),
           h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
@@ -747,10 +760,20 @@ function renderDialogs() {
           ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
           it.mods ? h('p', null, modsText(it.mods)) : null,
           it.text ? h('p.passive', null, it.text) : null,
+          sellChip(k, h0),
           compareWith(h0, k),
           h('div.pick-btns', null,
             it.slot === 'use' || !cur ? h('button.btn.primary.sm', { onclick: () => take(true) }, it.slot === 'use' ? 'Take' : 'Put it on')
-              : [h('button.btn.primary.sm', { onclick: () => take(true) }, 'Put it on'), h('button.btn.sm.ghost', { onclick: () => take(false) }, 'Into the bag')]));
+              : [h('button.btn.primary.sm', { onclick: () => take(true) }, 'Put it on'), h('button.btn.sm.ghost', { onclick: () => take(false) }, 'Into the bag')],
+            mates.length ? h('div.give-row', null, h('span.muted', null, 'Give to'),
+              ...mates.map(m => {
+                const full = (it.slot === 'use' || g.heroes[m].equip[it.slot]) && g.heroes[m].bag.length >= g.heroes[m].bagsize;
+                const now = it.slot !== 'use' && g.heroes[m].equip[it.slot] ? item(g.heroes[m].equip[it.slot]).name : null;
+                return h('button.btn.sm.ghost', { disabled: full, onclick: () => give(m),
+                  tip: full ? `${g.heroes[m].name}'s bag is full.` : it.slot === 'use' ? `Into ${g.heroes[m].name}'s bag.`
+                    : now ? `Into ${g.heroes[m].name}'s bag (they wear the ${now}).` : `${g.heroes[m].name} puts it on (their ${it.slot} slot is empty).` },
+                  g.heroes[m].name);
+              })) : null));
       })),
       h('button.btn.ghost', { style: { justifySelf: 'end' }, onclick: () => send({ t: 'choose', h: h0, n: -1 }) }, 'Leave it'),
     ];

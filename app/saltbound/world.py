@@ -1,10 +1,11 @@
 """The hex map: geometry, generating a run's archipelago from its seed, and terrain queries.
 
 Hexes are pointy-topped in an "odd-r" offset grid (odd rows sit half a hex to the right); a tile is
-addressed by its index `r * W + q`. Each tile has an elevation: the sea level rises over the run
-and floods everything at or below it. Land elevations are handed out by rank, so each rise floods
-about the same amount of land (`LAND_BANDS` bands over `2..17`); the three objective dungeons and
-the final peak sit at `PROTECTED`, above every band, until the peak floods and the run is lost.
+addressed by its index `r * W + q`. Each tile has an elevation: everything at or below the sea level
+(`SEA0`, fixed for the run) is water, and one above it is tidal shallows. Land elevations are handed
+out by rank (`LAND_BANDS` bands over `2..17`), which shapes the terrain: beaches low, hills and peak
+high; the three objective dungeons and the final peak sit at `PROTECTED`, above every band. (The sea
+once rose and flooded the bands one by one; now the rising tide only makes enemies stronger.)
 """
 
 import math

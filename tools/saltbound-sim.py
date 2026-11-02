@@ -51,6 +51,8 @@ def play(seed, classes, diff, roundtrip=False, limit=20000, stats=None):
                 continue
             q = g.s["pending"][str(h)]
             dialog = q[0] if q and msg.get("t") == "choose" else None
+            if dialog and dialog["type"] == "pool":  # the pool can close as this claim lands
+                dialog = {**dialog, "opts": list(g.s["pools"][str(dialog["id"])]["items"])}
             try:
                 g.act(h, msg)
                 if dialog and stats is not None:
@@ -91,7 +93,7 @@ def one(job):
             note = (note or "") + f"\n  seed {seed}: THE ANALYTICS HOOKS CHANGED THE RUN"
     cause = None
     if res == "lost":
-        cause = "flood" if g.s["rises"] >= game.LOSS_RISE else "party fell"
+        cause = "party fell"
     return res, g.s["turn"], g.s["level"], cause, note, stats.t
 
 

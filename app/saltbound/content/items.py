@@ -69,7 +69,6 @@ ITEMS = {
                      "start": True},
 
     # ---- weapons
-    "fishing_spear": {"name": "Fishing Spear", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["thrust"]},
     "rusty_harpoon": {"name": "Rusty Harpoon", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["harpoon"]},
     "flintlock": {"name": "Flintlock", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, 6, 8], "acts": ["shoot"]},
     "coral_blade": {"name": "Coral Blade", "slot": "weapon", "rarity": "uncommon", "die": D(8), "dk": ["steady"], "acts": ["slash"]},
@@ -89,7 +88,6 @@ ITEMS = {
     "heirloom_sword": {"name": "Heirloom Sword", "slot": "weapon", "rarity": "uncommon", "die": D(6), "dk": ["heirloom"], "acts": ["slash"]},
 
     # ---- armor
-    "sailcloth_wrap": {"name": "Sailcloth Wrap", "slot": "armor", "rarity": "common", "die": [1, 2, 3, "S"]},
     "cork_vest": {"name": "Cork Vest", "slot": "armor", "rarity": "common", "die": [2, 2, 3, 3, 4, 4], "mods": {"max_hp": 4}},
     "sharkskin": {"name": "Sharkskin", "slot": "armor", "rarity": "uncommon", "die": [2, 3, 4, 5, "S", "S"], "dk": ["steady"],
                   "mods": {"thorns": 1}},

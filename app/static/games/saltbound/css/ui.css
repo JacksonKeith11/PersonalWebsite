@@ -1029,3 +1029,9 @@ a:hover { color: var(--accent-hi); }
 .item .acts:empty { display: none; }
 .item:has(> .acts:empty) { grid-template-columns: auto minmax(0, 1fr); }
 .col.crowd .unit.boss > img { width: 72px; height: 72px; }
+
+/* what an item sells for, on every item row and loot card */
+.sells { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--accent); }
+.sells .icon-svg { width: 13px; height: 13px; }
+.loot-card .sells { font-size: var(--fs-14); }
+.pick-btns .give-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }

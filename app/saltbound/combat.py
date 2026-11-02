@@ -41,13 +41,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             "groups": spec.get("groups", []), "region": spec.get("region"), "step": spec.get("step", 0),
             "path": spec.get("path"),
             "by": spec.get("by"), "round": 0, "foes": [], "hs": {}, "done": [], "guard": {}, "taunt": None,
-            "sanct": 0, "aegis": 0, "xp": 0, "gold": 0, "dmul": diff["foe_dmg"] * (1 + 0.1 * tier),
+            "sanct": 0, "aegis": 0, "xp": 0, "gold": 0, "dmul": diff["foe_dmg"] * (1 + 0.1 * tier) * self.surge(),
             "spirit": {}, "nextfoe": 1, "phase": 1, "allies": [], "nextsum": 1, "acts": {}, "pain": {},
         }
         s["fid"] += 1
         s["fight"] = f
         s["phase"] = "fight"
-        grow = max(0, s["rises"] - 10) * 0.1 if spec["kind"] == "boss" else 0
+        grow = 0
         roam = spec["kind"] in ("roam", "lair")
         if roam:
             f["dmul"] *= ROAM_DMG
@@ -86,7 +86,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
     def add_foe(self, key, hp=None, grow=0.0, aff=None):
         f = self.s["fight"]
         d = A.FOES[key]
-        mult = self.diff()["foe_hp"] * (1 + 0.15 * self.tier()) * (1 + grow)
+        mult = self.diff()["foe_hp"] * (1 + 0.15 * self.tier()) * (1 + grow) * self.surge()
         mx = max(1, round(d["hp"] * mult))
         fo = {"id": f["nextfoe"], "k": key, "name": d["name"], "hp": mx, "max": mx, "row": d["row"],
               "st": {}, "intent": None, "seq": 0, "might": 0}
@@ -906,20 +906,19 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                     self.complete_quest(q, winners[0] if winners else party[0])
         final = f["kind"] == "dungeon" and f["step"] >= A.DUNGEON_STEPS - 1
         path = f.get("path")
-        for h in winners:
-            if f["kind"] == "dungeon":
-                if final:
-                    self.offer_loot(h, 2 if path == "sneak" else 3, tier_bonus=2)
-                elif path == "champion":
-                    self.offer_loot(h, 3, tier_bonus=2)
-                else:
-                    self.offer_loot(h, 2, tier_bonus=1)
-                if path == "vault":
+        # one shared pool of loot for the winners, each claiming an item
+        n, bonus = 0, 0
+        if f["kind"] == "dungeon":
+            n, bonus = (2 if path == "sneak" else 3, 2) if final else (3, 2) if path == "champion" else (2, 1)
+            if path == "vault":
+                for h in winners:
                     self.hero(h)["gold"] += 12
-            elif f["kind"] == "lair" or any(fo.get("aff") or A.FOES[fo["k"]].get("big") for fo in f["foes"]):
-                self.offer_loot(h, 2, tier_bonus=1)
-            elif self.rng.chance(0.35):
-                self.offer_loot(h, 2)
+        elif f["kind"] == "lair" or any(fo.get("aff") or A.FOES[fo["k"]].get("big") for fo in f["foes"]):
+            n, bonus = 2, 1
+        elif self.rng.chance(0.35):
+            n = 1
+        if n:
+            self.offer_pool({h: n for h in winners}, tier_bonus=bonus)
         if path == "vault" and winners:
             self.say("The vault gives up its gold: +12 each.")
         if f["kind"] == "dungeon":

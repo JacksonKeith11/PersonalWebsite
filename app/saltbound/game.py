@@ -8,7 +8,7 @@ for everyone.
 A map turn: every living hero plans a path (or rests) and readies up; then everyone moves at
 once, enemies close in, fights start where heroes and enemies meet (every hero within a hex
 joins), and landing on a place (an event, a wreck, a shrine) queues a dialog for that hero. Then
-the next turn begins: the tide may turn and the sea may rise.
+the next turn begins: the tide may turn, and every few turns it rises and enemies grow stronger.
 
 Phases: `plan` (map turns), `fight`, `reward` (after a fight, until everyone's picks are made),
 `end`.
@@ -21,8 +21,9 @@ from .combat import Combat, Invalid
 from .content import archipelago as A
 from .content import items as I
 from .rng import Rng
+from .tuning import SURGE
 
-VERSION = 4
+VERSION = 5
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -30,8 +31,7 @@ DIFFICULTY = {
 }
 MOVES = 4
 VISION = 5  # land seen around a hero: more than a turn's walk, so a move's result is in view
-GROW_FROM = 10  # after this many rises the Drowned Crown grows and more enemies come
-LOSS_RISE = 15  # the peak floods: the run is lost
+GROW_FROM = 10  # after this many rises more enemies come ashore
 TIDE_EVERY = 4
 SPAWN_EVERY = 4
 MAX_GROUPS = 12
@@ -39,7 +39,7 @@ INN_COST = 8
 SKIFF_COST = 10
 START_GOLD = 20
 BAG = 4
-FLOOD_DAMAGE = 4
+POOL_EXTRA = 2  # a fight's loot pool holds this many more items than the winners' picks
 LOG_KEEP = 40
 FX_KEEP = 200
 
@@ -74,7 +74,7 @@ class Game(Combat):
             "v": VERSION, "seed": seed, "rng": seed * 7919 + 17, "diff": difficulty, "turn": 1, "sea": Wd.SEA0,
             "rises": 0, "phase": "plan", "result": None, "world": w, "seen": [0] * (Wd.W * Wd.H), "cleared": [],
             "dungeon": {}, "heroes": heroes, "xp": 0, "level": 1, "revives": diff["revives"], "miracle": False,
-            "groups": [], "gid": 1, "plans": {}, "pending": {"0": [], "1": [], "2": []}, "fights": [],
+            "groups": [], "gid": 1, "plans": {}, "pending": {"0": [], "1": [], "2": []}, "pools": {}, "poolid": 0, "fights": [],
             "fight": None, "after": "turn", "quests": [], "shops": {}, "fx": [], "fxid": 0, "log": [],
             "stats": [{"dmg": 0, "heal": 0, "kills": 0, "taken": 0} for _ in range(3)], "fid": 1,
             "dnext": {}, "fork": None,
@@ -729,7 +729,7 @@ class Game(Combat):
             self.resolve_turn()
 
     def waiting_reward(self, h):
-        return any(d["type"] in ("loot", "level") for d in self.s["pending"][str(h)])
+        return any(d["type"] in ("loot", "pool", "level") for d in self.s["pending"][str(h)])
 
     def begin_turn(self):
         s = self.s
@@ -783,49 +783,18 @@ class Game(Combat):
         return "low" if ((turn - 1) // TIDE_EVERY) % 2 == 0 else "high"
 
     def rise(self):
+        """The tide rises: every enemy met from now on is a little stronger (`surge`). The land
+        stays as it is: the sea never floods hexes or sinks places."""
         s = self.s
         s["rises"] += 1
-        s["sea"] += 1
-        if s["rises"] >= LOSS_RISE:
-            self.say("The sea closes over the peak. The Drowned Crown has won.")
-            self.end("lost")
-            return
-        w = s["world"]
-        flooded = [t for t in range(Wd.W * Wd.H) if w["elev"][t] == s["sea"] + 1 or w["elev"][t] == s["sea"]]
-        self.fx("rise", sea=s["sea"])
-        for t in flooded:
-            p = self.place(t)
-            if p and w["elev"][t] <= s["sea"] + 1 and p["kind"] != "peak" and p["kind"] != "dungeon":
-                if p["kind"] == "town":
-                    self.say(f"{p['name']} sinks beneath the waves.")
-                del w["places"][str(t)]
-        for g in list(s["groups"]):
-            if self.terrain(g["tile"]) in ("deep", "shoal"):
-                s["groups"].remove(g)
-        for h in self.living():
-            hero = self.hero(h)
-            if self.terrain(hero["tile"]) == "deep" and not hero["afloat"]:
-                if hero["skiff"]:
-                    hero["afloat"] = True
-                else:
-                    dry = min((t for t in Wd.within(hero["tile"], 6) if self.terrain(t) in Wd.COST),
-                              key=lambda t: Wd.dist(t, hero["tile"]), default=None)
-                    if dry is not None:
-                        self.fx("move", h=h, path=[hero["tile"], dry])
-                        hero["tile"] = hero["prev"] = dry
-                    hero["hp"] = max(1, hero["hp"] - FLOOD_DAMAGE)
-                    self.say(f"{hero['name']} is swept ashore by the flood (−{FLOOD_DAMAGE} HP).")
+        self.fx("rise", rises=s["rises"])
+        self.say(f"The tide rises. Enemies are now {round(SURGE * s['rises'] * 100)}% stronger.")
         if s["rises"] == GROW_FROM + 1:
-            self.say("The Drowned Crown grows stronger with every rise now.")
-        else:
-            self.say(f"The sea rises. {LOSS_RISE - s['rises']} rises until the peak goes under.")
+            self.say("More enemies come ashore with every rise now.")
 
-    def floods_next(self):
-        """Tiles that become impassable shallows at the next rise, if it's next turn."""
-        s = self.s
-        if s["turn"] % self.diff()["rise"] != 0:
-            return []
-        return [t for t in range(Wd.W * Wd.H) if s["world"]["elev"][t] == s["sea"] + 2]
+    def surge(self):
+        """How much stronger enemies are for the tide having risen: HP and damage both."""
+        return 1 + SURGE * self.s["rises"]
 
     def rest(self, h):
         hero = self.hero(h)
@@ -923,14 +892,25 @@ class Game(Combat):
             if n is None or n == -1:
                 q.pop(0)
             elif isinstance(n, int) and 0 <= n < len(d["opts"]):
-                key = d["opts"][n]
+                to = self.loot_to(h, d["opts"][n], msg)
                 q.pop(0)
-                if msg.get("equip") and I.ITEMS[key]["slot"] != "use":
-                    self.wear(h, key)
-                else:
-                    self.gain_item(h, key)
+                self.take_loot(h, d["opts"][n], to, msg.get("equip"))
             else:
                 raise Invalid("Pick an item, or skip.")
+        elif d["type"] == "pool":
+            pool = self.s["pools"][str(d["id"])]
+            if n is None or n == -1:
+                q.pop(0)
+            elif isinstance(n, int) and 0 <= n < len(pool["items"]):
+                if str(n) in pool["taken"]:
+                    raise Invalid("Someone has already claimed that.")
+                to = self.loot_to(h, pool["items"][n], msg)
+                q.pop(0)
+                pool["taken"][str(n)] = {"by": h, "to": to}
+                self.take_loot(h, pool["items"][n], to, msg.get("equip"))
+            else:
+                raise Invalid("Claim an item, or pass.")
+            self.close_pool(d["id"])
         elif d["type"] == "level":
             if not isinstance(n, int) or not 0 <= n < len(d["opts"]):
                 raise Invalid("Pick one.")
@@ -1042,7 +1022,56 @@ class Game(Combat):
                    ("legendary", max(0, tier - 2))]
         return self.rng.weighted(weights)
 
+    def loot_to(self, h, key, msg):
+        """Who loot goes to: the hero, or an ally within a hex (anyone who could have joined the
+        fight) whose bag has room. Raises Invalid if they can't take it."""
+        to = msg.get("to", h)
+        if to == h:
+            return h
+        if not isinstance(to, int) or not 0 <= to < 3 or not self.hero(to)["alive"]:
+            raise Invalid("Give it to whom?")
+        if Wd.dist(self.hero(to)["tile"], self.hero(h)["tile"]) > 1:
+            raise Invalid("They're too far away.")
+        other = self.hero(to)
+        slot = I.ITEMS[key]["slot"]
+        if (slot == "use" or other["equip"].get(slot)) and len(other["bag"]) >= self.bag_size(to):
+            raise Invalid("Their bag is full.")
+        return to
+
+    def take_loot(self, h, key, to, equip):
+        if to != h:
+            self.say(f"{self.hero(h)['name']} hands the {I.ITEMS[key]['name']} to {self.hero(to)['name']}.")
+        if equip and I.ITEMS[key]["slot"] != "use":
+            self.wear(to, key)
+        else:
+            self.gain_item(to, key)
+
+    def offer_pool(self, counts, tier_bonus=0):
+        """After a fight: one pool of loot for everyone who won it, bigger than the picks they'd
+        have had alone (`counts`: {hero: how many picks}). Each claims one item (or passes), first
+        come first served; what nobody claims is left behind."""
+        heroes = list(counts)
+        if not heroes:
+            return
+        s = self.s
+        pid = s["poolid"] = s.get("poolid", 0) + 1
+        items = self.make_loot(sum(counts.values()) + POOL_EXTRA, tier_bonus)
+        s.setdefault("pools", {})[str(pid)] = {"items": items, "taken": {}, "heroes": heroes}
+        for h in heroes:
+            self.push(h, {"type": "pool", "id": pid})
+
+    def close_pool(self, pid):
+        """Forget a pool once nobody has its dialog left to answer."""
+        if not any(d["type"] == "pool" and d["id"] == pid for q in self.s["pending"].values() for d in q):
+            pool = self.s["pools"].pop(str(pid))
+            left = len(pool["items"]) - len(pool["taken"])
+            if left:
+                self.say(f"{left} unclaimed item{'s' if left > 1 else ''} left behind.")
+
     def offer_loot(self, h, n, tier_bonus=0, rarity=None):
+        self.push(h, {"type": "loot", "opts": self.make_loot(n, tier_bonus, rarity)})
+
+    def make_loot(self, n, tier_bonus=0, rarity=None):
         opts = []
         for _ in range(n * 3):
             if len(opts) >= n:
@@ -1053,7 +1082,7 @@ class Game(Combat):
             if self.rng.chance(0.2):
                 pool = [k for k in I.CONSUMABLES if k not in opts] or pool
             opts.append(self.rng.choice(pool))
-        self.push(h, {"type": "loot", "opts": opts})
+        return opts
 
     def gain_item(self, h, key):
         hero = self.hero(h)
@@ -1064,7 +1093,7 @@ class Game(Combat):
         elif len(hero["bag"]) < self.bag_size(h):
             hero["bag"].append(key)
         else:
-            hero["gold"] += I.price(key) * 4 // 10
+            hero["gold"] += self.sell_price(h, key)
             self.say(f"{hero['name']}'s bag is full, so they sell the {it['name']}.")
             return
         self.say(f"{hero['name']} gets {it['name']}.")
@@ -1176,6 +1205,13 @@ class Game(Combat):
         self.gain_item(h, key)
         self.fx("coins", h=h, n=-cost)
 
+    def sell_price(self, h, key):
+        """What an item sells for: 40% of its price, 60% with Haggler."""
+        return I.price(key) * self.sell_rate(h) // 100
+
+    def sell_rate(self, h):
+        return 60 if self.mods(h).get("haggler") else 40
+
     def do_sell(self, h, msg):
         self.town(h)
         hero = self.hero(h)
@@ -1183,7 +1219,7 @@ class Game(Combat):
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Sell what?")
         key = hero["bag"].pop(i)
-        n = I.price(key) * (6 if self.mods(h).get("haggler") else 4) // 10
+        n = self.sell_price(h, key)
         hero["gold"] += n
         self.say(f"{hero['name']} sells {I.ITEMS[key]['name']} for {n} gold.")
 
@@ -1263,7 +1299,7 @@ class Game(Combat):
             if len(hero["bag"]) < self.bag_size(h):
                 hero["bag"].append(old)
             else:
-                hero["gold"] += I.price(old) * 4 // 10
+                hero["gold"] += self.sell_price(h, old)
                 self.say(f"{hero['name']}'s bag is full, so they sell the {I.ITEMS[old]['name']}.")
         hero["hp"] = min(hero["hp"], self.maxhp(h))
         self.say(f"{hero['name']} puts on the {I.ITEMS[key]['name']}.")
@@ -1369,7 +1405,7 @@ class Game(Combat):
         for h in range(3):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
-                           "moves": self.moves(h), "sight": self.enemy_sight(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h),
+                           "moves": self.moves(h), "sight": self.enemy_sight(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "bagsize": self.bag_size(h), "sellrate": self.sell_rate(h),
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():
@@ -1383,15 +1419,15 @@ class Game(Combat):
                 places[t] = q
         return {
             "turn": s["turn"], "sea": s["sea"], "rises": s["rises"], "tide": self.tide(), "phase": s["phase"],
-            "result": s["result"], "diff": s["diff"], "rise_every": self.diff()["rise"], "loss_rise": LOSS_RISE,
-            "grow_from": GROW_FROM, "next_tide": TIDE_EVERY - (s["turn"] - 1) % TIDE_EVERY,
+            "result": s["result"], "diff": s["diff"], "rise_every": self.diff()["rise"],
+            "grow_from": GROW_FROM, "surge": round(SURGE * s["rises"] * 100), "next_tide": TIDE_EVERY - (s["turn"] - 1) % TIDE_EVERY,
             "next_rise": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"],
             "seen": "".join(map(str, s["seen"])), "places": places, "groups": groups, "heroes": heroes,
             "xp": s["xp"], "level": s["level"], "xp_next": C.XP_FOR[s["level"]] if s["level"] < C.MAX_LEVEL else None,
             "xp_this": C.XP_FOR[s["level"] - 1], "revives": s["revives"], "cleared": s["cleared"],
-            "dungeon": s["dungeon"], "fork": s.get("fork"), "dnext": s.get("dnext", {}), "plans": s["plans"], "pending": s["pending"], "fight": self.fight_view(),
+            "dungeon": s["dungeon"], "fork": s.get("fork"), "dnext": s.get("dnext", {}), "plans": s["plans"], "pending": s["pending"], "pools": s.get("pools", {}), "fight": self.fight_view(),
             "forecast": self.forecast(),
-            "quests": s["quests"], "floods": self.floods_next(), "log": s["log"][-12:], "fx": s["fx"][-60:],
+            "quests": s["quests"], "log": s["log"][-12:], "fx": s["fx"][-60:],
             "stats": s["stats"], "waiting": self.waiting(), "inn": self.inn_cost(),
             "skiff_cost": SKIFF_COST, "herald": self.has_class("herald"),
         }

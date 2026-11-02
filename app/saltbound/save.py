@@ -75,8 +75,20 @@ def _v3(state):
     return state
 
 
+def _v4(state):
+    """v5: the rising tide no longer floods (land already flooded stays so), loot after a fight is
+    one shared pool (`pools`), and two commons no better than starting gear are gone: the Fishing
+    Spear (the Rapier exactly) and the Sailcloth Wrap (a Wool Robe with a worse face)."""
+    text = json.dumps(state).replace('"fishing_spear"', '"rapier"').replace('"sailcloth_wrap"', '"wool_robe"')
+    state = json.loads(text)
+    state.setdefault("pools", {})
+    state.setdefault("poolid", 0)
+    state["v"] = 5
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4}
 
 
 class TooOld(Exception):

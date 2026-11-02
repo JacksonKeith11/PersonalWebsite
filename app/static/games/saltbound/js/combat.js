@@ -254,7 +254,7 @@ function drawArrows(box, f) {
   };
   for (const fo of f.foes) {
     const it = fo.intent;
-    if (fo.hp <= 0 || !it || !ARROW[it.k]) continue;
+    if (fo.hp <= 0 || !it || !ARROW[it.k] || fo.st.stun) continue;
     const fromEl = stage.querySelector(`[data-uid="f${fo.id}"]`);
     if (!fromEl) continue;
     const targets = [...new Set(intentTargets(it, units))];
@@ -407,6 +407,9 @@ function unitName(f, u) {
 function intentChip(fo, f) {
   const it = fo.intent;
   if (!it || fo.hp <= 0) return h('div.intent.none', null, '·');
+  // a Stunned enemy skips its next action, so what it meant to do no longer matters
+  if (fo.st.stun) return h('div.intent.card', { style: { '--c': 'var(--muted)' }, tip: 'Stunned\nSkips its action this round.' },
+    h('div.it-name', null, h('span.ic', null, icon('spark')), 'Stunned'), h('div.it-row', null, h('span.it-what', null, 'skips its turn')));
   const [ic, col] = INTENT[it.k] || ['spark', 'var(--muted)'];
   const aims = it.k === 'all' ? ['everyone'] : (it.tgts || (it.tgt ? [it.tgt] : [])).map(u => unitName(f, u));
   const counts = {};

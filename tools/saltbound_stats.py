@@ -254,7 +254,7 @@ def record_choice(stats, g, h, dialog, n, run):
         if 0 <= n < len(dialog["opts"]):
             stats.add("picks", f"{cls}:{dialog['opts'][n]}", "taken")
             run["picks"].append(f"{cls}:{dialog['opts'][n]}")
-    elif dialog["type"] == "loot":
+    elif dialog["type"] in ("loot", "pool"):
         for o in dialog["opts"]:
             stats.add("loot", o, "offered")
         if 0 <= n < len(dialog["opts"]):
@@ -326,7 +326,7 @@ def report(stats, top=12):
     base_wr = wins / n
     out.append(f"{n} runs: won {wins} ({_pct(wins, n).strip()}), lost {runs.get('lost', 0)}"
                + "".join(f", {k} {runs[k]}" for k in ("stuck", "limit") if runs.get(k)))
-    out.append(f"  avg turn {runs['turns'] / n:.1f}, level {runs['level'] / n:.1f}, sea rises {runs['rises'] / n:.1f}, "
+    out.append(f"  avg turn {runs['turns'] / n:.1f}, level {runs['level'] / n:.1f}, tide rises {runs['rises'] / n:.1f}, "
                f"regions cleared {runs['cleared'] / n:.2f}")
     when = t.get("runs", {}).get("lost at turn", {})
     if when:

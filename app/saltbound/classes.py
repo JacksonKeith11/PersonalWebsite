@@ -87,16 +87,16 @@ ACTIONS = {
     # ---- Vanguard
     "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+2+armor//2"}],
                "text": "Deal the die +2, plus half your current Armor. Gain Armor first (Block, Guard) to hit harder."},
-    "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+3", "to": "self"}],
-              "text": "Gain the die +3 as Armor. The next attack aimed at an ally this round hits you instead."},
+    "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+4", "to": "self"}],
+              "text": "Gain the die +4 as Armor. The next attack aimed at an ally this round hits you instead."},
     "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self",
-              "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+3"}, {"op": "status", "s": "thorns", "n": 2}],
-              "tags": ["bulwark"], "text": "Gain the die +3 as Armor. Every enemy attack this round hits you instead of your allies, and each attacker takes 2."},
+              "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+4"}, {"op": "status", "s": "thorns", "n": 2}],
+              "tags": ["bulwark"], "text": "Gain the die +4 as Armor. Every enemy attack this round hits you instead of your allies, and each attacker takes 2."},
     "brace": {"name": "Brace", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v+2"}, {"op": "armor", "amt": "2", "to": "lowest"}],
               "tags": ["bulwark"], "text": "Gain the die +2 as Armor. Your ally with the lowest HP gains 2 Armor."},
-    "rally_wall": {"cd": 2, "name": "Hold the Line", "req": {"n": 2}, "tgt": "self",
-                   "ops": [{"op": "sanct", "n": 2}, {"op": "armor", "amt": "sum+3*pair"}],
-                   "tags": ["bulwark"], "text": "Two dice: every hit on the party this round deals 2 less, and you gain their sum as Armor (+3 if they're a pair)."},
+    "rally_wall": {"cd": 2, "name": "Hold the Line", "req": {"n": 1}, "tgt": "self",
+                   "ops": [{"op": "sanct", "n": 2}, {"op": "armor", "amt": "v+3"}],
+                   "tags": ["bulwark"], "text": "Every hit on the party this round deals 2 less, and you gain the die +3 as Armor."},
     "shield_bash": {"cd": 2, "name": "Shield Bash", "req": {"n": 1, "min": 5, "or_face": "S"}, "tgt": "foe", "melee": True,
                     "ops": [{"op": "dmg", "amt": "max(v,3)+3"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
                     "tags": ["juggernaut"], "text": "On a shield face or 5+: deal the die +3 (at least 6) and Stun the enemy. Otherwise: deal half the die."},
@@ -339,7 +339,7 @@ CLASS_DICE = {
 
 CLASSES = {
     "vanguard": {
-        "name": "Vanguard", "hp": 50, "hp_lvl": 7, "role": "Tank",
+        "name": "Vanguard", "hp": 54, "hp_lvl": 7, "role": "Tank",
         "dice": [D(6), [1, 2, 3, 4, "S", "S"]], "tags": ["bulwark", "juggernaut"],
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard", "overguard"], "weapon": "hand_axe", "armor": "padded_coat",
@@ -592,9 +592,9 @@ def skill_def(key):
 # "die" is the die you put on it, "sum" the dice added up.
 SHORT = {
     "block": ("shield", "die as Armor", None), "flee": ("boot", "run away", "stay"),
-    "strike": ("sword", "die +2 + ½ Armor", None), "guard": ("shield", "take an ally's hit · die +3 Armor", None),
-    "taunt": ("target", "all attacks on you · die +3 Armor · thorns 2", None), "brace": ("shield", "die +2 Armor · +2 to the weakest", None),
-    "rally_wall": ("shield", "party hits −2 · sum Armor", None), "shield_bash": ("sword", "die +3 (6+) · Stun", "½ die"),
+    "strike": ("sword", "die +2 + ½ Armor", None), "guard": ("shield", "take an ally's hit · die +4 Armor", None),
+    "taunt": ("target", "all attacks on you · die +4 Armor · thorns 2", None), "brace": ("shield", "die +2 Armor · +2 to the weakest", None),
+    "rally_wall": ("shield", "party hits −2 · die +3 Armor", None), "shield_bash": ("sword", "die +3 (6+) · Stun", "½ die"),
     "retaliate": ("sword", "your Armor + die", None), "shoulder_charge": ("sword", "die Armor · die +2 · drag", None),
     "bolt": ("sword", "die", None), "channel": ("sword", "sum +2", None),
     "fireball": ("flame", "all: ½ sum +2 · Burn 2", "nothing"), "frost_lance": ("snow", "die +3 · Freeze", "½ die"),

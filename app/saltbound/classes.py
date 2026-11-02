@@ -30,8 +30,15 @@ PASSIVES = {
                "text": "Start each fight with 6 Armor. Your Guard also gives the guarded ally 4 Armor, your Taunt gives every ally 2 Armor, and your shield faces block 5."},
     "spiked_plate": {"name": "Spiked Plate", "mods": {"thorns": 3}, "tags": ["juggernaut"],
                      "text": "Enemies that hit you take 3 damage."},
-    "overguard": {"name": "Overguard", "mods": {"overguard": 1, "start_armor": 5}, "tags": ["bulwark"],
-                  "text": "Start each fight with 5 Armor, and a third of your Armor carries over into the next round."},
+    "overguard": {"name": "Overguard", "mods": {"start_armor": 5}, "tags": ["bulwark"],
+                  "text": "Start each fight with 5 Armor."},
+    # what Overguard and Strike once did for every Vanguard, now level-ups (owner's request)
+    "iron_stance": {"name": "Iron Stance", "mods": {"overguard": 1}, "tags": ["bulwark"],
+                    "text": "A third of your Armor carries over into the next round."},
+    "shield_weight": {"name": "Shield Weight", "tags": ["juggernaut"],
+                      "mods": {"override": {"strike": {"ops": [{"op": "dmg", "amt": "v+2+armor//3"}],
+                                                       "text": "Deal the die +2, plus a third of your current Armor."}}},
+                      "text": "Strike also deals a third of your current Armor. Gain Armor first (Block, Guard) to hit harder."},
     "last_stand": {"name": "Last Stand", "mods": {"last_stand": 6}, "text": "While you're at half HP or less, gain 6 Armor each round."},
     "unbreakable": {"name": "Unbreakable", "cap": True, "mods": {"unbreakable": 1}, "tags": ["bulwark"],
                     "text": "Once per fight, a hit that would knock you down leaves you at 1 HP instead."},
@@ -85,8 +92,8 @@ ACTIONS = {
              "text": "On 4+: escape the fight, back the way you came. Otherwise: you stay. Not in dungeons or boss fights."},
 
     # ---- Vanguard
-    "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+1+armor//3"}],
-               "text": "Deal the die +1, plus a third of your current Armor. Gain Armor first (Block, Guard) to hit harder."},
+    "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+2"}],
+               "text": "Deal the die +2."},
     "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+2", "to": "self"}],
               "text": "Gain the die +2 as Armor. The next attack aimed at an ally this round hits you instead."},
     "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self",
@@ -132,7 +139,7 @@ ACTIONS = {
              "text": "At the end of next round, the enemy takes 26 minus the die (at least 8). The lower the roll, the bigger the hit."},
 
     # ---- Mender
-    "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v"}], "text": "Heal an ally by the die."},
+    "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+3"}], "text": "Heal an ally by the die +3."},
     "lift": {"name": "Lift", "per_rest": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2"}],
              "text": "Once until you rest: revive a knocked-down ally with twice the die in HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
@@ -154,9 +161,10 @@ ACTIONS = {
 
     # ---- Duelist
     "slash_d": {"name": "Riposte Cut", "req": {"n": 1, "min": 3}, "tgt": "foe", "melee": True,
-                "ops": [{"op": "dmg", "amt": "v+2"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "On 3+: deal the die +2. Otherwise: deal half the die."},
-    "parry": {"name": "Parry", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "riposte", "n": 2, "to": "self"}],
-              "text": "Gain Armor equal to the die. If it fully blocks a hit this round, strike back for 2."},
+                "ops": [{"op": "dmg", "amt": "v+2+3*aimed"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                "text": "On 3+: deal the die +2, and 3 more if that enemy is aiming at you. Otherwise: deal half the die."},
+    "parry": {"name": "Parry", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "riposte", "n": 4, "to": "self"}],
+              "text": "Gain Armor equal to the die. If it fully blocks a hit this round, strike back for 4."},
     "twin_cut": {"name": "Twin Cut", "req": {"n": 2}, "tgt": "foe", "melee": True, "tags": ["flurry"],
                  "ops": [{"op": "dmg", "amt": "d+2+3*pair", "each": True}], "text": "Two dice: hit once with each for the die +2 (+3 more to each hit if they're a pair)."},
     "whirl": {"name": "Whirl", "req": {"n": 3, "upto": True}, "tgt": "foes", "tags": ["flurry"],
@@ -344,7 +352,7 @@ CLASSES = {
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard", "overguard"], "weapon": "hand_axe", "armor": "padded_coat",
         "pool": ["taunt", "brace", "rally_wall", "shield_bash", "retaliate", "shoulder_charge",
-                 "thick_hide", "iron_will", "steady", "spiked_plate", "last_stand",
+                 "thick_hide", "iron_will", "steady", "spiked_plate", "last_stand", "iron_stance", "shield_weight",
                  "unbreakable", "avalanche"],
         "blurb": "Wades in, armoured, and takes the hits meant for everyone else.",
     },
@@ -359,12 +367,12 @@ CLASSES = {
         "blurb": "Wild dice and big spells. Fragile; keep them covered.",
     },
     "mender": {
-        "name": "Mender", "hp": 17, "hp_lvl": 3, "role": "Healer",
+        "name": "Mender", "hp": 21, "hp_lvl": 4, "role": "Healer",
         "dice": [D(6), D(6)], "tags": ["restoration", "warding"],
         "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals an extra 10% of their max HP."},
-        "start": ["mend", "lift"], "weapon": "lantern_rod", "armor": "nurses_apron",
+        "start": ["mend", "lift", "overflow"], "weapon": "lantern_rod", "armor": "nurses_apron",
         "pool": ["renew", "lifeline", "ward", "sanctuary", "cleanse", "smite",
-                 "bedside_manner", "overflow", "quick_hands", "blessed_supplies", "aura", "calm", "transfusion",
+                 "bedside_manner", "quick_hands", "blessed_supplies", "aura", "calm", "transfusion",
                  "miracle", "aegis"],
         "blurb": "Keeps the party standing, and picks them up when they don't.",
     },
@@ -442,7 +450,7 @@ PASSIVES.update({
 
 CLASSES.update({
     "duelist": {
-        "name": "Duelist", "hp": 24, "hp_lvl": 3, "role": "Single-target damage",
+        "name": "Duelist", "hp": 27, "hp_lvl": 4, "role": "Single-target damage",
         "dice": [D(8), D(6)], "tags": ["flurry", "precision"],
         "map": {"key": "ambush", "name": "Ambush", "text": "A fight you start gives the party a free first round."},
         "start": ["slash_d", "parry"], "weapon": "rapier", "armor": "padded_coat",
@@ -592,7 +600,7 @@ def skill_def(key):
 # "die" is the die you put on it, "sum" the dice added up.
 SHORT = {
     "block": ("shield", "die as Armor", None), "flee": ("boot", "run away", "stay"),
-    "strike": ("sword", "die +1 + ⅓ Armor", None), "guard": ("shield", "take an ally's hit · die +2 Armor", None),
+    "strike": ("sword", "die +2", None), "guard": ("shield", "take an ally's hit · die +2 Armor", None),
     "taunt": ("target", "all attacks on you · die +2 Armor · thorns 2", None), "brace": ("shield", "die +1 Armor · +2 to the weakest", None),
     "rally_wall": ("shield", "party hits −1 · die +2 Armor", None), "shield_bash": ("sword", "die +3 (6+) · Stun", "½ die"),
     "retaliate": ("sword", "your Armor + die", None), "shoulder_charge": ("sword", "die Armor · die +2 · drag", None),
@@ -600,12 +608,12 @@ SHORT = {
     "fireball": ("flame", "all: ½ sum +2 · Burn 2", "nothing"), "frost_lance": ("snow", "die +3 · Freeze", "½ die"),
     "chain_lightning": ("bolt", "die +3 · Shock · arcs ½", None), "hex": ("down", "Weak + Vulnerable", None),
     "siphon": ("sword", "die +2 · heal half", "½ die · heal half"), "doom": ("skull", "26 − die, next round", None),
-    "mend": ("plus", "heal die", None), "lift": ("hand", "revive: 2× die", None),
+    "mend": ("plus", "heal die +3", None), "lift": ("hand", "revive: 2× die", None),
     "renew": ("plus", "party: heal ½ sum · pair: sum", None), "lifeline": ("plus", "heal ½ max HP at round end", "heal ½ die"),
     "ward": ("shield", "ally: 1½× die Armor", None), "sanctuary": ("shield", "party: hits −2", "hits −1"),
     "cleanse": ("plus", "cure + heal die", None), "smite": ("sword", "die +4 · ally heals 2", "½ die"),
     "quick_lift": ("hand", "revive with 6 HP", None),
-    "slash_d": ("sword", "die +2", "½ die"), "parry": ("shield", "die Armor · riposte 2", None),
+    "slash_d": ("sword", "die +2 · +3 if it aims at you", "½ die"), "parry": ("shield", "die Armor · riposte 4", None),
     "twin_cut": ("sword", "two hits, each die +2", None), "whirl": ("sword", "each die +1, random foes", None),
     "read_blade": ("eye", "reveal · die, 2× +2 if you beat it", None), "lunge": ("sword", "die +10 · Stun", "nothing"),
     "finisher": ("sword", "sum +6 · straight 2×", None), "pinpoint": ("target", "die +1, 2× if it aims at you", None),

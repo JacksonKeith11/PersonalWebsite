@@ -487,11 +487,11 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 | Class | HP (per level) | Map ability | Role | Tags |
 |---|---|---|---|---|
 | Vanguard | 46 (+5) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
-| Duelist | 24 (+3) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
+| Duelist | 27 (+4) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
 | Berserker | 32 (+4) | **Forage**: camps heal them fully | High-risk damage | Bloodlust, Rampage |
 | Ranger | 24 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
 | Arcanist | 23 (+4) | **Farsight**: sees 1 hex further; spots cursed loot | AoE and burst | Elementalist, Hexer |
-| Mender | 17 (+3) | **Field Medic**: resting on their hex heals everyone there an extra 10% | Healer | Restoration, Warding |
+| Mender | 21 (+4) | **Field Medic**: resting on their hex heals everyone there an extra 10% | Healer | Restoration, Warding |
 | Scoundrel | 22 (+3) | **Light Fingers**: +1 loot choice | Debuffs and loot | Poisons, Tricks |
 | Herald | 18 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
 | Alchemist | 21 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
@@ -685,6 +685,21 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **Strike and Overguard split, Mender and Duelist buffed** (owner's request, Nov 2026; 300 Hard runs,
+  seed 5000): **Hard 47%**. Vanguard 60%, Scoundrel 51%, Duelist 50% (was 29%), Mender 49% (was 28%),
+  Berserker 49%, Ranger 48%, Arcanist 48%, Alchemist 47%, Warden 39%, Herald 34% (Battle Hymn's trim).
+  Losses by objectives cleared 0: 42, 1: 26, 2: 41, 3: 49.
+  - **The Vanguard's Armor tricks are level-ups now**: Strike is the die +2 for everyone; **Shield
+    Weight** (Juggernaut) adds a third of Armor to it (an `override`); Overguard is only 5 starting
+    Armor; **Iron Stance** (Bulwark) carries a third of Armor into the next round (the `overguard` mod).
+  - **The bots valued healing low**: a point healed was worth 0.6–1.0, a point of Armor that stops a hit
+    1.0, though HP lost stays lost after the fight. Now 1.0–2.0 (`heal_value`), and Overflow's Armor
+    from overhealing counts. Mend went from 5.7% of the Mender's actions to 9.7%.
+  - **Mender**, after the proactive "barrier healer" idea (healers who prevent damage as well as
+    restore it, and whose overhealing isn't wasted): Mend heals the die +3 (was the die), Overflow
+    (healing past full becomes Armor) is a starting passive, 21 HP +4 a level (was 17 +3).
+  - **Duelist**, after the counter-attacker (Darkest Dungeon's riposte Highwayman): Riposte Cut deals 3
+    more to an enemy aiming at the Duelist (`aimed`), Parry ripostes for 4 (was 2), 27 HP +4 (was 24 +3).
 - **After objective scaling, the Vanguard nerf and the pick pass** (Nov 2026; 300 Hard runs, seed
   5000): **Hard 42%** (target about 50%), runs of 61 turns, level 6.0. Losses by objectives cleared
   0: 50, 1: 48, 2: 36, 3: 41, spread evenly as the scaling meant. Vanguard 59%, Alchemist 52%, Scoundrel

@@ -770,7 +770,7 @@ def evaluate(g, b, h, a, dice, tgt):
                 n = amt(op["amt"], de) + plus + m.get("heal_bonus", 0)
                 for t, share in tg:
                     if isinstance(t, tuple):
-                        val += share * heal_value(g, b, t[1], n, inc)
+                        val += share * heal_value(g, b, t[1], n, inc, overflow=bool(m.get("overflow")))
                         bump(eff["heal"], t[1], pr * share * n)
             elif k == "lift":
                 for t, share in tg:
@@ -913,17 +913,25 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
     return 1
 
 
-def heal_value(g, b, y, n, inc):
+def heal_value(g, b, y, n, inc, overflow=False):
+    """A point healed is worth at least a point of Armor that stops a hit: HP lost stays lost after the
+    fight (an inn or a rest to get back). More on the badly hurt, much more on someone about to drop.
+    With Overflow, healing past full is Armor, valued as Armor is."""
     if not g.active(y):
         return 0
     hero = g.hero(y)
     mx = g.maxhp(y)
     missing = mx - hero["hp"] - b.heal.get(y, 0)
     useful = max(0, min(n, missing))
+    extra = 0.0
+    if overflow and n > useful:
+        spare = n - useful
+        need = max(0, inc.get(y, 0) - g.hs(y)["st"].get("armor", 0) - b.armor.get(y, 0) - useful)
+        extra = min(spare, need) + spare * 0.15
     left = hero["hp"] + b.heal.get(y, 0) + g.hs(y)["st"].get("armor", 0) + b.armor.get(y, 0) - inc.get(y, 0)
     if left <= 0 and useful > 0:
-        return useful * 2 + (10 if useful > -left else 0)
-    return useful * (0.6 + (1 - hero["hp"] / mx))
+        return useful * 2 + (10 if useful > -left else 0) + extra
+    return useful * (1.0 + (1 - hero["hp"] / mx)) + extra
 
 
 def bot_targets_for(g, h, a, tgt):

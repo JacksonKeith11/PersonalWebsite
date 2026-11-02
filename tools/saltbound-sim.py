@@ -92,6 +92,13 @@ def play(seed, classes, diff, roundtrip=False, limit=20000, stats=None):
         SS.Collector(g, stats)
     steps = 0
     while g.s["phase"] != "end" and steps < limit:
+        # heroes not fighting (the fallen, and the living elsewhere) give their die first, as players would
+        f = g.s["fight"]
+        give = [int(x) for x, sp in f["spirit"].items() if not sp["used"]] if f and g.s["phase"] == "fight" else []
+        for x in give:
+            msg = bot.support(g, x)
+            if msg:
+                g.act(x, msg)
         waiting = g.waiting()
         if not waiting:
             # dead heroes with spirit dice, or nothing to do: should never happen

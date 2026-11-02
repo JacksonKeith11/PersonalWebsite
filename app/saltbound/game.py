@@ -365,6 +365,13 @@ class Game(Combat):
         self.s["groups"].append(g)
         return g
 
+    def group_foes(self, reg):
+        """A roaming group's enemies for a region, harder with objectives cleared and a high sea."""
+        pool = A.GROUPS[reg]
+        hi = min(len(pool), 3 + self.tier() * 2 + (2 if self.s["rises"] > GROW_FROM else 0))
+        lo = max(0, hi - 4)
+        return list(self.rng.choice(pool[lo:hi]))
+
     def spawn(self, far=5):
         w = self.s["world"]
         heroes = [self.hero(h)["tile"] for h in self.living()]
@@ -374,10 +381,7 @@ class Game(Combat):
             return
         t = self.rng.choice(cands)
         reg = w["reg"][t] or "peak"
-        pool = A.GROUPS[reg]
-        hi = min(len(pool), 3 + self.tier() * 2 + (2 if self.s["rises"] > GROW_FROM else 0))
-        lo = max(0, hi - 4)
-        foes = list(self.rng.choice(pool[lo:hi]))
+        foes = self.group_foes(reg)
         tier = self.tier()
         if tier >= 2 and self.rng.chance(0.15):
             # a big single threat, alone
@@ -842,6 +846,7 @@ class Game(Combat):
             return
         if s["turn"] > 1 and (s["turn"] - 1) % A.GARRISON_EVERY == 0:
             self.grow_garrisons()
+        self.tick_tide()
         self.tick_opps()
         self.tick_chains()
         self.tick_jobs()
@@ -987,10 +992,92 @@ class Game(Combat):
         stays as it is: the sea never floods hexes or sinks places."""
         s = self.s
         s["rises"] += 1
-        self.fx("rise", rises=s["rises"])
-        self.say(f"The tide rises. Enemies are now {round(SURGE * s['rises'] * 100)}% stronger.")
+        self.say("The tide rises.")
+        news = self.tide_arrivals()
+        self.fx("rise", rises=s["rises"], news=news)
         if s["rises"] == GROW_FROM + 1:
             self.say("More enemies come ashore with every rise now.")
+
+    def tick_tide(self):
+        """A new turn: enemies the tide landed that nobody fought go back to sea."""
+        s = self.s
+        for g in [g for g in s["groups"] if g.get("tide") and g.get("until", s["turn"]) < s["turn"]]:
+            s["groups"].remove(g)
+            self.say("The beached beast slides back into the sea." if g["lair"] else "A band that came ashore puts back out to sea.")
+
+    def tide_arrivals(self):
+        """What the rising tide brings (`A.TIDE_ARRIVALS`): gifts early, threats later, shown on the map
+        at once. Returns what came, which is also kept as the news until the next rise."""
+        s = self.s
+        r = s["rises"]
+        late = r >= A.TIDE_LATE
+        n = 2 if r >= A.TIDE_TWO_FROM else 1
+        heroes = [self.hero(h)["tile"] for h in self.living()]
+        news = []
+        if not heroes:
+            s["tidenews"] = news
+            return news
+        tried = set()
+        while len(news) < n:
+            pairs = [(k, a["w"][late]) for k, a in A.TIDE_ARRIVALS.items()
+                     if a["from"] <= r and a["w"][late] > 0 and k not in tried]
+            if not pairs:
+                break
+            k = self.rng.weighted(pairs)
+            tried.add(k)
+            got = self.tide_arrival(k, heroes, late)
+            if got:
+                news.append(got)
+        s["tidenews"] = news
+        return news
+
+    def tide_arrival(self, k, heroes, late):
+        s = self.s
+        a = A.TIDE_ARRIVALS[k]
+        if k == "boon":
+            before = len(s.get("opps", []))
+            if before >= A.OPP_MAX + 1:
+                return None
+            self.spawn_opp()
+            if len(s.get("opps", [])) == before:
+                return None
+            o = s["opps"][-1]
+            where = self.place(o["tile"])["name"] if o["kind"] == "ship" else A.REGION_NAMES.get(s["world"]["reg"][o["tile"]] or "peak", "")
+            return {"k": k, "tile": o["tile"], "name": A.OPPS[o["kind"]]["name"] + " sighted", "text": A.OPPS[o["kind"]]["text"], "where": where}
+        if k in ("landing", "warband", "leviathan") and sum(1 for x in s["groups"] if x.get("tide")) >= A.TIDE_GROUPS:
+            return None
+        if k == "wreckage" and sum(1 for p in s["world"]["places"].values() if p.get("tide") and not p.get("done")) >= A.TIDE_WRECKS:
+            return None
+        lo, hi = a["range"]
+        cands = [t for t in range(Wd.W * Wd.H) if self.terrain(t) == "beach" and not self.place(t)
+                 and not self.group_at(t) and lo <= min(Wd.dist(t, x) for x in heroes) <= hi]
+        if not cands:
+            return None
+        t = self.rng.choice(cands)
+        reg = s["world"]["reg"][t] or "peak"
+        where = A.REGION_NAMES.get(reg, "")
+        g = None
+        if k == "wreckage":
+            s["world"]["places"][str(t)] = {"kind": "wreck", "rarity": self.rng.weighted(A.TIDE_WRECK_RARITY[late]), "tide": True}
+        elif k == "landing":
+            g = self.add_group(t, self.group_foes(reg))
+            g["sighted"] = s["turn"] + A.TIDE_SIGHTED - 1
+        elif k == "warband":
+            foes = self.group_foes(reg)
+            i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
+            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            g = self.add_group(t, foes)
+            g["sighted"] = s["turn"] + A.TIDE_SIGHTED - 1
+            g["prize"] = self.rng.choice([x for x in I.GEAR if I.ITEMS[x]["rarity"] == "rare"])
+        elif k == "leviathan":
+            g = self.add_group(t, [A.BIG.get(reg) or self.rng.choice(list(A.BIG.values()))], lair=True)
+            g["prize"] = self.rng.choice([x for x in I.GEAR if I.ITEMS[x]["rarity"] == "rare"])
+        if g:
+            g["tide"] = True
+            g["until"] = s["turn"] + A.TIDE_STAY * (2 if k == "leviathan" else 1) - 1
+        self.reveal(t, 1)
+        self.say(f"{a['name']} ({where}).")
+        return {"k": k, "tile": t, "name": a["name"], "text": a["text"], "where": where, **({"g": g["id"]} if g else {})}
 
     def surge(self):
         """How much stronger enemies are for the tide having risen: HP and damage both."""
@@ -1864,7 +1951,8 @@ class Game(Combat):
         vis = self.visible_tiles()
         groups = [{"id": g["id"], "tile": g["tile"], "lair": g["lair"], "foes": [f["k"] for f in g["foes"]],
                    "aff": [f.get("aff") for f in g["foes"]], "prize": g.get("prize"), "crew": g.get("crew")}
-                  for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]]) or g.get("bounty")]
+                  for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]]) or g.get("bounty")
+                  or g.get("sighted", 0) >= s["turn"]]
         heroes = []
         for h in range(3):
             hero = s["heroes"][h]
@@ -1891,7 +1979,7 @@ class Game(Combat):
         return {
             "turn": s["turn"], "sea": s["sea"], "rises": s["rises"], "tide": self.tide(), "phase": s["phase"],
             "result": s["result"], "diff": s["diff"], "rise_every": self.diff()["rise"],
-            "grow_from": GROW_FROM, "surge": round(SURGE * s["rises"] * 100), "next_tide": TIDE_EVERY - (s["turn"] - 1) % TIDE_EVERY,
+            "grow_from": GROW_FROM, "tidenews": s.get("tidenews", []), "next_tide": TIDE_EVERY - (s["turn"] - 1) % TIDE_EVERY,
             "next_rise": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"],
             "seen": "".join(map(str, s["seen"])), "places": places, "groups": groups, "heroes": heroes,
             "xp": s["xp"], "level": s["level"], "xp_next": C.XP_FOR[s["level"]] if s["level"] < C.MAX_LEVEL else None,

@@ -78,8 +78,10 @@ Keep to these. They came from the owner directly.
   replacing the old flooding): `SURGE` in `tuning.py`, 0.3% HP and damage per rise, on top of
   difficulty and tier. The land never changes: no hex floods and no town sinks (the flood could cut a
   party off from the town it needed to cross to another island). After rise 10 more enemies come
-  ashore. The top bar shows "Enemies +N%" and turns until the next rise. There's no turn limit: the
-  growing enemies are the pressure.
+  ashore. **Each rise brings something ashore** (owner's request: hide the percentage, show visible
+  events that grow as the run goes on; see "Tide arrivals"). The top bar shows only the turns until
+  the next rise (the percentage is hidden, owner's request); its tooltip names what the last rise brought.
+  There's no turn limit: the growing enemies are the pressure.
 - **Tides** replace day/night: every 4 turns the tide flips between low and high. Low tide opens
   sandbars and shallows; high tide closes them and makes sea encounters stronger. The current tide
   and turns until it changes always show in the top bar.
@@ -154,7 +156,7 @@ Keep to these. They came from the owner directly.
   still down when the fight ends, one revive from the **shared pool of 3** (Story 4, Hard 2; a rare
   event can add one) is spent and they come back at low HP. With the pool empty, a knocked-down
   hero stays dead; a dead player keeps placing **one support die** a round for the party, so nobody
-  sits idle. The run ends when the pool is empty and the whole party is down.
+  sits idle. So does a living hero who isn't in the fight (owner's request), from wherever they are. The run ends when the pool is empty and the whole party is down.
 
 ### Heroes
 
@@ -284,8 +286,8 @@ Asked of the owner during step 1 (keep to these too):
   that run, and any of them can resume it into a new room.
 - **The clock** (changed at the owner's request): each rise of the tide makes every enemy stronger
   (see "The world"). It once flooded the lowest land, sank towns and lost the run at rise 15.
-- **Heroes outside a fight** watch it live (read-only) and can go back to the map to pre-plan their
-  next path or shop in their town while they wait.
+- **Heroes outside a fight** watch it live and can go back to the map to pre-plan their next path or
+  shop in their town while they wait. Each round they can send the fight a support die (see "Fights").
 - **Sprites are bespoke**, drawn by `tools/saltbound-art/` with Roguelike Tactics' pixel kit.
 - **Heroes are not sea-themed; only the enemies are.** Hero sprites are ordinary fantasy
   adventurers and the classes' starting gear has plain names (Hand Axe, Oak Staff, Wool Robe), so
@@ -352,6 +354,30 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   (a Herald talks it down to 30) or a fight; **The Castaway** costs 3 HP, and the next town anyone
   enters `CASTAWAY_AFTER` (5) or more turns later he's waiting with 15 gold and a pick of rare loot.
   `hidden` events (the collector, the dark shrine) are never placed on the map.
+
+### Tide arrivals
+
+The owner asked for the rising percentage to be hidden and for visible events that grow as time goes
+on, without blocking land or removing towns (Nov 2026). `SURGE` still applies, unseen. Content and
+numbers are `TIDE_ARRIVALS` and the `TIDE_*` settings in `content/archipelago.py`; the rules are
+`Game.tide_arrivals`, `tide_arrival` and `tick_tide` in `game.py`.
+
+- **Every rise brings one arrival, two from rise 6** (`TIDE_TWO_FROM`), drawn by weight, early weights
+  before rise 6 (`TIDE_LATE`) and late ones after, so the first rises are mostly gifts and later ones
+  mostly threats: **Wreckage** (a new wreck on a beach 3-9 hexes from the nearest hero, uncommon or rare
+  late), **visitors** (an opportunity: ship, cargo or healer, allowed one past `OPP_MAX`), **Raiders**
+  (from rise 2: a region group lands 4-8 hexes away), a **war-band** (from rise 4: elite-led, with a rare
+  prize) and a **beached leviathan** (from rise 7: the region's big threat as a stationary lair with a
+  rare prize). An arrival that can't land (no free beach in range, or the caps) gives way to another.
+- **Caps**: at most `TIDE_GROUPS` (3) tide-landed groups at once, apart from `MAX_GROUPS` (the map is
+  usually full of ordinary groups, which once blocked every landing); at most `TIDE_WRECKS` (3) unlooted
+  tide wrecks. Unfought landings go back to sea after `TIDE_STAY` (6) turns, a leviathan after twice
+  that, so later rises can bring new threats.
+- **Shown at once**: the hex is revealed, landed groups show through fog for `TIDE_SIGHTED` (3) turns
+  (`sighted`), the browser shows a blue "The tide rises" banner naming the arrivals, a toast for each,
+  pans to the first, and "This turn" lists what's still there (click to find). The news is
+  `s["tidenews"]`, kept until the next rise; each item carries `g` (the group id) for groups, so the
+  line follows a group that has moved.
 
 ### Jobs (town notice boards)
 
@@ -448,6 +474,12 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   it strikes the weakest enemy for 3 each round).
 - **Fleeing**: a die on Flee takes the hero back to the hex they came from; not from dungeons or
   bosses.
+- **Spirit and support dice** (`f["spirit"]`, `do_spirit`): each round every hero not in the fight
+  gets a d6, rolled in the open, to give to someone fighting: the fallen's spirit die, and (owner's
+  request) the support die of a living hero elsewhere (`far`; the die's `src` is `support`). It's
+  optional and never holds up the round. The fight overlay offers it in its header (or the bottom bar
+  when the player has nothing else to do there); the map's action bar offers it too. The bots give it
+  to the ally still to play holding the fewest dice (`bot.support`).
 
 ### Classes
 
@@ -754,7 +786,7 @@ clock anywhere: the run changes only when someone acts.
   `play()` from the simulator and hash `g.s`), refactor, and compare. Any bot or rules change shows.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
-  `boss`, `won`, `lost`, and for the map `opp`, `trade` (standing in a smithy, temple or cartographer
+  `boss`, `won`, `lost`, `support` (a fight hero 0 is outside of), and for the map `tide` (just after a rise that landed enemies), `opp`, `trade` (standing in a smithy, temple or cartographer
   town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
@@ -777,6 +809,10 @@ clock anywhere: the run changes only when someone acts.
   Weighted Coin, Keen Edge); the browser gets each hero's `rollmods` in the fight view for its hit
   chances, and the bots' odds cache keys on them (`ROLL_MODS` in `tuning.py`). A new passive that
   changes what a die shows belongs in all three.
+- **Spirit and support dice are given outside `waiting()`**: the heroes holding them aren't waited on,
+  so the simulator gives them at the top of its loop and the rooms' bots before anyone fighting acts.
+  Until Nov 2026 the simulator never gave the fallen's dice at all, and those dice lacked `dk`, which
+  crashed rolling the first time one was played.
 - **The bots score a hit with the fight's own sums** (`hit_base`, `hit_finish`, `foe_damage_after`,
   `foe_soak`, `hit_spill`, `status_amount` in `actions.py`). A new damage rule belongs there, not
   inline in `_op_dmg`, or the bots won't see it. Their own additions are only guesses about what

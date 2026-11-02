@@ -391,6 +391,31 @@ GARRISON_ESCORTS = 2
 GARRISON_BOSS = 0.15
 CROWN_CUT = 0.1
 
+# What the sea brings when the tide rises (`Game.tide_arrivals`): one arrival a rise, two from rise
+# `TIDE_TWO_FROM`. Each has a weight before and after `TIDE_LATE` (early rises bring mostly gifts,
+# later ones mostly threats) and the first rise it can come on. Arrivals land `range` hexes from the
+# nearest hero and are shown on the map at once; enemies that land stay in sight for `TIDE_SIGHTED`
+# turns. They never flood land or touch a town.
+TIDE_ARRIVALS = {
+    "wreckage": {"name": "Wreckage washes ashore", "from": 1, "w": (3, 1), "range": (3, 9),
+                 "text": "A wreck on the beach: loot for whoever gets there."},
+    "boon": {"name": "The tide brings visitors", "from": 1, "w": (2, 1), "range": None,
+             "text": "A merchant ship, drifting cargo or a wandering healer turns up."},
+    "landing": {"name": "Raiders come ashore", "from": 2, "w": (2, 3), "range": (4, 8),
+                "text": "A band of enemies lands on the beach, close by."},
+    "warband": {"name": "A war-band lands", "from": 4, "w": (1, 3), "range": (5, 10),
+                "text": "Led by an elite and carrying a rare prize for whoever beats them."},
+    "leviathan": {"name": "Something huge is beached", "from": 7, "w": (0, 2), "range": (5, 12),
+                  "text": "A big threat lies on the shore and won't move. It guards a rare prize."},
+}
+TIDE_TWO_FROM = 6
+TIDE_LATE = 6
+TIDE_SIGHTED = 3
+TIDE_STAY = 6    # turns an unfought landing stays before it goes back to sea (a beached big threat twice that)
+TIDE_WRECKS = 3  # unlooted wrecks the tide has left that can be about at once
+TIDE_GROUPS = 3  # enemy groups the tide has landed that can be on the map at once (apart from MAX_GROUPS)
+TIDE_WRECK_RARITY = ([("common", 2), ("uncommon", 3)], [("uncommon", 3), ("rare", 1)])  # early, late
+
 # Event chains: the follow-ups some events set up (`chain` in an outcome).
 LOAN_DUE = 8      # turns until the moneylender comes to collect
 CASTAWAY_AFTER = 5  # turns before the castaway you helped reaches a town (the next town you enter after)

@@ -461,6 +461,7 @@ a:hover { color: var(--accent-hi); }
 .action:disabled .cd.on { opacity: 1; }
 .tray-right { display: grid; gap: var(--s-2); align-content: end; min-width: 180px; }
 .tray-right .btn { width: 100%; }
+.give-row { display: flex; align-items: center; gap: var(--s-2); color: var(--text-2); font-size: var(--fs-14); }
 .watch { display: flex; align-items: center; justify-content: center; gap: var(--s-4); padding: var(--s-5) var(--s-6); background: var(--panel); border-top: var(--bw) solid var(--border); color: var(--text-2); }
 .banner { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; pointer-events: none; }
 .banner div { font-family: var(--font-display); font-size: var(--fs-72); font-weight: var(--fw-bold); color: var(--accent); text-shadow: 0 4px 24px rgba(0, 0, 0, 0.7); animation: banner 1400ms var(--ease) forwards; }
@@ -690,6 +691,8 @@ a:hover { color: var(--accent-hi); }
   animation: bb-spin 2400ms linear both, bb-rays 2200ms var(--ease) both; }
 .big-banner.danger .bb-title { color: var(--danger); text-shadow: 0 4px 28px rgba(0, 0, 0, 0.8), 0 0 40px rgba(208, 98, 79, 0.4); }
 .big-banner.danger .bb-rays { background: radial-gradient(circle, rgba(208, 98, 79, 0.28), transparent 60%); }
+.big-banner.tide .bb-title { color: var(--info); text-shadow: 0 4px 28px rgba(0, 0, 0, 0.8), 0 0 40px rgba(79, 159, 192, 0.4); }
+.big-banner.tide .bb-rays { background: radial-gradient(circle, rgba(79, 159, 192, 0.28), transparent 60%); }
 @keyframes bb-life { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes bb-in { from { opacity: 0; transform: scale(0.6) translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes bb-spin { to { transform: rotate(40deg); } }

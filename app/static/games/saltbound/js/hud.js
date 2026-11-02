@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=65';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=65';
-import { spriteURL } from './art.js?v=65';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=65';
-import { MapView } from './hexmap.js?v=65';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=65';
-import { disconnect } from './main.js?v=65';
-import * as sfx from './audio.js?v=65';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=68';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=68';
+import { spriteURL } from './art.js?v=68';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=68';
+import { MapView } from './hexmap.js?v=68';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=68';
+import { disconnect } from './main.js?v=68';
+import * as sfx from './audio.js?v=68';
 
 const UI = { drawer: null, log: true, res: {}, hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -205,8 +205,8 @@ function renderTopbar() {
       h('div.stat', { tip: `Turn ${g.turn}\nEveryone plans, then everyone moves at once.` }, h('span.lbl', null, 'Turn'), h('b', null, g.turn)),
       h('div.stat.opt', { tip: `${g.tide === 'low' ? 'Low' : 'High'} tide\n${g.tide === 'low' ? 'Sandbars and shallows are walkable.' : 'Shallows are under water: skiffs only.'}\nTurns in ${g.next_tide} turn${g.next_tide === 1 ? '' : 's'}.` },
         icon('moon'), h('b', null, g.tide === 'low' ? 'Low tide' : 'High tide'), h('span.lbl', null, `· ${g.next_tide}`)),
-      h('div.stat' + (g.rises >= g.grow_from ? '.warn' : ''), { tip: `The rising tide\nRises every ${g.rise_every} turns, next in ${g.next_rise}. Each rise makes every enemy stronger (HP and damage).\nRisen ${g.rises} time${g.rises === 1 ? '' : 's'}: enemies are ${g.surge}% stronger.${g.rises >= g.grow_from ? '\nMore enemies come ashore with every rise now.' : ''}` },
-        icon('wave'), h('b', null, `Enemies +${g.surge}%`), h('span.lbl', null, `· rises in ${g.next_rise}`)),
+      h('div.stat' + (g.rises >= g.grow_from ? '.warn' : ''), { tip: `The rising tide\nRises every ${g.rise_every} turns, next in ${g.next_rise}. Each rise the sea brings something: wreckage and visitors early on, raiders, war-bands and worse later.${g.rises ? `\nRisen ${g.rises} time${g.rises === 1 ? '' : 's'}.` : ''}${(g.tidenews || []).length ? `\nLast rise: ${g.tidenews.map(n => n.name).join('; ')}.` : ''}${g.rises >= g.grow_from ? '\nMore enemies come ashore with every rise now.' : ''}` },
+        icon('wave'), h('b', null, g.next_rise === 1 ? 'Tide rises next turn' : `Tide rises in ${g.next_rise}`)),
       h('div.stat', { tip: `Party level ${g.level}\n${g.xp_next ? `${g.xp} / ${g.xp_next} XP` : 'Max level'}\nXP is shared: everyone levels together.` },
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
@@ -274,6 +274,16 @@ function reassign(h0) {
 }
 
 // ------------------------------------------------------------------ action bar
+// A hero not in the fight can send their support (or spirit) die to someone who is, once a round.
+function giveBtns(x, btns) {
+  const g = S.game, f = g.fight, sp = f?.spirit?.[x];
+  if (g.phase !== 'fight' || !sp || sp.used) return false;
+  for (const y of f.heroes.filter(y => f.hs[y] && !f.hs[y].down && !f.hs[y].fled)) {
+    btns.push(h('button.btn.primary', { tip: `Give ${g.heroes[y].name} a die showing ${sp.v} for this round.`, onclick: () => send({ t: 'spirit', h: x, to: y }) },
+      icon('dice'), `${sp.v} to ${g.heroes[y].name}`));
+  }
+  return true;
+}
 function renderActionbar() {
   const g = S.game, h0 = sel(), hero = g.heroes[h0];
   const el = $('actionbar');
@@ -286,6 +296,7 @@ function renderActionbar() {
   if (!hero.alive) {
     title = `${hero.name} has fallen`;
     sub = g.revives > 0 ? 'They’ll be back next turn: the party has a revive.' : 'Give your spirit die to an ally in fights.';
+    giveBtns(h0, btns);
   } else if (g.pending[h0]?.length) {
     title = 'Something needs your answer'; sub = 'Choose in the dialog to carry on.';
   } else if (g.phase === 'fork') {
@@ -294,7 +305,10 @@ function renderActionbar() {
   } else if (g.phase === 'fight' || g.phase === 'reward') {
     title = g.phase === 'fight' ? 'A fight is under way' : 'Waiting for picks';
     sub = 'Plan your next move or visit a town while you wait.';
-    if (g.phase === 'fight') btns.push(h('button.btn', { onclick: showFight }, icon('eye'), 'Watch the fight'));
+    if (g.phase === 'fight') {
+      if (giveBtns(h0, btns)) sub = 'Send your support die to someone fighting: it joins their dice this round.';
+      btns.push(h('button.btn', { onclick: showFight }, icon('eye'), 'Watch the fight'));
+    }
   } else if (p?.ready) {
     const waiting = g.waiting.filter(x => x !== h0).map(x => g.heroes[x].name);
     title = 'Ready'; sub = waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Setting off…';
@@ -343,6 +357,21 @@ function fightLine(f) {
   const where = f.kind === 'dungeon' ? `${st.dungeons[f.region]} (fight ${f.step + 1} of 3)` : f.kind === 'boss' ? 'the Drowned Crown' : f.kind === 'lair' ? `a lair: ${foes}` : foes;
   return { where: where + (f.job ? ' (a job)' : ''), with: f.heroes.map(x => g.heroes[x].name) };
 }
+// The last rise's arrivals still on the map: an unlooted wreck, a group not yet beaten (where it is now).
+function tideNews(g) {
+  const out = [];
+  for (const n of g.tidenews || []) {
+    let at = n.tile;
+    if (n.g != null) {
+      const gr = g.groups.find(x => x.id === n.g);
+      if (!gr) continue;
+      at = gr.tile;
+    } else if (n.k === 'wreckage' && g.places[n.tile]?.done) continue;
+    else if (n.k === 'boon' && !(g.opps || []).some(o => o.tile === n.tile)) continue;
+    out.push({ ...n, at });
+  }
+  return out;
+}
 export function renderForecast() {
   const el = $('forecast');
   if (!el) return;
@@ -368,6 +397,11 @@ export function renderForecast() {
   });
   const steps = fc.steps.length;
   if (steps) lines.push(h('div.fc-line.muted', null, icon('skull'), ` ${steps} enemy group${steps > 1 ? 's' : ''} will step toward you (red arrows).`));
+  // what the last rise of the tide brought, while it's still there
+  for (const n of tideNews(g)) {
+    lines.push(h('div.fc-line.opp.tide', { tip: `${n.text}\nClick to find it on the map.`, onclick: () => map?.centerOn(n.at) },
+      icon('wave'), h('b', null, ` ${n.name}`), h('span', null, n.where ? ` (${n.where})` : '')));
+  }
   // chances that won't wait, and debts that will come
   for (const o of g.opps || []) {
     const where = o.kind === 'ship' ? ` at ${g.places[o.tile]?.name || 'a town'}` : '';
@@ -1036,7 +1070,7 @@ function forkView(fk) {
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
   fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
-  sea: ['Time and tide', 'Every few turns the tide rises and every enemy grows a little stronger, as the top bar shows. Every six turns the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
+  sea: ['Time and tide', 'Every few turns the tide rises and the sea brings something ashore: wreckage and visitors at first, raiders and worse as the run goes on. They show on the map at once and under “This turn”. Every six turns the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
 };
 function renderHint() {
   const el = $('hint');
@@ -1070,14 +1104,20 @@ export function handleFx(list, before) {
         if (mine().includes(f.h)) sfx.play('step');
         break;
       case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
-      case 'rise': later.push(() => { toast(`The tide rises: enemies +${S.game.surge}%`, 'big'); sfx.play('rise'); }); break;
+      case 'rise': later.push(() => {
+        const news = f.news || [];
+        bigBanner('The tide rises', news.map(n => n.name).join(' · ') || 'The sea creeps higher', 'tide', 2600);
+        for (const n of news) toast(`${n.name}: ${n.text}`);
+        if (news.length && mine().length) map?.centerOn(news[0].tile);
+        sfx.play('rise');
+      }); break;
       case 'coins': if (mine().includes(f.h)) coins[f.h] = (coins[f.h] || 0) + f.n; break;
       case 'tide': later.push(() => toast(f.tide === 'low' ? 'Low tide: the sandbars are out' : 'High tide: the shallows close')); break;
       case 'level': later.push(() => { bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); }); break;
       case 'cleared': later.push(() => { bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); }); break;
       case 'buff': if (mine().includes(f.h)) later.push(() => resultNote(f.h, S.static.buffs[f.b].name, () => toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`))); break;
       case 'job': later.push(() => { const t = `Job done for ${f.src}: +${f.gold} gold each${f.extra}`; mine().includes(f.h) ? resultNote(f.h, t, () => toast(t, 'big')) : toast(t, 'big'); sfx.play('coin'); }); break;
-      case 'opp': later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
+      case 'opp': if (list.some(r => r.k === 'rise' && (r.news || []).some(n => n.tile === f.tile))) break; later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
       case 'garrison': later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;
       case 'event':
         if (mine().includes(f.h)) {

@@ -20,6 +20,23 @@ from .content import items as I
 RANK = {r: i for i, r in enumerate(I.RARITIES)}
 
 
+def support(g, h):
+    """A hero not in the fight gives their spirit or support die to the ally still to play who holds
+    the fewest unused dice (so it adds a play rather than sitting spare)."""
+    s = g.s
+    f = s["fight"]
+    if not f or s["phase"] != "fight":
+        return None
+    sp = f["spirit"].get(str(h))
+    if not sp or sp["used"]:
+        return None
+    to = [y for y in g.actives() if not g.hs(y)["ready"]] or g.actives()
+    if not to:
+        return None
+    best = min(to, key=lambda y: (sum(1 for d in g.hs(y)["dice"] if not d["used"]), y))
+    return {"t": "spirit", "to": best}
+
+
 def decide(g, h):
     s = g.s
     hero = g.hero(h)
@@ -29,16 +46,13 @@ def decide(g, h):
     if q:
         return choose(g, h, q[0])
     if not hero["alive"]:
-        f = s["fight"]
-        if f and s["phase"] == "fight":
-            sp = f["spirit"].get(str(h))
-            if sp and not sp["used"] and g.actives():
-                return {"t": "spirit", "to": g.actives()[0]}
-        return None
+        return support(g, h)
     if s["phase"] == "fork" and s.get("fork") and str(h) not in s["fork"]["votes"]:
         return {"t": "fork", "n": fork_pick(g, s["fork"])}
     if s["phase"] == "fight" and g.in_fight(h):
         return fight_move(g, h)
+    if s["phase"] == "fight" and support(g, h):
+        return support(g, h)
     if s["phase"] == "plan":
         return plan_move(g, h)
     return None

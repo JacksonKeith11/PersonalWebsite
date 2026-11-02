@@ -188,10 +188,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for fo in self.foes():
                 if fo.get("gut") is not None:
                     self.release_swallowed(fo)
-        # A d6 to give an ally for every hero not fighting: the fallen's spirit dice, and the support
-        # dice of heroes alive elsewhere on the map (`far`)
-        f["spirit"] = {str(h): {"v": self.rng.randint(1, 6), "used": False, **({"far": True} if self.hero(h)["alive"] else {})}
-                       for h in range(3) if not self.hero(h)["alive"] or h not in f["heroes"]}
+        # Spirit dice for heroes who are dead
+        f["spirit"] = {str(h): {"v": self.rng.randint(1, 6), "used": False}
+                       for h in range(3) if not self.hero(h)["alive"]}
         self.crown_round()
         self.foe_round()
         for fo in self.foes():
@@ -466,14 +465,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid("No fight.")
         sp = f["spirit"].get(str(h))
         if not sp or sp["used"]:
-            raise Invalid("You have no die to give.")
+            raise Invalid("You have no spirit die to give.")
         to = msg.get("to")
         if not isinstance(to, int) or not self.active(to):
             raise Invalid("Give it to whom?")
         sp["used"] = True
         x = self.hs(to)
-        x["dice"].append({"id": f"s{h}.{f['round']}", "faces": [1, 2, 3, 4, 5, 6], "dk": [], "v": sp["v"], "src": "support" if sp.get("far") else "spirit", "used": False})
-        self.fx("spirit", h=h, to=to, v=sp["v"], far=bool(sp.get("far")))
+        x["dice"].append({"id": f"s{h}.{f['round']}", "faces": [1, 2, 3, 4, 5, 6], "dk": [], "v": sp["v"], "src": "spirit", "used": False})
+        self.fx("spirit", h=h, to=to, v=sp["v"])
 
     def do_fready(self, h, msg):
         if not self.in_fight(h) or not self.active(h):

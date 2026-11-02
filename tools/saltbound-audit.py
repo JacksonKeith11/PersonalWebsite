@@ -44,11 +44,9 @@ SCENARIOS = {
     and len((g.place(g.hero(0)["tile"]) or {}).get("jobs") or []) == 2 and not g.place(g.hero(0)["tile"]).get("quest_taken"),
     "job": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
     and any(q["kind"] in ("bounty", "salvage") and not q["done"] and not q.get("failed") for q in g.s["quests"]),
-    # the turn after the tide rose and landed enemies; a fight hero 0 is outside of, with a support die to give
+    # the turn after the tide rose and landed enemies
     "tide": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"] and (g.s["turn"] - 1) % g.diff()["rise"] == 0
     and any(n.get("g") is not None for n in g.s.get("tidenews", [])),
-    "support": lambda g: g.s["phase"] == "fight" and g.hero(0)["alive"] and 0 not in g.s["fight"]["heroes"]
-    and g.s["fight"]["spirit"].get("0") and not g.s["fight"]["spirit"]["0"]["used"] and not g.s["pending"]["0"],
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }

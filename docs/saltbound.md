@@ -156,7 +156,8 @@ Keep to these. They came from the owner directly.
   still down when the fight ends, one revive from the **shared pool of 3** (Story 4, Hard 2; a rare
   event can add one) is spent and they come back at low HP. With the pool empty, a knocked-down
   hero stays dead; a dead player keeps placing **one support die** a round for the party, so nobody
-  sits idle. So does a living hero who isn't in the fight (owner's request), from wherever they are. The run ends when the pool is empty and the whole party is down.
+  sits idle. (A support die for living heroes outside the fight was tried and removed at the owner's
+  request: it took Hard from 42% to 59%, because the bots then fought dungeons alone.) The run ends when the pool is empty and the whole party is down.
 
 ### Heroes
 
@@ -287,7 +288,7 @@ Asked of the owner during step 1 (keep to these too):
 - **The clock** (changed at the owner's request): each rise of the tide makes every enemy stronger
   (see "The world"). It once flooded the lowest land, sank towns and lost the run at rise 15.
 - **Heroes outside a fight** watch it live and can go back to the map to pre-plan their next path or
-  shop in their town while they wait. Each round they can send the fight a support die (see "Fights").
+  shop in their town while they wait.
 - **Sprites are bespoke**, drawn by `tools/saltbound-art/` with Roguelike Tactics' pixel kit.
 - **Heroes are not sea-themed; only the enemies are.** Hero sprites are ordinary fantasy
   adventurers and the classes' starting gear has plain names (Hand Axe, Oak Staff, Wool Robe), so
@@ -474,12 +475,11 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   it strikes the weakest enemy for 3 each round).
 - **Fleeing**: a die on Flee takes the hero back to the hex they came from; not from dungeons or
   bosses.
-- **Spirit and support dice** (`f["spirit"]`, `do_spirit`): each round every hero not in the fight
-  gets a d6, rolled in the open, to give to someone fighting: the fallen's spirit die, and (owner's
-  request) the support die of a living hero elsewhere (`far`; the die's `src` is `support`). It's
-  optional and never holds up the round. The fight overlay offers it in its header (or the bottom bar
-  when the player has nothing else to do there); the map's action bar offers it too. The bots give it
-  to the ally still to play holding the fewest dice (`bot.support`).
+- **Spirit dice** (`f["spirit"]`, `do_spirit`): each round every fallen hero gets a d6, rolled in the
+  open, to give to someone fighting. It's optional and never holds up the round. The fight overlay
+  offers it in its header (or the bottom bar when the player has nothing else to do there); the map's
+  action bar offers it too. The bots give it to the ally still to play holding the fewest dice
+  (`bot.support`).
 
 ### Classes
 
@@ -707,6 +707,13 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   table (win rate, output per round, downs), the action tables (a basic attack taking most of a class's
   dice, risky actions that rarely hit, actions never used), level-up picks against win rate, and the
   balance flags. Change one lever at a time and rerun.
+- **The bots keep the party together** (owner's request, Nov 2026: players would): `keep_together` in
+  `bot.py`. A hero more than 2 hexes ahead of an ally waits for them, and a hero about to walk into a
+  dungeon, the Peak or an enemy group stops beside it until everyone else is within a hex of it (who a
+  fight pulls in). Before, every bot walked its own route at its own speed and the first to arrive went
+  in: with all three alive, 34% of dungeon fights and 62% of boss fights were fought by one hero. Now
+  those are 0%; roaming fights still catch one hero 18% of the time (enemies step onto the nearest).
+  Turns ending with the party within a hex went from 69% to 73% (12 fast runs on Hard).
 - **Bot behaviour shapes the numbers**: a class can look weak because the bot plays it badly. Before
   buffing a class, check its actions table for skills the bot never uses, and that the bot values what
   the skill does (until the shared hit sums, the bots ignored Eagle Eye, Pierce, Kindling's Burn, Forked
@@ -792,7 +799,7 @@ clock anywhere: the run changes only when someone acts.
   `play()` from the simulator and hash `g.s`), refactor, and compare. Any bot or rules change shows.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
-  `boss`, `won`, `lost`, `support` (a fight hero 0 is outside of), and for the map `tide` (just after a rise that landed enemies), `opp`, `trade` (standing in a smithy, temple or cartographer
+  `boss`, `won`, `lost`, and for the map `tide` (just after a rise that landed enemies), `opp`, `trade` (standing in a smithy, temple or cartographer
   town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
@@ -815,7 +822,7 @@ clock anywhere: the run changes only when someone acts.
   Weighted Coin, Keen Edge); the browser gets each hero's `rollmods` in the fight view for its hit
   chances, and the bots' odds cache keys on them (`ROLL_MODS` in `tuning.py`). A new passive that
   changes what a die shows belongs in all three.
-- **Spirit and support dice are given outside `waiting()`**: the heroes holding them aren't waited on,
+- **Spirit dice are given outside `waiting()`**: the fallen heroes holding them aren't waited on,
   so the simulator gives them at the top of its loop and the rooms' bots before anyone fighting acts.
   Until Nov 2026 the simulator never gave the fallen's dice at all, and those dice lacked `dk`, which
   crashed rolling the first time one was played.

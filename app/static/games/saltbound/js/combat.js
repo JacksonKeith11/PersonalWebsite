@@ -1,13 +1,13 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=68';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=68';
-import { spriteURL } from './art.js?v=68';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=68';
-import { render } from './main.js?v=68';
-import { skillCard } from './hud.js?v=68';
-import * as sfx from './audio.js?v=68';
+import { S, send, mine, controllerName } from './store.js?v=69';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=69';
+import { spriteURL } from './art.js?v=69';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=69';
+import { render } from './main.js?v=69';
+import { skillCard } from './hud.js?v=69';
+import * as sfx from './audio.js?v=69';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -206,7 +206,7 @@ export function renderCombat(el) {
       h('h2', null, fightTitle(f)),
       f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), f.phase >= 3 ? 'The Crown is alone: exposed and furious' : 'The Undertow drags someone under each round') : null,
       !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null,
-      // a die to give from a hero outside the fight, whenever the bar below isn't offering it
+      // a fallen hero's spirit die, whenever the bar below isn't offering it
       spiritMine.length && !giveBelow ? spiritBar(f, spiritMine[0], true) : null);
   // swap the parts in place; an unchanged tray stays put
   [head, stage, plan, bottom].forEach((k, i) => {
@@ -665,7 +665,7 @@ function tray(f, x, my) {
 // A die in the tray: a cream tile with its size (or its number, once known) big in the middle, a
 // coloured top edge for where it comes from, and one icon for anything special about it.
 const SRC = { base: ['Class die', 'var(--src-class)'], weapon: ['Weapon die', 'var(--src-weapon)'], armor: ['Armor die', 'var(--src-armor)'],
-  trinket: ['Trinket die', 'var(--src-trinket)'], spirit: ['Spirit die from a fallen ally', 'var(--src-spirit)'], support: ['Support die from an ally out on the map', 'var(--src-spirit)'], pet: ['Your hawk’s die', 'var(--src-pet)'],
+  trinket: ['Trinket die', 'var(--src-trinket)'], spirit: ['Spirit die from a fallen ally', 'var(--src-spirit)'], pet: ['Your hawk’s die', 'var(--src-pet)'],
   anthem: ['From the Anthem of Kings', 'var(--src-spirit)'], gift: ['Given by an ally', 'var(--src-spirit)'], hex: ['Cursed: a hex swapped your biggest die', 'var(--danger)'],
   split: ['Split off by your flask', 'var(--src-class)'], graft: ['Grafted from two dice', 'var(--src-class)'], tempo: ['Stolen tempo: a fresh die', 'var(--src-spirit)'], bloodlust: ['Bloodlust: a fresh die from a kill', 'var(--src-spirit)'] };
 const KIND_ICON = { seer: 'eye', exploding: 'spark', steady: 'refresh', heirloom: 'star', guard: 'shield' };
@@ -765,7 +765,7 @@ function actionCard(f, x, k, i, selDice, ready) {
 function spiritBar(f, d, compact = false) {
   const g = S.game, sp = f.spirit[d];
   const targets = f.heroes.filter(x => heroActive(f, x));
-  const say = sp.far ? `${g.heroes[d].name} can help from afar. Send your die ` : `${g.heroes[d].name}’s spirit lingers. Give your die `;
+  const say = `${g.heroes[d].name}’s spirit lingers. Give your die `;
   return h(compact ? 'div.give-row' : 'div.watch', null,
     h('span', null, say, h('b', { style: { color: 'var(--accent)' } }, sp.v), ' to:'),
     ...targets.map(x => h('button.btn' + (compact ? '.sm' : ''), { onclick: () => send({ t: 'spirit', h: d, to: x }) }, g.heroes[x].name)));

@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=68';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=68';
-import { spriteURL } from './art.js?v=68';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=68';
-import { MapView } from './hexmap.js?v=68';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=68';
-import { disconnect } from './main.js?v=68';
-import * as sfx from './audio.js?v=68';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=69';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=69';
+import { spriteURL } from './art.js?v=69';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=69';
+import { MapView } from './hexmap.js?v=69';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=69';
+import { disconnect } from './main.js?v=69';
+import * as sfx from './audio.js?v=69';
 
 const UI = { drawer: null, log: true, res: {}, hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -274,7 +274,7 @@ function reassign(h0) {
 }
 
 // ------------------------------------------------------------------ action bar
-// A hero not in the fight can send their support (or spirit) die to someone who is, once a round.
+// A fallen hero can give their spirit die to someone fighting, once a round.
 function giveBtns(x, btns) {
   const g = S.game, f = g.fight, sp = f?.spirit?.[x];
   if (g.phase !== 'fight' || !sp || sp.used) return false;
@@ -305,10 +305,7 @@ function renderActionbar() {
   } else if (g.phase === 'fight' || g.phase === 'reward') {
     title = g.phase === 'fight' ? 'A fight is under way' : 'Waiting for picks';
     sub = 'Plan your next move or visit a town while you wait.';
-    if (g.phase === 'fight') {
-      if (giveBtns(h0, btns)) sub = 'Send your support die to someone fighting: it joins their dice this round.';
-      btns.push(h('button.btn', { onclick: showFight }, icon('eye'), 'Watch the fight'));
-    }
+    if (g.phase === 'fight') btns.push(h('button.btn', { onclick: showFight }, icon('eye'), 'Watch the fight'));
   } else if (p?.ready) {
     const waiting = g.waiting.filter(x => x !== h0).map(x => g.heroes[x].name);
     title = 'Ready'; sub = waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Setting off…';

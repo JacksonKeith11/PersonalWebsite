@@ -21,8 +21,8 @@ RANK = {r: i for i, r in enumerate(I.RARITIES)}
 
 
 def support(g, h):
-    """A hero not in the fight gives their spirit or support die to the ally still to play who holds
-    the fewest unused dice (so it adds a play rather than sitting spare)."""
+    """A fallen hero gives their spirit die to the ally still to play who holds the fewest unused
+    dice (so it adds a play rather than sitting spare)."""
     s = g.s
     f = s["fight"]
     if not f or s["phase"] != "fight":
@@ -51,8 +51,6 @@ def decide(g, h):
         return {"t": "fork", "n": fork_pick(g, s["fork"])}
     if s["phase"] == "fight" and g.in_fight(h):
         return fight_move(g, h)
-    if s["phase"] == "fight" and support(g, h):
-        return support(g, h)
     if s["phase"] == "plan":
         return plan_move(g, h)
     return None
@@ -266,7 +264,11 @@ def plan_move(g, h):
         return {"t": "ready"}
     goal = party_goal(g)
     if goal is not None and not p["path"]:
+        goal, fight = keep_together(g, h, goal)
         path = route(g, h, goal)
+        if path and fight and goal in path:
+            # wait beside the fight until the whole party is close enough to be pulled in with you
+            path = path[:path.index(goal)]
         if path:
             try:
                 g.path_cost(h, path)
@@ -277,6 +279,20 @@ def plan_move(g, h):
     if hero["hp"] < mx and not p["path"] and not p["rest"]:
         return {"t": "rest"}
     return {"t": "ready"}
+
+
+def keep_together(g, h, goal):
+    """Players keep their party together; so do the bots. A hero who is more than 2 hexes ahead of an
+    ally waits for them (walking back made heroes cross and swap places). Returns (where to go, and whether walking
+    into it starts a fight that someone would miss: everyone else must be within a hex of it first,
+    since that's who a fight pulls in)."""
+    at = g.hero(h)["tile"]
+    others = [g.hero(y)["tile"] for y in g.living() if y != h]
+    behind = [t for t in others if Wd.dist(t, at) > 2 and Wd.dist(t, goal) > Wd.dist(at, goal)]
+    if behind:
+        return at, False
+    fight = g.is_dungeon(goal) or g.group_at(goal) is not None
+    return goal, fight and any(Wd.dist(t, goal) > 1 for t in others)
 
 
 def party_goal(g):

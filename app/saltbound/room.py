@@ -337,7 +337,7 @@ class Room:
         if not g:
             return
         hs = [h for h in g.waiting() if self.ctl[h] == BOT]
-        # spirit and support dice go first, while the heroes fighting can still use them
+        # spirit dice go first, while the heroes fighting can still use them
         give = [int(h) for h, sp in g.s["fight"]["spirit"].items() if self.ctl[int(h)] == BOT and not sp["used"]] \
             if self.spirit_bots() else []
         acted = False

@@ -62,8 +62,10 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   `STYLE` in `app/books/pages.py`) and `ASSET_VERSION`, since the books service worker caches `STYLE`.
   `python3 tools/bump-version.py --check` lists any file linked with two different versions.
 - **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about a minute): the app
-  imports, cache versions agree, and each game's own checks. Browser smoke tests need a running
-  server and live in each area's doc.
+  imports, cache versions agree, every browser JS file parses (`tools/check-js.sh`), and each game's
+  own checks. Browser smoke tests need a running server and live in each area's doc.
+- **`node --check file.js` doesn't catch syntax errors in the games' ES modules**: here a `.js` file
+  isn't parsed as a module, and broken code passes. `tools/check-js.sh` checks a `.mjs` copy of each.
 - **The serials route is registered at import time.** It's only registered if `SERIALS_PATH` was
   set when the app started. Changing `.env` needs a restart.
 - uvicorn runs with `--proxy-headers` because requests arrive through the tunnel. Cookies are set

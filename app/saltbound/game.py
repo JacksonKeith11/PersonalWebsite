@@ -23,7 +23,7 @@ from .content import items as I
 from .rng import Rng
 from .tuning import SURGE
 
-VERSION = 6
+VERSION = 7
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -69,7 +69,7 @@ class Game(Combat):
             c = C.CLASSES[k]
             heroes.append({
                 "cls": k, "name": (names or [None] * 3)[i] or c["name"], "hp": 0, "gold": START_GOLD,
-                "skills": list(c["start"]), "equip": {"weapon": c["weapon"], "armor": c["armor"], "trinket": None, "trinket2": None},
+                "skills": list(c["start"]), "equip": {"weapon": c["weapon"], "armor": c["armor"], "trinket": None},
                 "bag": ["potion"], "tile": w["start"], "prev": w["start"], "afloat": False, "skiff": False,
                 "alive": True, "buffs": {}, "shrines": [], "dieup": 0, "tags": {},
             })
@@ -202,7 +202,7 @@ class Game(Combat):
         """The keys of the actions a hero can use (with '+' for upgraded ones)."""
         hero = self.hero(h)
         out = [k for k in hero["skills"] if k.rstrip("+") in C.ACTIONS]
-        for slot in ("weapon", "trinket", "trinket2"):
+        for slot in ("weapon", "trinket"):
             w = hero["equip"].get(slot)
             if w:
                 out += [a for a in I.ITEMS[w].get("acts", []) if a not in out]
@@ -1326,7 +1326,7 @@ class Game(Combat):
             raise Invalid("Not in the middle of a fight.")
         hero = self.hero(h)
         slot = msg.get("slot")
-        if slot not in ("armor", "trinket", "trinket2") or not hero["equip"].get(slot):
+        if slot not in ("armor", "trinket") or not hero["equip"].get(slot):
             raise Invalid("You can't take that off.")
         hero["bag"].append(hero["equip"][slot])
         hero["equip"][slot] = None

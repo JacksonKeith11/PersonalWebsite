@@ -18,6 +18,7 @@ run() {
 }
 run "the app imports"                python3 -c "import app.main"
 run "cache versions agree"           python3 tools/bump-version.py --check
+run "browser JS parses"             tools/check-js.sh
 run "Saltbound: every action, mods"  python3 tools/saltbound-check.py
 run "Saltbound: 12 bot runs, saves"  python3 tools/saltbound-sim.py 12 hard --saves
 run "Board Brawl: bot games"         python3 tools/brawl-check.py

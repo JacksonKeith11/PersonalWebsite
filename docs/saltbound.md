@@ -109,8 +109,9 @@ Keep to these. They came from the owner directly.
   back); melee reaches only their front row while it has anyone. Heroes and summons are one group:
   enemies pick targets by their own rule (random, weakest, strongest, or whoever hurt them most last
   round), so damage spreads unless someone chooses to take it (Guard, Taunt). There's no Shift.
-- **Dice**: each hero has 2 base dice from their class plus one die each from weapon, armor and two
-  trinkets (owner's request: a second trinket slot): 6 at most. All of a hero's dice are rolled at the start of each round. Sizes d4-d12,
+- **Dice**: each hero has 2 base dice from their class plus one die each from weapon, armor and
+  trinket: 5 at most. (A second trinket slot was tried and removed at the owner's request: the sixth
+  die took Hard from about 37% to 51%. Save v7 moves a second trinket into the bag.) All of a hero's dice are rolled at the start of each round. Sizes d4-d12,
   plus special dice with custom faces (shield faces, blanks, ×2) from uncommon rarity up.
 - **Actions** are cards with dice slots and a requirement, e.g. "Slash: one die ≥2, deal its
   value", "Fireball: two dice summing to 10+", "Lunge: exactly 6". A hero has 2 class actions,
@@ -181,8 +182,8 @@ Keep to these. They came from the owner directly.
   item can go straight to an ally within a hex (`to` on the `choose` message; into their empty slot,
   else their bag). Heroes can trade freely on a shared hex or in a town. Every item shows what a town
   pays for it (40%, 60% with Haggler; `Game.sell_price`).
-- **Items**: weapon, armor and two trinket slots (`I.SLOTS`; each gives a die and maybe an action or
-  passive; a trinket fits either slot, and with both full you choose which to swap out) plus
+- **Items**: weapon, armor and trinket slots (`I.SLOTS`; each gives a die and maybe an action or
+  passive) plus
   a bag with no limit (owner's request; Deep Pockets became +1 reroll and +3 gold a win). 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
   bombs, scrolls.
 - **Healing**: HP carries over between fights. Heal at inns (gold), at camps (spend the turn, heal

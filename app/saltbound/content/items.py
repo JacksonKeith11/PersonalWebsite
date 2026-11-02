@@ -233,13 +233,14 @@ for _k, _v in ITEMS.items():
     if _v["slot"] == "armor" or _k in GUARD_TRINKETS:
         _v["dk"] = ["guard"] + list(_v.get("dk", []))
 
-# Where gear goes: two trinket slots, and a trinket fits either.
-SLOTS = ("weapon", "armor", "trinket", "trinket2")
+# Where gear goes: one slot of each kind. (A second trinket slot was tried and taken out at the
+# owner's request: the sixth die took Hard from about 37% to 51%.)
+SLOTS = ("weapon", "armor", "trinket")
 
 
 def slots_for(item_slot):
     """The equipment slots an item of this kind can go in."""
-    return ["trinket", "trinket2"] if item_slot == "trinket" else [item_slot]
+    return [item_slot]
 
 
 CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use"]

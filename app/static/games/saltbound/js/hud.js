@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=49';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=49';
-import { spriteURL } from './art.js?v=49';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=49';
-import { MapView } from './hexmap.js?v=49';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=49';
-import { disconnect } from './main.js?v=49';
-import * as sfx from './audio.js?v=49';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=51';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=51';
+import { spriteURL } from './art.js?v=51';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=51';
+import { MapView } from './hexmap.js?v=51';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=51';
+import { disconnect } from './main.js?v=51';
+import * as sfx from './audio.js?v=51';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -434,21 +434,16 @@ function drawerShell(title, sub, tabList, d, body) {
     h('div.body', null, body));
 }
 
-const SLOT_ICON = { weapon: 'sword', armor: 'shield', trinket: 'star', trinket2: 'star', use: 'drop' };
-const SLOTS = ['weapon', 'armor', 'trinket', 'trinket2'];
-// The equipment slots an item of this kind can go in (two for trinkets), and the first empty one.
-const slotsFor = slot => (slot === 'trinket' ? ['trinket', 'trinket2'] : [slot]);
+const SLOT_ICON = { weapon: 'sword', armor: 'shield', trinket: 'star', use: 'drop' };
+const SLOTS = ['weapon', 'armor', 'trinket'];
+// The equipment slots an item of this kind can go in (one each), and the first empty one.
+const slotsFor = slot => [slot];
 const freeSlot = (hero, slot) => slotsFor(slot).find(s => !hero.equip[s]);
-// The slot a new item would replace when all its slots are full: the lesser item, by rarity.
-const RAR = ['common', 'uncommon', 'rare', 'legendary'];
-function swapSlot(hero, slot) {
-  return slotsFor(slot).reduce((a, b) => (RAR.indexOf(item(hero.equip[b]).rarity) < RAR.indexOf(item(hero.equip[a]).rarity) ? b : a));
-}
-// "Put it on" buttons: one, or for a trinket with both slots full, one per trinket it could replace.
+// The slot a new item would replace when its slot is full.
+function swapSlot(hero, slot) { return slotsFor(slot)[0]; }
+// The "Put it on" button.
 function wearButtons(hero, key, send1, primary = true) {
-  const it = item(key);
-  if (it.slot !== 'trinket' || freeSlot(hero, 'trinket')) return [h('button.btn.sm' + (primary ? '.primary' : ''), { onclick: () => send1(undefined) }, 'Put it on')];
-  return ['trinket', 'trinket2'].map((s, i) => h('button.btn.sm' + (primary && i === 0 ? '.primary' : ''), { onclick: () => send1(s), tip: `Wear it instead of the ${item(hero.equip[s]).name} (that goes in your bag)` }, `Swap for ${item(hero.equip[s]).name}`));
+  return [h('button.btn.sm' + (primary ? '.primary' : ''), { onclick: () => send1(undefined) }, 'Put it on')];
 }
 // What the hero would get for selling an item in a town (40% of its price, 60% with Haggler).
 function sellValue(key, h0 = sel()) {
@@ -486,7 +481,7 @@ function compareWith(h0, key, compact) {
   const it = item(key);
   if (it.slot === 'use') return null;
   const hero = S.game.heroes[h0];
-  if (freeSlot(hero, it.slot)) return h('div.compare.empty', null, h('span.cmp-lbl', null, 'Now'), `${it.slot === 'trinket' ? 'A trinket slot is free' : `No ${it.slot}`}: this fills an empty slot.`);
+  if (freeSlot(hero, it.slot)) return h('div.compare.empty', null, h('span.cmp-lbl', null, 'Now'), `No ${it.slot}: this fills an empty slot.`);
   const curKey = hero.equip[swapSlot(hero, it.slot)];
   if (curKey === key) return h('div.compare.same', null, h('span.cmp-lbl', null, 'Now'), 'You already wear one of these.');
   const cur = item(curKey);
@@ -571,7 +566,7 @@ function heroDrawer(h0, d, readonly = false) {
     body = [
       h('h3', null, 'Equipped'),
       ...SLOTS.map(slot => hero.equip[slot] ? itemRow(hero.equip[slot])
-        : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, slot === 'trinket2' ? 'No second trinket' : `No ${slot}`))),
+        : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, `No ${slot}`))),
       h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} item${hero.bag.length === 1 ? '' : 's'}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
       ...hero.bag.map(k => itemRow(k)),
       !hero.bag.length ? h('p.muted', null, 'Their bag is empty.') : null,
@@ -582,15 +577,13 @@ function heroDrawer(h0, d, readonly = false) {
       h('h3', null, 'Equipped'),
       ...SLOTS.map(slot => hero.equip[slot]
         ? itemRow(hero.equip[slot], slot !== 'weapon' ? h('button.btn.sm.ghost', { disabled: !free, onclick: () => send({ t: 'unequip', h: h0, slot }) }, 'Take off') : null)
-        : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, slot === 'trinket2' ? 'No second trinket' : `No ${slot}`))),
+        : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, `No ${slot}`))),
       h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} item${hero.bag.length === 1 ? '' : 's'}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
       ...hero.bag.map((k, i) => {
         const it = item(k);
         // the bag's buttons go in one row under the item, not squeezed into the right-hand column
         return itemRow(k, null, h('div.bag-acts', null,
-          ...(it.slot === 'trinket' && !freeSlot(hero, 'trinket')
-            ? ['trinket', 'trinket2'].map(sl => h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i, into: sl }) }, `Swap for ${item(hero.equip[sl]).name}`))
-            : [it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null]),
+          it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null,
           it.slot === 'use' && !it.fight ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
           mates.length ? h('select.input.give', { 'aria-label': `Give ${it.name} to`, onchange: e => { if (e.target.value !== '') send({ t: 'give', h: h0, to: +e.target.value, bag: i }); } },
             h('option', { value: '' }, 'Give to…'), ...mates.map(m => h('option', { value: m }, g.heroes[m].name))) : null,

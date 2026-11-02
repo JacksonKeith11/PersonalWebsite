@@ -105,8 +105,24 @@ def _v6(state):
     return state
 
 
+def _v7(state):
+    """v8 adds the overworld's choices: what places show before you reach them, town trades,
+    opportunities, garrisons and event chains. Places get theirs from a generator of their own (so the
+    run's main one is untouched); old saves get no guarded wrecks or lair prizes."""
+    from .game import Game
+    from .rng import Rng
+    state.update({k: state.get(k, v) for k, v in
+                  {"opps": [], "oppid": 0, "garrison": {}, "crown_cut": 0, "chains": []}.items()})
+    for p in state["world"]["places"].values():
+        if p["kind"] == "event" and p.get("done"):
+            p.setdefault("ev", None)
+    Game(state).setup_places(Rng(state["seed"] * 31 + 7), guards=False)
+    state["v"] = 8
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7}
 
 
 class TooOld(Exception):

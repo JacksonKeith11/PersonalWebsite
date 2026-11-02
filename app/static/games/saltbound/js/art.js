@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=56';
+import { SPRITES } from './sprites.js?v=59';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -61,6 +61,12 @@ export const PLACE_ART = {
     '................', '........s.......', '........ss......', '........sss.....', '.....w..s.......', 'ww...w..........', '.wwwwwwwwww.....', '..WWWWWWWW.w....'] },
   lair: { pal: { r: '#6a6a72', R: '#4a4a52', d: '#14101a', b: '#d8d0c0' }, rows: [
     '................', '....rrrrrr......', '...rrRRRRrr.....', '..rrRddddRrr....', '..rRddbbddRr....', '..rRdbdbbdRr....', '.rrRddbbddRrr...', '.RRRddddddRRR...'] },
+  cache: { pal: { w: '#8a5a2a', W: '#5a3a1a', y: '#e0bb62', k: '#2a1a10' }, rows: [
+    '................', '................', '...wwwwwwwww....', '..wWWWWWWWWWw...', '..wwwwwyywwww...', '..yyyyykyyyyy...', '..wwwwwyywwww...', '..WWWWWWWWWWW...'] },
+  drift: { pal: { b: '#9a6a3a', B: '#6a4422', r: '#3a3a42', s: '#8fd0ff' }, rows: [
+    '................', '.....bbbb.......', '....rrrrrr......', '....bBbbBb......', '....bBbbBb......', '....rrrrrr......', '..ss.bbbb.ss....', '.ssssssssssss...'] },
+  healer: { pal: { t: '#e8e0d0', T: '#b8b0a0', r: '#d04a4a' }, rows: [
+    '................', '.......t........', '......ttt.......', '.....ttrtt......', '....ttrrrtt.....', '...tttTrtttt....', '..ttttTttttt....', '..TTTTTTTTTT....'] },
 };
 export function placeCanvas(kind) {
   const key = 'place_' + kind;

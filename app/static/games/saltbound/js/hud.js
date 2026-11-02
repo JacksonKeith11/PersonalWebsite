@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=56';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=56';
-import { spriteURL } from './art.js?v=56';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=56';
-import { MapView } from './hexmap.js?v=56';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=56';
-import { disconnect } from './main.js?v=56';
-import * as sfx from './audio.js?v=56';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=59';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=59';
+import { spriteURL } from './art.js?v=59';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=59';
+import { MapView } from './hexmap.js?v=59';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=59';
+import { disconnect } from './main.js?v=59';
+import * as sfx from './audio.js?v=59';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -107,11 +107,15 @@ function onTileHover(t, x, y) {
     lines.push(h('div.muted', null, `${TERRAIN_NAME[ter] || ter}${S.world.reg[t] ? ' · ' + regions[S.world.reg[t]] : ''}`));
     const vis = visibleTiles(g);
     const gr = g.groups.find(x => x.tile === t);
-    if (gr && (vis.has(t) || gr.lair)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.lair ? 'Lair: ' : 'Enemies: ') + gr.foes.map((k, i) => foeName(k, gr.aff?.[i])).join(', ')));
+    if (gr && (vis.has(t) || gr.lair)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.lair ? (p?.kind === 'wreck' ? 'Guards: ' : 'Lair: ') : 'Enemies: ') + gr.foes.map((k, i) => foeName(k, gr.aff?.[i])).join(', ')));
+    if (gr?.prize) lines.push(h('div.prize', null, `Guards a prize: ${S.static.items[gr.prize].name} (rare ${S.static.items[gr.prize].slot}), in the loot when they’re beaten.`));
     if (p?.kind === 'dungeon' && !g.cleared?.includes(p.region) && g.dnext?.[p.region]) {
       const nx = g.dnext[p.region], step = (g.dungeon?.[p.region] || 0) + 1;
       lines.push(h('div', { style: { color: 'var(--danger)' } }, `Fight ${step} of 3 (${S.static.paths[nx.path]?.name || ''}): ` + nx.foes.map(x => typeof x === 'string' ? foeName(x) : foeName(x.k, x.aff)).join(', ')));
+      lines.push(h('div', null, garrisonText(p.region)));
     }
+    const opp = (g.opps || []).find(o => o.tile === t);
+    if (opp) lines.push(h('div.prize', null, `${S.static.opps[opp.kind].name}, for ${opp.left} more turn${opp.left === 1 ? '' : 's'}: ${S.static.opps[opp.kind].text}`));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
     if (heroesHere.length) lines.push(h('div', null, heroesHere.join(', ')));
   }
@@ -140,20 +144,33 @@ function placeTitle(p) {
   if (!p) return null;
   const st = S.static;
   return {
-    town: p.name, dungeon: st.dungeons[p.region], peak: 'The Drowned Peak', shrine: 'Shrine', camp: 'Camp', event: 'Something curious',
-    wreck: 'Wreck', lair: 'Lair',
+    town: p.name + (p.spec ? ` · ${st.town_specs[p.spec].name}` : ''), dungeon: st.dungeons[p.region], peak: 'The Drowned Peak',
+    shrine: p.dark ? 'Dark shrine' : 'Shrine', camp: 'Camp', event: p.title && !p.done ? p.title : 'Something curious',
+    wreck: p.guard && !p.done ? 'Guarded wreck' : 'Wreck', lair: 'Lair', cache: 'Buried cache',
   }[p.kind];
+}
+const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
+const cap = s => s[0].toUpperCase() + s.slice(1);
+// What an objective's growing garrison adds to its boss fight, and when it next grows.
+function garrisonText(reg) {
+  const g = S.game, gs = g.garrison?.[reg];
+  if (!gs) return '';
+  const now = gs.n ? `Garrison: ${gs.foes.map(k => foeName(k)).join(', ')} join the boss fight${gs.boss ? `, and the boss has ${gs.boss}% more health` : ''}.`
+    : 'Garrison: none yet. Clear it before it grows to weaken the Drowned Crown.';
+  return `${now} Grows in ${g.garrison_next} turn${g.garrison_next === 1 ? '' : 's'}${gs.n >= 4 ? ' (at its largest)' : ''}.`;
 }
 function placeText(p) {
   const g = S.game;
   switch (p.kind) {
-    case 'town': return 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.');
+    case 'town': return 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.') + (p.spec ? ` ${S.static.town_specs[p.spec].text}` : '');
     case 'dungeon': return g.cleared.includes(p.region) ? 'Cleared.' : `An objective: ${3 - (g.dungeon[p.region] || 0)} fights deep, the way forking between them. No retreat.`;
     case 'peak': return g.cleared.length >= 3 ? 'The Drowned Crown waits at the top.' : `Sealed until all three objectives are cleared (${g.cleared.length} of 3).`;
-    case 'shrine': return 'A blessing, once for each hero.';
+    case 'shrine': return p.dark ? 'A stronger blessing than a shrine’s, at a price. Once for each hero.'
+      : `${p.buff ? `${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns)` : 'A blessing'}, once for each hero.`;
     case 'camp': return 'Rest here to heal half your HP.';
-    case 'event': return p.done ? 'Already seen to.' : 'Step on it to find out.';
-    case 'wreck': return p.done ? 'Picked clean.' : 'Loot, for whoever gets there first.';
+    case 'event': return p.done ? 'Already seen to.' : `${RISK[p.risk] || 'Step on it to find out.'}${p.needs?.length ? ` ${/^[AEIOU]/.test(S.static.classes[p.needs[0]].name) ? 'An' : 'A'} ${p.needs.map(k => S.static.classes[k].name).join(' or ')} would have another option.` : ''}`;
+    case 'wreck': return p.done ? 'Picked clean.' : p.guard ? 'Enemies are camped on it. Beat them for a pool of rare loot.' : `${cap(p.rarity || 'some')} loot, for whoever gets there first.`;
+    case 'cache': return p.done ? 'Dug up.' : 'The X from the torn chart: good loot and gold.';
     case 'lair': return p.done ? 'Cleared.' : 'A nest of tougher enemies, guarding good loot.';
   }
   return '';
@@ -175,7 +192,7 @@ function renderTopbar() {
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
         icon('feather'), h('b', null, g.revives)),
-      h('div.stat', { tip: `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : 'not yet'}`).join('\n')}` },
+      h('div.stat', { tip: `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}` },
         icon('flag'), h('span.pips', null, ...[0, 1, 2].map(i => h('i' + (i < g.cleared.length ? '.on' : '')))))),
     h('div.right', null,
       h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; renderLog(); } }, icon('list')),
@@ -292,7 +309,8 @@ function renderActionbar() {
 // ------------------------------------------------------------------ what the planned turn will do
 // The server works the turn out from what the party can see (Game.forecast): one line per hero, so
 // everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
-const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'gets a shrine’s blessing', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair' };
+const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'reaches a shrine', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair',
+  cache: 'digs up the cache', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer' };
 // An enemy's name, with its elite affix ("Hulking Crabfolk Brute").
 export function foeName(k, aff) {
   const st = S.static;
@@ -331,6 +349,15 @@ export function renderForecast() {
   });
   const steps = fc.steps.length;
   if (steps) lines.push(h('div.fc-line.muted', null, icon('skull'), ` ${steps} enemy group${steps > 1 ? 's' : ''} will step toward you (red arrows).`));
+  // chances that won't wait, and debts that will come
+  for (const o of g.opps || []) {
+    const where = o.kind === 'ship' ? ` at ${g.places[o.tile]?.name || 'a town'}` : '';
+    lines.push(h('div.fc-line.opp', { tip: `${S.static.opps[o.kind].text}\nClick to find it on the map.`, onclick: () => map?.centerOn(o.tile) },
+      icon('spark'), h('b', null, ` ${S.static.opps[o.kind].name}`), h('span', null, `${where}: ${o.left} turn${o.left === 1 ? '' : 's'} left`)));
+  }
+  for (const l of g.loans || []) {
+    if (l.left <= 3) lines.push(h('div.fc-line.muted', null, icon('coin'), ` The moneylender comes for ${g.heroes[l.h].name}’s 60 gold in ${Math.max(0, l.left)} turn${l.left === 1 ? '' : 's'}.`));
+  }
   el.replaceChildren(h('div.forecast', { role: 'status', 'aria-live': 'polite' }, h('span.eyebrow', null, 'This turn'), ...lines,
     h('div.fc-foot', null, 'Hidden enemies can still ambush you.')));
 }
@@ -518,18 +545,46 @@ function modsText(m) {
 }
 
 function townDrawer(h0, town, d) {
-  const g = S.game, hero = g.heroes[h0];
+  const g = S.game, hero = g.heroes[h0], st = S.static;
   const disabled = !canPlan(h0);
+  const buyRow = k => {
+    const price = Math.floor(st.prices[k] * (g.herald ? 0.8 : 1));
+    return itemRow(k, h('button.btn.sm' + (hero.gold >= price ? '.primary' : ''), { disabled: disabled || hero.gold < price, onclick: () => send({ t: 'buy', h: h0, item: k }) }, icon('coin'), price), compareWith(h0, k, true));
+  };
+  const spec = town.spec && town.spec !== 'fence' ? st.town_specs[town.spec] : null;
   let body;
-  if (d.tab === 'market') {
+  if (d.tab === 'trade' && spec) {
+    body = [h('div.section-title', null, h('h3', null, spec.name), h('span.chip.brass', null, icon('coin'), hero.gold)), h('p.muted', null, spec.text)];
+    if (town.spec === 'smith') {
+      for (const slot of ['weapon', 'armor', 'trinket']) {
+        const k = hero.equip[slot];
+        if (!k) continue;
+        const cost = g.reforge?.[k];
+        const nxt = cost ? ['common', 'uncommon', 'rare', 'legendary'][['common', 'uncommon', 'rare', 'legendary'].indexOf(st.items[k].rarity) + 1] : null;
+        body.push(itemRow(k, cost ? h('button.btn.sm' + (hero.gold >= cost ? '.primary' : ''), { disabled: disabled || hero.gold < cost, tip: `Becomes a random ${nxt} ${st.items[k].slot}`, onclick: () => send({ t: 'reforge', h: h0, slot }) }, `Reforge · ${cost}`)
+          : h('span.muted', null, 'As good as it gets')));
+      }
+    } else if (town.spec === 'temple') {
+      const curses = Object.keys(hero.buffs).filter(b => st.buffs[b]?.curse);
+      body.push(h('div', { style: { display: 'grid', gap: '10px', justifyItems: 'start' } },
+        h('button.btn', { disabled: disabled || !curses.length, onclick: () => send({ t: 'temple', h: h0, what: 'cleanse' }) }, curses.length ? `Lift ${curses.map(b => st.buffs[b].name).join(', ')} · free` : 'You aren’t cursed'),
+        town.revive_sold ? h('span.muted', null, 'The temple’s revive has been given.')
+          : h('button.btn.primary', { disabled: disabled || hero.gold < st.temple_revive, onclick: () => send({ t: 'temple', h: h0, what: 'revive' }) }, `+1 revive for the party · ${st.temple_revive}`),
+        h('span.muted', null, `The party has ${g.revives} revive${g.revives === 1 ? '' : 's'}.`)));
+    } else if (town.spec === 'cartographer') {
+      for (const reg of ['coral', 'keys', 'storm', 'peak']) {
+        body.push(h('div.item', null, h('div.ico', null, icon('eye')), h('div', null, h('div.name', null, st.regions[reg]), h('div.sub', null, reg === 'peak' ? 'The central island' : `Home of ${st.dungeons[reg]}`)),
+          h('button.btn.sm', { disabled: disabled || hero.gold < st.chart_cost, onclick: () => send({ t: 'chart', h: h0, region: reg }) }, `Chart · ${st.chart_cost}`)));
+      }
+    }
+  } else if (d.tab === 'market' || d.tab === 'trade') {
     body = [
       h('div.section-title', null, h('h3', null, 'For sale'), h('span.chip.brass', null, icon('coin'), hero.gold)),
-      ...(town.shop || []).map(k => {
-        const price = Math.floor(S.static.prices[k] * (g.herald ? 0.8 : 1));
-        return itemRow(k, h('button.btn.sm' + (hero.gold >= price ? '.primary' : ''), { disabled: disabled || hero.gold < price, onclick: () => send({ t: 'buy', h: h0, item: k }) }, icon('coin'), price), compareWith(h0, k, true));
-      }),
+      ...(town.shop || []).map(k => buyRow(k)),
+      town.ship?.length ? h('div.section-title', null, h('h3', null, 'The merchant ship'), h('span.chip.brass', null, `sails in ${(g.opps.find(o => o.tile === hero.tile) || {}).left} turns`)) : null,
+      ...(town.ship || []).map(k => buyRow(k)),
       g.herald ? h('p.muted', null, 'The Herald’s silver tongue knocks 20% off.') : null,
-      hero.bag.length ? h('h3', null, 'Sell') : null,
+      hero.bag.length ? h('h3', null, 'Sell' + (town.spec === 'fence' ? ' (the fence pays half again as much)' : '')) : null,
       ...hero.bag.map((k, i) => itemRow(k, h('button.btn.sm', { disabled, onclick: () => send({ t: 'sell', h: h0, bag: i }) }, `Sell · ${sellValue(k, h0)}`))),
     ];
   } else if (d.tab === 'inn') {
@@ -553,7 +608,8 @@ function townDrawer(h0, town, d) {
       g.quests.length ? h('h3', null, 'Your jobs') : null,
       ...g.quests.map(q2 => h('div.item', null, h('div.ico', null, icon(q2.done ? 'check' : 'scroll')), h('div', null, h('div.name', null, qText(q2)), h('div.sub', null, `For ${q2.src}${q2.done ? ' · done' : ''}`)), h('span')))];
   }
-  return drawerShell(town.name, 'Town', [['market', 'Market'], ['inn', 'Inn'], ['docks', 'Docks'], ['board', 'Notice board']], d, body);
+  return drawerShell(town.name, town.spec ? `Town · ${st.town_specs[town.spec].name}` : 'Town',
+    [['market', 'Market'], ...(spec ? [['trade', spec.name]] : []), ['inn', 'Inn'], ['docks', 'Docks'], ['board', 'Notice board']], d, body);
 }
 
 function heroDrawer(h0, d, readonly = false) {
@@ -878,7 +934,8 @@ function forkView(fk) {
       h('span.kind', null, kind),
       h('h3', null, p.name),
       h('p', null, p.text),
-      foes.length ? h('div.fork-foes', null, ...foes.map(x => h('span.chip' + (x.aff || st.foes[x.k]?.big || st.foes[x.k]?.boss ? '.danger' : ''), null, foeName(x.k, x.aff)))) : null,
+      foes.length ? h('div.fork-foes', null, ...foes.map(x => h('span.chip' + (x.aff || st.foes[x.k]?.big || st.foes[x.k]?.boss ? '.danger' : ''), null, foeName(x.k, x.aff))),
+        ...(boss ? fk.garrison?.foes || [] : []).map(k => h('span.chip', { tip: 'From the garrison, which grew while the objective waited' }, `${foeName(k)} (garrison)`))) : null,
       ...affs.map(a => h('p.muted.small', null, `${st.elites[a].name}: ${st.elites[a].text}`)),
       big ? h('p.muted.small', null, `${st.foes[big.k].name}: a big threat. At half health it's bloodied: ${st.foes[big.k].bloodied.text}`) : null,
       h('div.gains', null, h('span.chip.brass', null, p.reward)),
@@ -888,6 +945,7 @@ function forkView(fk) {
     h('div.eyebrow', null, `${st.dungeons[fk.region]} · fight ${fk.step + 1} of 3 next`),
     h('h2', null, 'The way forks'),
     h('p.lead', null, fk.heroes.length > 1 ? 'Pick a path together. Most votes wins; a tie is a coin toss.' : 'Pick a path.'),
+    fk.garrison?.foes.length ? h('p.muted', null, `The garrison joins either way: ${fk.garrison.foes.map(k => foeName(k)).join(', ')}${fk.garrison.boss ? `, and the boss has ${fk.garrison.boss}% more health` : ''}.`) : null,
     h('div.picks', null, ...lines),
     waiting.length ? h('p.muted', null, `Waiting for ${waiting.join(', ')}.`) : null,
   ];
@@ -897,7 +955,7 @@ function forkView(fk) {
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
   fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
-  sea: ['The rising tide', 'Every few turns the tide rises and every enemy grows a little stronger, as the top bar shows. The sooner you clear the three objectives and reach the peak, the easier the fights.'],
+  sea: ['Time and tide', 'Every few turns the tide rises and every enemy grows a little stronger, as the top bar shows. Every eight turns the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
 };
 function renderHint() {
   const el = $('hint');
@@ -937,6 +995,8 @@ export function handleFx(list, before) {
       case 'level': later.push(() => { bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); }); break;
       case 'cleared': later.push(() => { bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); }); break;
       case 'buff': if (mine().includes(f.h)) later.push(() => toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`)); break;
+      case 'opp': later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
+      case 'garrison': later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;
       case 'event':
         if (mine().includes(f.h)) {
           later.push(() => {

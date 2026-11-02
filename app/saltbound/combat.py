@@ -60,7 +60,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 grow = ROAM_HP - 1
             elif roam:
                 grow = 0
-            self.add_foe(key, hp, grow, aff)
+            boss = spec.get("boss_grow", 0) if A.FOES[key].get("boss") else 0
+            self.add_foe(key, hp, grow + boss, aff)
         for h in f["heroes"]:
             m = self.mods(h)
             x = {"st": {}, "down": False, "fled": False,
@@ -926,8 +927,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         for h in winners:
             self.hero(h)["gold"] += gold + self.mods(h).get("sticky", 0)
         self.say(f"Victory! +{f['xp']} XP" + (f", +{gold} gold each." if gold else "."))
+        prizes = [g["prize"] for g in s["groups"] if g["id"] in f["groups"] and g.get("prize")]
         s["groups"] = [g for g in s["groups"] if g["id"] not in f["groups"]]
         p = self.place(f["tile"])
+        wreck = f["kind"] == "lair" and p and p["kind"] == "wreck" and p.get("guard") and not p.get("done")
+        if wreck:
+            p["done"] = True
+            self.say("The guards are beaten: the wreck is yours to pick through.")
         if f["kind"] == "lair" and p and p["kind"] == "lair":
             p["done"] = True
             for q in s["quests"]:
@@ -946,8 +952,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             n, bonus = 2, 1
         elif self.rng.chance(0.35):
             n = 1
-        if n:
-            self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0))
+        if wreck:
+            self.offer_pool(winners, rarity=p["rarity"], extra=prizes)
+        elif n or prizes:
+            self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0), extra=prizes[:1])
         if path == "vault" and winners:
             self.say("The vault gives up its gold: +12 each.")
         if f["kind"] == "dungeon":
@@ -963,6 +971,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if step >= A.DUNGEON_STEPS:
             s["cleared"].append(reg)
             self.say(f"{A.DUNGEONS[reg]['name']} is cleared! ({len(s['cleared'])} of 3)")
+            if not s.get("garrison", {}).get(reg):
+                s["crown_cut"] = s.get("crown_cut", 0) + 1
+                self.say("Cleared before its garrison grew: the Drowned Crown is weakened.")
             self.fx("cleared", region=reg)
             if len(s["cleared"]) == 3:
                 self.say("All three are cleared. The way to the peak is open.")

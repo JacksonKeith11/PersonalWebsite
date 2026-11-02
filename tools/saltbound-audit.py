@@ -34,6 +34,11 @@ SCENARIOS = {
     and not g.s["pending"]["0"],
     "boss": lambda g: g.s["phase"] == "fight" and g.s["fight"]["kind"] == "boss",
     "fork": lambda g: g.s["phase"] == "fork" and 0 in g.s["fork"]["heroes"],
+    # the overworld's choices
+    "opp": lambda g: g.s["phase"] == "plan" and g.s.get("opps") and not g.s["pending"]["0"] and g.s["turn"] > 5,
+    "trade": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
+    and (g.place(g.hero(0)["tile"]) or {}).get("spec") in ("smith", "temple", "cartographer"),
+    "garrison": lambda g: g.s["phase"] == "fork" and 0 in g.s["fork"]["heroes"] and (g.s["fork"].get("garrison") or {}).get("foes"),
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }

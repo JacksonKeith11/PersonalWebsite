@@ -214,7 +214,21 @@ def plan_move(g, h):
             return {"t": "inn"}
         if not hero["skiff"] and g.docks(hero["tile"]) and hero["gold"] >= 10:
             return {"t": "skiff"}
-        stock = g.shop(hero["tile"])
+        town = g.place(hero["tile"])
+        if town.get("spec") == "temple":
+            if any(A.BUFFS.get(b, {}).get("curse") for b in hero["buffs"]):
+                return {"t": "temple", "what": "cleanse"}
+            if not town.get("revive_sold") and s["revives"] < 2 and hero["gold"] >= A.TEMPLE_REVIVE + 10:
+                return {"t": "temple", "what": "revive"}
+        if town.get("spec") == "smith":
+            ups = [(g.reforge_cost(k), sl) for sl, k in hero["equip"].items() if k and g.reforge_cost(k)]
+            ups = [(c, sl) for c, sl in ups if hero["gold"] >= c + 15]
+            if ups:
+                return {"t": "reforge", "slot": min(ups)[1]}
+        stock = list(g.shop(hero["tile"]))
+        ship = g.opp_at(hero["tile"])
+        if ship and ship["kind"] == "ship":
+            stock = ship["stock"] + stock
         for key in stock:
             it = I.ITEMS[key]
             if it["slot"] == "use":
@@ -260,14 +274,21 @@ def party_goal(g):
         towns = [int(t) for t, p in places.items() if p["kind"] == "town"]
         if towns:
             return min(towns, key=lambda t: Wd.dist(t, at))
+    # a chance that won't wait, if the party can get there in time
+    for o in sorted(s.get("opps", []), key=lambda o: Wd.dist(o["tile"], at)):
+        if Wd.dist(o["tile"], at) > (o["until"] - s["turn"] + 1) * 3:
+            continue
+        if o["kind"] == "drift" or (o["kind"] == "healer" and weakest < 0.75 and len(o["used"]) < len(alive)) \
+                or (o["kind"] == "ship" and lead["gold"] >= 40):
+            return o["tile"]
     ready_for = 2 + 2 * len(s["cleared"])
     if s["level"] >= ready_for or s["rises"] >= 8:
         dungeons = [int(t) for t, p in places.items() if p["kind"] == "dungeon" and p["region"] not in s["cleared"]]
         if dungeons:
             return min(dungeons, key=lambda t: Wd.dist(t, at))
     targets = [gr["tile"] for gr in s["groups"] if s["seen"][gr["tile"]] and (not gr["lair"] or s["level"] >= 3)]
-    targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine")
-                and not p.get("done")]
+    targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache")
+                and not p.get("done") and not (p["kind"] == "shrine" and int(t) in lead["shrines"])]
     if targets:
         return min(targets, key=lambda t: Wd.dist(t, at))
     unseen = [t for t in range(Wd.W * Wd.H) if not s["seen"][t] and g.terrain(t) in Wd.COST]

@@ -345,15 +345,66 @@ BUFFS = {
     "soggy": {"name": "Soggy Boots", "text": "−1 move.", "turns": 4, "mods": {"move": -1}, "curse": True},
     "jinx": {"name": "Jinxed", "text": "No reroll in fights.", "turns": 4, "mods": {"reroll": -1}, "curse": True},
     "frail": {"name": "Seasick", "text": "−4 max HP.", "turns": 6, "mods": {"max_hp": -4}, "curse": True},
+    # a dark shrine's: stronger than a shrine's, and never free
+    "dark_might": {"name": "Drowned Strength", "text": "+2 damage on every hit.", "turns": 8, "mods": {"might": 2}},
+    "dark_ward": {"name": "Black Coral Skin", "text": "Start fights with 8 Armor.", "turns": 8, "mods": {"start_armor": 8}},
 }
 SHRINE_BUFFS = ["swift", "might", "warded", "vigor"]
+
+# ---------------------------------------------------------------- the overworld's choices
+# What a place shows before anyone gets there, places that ask a price, towns with a trade of their
+# own, chances that last a few turns, and dungeons whose garrisons grow while they wait.
+
+WRECK_RARITY = [("common", 3), ("uncommon", 2)]  # an unguarded wreck's loot, shown on the map
+GUARDED_WRECKS = 3  # wrecks with enemies camped on them: beat them for a pool of rare loot
+DARK_SHRINES = 2    # shrines that offer a stronger blessing at a price (the `dark_shrine` event)
+WRECK_GUARDS = {reg: GROUPS[reg][2:6] for reg in ("coral", "keys", "storm")}
+
+TOWN_SPECS = {
+    "smith": {"name": "Smithy", "text": "Reforges a piece of your gear into a random one a rarity better, for the same slot."},
+    "temple": {"name": "Temple", "text": "Lifts curses for free, and sells the party one revive."},
+    "cartographer": {"name": "Cartographer", "text": "Sells charts that show a whole region: its places, lairs and wrecks."},
+    "fence": {"name": "Fence", "text": "Pays half again as much for what you sell."},
+}
+REFORGE_COST = {"uncommon": 25, "rare": 45, "legendary": 80}
+TEMPLE_REVIVE = 50
+CHART_COST = 15
+FENCE_BONUS = 20  # percentage points on the sell rate (40% -> 60%, 60% -> 80% with Haggler)
+
+# Opportunities: they turn up every few turns somewhere a few turns' walk away and last `turns` turns
+# (counting the one they appear on), so reaching one is a choice about the next few turns.
+OPPS = {
+    "ship": {"name": "Merchant ship", "turns": 4, "text": "Docked in town with three better-than-usual wares, then it sails."},
+    "drift": {"name": "Drifting cargo", "turns": 3, "text": "Washed up on the shore: loot and gold for whoever gets there first."},
+    "healer": {"name": "Wandering healer", "turns": 4, "text": "Camped here: heals each hero who arrives to full and lifts curses."},
+}
+OPP_EVERY = 5   # a new one every this many turns (from turn 3)...
+OPP_MAX = 2     # ...while fewer than this many are about
+OPP_RANGE = {"ship": (4, 14), "drift": (4, 10), "healer": (3, 12)}  # how far from the nearest hero
+
+# Garrisons: every `GARRISON_EVERY` turns each objective not yet cleared grows. The first two growths
+# add an escort to its boss fight; past that its boss gets `GARRISON_BOSS` more health per growth.
+# An objective cleared before its garrison ever grew weakens the Drowned Crown by `CROWN_CUT`.
+GARRISON_EVERY = 8
+GARRISON_MAX = 4
+GARRISON_ESCORTS = 2
+GARRISON_BOSS = 0.15
+CROWN_CUT = 0.1
+
+# Event chains: the follow-ups some events set up (`chain` in an outcome).
+LOAN_DUE = 8      # turns until the moneylender comes to collect
+CASTAWAY_AFTER = 5  # turns before the castaway you helped reaches a town (the next town you enter after)
+CACHE_RANGE = (5, 12)
 
 # Events. A choice may need a class (`need`), cost gold (`cost`) or roll a die (`check`): a number
 # (your best die must roll at least that), or {die: weapon, armor, trinket (a bare d4 if that slot is
 # empty), best, or party (the best die of anyone on your hex: bring friends), n: the target, vs: an
 # opponent's die to beat instead, great: a roll that earns the `great` outcome}. Outcomes: text,
-# gold (can be negative), hp, xp, item (a rarity), potion, buff (curses too), revive, skiff, fight
-# (enemy keys), all (healing and buffs reach everyone on your hex too).
+# gold (can be negative), hp, xp, item (a rarity), potion, buff (curses too; a list for several),
+# revive, skiff, fight (enemy keys), all (healing and buffs reach everyone on your hex too), chain (a
+# follow-up: "cache" marks a buried cache on the map, "loan" sends the moneylender after you
+# `LOAN_DUE` turns later, "castaway" has the castaway reward you in a town later). A `hidden` event is
+# never placed on the map: it's a follow-up or a place's own (the dark shrine).
 EVENTS = [
     {"key": "bottle", "title": "A Bottle, Corked", "text": "A bottle bobs against the rocks with a rolled-up note inside. "
      "It has clearly been waiting for someone exactly like you, or at least anyone at all.",
@@ -571,6 +622,56 @@ EVENTS = [
          {"label": "Leave flowers instead", "need": "warden", "ok": {"text": "Something approves. You feel hale.", "buff": "vigor", "all": True}},
          {"label": "Leave both alone", "ok": {"text": "The sign seems disappointed."}},
      ]},
+    # the start of a chain each
+    {"key": "torn_chart", "title": "A Torn Chart", "text": "Half a sea chart, pinned under a stone. One X, a lot of "
+     "underlining, and the word MINE written three times.",
+     "choices": [
+         {"label": "Follow it", "ok": {"text": "You match the coastline to the chart. The X is real, and not far. "
+                                               "It's marked on your map.", "chain": "cache"}},
+         {"label": "Sell it to the next fool", "ok": {"text": "A passing fisherman pays good money for it. He seems delighted.", "gold": 12}},
+     ]},
+    {"key": "moneylender", "title": "The Moneylender", "text": "A woman with a ledger and two very large associates offers "
+     "a loan. \"Forty now. Sixty when I find you again. And I always find you.\"",
+     "choices": [
+         {"label": "Take the forty", "ok": {"text": "She counts it out and writes your name in the ledger. Twice, for some reason.",
+                                            "gold": 40, "chain": "loan"}},
+         {"label": "No thank you", "ok": {"text": "\"Suit yourself.\" The associates look disappointed."}},
+     ]},
+    {"key": "castaway", "title": "The Castaway", "text": "A sunburnt man on a spit of sand, waving a shirt. He's been here "
+     "a while: he has named the crabs.",
+     "choices": [
+         {"label": "Share your water and point him to town", "ok": {"text": "He drinks, cries a little and sets off. "
+                                                                            "\"I won't forget this!\" People say that.",
+                                                                    "hp": -3, "chain": "castaway"}},
+         {"label": "Wish him luck", "ok": {"text": "He waves the shirt after you, less hopefully."}},
+     ]},
+    # never placed on the map
+    {"key": "collector", "hidden": True, "title": "The Debt Comes Due", "text": "The moneylender steps out from behind a rock, "
+     "ledger open. \"Sixty, as agreed.\" Her associates crack their knuckles in unison.",
+     "choices": [
+         {"label": "Pay the sixty", "cost": 60, "ok": {"text": "She crosses your name out. Only once, which feels ominous."}},
+         {"label": "Talk her down to thirty", "need": "herald", "cost": 30, "ok": {"text": "Somehow she leaves thanking you."}},
+         {"label": "Refuse", "ok": {"text": "\"Then we'll take it out of you.\"", "fight": ["cutthroat", "cutthroat", "deckhound"]}},
+     ]},
+    {"key": "dark_shrine", "hidden": True, "title": "A Dark Shrine", "text": "Black coral grown into the shape of an altar, "
+     "wet though the sun is out. It offers strength. It would like something back.",
+     "choices": [
+         {"label": "Drink from the black pool", "ok": {"text": "Power floods your arms. Your stomach disagrees with the arrangement.",
+                                                        "buff": ["dark_might", "frail"]}},
+         {"label": "Bleed on the altar", "ok": {"text": "The coral drinks. Your skin hardens like a reef.", "hp": -8, "buff": ["dark_ward"]}},
+         {"label": "Leave it be", "ok": {"text": "Some offers are best refused. Probably."}},
+     ]},
 ]
+
+
+def event_risk(ev):
+    """What the map says about an event before anyone steps on it: "fight" if a choice can start
+    one, "risky" if a roll can go badly, else "safe"."""
+    outs = [o for ch in ev["choices"] for o in (ch.get("ok"), ch.get("bad"), ch.get("great")) if o]
+    if any(o.get("fight") for o in outs):
+        return "fight"
+    if any(ch.get("bad") for ch in ev["choices"]):
+        return "risky"
+    return "safe"
 
 QUEST_REWARD = 25

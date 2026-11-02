@@ -23,7 +23,7 @@ from .content import items as I
 from .rng import Rng
 from .tuning import SURGE
 
-VERSION = 7
+VERSION = 8
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -80,7 +80,7 @@ class Game(Combat):
             "groups": [], "gid": 1, "plans": {}, "pending": {"0": [], "1": [], "2": []}, "pools": {}, "poolid": 0, "fights": [],
             "fight": None, "after": "turn", "quests": [], "shops": {}, "fx": [], "fxid": 0, "log": [],
             "stats": [{"dmg": 0, "heal": 0, "kills": 0, "taken": 0} for _ in range(3)], "fid": 1,
-            "dnext": {}, "fork": None,
+            "dnext": {}, "fork": None, "opps": [], "oppid": 0, "garrison": {}, "crown_cut": 0, "chains": [],
         }
         g = cls(s)
         for reg in A.DUNGEONS:
@@ -92,11 +92,49 @@ class Game(Combat):
             g.spawn(far=4)
         for t, p in w["places"].items():
             if p["kind"] == "lair":
-                g.add_group(int(t), list(g.rng.choice(A.LAIRS[w["reg"][int(t)] if w["reg"][int(t)] in A.LAIRS else "coral"])), lair=True)
+                gr = g.add_group(int(t), list(g.rng.choice(A.LAIRS[w["reg"][int(t)] if w["reg"][int(t)] in A.LAIRS else "coral"])), lair=True)
+                gr["prize"] = g.rng.choice([k for k in I.GEAR if I.ITEMS[k]["rarity"] == "rare"])
+        g.setup_places(g.rng, guards=True)
         g.reset_plans()
         g.say("The party sets out from " + w["places"][str(w["start"])]["name"] + ".")
         g.sync()
         return g
+
+    def setup_places(self, rng, guards=False):
+        """What each place shows before anyone gets there, filled in where it's missing (new runs, and
+        saves from before it existed): each event's story, each wreck's loot (a few guarded by camped
+        enemies, with `guards`), each shrine's blessing (a few dark), each town's trade."""
+        s = self.s
+        w = s["world"]
+        places = sorted(((int(t), p) for t, p in w["places"].items()), key=lambda x: x[0])
+        evs = rng.shuffle([e["key"] for e in A.EVENTS if not e.get("hidden")])
+        specs = rng.shuffle(list(A.TOWN_SPECS))
+        wrecks = [t for t, p in places if p["kind"] == "wreck" and "rarity" not in p]
+        shrines = [t for t, p in places if p["kind"] == "shrine" and "buff" not in p]
+        guarded = set(rng.sample(wrecks, A.GUARDED_WRECKS)) if guards else set()
+        dark = set(rng.sample(shrines, A.DARK_SHRINES))
+        k = j = 0
+        for t, p in places:
+            if p["kind"] == "event" and "ev" not in p:
+                p["ev"] = evs[k % len(evs)]
+                k += 1
+            elif p["kind"] == "wreck" and "rarity" not in p:
+                if t in guarded:
+                    p["rarity"], p["guard"] = "rare", True
+                    reg = w["reg"][t] if w["reg"][t] in A.WRECK_GUARDS else "coral"
+                    foes = list(rng.choice(A.WRECK_GUARDS[reg]))
+                    i = max(range(len(foes)), key=lambda n: A.FOES[foes[n]]["hp"])
+                    foes[i] = {"k": foes[i], "aff": rng.choice(A.ROAM_ELITES)}
+                    self.add_group(t, foes, lair=True)
+                else:
+                    p["rarity"] = rng.weighted(A.WRECK_RARITY)
+            elif p["kind"] == "shrine" and "buff" not in p:
+                p["buff"] = None if t in dark else rng.choice(A.SHRINE_BUFFS)
+                if t in dark:
+                    p["dark"] = True
+            elif p["kind"] == "town" and "spec" not in p:
+                p["spec"] = specs[j % len(specs)]
+                j += 1
 
     # ------------------------------------------------------------------ small helpers
 
@@ -435,7 +473,7 @@ class Game(Combat):
             p = self.place(tile)
             fight = {"tile": tile, "heroes": heroes, "by": by}
             if p and p["kind"] == "peak":
-                fight.update(kind="boss", foes=list(A.FINAL))
+                fight.update(kind="boss", foes=list(A.FINAL), boss_grow=-A.CROWN_CUT * s.get("crown_cut", 0))
             elif p and p["kind"] == "dungeon" and p["region"] not in s["cleared"]:
                 fight.update(self.dungeon_spec(p["region"]))
             else:
@@ -456,9 +494,13 @@ class Game(Combat):
         lands = {}
         for h, (t, af) in pos.items():
             p = self.place(t)
+            o = self.opp_at(t)
+            if h not in engaged and o and (o["kind"] == "drift" or (o["kind"] == "healer" and h not in o["used"])):
+                lands[str(h)] = o["kind"]
+                continue
             if h in engaged or not p or t == self.hero(h)["tile"]:
                 continue
-            if p["kind"] in ("event", "wreck") and p.get("done"):
+            if p["kind"] in ("event", "wreck", "cache") and p.get("done"):
                 continue
             if p["kind"] == "shrine" and t in self.hero(h)["shrines"]:
                 continue
@@ -496,6 +538,7 @@ class Game(Combat):
             "buy": self.do_buy, "sell": self.do_sell, "inn": self.do_inn, "skiff": self.do_skiff,
             "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use,
             "give": self.do_give, "drop": self.do_drop,
+            "reforge": self.do_reforge, "temple": self.do_temple, "chart": self.do_chart,
             "place": self.do_place, "reroll": self.do_reroll,
             "fready": self.do_fready, "spirit": self.do_spirit, "fork": self.do_fork,
         }.get(t)
@@ -612,7 +655,8 @@ class Game(Combat):
         engaged.update(heroes)
         p = self.place(tile)
         if p and p["kind"] == "peak" and len(self.s["cleared"]) >= 3:
-            return {"kind": "boss", "tile": tile, "heroes": heroes, "foes": list(A.FINAL), "by": by}
+            return {"kind": "boss", "tile": tile, "heroes": heroes, "foes": list(A.FINAL), "by": by,
+                    "boss_grow": -A.CROWN_CUT * self.s.get("crown_cut", 0)}
         if p and p["kind"] == "dungeon" and p["region"] not in self.s["cleared"]:
             return dict(self.dungeon_spec(p["region"]), tile=tile, heroes=heroes, by=by)
         groups = [g for g in self.s["groups"] if Wd.dist(g["tile"], tile) <= 1 and not g.get("busy")]
@@ -655,16 +699,43 @@ class Game(Combat):
         return foes
 
     def dungeon_spec(self, reg):
-        """The next fight in a dungeon, as the party will meet it."""
+        """The next fight in a dungeon, as the party will meet it (the boss fight with its garrison)."""
         nxt = self.s["dnext"][reg]
-        return {"kind": "dungeon", "region": reg, "step": self.s["dungeon"].get(reg, 0), "foes": list(nxt["foes"]),
+        step = self.s["dungeon"].get(reg, 0)
+        spec = {"kind": "dungeon", "region": reg, "step": step, "foes": list(nxt["foes"]),
                 "path": nxt["path"], "ambush_foes": nxt["path"] == "sneak"}
+        if step == A.DUNGEON_STEPS - 1:
+            extra, grow = self.garrison_of(reg)
+            spec["foes"] += extra
+            spec["boss_grow"] = grow
+        return spec
+
+    def garrison_of(self, reg):
+        """What an objective's garrison adds to its boss fight: (escorts, the boss's extra health)."""
+        g = self.s.get("garrison", {}).get(reg, [])
+        return list(g[:A.GARRISON_ESCORTS]), A.GARRISON_BOSS * max(0, len(g) - A.GARRISON_ESCORTS)
+
+    def grow_garrisons(self):
+        s = self.s
+        grown = []
+        for reg, D in A.DUNGEONS.items():
+            g = s.setdefault("garrison", {}).setdefault(reg, [])
+            if reg in s["cleared"] or len(g) >= A.GARRISON_MAX:
+                continue
+            g.append(self.rng.choice([k for e in D["escort"] for k in e]))
+            grown.append(D["name"])
+        if grown:
+            self.say("The garrisons grow: " + ", ".join(grown) + ". Their bosses will be harder to reach.")
+            self.fx("garrison", regs=[r for r in A.DUNGEONS if r not in s["cleared"]])
 
     def make_fork(self, reg, step, tile, heroes):
         """After a dungeon fight: the party picks one of two ways on."""
         paths = self.rng.sample(A.MID_PATHS if step == 1 else A.BOSS_PATHS, 2)
         self.s["fork"] = {"region": reg, "step": step, "tile": tile, "heroes": list(heroes), "votes": {},
                           "opts": [{"path": p, "foes": self.dungeon_lineup(reg, p)} for p in paths]}
+        if step == A.DUNGEON_STEPS - 1:
+            extra, grow = self.garrison_of(reg)
+            self.s["fork"]["garrison"] = {"foes": extra, "boss": round(grow * 100)}
         self.say("The way forks. Pick a path.")
 
     def do_fork(self, h, msg):
@@ -756,6 +827,10 @@ class Game(Combat):
             self.rise()
         if s["phase"] == "end":
             return
+        if s["turn"] > 1 and (s["turn"] - 1) % A.GARRISON_EVERY == 0:
+            self.grow_garrisons()
+        self.tick_opps()
+        self.tick_chains()
         if (s["turn"] - 1) % SPAWN_EVERY == 0 and len(s["groups"]) < MAX_GROUPS:
             self.spawn()
             if s["rises"] > GROW_FROM:
@@ -792,6 +867,103 @@ class Game(Combat):
                     p["path"] = []
             p["ready"] = False
             self.s["plans"][str(h)] = p
+
+    # ------------------------------------------------------------------ opportunities and chains
+
+    def tick_opps(self):
+        """A new turn: opportunities run out, and every few turns a new one turns up."""
+        s = self.s
+        opps = s.setdefault("opps", [])
+        for o in [o for o in opps if o["until"] < s["turn"]]:
+            opps.remove(o)
+            if o["kind"] == "ship":
+                self.say(f"The merchant ship sails from {self.place(o['tile'])['name']}.")
+            elif o["kind"] == "healer":
+                self.say("The wandering healer moves on.")
+            else:
+                self.say("The drifting cargo washes back out to sea.")
+        if s["turn"] % A.OPP_EVERY == 3 and len(opps) < A.OPP_MAX:
+            self.spawn_opp()
+
+    def opp_at(self, t):
+        return next((o for o in self.s.get("opps", []) if o["tile"] == t), None)
+
+    def spawn_opp(self):
+        s = self.s
+        heroes = [self.hero(h)["tile"] for h in self.living()]
+        if not heroes:
+            return
+        taken = {o["tile"] for o in s["opps"]}
+        places = s["world"]["places"]
+        for kind in self.rng.shuffle(list(A.OPPS)):
+            lo, hi = A.OPP_RANGE[kind]
+            if kind == "ship":
+                cands = [int(t) for t, p in places.items() if p["kind"] == "town" and self.docks(int(t))]
+            elif kind == "healer":
+                cands = [int(t) for t, p in places.items() if p["kind"] == "camp"]
+            else:
+                cands = [t for t in range(Wd.W * Wd.H) if self.terrain(t) in ("beach", "grass") and not self.place(t)
+                         and not self.group_at(t) and any(self.terrain(n) in ("deep", "shoal") for n in Wd.neighbors(t))]
+            cands = [t for t in cands if t not in taken and lo <= min(Wd.dist(t, x) for x in heroes) <= hi]
+            if not cands:
+                continue
+            t = self.rng.choice(cands)
+            s["oppid"] = s.get("oppid", 0) + 1
+            o = {"id": s["oppid"], "kind": kind, "tile": t, "until": s["turn"] + A.OPPS[kind]["turns"] - 1, "used": []}
+            if kind == "ship":
+                o["stock"] = []
+                for _ in range(3):
+                    r = self.rarity_for(2)
+                    pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == r and k not in o["stock"]] or I.GEAR
+                    o["stock"].append(self.rng.choice(pool))
+            s["opps"].append(o)
+            self.reveal(t, 1)
+            where = self.place(t)["name"] if kind == "ship" else A.REGION_NAMES.get(s["world"]["reg"][t] or "peak", "")
+            self.say(f"{A.OPPS[kind]['name']} sighted ({where}), for {A.OPPS[kind]['turns']} turns.")
+            self.fx("opp", kind=kind, tile=t)
+            return
+
+    def opp_land(self, h, o):
+        """A hero on an opportunity's hex at the end of a turn."""
+        hero = self.hero(h)
+        if o["kind"] == "drift":
+            self.s["opps"].remove(o)
+            hero["gold"] += 10
+            self.offer_loot(h, 3, tier_bonus=1)
+            self.say(f"{hero['name']} hauls in the drifting cargo (+10 gold).")
+            self.fx("coins", h=h, n=10)
+        elif o["kind"] == "healer" and h not in o["used"]:
+            o["used"].append(h)
+            n = self.heal(h, self.maxhp(h))
+            for b in [b for b in hero["buffs"] if A.BUFFS.get(b, {}).get("curse")]:
+                del hero["buffs"][b]
+            self.fx("heal", to=f"h{h}", n=n)
+            self.say(f"The wandering healer sees to {hero['name']} (+{n} HP).")
+
+    def start_chain(self, h, kind):
+        s = self.s
+        hero = self.hero(h)
+        if kind == "cache":
+            lo, hi = A.CACHE_RANGE
+            cands = [t for t in range(Wd.W * Wd.H) if self.terrain(t) in ("beach", "grass", "forest", "hills")
+                     and not self.place(t) and not self.group_at(t) and lo <= Wd.dist(t, hero["tile"]) <= hi]
+            if cands:
+                t = self.rng.choice(cands)
+                s["world"]["places"][str(t)] = {"kind": "cache"}
+                self.reveal(t, 1)
+        elif kind == "loan":
+            s.setdefault("chains", []).append({"kind": "loan", "h": h, "turn": s["turn"] + A.LOAN_DUE})
+        elif kind == "castaway":
+            s.setdefault("chains", []).append({"kind": "castaway", "turn": s["turn"] + A.CASTAWAY_AFTER})
+
+    def tick_chains(self):
+        """A new turn: a debt falls due."""
+        s = self.s
+        for c in [c for c in s.get("chains", []) if c["kind"] == "loan" and c["turn"] <= s["turn"]]:
+            s["chains"].remove(c)
+            who = c["h"] if self.hero(c["h"])["alive"] else (self.living() or [None])[0]
+            if who is not None:
+                self.push(who, {"type": "event", "key": "collector"})
 
     def tide_at(self, turn):
         return "low" if ((turn - 1) // TIDE_EVERY) % 2 == 0 else "high"
@@ -835,19 +1007,32 @@ class Game(Combat):
     def land(self, h):
         hero = self.hero(h)
         t = hero["tile"]
+        o = self.opp_at(t)
+        if o:
+            self.opp_land(h, o)
         p = self.place(t)
         if not p:
             return
         k = p["kind"]
         if k == "event" and not p.get("done"):
-            ev = self.pick_event(h)
+            key = p.get("ev") or self.pick_event(h)["key"]
+            self.s.setdefault("events_seen", []).append({"key": key})
             p["done"] = True
-            self.push(h, {"type": "event", "key": ev["key"]})
+            self.push(h, {"type": "event", "key": key})
         elif k == "wreck" and not p.get("done"):
             p["done"] = True
             n = 2 + (1 if C.CLASSES[hero["cls"]]["map"]["key"] == "light_fingers" else 0)
-            self.offer_loot(h, n, tier_bonus=0)
+            self.offer_loot(h, n, tier_bonus=0, rarity=p.get("rarity"))
             self.say(f"{hero['name']} picks through a wreck.")
+        elif k == "cache" and not p.get("done"):
+            p["done"] = True
+            hero["gold"] += 15
+            self.offer_loot(h, 3, tier_bonus=2)
+            self.say(f"{hero['name']} digs up the cache from the torn chart (+15 gold).")
+            self.fx("coins", h=h, n=15)
+        elif k == "shrine" and p.get("dark") and t not in hero["shrines"]:
+            hero["shrines"].append(t)
+            self.push(h, {"type": "event", "key": "dark_shrine"})
         elif k == "shrine" and t not in hero["shrines"]:
             if "buff" not in p:
                 p["buff"] = self.rng.choice(A.SHRINE_BUFFS)
@@ -857,6 +1042,13 @@ class Game(Combat):
             for q in self.s["quests"]:
                 if q["kind"] == "deliver" and q["to"] == t and not q["done"]:
                     self.complete_quest(q, h)
+            for c in [c for c in self.s.get("chains", []) if c["kind"] == "castaway" and c["turn"] <= self.s["turn"]]:
+                self.s["chains"].remove(c)
+                hero["gold"] += 15
+                self.offer_loot(h, 2, rarity="rare")
+                text = "The castaway you helped made it here, and he hasn't forgotten: he presses a gift on you."
+                self.fx("event", h=h, key="castaway", text=text, roll=None, bits=["+15 gold", "a rare find"])
+                self.say(f"{hero['name']} — {text} (+15 gold)")
 
     def buff(self, h, key):
         b = A.BUFFS[key]
@@ -868,11 +1060,11 @@ class Game(Combat):
         self.s["pending"][str(h)].append(dialog)
 
     def pick_event(self, h):
+        """An event for an event hex with none set (saves from before each hex had its own)."""
         done = {d.get("key") for d in self.s.get("events_seen", [])}
-        fresh = [e for e in A.EVENTS if e["key"] not in done] or A.EVENTS
-        e = self.rng.choice(fresh)
-        self.s.setdefault("events_seen", []).append({"key": e["key"]})
-        return e
+        placed = [e for e in A.EVENTS if not e.get("hidden")]
+        fresh = [e for e in placed if e["key"] not in done] or placed
+        return self.rng.choice(fresh)
 
     def do_choose(self, h, msg):
         q = self.s["pending"][str(h)]
@@ -986,8 +1178,8 @@ class Game(Combat):
                 if x != h and self.hero(x)["tile"] == hero["tile"]:
                     if out.get("hp", 0) > 0:
                         self.heal(x, out["hp"])
-                    if out.get("buff"):
-                        self.buff(x, out["buff"])
+                    for b in self.buffs_of(out):
+                        self.buff(x, b)
                     bits.append(f"{self.hero(x)['name']} too")
         if out.get("skiff") and not hero["skiff"]:
             hero["skiff"] = True
@@ -1005,8 +1197,10 @@ class Game(Combat):
         if out.get("potion"):
             for _ in range(out["potion"]):
                 self.gain_item(h, "potion")
-        if out.get("buff"):
-            self.buff(h, out["buff"])
+        for b in self.buffs_of(out):
+            self.buff(h, b)
+        if out.get("chain"):
+            self.start_chain(h, out["chain"])
         if out.get("revive"):
             self.s["revives"] += out["revive"]
             bits.append("+1 revive")
@@ -1026,6 +1220,11 @@ class Game(Combat):
             if self.s["phase"] == "plan":
                 self.s["after"] = "plan"
                 self.next_step()
+
+    @staticmethod
+    def buffs_of(out):
+        b = out.get("buff")
+        return b if isinstance(b, list) else [b] if b else []
 
     # ------------------------------------------------------------------ loot, xp and levels
 
@@ -1055,7 +1254,7 @@ class Game(Combat):
         else:
             self.gain_item(to, key)
 
-    def offer_pool(self, heroes, tier_bonus=0):
+    def offer_pool(self, heroes, tier_bonus=0, rarity=None, extra=None):
         """After a fight: one pool of `POOL_SIZE` items for everyone who won it, of which
         `POOL_CLAIMS` can be claimed, first come first served. The claims go round the winners (a
         hero who won alone claims three times, two winners two and one); what's left is left behind."""
@@ -1064,7 +1263,8 @@ class Game(Combat):
             return
         s = self.s
         pid = s["poolid"] = s.get("poolid", 0) + 1
-        items = self.make_loot(POOL_SIZE, tier_bonus)
+        items = list(extra or [])
+        items += self.make_loot(POOL_SIZE - len(items), tier_bonus, rarity)
         s.setdefault("pools", {})[str(pid)] = {"items": items, "taken": {}, "heroes": heroes}
         for i in range(POOL_CLAIMS):
             self.push(heroes[i % len(heroes)], {"type": "pool", "id": pid})
@@ -1198,6 +1398,9 @@ class Game(Combat):
         t = self.hero(h)["tile"]
         stock = self.shop(t)
         key = msg.get("item")
+        ship = self.opp_at(t)
+        if ship and ship["kind"] == "ship" and key in ship["stock"] and key not in stock:
+            stock = ship["stock"]
         if key not in stock:
             raise Invalid("That's not for sale here.")
         hero = self.hero(h)
@@ -1215,7 +1418,85 @@ class Game(Combat):
         return I.price(key) * self.sell_rate(h) // 100
 
     def sell_rate(self, h):
-        return 60 if self.mods(h).get("haggler") else 40
+        p = self.place(self.hero(h)["tile"])
+        fence = A.FENCE_BONUS if p and p.get("spec") == "fence" else 0
+        return (60 if self.mods(h).get("haggler") else 40) + fence
+
+    # ------------------------------------------------------------------ town trades
+
+    def town_spec(self, h, spec):
+        p = self.town(h)
+        if p.get("spec") != spec:
+            raise Invalid(f"There's no {A.TOWN_SPECS[spec]['name'].lower()} here.")
+        return p
+
+    def reforge_cost(self, key):
+        """What the smith charges to reforge an item (None if it can't get better)."""
+        r = I.ITEMS[key]["rarity"]
+        i = I.RARITIES.index(r)
+        return A.REFORGE_COST[I.RARITIES[i + 1]] if i + 1 < len(I.RARITIES) else None
+
+    def do_reforge(self, h, msg):
+        self.town_spec(h, "smith")
+        hero = self.hero(h)
+        slot = msg.get("slot")
+        key = hero["equip"].get(slot) if slot in SLOTS else None
+        if not key:
+            raise Invalid("Reforge what?")
+        cost = self.reforge_cost(key)
+        if cost is None:
+            raise Invalid("It can't get any better.")
+        if hero["gold"] < cost:
+            raise Invalid("You can't afford that.")
+        up = I.RARITIES[I.RARITIES.index(I.ITEMS[key]["rarity"]) + 1]
+        pool = [k for k in I.GEAR if I.ITEMS[k]["slot"] == I.ITEMS[key]["slot"] and I.ITEMS[k]["rarity"] == up and k != key]
+        if not pool:
+            raise Invalid("The smith has nothing better for that slot.")
+        hero["gold"] -= cost
+        new = self.rng.choice(pool)
+        hero["equip"][slot] = new
+        hero["hp"] = min(hero["hp"], self.maxhp(h))
+        self.fx("coins", h=h, n=-cost)
+        self.say(f"The smith reforges {hero['name']}'s {I.ITEMS[key]['name']} into {I.ITEMS[new]['name']}.")
+
+    def do_temple(self, h, msg):
+        p = self.town_spec(h, "temple")
+        hero = self.hero(h)
+        if msg.get("what") == "revive":
+            if p.get("revive_sold"):
+                raise Invalid("The temple has no more to give.")
+            if hero["gold"] < A.TEMPLE_REVIVE:
+                raise Invalid("You can't afford that.")
+            hero["gold"] -= A.TEMPLE_REVIVE
+            p["revive_sold"] = True
+            self.s["revives"] += 1
+            self.fx("coins", h=h, n=-A.TEMPLE_REVIVE)
+            self.say(f"{hero['name']} pays for the temple's blessing: +1 revive.")
+        else:
+            curses = [b for b in hero["buffs"] if A.BUFFS.get(b, {}).get("curse")]
+            if not curses:
+                raise Invalid("You aren't cursed.")
+            for b in curses:
+                del hero["buffs"][b]
+            self.say(f"The temple lifts {hero['name']}'s curses.")
+
+    def do_chart(self, h, msg):
+        self.town_spec(h, "cartographer")
+        hero = self.hero(h)
+        reg = msg.get("region")
+        if reg not in A.REGION_NAMES:
+            raise Invalid("A chart of where?")
+        if hero["gold"] < A.CHART_COST:
+            raise Invalid("You can't afford that.")
+        w = self.s["world"]
+        tiles = [t for t in range(Wd.W * Wd.H) if (w["reg"][t] or "peak") == reg and self.terrain(t) in Wd.COST]
+        if all(self.s["seen"][t] for t in tiles):
+            raise Invalid("You've already seen all of it.")
+        hero["gold"] -= A.CHART_COST
+        for t in tiles:
+            self.s["seen"][t] = 1
+        self.fx("coins", h=h, n=-A.CHART_COST)
+        self.say(f"{hero['name']} buys a chart of {A.REGION_NAMES[reg]}.")
 
     def do_sell(self, h, msg):
         self.town(h)
@@ -1396,7 +1677,7 @@ class Game(Combat):
         s = self.s
         vis = self.visible_tiles()
         groups = [{"id": g["id"], "tile": g["tile"], "lair": g["lair"], "foes": [f["k"] for f in g["foes"]],
-                   "aff": [f.get("aff") for f in g["foes"]]}
+                   "aff": [f.get("aff") for f in g["foes"]], "prize": g.get("prize")}
                   for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]])]
         heroes = []
         for h in range(3):
@@ -1408,11 +1689,18 @@ class Game(Combat):
         for t, p in s["world"]["places"].items():
             if s["seen"][int(t)]:
                 q = {k: v for k, v in p.items() if k not in ("quest",)}
+                if p["kind"] == "event" and p.get("ev"):
+                    ev = next(e for e in A.EVENTS if e["key"] == p["ev"])
+                    q["title"], q["risk"] = ev["title"], A.event_risk(ev)
+                    q["needs"] = sorted({ch["need"] for ch in ev["choices"] if ch.get("need")})
                 if p["kind"] == "town":
                     q["docks"] = self.docks(int(t))
                     if any(self.hero(x)["tile"] == int(t) for x in self.living()):
                         q["shop"] = self.shop(int(t))
                         q["quest"] = None if p.get("quest_taken") else self.town_quest(int(t))
+                        ship = self.opp_at(int(t))
+                        if ship and ship["kind"] == "ship":
+                            q["ship"] = ship["stock"]
                 places[t] = q
         return {
             "turn": s["turn"], "sea": s["sea"], "rises": s["rises"], "tide": self.tide(), "phase": s["phase"],
@@ -1427,6 +1715,14 @@ class Game(Combat):
             "quests": s["quests"], "log": s["log"][-12:], "fx": s["fx"][-60:],
             "stats": s["stats"], "waiting": self.waiting(), "inn": self.inn_cost(),
             "skiff_cost": SKIFF_COST, "herald": self.has_class("herald"),
+            "opps": [{"id": o["id"], "kind": o["kind"], "tile": o["tile"], "left": o["until"] - s["turn"] + 1,
+                      "used": o["used"]} for o in s.get("opps", [])],
+            "garrison": {reg: {"foes": self.garrison_of(reg)[0], "boss": round(self.garrison_of(reg)[1] * 100),
+                               "n": len(s.get("garrison", {}).get(reg, []))} for reg in A.DUNGEONS},
+            "garrison_next": A.GARRISON_EVERY - (s["turn"] - 1) % A.GARRISON_EVERY,
+            "crown_cut": round(A.CROWN_CUT * s.get("crown_cut", 0) * 100),
+            "reforge": {k: self.reforge_cost(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
+            "loans": [{"h": c["h"], "left": c["turn"] - s["turn"]} for c in s.get("chains", []) if c["kind"] == "loan"],
         }
 
 
@@ -1436,6 +1732,7 @@ def static():
     return {
         "classes": C.CLASSES, "actions": acts, "passives": C.PASSIVES, "items": I.ITEMS, "foes": A.FOES,
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,
+        "town_specs": A.TOWN_SPECS, "opps": A.OPPS, "temple_revive": A.TEMPLE_REVIVE, "chart_cost": A.CHART_COST, "garrison_every": A.GARRISON_EVERY,
         "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "paths": A.PATHS, "elites": A.ELITES, "combos": C.COMBOS, "xp_for": C.XP_FOR,
         "prices": {k: I.price(k) for k in I.ITEMS},
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST},

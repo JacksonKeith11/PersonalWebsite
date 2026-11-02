@@ -303,6 +303,49 @@ Smaller calls made while building, not yet confirmed by the owner:
 The design above is what the owner signed off on; this part is the game as built. Where they differ,
 this part is right, and `classes.py`, `content/` and the code are the last word on numbers.
 
+### The map's choices
+
+The owner asked for the map and its choices to be more interesting (Nov 2026: items 1-6 of a review).
+Before, every place was free and looked the same from outside, every fight was worth taking, and
+there was no reason to hurry, so the best plan was to visit everything. Content and numbers are in
+`content/archipelago.py` (from "the overworld's choices"); the rules are in `game.py`.
+
+- **What a place offers shows before you go** (`Game.setup_places`, run once at the start of a run and
+  by the v8 save migration): each event hex has its own event from the start (`ev`), and the map shows
+  its title, a risk (`event_risk`: safe, a roll could go badly, could turn into a fight; red or amber
+  dot) and which classes would have another option. Wrecks show their loot's rarity (a coloured dot).
+  Shrines show their blessing. Towns show their trade.
+- **Opportunities** (`tick_opps`, `spawn_opp`, `opp_land`; `OPPS`): from turn 3, every `OPP_EVERY` (5)
+  turns, while fewer than two are about, one turns up 3-14 hexes from the nearest hero and lasts a few
+  turns: a **merchant ship** docked in a town with three wares a rarity tier better (4 turns), **drifting
+  cargo** on a shore (loot and 10 gold for whoever gets there first, 3 turns), or a **wandering healer**
+  at a camp (heals each hero who arrives to full and lifts curses, 4 turns). They're sighted even in the
+  fog, ringed in gold on the map with the turns left, and listed under "This turn" (click to find).
+  The bots go for one when they can reach it in time (about 3 hexes a turn).
+- **Garrisons** (`grow_garrisons`, `garrison_of`): every `GARRISON_EVERY` (8) turns, each objective not
+  yet cleared grows. The first two growths add an escort to its boss fight (drawn from its escort pool),
+  later ones give its boss `GARRISON_BOSS` (15%) more health each, up to four. An objective cleared before
+  its garrison ever grew weakens the Drowned Crown by `CROWN_CUT` (10% of its health) each. The map
+  shows a "+N" on the dungeon, the tooltip and the boss fork say what's added, the top bar's
+  objectives say when it next grows. This is the run's real pressure to keep moving (`SURGE` is tiny).
+- **Places with a price**: `GUARDED_WRECKS` (3) wrecks have enemies camped on them (a lair-like group
+  with an elite, from the region's middle groups): beat them and the pool is all rare. `DARK_SHRINES`
+  (2) shrines are dark: the `dark_shrine` event offers +2 damage for 8 turns with Seasick, or 8 starting
+  Armor for 8 turns for 8 HP, or nothing. Every lair guards a named **rare prize** (`prize` on the
+  group, shown in its tooltip), added to its loot pool when it's beaten.
+- **Town trades** (`spec` on each town; `TOWN_SPECS`), dealt round so each appears: a **smithy**
+  reforges an equipped item into a random one of the next rarity for the same slot (25/45/80 gold),
+  a **temple** lifts curses free and sells the party one revive (50, once per temple), a
+  **cartographer** sells a chart of a region (15: every hex of it seen, so its places, wrecks and lairs
+  show), a **fence** pays 20 points more when selling (60%, 80% with Haggler). A town's trade has its
+  own tab in the town drawer (the fence's is the market). The bots use the temple and the smithy.
+- **Event chains** (`chain` in an outcome, `start_chain`, `tick_chains`): **A Torn Chart** marks a
+  buried cache 5-12 hexes away (a new place: 15 gold and a three-pick of better loot); **The
+  Moneylender** lends 40 gold, and `LOAN_DUE` (8) turns later **The Debt Comes Due** asks 60 back
+  (a Herald talks it down to 30) or a fight; **The Castaway** costs 3 HP, and the next town anyone
+  enters `CASTAWAY_AFTER` (5) or more turns later he's waiting with 15 gold and a pick of rare loot.
+  `hidden` events (the collector, the dark shrine) are never placed on the map.
+
 ### Fights
 
 - **A round** (`Combat.new_round`): enrage, elite affixes, Crown of Thorns, Poison and regeneration
@@ -601,7 +644,7 @@ clock anywhere: the run changes only when someone acts.
 
 | File | Holds |
 |---|---|
-| `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the tides and the rising tide, enemy groups, places, events, loot, levelling, towns, trading, the forecast, `view()`, `static()`. |
+| `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the tides and the rising tide, enemy groups, places (and what they show, `setup_places`), opportunities, garrisons, event chains, events, loot, levelling, towns and their trades, the forecast, `view()`, `static()`. |
 | `app/saltbound/combat.py` | `Combat`, mixed into `Game`: starting fights, the round (`new_round` and its steps), placing actions, resolving, hurting and healing, the end of a fight (`finish_fight`, `fight_won`, `dungeon_advance`, `fight_lost`), `fight_view`. `Invalid` is the error shown to players. It's built from the mixins below. |
 | `app/saltbound/dice.py` | Faces, condition checks, amount expressions (`amt`), and `Dice`: rolling, odds for planning (`outcomes`, `joint_outcomes`), `roll_for` with its rerolls. |
 | `app/saltbound/actions.py` | `Actions`: targets, amount variables (`env` = `dice_env` + `target_env`), one handler per op (`_op_dmg`, `_op_status`...) and per instant (`_inst_flip`...), and the **shared hit sums** (`hit_base`, `hit_finish`, `hit_pierces`, `foe_damage_after`, `foe_soak`, `hit_spill`, `status_amount`) that the fight and the bots both use. |
@@ -657,11 +700,17 @@ clock anywhere: the run changes only when someone acts.
   `play()` from the simulator and hash `g.s`), refactor, and compare. Any bot or rules change shows.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
-  `boss`, `won`, `lost`...) and saves it for the token "audit"; the browser resumes it and screenshots.
+  `boss`, `won`, `lost`, and for the map `opp`, `trade` (standing in a smithy, temple or cartographer
+  town), `garrison` (a boss fork with a garrison)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
 ## Gotchas
+
+- **The view sends every key of a seen place** (all but a town's `quest`), so a place dict holds only
+  what players may see; that's how an event's `ev`, a wreck's `rarity` and a town's `spec` reach the
+  map. A new key that every place of a kind needs goes in `setup_places`, which fills only what's
+  missing, so the save migration can call it too (with its own `Rng`, leaving the run's untouched).
 
 - **Planning odds use the same face rules as rolling** (`face_rules` in `dice.py`: Bulwark Faces,
   Weighted Coin, Keen Edge); the browser gets each hero's `rollmods` in the fight view for its hit

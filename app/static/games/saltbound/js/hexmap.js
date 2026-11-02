@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=56';
-import { spriteCanvas, placeCanvas } from './art.js?v=56';
+import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=59';
+import { spriteCanvas, placeCanvas } from './art.js?v=59';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -23,6 +23,7 @@ export function tileAt(px, py) {
   if (col < 0 || col >= W || row < 0 || row >= H) return -1;
   return row * W + col;
 }
+const RARITY_COL = { common: 0xb8b0a0, uncommon: 0x6cc070, rare: 0x5aa0e8, legendary: 0xe0a040 };
 const HEXPTS = [[0, -27], [24, -13], [24, 13], [0, 27], [-24, 13], [-24, -13]];
 function hexPoints(t, inset = 0) {
   const [cx, cy] = center(t);
@@ -326,7 +327,10 @@ export class MapView {
   }
 
   drawPlaces() {
-    const L = this.layerPlaces; L.removeAll(true);
+    const L = this.layerPlaces;
+    if (this.oppRings) this.scene.tweens.killTweensOf(this.oppRings);
+    this.oppRings = [];
+    L.removeAll(true);
     for (const [t, p] of Object.entries(this.state.places)) {
       const [cx, cy] = center(+t);
       const kind = p.kind === 'dungeon' && this.state.cleared.includes(p.region) ? 'dungeon' : p.kind;
@@ -336,13 +340,37 @@ export class MapView {
       if (p.kind === 'town') img.setVisible(false);
       if (p.done || (p.kind === 'dungeon' && this.state.cleared.includes(p.region))) img.setAlpha(0.45);
       if (p.kind === 'peak' && this.state.cleared.length < 3) img.setTint(0x8a8a8a);
+      if (p.kind === 'shrine' && p.dark) img.setTint(0xb48ae0);
       L.add(img);
+      // what's there, before anyone arrives: a wreck's loot, an event's risk, a garrison's size
+      const dot = (x, y, col) => L.add(this.scene.add.circle(cx + x, cy + y, 3.5, col).setStrokeStyle(1, 0x0b1017));
+      if (p.kind === 'wreck' && !p.done) dot(10, 8, RARITY_COL[p.rarity] || 0xb8b0a0);
+      if (p.kind === 'event' && !p.done && p.risk && p.risk !== 'safe') dot(10, 8, p.risk === 'fight' ? 0xd0624f : 0xe0a050);
+      const gs = p.kind === 'dungeon' && !this.state.cleared.includes(p.region) ? this.state.garrison?.[p.region] : null;
+      if (gs?.n) L.add(this.scene.add.text(cx + 12, cy - 16, '+' + gs.n, { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffb3a0', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5));
       if (p.kind === 'town' && p.docks) {
         // a small flag marks docks
         const fl = this.scene.add.rectangle(cx + 18, cy - 14, 2, 10, 0x2a1e1a).setOrigin(0.5, 1);
         const cloth = this.scene.add.rectangle(cx + 19, cy - 24, 7, 5, 0xc9a24a).setOrigin(0, 0);
         L.add(fl); L.add(cloth);
       }
+    }
+    this.drawOpps(L);
+  }
+
+  drawOpps(L) {
+    // chances that won't wait: a gold ring and the turns left
+    for (const o of this.state.opps || []) {
+      const [cx, cy] = center(o.tile);
+      const ring = this.scene.add.circle(cx, cy + 2, 15).setStrokeStyle(2, 0xe0bb62, 0.95);
+      L.add(ring);
+      this.oppRings.push(ring);
+      this.scene.tweens.add({ targets: ring, scale: 1.15, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 });
+      if (o.kind !== 'ship') {
+        const tex = this.texFor('place_' + o.kind, () => placeCanvas(o.kind));
+        L.add(this.scene.add.image(cx, cy + 2, tex));
+      }
+      L.add(this.scene.add.text(cx - 13, cy - 15, String(o.left), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5));
     }
   }
 

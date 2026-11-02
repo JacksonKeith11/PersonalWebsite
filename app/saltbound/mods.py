@@ -92,6 +92,7 @@ MODS = {
     "miracle": "once per run, a revive that would be spent isn't",
     "kill_heal": "heal n per kill",
     "kill_armor": "n Armor per kill",
+    "kill_die": "the first kill each round gives a fresh die this big",
     # summons
     "bark": "start each fight with a sapling",
     "summon_cap": "n more summons at a time",

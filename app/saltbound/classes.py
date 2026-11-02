@@ -380,7 +380,7 @@ PASSIVES.update({
                       "text": "Learn Perfect Form: once a round, make one of your dice roll its highest face."},
     # ---- Berserker
     "rage": {"name": "Rage", "mods": {"rage": 1}, "text": "+1 damage for every 5 HP you're missing."},
-    "bloodlust": {"name": "Bloodlust", "mods": {"kill_heal": 2}, "tags": ["bloodlust"], "text": "Heal 2 whenever you kill an enemy."},
+    "bloodlust": {"name": "Bloodlust", "mods": {"kill_heal": 4, "kill_die": 6}, "tags": ["bloodlust"], "text": "Whenever you kill an enemy, heal 4. Your first kill each round also gives you a fresh d6 to keep swinging."},
     "wide_arcs": {"name": "Wide Arcs", "mods": {"wide_arcs": 1}, "tags": ["rampage"], "text": "Cleave also hits the back row, for half."},
     "pain_engine": {"name": "Pain Engine", "mods": {"pain_engine": 1}, "tags": ["bloodlust"], "text": "Each hit you take makes your first die next round roll 1 higher."},
     "thick_skull": {"name": "Thick Skull", "mods": {"max_hp": 4, "weak_immune": 1}, "text": "+4 max HP, and you can't be made Weak."},

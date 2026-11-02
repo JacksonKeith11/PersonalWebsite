@@ -273,6 +273,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
         x["links"] = {}
         x["tempo"] = False
+        x["kdie"] = False
         x["inspire"] = 0
         x["pain_bonus"] = pain.get(str(h), 0)
         x["soaked"] = False
@@ -661,6 +662,12 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             m = self.mods(h)
             if m.get("kill_heal") and self.active(h):
                 self.fight_heal(h, m["kill_heal"], h)
+            x = f["hs"].get(str(h))
+            if m.get("kill_die") and self.active(h) and x and not x.get("kdie") and self.foes():
+                # Bloodlust: the first kill each round hands you a fresh die to keep swinging
+                x["kdie"] = True
+                x["dice"].append(self.new_die(h, list(range(1, m["kill_die"] + 1)), "bloodlust"))
+                self.fx("st", to=f"h{h}", s="bloodlust")
             if m.get("kill_armor") and self.active(h):
                 st = self.hs(h)["st"]
                 st["armor"] = st.get("armor", 0) + m["kill_armor"]

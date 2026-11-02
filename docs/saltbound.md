@@ -517,7 +517,10 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   report because the heal isn't credited to the Mender.
 - **Noise**: 300 runs gives each class about 90, so a class's rate moves about ±5 points between
   batches by chance and the overall ±3. Judge classes on 300 runs (`--seed=5000` for a second set), and
-  a level-up pick's win rate (20–40 runs) as a hint.
+  a level-up pick's win rate (20–40 runs) as a hint. Judge picks by **vs passed** (runs that took it
+  against runs offered it at the same moment that took something else), not **vs class**: a pick only
+  counts once a run reaches its level, so vs class flatters late picks and capstones (in 600 Hard runs,
+  137 of 139 picks beat their class's rate).
 - **How to tune**: `python3 tools/saltbound-sim.py 300 hard --seed=5000 --report`. Read the class
   table (win rate, output per round, downs), the action tables (a basic attack taking most of a class's
   dice, risky actions that rarely hit, actions never used), level-up picks against win rate, and the

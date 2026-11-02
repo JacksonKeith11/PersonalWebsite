@@ -654,6 +654,12 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **After tide arrivals and support dice** (Nov 2026; 300 Hard runs, seed 5000): **Hard 59%**, runs of
+  46 turns, level 5.8. Vanguard 75%, Alchemist 67%, Ranger 64%, Berserker 64%, Herald 56%, Warden 56%,
+  Scoundrel 53%, Duelist 52%, Arcanist 51%, Mender 50%. The same 100 runs without the living heroes'
+  support die: **42%** (the old 40%), so the support die is worth about 17 points and the tide arrivals
+  (plus the simulator now giving the fallen's spirit dice) about nothing. Well above the 30–35% target;
+  the owner's call: a smaller die (d4), only heroes within a few hexes, once per fight, or Hard's numbers.
 - **After jobs** (two per board, deadlines, rewards, bounty and salvage; 300 Hard runs, seed 5000):
   first **Hard 50%** with runs of 46 turns (was 33): the bots did jobs ahead of the dungeons and levelled
   on the way, and garrisons stopped growing at four. Garrisons now grow to six (`GARRISON_MAX`) and the

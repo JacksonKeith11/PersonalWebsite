@@ -254,6 +254,8 @@ def record_choice(stats, g, h, dialog, n, run):
         if 0 <= n < len(dialog["opts"]):
             stats.add("picks", f"{cls}:{dialog['opts'][n]}", "taken")
             run["picks"].append(f"{cls}:{dialog['opts'][n]}")
+            # the options turned down at the same moment: the fair comparison for each pick
+            run.setdefault("passed", []).extend(f"{cls}:{o}" for i, o in enumerate(dialog["opts"]) if i != n)
     elif dialog["type"] in ("loot", "pool"):
         for o in dialog["opts"]:
             stats.add("loot", o, "offered")
@@ -284,6 +286,9 @@ def record_run(stats, g, res, run):
                 stats.add("gear", key, "wins", won)
     for p in run["picks"]:
         stats.add("picks", p, "won", won)
+    for p in run.get("passed", []):
+        stats.add("picks", p, "passed")
+        stats.add("picks", p, "pwon", won)
     if res == "lost":
         stats.add("runs", "lost at turn", str(10 * (s["turn"] // 10)) + "s")
         stats.add("runs", "lost with regions cleared", str(len(s["cleared"])))
@@ -426,12 +431,16 @@ def report(stats, top=12):
         cd = t.get("classes", {}).get(cls, {})
         cwr = cd.get("wins", 0) / max(1, cd.get("runs", 0))
         wr = d.get("won", 0) / d["taken"] if d.get("taken") else None
+        pr = d.get("pwon", 0) / d["passed"] if d.get("passed") else None
         rows.append([f"{C.CLASSES[cls]['name']}: {_name(key)}", d["offered"], _pct(d.get("taken", 0), d["offered"]),
-                     _pct(d.get("won", 0), d.get("taken", 0)) if d.get("taken") else "", f"{100 * (wr - cwr):+.0f}" if wr is not None else ""])
+                     _pct(d.get("won", 0), d.get("taken", 0)) if d.get("taken") else "", f"{100 * (wr - cwr):+.0f}" if wr is not None else "",
+                     f"{100 * (wr - pr):+.0f}" if wr is not None and pr is not None else ""])
         if wr is not None and d["taken"] >= 12 and abs(wr - cwr) > 0.18:
             flags.append(f"Runs where {C.CLASSES[cls]['name']} took {_name(key)} win {100 * wr:.0f}% vs {100 * cwr:.0f}% for the class.")
-    _table("Level-up picks (taken: how often the bot chose it; won: runs that took it; vs class: points above the class's win rate)",
-           ["pick", "offered", "taken", "won", "vs class"], rows, out)
+    _table("Level-up picks (taken: how often the bot chose it; won: runs that took it; vs class: points above the class's "
+           "win rate, which flatters late picks; vs passed: points above runs offered it at the same moment that took "
+           "something else, the fair comparison)",
+           ["pick", "offered", "taken", "won", "vs class", "vs passed"], rows, out)
 
     # gear and consumables
     gear = [(k, d) for k, d in t.get("gear", {}).items() if d["runs"] >= 4]

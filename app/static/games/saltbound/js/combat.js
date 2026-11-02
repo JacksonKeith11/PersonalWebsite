@@ -1,13 +1,13 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=51';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=51';
-import { spriteURL } from './art.js?v=51';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=51';
-import { render } from './main.js?v=51';
-import { skillCard } from './hud.js?v=51';
-import * as sfx from './audio.js?v=51';
+import { S, send, mine, controllerName } from './store.js?v=54';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=54';
+import { spriteURL } from './art.js?v=54';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=54';
+import { render } from './main.js?v=54';
+import { skillCard } from './hud.js?v=54';
+import * as sfx from './audio.js?v=54';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -71,7 +71,11 @@ export function renderCombat(el) {
     return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, onclick: () => targetClick('h' + x), tip: mine().includes(x) ? null : heroTip(x, hs) },
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
-      h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
+      // another player's hero: who plays it (by the name), and the dice they hold this round (for combos)
+      h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, mine().includes(x) ? null : h('span.ctl-name', null, ` · ${controllerName(x)}`),
+        f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
+      !mine().includes(x) && hs?.dice?.length ? h('div.ally-dice', { tip: `${hero.name}'s dice this round\nFaded ones are spent; a number shows once it's rolled.` },
+        ...hs.dice.map(dd => h('span.die-mini' + (dd.used ? '.used' : ''), { tip: `${dieLabel(dd)}\n${dieTip(dd)}` }, dd.v != null ? String(dd.v) : `d${topOf(dd)}`))) : null,
       hs?.swallowed ? h('div.covered-chip.undertow', { tip: 'Swallowed: no dice, and you take damage each round until the Reef Maw spits you out.' }, 'Swallowed!') : null,
       hs?.static ? h('div.covered-chip.undertow', { tip: 'Static: any of your dice that rolls 1 or 2 shocks you for 3 this round.' }, 'Static: 1–2 shocks you') : null,
       hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
@@ -132,6 +136,7 @@ export function renderCombat(el) {
       col('Back', foesIn('back').map(unitFoe))),
     rollTray(),
     C.inspect != null && f.heroes.includes(C.inspect) ? allyPanel(f, C.inspect) : null,
+    C.playing && queue.length ? h('div.queue-badge', { tip: 'Plays still to show: they play faster until caught up' }, `+${queue.length} more`) : null,
     C.caption ? h('div.act-caption', { style: { '--seat': `var(--hero-${C.caption.h})` } }, h('b', null, C.caption.text), h('span', null, C.caption.what)) : null);
 
   const done = f.done || [];
@@ -139,7 +144,7 @@ export function renderCombat(el) {
   const comboTip = 'Combos: what two heroes do together\n' + Object.values(combos).map(c => `${c.name}: ${c.text}`).join('\n');
   const plan = h('div.planstrip', null, h('span.eyebrow', null, 'This round'),
     h('span.chip.brass.combo-help', { tip: comboTip }, icon('spark'), 'Combos'),
-    done.length ? done.map((p, i) => doneChip(p, i, f)) : h('span.muted', { style: { fontSize: '14px' } }, 'Actions happen the moment they’re played, in the order the party plays them. Enemies act once everyone is ready.'));
+    done.length ? stripChips(done, f) : h('span.muted', { style: { fontSize: '14px' } }, 'Actions happen the moment they’re played, in the order the party plays them. Enemies act once everyone is ready.'));
 
   let bottom;
   const spiritMine = mine().filter(x => f.spirit?.[x] && !f.spirit[x].used);
@@ -150,7 +155,7 @@ export function renderCombat(el) {
   else if (spiritMine.length && !C.playing) bottom = spiritBar(f, spiritMine[0]);
   else {
     const waiting = f.heroes.filter(x => heroActive(f, x) && !f.hs[x].ready).map(x => g.heroes[x].name);
-    bottom = h('div.watch', null, h('span', null, C.playing ? 'Resolving…' : waiting.length ? `Waiting for ${waiting.join(', ')}` : ''),
+    bottom = h('div.watch', null, h('span', null, C.playing ? playingLine() : waiting.length ? `Waiting for ${waiting.join(', ')}` : ''),
       !mine().some(x => f.heroes.includes(x)) ? h('button.btn', { onclick: () => { C.hidden = true; hideTip(); render(); } }, 'Back to the map') : null);
   }
 
@@ -168,7 +173,12 @@ export function renderCombat(el) {
       !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null),
     stage, plan, bottom);
   C.rolled = false;
-  requestAnimationFrame(() => drawArrows(box, f));
+  requestAnimationFrame(() => {
+    drawArrows(box, f);
+    // keep the newest play in view when one is added (not while someone scrolls back through them)
+    const strip = box.querySelector('.planstrip');
+    if (strip && done.length !== C.stripLen) { C.stripLen = done.length; strip.scrollLeft = strip.scrollWidth; }
+  });
 }
 
 // ------------------------------------------------------------------ what the plan and the intents will do
@@ -347,6 +357,10 @@ function rollTray() {
   if (!t) return null;
   const now = performance.now();
   const since = t0 => ({ animationDelay: `-${Math.round(now - t0)}ms` });
+  if (t.round) {
+    return h('div.roll-tray.round-mark', { style: since(t.t), role: 'status' },
+      h('div.rt-info', null, h('span.rt-who', null, 'New round'), h('span.rt-act', null, `Round ${t.round}`), h('span.rt-need', null, 'Fresh dice for everyone')));
+  }
   const ad = t.a ? S.static.actions[t.a] : null;
   // tags come as faces (S, X, W) or as the status an elemental face adds
   const EL = { burn: 'F', freeze: 'I', poison: 'P', F: 'F', I: 'I', P: 'P' };
@@ -490,9 +504,31 @@ function doneChip(p, i, f) {
   const rolled = (p.vals || []).length ? `Rolled ${p.vals.join(', ')}. ` : '';
   return h('span.plan-chip' + (p.hit === false ? '.missed' : ''), { style: { '--seat': `var(--hero-${p.h})` },
     tip: `${g.heroes[p.h].name}: ${a.name}${p.plus ? '+' : ''}${tgt ? ' → ' + tgt : ''}\n${rolled}${p.hit === false ? 'Missed. ' : ''}${what || 'No visible effect.'}\n${a.text}` },
-    h('span.muted', null, `${i + 1}.`), h('span.who', null, g.heroes[p.h].name), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
+    h('span.muted', null, `${i + 1}.`), h('span.who', null, mine().includes(p.h) ? g.heroes[p.h].name : controllerName(p.h)), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
     ...nums, h('span', { style: { width: '6px' } }));
 }
+// The round strip: the last three plays in full; each hero's earlier ones folded into one chip with
+// their totals (hover for the list), so the newest never scroll out of sight.
+function stripChips(done, f) {
+  const KEEP = 3;
+  if (done.length <= KEEP + 1) return done.map((p, i) => doneChip(p, i, f));
+  const older = done.slice(0, done.length - KEEP), out = [];
+  const byHero = new Map();
+  older.forEach((p, i) => { if (!byHero.has(p.h)) byHero.set(p.h, []); byHero.get(p.h).push([p, i]); });
+  for (const [x, list] of byHero) {
+    const sum = k => list.reduce((a, [p]) => a + ((p.out || {})[k] || 0), 0);
+    const tip = list.map(([p, i]) => `${i + 1}. ${S.static.actions[p.a].name}${p.hit === false ? ' (missed)' : ''}: ${outcomeText(p.out || {}) || 'no visible effect'}`).join('\n');
+    out.push(h('span.plan-chip.folded', { style: { '--seat': `var(--hero-${x})` }, tip: `${heroWho(x)}, earlier this round\n${tip}` },
+      h('span.who', null, mine().includes(x) ? S.game.heroes[x].name : controllerName(x)), h('span.muted', null, `×${list.length}`),
+      sum('dmg') ? h('span.o-dmg', null, icon('sword'), sum('dmg')) : null,
+      sum('heal') ? h('span.o-heal', null, icon('plus'), sum('heal')) : null,
+      sum('armor') ? h('span.o-armor', null, icon('shield'), sum('armor')) : null,
+      sum('kills') ? h('span.o-kill', null, icon('skull'), sum('kills') > 1 ? `×${sum('kills')}` : '') : null,
+      h('span', { style: { width: '6px' } })));
+  }
+  return [...out, ...done.slice(-KEEP).map((p, j) => doneChip(p, done.length - KEEP + j, f))];
+}
+
 // An action's outcome in words, for the round strip's tooltips.
 function outcomeText(o) {
   const parts = [];
@@ -783,7 +819,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------------ playing back a round
-const COMBAT_FX = new Set(['combo', 'froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'retarget', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
+const COMBAT_FX = new Set(['round', 'combo', 'froll', 'roll', 'reroll', 'sact', 'act', 'fact', 'dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'summon', 'retarget', 'flee', 'drag', 'fightend', 'phase', 'revive', 'dead', 'coins']);
 
 const queue = [];
 export function combatFx(list, before) {
@@ -821,7 +857,7 @@ function playNext() {
     const wait = apply(f);
     render();
     // more waiting behind this one: hurry, so queued actions keep pace with the party
-    setTimeout(step, wait / (speed * (queue.length ? 1 + Math.min(queue.length, 3) * 0.5 : 1)));
+    setTimeout(step, wait / (speed * (queue.length ? 1 + Math.min(queue.length, 4) * 0.75 : 1)));
   };
   setTimeout(step, 150 / speed);
 }
@@ -1022,14 +1058,45 @@ function abilityFx(f, ad, d) {
   return kind;
 }
 // A line over the stage saying what an ally just did, for a couple of seconds.
-function caption(f, ad, d) {
-  const g = S.game;
+// The caption for an ally's action: whose (the player and hero), what, at whom, and what it does.
+// `rolling`: set as its dice roll, before the hit is known. It clears when the next action starts,
+// or after a few seconds of nothing else.
+function makeCaption(f, ad, d, rolling) {
   const tgt = typeof f.tgt === 'string' && f.tgt !== 'h' + f.h ? unitName(d, f.tgt) : '';
-  C.caption = { h: f.h, id: (C.caption?.id || 0) + 1,
-    text: `${g.heroes[f.h].name}: ${ad.name}${f.echo ? ' (echo)' : ''}${tgt ? ' → ' + tgt : ''}${f.hit === false ? ' (missed)' : ''}`,
+  const id = (C.caption?.id || 0) + 1;
+  setTimeout(() => { if (C.caption?.id === id) { C.caption = null; render(); } }, 2600);
+  return { h: f.h, id,
+    text: `${heroWho(f.h)}: ${ad.name}${f.echo ? ' (echo)' : ''}${tgt ? ' → ' + tgt : ''}${!rolling && f.hit === false ? ' (missed)' : ''}`,
     what: (ad.short && ad.short[1]) || ad.text };
-  const id = C.caption.id;
-  setTimeout(() => { if (C.caption?.id === id) { C.caption = null; render(); } }, 2400);
+}
+// A hero as the table knows them: "Alice · Vanguard" when someone else plays it, else the hero's name.
+export function heroWho(x) {
+  const hero = S.game.heroes[x];
+  if (mine().includes(x)) return hero.name;
+  const who = controllerName(x);
+  return who && who !== '—' ? `${who} · ${hero.name}` : hero.name;
+}
+// A die's biggest number, for a compact label (d6, d12).
+const topOf = d => Math.max(...d.faces.map(x => (typeof x === 'number' ? x : parseInt(String(x).slice(1)) || 0)));
+// The line under the stage while a round plays back: who's acting now, and who's next.
+function playingLine() {
+  const now = C.tray?.foe || (C.tray?.h != null ? heroWho(C.tray.h) : null);
+  const next = nextActor();
+  if (now && next && next !== now) return `${now} is acting · next: ${next}`;
+  if (now) return `${now} is acting`;
+  return next ? `Next: ${next}` : 'Resolving…';
+}
+// Who acts next while enemies and summons take their turns, for the line under the stage.
+function nextActor() {
+  if (!C.fx) return null;
+  const d = C.display;
+  for (let i = C.fxAt + 1; i < C.fx.length; i++) {
+    const f = C.fx[i];
+    if (f.k === 'froll' || f.k === 'fact') return d?.foes.find(fo => fo.id === f.f)?.name || null;
+    if (f.k === 'sact') return (d?.allies || []).find(a => a.id === f.s)?.name || null;
+    if (f.k === 'act' || f.k === 'roll') return heroWho(f.h);
+  }
+  return null;
 }
 
 function addFloat(id, text, cls) {
@@ -1049,6 +1116,13 @@ function apply(f) {
   const foe = id => d.foes.find(fo => 'f' + fo.id === id);
   const ally = id => (d.allies || []).find(a => 's' + a.id === id);
   switch (f.k) {
+    case 'round': {
+      // a new round opens with its number in the roll tray
+      if (f.n <= 1) return 0;
+      C.tray = { round: f.n, t: performance.now() };
+      C.caption = null;
+      return 700;
+    }
     case 'roll': {
       C.tray = null;
       if (!f.dice.length) return 0;
@@ -1056,6 +1130,8 @@ function apply(f) {
       const act = C.fx.slice(C.fxAt).find(x => x.k === 'act' && x.h === f.h && !x.instant);
       const now = performance.now();
       C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now })) };
+      // the caption names the action now playing, from its first roll (never the one before it)
+      C.caption = act && !mine().includes(f.h) && S.static.actions[act.a] ? makeCaption(act, S.static.actions[act.a], d, true) : null;
       flash('h' + f.h, 'act');
       sfx.play('dice');
       return 760;
@@ -1068,7 +1144,8 @@ function apply(f) {
     case 'act': {
       const ad = S.static.actions[f.a];
       // an ally's action is spelled out over the stage: who, what, at whom, and what it does
-      if (!mine().includes(f.h) && ad && !f.echo) caption(f, ad, d);
+      if (!mine().includes(f.h) && ad && !f.echo) C.caption = makeCaption(f, ad, d, false);
+      else if (mine().includes(f.h)) C.caption = null;
       if (f.instant) return 0;
       const kind = abilityFx(f, ad, d);
       flash('h' + f.h, kind === 'melee' ? 'melee' : 'act', 360);
@@ -1099,6 +1176,7 @@ function apply(f) {
         if (total >= f.hi - third) [verdict, label] = ['heavy', 'Heavy!'];
         else if (total <= f.lo + third) [verdict, label] = ['glancing', 'Glancing'];
       }
+      C.caption = null;
       C.tray = { fid: f.f, foe: fo?.name || 'Enemy', name: f.name, range: f.lo != null ? `${f.lo}–${f.hi}` : '', t: now, verdict, label, total,
         bonus: f.bonus || 0, vt: now + 420 / (S.settings.speed || 1), dice: dice.map((x, j) => ({ ...x, id: 'f' + f.f + '.' + j, t: now })) };
       flash('f' + f.f, 'act');
@@ -1108,6 +1186,7 @@ function apply(f) {
     }
     case 'fact': {
       if (C.tray?.fid !== f.f) C.tray = null;
+      C.caption = null;
       flash('f' + f.f, 'act');
       if (f.ik !== 'dazed') sfx.play('swing');
       return 300;
@@ -1160,7 +1239,7 @@ function apply(f) {
       }
       if (u) u.hp = 0; sfx.play('die'); return 320;
     }
-    case 'sact': C.tray = null; flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
+    case 'sact': C.tray = null; C.caption = null; flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
     case 'down': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = true; sfx.play('die'); return 380; }
     case 'lift': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = false; C.hp[x] = f.n; addFloat(f.to, 'Back up!', 'heal.big'); flash(f.to, 'revive', 800); sfx.play('revive'); return 520; }
     case 'summon': {

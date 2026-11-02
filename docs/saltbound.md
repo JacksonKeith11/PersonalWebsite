@@ -227,6 +227,14 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      thrust, Volley's arrow rain, Doom's sigil, Renew's party glow, Sanctuary's dome, Hymn's notes,
      summoning circles and more); anything else uses the generic effect for its kind.
      Clicking an ally's hero card on the map opens their sheet read-only (skills, gear, about).
+     **Multiplayer clarity** (owner's request, after a two-browser test): another player's hero shows
+     who plays it ("Vanguard · Alice") and the dice they hold this round under the portrait (spent
+     ones faded, rolled ones numbered), so combos can be planned; the caption names the action now
+     playing from its first roll (it used to linger on the one before); a backlog of plays still to
+     show speeds playback up to 4× with a "+N more" badge; the "This round" strip keeps its last three
+     plays in full and folds each hero's earlier ones into one chip, scrolled to the newest; a new
+     round opens with "Round N" in the roll tray; the line under the stage says who is acting and
+     who's next; floating numbers sit over the portrait on a dark backing, never on a health bar.
   6. **Rewards and level-up**: gold, loot pick, then the 1-of-3 skill offer.
   7. **Town and shop panel**, **event dialog**.
   8. **Run end**: win or lose, a per-hero summary (damage, healing, kills, items), the seed, and a
@@ -684,6 +692,8 @@ clock anywhere: the run changes only when someone acts.
 - A combat effect the client should play must be listed in `COMBAT_FX` in `combat.js`, or it's
   silently dropped. Rolls play back in the roll tray (`rollTray()`); the overlay is rebuilt on every
   render, so animated elements set a negative `animation-delay` from when they started.
+- Hero cards in the party column are CSS grids: an absolutely positioned child (a float, a badge)
+  is placed relative to its grid cell, not the card, unless it's given `grid-row`/`grid-column`.
 - `h('div#id.class')`: ids and classes in any order. `h()` sets CSS custom properties with
   `setProperty`; plain assignment drops them silently.
 - **One look for dice, skills and intents** (owner's choice): a die is a cream tile with a coloured top

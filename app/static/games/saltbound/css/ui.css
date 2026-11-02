@@ -1184,3 +1184,25 @@ a:hover { color: var(--accent-hi); }
 /* the ally caption sits at the foot of the stage, clear of the roll tray's band at the top */
 .act-caption { top: auto; bottom: 10px; }
 @keyframes cap-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+
+/* ---- multiplayer fight clarity */
+/* who plays an ally's hero, and the dice they hold this round */
+.unit .ctl-name { color: var(--text-2); font-weight: 500; }
+.unit .ally-dice { display: flex; flex-wrap: wrap; gap: 3px; }
+.die-mini { min-width: 22px; height: 22px; padding: 0 4px; display: inline-grid; place-items: center; border-radius: 6px; background: #efe6cf; color: #1b1f27;
+  font: 700 12px/1 var(--font-ui); }
+.die-mini.used { opacity: 0.35; }
+.col.crowd .unit .ally-dice { grid-column: 2; }
+/* folded earlier plays in the round strip */
+.plan-chip.folded { opacity: 0.8; border-style: dashed; }
+/* plays still to show while catching up */
+.queue-badge { position: absolute; right: 16px; top: 12px; z-index: 6; padding: 4px 10px; border-radius: var(--r-pill); background: rgba(11, 16, 23, 0.9);
+  border: var(--bw) solid var(--border-strong); color: var(--text-2); font: 600 13px/1.4 var(--font-ui); }
+/* the new-round marker in the roll tray */
+.roll-tray.round-mark { animation: cap-in 200ms var(--ease) both; }
+.roll-tray.round-mark .rt-act { font-size: 22px; }
+/* floating numbers sit over the portrait with a dark backing, so they never hide a name or health */
+.float { padding: 0 6px; border-radius: 6px; background: rgba(11, 16, 23, 0.55); }
+.col.crowd .unit > .float { grid-column: 1 / -1; grid-row: 1; left: 40px; top: -4px; }
+/* the Ready badge sits on the portrait's corner, clear of the name line (which now names the player) */
+.col.herocol .unit > .intent { right: auto; left: -6px; top: -12px; }

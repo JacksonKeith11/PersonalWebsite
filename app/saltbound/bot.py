@@ -202,9 +202,9 @@ def plan_move(g, h):
             it = I.ITEMS[key]
             if it["slot"] == "use":
                 continue
-            if better(g, h, key) and hero["gold"] >= g.price_for(h, key) and len(hero["bag"]) < g.bag_size(h):
+            if better(g, h, key) and hero["gold"] >= g.price_for(h, key):
                 return {"t": "buy", "item": key}
-        if hero["gold"] >= 30 and hero["bag"].count("potion") < 2 and len(hero["bag"]) < g.bag_size(h):
+        if hero["gold"] >= 30 and hero["bag"].count("potion") < 2:
             return {"t": "buy", "item": "potion"}
     if hero["hp"] < mx * 0.45 and "potion" in hero["bag"]:
         return {"t": "use", "bag": hero["bag"].index("potion")}
@@ -693,7 +693,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         bump(eff["cut"], t["id"], pr * share * n)
             elif k == "cancel":
                 for t, share in tg:
-                    if isinstance(t, dict):
+                    if isinstance(t, dict) and not g.steeled(t):
                         val += share * now[t["id"]]
                         bump(eff["stop"], t["id"], pr * share)
             elif k == "retarget":
@@ -740,7 +740,7 @@ def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
         return 0
     w = 0.75 + 0.5 * tb[t["id"]] / top
     if s == "stun":
-        if t["st"].get("stun"):
+        if t["st"].get("stun") or g.steeled(t):
             return 0
         bump(eff["stop"], t["id"], pr)
         return now[t["id"]] + 1
@@ -991,7 +991,7 @@ def instant_value(g, h, a, dice):
     if key == "bottle_it":
         # a potion kept for later: a Tonic (heals 10), or a Rum Ration (22) on a 5+; a stored heal is
         # worth about a third of what it heals (the bots drink potions only when someone would drop)
-        if len(g.hero(h)["bag"]) >= g.bag_size(h) or not dice:
+        if not dice:
             return []
         out = g.outcomes(h, dice[0])
         big = sum(p for v, _, p in out if v >= 5)

@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=45';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=45';
-import { spriteURL } from './art.js?v=45';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=45';
-import { MapView } from './hexmap.js?v=45';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=45';
-import { disconnect } from './main.js?v=45';
-import * as sfx from './audio.js?v=45';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=47';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=47';
+import { spriteURL } from './art.js?v=47';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=47';
+import { MapView } from './hexmap.js?v=47';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=47';
+import { disconnect } from './main.js?v=47';
+import * as sfx from './audio.js?v=47';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -557,7 +557,7 @@ function heroDrawer(h0, d, readonly = false) {
       h('h3', null, 'Equipped'),
       ...['weapon', 'armor', 'trinket'].map(slot => hero.equip[slot] ? itemRow(hero.equip[slot])
         : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, `No ${slot}`))),
-      h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} of ${hero.bagsize}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
+      h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} item${hero.bag.length === 1 ? '' : 's'}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
       ...hero.bag.map(k => itemRow(k)),
       !hero.bag.length ? h('p.muted', null, 'Their bag is empty.') : null,
     ];
@@ -568,7 +568,7 @@ function heroDrawer(h0, d, readonly = false) {
       ...['weapon', 'armor', 'trinket'].map(slot => hero.equip[slot]
         ? itemRow(hero.equip[slot], slot !== 'weapon' ? h('button.btn.sm.ghost', { disabled: !free, onclick: () => send({ t: 'unequip', h: h0, slot }) }, 'Take off') : null)
         : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, `No ${slot}`))),
-      h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} of ${hero.bagsize}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
+      h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} item${hero.bag.length === 1 ? '' : 's'}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
       ...hero.bag.map((k, i) => {
         const it = item(k);
         // the bag's buttons go in one row under the item, not squeezed into the right-hand column
@@ -837,10 +837,9 @@ function lootCard(h0, k, i, mates, choose, taken) {
       mates.length ? h('div.give-row', null, h('span.muted', null, 'Give to'),
         ...mates.map(m => {
           const mate = g.heroes[m];
-          const full = (it.slot === 'use' || mate.equip[it.slot]) && mate.bag.length >= mate.bagsize;
           const now = it.slot !== 'use' && mate.equip[it.slot] ? item(mate.equip[it.slot]).name : null;
-          return h('button.btn.sm.ghost', { disabled: full, onclick: () => give(m),
-            tip: full ? `${mate.name}'s bag is full.` : it.slot === 'use' ? `Into ${mate.name}'s bag.`
+          return h('button.btn.sm.ghost', { onclick: () => give(m),
+            tip: it.slot === 'use' ? `Into ${mate.name}'s bag.`
               : now ? `Into ${mate.name}'s bag (they wear the ${now}).` : `${mate.name} puts it on (their ${it.slot} slot is empty).` },
             mate.name);
         })) : null));

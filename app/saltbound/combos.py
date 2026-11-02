@@ -44,8 +44,8 @@ class Combos:
                 t["st"].pop("freeze", None)
             elif name == "bell":
                 t["cracked"] = True
-                t["st"]["stun"] = 1
-                self.say("The bell cracks! The Bell-Warden loses its next action.")
+                t["st"]["weak"] = max(t["st"].get("weak", 0), 1)
+                self.say("The bell cracks! The Bell-Warden reels: its next attack is Weak.")
             self.fx("combo", to=f"f{t['id']}", c=name, n=bonus)
         return n
 

@@ -330,6 +330,8 @@ class Actions:
                 if s == "doom":
                     t["st"]["doom"] = max(t["st"].get("doom", 0), n + c.plus)
                     t["st"]["doomt"] = 2
+                elif s == "stun" and self.resist(t):
+                    continue
                 elif s in ONE_SHOT:
                     t["st"][s] = 1
                 else:
@@ -415,8 +417,11 @@ class Actions:
             if it and (it.get("tgt") or it.get("tgts")):
                 old = it.get("tgt") or it["tgts"][0]
                 new = self.foe_target(dict(it, tgt_kind="random"), exclude=old)
+                if new is None and self.steeled(t):
+                    self.resist(t)
+                    continue
                 if new is None:
-                    t["intent"] = {"k": "dazed", "name": "Distracted"}
+                    t["intent"] = {"k": "dazed", "name": "Distracted", "by_hero": True}
                 elif it.get("tgt"):
                     it["tgt"] = new
                 else:
@@ -426,8 +431,8 @@ class Actions:
 
     def _op_cancel(self, c, op, targets):
         for t in targets:
-            if isinstance(t, dict) and t["hp"] > 0:
-                t["intent"] = {"k": "dazed", "name": "Lost its turn"}
+            if isinstance(t, dict) and t["hp"] > 0 and not self.resist(t):
+                t["intent"] = {"k": "dazed", "name": "Lost its turn", "by_hero": True}
                 self.fx("st", to=f"f{t['id']}", s="dazed")
 
     def _op_foresee(self, c, op, targets):
@@ -448,12 +453,15 @@ class Actions:
             it = t.get("intent") if isinstance(t, dict) else None
             if not it or not it.get("dice"):
                 continue
+            if len(it["dice"]) == 1 and self.steeled(t):
+                self.resist(t)  # a Steeled enemy keeps its last die
+                continue
             i = max(range(len(it["dice"])), key=lambda j: die_range(it["dice"][j]["faces"])[1])
             it["dice"].pop(i)
             if it.get("tgts") and it.get("each") and i < len(it["tgts"]):
                 it["tgts"].pop(i)
             if not it["dice"]:
-                t["intent"] = {"k": "dazed", "name": "Robbed blind"}
+                t["intent"] = {"k": "dazed", "name": "Robbed blind", "by_hero": True}
             else:
                 self.intent_numbers(it)
             self.fx("st", to=f"f{t['id']}", s="robbed")

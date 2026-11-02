@@ -1,12 +1,13 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=45';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=45';
-import { spriteURL } from './art.js?v=45';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=45';
-import { render } from './main.js?v=45';
-import * as sfx from './audio.js?v=45';
+import { S, send, mine } from './store.js?v=47';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=47';
+import { spriteURL } from './art.js?v=47';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=47';
+import { render } from './main.js?v=47';
+import { skillCard } from './hud.js?v=47';
+import * as sfx from './audio.js?v=47';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -130,6 +131,7 @@ export function renderCombat(el) {
       col('Front', foesIn('front').map(unitFoe)),
       col('Back', foesIn('back').map(unitFoe))),
     rollTray(),
+    C.inspect != null && f.heroes.includes(C.inspect) ? allyPanel(f, C.inspect) : null,
     C.caption ? h('div.act-caption', { style: { '--seat': `var(--hero-${C.caption.h})` } }, h('b', null, C.caption.text), h('span', null, C.caption.what)) : null);
 
   const done = f.done || [];
@@ -288,9 +290,9 @@ function foeState(fo, f) {
   // what makes this enemy different right now, in words
   const chips = [];
   const live = f.heroes.filter(y => f.hs[y] && !f.hs[y].down && !f.hs[y].fled).length;
-  if (fo.bell && !fo.cracked) chips.push(h('span.combo-hint', { tip: `The bell\nHit the Bell-Warden with a die showing ${fo.bell} to crack the bell: +6 damage, and it loses its next action.` }, `Bell ${fo.bell}: hit it with a ${fo.bell}`));
+  if (fo.bell && !fo.cracked) chips.push(h('span.combo-hint', { tip: `The bell\nHit the Bell-Warden with a die showing ${fo.bell} to crack the bell: +6 damage, and its next attack is Weak.` }, `Bell ${fo.bell}: hit it with a ${fo.bell}`));
   if (fo.k === 'lamp_keeper') chips.push(fo.lit === false ? h('span.st', { tip: 'The lamp is out: full damage until the end of next round.' }, 'Dark: full damage')
-    : h('span.combo-hint', { tip: `Lit\nTakes half damage. Hit it with ${Math.min(3, live)} different heroes in one round to put the lamp out (it loses its next action).` }, `Lit: ½ damage · ${(fo.hitr || []).length}/${Math.min(3, live)} heroes`));
+    : h('span.combo-hint', { tip: `Lit\nTakes half damage. Hit it with ${Math.min(3, live)} different heroes in one round to put the lamp out: in the dark it takes full damage this round and next, and its next attack is Weak.` }, `Lit: ½ damage · ${(fo.hitr || []).length}/${Math.min(3, live)} heroes`));
   if (fo.air) chips.push(h('span.st.bad', { tip: 'Airborne: melee attacks can’t reach it. Use ranged attacks and spells.' }, 'Airborne: no melee'));
   if (fo.loot) chips.push(h('span.st.bad', { tip: 'It has your potion. Kill it before it flies off to get it back.' }, `Has ${S.static.items[fo.loot]?.name || 'loot'} · flees in ${fo.flee_in}`));
   if (fo.merged) chips.push(h('span.st', { tip: 'Merged: every attack rolls an extra die for each merge.' }, `Merged ×${fo.merged + 1}`));
@@ -323,14 +325,14 @@ function hpBar(hp, max, foe = false) {
   return h('div.bar' + hpClass(hp, max, foe), null, h('i', { style: { width: Math.max(0, Math.round(100 * hp / max)) + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
 }
 
-const ST_SHORT = { vuln: 'Vuln', stun: 'Stunned', freeze: 'Frozen', root: 'Rooted', shock: 'Shocked', hex: 'Hexed', crescendo: 'Crescendo', lifeline: 'Lifeline' };
+const ST_SHORT = { steeled: 'Steeled', vuln: 'Vuln', stun: 'Stunned', freeze: 'Frozen', root: 'Rooted', shock: 'Shocked', hex: 'Hexed', crescendo: 'Crescendo', lifeline: 'Lifeline' };
 function statusRow(st, extra = [], tail = []) {
   const chips = [];
   for (const [k, v] of Object.entries(st || {})) {
     if (!v || ['doomt', 'warded', 'exposed', 'undertow'].includes(k)) continue;
     const s = STATUS[k];
     if (!s) continue;
-    const n = ['stun', 'freeze', 'shock', 'warded', 'exposed'].includes(k) ? '' : v;
+    const n = ['stun', 'freeze', 'shock', 'warded', 'exposed', 'steeled'].includes(k) ? '' : v;
     // icon, short name and number, so a status reads at a glance ("Armor 3", "Rooted")
     chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k, { tip: `${s.name}${n !== '' ? ' ' + n : ''}\n${s.text}` }, icon(s.icon),
       h('span.st-name', null, ST_SHORT[k] || s.name), n !== '' ? h('b', null, n) : null));
@@ -742,6 +744,14 @@ function targetsFor(f, x, a, dice = []) {
 function isTarget(id) { return !!C.pending && C.pending.opts.includes(id); }
 
 function targetClick(id) {
+  // not aiming anything: clicking a hero shows what they can do (your own switches your tray to them)
+  if (!C.pending && id.startsWith('h')) {
+    const x = +id.slice(1);
+    if (mine().includes(x) && S.game.fight?.hs[x] && heroActive(S.game.fight, x)) { C.tab = x; C.sel.clear(); C.inspect = null; }
+    else C.inspect = C.inspect === x ? null : x;
+    render();
+    return;
+  }
   if (!C.pending || !C.pending.opts.includes(id)) return;
   send({ ...C.pending.msg, tgt: id });
   C.pending = null;
@@ -757,6 +767,7 @@ document.addEventListener('keydown', e => {
   if (!f || !combatOpen() || (C.playing && (C.display?.id !== f.id || C.display?.round !== f.round))) return;
   const x = C.tab;
   if (e.key === 'Escape' && C.pending) { C.pending = null; render(); return; }
+  if (e.key === 'Escape' && C.inspect != null) { C.inspect = null; render(); return; }
   if (x === null) return;
   const hs = f.hs[x];
   if (!hs) return;
@@ -836,16 +847,40 @@ function banner(result) {
 }
 
 let floatId = 0;
+// A hero's sheet in a fight, opened by clicking them: every action with its cooldown, their passives
+// and this round's dice, so you can see what an ally can do for you.
+function allyPanel(f, x) {
+  const g = S.game, hero = g.heroes[x], hs = f.hs[x] || {};
+  const acts = hero.actions.filter(k => !['block', 'shift', 'flee'].includes(k));
+  const passives = hero.skills.filter(k => S.static.passives[k.replace(/\+$/, '')]);
+  const weapon = hero.equip.weapon ? S.static.items[hero.equip.weapon] : null;
+  const cdNote = k => { const n = hs.cds?.[k.replace(/\+$/, '')]; return n ? h('span.chip', { style: { color: 'var(--warn, #e0a84a)' } }, icon('clock'), `ready in ${n}`) : null; };
+  return h('div.ally-panel', { style: { '--seat': `var(--hero-${x})` }, onclick: e => e.stopPropagation() },
+    h('header', null,
+      h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
+      h('div', { style: { flex: 1 } }, h('b', null, hero.name), h('span.muted', null, `${S.static.classes[hero.cls].name === hero.name ? '' : S.static.classes[hero.cls].name + ' · '}${hero.hp} / ${hero.maxhp} HP${hs.ready ? ' · ready' : ''}`)),
+      h('button.btn.icon.ghost', { 'aria-label': 'Close', onclick: () => { C.inspect = null; render(); } }, icon('x'))),
+    (hs.dice || []).length ? h('div.ap-dice', null, h('span.muted', null, 'Dice this round'),
+      ...hs.dice.map(d => h('span.die-mini' + (d.used ? '.used' : ''), { tip: dieTip(d) }, d.v != null ? String(d.v) : dieLabel(d)))) : null,
+    h('div.ap-body', null,
+      h('h4', null, 'Actions'),
+      ...acts.map(k => h('div.ap-act', null, skillCard(k, (weapon?.acts || []).includes(k.replace(/\+$/, '')) ? weapon.name : null), cdNote(k))),
+      passives.length ? h('h4', null, 'Passives') : null,
+      ...passives.map(k => skillCard(k))));
+}
+
 // An ally's actions in a fight, for the tooltip on their portrait: what each does and when it's ready.
 function heroTip(x, hs) {
   const hero = S.game.heroes[x];
-  const lines = [`${hero.name} · ${S.static.classes[hero.cls].name}`];
+  const cn = S.static.classes[hero.cls].name;
+  const lines = [hero.name === cn ? cn : `${hero.name} · ${cn}`];
   for (const k of hero.actions.filter(k => !['block', 'shift', 'flee'].includes(k))) {
     const a = S.static.actions[k.replace(/\+$/, '')];
     if (!a) continue;
     const cd = hs?.cds?.[k.replace(/\+$/, '')];
     lines.push(`${a.name}${k.endsWith('+') ? '+' : ''}${cd ? ` (ready in ${cd})` : ''}: ${a.text}`);
   }
+  lines.push('Click for their full sheet.');
   return lines.join('\n');
 }
 
@@ -907,11 +942,74 @@ function fxShot(from, to, cls, done) {
     { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) rotate(${ang}deg)` }], { duration: ms, easing: 'ease-in' });
   anim.onfinish = () => { el.remove(); done?.(); };
 }
+// A screen-wide flash of colour, for the biggest moments.
+function fxScreen(cls, ms = 500) {
+  const el = document.createElement('div');
+  el.className = 'fx-screen ' + cls;
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+// A jagged bolt of lightning between two units, drawn as SVG in the effects layer.
+function fxBolt(from, to, ms = 420) {
+  const a = unitCenter(from), b = unitCenter(to);
+  if (!a || !b) return;
+  const pts = [a];
+  for (let i = 1; i < 7; i++) {
+    const t = i / 7;
+    pts.push([a[0] + (b[0] - a[0]) * t + (Math.random() - 0.5) * 36, a[1] + (b[1] - a[1]) * t + (Math.random() - 0.5) * 36]);
+  }
+  pts.push(b);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'fx-svg');
+  for (const [w, c] of [[9, 'rgba(150, 200, 255, 0.35)'], [3, '#e9f4ff']]) {
+    const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', pts.map(p => p.join(',')).join(' '));
+    pl.setAttribute('stroke', c); pl.setAttribute('stroke-width', w); pl.setAttribute('fill', 'none'); pl.setAttribute('stroke-linejoin', 'bevel');
+    svg.appendChild(pl);
+  }
+  fxLayer().appendChild(svg);
+  setTimeout(() => svg.remove(), ms);
+}
+// Signature effects for the skills that deserve a show. Each gets the targets and whether it missed,
+// and returns the kind of animation for the hero (melee lunges); anything not listed uses the
+// generic effect for its kind.
+const SIGNATURE = {
+  fireball: (f, t, miss, later) => { fxShot('h' + f.h, t[0] || 'h' + f.h, 'fireorb', () => { if (!miss) { fxScreen('fire'); t.forEach(u => fxAt(u, 'fireburst', 800)); flash('stage', 'shake', 380); } }); return 'spell'; },
+  earthshaker: (f, t, miss, later) => { later(() => { if (!miss) { flash('stage', 'quake', 600); fxScreen('dust', 600); t.forEach((u, i) => later(() => fxAt(u, 'quake', 700), i * 70)); } }, 160); return 'melee'; },
+  cleave: (f, t, miss, later) => { later(() => t.forEach(u => fxAt(u, 'arc' + (miss ? ' miss' : ''), 500)), 140); return 'melee'; },
+  reckless_swing: (f, t, miss, later) => { later(() => { t.forEach(u => fxAt(u, 'bigslash' + (miss ? ' miss' : ''), 520)); if (!miss) flash('stage', 'shake', 380); }, 180); return 'melee'; },
+  lunge: (f, t, miss, later) => { later(() => t.forEach(u => { fxAt(u, 'thrust' + (miss ? ' miss' : ''), 420); if (!miss) later(() => fxAt(u, 'star', 520), 120); }), 120); return 'melee'; },
+  finisher: (f, t, miss, later) => { [0, 110, 220].forEach(ms => later(() => t.forEach(u => fxAt(u, 'slash', 420)), ms + 120)); if (!miss) later(() => fxScreen('white', 240), 360); return 'melee'; },
+  chain_lightning: (f, t, miss, later) => { t.forEach(u => fxBolt('h' + f.h, u)); if (!miss) { later(() => fxScreen('bolt', 200), 40); t.forEach(u => fxAt(u, 'zap', 500)); } return 'spell'; },
+  storm_bolt: (f, t, miss) => { t.forEach(u => fxBolt('h' + f.h, u)); if (!miss) t.forEach(u => fxAt(u, 'zap', 500)); return 'spell'; },
+  frost_lance: (f, t, miss) => { t.forEach(u => fxShot('h' + f.h, u, 'ice', () => fxAt(u, 'iceburst' + (miss ? ' miss' : ''), 700))); return 'spell'; },
+  doom: (f, t) => { t.forEach(u => fxAt(u, 'sigil', 1200)); return 'spell'; },
+  smite: (f, t, miss) => { t.forEach(u => fxAt(u, 'beam' + (miss ? ' miss' : ''), 700)); return 'spell'; },
+  volley: (f, t, miss, later) => { t.forEach((u, i) => [0, 90, 180].forEach(ms => later(() => fxAt(u, 'rain', 520), ms + i * 40))); return 'ranged'; },
+  aimed_shot: (f, t, miss, later) => { t.forEach(u => { fxAt(u, 'crosshair', 520); later(() => fxShot('h' + f.h, u, 'ranged', () => fxAt(u, 'pierce' + (miss ? ' miss' : ''), 520)), 300); }); return 'ranged'; },
+  called_shot: (f, t, miss, later) => SIGNATURE.aimed_shot(f, t, miss, later),
+  toxic_cloud: (f, t, miss) => { if (!miss) t.forEach(u => fxAt(u, 'cloud', 1100)); return 'buff'; },
+  taunt: (f, t) => { fxAt('h' + f.h, 'shout', 800); return 'armor'; },
+  guard: (f, t) => { t.forEach(u => fxShot('h' + f.h, u, 'shieldorb', () => fxAt(u, 'shieldfx', 700))); fxAt('h' + f.h, 'shieldfx', 700); return 'armor'; },
+  renew: (f, t) => { t.forEach((u, i) => setTimeout(() => fxAt(u, 'healglow big', 1000), i * 90)); fxScreen('green', 400); return 'heal'; },
+  regrowth: (f, t) => SIGNATURE.renew(f, t),
+  panacea: (f, t) => SIGNATURE.renew(f, t),
+  sanctuary: (f, t) => { t.forEach(u => fxAt(u, 'dome', 900)); fxScreen('gold', 300); return 'armor'; },
+  rally_wall: (f, t) => { t.forEach(u => fxAt(u, 'dome', 900)); return 'armor'; },
+  briar_wall: (f, t) => { t.forEach(u => fxAt(u, 'dome thorny', 900)); return 'armor'; },
+  hymn_of_valor: (f, t) => { (f.heroes || t).forEach(u => fxAt(u, 'notes', 1100)); fxScreen('gold', 300); return 'buff'; },
+  crescendo: (f, t) => { t.forEach(u => fxAt(u, 'notes', 1100)); return 'buff'; },
+  call_bear: (f, t) => { fxAt('h' + f.h, 'circle', 1000); return 'buff'; },
+  ancient_guardian: (f, t) => { fxAt('h' + f.h, 'circle big', 1200); fxScreen('green', 400); return 'buff'; },
+  swarm: (f, t) => { fxAt('h' + f.h, 'circle', 900); return 'buff'; },
+};
 function abilityFx(f, ad, d) {
   if (!ad || !S.settings.speed) return null;
   const kind = abilityKind(ad);
   const from = 'h' + f.h, miss = f.hit === false;
   const tgts = abilityTargets(f, ad, d);
+  const sig = SIGNATURE[f.a];
+  if (sig) return sig({ ...f, heroes: (d.heroes || []).filter(x => !d.hs[x]?.down).map(x => 'h' + x) }, tgts, miss, (fn, ms) => setTimeout(fn, ms / (S.settings.speed || 1)));
   const land = (cls, ms) => tgts.forEach(t => fxAt(t, cls + (miss ? ' miss' : ''), ms));
   const later = (fn, ms) => setTimeout(fn, ms / (S.settings.speed || 1));
   if (kind === 'melee') later(() => land('slash', 420), 150);
@@ -1043,7 +1141,7 @@ function apply(f) {
     }
     case 'st': {
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

@@ -583,7 +583,7 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   an action (Stunned, cancelled by Cacophony or Requiem, distracted at nobody, robbed of every die) is
   Steeled for the next round, when Stuns and cancels don't take, so it acts at least every other
   round. Intents set by heroes (and an ambush's free first round) carry `by_hero`, which is what Steels.
-- **The Drowned Crown** (120 HP; 100 until Nov 2026, when it won 2% of fights): phase 1, **warded** (half damage, `CROWN_WARD`) while a Tide Guard
+- **The Drowned Crown** (100 HP; it won 2% of its fights until the Deluge, and 39% with 120 HP too): phase 1, **warded** (half damage, `CROWN_WARD`) while a Tide Guard
   stands; it summons guards only in this phase. Phase 2 (two thirds health): the **Undertow** marks
   one hero each round, who takes 3× the fight's damage multiplier (`UNDERTOW`) at round end unless
   Armor or a Guard stops it. Phase 3 (a third): its guards drown and it's **exposed** (takes 50% more,
@@ -677,6 +677,12 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **After the tougher bosses** (Nov 2026: knell, beam, kegs, the Deluge, `SURGE` 0.45%, `BOSS_HP` 1.0,
+  Crown 100 HP; 300 Hard runs, seed 5000): **Hard 43%** (target about 50%), runs of 55 turns. The
+  Crown at 120 HP gave 41%. Fights won: bosses (the Crown) 66%, dungeon fights 89%. Losses by
+  objectives cleared: 0: 98, 1: 29, 2: 8, 3 (at the Crown) 37, so most still die before their first
+  objective. **Vanguard parties win 80%, every other class 33–45%**: far ahead (the new bosses' hits
+  on everyone reward its Armor and Guards). The owner's call.
 - **After the bots keep together** (support die removed; 300 Hard runs, seed 5000): **Hard 72%**, runs
   of 58 turns (was 46; waiting for each other costs turns), level 6.2. Vanguard 90%, Alchemist 76%,
   Scoundrel 76%, Herald 71%, Ranger 71%, Mender 70%, Arcanist 70%, Warden 69%, Berserker 68%, Duelist

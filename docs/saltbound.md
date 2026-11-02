@@ -235,8 +235,15 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      plays in full and folds each hero's earlier ones into one chip, scrolled to the newest; a new
      round opens with "Round N" in the roll tray; the line under the stage says who is acting and
      who's next; floating numbers sit over the portrait on a dark backing, never on a health bar.
-  6. **Rewards and level-up**: gold, loot pick, then the 1-of-3 skill offer.
-  7. **Town and shop panel**, **event dialog**.
+  6. **The results screen** (owner's request: one per hero per turn, `renderDialogs` in `hud.js`): what
+     happened to the hero (event outcomes, gold, blessings, jobs, and each pick they make) and every
+     choice it left them, on one screen: an event's options first (what they lead to can change the
+     rest), then level-ups (one pick, and the new skill can change what gear you want), then spoils (a
+     pool's claims grouped into one section). Picks name their queue entry (`choose` takes `i`; a pool
+     can be passed whole with `all`), so they can be made in any order once any event is answered. What
+     happened stays on the screen, through a fight an event starts, until one Continue (Enter). Gold,
+     blessings and jobs go on it when it's up, and are toasts otherwise.
+  7. **Town and shop panel**.
   8. **Run end**: win or lose, a per-hero summary (damage, healing, kills, items), the seed, and a
      back-to-lobby button.
 
@@ -748,7 +755,7 @@ clock anywhere: the run changes only when someone acts.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
   `boss`, `won`, `lost`, and for the map `opp`, `trade` (standing in a smithy, temple or cartographer
-  town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way)...) and saves it for the token "audit"; the browser resumes it and screenshots.
+  town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
@@ -795,10 +802,22 @@ clock anywhere: the run changes only when someone acts.
 - **Effects play before the new state is drawn** (`main.js`): map moves start from the old hexes, and a
   fight's last round plays back before the map or end screen replaces it (`combatBusy()`).
 - **Actions resolve as they're played**; each play sends its own effects and the client plays them back
-  while the hero's dice stay playable, so plays queue (playback speeds up to 2.5× while more waits). In
+  while the hero's dice stay playable, so plays queue (playback speeds up to 4× while more waits). In
   rooms, bots wait `BOT_FIGHT_DELAY` (1.2 s) between fight moves.
+- **The stage never falls a round behind the dice** (owner's request): once a batch that ends a round
+  (`round` or `fightend`) is queued, everything before it plays at 6×, and beyond the last three
+  waiting plays they're skipped (the end's starting state already shows them, and "This round" lists
+  them). So the stage trails the live round only while the enemies' moves play.
+- **The tray is rebuilt only when what it shows changes** (`traySig` in `combat.js`): rebuilding it
+  several times a second while a play animated dropped clicks (press on one button, release on its
+  copy) and flickered tooltips. Anything new the tray shows belongs in `traySig`, or it goes stale.
+  Fighters take clicks through one `pointerup` listener on the overlay, read where the pointer is let
+  go, so a fighter redrawn mid-click still takes it.
+- **"Ready when my dice are spent"** (a menu setting, `autoReady`): a hero you play readies once every
+  die is used (crusted ones don't count), once per round, so unreadying sticks; after any hero readies,
+  the tray moves to the next hero you play who still has to act (`readyUp`, `nextTab`).
 - A combat effect the client should play must be listed in `COMBAT_FX` in `combat.js`, or it's
-  silently dropped. Rolls play back in the roll tray (`rollTray()`); the overlay is rebuilt on every
+  silently dropped. Rolls play back in the roll tray (`rollTray()`); the stage is rebuilt on every
   render, so animated elements set a negative `animation-delay` from when they started.
 - Hero cards in the party column are CSS grids: an absolutely positioned child (a float, a badge)
   is placed relative to its grid cell, not the card, unless it's given `grid-row`/`grid-column`.
@@ -806,7 +825,7 @@ clock anywhere: the run changes only when someone acts.
   with the fight already won (and the party levelled), but the browser plays the fight back first.
   Map effects that follow a fight (level-up and objective banners, gold, the tide, blessings, event
   results) go through `afterCombat` in `combat.js`, which runs them once playback and the Victory
-  banner are done; dialogs already wait on `combatOpen()`; and the health bars use the max HP from
+  banner are done; the results screen already waits on `combatOpen()`; and the health bars use the max HP from
   before the round (`C.maxhp`) while it plays. A hero who walks into a fight finishes the walk on the
   map first (`holdCombat`). `tools/saltbound-mp.js` checks the first two.
 - `h('div#id.class')`: ids and classes in any order. `h()` sets CSS custom properties with

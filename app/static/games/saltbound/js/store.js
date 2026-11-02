@@ -3,7 +3,7 @@ import { identity } from '../../shared/net.js?v=1';
 
 export const S = {
   you: null, code: null, static: null, world: null, room: null, game: null, saves: [],
-  sel: null, lastFx: 0, fresh: true, settings: { speed: 1, volume: 0.6, music: 0.5 }, seenHints: {},
+  sel: null, lastFx: 0, fresh: true, settings: { speed: 1, volume: 0.6, music: 0.5, autoReady: false }, seenHints: {},
 };
 
 const me = identity('saltbound');

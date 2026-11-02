@@ -29,6 +29,7 @@ SCENARIOS = {
     "loot": lambda g: pending(g, "loot"),
     "pool": lambda g: pending(g, "pool") and len(g.s["pools"][str(g.s["pending"]["0"][0]["id"])]["heroes"]) > 1,
     "level": lambda g: pending(g, "level"),
+    "results": lambda g: len({d["type"] for d in g.s["pending"]["0"]}) >= 2,
     "event": lambda g: pending(g, "event"),
     "fight": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and g.s["fight"]["round"] >= 2
     and not g.s["pending"]["0"],

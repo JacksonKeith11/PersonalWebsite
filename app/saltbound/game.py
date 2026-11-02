@@ -1083,7 +1083,12 @@ class Game(Combat):
         q = self.s["pending"][str(h)]
         if not q:
             raise Invalid("Nothing to choose.")
-        d = q[0]
+        # the results screen shows every choice at once, so a pick can name which one (`i`); an event's
+        # choice still comes first, since what it leads to can change the rest
+        i = msg.get("i", 0)
+        if not isinstance(i, int) or not 0 <= i < len(q) or (i and (q[i]["type"] == "event" or q[0]["type"] == "event")):
+            raise Invalid("That choice isn't open.")
+        d = q[i]
         n = msg.get("n")
         if d["type"] == "event":
             ev = next(e for e in A.EVENTS if e["key"] == d["key"])
@@ -1096,7 +1101,7 @@ class Game(Combat):
             if ch.get("cost", 0) > hero["gold"]:
                 raise Invalid("You can't afford that.")
             hero["gold"] -= ch.get("cost", 0)
-            q.pop(0)
+            q.pop(i)
             out = ch["ok"]
             roll = None
             if ch.get("check"):
@@ -1108,22 +1113,24 @@ class Game(Combat):
             self.outcome(h, out, ev, roll)
         elif d["type"] == "loot":
             if n is None or n == -1:
-                q.pop(0)
+                q.pop(i)
             elif isinstance(n, int) and 0 <= n < len(d["opts"]):
                 to = self.loot_to(h, d["opts"][n], msg)
-                q.pop(0)
+                q.pop(i)
                 self.take_loot(h, d["opts"][n], to, msg.get("equip"), msg.get("into"))
             else:
                 raise Invalid("Pick an item, or skip.")
         elif d["type"] == "pool":
             pool = self.s["pools"][str(d["id"])]
-            if n is None or n == -1:
-                q.pop(0)
+            if (n is None or n == -1) and msg.get("all"):
+                q[:] = [x for x in q if not (x["type"] == "pool" and x["id"] == d["id"])]
+            elif n is None or n == -1:
+                q.pop(i)
             elif isinstance(n, int) and 0 <= n < len(pool["items"]):
                 if str(n) in pool["taken"]:
                     raise Invalid("Someone has already claimed that.")
                 to = self.loot_to(h, pool["items"][n], msg)
-                q.pop(0)
+                q.pop(i)
                 pool["taken"][str(n)] = {"by": h, "to": to}
                 self.take_loot(h, pool["items"][n], to, msg.get("equip"), msg.get("into"))
             else:
@@ -1133,7 +1140,7 @@ class Game(Combat):
             if not isinstance(n, int) or not 0 <= n < len(d["opts"]):
                 raise Invalid("Pick one.")
             self.learn(h, d["opts"][n])
-            q.pop(0)
+            q.pop(i)
         if self.s["phase"] == "reward" and not any(self.waiting_reward(x) for x in range(3)):
             self.next_step()
         elif self.s["phase"] == "plan" and self.all_ready():

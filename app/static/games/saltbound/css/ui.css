@@ -305,6 +305,11 @@ a:hover { color: var(--accent-hi); }
 .pick .tags { display: flex; gap: var(--s-1); flex-wrap: wrap; }
 .outcome { padding: var(--s-4); border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 var(--r-md) var(--r-md) 0; color: var(--text-2); }
 .gains { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+/* the results screen: one per hero per turn, a section for each thing that happened or needs a choice */
+.res-sec { display: grid; gap: var(--s-3); }
+.res-sec + .res-sec, .res-notes + .res-sec { padding-top: var(--s-5); border-top: 1px solid var(--border); }
+.res-sec > h3 { font-size: var(--fs-24); }
+.res-foot { display: flex; justify-content: flex-end; align-items: center; gap: var(--s-3); }
 
 /* ------------------------------------------------------------------ combat */
 .combat {

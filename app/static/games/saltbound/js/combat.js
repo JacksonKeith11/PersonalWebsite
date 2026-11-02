@@ -1,15 +1,16 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=62';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=62';
-import { spriteURL } from './art.js?v=62';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=62';
-import { render } from './main.js?v=62';
-import { skillCard } from './hud.js?v=62';
-import * as sfx from './audio.js?v=62';
+import { S, send, mine, controllerName } from './store.js?v=65';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=65';
+import { spriteURL } from './art.js?v=65';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=65';
+import { render } from './main.js?v=65';
+import { skillCard } from './hud.js?v=65';
+import * as sfx from './audio.js?v=65';
 
-const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
+const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
+  trayEl: null, traySig: null, autoDone: new Set() };
 let host = null;
 
 export function combatOpen() {
@@ -88,7 +89,7 @@ export function renderCombat(el) {
     if (x === active) cl.push('mine-sel');
     if (isTarget('h' + x, f)) cl.push('target');
     const ready = hs?.ready && !C.playing;
-    return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, onclick: () => targetClick('h' + x), tip: mine().includes(x) ? null : heroTip(x, hs) },
+    return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, tip: mine().includes(x) ? null : heroTip(x, hs) },
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
       // another player's hero: who plays it (by the name), and the dice they hold this round (for combos)
@@ -112,7 +113,7 @@ export function renderCombat(el) {
     if (fo.hp <= 0 && !fo.dying) cl.push('dead', 'gone');
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
-    return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, onclick: () => targetClick('f' + fo.id), tip: foeTip(fo) },
+    return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, tip: foeTip(fo) },
       intentChip(fo, f),
       h('img.pix', { src: spriteURL(fo.k), alt: '' }),
       h('div.uname', null, fo.name),
@@ -171,7 +172,13 @@ export function renderCombat(el) {
   // your dice stay on screen (locked) while an action plays out mid-round, so the next move is in view
   const live = S.game.fight;
   const sameRound = live && live.id === f.id && live.round === f.round;
-  if (active !== null && (!C.playing || sameRound) && live?.hs[active]) bottom = tray(live, active, my);
+  if (active !== null && (!C.playing || sameRound) && live?.hs[active]) {
+    // the tray is rebuilt only when something it shows changes: rebuilding it under the pointer while
+    // a play animates (several times a second) dropped clicks and flickered tooltips
+    const sig = traySig(live, active, my);
+    if (sig !== C.traySig || !C.trayEl) { C.traySig = sig; C.trayEl = tray(live, active, my); }
+    bottom = C.trayEl;
+  }
   else if (spiritMine.length && !C.playing) bottom = spiritBar(f, spiritMine[0]);
   else {
     const waiting = f.heroes.filter(x => heroActive(f, x) && !f.hs[x].ready).map(x => g.heroes[x].name);
@@ -183,16 +190,31 @@ export function renderCombat(el) {
   let box = el.firstElementChild;
   if (!box || !box.classList.contains('combat')) {
     box = h('div.combat.enter', { role: 'dialog', 'aria-label': 'Fight' });
+    // clicks on fighters are read where the pointer is let go, so a fighter redrawn between press and
+    // release (a play animating) still takes the click
+    box.addEventListener('pointerdown', e => { C.down = e.button === 0 && !!e.target.closest?.('[data-uid]'); });
+    box.addEventListener('pointerup', e => {
+      if (!C.down || e.button !== 0) return;
+      C.down = false;
+      const u = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.combat [data-uid]');
+      if (u && !u.closest('.tray')) targetClick(u.dataset.uid);
+    });
     el.replaceChildren(box);
   }
-  box.replaceChildren(
-    h('div.combat-head', null,
+  const head = h('div.combat-head', null,
       h('span.round', null, `Round ${f.round}`),
       h('h2', null, fightTitle(f)),
       f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), f.phase >= 3 ? 'The Crown is alone: exposed and furious' : 'The Undertow drags someone under each round') : null,
-      !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null),
-    stage, plan, bottom);
+      !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null);
+  // swap the parts in place; an unchanged tray stays put
+  [head, stage, plan, bottom].forEach((k, i) => {
+    const old = box.children[i];
+    if (old === k) return;
+    if (old) old.replaceWith(k); else box.append(k);
+  });
+  while (box.children.length > 4) box.lastElementChild.remove();
   C.rolled = false;
+  if (live) maybeAutoReady(live);
   requestAnimationFrame(() => {
     drawArrows(box, f);
     // keep the newest play in view when one is added (not while someone scrolls back through them)
@@ -562,6 +584,46 @@ function outcomeText(o) {
   return parts.length ? parts[0][0].toUpperCase() + parts.join(', ').slice(1) + '.' : '';
 }
 
+// Everything the tray shows, so it's rebuilt only when one of them changes.
+function traySig(f, x, my) {
+  const g = S.game, hero = g.heroes[x], hs = f.hs[x];
+  return JSON.stringify([f.id, f.round, x, my, hs, hero.actions, hero.bag, hero.spent, f.hymn, f.foes, f.lastdie,
+    f.heroes.map(y => [f.hs[y]?.ready, f.hs[y]?.down, f.hs[y]?.fled]), [...C.sel], C.pending?.msg ?? null, C.playing && !hs.ready]);
+}
+
+// After a hero readies, the tray moves to the next hero you play who still has to act.
+function nextTab(x) {
+  const f = S.game.fight;
+  if (!f) return;
+  const my = mine().filter(y => f.heroes.includes(y) && heroActive(f, y));
+  const next = my.find(y => y !== x && !f.hs[y].ready);
+  if (next !== undefined) { C.tab = next; C.sel.clear(); C.pending = null; }
+}
+function readyUp(x) {
+  send({ t: 'fready', h: x });
+  C.sel.clear(); C.pending = null;
+  nextTab(x);
+}
+
+// The "Ready when my dice are spent" setting: once a hero you play has used every die (a Barnacle-
+// crusted one can't be used, so it doesn't count), they ready up, once per round; unreadying sticks.
+function maybeAutoReady(live) {
+  if (!S.settings.autoReady) return;
+  const spent = hs => hs.dice.every(d => d.used || d.locked);
+  for (const x of mine()) {
+    const hs = live.hs[x];
+    if (!live.heroes.includes(x) || !hs || hs.ready || !heroActive(live, x) || !spent(hs)) continue;
+    const key = `${live.id}:${live.round}:${x}`;
+    if (C.autoDone.has(key)) continue;
+    C.autoDone.add(key);
+    // a beat first: an instant action can hand back a fresh die
+    setTimeout(() => {
+      const f = S.game.fight, h2 = f?.hs[x];
+      if (f && f.id === live.id && f.round === live.round && h2 && !h2.ready && heroActive(f, x) && spent(h2)) { readyUp(x); render(); }
+    }, 450);
+  }
+}
+
 function tray(f, x, my) {
   const g = S.game, hero = g.heroes[x], hs = f.hs[x];
   const dice = hs.dice;
@@ -593,7 +655,7 @@ function tray(f, x, my) {
       C.pending ? h('p', { style: { color: 'var(--accent)', fontWeight: 600 } }, 'Choose a target', h('br'), h('span.muted', { style: { fontWeight: 400 } }, 'Esc to cancel')) : null,
       h('p.muted', { style: { fontSize: '14px' } }, C.playing && !hs.ready ? 'Keep playing: your actions queue up' : hs.ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Enemies are acting…') : waiting.length ? `${waiting.join(', ')} still acting` : 'Everyone else is ready'),
       hs.ready ? h('button.btn.lg', { onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
-        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { send({ t: 'fready', h: x }); C.sel.clear(); C.pending = null; } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
+        : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { readyUp(x); render(); } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
 }
 
 // A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
@@ -827,7 +889,7 @@ document.addEventListener('keydown', e => {
   if (x === null) return;
   const hs = f.hs[x];
   if (!hs) return;
-  if (e.code === 'Space') { e.preventDefault(); send({ t: 'fready', h: x, on: !hs.ready }); C.sel.clear(); C.pending = null; return; }
+  if (e.code === 'Space') { e.preventDefault(); if (hs.ready) { send({ t: 'fready', h: x, on: false }); C.sel.clear(); C.pending = null; } else { readyUp(x); render(); } return; }
   if (hs.ready) return;
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 9) { const d = hs.dice[n - 1]; if (d && !d.used) toggleDie(d.id); return; }
@@ -847,7 +909,13 @@ export function combatFx(list, before) {
   if (list.some(f => f.k === 'fight')) sfx.play('fight');
   if (list.some(f => f.k === 'round')) sfx.play('dice');
   if (!fx.length) return;
-  queue.push({ fx, before: before ? JSON.parse(JSON.stringify(before)) : null });
+  const ends = fx.some(f => f.k === 'round' || f.k === 'fightend');
+  queue.push({ fx, ends, before: before ? JSON.parse(JSON.stringify(before)) : null });
+  // The stage never falls a round behind the dice: once a round has ended, the plays before its end
+  // hurry (6×, see playNext), and beyond the last three they're skipped (the end's starting state
+  // already shows them, and "This round" lists them).
+  const j = queue.findIndex(q => q.ends);
+  if (j > 3) queue.splice(0, j - 3);
   if (!C.playing) playNext();
 }
 
@@ -879,7 +947,7 @@ function playNext() {
     const wait = apply(f);
     render();
     // more waiting behind this one: hurry, so queued actions keep pace with the party
-    setTimeout(step, wait / (speed * (queue.length ? 1 + Math.min(queue.length, 4) * 0.75 : 1)));
+    setTimeout(step, wait / (speed * (queue.some(q => q.ends) ? 6 : queue.length ? 1 + Math.min(queue.length, 4) * 0.75 : 1)));
   };
   setTimeout(step, 150 / speed);
 }

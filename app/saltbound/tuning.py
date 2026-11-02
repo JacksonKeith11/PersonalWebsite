@@ -10,8 +10,8 @@ UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
 # Objectives scale with the party: each one cleared makes the dungeons still standing harder, on top of
 # the 15% health and 10% damage every enemy gains per objective cleared. Index = objectives cleared.
-DUNGEON_STEP_HP = (0.85, 1.1, 1.35)
-DUNGEON_STEP_DMG = (0.9, 1.05, 1.2)
+DUNGEON_STEP_HP = (0.85, 1.0, 1.15)
+DUNGEON_STEP_DMG = (0.9, 1.0, 1.1)
 # The rising tide: each rise makes every enemy this share stronger, HP and damage (rises come every
 # few turns, by difficulty; see DIFFICULTY in game.py).
 SURGE = 0.0045

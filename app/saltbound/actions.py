@@ -583,7 +583,7 @@ class Actions:
     def _inst_reroll_ally(self, c, op):
         y = self.hs(c.other)
         y["rr"] += 2 + (1 if c.a["plus"] else 0)
-        y["inspire"] = y.get("inspire", 0) + 2 + c.extra
+        y["inspire"] = y.get("inspire", 0) + 3 + c.extra
         self.fx("st", to=f"h{c.other}", s="rerolls")
 
     def _inst_flip(self, c, op):
@@ -602,7 +602,7 @@ class Actions:
     def _inst_split(self, c, op):
         d = c.dice[0]
         c.x["dice"].remove(d)
-        half = max(2, top_face(d["faces"]) // 2)
+        half = max(2, top_face(d["faces"]) // 2 + 1)
         for _ in range(2):
             c.x["dice"].append(self.new_die(c.h, list(range(1, half + 1)), "split"))
         c.keep.add(d["id"])

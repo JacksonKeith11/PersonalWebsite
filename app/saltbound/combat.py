@@ -170,7 +170,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         return [f"h{h}" for h in self.actives() if not self.hs(h).get("swallowed")] + [f"s{a['id']}" for a in self.allies()]
 
     def herald_aura(self):
-        return sum(self.mods(h).get("hymn_aura", 0) for h in self.actives())
+        # Battle Hymn: only while its Herald is above half HP
+        return sum(self.mods(h).get("hymn_aura", 0) for h in self.actives() if self.hero(h)["hp"] * 2 > self.maxhp(h))
 
     # ------------------------------------------------------------------ rounds
 
@@ -859,7 +860,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                     st[s] -= 1
             for s in ROUND_ONLY:
                 st.pop(s, None)
-            st["armor"] = st.get("armor", 0) // 2 if self.mods(h).get("overguard") else 0
+            st["armor"] = st.get("armor", 0) // 3 if self.mods(h).get("overguard") else 0
             for s in [s for s, v in st.items() if not v]:
                 del st[s]
         self.boss_phase()

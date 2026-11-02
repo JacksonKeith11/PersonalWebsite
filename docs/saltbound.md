@@ -486,7 +486,7 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 
 | Class | HP (per level) | Map ability | Role | Tags |
 |---|---|---|---|---|
-| Vanguard | 50 (+6) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
+| Vanguard | 46 (+5) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
 | Duelist | 24 (+3) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
 | Berserker | 32 (+4) | **Forage**: camps heal them fully | High-risk damage | Bloodlust, Rampage |
 | Ranger | 24 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
@@ -636,8 +636,9 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
 - **Objectives scale with the party** (owner's request, Nov 2026: so the expected power at each
   objective is easier to tune): dungeon fights (all three of an objective's, boss included) also take
   `DUNGEON_STEP_HP` / `DUNGEON_STEP_DMG` in `tuning.py` by objectives cleared: 0.85×/0.9× for the first,
-  1.1×/1.05× for the second, 1.35×/1.2× for the third (`start_fight`, `f["hpmul"]`). With the tier on
-  top, the first objective's enemies have 85% health and the third's 205%. The objectives' tooltip
+  1.0×/1.0× for the second, 1.15×/1.1× for the third (`start_fight`, `f["hpmul"]`). With the tier on
+  top, the first objective's enemies have 85% health and the third's 150%. (Steps of 1.1 and 1.35 made
+  the later objectives too steep: Hard 36%, most losses at the second and third.) The objectives' tooltip
   in the top bar shows the current step (`dungeon_step` in the view).
 - **The overnight pick study** (owner's request: test skill win rates with long runs and rebalance
   outliers, optimising for skills that are interesting to play). Method: `--with=<class>` (every party
@@ -684,6 +685,25 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **After objective scaling, the Vanguard nerf and the pick pass** (Nov 2026; 300 Hard runs, seed
+  5000): **Hard 42%** (target about 50%), runs of 61 turns, level 6.0. Losses by objectives cleared
+  0: 50, 1: 48, 2: 36, 3: 41, spread evenly as the scaling meant. Vanguard 59%, Alchemist 52%, Scoundrel
+  50%, Herald 47%, Ranger 44%, Berserker 41%, Arcanist 36%, Warden 33%, Duelist 29%, Mender 28%.
+  - **The Vanguard** (was 80%, then 73%): its Armor fed Strike (die +2 + half Armor) and carried over
+    by half, so the tank out-damaged every class; now Strike is die +1 + a third of Armor and Overguard
+    carries a third. Its defending stays, with smaller numbers: Guard and Taunt the die +2 Armor (was
+    +4), Brace the die +1 (was +2; still 2 to the weakest ally), Hold the Line −1 on party hits and the
+    die +2 (was −2, +3), Overguard 5 starting Armor (was 8), Shield Bash cooldown 3, 46 HP +5 a level
+    (was 54 +7). The first round (Strike, Guard, Taunt, Overguard, HP) took it only to 73%: its party's
+    deaths (0.28 a run against about 0.6) were the edge, so the second round trimmed the protection.
+  - **The pick pass**: picks that came out as outliers in two independent samples (300 runs on seed
+    5000 and 600 on seed 9000; a single 300-run sample's z spread was 1.16, near noise): weak ones made
+    worth a die, strong ones trimmed. Chain Lightning (z −2.9) no longer needs an odd number; Reckless
+    Swing (−2.6) hits on 7+, a miss deals half the die, 2 self-damage; Finisher (−2.6) sum +6; Taunting
+    Verse (−3.2) 3+ and Marks, a miss −3; Lend a Hand (−2.5) the die rolls 4 higher; Quicksilver (−3.2)
+    next die +3, cooldown 2; Splitting Flask (−2.8) halves one size bigger. Concussion (+3.0) cooldown 3;
+    Battle Hymn (+2.8) only while the Herald is above half HP. The bots' values for Lend a Hand and
+    Quicksilver (`instant_value`) had ignored the die bonus; they count it now. All of this is in the 42% above.
 - **After the tougher bosses** (Nov 2026: knell, beam, kegs, the Deluge, `SURGE` 0.45%, `BOSS_HP` 1.0,
   Crown 100 HP; 300 Hard runs, seed 5000): **Hard 43%** (target about 50%), runs of 55 turns. The
   Crown at 120 HP gave 41%. Fights won: bosses (the Crown) 66%, dungeon fights 89%. Losses by

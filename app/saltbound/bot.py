@@ -764,7 +764,7 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple):
                         y = t[1]
                         need = max(0, inc.get(y, 0) + (pulled if y == h else 0) - g.hs(y)["st"].get("armor", 0) - b.armor.get(y, 0))
-                        val += share * (min(n, need) + n * (0.5 if m.get("overguard") else 0.15))
+                        val += share * (min(n, need) + n * (0.33 if m.get("overguard") else 0.15))
                         bump(eff["armor"], y, pr * share * n)
             elif k == "heal":
                 n = amt(op["amt"], de) + plus + m.get("heal_bonus", 0)
@@ -1108,7 +1108,8 @@ def instant_value(g, h, a, dice):
             return []
         seer = dice[0].get("v") is not None
         y = max(cand, key=lambda z: (has_risky(g, z) and seer, -len(unrolled(g, z))))
-        return [(f"h{y}", die_mean(g, h, dice[0]) + extra + (2 if seer and has_risky(g, y) else 0) - 0.5)]
+        bonus = C.ACTIONS["lend_a_hand"]["ops"][0].get("bonus", 0)
+        return [(f"h{y}", die_mean(g, h, dice[0]) + bonus + extra + (2 if seer and has_risky(g, y) else 0) - 0.5)]
     if key == "perfect_form":
         d = dice[0] if dice else None
         if not d or d.get("top"):
@@ -1125,7 +1126,8 @@ def instant_value(g, h, a, dice):
     if key == "quicksilver":
         cand = others or [h]
         y = max(cand, key=lambda z: has_risky(g, z))
-        return [(f"h{y}", 2.5 if has_risky(g, y) else 1)]
+        # the next die rolls 3 higher, and two rerolls for a hero with risky actions
+        return [(f"h{y}", 4.5 if has_risky(g, y) else 3)]
     if key == "bottle_it":
         # a potion kept for later: a Tonic (heals 10), or a Rum Ration (22) on a 5+; a stored heal is
         # worth about a third of what it heals (the bots drink potions only when someone would drop)

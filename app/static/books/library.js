@@ -305,20 +305,37 @@
     });
   });
 
+  // Several books can be picked at once. Each is tried in turn whatever happened to the one before,
+  // shows up on the shelf as it lands, and the summary says what was added, what was already
+  // there, and what couldn't be added and why.
   $("#file").addEventListener("change", async (e) => {
     const files = [...e.target.files];
     e.target.value = "";
+    if (!files.length) return;
+    const added = [];
+    const already = [];
+    const failed = [];
     for (const [i, file] of files.entries()) {
       notice(`Uploading ${file.name}${files.length > 1 ? ` (${i + 1} of ${files.length})` : ""}…`);
-      const r = await fetch("/books/api/upload", { method: "POST", body: file });
-      if (!r.ok) {
-        const detail = await r.json().catch(() => ({}));
-        notice(`${file.name}: ${detail.detail || `upload failed (${r.status})`}`, true);
-        await load();
-        return;
+      try {
+        const r = await fetch("/books/api/upload", { method: "POST", body: file });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          failed.push(`${file.name}: ${data.detail || (r.status === 413 ? "it's too large to upload." : `upload failed (${r.status}).`)}`);
+          continue;
+        }
+        (data.existing ? already : added).push(`“${data.title}”`);
+        if (!data.existing) load();
+      } catch {
+        failed.push(`${file.name}: the upload didn't reach the server. Check the connection and try again.`);
       }
     }
-    notice(files.length ? "Added. Choose Make audiobook in its ⋯ menu to narrate it." : "");
+    const list = (names) => (names.length > 3 ? `${names.length} books` : names.join(", "));
+    const lines = [];
+    if (added.length) lines.push(`Added ${list(added)}. Choose Make audiobook in a book's ⋯ menu to narrate it.`);
+    if (already.length) lines.push(`${list(already)} ${already.length === 1 ? "was" : "were"} already in your library.`);
+    if (failed.length) lines.push(`Couldn't add ${failed.length === 1 ? "one file" : `${failed.length} files`}:`, ...failed);
+    notice(lines.join("\n"), failed.length > 0);
     load();
   });
 

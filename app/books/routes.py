@@ -175,11 +175,12 @@ async def upload(request: Request, user: str = Depends(require_user)):
     data = await request.body()
     if len(data) > MAX_UPLOAD:
         raise HTTPException(413, "That file is too large.")
+    existing = bool(store.book_dir(epub.book_id_for(user, data)))
     try:
         book_id = await run_in_threadpool(epub.save, data, user)
     except epub.EpubError as e:
         raise HTTPException(400, str(e))
-    return {"id": book_id}
+    return {"id": book_id, "title": store.load_book(book_id)["title"], "existing": existing}
 
 
 @api.post("/import")

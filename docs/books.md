@@ -63,6 +63,9 @@ Read this before changing `app/books/` or `app/static/books/`.
   percent-encoded in links, HTML entities (`&rsquo;`) or bare `&` in the package XML, a byte-order
   mark. Open EPUBs with `epub.open_epub` (not `zipfile.ZipFile`) and parse their XML with `_xml`,
   which tolerate these. "Not a valid EPUB" errors name the part that failed.
+- **Uploading several books at once** sends them one at a time. A failure (a bad file, a dropped
+  connection) doesn't stop the rest; the summary lists what was added, what was already there
+  (`/upload` answers `existing`), and each failure with its reason.
 - **Book ids are content hashes:** `sha256(owner + "\0" + epub)[:12]`. Uploading the same file
   twice is a no-op, and two users get separate copies.
 - **Narration can be played while it's still being written.** It grows in

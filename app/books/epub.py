@@ -485,11 +485,15 @@ def _read(data: bytes, book_id: str, rev: int) -> tuple[dict, list[dict]]:
     return book, sections
 
 
+def book_id_for(owner: str, data: bytes) -> str:
+    return hashlib.sha256(owner.encode() + b"\0" + data).hexdigest()[:12]
+
+
 def save(data: bytes, owner: str, source: str = "") -> str:
     """Store an uploaded EPUB for `owner`; returns the book id. Uploading the same file twice is a no-op,
     and two people uploading the same file each get their own copy. `source` is the story link of a
     book the importer built, which lets it be updated later."""
-    book_id = hashlib.sha256(owner.encode() + b"\0" + data).hexdigest()[:12]
+    book_id = book_id_for(owner, data)
     if store.book_dir(book_id):
         return book_id
     book, sections = _read(data, book_id, 0)

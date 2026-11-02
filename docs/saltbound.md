@@ -654,6 +654,12 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **After the bots keep together** (support die removed; 300 Hard runs, seed 5000): **Hard 72%**, runs
+  of 58 turns (was 46; waiting for each other costs turns), level 6.2. Vanguard 90%, Alchemist 76%,
+  Scoundrel 76%, Herald 71%, Ranger 71%, Mender 70%, Arcanist 70%, Warden 69%, Berserker 68%, Duelist
+  64%. Won: dungeon fights 95% (was 87%), bosses 99.5% (84%). Every earlier number here was measured with
+  bots that fought a third of their dungeons alone, so Hard was tuned for a party that splits up; a
+  party that stays together, as players do, finds it much easier. The owner's call.
 - **After tide arrivals and support dice** (Nov 2026; 300 Hard runs, seed 5000): **Hard 59%**, runs of
   46 turns, level 5.8. Vanguard 75%, Alchemist 67%, Ranger 64%, Berserker 64%, Herald 56%, Warden 56%,
   Scoundrel 53%, Duelist 52%, Arcanist 51%, Mender 50%. The same 100 runs without the living heroes'

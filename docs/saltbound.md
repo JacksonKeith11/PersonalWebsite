@@ -324,7 +324,7 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   The bots go for one when they can reach it in time (about 3 hexes a turn).
 - **Garrisons** (`grow_garrisons`, `garrison_of`): every `GARRISON_EVERY` (6) turns, each objective not
   yet cleared grows. The first two growths add an escort to its boss fight (drawn from its escort pool),
-  later ones give its boss `GARRISON_BOSS` (15%) more health each, up to four. An objective cleared before
+  later ones give its boss `GARRISON_BOSS` (15%) more health each, up to six growths. An objective cleared before
   its garrison ever grew weakens the Drowned Crown by `CROWN_CUT` (10% of its health) each. The map
   shows a "+N" on the dungeon, the tooltip and the boss fork say what's added, the top bar's
   objectives say when it next grows. This is the run's real pressure to keep moving (`SURGE` is tiny).
@@ -370,7 +370,7 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   jobs (click to find) and says when a planned move finishes one or picks up salvage, and when a fight
   is a job; hex tooltips name job targets and wanted crews.
 - **The bots** take the board's job worth most per turn (lairs and bounties from level 3), at most two
-  at once, and head for a job's next stop while there's time to finish it (ahead of the dungeons).
+  at once, and head for a job's next stop while there's time to finish it and no dungeon is due.
 
 ### Fights
 
@@ -615,6 +615,10 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **After jobs** (two per board, deadlines, rewards, bounty and salvage; 300 Hard runs, seed 5000):
+  first **Hard 50%** with runs of 46 turns (was 33): the bots did jobs ahead of the dungeons and levelled
+  on the way, and garrisons stopped growing at four. Garrisons now grow to six (`GARRISON_MAX`) and the
+  bots do jobs only until a dungeon is due: **Hard 43%**, 38 turns. Above the target; the owner's call.
 - **After the map's choices** (previews, opportunities, garrisons, priced places, town trades, event
   chains; 300 Hard runs, seed 5000): first **Hard 47%**, mostly from the new rewards (rare pools,
   a revive for sale, reforging, drifting cargo) while the garrisons barely bit: the bots clear their

@@ -136,14 +136,16 @@ class Foes:
             fo["intent"] = {"k": "dazed", "name": "Caught off guard", "by_hero": True}
             return
         moves = self.foe_moves(fo)
-        if d.get("seq"):
+        if fo.get("force") in moves:
+            key = fo.pop("force")  # a boss's rule picked this one (the Bell-Warden's Death Knell)
+        elif fo.get("next") in moves:
+            key = fo.pop("next")  # a telegraphed follow-up (the Wyvern's breath after Draw Breath)
+        elif d.get("seq"):
             seq = fo.get("sq") or d["seq"]
             key = seq[fo["seq"] % len(seq)]
             fo["seq"] += 1
             if fo.get("bl") and d.get("bloodied") and self.rng.chance(0.5):
                 key = self.rng.choice(list(d["bloodied"]["moves"]))
-        elif fo.get("next") in moves:
-            key = fo.pop("next")  # a telegraphed follow-up (the Wyvern's breath after Draw Breath)
         else:
             keys = list(moves)
             if fo.get("charged"):
@@ -392,6 +394,10 @@ class Foes:
                 return
             self.fx("fact", f=fo["id"], ik=k)
             self.foe_do(fo, it, k, rolled, tags, frozen=frozen, pair=pair)
+        if A.FOES[fo["k"]].get("keg") and fo["hp"] > 0:
+            # a keg that blew is gone
+            fo["hp"] = 0
+            self.fx("die", to=f"f{fo['id']}")
 
     def foe_roll(self, fo, it):
         """Roll an intent's dice in the open: [{v, tag, re, ex}]."""

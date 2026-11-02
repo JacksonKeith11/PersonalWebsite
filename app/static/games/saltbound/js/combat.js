@@ -1,13 +1,13 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=69';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=69';
-import { spriteURL } from './art.js?v=69';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=69';
-import { render } from './main.js?v=69';
-import { skillCard } from './hud.js?v=69';
-import * as sfx from './audio.js?v=69';
+import { S, send, mine, controllerName } from './store.js?v=70';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=70';
+import { spriteURL } from './art.js?v=70';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=70';
+import { render } from './main.js?v=70';
+import { skillCard } from './hud.js?v=70';
+import * as sfx from './audio.js?v=70';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -345,6 +345,9 @@ function foeState(fo, f) {
   const chips = [];
   const live = f.heroes.filter(y => f.hs[y] && !f.hs[y].down && !f.hs[y].fled).length;
   if (fo.bell && !fo.cracked) chips.push(h('span.combo-hint', { tip: `The bell\nHit the Bell-Warden with a die showing ${fo.bell} to crack the bell: +6 damage, and its next attack is Weak.` }, `Bell ${fo.bell}: hit it with a ${fo.bell}`));
+  if (fo.st?.knell) chips.push(h('span.st', { tip: `Death Knell\n${STATUS.knell.text}` }, icon('clock'), fo.st.knell === 1 ? 'Knell next round' : `Knell in ${fo.st.knell}`));
+  if (fo.k === 'lamp_keeper' && fo.intent?.m === 'gather') chips.push(h('span.combo-hint', { tip: 'Gathering light\nPut the lamp out this round (hit it with different heroes) and the Lighthouse Beam scatters. Otherwise it fires next round.' }, 'Douse it now to scatter the beam'));
+  if (S.static.foes[fo.k]?.keg) chips.push(h('span.combo-hint', { tip: 'Powder Keg\nIt blows up on the whole party after its fuse burns down. Break it first and it blows up among the enemies instead.' }, 'Break it: it blows on them'));
   if (fo.k === 'lamp_keeper') chips.push(fo.lit === false ? h('span.st', { tip: 'The lamp is out: full damage until the end of next round.' }, 'Dark: full damage')
     : h('span.combo-hint', { tip: `Lit\nTakes half damage. Hit it with ${Math.min(3, live)} different heroes in one round to put the lamp out: in the dark it takes full damage this round and next, and its next attack is Weak.` }, `Lit: ½ damage · ${(fo.hitr || []).length}/${Math.min(3, live)} heroes`));
   if (fo.air) chips.push(h('span.st.bad', { tip: 'Airborne: melee attacks can’t reach it. Use ranged attacks and spells.' }, 'Airborne: no melee'));
@@ -383,7 +386,7 @@ const ST_SHORT = { steeled: 'Steeled', vuln: 'Vuln', stun: 'Stunned', freeze: 'F
 function statusRow(st, extra = [], tail = []) {
   const chips = [];
   for (const [k, v] of Object.entries(st || {})) {
-    if (!v || ['doomt', 'warded', 'exposed', 'undertow'].includes(k)) continue;
+    if (!v || ['doomt', 'warded', 'exposed', 'undertow', 'knell'].includes(k)) continue;
     const s = STATUS[k];
     if (!s) continue;
     const n = ['stun', 'freeze', 'shock', 'warded', 'exposed', 'steeled'].includes(k) ? '' : v;
@@ -1313,7 +1316,7 @@ function apply(f) {
       return 420;
     }
     case 'st': {
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', unwarded: 'Ward broken!',
+      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
         robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
@@ -1365,7 +1368,7 @@ function apply(f) {
     case 'revive': addFloat('h' + f.h, 'Revived', 'heal.big'); flash('h' + f.h, 'revive', 800); sfx.play('revive'); return 600;
     case 'dead': bigBanner(`${S.game.heroes[f.h].name} has fallen`, 'No revives were left', 'danger', 2400); sfx.play('lose'); return 1200;
     case 'phase': {
-      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown stands alone', f.n === 2 ? 'Each round the Undertow drags someone under: Armor or a Guard stops it' : 'Exposed: it takes 50% more, but every attack rolls an extra die', 'danger', 2600);
+      bigBanner(f.n === 2 ? 'The tide turns' : 'The Crown stands alone', (f.n === 2 ? 'Each round the Undertow drags someone under: Armor or a Guard stops it' : 'Exposed: it takes 50% more, but every attack rolls an extra die') + '. Next round: the Deluge', 'danger', 2600);
       flash('stage', 'shake', 500);
       sfx.play('phase');
       return 1400;

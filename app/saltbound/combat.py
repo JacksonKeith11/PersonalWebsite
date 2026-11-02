@@ -690,6 +690,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if A.FOES[o["k"]].get("pack"):
                 o["might"] += A.FOES[o["k"]]["pack"]
                 self.fx("st", to=f"f{o['id']}", s="enraged")
+        if d.get("keg") and h is not None:
+            self.keg_broken(fo, h)
         if d.get("volatile"):
             self.fx("st", to=f"f{fo['id']}", s="explodes")
             for y in self.actives():

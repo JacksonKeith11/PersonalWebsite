@@ -279,6 +279,7 @@ export const STATUS = {
   crescendo: { name: 'Crescendo', icon: 'up', text: 'The next damaging action deals 50% more.' },
   thorns: { name: 'Thorns', icon: 'spark', text: 'Attackers take this much this round.' },
   undertow: { name: 'Undertow', icon: 'wave', text: 'The tide drags at you at the end of the round for this much. Armor blocks it; an ally’s Guard takes it for you.', bad: true },
+  knell: { name: 'Death Knell', icon: 'clock', text: 'Rounds until the Bell-Warden’s Death Knell hits the whole party and Hexes everyone. Crack the bell just before it to make it Weak; Armor and Guards help.' },
   warded: { name: 'Warded', icon: 'shield', text: 'Takes half damage while a Tide Guard stands. Kill the guards first.' },
   exposed: { name: 'Exposed', icon: 'crack', text: 'Takes 50% more damage. Its attacks roll an extra die.', bad: true },
   lock: { name: 'Crusted', icon: 'lock', text: 'Next round your biggest die is crusted over: you can’t use it.', bad: true },

@@ -10,7 +10,7 @@ UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
 # The rising tide: each rise makes every enemy this share stronger, HP and damage (rises come every
 # few turns, by difficulty; see DIFFICULTY in game.py).
-SURGE = 0.003
+SURGE = 0.0045
 # Enemies met on the map (roaming groups and lairs) last longer but hit softer, so those fights
 # take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
 ROAM_HP = 2.2
@@ -25,6 +25,9 @@ CROWN_EXPOSED = 1.5
 UNDERTOW = 3    # times the fight's damage multiplier
 BELL_CRACK = 6  # hitting the Bell-Warden with a die showing its bell number
 LAMP_DOUSE = 3  # different heroes hitting the Lamp Keeper in one round put its lamp out
+KNELL_EVERY = 3    # the Bell-Warden's Death Knell comes every this many rounds...
+KNELL_REQUIEM = 2  # ...and this often once it's bloodied
+KEG_BLAST = 6      # a Powder Keg a hero breaks hits every enemy for this (times the difficulty's enemy HP)
 CURSED_DIE = ["X", 1, 2, 3]
 
 # Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).

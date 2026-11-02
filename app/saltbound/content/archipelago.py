@@ -55,7 +55,11 @@ FOES = {
                     "moves": {"swing": {"name": "Censer Swing", "k": "attack", "use": [0, 1], "pair": {"st": "stun", "sn": 1}},
                               "toll": {"name": "Toll the Bell", "k": "all", "use": [2], "st": "stun", "sn": 1, "st_min": 6},
                               "ring": {"name": "Ring for the Drowned", "k": "summon", "f": "deckhand"},
-                              "crush": {"name": "Bell Drop", "k": "attack", "use": [0, 1, 2], "tgt": "vengeful"}}},
+                              "crush": {"name": "Bell Drop", "k": "attack", "use": [0, 1, 2], "tgt": "vengeful"},
+                              # never in `seq`: it comes when the knell counts down (`Bosses.foe_round`)
+                              "knell": {"name": "Death Knell", "k": "all", "use": [0, 1], "st": "hex", "sn": 1}},
+                    "bloodied": {"might": 2, "rule": "requiem", "text": "it tolls a requiem: the Death Knell comes every other round.",
+                                 "moves": {"peal": {"name": "Grave Peal", "k": "all", "use": [2], "st": "stun", "sn": 1, "st_min": 6}}}},
 
     # ---------------------------------------------------------------- Smugglers' Keys
     "cutthroat": {"name": "Cutthroat", "hp": 11, "row": "front", "speed": 7, "xp": 4, "gold": 5,
@@ -92,7 +96,9 @@ FOES = {
                                   "boarders": {"name": "Boarders, Away!", "k": "summon", "f": "cutthroat"},
                                   "guns": {"name": "Run Out the Guns", "k": "summon", "f": "cannon"},
                                   "volley": {"name": "Pistol Volley", "k": "attack", "use": [0, 1, 2], "each": True},
-                                  "noose": {"name": "Hang 'em High", "k": "attack", "use": [1, 3], "st": "root", "sn": 1, "tgt": "strongest"}}},
+                                  "noose": {"name": "Hang 'em High", "k": "attack", "use": [1, 3], "st": "root", "sn": 1, "tgt": "strongest"}},
+                        "bloodied": {"might": 2, "rule": "kegs", "text": "he rolls out powder kegs. Break one and it blows up among his crew.",
+                                     "moves": {"grapeshot": {"name": "Grapeshot", "k": "attack", "use": [0, 2, 3], "each": True}}}},
 
     # ---------------------------------------------------------------- Stormcrag
     "crag_ram": {"name": "Crag Ram", "hp": 15, "row": "front", "speed": 4, "beast": True, "xp": 5, "gold": 2,
@@ -126,11 +132,16 @@ FOES = {
     "lamp_keeper": {"name": "The Lamp Keeper", "hp": 75, "row": "back", "speed": 3, "boss": True,
                     "xp": 40, "gold": 35,
                     "dice": [SEARING, _d(8), _d(6)],
-                    "seq": ["sweep", "flash", "focus", "storm"],
+                    "seq": ["sweep", "gather", "flash", "focus", "storm"],
                     "moves": {"sweep": {"name": "Sweeping Beam", "k": "all", "use": [0]},
+                              # put the lamp out while it gathers and the beam scatters (`foe_hit_hooks`)
+                              "gather": {"name": "Gather the Light", "k": "charge", "next": "beam"},
+                              "beam": {"name": "Lighthouse Beam", "k": "all", "use": [0, 1, 2]},
                               "flash": {"name": "Blinding Flash", "k": "all", "use": [2], "st": "mark", "sn": 1},
                               "focus": {"name": "Focused Beam", "k": "attack", "use": [0, 1, 2], "tgt": "strongest"},
-                              "storm": {"name": "Call the Storm", "k": "summon", "f": "storm_wisp"}}},
+                              "storm": {"name": "Call the Storm", "k": "summon", "f": "storm_wisp"}},
+                    "bloodied": {"might": 2, "rule": "blaze", "text": "the lamp blazes: put out, it relights the next round.",
+                                 "moves": {"searing": {"name": "Searing Sweep", "k": "all", "use": [0], "st": "burn", "sn": 2}}}},
 
     # ---------------------------------------------------------------- big single threats (champion halls, late roamers)
     "reef_maw": {"name": "The Reef Maw", "hp": 46, "row": "front", "speed": 2, "beast": True, "elite": True, "big": True,
@@ -164,6 +175,12 @@ FOES = {
                   "bloodied": {"might": 2, "rule": "air", "text": "it takes to the air: only ranged attacks and spells can reach it.",
                                "moves": {"thunderclap": {"name": "Thunderclap", "k": "all", "use": [0, 1]}}}},
 
+    # the Gallows Admiral's, bloodied: it blows up on the party after two fuses, or on his crew if a hero breaks it
+    "powder_keg": {"name": "Powder Keg", "hp": 12, "row": "back", "speed": 1, "xp": 2, "gold": 0, "object": True, "keg": True,
+                   "dice": [_d(8), _d(8)],
+                   "seq": ["fuse", "fuse", "blow"],
+                   "moves": {"fuse": {"name": "Fizzing Fuse", "k": "charge"},
+                             "blow": {"name": "Blows Up!", "k": "all", "use": [0, 1]}}},
     "cannon": {"name": "Deck Cannon", "hp": 14, "row": "back", "speed": 2, "xp": 3, "gold": 0, "object": True,
                "dice": [_d(6), _d(6)],
                "seq": ["load", "load", "fire"],
@@ -175,7 +192,7 @@ FOES = {
                    "dice": [_d(6), SHELL],
                    "moves": {"halberd": {"name": "Halberd", "k": "attack", "use": [0], "w": 2},
                              "brace": {"name": "Shield the Crown", "k": "guard", "n": 2}}},
-    "drowned_crown": {"name": "The Drowned Crown", "hp": 100, "row": "back", "speed": 4, "boss": True, "final": True,
+    "drowned_crown": {"name": "The Drowned Crown", "hp": 120, "row": "back", "speed": 4, "boss": True, "final": True,
                       "xp": 0, "gold": 0, "leech": True,
                       "dice": [FROST, _d(10), _d(8), _d(6)],
                       "seq": ["wave", "depths", "rise", "surge", "curse"],
@@ -183,7 +200,9 @@ FOES = {
                                 "depths": {"name": "Crushing Depths", "k": "attack", "use": [1, 2, 3], "tgt": "vengeful"},
                                 "rise": {"name": "Rise, Guard", "k": "summon", "f": "tide_guard"},
                                 "surge": {"name": "Freezing Surge", "k": "attack", "use": [0], "sweep": 2},
-                                "curse": {"name": "Drowned Curse", "k": "debuff", "use": [3], "st": "hex", "sn": 1, "tgt": "weakest"}}},
+                                "curse": {"name": "Drowned Curse", "k": "debuff", "use": [3], "st": "hex", "sn": 1, "tgt": "weakest"},
+                                # never in `seq`: the round after each change of phase (`Bosses.boss_phase`)
+                                "deluge": {"name": "The Deluge", "k": "all", "use": [0, 1, 2, 3]}}},
 }
 
 # Move pools: every enemy draws one of these when it appears, on top of its own moves.
@@ -241,9 +260,10 @@ for _k, _v in POOLS.items():
 # Fights last longer than in the first pass: every enemy but the bosses has this much more health
 # than its listed hp.
 FOE_HP = 1.45
+# ...and the bosses (the three objectives' and the Drowned Crown) this much more than theirs.
+BOSS_HP = 1.0
 for _v in FOES.values():
-    if not _v.get("boss"):
-        _v["hp"] = round(_v["hp"] * FOE_HP)
+    _v["hp"] = round(_v["hp"] * (BOSS_HP if _v.get("boss") else FOE_HP))
 
 
 # Who roams each region, by how many objectives the party has cleared (more cleared, more

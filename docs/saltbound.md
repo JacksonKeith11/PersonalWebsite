@@ -75,7 +75,7 @@ Keep to these. They came from the owner directly.
   | Cliffs, peak | impassable except by path | |
 
 - **The tide rises every 3 turns** (Story 4) and **every enemy grows stronger** (owner's request,
-  replacing the old flooding): `SURGE` in `tuning.py`, 0.3% HP and damage per rise, on top of
+  replacing the old flooding): `SURGE` in `tuning.py`, 0.45% HP and damage per rise (0.3% until Nov 2026), on top of
   difficulty and tier. The land never changes: no hex floods and no town sinks (the flood could cut a
   party off from the town it needed to cross to another island). After rise 10 more enemies come
   ashore. **Each rise brings something ashore** (owner's request: hide the percentage, show visible
@@ -301,8 +301,9 @@ Smaller calls made while building, not yet confirmed by the owner:
 
 - Frozen enemies hit for half (instead of losing their "weakest intent"; they have only one).
 - Hard was first a rise every 2 turns; it's now every 3 (like Normal), and harder enemies make it hard instead.
-- `SURGE` is small (0.3% a rise) because the bots are very sensitive to it: 2.5% a rise took Hard
-  from 39% to 8%, 1% to 18%, 0.5% to 26%. Raising it is the owner's call.
+- `SURGE` is small because the bots are very sensitive to it: 2.5% a rise took Hard from 39% to 8%,
+  1% to 18%, 0.5% to 26% (bots that split up). The owner asked for it stronger (Nov 2026): 1.2% with the
+  new bosses gave 34%, 0.7% 38%, 0.45% 46% (100 runs each), so it's 0.45%.
 - The fight screen is HTML (sprites as pixelated images) rather than a Phaser scene, so targets,
   tooltips and intents are plain DOM. Phaser draws only the map.
 - Movement is planned by clicking a destination; the cheapest route there is used.
@@ -557,6 +558,24 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   three different heroes (or all standing, if fewer: `LAMP_DOUSE`) hit it in one round; then its next
   attack is Weak and it takes full damage through the next round. The **Gallows Admiral** runs out
   Deck Cannons that Load, Load, then Broadside everyone: kill the guns first.
+- **Each dungeon boss has a second rule and a bloodied phase** (owner's request, Nov 2026: tougher
+  bosses with several interesting mechanics). `bloodied` works for bosses as for big threats (at half
+  health, once: might, moves that come up half the time, a `rule`). A boss rule can force a move that
+  isn't in its `seq` (`fo["force"]`, read first by `choose_intent`; then `fo["next"]`, a charge's follow-up).
+  - **Bell-Warden**: the **Death Knell** (`knell`) comes every `KNELL_EVERY` (3) rounds, hitting
+    everyone and Hexing them; the countdown shows as a status (`st.knell`). Cracking the bell doesn't
+    delay it (with three heroes the bell matched nearly every round, so the knell would never come) but
+    Weakens it if done the round before. Bloodied (`requiem`): the knell every other round
+    (`KNELL_REQUIEM`), and Grave Peal (everyone, Stun on a 6).
+  - **Lamp Keeper**: **Gather the Light** (a charge in its `seq`) then the **Lighthouse Beam** (every
+    hero, three dice, plus the charge's die). Dousing the lamp *in the gather round* scatters it
+    (`foe_hit_hooks`); dousing in the beam round doesn't (it once did, and the beam almost never
+    landed). Bloodied (`blaze`): a doused lamp relights the next round, and Searing Sweep Burns everyone.
+  - **Gallows Admiral**, bloodied (`kegs`): while none is out, he rolls out a **Powder Keg** (`keg` in
+    `FOES`): Fuse, Fuse, then it blows on everyone with the charge's extra die and is gone. A hero who
+    breaks it first sets it off among the enemies (`keg_broken`: `KEG_BLAST` times Hard's enemy HP to
+    each). At 4 base HP the bots broke every keg at once, which made the bloodied Admiral *easier*; at
+    12 it costs real dice. Grapeshot: three dice, each its own hit.
 - **No boss can be locked down** (owner's request): the bell and the lamp once made their boss lose
   its next action, and with three heroes the bell matched almost every round (the Bell-Warden lost 62%
   of its actions, the Lamp Keeper 42%, in bot runs); with skill Stuns on top a boss never acted. Now
@@ -564,11 +583,13 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   an action (Stunned, cancelled by Cacophony or Requiem, distracted at nobody, robbed of every die) is
   Steeled for the next round, when Stuns and cancels don't take, so it acts at least every other
   round. Intents set by heroes (and an ambush's free first round) carry `by_hero`, which is what Steels.
-- **The Drowned Crown** (100 HP): phase 1, **warded** (half damage, `CROWN_WARD`) while a Tide Guard
+- **The Drowned Crown** (120 HP; 100 until Nov 2026, when it won 2% of fights): phase 1, **warded** (half damage, `CROWN_WARD`) while a Tide Guard
   stands; it summons guards only in this phase. Phase 2 (two thirds health): the **Undertow** marks
   one hero each round, who takes 3× the fight's damage multiplier (`UNDERTOW`) at round end unless
   Armor or a Guard stops it. Phase 3 (a third): its guards drown and it's **exposed** (takes 50% more,
-  `CROWN_EXPOSED`) and **furious** (an extra die on every attack).
+  `CROWN_EXPOSED`) and **furious** (an extra die on every attack). Each change of phase forces **the
+  Deluge** next round (all four dice on everyone; with fury in phase 3, five), announced in the log and
+  the phase banner. (An Undertow of 5 on top made the Crown win half its fights: too much.)
 - **Dungeons** (`DUNGEONS`, `PATHS`; `dungeon_lineup`, `make_fork`, `do_fork`, `take_path` in
   `game.py`): three fights. The first is drawn from the dungeon's `open` pool; after it and after the
   second the party reaches a **fork** of two paths drawn at random, shown with enemies and rewards:
@@ -603,8 +624,10 @@ comes first, and enemies' "intents" are called their coming attack or action.
 ## Balance now
 
 The owner reviews every balance change: ask before changing a class or the difficulty, and give the
-options with their trade-offs. **Hard should be genuinely hard for the bots (about 30–35%) with no
-class far ahead; leave the difficulty multipliers alone unless the owner asks.**
+options with their trade-offs. **Hard's target is now about 50% for the bots (owner, Nov 2026, "for
+now"; it was 30–35% while the bots split up) with no class far ahead; leave the difficulty
+multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/archipelago.py`
+(1.0: at 1.1–1.25 most losing parties died at their first dungeon).
 
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise

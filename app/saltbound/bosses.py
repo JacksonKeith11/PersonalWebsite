@@ -1,9 +1,10 @@
 """Bosses and enemies with rules of their own: the Drowned Crown's phases and Undertow, the
-Bell-Warden's bell, the Lamp Keeper's lamp, the Iron Bosun's crew, thieving Harpies, splitting
-enemies and the Reef Maw's swallow. Mixed into `Game` through `Combat`."""
+Bell-Warden's bell and Death Knell, the Lamp Keeper's lamp and Lighthouse Beam, the Gallows Admiral's
+powder kegs, the Iron Bosun's crew, thieving Harpies, splitting enemies and the Reef Maw's swallow.
+Mixed into `Game` through `Combat`."""
 
 from .content import archipelago as A
-from .tuning import LAMP_DOUSE, UNDERTOW
+from .tuning import KEG_BLAST, KNELL_EVERY, KNELL_REQUIEM, LAMP_DOUSE, UNDERTOW
 
 
 class Bosses:
@@ -44,7 +45,9 @@ class Bosses:
         frac = crown["hp"] / crown["max"]
         if f["phase"] == 1 and frac <= 0.66:
             f["phase"] = 2
-            self.say("The sea pours over the peak: each round the Undertow drags someone under. Armor or a Guard stops it.")
+            crown["force"] = "deluge"
+            self.say("The sea pours over the peak: each round the Undertow drags someone under. Armor or a Guard stops it. "
+                     "Next round the Deluge hits everyone.")
             self.fx("phase", n=2)
         elif f["phase"] == 2 and frac <= 0.33:
             f["phase"] = 3
@@ -53,7 +56,8 @@ class Bosses:
                     fo["hp"] = 0
                     self.fx("die", to=f"f{fo['id']}")
             crown["fury"] = True
-            self.say("The Drowned Crown stands alone: exposed, and furious.")
+            crown["force"] = "deluge"
+            self.say("The Drowned Crown stands alone: exposed, and furious. Next round the Deluge hits everyone.")
             self.fx("phase", n=3)
 
     def foe_round(self):
@@ -65,11 +69,25 @@ class Bosses:
             if fo["k"] == "bell_warden":
                 fo["bell"] = self.rng.randint(1, 6)
                 fo["cracked"] = False
+                # the Death Knell counts down and tolls on the whole party (every other round, bloodied)
+                every = KNELL_REQUIEM if fo.get("bl") else KNELL_EVERY
+                fo["knell"] = min(fo.get("knell", every), every) - 1
+                if fo["knell"] <= 0:
+                    fo["force"] = "knell"
+                    fo["knell"] = every
+                    fo["st"].pop("knell", None)
+                else:
+                    fo["st"]["knell"] = fo["knell"]
             if fo["k"] == "lamp_keeper":
                 fo["lit"] = f["round"] > fo.get("dark_until", 0)
             if not self.steeled(fo):
                 fo["st"].pop("steeled", None)
-            if fo.get("bl") and A.FOES[fo["k"]].get("bloodied", {}).get("rule") == "allhands" and len(self.foes()) < 5:
+            rule = A.FOES[fo["k"]].get("bloodied", {}).get("rule") if fo.get("bl") else None
+            if rule == "kegs" and len(self.foes()) < 5 and not any(A.FOES[o["k"]].get("keg") for o in self.foes()):
+                new = self.add_foe("powder_keg")
+                self.fx("summon", f=new["id"])
+                self.say(f"{fo['name']} rolls out a powder keg. Break it before it blows, and it blows up among his crew.")
+            if rule == "allhands" and len(self.foes()) < 5:
                 new = self.add_foe("deckhound")
                 new["intent"] = {"k": "dazed", "name": "Just arrived"}
                 self.fx("summon", f=new["id"])
@@ -92,10 +110,18 @@ class Bosses:
                 fo["hitr"].append(h)
         if fo["k"] == "lamp_keeper" and fo.get("lit", True) and len(fo.get("hitr", [])) >= min(LAMP_DOUSE, len(self.actives())):
             fo["lit"] = False
-            fo["dark_until"] = f["round"] + 1
+            # blazing (bloodied), it relights the next round
+            fo["dark_until"] = f["round"] + (0 if fo.get("bl") else 1)
             fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
             self.fx("st", to=f"f{fo['id']}", s="doused")
             self.say("The lamp goes out! In the dark the Lamp Keeper takes full damage, and its next attack is Weak.")
+            if (fo.get("intent") or {}).get("m") == "gather":
+                # doused while it gathers, the light scatters: no Lighthouse Beam next round
+                fo["intent"] = {"k": "dazed", "name": "The light scatters"}
+                fo.pop("next", None)
+                fo.pop("charged", None)
+                self.fx("st", to=f"f{fo['id']}", s="scattered")
+                self.say("The gathered light scatters: no Lighthouse Beam.")
         splits = (d.get("splits") and n > 0) or (fo.get("aff") == "splitting" and len(fo.get("hitr", [])) >= 2)
         if splits and not fo.get("split") and fo["hp"] >= 4 and len(self.foes()) < 5:
             fo["split"] = True
@@ -110,6 +136,15 @@ class Bosses:
             fo["gut"] -= n
             if fo["gut"] <= 0:
                 self.release_swallowed(fo)
+
+    def keg_broken(self, fo, h):
+        """A hero broke a Powder Keg before it blew: it goes up among the enemies instead."""
+        n = round(KEG_BLAST * self.diff()["foe_hp"])
+        self.fx("st", to=f"f{fo['id']}", s="explodes")
+        self.say(f"The keg goes up among the crew (−{n} each)!")
+        for o in self.foes():
+            if o is not fo:
+                self.hurt_foe(o, n, h, pure=True)
 
     def release_swallowed(self, fo):
         fo.pop("gut", None)

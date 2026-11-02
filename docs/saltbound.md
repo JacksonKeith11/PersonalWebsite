@@ -322,7 +322,7 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   at a camp (heals each hero who arrives to full and lifts curses, 4 turns). They're sighted even in the
   fog, ringed in gold on the map with the turns left, and listed under "This turn" (click to find).
   The bots go for one when they can reach it in time (about 3 hexes a turn).
-- **Garrisons** (`grow_garrisons`, `garrison_of`): every `GARRISON_EVERY` (8) turns, each objective not
+- **Garrisons** (`grow_garrisons`, `garrison_of`): every `GARRISON_EVERY` (6) turns, each objective not
   yet cleared grows. The first two growths add an escort to its boss fight (drawn from its escort pool),
   later ones give its boss `GARRISON_BOSS` (15%) more health each, up to four. An objective cleared before
   its garrison ever grew weakens the Drowned Crown by `CROWN_CUT` (10% of its health) each. The map
@@ -334,8 +334,8 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   Armor for 8 turns for 8 HP, or nothing. Every lair guards a named **rare prize** (`prize` on the
   group, shown in its tooltip), added to its loot pool when it's beaten.
 - **Town trades** (`spec` on each town; `TOWN_SPECS`), dealt round so each appears: a **smithy**
-  reforges an equipped item into a random one of the next rarity for the same slot (25/45/80 gold),
-  a **temple** lifts curses free and sells the party one revive (50, once per temple), a
+  reforges an equipped item into a random one of the next rarity for the same slot (30/60/100 gold),
+  a **temple** lifts curses free and sells the party one revive (75, once per temple), a
   **cartographer** sells a chart of a region (15: every hex of it seen, so its places, wrecks and lairs
   show), a **fence** pays 20 points more when selling (60%, 80% with Haggler). A town's trade has its
   own tab in the town drawer (the fence's is the market). The bots use the temple and the smithy.

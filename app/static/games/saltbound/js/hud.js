@@ -955,7 +955,7 @@ function forkView(fk) {
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
   fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
-  sea: ['Time and tide', 'Every few turns the tide rises and every enemy grows a little stronger, as the top bar shows. Every eight turns the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
+  sea: ['Time and tide', 'Every few turns the tide rises and every enemy grows a little stronger, as the top bar shows. Every six turns the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
 };
 function renderHint() {
   const el = $('hint');

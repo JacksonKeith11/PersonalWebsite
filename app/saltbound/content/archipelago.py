@@ -366,8 +366,8 @@ TOWN_SPECS = {
     "cartographer": {"name": "Cartographer", "text": "Sells charts that show a whole region: its places, lairs and wrecks."},
     "fence": {"name": "Fence", "text": "Pays half again as much for what you sell."},
 }
-REFORGE_COST = {"uncommon": 25, "rare": 45, "legendary": 80}
-TEMPLE_REVIVE = 50
+REFORGE_COST = {"uncommon": 30, "rare": 60, "legendary": 100}
+TEMPLE_REVIVE = 75
 CHART_COST = 15
 FENCE_BONUS = 20  # percentage points on the sell rate (40% -> 60%, 60% -> 80% with Haggler)
 
@@ -385,7 +385,7 @@ OPP_RANGE = {"ship": (4, 14), "drift": (4, 10), "healer": (3, 12)}  # how far fr
 # Garrisons: every `GARRISON_EVERY` turns each objective not yet cleared grows. The first two growths
 # add an escort to its boss fight; past that its boss gets `GARRISON_BOSS` more health per growth.
 # An objective cleared before its garrison ever grew weakens the Drowned Crown by `CROWN_CUT`.
-GARRISON_EVERY = 8
+GARRISON_EVERY = 6
 GARRISON_MAX = 4
 GARRISON_ESCORTS = 2
 GARRISON_BOSS = 0.15

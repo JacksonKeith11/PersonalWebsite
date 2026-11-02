@@ -18,7 +18,7 @@ from .content import archipelago as A
 from .content import items as I
 from .dice import Dice, face, num, top_face
 from .foes import Foes
-from .tuning import ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
+from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
 
 class Invalid(Exception):
@@ -51,6 +51,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         roam = spec["kind"] in ("roam", "lair")
         if roam:
             f["dmul"] *= ROAM_DMG
+        if spec["kind"] == "dungeon":
+            # the objectives still standing grow with every one the party clears
+            step = min(tier, len(DUNGEON_STEP_HP) - 1)
+            f["dmul"] *= DUNGEON_STEP_DMG[step]
+            f["hpmul"] = DUNGEON_STEP_HP[step]
         if spec["kind"] == "event":
             f["dmul"] *= EVENT_DMG
             grow = EVENT_HP.get(len(spec["heroes"]), 1.0) - 1
@@ -87,7 +92,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
     def add_foe(self, key, hp=None, grow=0.0, aff=None):
         f = self.s["fight"]
         d = A.FOES[key]
-        mult = self.diff()["foe_hp"] * (1 + 0.15 * self.tier()) * (1 + grow) * self.surge()
+        mult = self.diff()["foe_hp"] * (1 + 0.15 * self.tier()) * (1 + grow) * self.surge() * f.get("hpmul", 1)
         mx = max(1, round(d["hp"] * mult))
         fo = {"id": f["nextfoe"], "k": key, "name": d["name"], "hp": mx, "max": mx, "row": d["row"],
               "st": {}, "intent": None, "seq": 0, "might": 0}

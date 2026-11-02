@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=70';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=70';
-import { spriteURL } from './art.js?v=70';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=70';
-import { MapView } from './hexmap.js?v=70';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=70';
-import { disconnect } from './main.js?v=70';
-import * as sfx from './audio.js?v=70';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=71';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=71';
+import { spriteURL } from './art.js?v=71';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=71';
+import { MapView } from './hexmap.js?v=71';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=71';
+import { disconnect } from './main.js?v=71';
+import * as sfx from './audio.js?v=71';
 
 const UI = { drawer: null, log: true, res: {}, hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -211,7 +211,7 @@ function renderTopbar() {
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
         icon('feather'), h('b', null, g.revives)),
-      h('div.stat', { tip: `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}` },
+      h('div.stat', { tip: `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}` },
         icon('flag'), h('span.pips', null, ...[0, 1, 2].map(i => h('i' + (i < g.cleared.length ? '.on' : '')))))),
     h('div.right', null,
       h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; renderLog(); } }, icon('list')),

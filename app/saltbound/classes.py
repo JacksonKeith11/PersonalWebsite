@@ -30,8 +30,8 @@ PASSIVES = {
                "text": "Start each fight with 6 Armor. Your Guard also gives the guarded ally 4 Armor, your Taunt gives every ally 2 Armor, and your shield faces block 5."},
     "spiked_plate": {"name": "Spiked Plate", "mods": {"thorns": 3}, "tags": ["juggernaut"],
                      "text": "Enemies that hit you take 3 damage."},
-    "overguard": {"name": "Overguard", "mods": {"overguard": 1, "start_armor": 8}, "tags": ["bulwark"],
-                  "text": "Start each fight with 8 Armor, and half your Armor carries over into the next round."},
+    "overguard": {"name": "Overguard", "mods": {"overguard": 1, "start_armor": 5}, "tags": ["bulwark"],
+                  "text": "Start each fight with 5 Armor, and half your Armor carries over into the next round."},
     "last_stand": {"name": "Last Stand", "mods": {"last_stand": 6}, "text": "While you're at half HP or less, gain 6 Armor each round."},
     "unbreakable": {"name": "Unbreakable", "cap": True, "mods": {"unbreakable": 1}, "tags": ["bulwark"],
                     "text": "Once per fight, a hit that would knock you down leaves you at 1 HP instead."},
@@ -85,13 +85,13 @@ ACTIONS = {
              "text": "On 4+: escape the fight, back the way you came. Otherwise: you stay. Not in dungeons or boss fights."},
 
     # ---- Vanguard
-    "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+2+armor//2"}],
-               "text": "Deal the die +2, plus half your current Armor. Gain Armor first (Block, Guard) to hit harder."},
-    "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+4", "to": "self"}],
-              "text": "Gain the die +4 as Armor. The next attack aimed at an ally this round hits you instead."},
+    "strike": {"name": "Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+1+armor//3"}],
+               "text": "Deal the die +1, plus a third of your current Armor. Gain Armor first (Block, Guard) to hit harder."},
+    "guard": {"name": "Guard", "req": {"n": 1}, "tgt": "other", "ops": [{"op": "guard"}, {"op": "armor", "amt": "v+2", "to": "self"}],
+              "text": "Gain the die +2 as Armor. The next attack aimed at an ally this round hits you instead."},
     "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self",
-              "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+4"}, {"op": "status", "s": "thorns", "n": 2}],
-              "tags": ["bulwark"], "text": "Gain the die +4 as Armor. Every enemy attack this round hits you instead of your allies, and each attacker takes 2."},
+              "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+2"}, {"op": "status", "s": "thorns", "n": 2}],
+              "tags": ["bulwark"], "text": "Gain the die +2 as Armor. Every enemy attack this round hits you instead of your allies, and each attacker takes 2."},
     "brace": {"name": "Brace", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v+2"}, {"op": "armor", "amt": "2", "to": "lowest"}],
               "tags": ["bulwark"], "text": "Gain the die +2 as Armor. Your ally with the lowest HP gains 2 Armor."},
     "rally_wall": {"cd": 2, "name": "Hold the Line", "req": {"n": 1}, "tgt": "self",
@@ -339,7 +339,7 @@ CLASS_DICE = {
 
 CLASSES = {
     "vanguard": {
-        "name": "Vanguard", "hp": 54, "hp_lvl": 7, "role": "Tank",
+        "name": "Vanguard", "hp": 50, "hp_lvl": 6, "role": "Tank",
         "dice": [D(6), [1, 2, 3, 4, "S", "S"]], "tags": ["bulwark", "juggernaut"],
         "map": {"key": "trailbreaker", "name": "Trailbreaker", "text": "Forest, hills and peaks cost you 1 move."},
         "start": ["strike", "guard", "overguard"], "weapon": "hand_axe", "armor": "padded_coat",
@@ -592,8 +592,8 @@ def skill_def(key):
 # "die" is the die you put on it, "sum" the dice added up.
 SHORT = {
     "block": ("shield", "die as Armor", None), "flee": ("boot", "run away", "stay"),
-    "strike": ("sword", "die +2 + ½ Armor", None), "guard": ("shield", "take an ally's hit · die +4 Armor", None),
-    "taunt": ("target", "all attacks on you · die +4 Armor · thorns 2", None), "brace": ("shield", "die +2 Armor · +2 to the weakest", None),
+    "strike": ("sword", "die +1 + ⅓ Armor", None), "guard": ("shield", "take an ally's hit · die +2 Armor", None),
+    "taunt": ("target", "all attacks on you · die +2 Armor · thorns 2", None), "brace": ("shield", "die +2 Armor · +2 to the weakest", None),
     "rally_wall": ("shield", "party hits −2 · die +3 Armor", None), "shield_bash": ("sword", "die +3 (6+) · Stun", "½ die"),
     "retaliate": ("sword", "your Armor + die", None), "shoulder_charge": ("sword", "die Armor · die +2 · drag", None),
     "bolt": ("sword", "die", None), "channel": ("sword", "sum +2", None),

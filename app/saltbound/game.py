@@ -21,7 +21,7 @@ from .combat import Combat, Invalid
 from .content import archipelago as A
 from .content import items as I
 from .rng import Rng
-from .tuning import SURGE
+from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 
 VERSION = 9
 DIFFICULTY = {
@@ -1994,6 +1994,8 @@ class Game(Combat):
                       "used": o["used"]} for o in s.get("opps", [])],
             "garrison": {reg: {"foes": self.garrison_of(reg)[0], "boss": round(self.garrison_of(reg)[1] * 100),
                                "n": len(s.get("garrison", {}).get(reg, []))} for reg in A.DUNGEONS},
+            "dungeon_step": {"hp": round(100 * DUNGEON_STEP_HP[min(self.tier(), 2)] * (1 + 0.15 * self.tier())),
+                             "dmg": round(100 * DUNGEON_STEP_DMG[min(self.tier(), 2)] * (1 + 0.1 * self.tier()))},
             "garrison_next": A.GARRISON_EVERY - (s["turn"] - 1) % A.GARRISON_EVERY,
             "crown_cut": round(A.CROWN_CUT * s.get("crown_cut", 0) * 100),
             "reforge": {k: self.reforge_cost(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},

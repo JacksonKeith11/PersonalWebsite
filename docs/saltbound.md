@@ -486,7 +486,7 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 
 | Class | HP (per level) | Map ability | Role | Tags |
 |---|---|---|---|---|
-| Vanguard | 50 (+7) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
+| Vanguard | 50 (+6) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
 | Duelist | 24 (+3) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
 | Berserker | 32 (+4) | **Forage**: camps heal them fully | High-risk damage | Bloodlust, Rampage |
 | Ranger | 24 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
@@ -631,7 +631,14 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
 
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
-  every 3. Enemies also gain 15% HP and 10% damage per tier, and `SURGE` per rise of the tide.
+  every 3. Enemies also gain 15% HP and 10% damage per tier (objective cleared), and `SURGE` per rise
+  of the tide.
+- **Objectives scale with the party** (owner's request, Nov 2026: so the expected power at each
+  objective is easier to tune): dungeon fights (all three of an objective's, boss included) also take
+  `DUNGEON_STEP_HP` / `DUNGEON_STEP_DMG` in `tuning.py` by objectives cleared: 0.85×/0.9× for the first,
+  1.1×/1.05× for the second, 1.35×/1.2× for the third (`start_fight`, `f["hpmul"]`). With the tier on
+  top, the first objective's enemies have 85% health and the third's 205%. The objectives' tooltip
+  in the top bar shows the current step (`dungeon_step` in the view).
 - **The overnight pick study** (owner's request: test skill win rates with long runs and rebalance
   outliers, optimising for skills that are interesting to play). Method: `--with=<class>` (every party
   includes that class, so its picks come up three times as often), 600 Hard runs per class, each pick

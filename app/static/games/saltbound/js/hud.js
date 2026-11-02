@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=54';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=54';
-import { spriteURL } from './art.js?v=54';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=54';
-import { MapView } from './hexmap.js?v=54';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=54';
-import { disconnect } from './main.js?v=54';
-import * as sfx from './audio.js?v=54';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=56';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=56';
+import { spriteURL } from './art.js?v=56';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=56';
+import { MapView } from './hexmap.js?v=56';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=56';
+import { disconnect } from './main.js?v=56';
+import * as sfx from './audio.js?v=56';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -918,6 +918,8 @@ export function markHint(key) { S.seenHints[key] = 1; saved.hints = S.seenHints;
 export function handleFx(list, before) {
   const speed = S.settings.speed;
   let heroSteps = 0;
+  // what the map says after a fight (level-ups, gold, the tide...) waits until the fight has played out
+  const later = [], coins = {};
   for (const f of list) {
     switch (f.k) {
       case 'move':
@@ -929,25 +931,28 @@ export function handleFx(list, before) {
         if (mine().includes(f.h)) sfx.play('step');
         break;
       case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
-      case 'rise': {
-        toast(`The tide rises: enemies +${S.game.surge}%`, 'big');
-        sfx.play('rise');
-        break;
-      }
-      case 'coins': if (mine().includes(f.h) && !combatOpen()) { toast(`${S.game.heroes[f.h].name}: +${f.n} gold`); sfx.play('coin'); } break;
-      case 'tide': toast(f.tide === 'low' ? 'Low tide: the sandbars are out' : 'High tide: the shallows close'); break;
-      case 'level': bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); break;
-      case 'cleared': bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); break;
-      case 'buff': if (mine().includes(f.h)) toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`); break;
+      case 'rise': later.push(() => { toast(`The tide rises: enemies +${S.game.surge}%`, 'big'); sfx.play('rise'); }); break;
+      case 'coins': if (mine().includes(f.h)) coins[f.h] = (coins[f.h] || 0) + f.n; break;
+      case 'tide': later.push(() => toast(f.tide === 'low' ? 'Low tide: the sandbars are out' : 'High tide: the shallows close')); break;
+      case 'level': later.push(() => { bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); }); break;
+      case 'cleared': later.push(() => { bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); }); break;
+      case 'buff': if (mine().includes(f.h)) later.push(() => toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`)); break;
       case 'event':
         if (mine().includes(f.h)) {
-          UI.outcomes.push({ hero: S.game.heroes[f.h].name, title: S.static.events[f.key].title, text: f.text, roll: f.roll, bits: f.bits });
-          renderDialogs();
+          later.push(() => {
+            UI.outcomes.push({ hero: S.game.heroes[f.h].name, title: S.static.events[f.key].title, text: f.text, roll: f.roll, bits: f.bits });
+            renderDialogs();
+          });
         }
         break;
     }
   }
+  // gold comes as one line per hero, however many kills paid it
+  for (const [x, n] of Object.entries(coins)) later.push(() => { toast(`${S.game.heroes[x].name}: +${n} gold`); sfx.play('coin'); });
+  // walking into a fight: the walk plays out on the map before the fight covers it
+  if (heroSteps && map && speed && list.some(f => f.k === 'fight')) holdCombat(heroSteps * map.stepTime(speed) + 250);
   combatFx(list, before);
+  for (const fn of later) afterCombat(fn);
 }
 
 document.addEventListener('keydown', e => {

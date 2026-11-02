@@ -648,6 +648,11 @@ clock anywhere: the run changes only when someone acts.
   win rates and output, fights by kind, enemies, each class's actions, level-up picks, gear, flags.
   `--saves` checks a run saved and restored at every step finishes identically, and that the analytics
   hooks don't change a run. It exits non-zero on a stuck run or a save mismatch.
+- `node tools/saltbound-mp.js [url] [out dir]` plays a **two-player fight** in two browsers (after
+  `python3 tools/saltbound-audit.py fight`): Alice resumes the save, Bob joins by code, each plays a
+  hero while the other watches, both ready up, and screenshots of both screens go to the out dir.
+  It watches both pages the whole time and fails if a dialog or a level/objective banner appears
+  over a fight still playing out, or on a page error. About a minute.
 - **A refactor that shouldn't change play**: record full-run fingerprints first (play fixed seeds with
   `play()` from the simulator and hash `g.s`), refactor, and compare. Any bot or rules change shows.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
@@ -694,6 +699,13 @@ clock anywhere: the run changes only when someone acts.
   render, so animated elements set a negative `animation-delay` from when they started.
 - Hero cards in the party column are CSS grids: an absolutely positioned child (a float, a badge)
   is placed relative to its grid cell, not the card, unless it's given `grid-row`/`grid-column`.
+- **Nothing from after a fight may land while it's still playing out**: the server's update arrives
+  with the fight already won (and the party levelled), but the browser plays the fight back first.
+  Map effects that follow a fight (level-up and objective banners, gold, the tide, blessings, event
+  results) go through `afterCombat` in `combat.js`, which runs them once playback and the Victory
+  banner are done; dialogs already wait on `combatOpen()`; and the health bars use the max HP from
+  before the round (`C.maxhp`) while it plays. A hero who walks into a fight finishes the walk on the
+  map first (`holdCombat`). `tools/saltbound-mp.js` checks the first two.
 - `h('div#id.class')`: ids and classes in any order. `h()` sets CSS custom properties with
   `setProperty`; plain assignment drops them silently.
 - **One look for dice, skills and intents** (owner's choice): a die is a cream tile with a coloured top

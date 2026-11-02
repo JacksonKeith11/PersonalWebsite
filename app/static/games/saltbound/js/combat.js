@@ -1,13 +1,13 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=54';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=54';
-import { spriteURL } from './art.js?v=54';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=54';
-import { render } from './main.js?v=54';
-import { skillCard } from './hud.js?v=54';
-import * as sfx from './audio.js?v=54';
+import { S, send, mine, controllerName } from './store.js?v=56';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=56';
+import { spriteURL } from './art.js?v=56';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=56';
+import { render } from './main.js?v=56';
+import { skillCard } from './hud.js?v=56';
+import * as sfx from './audio.js?v=56';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -15,11 +15,31 @@ let host = null;
 export function combatOpen() {
   const f = C.playing ? C.display : S.game?.fight;
   if (!f) return false;
+  // a hero walking into the fight finishes the walk before the fight takes the screen
+  if (performance.now() < holdUntil) return false;
   const inIt = mine().some(x => f.heroes.includes(x));
   return inIt || !C.hidden;
 }
 export function showFight() { C.hidden = false; render(); }
 export function combatBusy() { return C.playing || queue.length > 0; }
+let holdUntil = 0;
+// Keep the fight off the screen for `ms` (while the map plays the walk that started it).
+export function holdCombat(ms) {
+  holdUntil = Math.max(holdUntil, performance.now() + ms);
+  setTimeout(render, ms + 30);
+}
+// Run `fn` once the fight on screen has played out (its last blow and the Victory banner), or now if
+// nothing is playing: level-ups, gold and the like shouldn't land in the middle of a fight's animations.
+let idle = [];
+export function afterCombat(fn) {
+  if (combatBusy()) idle.push(fn);
+  else fn();
+}
+function flushIdle() {
+  const fns = idle;
+  idle = [];
+  for (const fn of fns) fn();
+}
 
 const KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
 const INTENT = {
@@ -59,7 +79,7 @@ export function renderCombat(el) {
 
   const unitHero = x => {
     const hs = f.hs[x], hero = g.heroes[x];
-    const max = hero.maxhp;
+    const max = C.playing && C.maxhp ? C.maxhp[x] ?? hero.maxhp : hero.maxhp;
     const st = hs ? hs.st : {};
     const cl = ['unit', 'hero'];
     if (hs?.down) cl.push('down');
@@ -834,7 +854,7 @@ export function combatFx(list, before) {
 // Rounds play back one after another, each from the state just before it.
 function playNext() {
   const next = queue.shift();
-  if (!next) return;
+  if (!next) { if (!C.playing) flushIdle(); return; }
   const { fx, before } = next;
   const speed = S.settings.speed;
   const prev = before?.fight;
@@ -846,6 +866,8 @@ function playNext() {
   }
   C.display = prev;
   C.hp = Object.fromEntries(before.heroes.map((x, i) => [i, x.hp]));
+  // max HP too: a level-up the fight earned shouldn't show on the health bars before it's over
+  C.maxhp = Object.fromEntries(before.heroes.map((x, i) => [i, x.maxhp]));
   C.playing = true;
   C.floats = {};
   render();
@@ -864,9 +886,10 @@ function playNext() {
 
 function finish(ended) {
   const close = () => {
-    C.playing = false; C.display = null; C.hp = null; C.anim = {}; C.floats = {}; C.tray = null;
+    C.playing = false; C.display = null; C.hp = null; C.maxhp = null; C.anim = {}; C.floats = {}; C.tray = null; C.caption = null;
     if (queue.length) { playNext(); return; }
     render();
+    flushIdle();
   };
   if (!ended) { close(); return; }
   // the fight's last moment stays up under the banner; loot and the map come after

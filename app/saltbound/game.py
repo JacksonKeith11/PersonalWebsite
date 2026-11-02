@@ -23,7 +23,7 @@ from .content import items as I
 from .rng import Rng
 from .tuning import SURGE
 
-VERSION = 5
+VERSION = 6
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -38,7 +38,11 @@ MAX_GROUPS = 12
 INN_COST = 8
 SKIFF_COST = 10
 START_GOLD = 20
-POOL_EXTRA = 2  # a fight's loot pool holds this many more items than the winners' picks
+POOL_SIZE = 4  # a won fight's loot pool: this many items...
+POOL_CLAIMS = 3  # ...of which at most this many can be claimed
+SLOTS = I.SLOTS
+slots_for = I.slots_for
+
 LOG_KEEP = 40
 FX_KEEP = 200
 
@@ -65,7 +69,7 @@ class Game(Combat):
             c = C.CLASSES[k]
             heroes.append({
                 "cls": k, "name": (names or [None] * 3)[i] or c["name"], "hp": 0, "gold": START_GOLD,
-                "skills": list(c["start"]), "equip": {"weapon": c["weapon"], "armor": c["armor"], "trinket": None},
+                "skills": list(c["start"]), "equip": {"weapon": c["weapon"], "armor": c["armor"], "trinket": None, "trinket2": None},
                 "bag": ["potion"], "tile": w["start"], "prev": w["start"], "afloat": False, "skiff": False,
                 "alive": True, "buffs": {}, "shrines": [], "dieup": 0, "tags": {},
             })
@@ -138,7 +142,7 @@ class Game(Combat):
             p = C.PASSIVES.get(sk.rstrip("+"))
             if p:
                 add(p["mods"])
-        for slot in ("weapon", "armor", "trinket"):
+        for slot in SLOTS:
             it = hero["equip"].get(slot)
             if it:
                 add(I.ITEMS[it].get("mods", {}))
@@ -181,10 +185,11 @@ class Game(Combat):
         """Every die a hero rolls: {faces, dk (kinds), src}."""
         hero = self.hero(h)
         out = [dict(d, src="base") for d in self.base_dice(h)]
-        for slot in ("weapon", "armor", "trinket"):
+        for slot in SLOTS:
             it = hero["equip"].get(slot)
             if it:
-                out.append({"faces": list(I.ITEMS[it]["die"]), "dk": list(I.ITEMS[it].get("dk", [])), "src": slot})
+                out.append({"faces": list(I.ITEMS[it]["die"]), "dk": list(I.ITEMS[it].get("dk", [])),
+                            "src": I.ITEMS[it]["slot"]})
         for d in out:
             if "heirloom" in d["dk"]:
                 for _ in range(self.s["level"] - 1):
@@ -197,13 +202,25 @@ class Game(Combat):
         """The keys of the actions a hero can use (with '+' for upgraded ones)."""
         hero = self.hero(h)
         out = [k for k in hero["skills"] if k.rstrip("+") in C.ACTIONS]
-        for slot in ("weapon", "trinket"):
+        for slot in ("weapon", "trinket", "trinket2"):
             w = hero["equip"].get(slot)
             if w:
                 out += [a for a in I.ITEMS[w].get("acts", []) if a not in out]
         out += [g for g in self.mods(h)["grant"] if g not in out]
         out += C.GENERIC
         return out
+
+    def equip_slot(self, h, key, into=None):
+        """Where a piece of gear goes on: the slot asked for (`into`, for the two trinket slots), else
+        an empty one, else the slot holding the lesser item (by rarity)."""
+        slots = slots_for(I.ITEMS[key]["slot"])
+        if into in slots:
+            return into
+        equip = self.hero(h)["equip"]
+        empty = [s for s in slots if not equip.get(s)]
+        if empty:
+            return empty[0]
+        return min(slots, key=lambda s: I.RARITIES.index(I.ITEMS[equip[s]]["rarity"]))
 
     def action_def(self, h, key):
         base = key.rstrip("+")
@@ -890,7 +907,7 @@ class Game(Combat):
             elif isinstance(n, int) and 0 <= n < len(d["opts"]):
                 to = self.loot_to(h, d["opts"][n], msg)
                 q.pop(0)
-                self.take_loot(h, d["opts"][n], to, msg.get("equip"))
+                self.take_loot(h, d["opts"][n], to, msg.get("equip"), msg.get("into"))
             else:
                 raise Invalid("Pick an item, or skip.")
         elif d["type"] == "pool":
@@ -903,7 +920,7 @@ class Game(Combat):
                 to = self.loot_to(h, pool["items"][n], msg)
                 q.pop(0)
                 pool["taken"][str(n)] = {"by": h, "to": to}
-                self.take_loot(h, pool["items"][n], to, msg.get("equip"))
+                self.take_loot(h, pool["items"][n], to, msg.get("equip"), msg.get("into"))
             else:
                 raise Invalid("Claim an item, or pass.")
             self.close_pool(d["id"])
@@ -1030,30 +1047,34 @@ class Game(Combat):
             raise Invalid("They're too far away.")
         return to
 
-    def take_loot(self, h, key, to, equip):
+    def take_loot(self, h, key, to, equip, into=None):
         if to != h:
             self.say(f"{self.hero(h)['name']} hands the {I.ITEMS[key]['name']} to {self.hero(to)['name']}.")
         if equip and I.ITEMS[key]["slot"] != "use":
-            self.wear(to, key)
+            self.wear(to, key, into if to == h else None)
         else:
             self.gain_item(to, key)
 
-    def offer_pool(self, counts, tier_bonus=0):
-        """After a fight: one pool of loot for everyone who won it, bigger than the picks they'd
-        have had alone (`counts`: {hero: how many picks}). Each claims one item (or passes), first
-        come first served; what nobody claims is left behind."""
-        heroes = list(counts)
+    def offer_pool(self, heroes, tier_bonus=0):
+        """After a fight: one pool of `POOL_SIZE` items for everyone who won it, of which
+        `POOL_CLAIMS` can be claimed, first come first served. The claims go round the winners (a
+        hero who won alone claims three times, two winners two and one); what's left is left behind."""
+        heroes = list(heroes)
         if not heroes:
             return
         s = self.s
         pid = s["poolid"] = s.get("poolid", 0) + 1
-        items = self.make_loot(sum(counts.values()) + POOL_EXTRA, tier_bonus)
+        items = self.make_loot(POOL_SIZE, tier_bonus)
         s.setdefault("pools", {})[str(pid)] = {"items": items, "taken": {}, "heroes": heroes}
-        for h in heroes:
-            self.push(h, {"type": "pool", "id": pid})
+        for i in range(POOL_CLAIMS):
+            self.push(heroes[i % len(heroes)], {"type": "pool", "id": pid})
 
     def close_pool(self, pid):
-        """Forget a pool once nobody has its dialog left to answer."""
+        """Forget a pool once nobody has its dialog left to answer (or every claim is made)."""
+        pool = self.s["pools"].get(str(pid))
+        if pool and len(pool["taken"]) >= min(POOL_CLAIMS, len(pool["items"])):
+            for q in self.s["pending"].values():
+                q[:] = [d for d in q if not (d["type"] == "pool" and d["id"] == pid)]
         if not any(d["type"] == "pool" and d["id"] == pid for q in self.s["pending"].values() for d in q):
             pool = self.s["pools"].pop(str(pid))
             left = len(pool["items"]) - len(pool["taken"])
@@ -1080,13 +1101,12 @@ class Game(Combat):
         hero = self.hero(h)
         it = I.ITEMS[key]
         slot = it["slot"]
-        if slot != "use" and hero["equip"].get(slot) is None:
-            hero["equip"][slot] = key
+        free = [s for s in slots_for(slot) if not hero["equip"].get(s)] if slot != "use" else []
+        if free:
+            hero["equip"][free[0]] = key
         else:
             hero["bag"].append(key)
         self.say(f"{hero['name']} gets {it['name']}.")
-        if slot != "use" and slot in hero["equip"] and hero["equip"][slot] != key:
-            pass
 
     def gain_xp(self, n):
         s = self.s
@@ -1274,10 +1294,10 @@ class Game(Combat):
         self.offer_loot(h, 2, tier_bonus=1)
         self.say(f"Job done for {q['src']}: +{A.QUEST_REWARD} gold each.")
 
-    def wear(self, h, key):
+    def wear(self, h, key, into=None):
         """Put new gear straight on; what it replaces goes in the bag."""
         hero = self.hero(h)
-        slot = I.ITEMS[key]["slot"]
+        slot = self.equip_slot(h, key, into)
         old = hero["equip"].get(slot)
         hero["equip"][slot] = key
         if old:
@@ -1293,9 +1313,9 @@ class Game(Combat):
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Equip what?")
         key = hero["bag"][i]
-        slot = I.ITEMS[key]["slot"]
-        if slot == "use":
+        if I.ITEMS[key]["slot"] == "use":
             raise Invalid("That's not something you wear.")
+        slot = self.equip_slot(h, key, msg.get("into"))
         old = hero["equip"].get(slot)
         hero["bag"][i:i + 1] = [old] if old else []
         hero["equip"][slot] = key
@@ -1306,7 +1326,7 @@ class Game(Combat):
             raise Invalid("Not in the middle of a fight.")
         hero = self.hero(h)
         slot = msg.get("slot")
-        if slot not in ("armor", "trinket") or not hero["equip"].get(slot):
+        if slot not in ("armor", "trinket", "trinket2") or not hero["equip"].get(slot):
             raise Invalid("You can't take that off.")
         hero["bag"].append(hero["equip"][slot])
         hero["equip"][slot] = None

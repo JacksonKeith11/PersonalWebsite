@@ -109,8 +109,8 @@ Keep to these. They came from the owner directly.
   back); melee reaches only their front row while it has anyone. Heroes and summons are one group:
   enemies pick targets by their own rule (random, weakest, strongest, or whoever hurt them most last
   round), so damage spreads unless someone chooses to take it (Guard, Taunt). There's no Shift.
-- **Dice**: each hero has 2 base dice from their class plus one die each from weapon, armor and
-  trinket: 5 at most. All of a hero's dice are rolled at the start of each round. Sizes d4-d12,
+- **Dice**: each hero has 2 base dice from their class plus one die each from weapon, armor and two
+  trinkets (owner's request: a second trinket slot): 6 at most. All of a hero's dice are rolled at the start of each round. Sizes d4-d12,
   plus special dice with custom faces (shield faces, blanks, ×2) from uncommon rarity up.
 - **Actions** are cards with dice slots and a requirement, e.g. "Slash: one die ≥2, deal its
   value", "Fireball: two dice summing to 10+", "Lunge: exactly 6". A hero has 2 class actions,
@@ -173,13 +173,16 @@ Keep to these. They came from the owner directly.
 - **Level-up picks** happen on the rewards screen after the fight that levelled the party. All
   three pick at once, each seeing the others' choices as they lock in.
 - **Gold is per hero.** **A won fight's loot is one shared pool** (owner's request): everyone who won
-  sees every item and claims one, first claim wins (`Game.offer_pool`, `s["pools"]`, a `pool` dialog
-  per hero); the pool holds `POOL_EXTRA` (2) more items than the winners' picks, and what nobody
+  sees the pool and claims from it, first claim wins (`Game.offer_pool`, `s["pools"]`, a `pool`
+  dialog per claim). The owner set its size: **4 items, 3 claims** (`POOL_SIZE`, `POOL_CLAIMS`), the
+  claims going round the winners (alone, you claim three; two winners, two and one); the fight sets
+  the rarity, not the size (a dungeon's last fight or Champion's Hall a rarity up). What nobody
   claims is left behind. Loot found alone (wrecks, quests, events) is a personal pick. Either way an
   item can go straight to an ally within a hex (`to` on the `choose` message; into their empty slot,
   else their bag). Heroes can trade freely on a shared hex or in a town. Every item shows what a town
   pays for it (40%, 60% with Haggler; `Game.sell_price`).
-- **Items**: weapon, armor and trinket slots (each gives a die and maybe an action or passive) plus
+- **Items**: weapon, armor and two trinket slots (`I.SLOTS`; each gives a die and maybe an action or
+  passive; a trinket fits either slot, and with both full you choose which to swap out) plus
   a bag with no limit (owner's request; Deep Pockets became +1 reroll and +3 gold a win). 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
   bombs, scrolls.
 - **Healing**: HP carries over between fights. Heal at inns (gold), at camps (spend the turn, heal
@@ -452,8 +455,7 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 - **Dungeons** (`DUNGEONS`, `PATHS`; `dungeon_lineup`, `make_fork`, `do_fork`, `take_path` in
   `game.py`): three fights. The first is drawn from the dungeon's `open` pool; after it and after the
   second the party reaches a **fork** of two paths drawn at random, shown with enemies and rewards:
-  the Main Passage (`mid`), the Champion's Hall (`champ`: one big threat or an elite; loot a rarity up,
-  three picks), the Flooded Vault (a `mid` lineup with an elite; +12 gold each), a Quiet Shrine (no
+  the Main Passage (`mid`), the Champion's Hall (`champ`: one big threat or an elite; loot a rarity up), the Flooded Vault (a `mid` lineup with an elite; +12 gold each), a Quiet Shrine (no
   fight: heal 35%, curses lifted); and before the boss, Storm the Hall (boss and `escort`), Rest at
   the Threshold (heal 30%, one more escort) or the Back Way (enemies caught off guard; two picks).
   Everyone in the dungeon votes (`{"t": "fork", "n"}`); most votes wins, a tie is a coin toss. The
@@ -462,9 +464,12 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 
 ### Items
 
-About 60 items (`ITEMS` in `content/items.py`): weapons give a die and actions, armor a guard die and
+About 80 items (`ITEMS` in `content/items.py`; 59 that drop): weapons give a die and actions, armor a guard die and
 often a passive, trinkets an odd die, a passive or an action. Gear past the starting kit has a passive
-of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Rule-benders**
+of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
+Shellbreaker Maul ignores Armor, the Oilskin Coat stops Burns, the Diver's Harness a Stun and Freeze,
+the Smuggler's Cloak makes enemies ignore you (bad on a Vanguard: the bots know), the Gutting Knife
+finishes the wounded, the Gull-Feather Bow punishes enemies aiming elsewhere, and so on. **Rule-benders**
 (the end of `ITEMS`): Forked Staff (a single-target spell also hits another enemy for half), Siren's
 Conch (whoever hits you is Marked), Tide Hourglass (your biggest unused die carries over), Powder
 Heart (every die explodes, −6 max HP), Weighted Coin (a 1 counts as the top face), Bloodstone (out of

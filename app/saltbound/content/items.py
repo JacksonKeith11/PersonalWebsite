@@ -126,6 +126,29 @@ ITEMS = {
     "bosuns_bell": {"name": "Bosun's Bell", "slot": "trinket", "rarity": "uncommon", "die": D(6), "acts": ["pass_die"]},
     "sea_glass_lens": {"name": "Sea-Glass Lens", "slot": "trinket", "rarity": "rare", "die": D(6), "dk": ["seer"]},
 
+    # ---- more gear: low rarities that beat a rare in the right hands or the right fight
+    "gutting_knife": {"name": "Gutting Knife", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["venom_stab"]},
+    "boarding_axe": {"name": "Boarding Axe", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, 7, 8], "acts": ["hack"]},
+    "driftwood_staff": {"name": "Driftwood Staff", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["flare"]},
+    "shellbreaker": {"name": "Shellbreaker Maul", "slot": "weapon", "rarity": "uncommon", "die": [2, 3, 4, 5, 6, 6], "acts": ["crush"]},
+    "gull_bow": {"name": "Gull-Feather Bow", "slot": "weapon", "rarity": "uncommon", "die": D(8), "acts": ["shoot"]},
+    "reef_lantern": {"name": "Reef Lantern", "slot": "weapon", "rarity": "uncommon", "die": D(6), "acts": ["blessing", "flare"]},
+    "harpoon_gun": {"name": "Harpoon Gun", "slot": "weapon", "rarity": "rare", "die": D(10), "acts": ["harpoon", "shoot"]},
+    "oilskin_coat": {"name": "Oilskin Coat", "slot": "armor", "rarity": "common", "die": [1, 2, 3, 4, "S", "S"]},
+    "barnacle_plate": {"name": "Barnacle Plate", "slot": "armor", "rarity": "common", "die": [2, 3, 3, 4]},
+    "divers_harness": {"name": "Diver's Harness", "slot": "armor", "rarity": "uncommon", "die": D(6)},
+    "kelpweave_robe": {"name": "Kelpweave Robe", "slot": "armor", "rarity": "uncommon", "die": D(6)},
+    "smugglers_cloak": {"name": "Smuggler's Cloak", "slot": "armor", "rarity": "uncommon", "die": D(6)},
+    "gilded_cuirass": {"name": "Gilded Cuirass", "slot": "armor", "rarity": "rare", "die": [3, 4, 5, "S", "S", "S"], "dk": ["steady"]},
+    "tarnished_ring": {"name": "Tarnished Ring", "slot": "trinket", "rarity": "common", "die": D(4)},
+    "gull_bone": {"name": "Gull-Bone Charm", "slot": "trinket", "rarity": "common", "die": [1, 2, 2, 3]},
+    "salt_locket": {"name": "Salt-Crusted Locket", "slot": "trinket", "rarity": "common", "die": D(4)},
+    "rum_flask": {"name": "Rum Flask", "slot": "trinket", "rarity": "uncommon", "die": D(6)},
+    "spyglass": {"name": "Spyglass", "slot": "trinket", "rarity": "uncommon", "die": D(6), "dk": ["seer"]},
+    "ember_charm": {"name": "Ember Charm", "slot": "trinket", "rarity": "uncommon", "die": [1, 2, "F3", 4, "F5", "F6"]},
+    "captains_medal": {"name": "Captain's Medal", "slot": "trinket", "rarity": "rare", "die": D(8)},
+    "anchor_pendant": {"name": "Anchor Pendant", "slot": "trinket", "rarity": "rare", "die": [4, 4, 5, 5, 6, 6], "dk": ["steady"]},
+
     # ---- consumables
     "potion": {"name": "Tonic", "slot": "use", "rarity": "common", "price": 8, "use": {"heal": 10},
                "text": "Heal 10."},
@@ -176,6 +199,28 @@ PASSIVES = {
     "bosuns_whistle": ({"combo_up": 2}, "All hands: your combos deal +2 more."),
     "bosuns_bell": ({}, "Ring it: hand one of your dice to an ally."),
     "sea_glass_lens": ({"guard_free": 1}, "Clear sight: your armor's die can go on attacks too."),
+    # more gear
+    "gutting_knife": ({"execute_bonus": 3}, "Finish them: +3 damage against enemies below half health."),
+    "boarding_axe": ({"kill_heal": 3}, "Plunder: heal 3 whenever you kill an enemy."),
+    "driftwood_staff": ({"mark_ext": 1}, "Lingering mark: your Marks last a round longer."),
+    "shellbreaker": ({"pierce_all": 1}, "Crack the shell: your hits ignore Armor."),
+    "gull_bow": ({"backstab": 3}, "From the rigging: +3 damage against enemies aiming at someone else."),
+    "reef_lantern": ({"heal_bonus": 2}, "Kind light: your heals are 2 stronger."),
+    "harpoon_gun": ({"opportunist": 3}, "Pinned: +3 damage against Stunned or Rooted enemies."),
+    "oilskin_coat": ({"burn_immune": 1, "max_hp": 2}, "Waxed: you can't be Burned. +2 max HP."),
+    "barnacle_plate": ({"thorns": 2}, "Barnacled: enemies that hit you take 2."),
+    "divers_harness": ({"stun_ward": 1, "freeze_immune": 1}, "Steady breath: ignore the first Stun each fight, and your dice can't be Frozen."),
+    "kelpweave_robe": ({"regen": 2}, "Living weave: heal 2 each round in fights."),
+    "smugglers_cloak": ({"camouflage": 1}, "Unseen: enemies attack you only when there's no one else to attack."),
+    "gilded_cuirass": ({"start_armor": 5, "max_hp": 4}, "Gleaming: start each fight with 5 Armor. +4 max HP."),
+    "tarnished_ring": ({"might": 1}, "Old weight: +1 damage on every hit."),
+    "gull_bone": ({"heckler": 3}, "Bad omen: each enemy's first attack each fight deals 3 less."),
+    "salt_locket": ({"weak_immune": 1, "max_hp": 3}, "Salted: you can't be made Weak. +3 max HP."),
+    "rum_flask": ({"kill_heal": 3, "rest_bonus": 0.1}, "A swig: heal 3 per kill, and resting heals an extra 10% of your max HP."),
+    "spyglass": ({"wayfinder": 1}, "Far sight: see further along your path on the map; its die shows while you plan."),
+    "ember_charm": ({"burn_bonus": 1}, "Banked coals: your Burns are 1 stronger."),
+    "captains_medal": ({"hymn_aura": 1}, "Rally the crew: while you're standing, the whole party deals +1 damage."),
+    "anchor_pendant": ({"first_hit_soak": 2}, "Anchored: the first hit on you each round deals 2 less."),
 }
 for _k, (_m, _t) in PASSIVES.items():
     ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}
@@ -187,6 +232,15 @@ GUARD_TRINKETS = ("lucky_shell", "pearl_charm")
 for _k, _v in ITEMS.items():
     if _v["slot"] == "armor" or _k in GUARD_TRINKETS:
         _v["dk"] = ["guard"] + list(_v.get("dk", []))
+
+# Where gear goes: two trinket slots, and a trinket fits either.
+SLOTS = ("weapon", "armor", "trinket", "trinket2")
+
+
+def slots_for(item_slot):
+    """The equipment slots an item of this kind can go in."""
+    return ["trinket", "trinket2"] if item_slot == "trinket" else [item_slot]
+
 
 CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use"]
 GEAR = [k for k, v in ITEMS.items() if v["slot"] != "use" and not v.get("start")]

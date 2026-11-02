@@ -935,7 +935,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                     self.complete_quest(q, winners[0] if winners else party[0])
         final = f["kind"] == "dungeon" and f["step"] >= A.DUNGEON_STEPS - 1
         path = f.get("path")
-        # one shared pool of loot for the winners, each claiming an item
+        # one shared pool of loot for the winners: its size and claims are fixed, the fight sets the rarity
         n, bonus = 0, 0
         if f["kind"] == "dungeon":
             n, bonus = (2 if path == "sneak" else 3, 2) if final else (3, 2) if path == "champion" else (2, 1)
@@ -947,7 +947,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         elif self.rng.chance(0.35):
             n = 1
         if n:
-            self.offer_pool({h: n for h in winners}, tier_bonus=bonus)
+            self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0))
         if path == "vault" and winners:
             self.say("The vault gives up its gold: +12 each.")
         if f["kind"] == "dungeon":

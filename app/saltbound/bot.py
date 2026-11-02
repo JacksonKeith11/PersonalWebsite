@@ -119,8 +119,20 @@ def loot_gain(g, h, k):
     it = I.ITEMS[k]
     if it["slot"] == "use":
         return RANK[it["rarity"]] * 1.5
-    cur = g.hero(h)["equip"].get(it["slot"])
+    cur = replaced(g, h, k)[1]
     return item_score(g, h, k) - (item_score(g, h, cur) if cur else 0)
+
+
+def replaced(g, h, key):
+    """(slot, item) that wearing this would replace: an empty slot first, else the weakest worn one
+    of its kind (two trinket slots)."""
+    equip = g.hero(h)["equip"]
+    slots = I.slots_for(I.ITEMS[key]["slot"])
+    empty = [s for s in slots if not equip.get(s)]
+    if empty:
+        return empty[0], None
+    s = min(slots, key=lambda s: item_score(g, h, equip[s]))
+    return s, equip[s]
 
 
 # Item passives that only do something with the right actions: (mods, what the hero needs)
@@ -134,6 +146,8 @@ NEEDS = [
     ({"mark_ext"}, lambda a: any(o["op"] == "status" and o["s"] == "mark" for o in a["ops"])),
     ({"root_ext"}, lambda a: any(o["op"] == "status" and o["s"] == "root" for o in a["ops"])),
 ]
+# ...and ones that work against what the hero is for: Camouflage on someone who pulls hits
+AVOIDS = [({"camouflage"}, lambda a: any(o["op"] in ("guard", "taunt") for o in a["ops"]))]
 
 
 def item_score(g, h, key):
@@ -150,12 +164,15 @@ def item_score(g, h, key):
     for keys, need in NEEDS:
         if mods & keys and not any(need(a) for a in acts):
             score -= 3
+    for keys, clash in AVOIDS:
+        if mods & keys and any(clash(a) for a in acts):
+            score -= 4
     return score + it.get("mods", {}).get("max_hp", 0) * 0.3
 
 
 def better(g, h, key):
     """Would wearing this beat what's in its slot?"""
-    cur = g.hero(h)["equip"].get(I.ITEMS[key]["slot"])
+    cur = replaced(g, h, key)[1]
     return cur is None or item_score(g, h, key) > item_score(g, h, cur) + 0.5
 
 
@@ -191,7 +208,7 @@ def plan_move(g, h):
     for i, key in enumerate(hero["bag"]):
         it = I.ITEMS[key]
         if it["slot"] != "use" and better(g, h, key):
-            return {"t": "equip", "bag": i}
+            return {"t": "equip", "bag": i, "into": replaced(g, h, key)[0]}
     if place and place["kind"] == "town":
         if hero["hp"] < mx * 0.7 and hero["gold"] >= g.inn_cost():
             return {"t": "inn"}

@@ -87,8 +87,16 @@ def _v4(state):
     return state
 
 
+def _v5(state):
+    """v6 heroes have a second trinket slot."""
+    for hero in state.get("heroes", []):
+        hero.setdefault("equip", {}).setdefault("trinket2", None)
+    state["v"] = 6
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5}
 
 
 class TooOld(Exception):

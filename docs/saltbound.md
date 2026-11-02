@@ -487,6 +487,10 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
   every 3. Enemies also gain 15% HP and 10% damage per tier, and `SURGE` per rise of the tide.
+- **When runs are lost** (Hard, 300 runs on the build just before the bag and boss changes, 208
+  losses): by turn 1-9 5%, 10-19 19%, 20-29 17%, 30-39 34%, 40-49 21%, 50+ 4%; by objectives cleared
+  0: 42%, 1: 26%, 2: 20%, 3 (at the Drowned Crown) 11%. Most losses come late, but four in ten losing
+  parties never clear an objective.
 - **Now** (no bag limit, Steeled bosses, the bell and lamp Weaken instead of stunning): **Hard 37%**
   (35% seed 5000, 39% seed 9000), **Normal 86%**. Above the Hard target again: the unlimited bag
   (bots keep every potion and no gear is auto-sold) outweighed the tougher bosses. The owner's call.
@@ -573,7 +577,12 @@ clock anywhere: the run changes only when someone acts.
   fights (bots never use most instant tricks), checks the passive mods against `mods.py`, and that
   `js/rules.js`'s map size matches the server's. Run it after touching the rules or classes.
 - `python3 tools/saltbound-sim.py [runs] [difficulty] [--report] [--seed=N] [--saves]` plays whole runs
-  with bots across all cores. `--report` prints balance analytics (`tools/saltbound_stats.py`): class
+  with bots across all cores. **It's slow**: 12 runs ~15 s, 100 ~1-2 min, 300 ~3-5 min, and batches
+  run side by side slow each other. Batches of 50+ save their output to `data/saltbound-sim/`
+  (`last-<difficulty>.txt`, with the date and commit); `--last [difficulty]` prints them without
+  playing. Answer balance questions from those or from "Balance now" first, and run fresh only when
+  the code changed since and the question needs it; 100 runs is enough for a shape, 300 for class
+  rates. `--report` prints balance analytics (`tools/saltbound_stats.py`): class
   win rates and output, fights by kind, enemies, each class's actions, level-up picks, gear, flags.
   `--saves` checks a run saved and restored at every step finishes identically, and that the analytics
   hooks don't change a run. It exits non-zero on a stuck run or a save mismatch.

@@ -12,12 +12,26 @@ Runs are spread over --jobs worker processes (all cores by default).
 
 With --saves, every run is also saved and loaded (through JSON) after every action, and must finish
 exactly as the same run played straight through.
+
+Every batch of 50 runs or more saves what it printed (with the date, the commit and the command) to
+data/saltbound-sim/, the latest per difficulty as last-<difficulty>.txt. `--last` prints those
+instead of playing anything, so a question about balance can be answered from the latest numbers:
+
+    python3 tools/saltbound-sim.py --last          # every difficulty's latest batch
+    python3 tools/saltbound-sim.py --last hard
+
+Rough run times on all cores: 12 runs ~15 s, 100 runs ~1-2 min, 300 runs ~3-5 min (each batch run
+at the same time as another doubles it).
 """
 
+import contextlib
+import io
 import json
 import os
 import random
+import subprocess
 import sys
+import time
 from collections import Counter
 from itertools import combinations
 from multiprocessing import Pool
@@ -97,10 +111,81 @@ def one(job):
     return res, g.s["turn"], g.s["level"], cause, note, stats.t
 
 
+SAVED = os.path.join(os.path.dirname(__file__), "..", "data", "saltbound-sim")
+
+
+def show_last(which):
+    """Print the latest saved batch for each difficulty (or one), without playing anything."""
+    names = [f"last-{which}.txt"] if which else sorted(f for f in os.listdir(SAVED) if f.startswith("last-")) \
+        if os.path.isdir(SAVED) else []
+    shown = False
+    for name in names:
+        path = os.path.join(SAVED, name)
+        if os.path.exists(path):
+            print(open(path).read())
+            shown = True
+    if not shown:
+        print("No saved batches yet: run 50 or more, e.g. python3 tools/saltbound-sim.py 300 hard --report")
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     opt = dict(a[2:].split("=", 1) if "=" in a else (a[2:], True) for a in sys.argv[1:] if a.startswith("--"))
-    runs = int(args[0]) if args else 20
+    if "last" in opt:
+        show_last(args[0] if args else None)
+        return
+    if runs_wanted(args) >= 50:
+        buf = io.StringIO()
+        started = time.time()
+        code = 0
+        with contextlib.redirect_stdout(Tee(sys.stdout, buf)):
+            try:
+                play_batch(args, opt)
+            except SystemExit as e:
+                code = e.code or 0
+        save_batch(args, buf.getvalue(), time.time() - started)
+        sys.exit(code)
+    play_batch(args, opt)
+
+
+def runs_wanted(args):
+    return int(args[0]) if args else 20
+
+
+class Tee(io.TextIOBase):
+    def __init__(self, *outs):
+        self.outs = outs
+
+    def write(self, text):
+        for o in self.outs:
+            o.write(text)
+        return len(text)
+
+    def flush(self):
+        for o in self.outs:
+            o.flush()
+
+
+def save_batch(args, text, secs):
+    diff = args[1] if len(args) > 1 else "normal"
+    try:
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
+                                cwd=os.path.dirname(__file__)).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "app/saltbound"], capture_output=True, text=True,
+                               cwd=os.path.join(os.path.dirname(__file__), "..")).stdout.strip()
+    except OSError:
+        commit, dirty = "?", ""
+    head = (f"# {time.strftime('%Y-%m-%d %H:%M')} · commit {commit}{' + uncommitted changes' if dirty else ''} · "
+            f"{secs / 60:.1f} min\n# python3 tools/saltbound-sim.py {' '.join(sys.argv[1:])}\n")
+    os.makedirs(SAVED, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    for name in (f"{stamp}-{diff}.txt", f"last-{diff}.txt"):
+        with open(os.path.join(SAVED, name), "w") as fh:
+            fh.write(head + text)
+
+
+def play_batch(args, opt):
+    runs = runs_wanted(args)
     diff = args[1] if len(args) > 1 else "normal"
     seed0 = int(opt.get("seed", 1000))
     combos = [opt["classes"].split(",")] if "classes" in opt else [list(c) for c in combinations(sorted(CLASSES), 3)]

@@ -72,4 +72,9 @@ When a change alters how an area works or turns up a new gotcha, update its doc 
   `python3 tools/bump-version.py <folder or file>` (a game's folder, `app/static/books`, or
   `app/static/style.css`); it updates every link together.
 - Run `tools/check-all.sh` before pushing: the fast checks for every area, in about a minute.
+- Don't run long scripts (the Saltbound simulator, browser audits) when existing numbers answer the
+  question. For a question, answer first from what's known (the area doc's latest numbers, earlier
+  output, `python3 tools/saltbound-sim.py --last`), say how old it is, and offer a fresh run. When a
+  run is needed, use the smallest that settles it (about two minutes), say how long before starting,
+  run it in the background, and never queue several big batches at once.
 - Test the reader against public-domain EPUBs (e.g. Project Gutenberg), not the owner's books.

@@ -1,12 +1,12 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine } from './store.js?v=44';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=44';
-import { spriteURL } from './art.js?v=44';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=44';
-import { render } from './main.js?v=44';
-import * as sfx from './audio.js?v=44';
+import { S, send, mine } from './store.js?v=45';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=45';
+import { spriteURL } from './art.js?v=45';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=45';
+import { render } from './main.js?v=45';
+import * as sfx from './audio.js?v=45';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null };
 let host = null;
@@ -67,7 +67,7 @@ export function renderCombat(el) {
     if (x === active) cl.push('mine-sel');
     if (isTarget('h' + x, f)) cl.push('target');
     const ready = hs?.ready && !C.playing;
-    return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, onclick: () => targetClick('h' + x) },
+    return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, onclick: () => targetClick('h' + x), tip: mine().includes(x) ? null : heroTip(x, hs) },
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
       h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
@@ -129,7 +129,8 @@ export function renderCombat(el) {
     h('div.side-units', null,
       col('Front', foesIn('front').map(unitFoe)),
       col('Back', foesIn('back').map(unitFoe))),
-    rollTray());
+    rollTray(),
+    C.caption ? h('div.act-caption', { style: { '--seat': `var(--hero-${C.caption.h})` } }, h('b', null, C.caption.text), h('span', null, C.caption.what)) : null);
 
   const done = f.done || [];
   const combos = S.static.combos || {};
@@ -399,6 +400,7 @@ function speedWord(n) { return n >= 7 ? 'very fast' : n >= 5 ? 'fast' : n >= 3 ?
 function unitName(f, u) {
   if (!u) return '';
   if (u.startsWith('h')) return S.game.heroes[+u.slice(1)].name;
+  if (u.startsWith('f')) return (f.foes || []).find(fo => 'f' + fo.id === u)?.name || 'an enemy';
   return (f.allies || []).find(a => 's' + a.id === u)?.name || 'a summon';
 }
 
@@ -475,9 +477,31 @@ function doneChip(p, i, f) {
   if (p.tgt?.startsWith('f')) tgt = f.foes.find(fo => 'f' + fo.id === p.tgt)?.name || '';
   else if (p.tgt?.startsWith('h')) tgt = g.heroes[+p.tgt.slice(1)].name;
   const res = p.hit === true && isRisky(a.req) ? h('span.res.hit', null, 'hit') : p.hit === false ? h('span.res.miss', null, 'miss') : null;
-  return h('span.plan-chip' + (p.hit === false ? '.missed' : ''), { style: { '--seat': `var(--hero-${p.h})` }, tip: `${g.heroes[p.h].name}: ${a.name}${p.plus ? '+' : ''}${tgt ? ' → ' + tgt : ''}` },
-    h('span.muted', null, `${i + 1}.`), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
-    h('span', { style: { width: '6px' } }));
+  // what it did: the damage, healing, Armor, kills and statuses it set off
+  const o = p.out || {};
+  const what = outcomeText(o);
+  const nums = [];
+  if (o.dmg) nums.push(h('span.o-dmg', null, icon('sword'), o.dmg));
+  if (o.heal) nums.push(h('span.o-heal', null, icon('plus'), o.heal));
+  if (o.armor) nums.push(h('span.o-armor', null, icon('shield'), o.armor));
+  if (o.kills) nums.push(h('span.o-kill', null, icon('skull'), o.kills > 1 ? `×${o.kills}` : ''));
+  const rolled = (p.vals || []).length ? `Rolled ${p.vals.join(', ')}. ` : '';
+  return h('span.plan-chip' + (p.hit === false ? '.missed' : ''), { style: { '--seat': `var(--hero-${p.h})` },
+    tip: `${g.heroes[p.h].name}: ${a.name}${p.plus ? '+' : ''}${tgt ? ' → ' + tgt : ''}\n${rolled}${p.hit === false ? 'Missed. ' : ''}${what || 'No visible effect.'}\n${a.text}` },
+    h('span.muted', null, `${i + 1}.`), h('span.who', null, g.heroes[p.h].name), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
+    ...nums, h('span', { style: { width: '6px' } }));
+}
+// An action's outcome in words, for the round strip's tooltips.
+function outcomeText(o) {
+  const parts = [];
+  if (o.dmg) parts.push(`${o.dmg} damage`);
+  if (o.kills) parts.push(o.kills > 1 ? `${o.kills} kills` : 'a kill');
+  if (o.heal) parts.push(`healed ${o.heal}`);
+  if (o.armor) parts.push(`${o.armor} Armor`);
+  if (o.hurt) parts.push(`cost ${o.hurt} HP`);
+  const st = (o.st || []).map(k => STATUS[k]?.name).filter(Boolean);
+  if (st.length) parts.push(st.join(', '));
+  return parts.length ? parts[0][0].toUpperCase() + parts.join(', ').slice(1) + '.' : '';
 }
 
 function tray(f, x, my) {
@@ -812,6 +836,104 @@ function banner(result) {
 }
 
 let floatId = 0;
+// An ally's actions in a fight, for the tooltip on their portrait: what each does and when it's ready.
+function heroTip(x, hs) {
+  const hero = S.game.heroes[x];
+  const lines = [`${hero.name} · ${S.static.classes[hero.cls].name}`];
+  for (const k of hero.actions.filter(k => !['block', 'shift', 'flee'].includes(k))) {
+    const a = S.static.actions[k.replace(/\+$/, '')];
+    if (!a) continue;
+    const cd = hs?.cds?.[k.replace(/\+$/, '')];
+    lines.push(`${a.name}${k.endsWith('+') ? '+' : ''}${cd ? ` (ready in ${cd})` : ''}: ${a.text}`);
+  }
+  return lines.join('\n');
+}
+
+// ------------------------------------------------------------------ what an action looks like
+// Each action plays out on the stage so it's clear what it did: a melee hero lunges and the target
+// is slashed, a ranged one looses an arrow, a spell flies as an orb and bursts, a heal glows green on
+// whoever it heals, Armor shimmers blue. The effects sit in a fixed layer over the page, so the
+// stage can redraw underneath them.
+function abilityKind(ad) {
+  const ops = ad.ops || [];
+  if (ops.some(o => o.op === 'heal' || o.op === 'lift')) return 'heal';
+  if (ops.some(o => o.op === 'dmg' || o.op === 'bomb')) return ad.melee ? 'melee' : ad.spell ? 'spell' : ad.bomb ? 'bomb' : 'ranged';
+  if (ops.some(o => ['armor', 'guard', 'taunt', 'block', 'sanct'].includes(o.op))) return 'armor';
+  if (ad.spell) return 'spell';
+  return 'buff';
+}
+// Who an action lands on: its target, or everyone a group action reaches.
+function abilityTargets(f, ad, d) {
+  const live = (d.foes || []).filter(fo => fo.hp > 0);
+  const party = (d.heroes || []).filter(x => !d.hs[x]?.down).map(x => 'h' + x);
+  switch (ad.tgt) {
+    case 'foes': return live.map(fo => 'f' + fo.id);
+    case 'front': { const fr = live.filter(fo => fo.row !== 'back'); return (fr.length ? fr : live).map(fo => 'f' + fo.id); }
+    case 'party': case 'allies': return party;
+    case 'self': return ['h' + f.h];
+    default: return typeof f.tgt === 'string' ? [f.tgt] : ['h' + f.h];
+  }
+}
+function fxLayer() {
+  let el = document.getElementById('fx-layer');
+  if (!el) { el = document.createElement('div'); el.id = 'fx-layer'; document.body.appendChild(el); }
+  return el;
+}
+function unitCenter(id) {
+  const img = host?.querySelector(`[data-uid="${id}"] img`);
+  if (!img) return null;
+  const r = img.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2];
+}
+function fxAt(id, cls, ms = 650) {
+  const c = unitCenter(id);
+  if (!c) return;
+  const el = document.createElement('div');
+  el.className = 'fx ' + cls;
+  el.style.left = c[0] + 'px'; el.style.top = c[1] + 'px';
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+function fxShot(from, to, cls, done) {
+  const a = unitCenter(from), b = unitCenter(to);
+  if (!a || !b) { done?.(); return; }
+  const el = document.createElement('div');
+  el.className = 'fx shot ' + cls;
+  el.style.left = a[0] + 'px'; el.style.top = a[1] + 'px';
+  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+  fxLayer().appendChild(el);
+  const ms = 260 / (S.settings.speed || 1);
+  const anim = el.animate([{ transform: `translate(-50%, -50%) rotate(${ang}deg)` },
+    { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) rotate(${ang}deg)` }], { duration: ms, easing: 'ease-in' });
+  anim.onfinish = () => { el.remove(); done?.(); };
+}
+function abilityFx(f, ad, d) {
+  if (!ad || !S.settings.speed) return null;
+  const kind = abilityKind(ad);
+  const from = 'h' + f.h, miss = f.hit === false;
+  const tgts = abilityTargets(f, ad, d);
+  const land = (cls, ms) => tgts.forEach(t => fxAt(t, cls + (miss ? ' miss' : ''), ms));
+  const later = (fn, ms) => setTimeout(fn, ms / (S.settings.speed || 1));
+  if (kind === 'melee') later(() => land('slash', 420), 150);
+  else if (kind === 'ranged' || kind === 'spell' || kind === 'bomb') {
+    tgts.forEach(t => fxShot(from, t, kind, () => fxAt(t, (kind === 'ranged' ? 'pierce' : 'burst ' + kind) + (miss ? ' miss' : ''), 520)));
+  } else if (kind === 'heal') {
+    tgts.forEach(t => t === from ? fxAt(t, 'healglow', 900) : fxShot(from, t, 'heal', () => fxAt(t, 'healglow', 900)));
+  } else if (kind === 'armor') land('shieldfx', 700);
+  else land('sparkfx', 600);
+  return kind;
+}
+// A line over the stage saying what an ally just did, for a couple of seconds.
+function caption(f, ad, d) {
+  const g = S.game;
+  const tgt = typeof f.tgt === 'string' && f.tgt !== 'h' + f.h ? unitName(d, f.tgt) : '';
+  C.caption = { h: f.h, id: (C.caption?.id || 0) + 1,
+    text: `${g.heroes[f.h].name}: ${ad.name}${f.echo ? ' (echo)' : ''}${tgt ? ' → ' + tgt : ''}${f.hit === false ? ' (missed)' : ''}`,
+    what: (ad.short && ad.short[1]) || ad.text };
+  const id = C.caption.id;
+  setTimeout(() => { if (C.caption?.id === id) { C.caption = null; render(); } }, 2400);
+}
+
 function addFloat(id, text, cls) {
   const list = (C.floats[id] ||= []);
   const fl = { id: ++floatId, text, cls, t: performance.now() };
@@ -846,9 +968,12 @@ function apply(f) {
       addFloat('h' + f.h, `Reroll: ${f.v}`, 'txt'); sfx.play('dice'); return 360;
     }
     case 'act': {
-      if (f.instant) return 0;
-      flash('h' + f.h, 'act');
       const ad = S.static.actions[f.a];
+      // an ally's action is spelled out over the stage: who, what, at whom, and what it does
+      if (!mine().includes(f.h) && ad && !f.echo) caption(f, ad, d);
+      if (f.instant) return 0;
+      const kind = abilityFx(f, ad, d);
+      flash('h' + f.h, kind === 'melee' ? 'melee' : 'act', 360);
       if (C.tray?.h === f.h && C.tray.a === f.a && !f.echo) {
         sfx.play(f.hit === false ? 'error' : 'swing');
         if (ad && isRisky(ad.req)) {
@@ -860,7 +985,7 @@ function apply(f) {
       }
       addFloat('h' + f.h, (ad?.name || '') + (f.echo ? ' (echo)' : '') + (f.hit === false ? ': miss' : ''), f.hit === false ? 'miss' : 'txt');
       sfx.play(f.hit === false ? 'error' : 'swing');
-      return 380;
+      return 480;
     }
     case 'froll': {
       // an enemy rolls its dice in the open: each die lands, then the total (or what went wrong)

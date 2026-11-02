@@ -1035,3 +1035,78 @@ a:hover { color: var(--accent-hi); }
 .sells .icon-svg { width: 13px; height: 13px; }
 .loot-card .sells { font-size: var(--fs-14); }
 .pick-btns .give-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }
+.loot-card.taken { opacity: 0.55; filter: saturate(0.5); }
+.loot-card .claimed { display: flex; align-items: center; gap: 6px; margin-top: auto; font-weight: 600; color: var(--muted); }
+/* the round strip: who did what, and what it did */
+.plan-chip .who { color: var(--seat); font-weight: var(--fw-semibold); }
+.plan-chip .o-dmg, .plan-chip .o-heal, .plan-chip .o-armor, .plan-chip .o-kill { display: inline-flex; align-items: center; gap: 2px; font-weight: var(--fw-semibold); }
+.plan-chip .o-dmg { color: var(--danger); }
+.plan-chip .o-heal { color: var(--ok); }
+.plan-chip .o-armor { color: var(--info); }
+.plan-chip .o-kill { color: var(--muted); }
+.plan-chip .icon-svg { width: 14px; height: 14px; }
+
+/* ---- what an action looks like (combat.js abilityFx): a fixed layer over the page */
+#fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+.fx { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+.fx.miss { opacity: 0.35; filter: grayscale(1); }
+.unit.melee img { animation: melee-lunge 360ms var(--ease); }
+@keyframes melee-lunge { 0% { transform: none; } 45% { transform: translateX(44px) scale(1.08); } 100% { transform: none; } }
+/* melee: two crossing slashes */
+.fx.slash { width: 110px; height: 110px; }
+.fx.slash::before, .fx.slash::after { content: ""; position: absolute; left: 50%; top: 50%; width: 120%; height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, transparent, #fff 40%, #ffd98a 60%, transparent); box-shadow: 0 0 12px rgba(255, 220, 150, 0.9);
+  transform: translate(-50%, -50%) rotate(-35deg) scaleX(0); animation: slash 380ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+.fx.slash::after { transform: translate(-50%, -50%) rotate(35deg) scaleX(0); animation-delay: 90ms; }
+@keyframes slash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--r, -35deg)) scaleX(1); } }
+.fx.slash::before { --r: -35deg; } .fx.slash::after { --r: 35deg; }
+/* projectiles */
+.fx.shot { left: 0; top: 0; }
+.fx.shot.ranged { width: 34px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, #e8dcc0 30%, #fff); box-shadow: 0 0 6px rgba(255, 255, 255, 0.7); }
+.fx.shot.spell { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle, #fff, #b48cff 45%, rgba(120, 80, 255, 0) 70%); box-shadow: 0 0 18px #9a6bff; }
+.fx.shot.bomb { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle, #ffd27a, #c0561e 60%, transparent 72%); }
+.fx.shot.heal { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #fff, #6ee59a 45%, rgba(80, 220, 140, 0) 70%); box-shadow: 0 0 16px #5fd38c; }
+/* impacts */
+.fx.pierce { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #fff; animation: ring 420ms ease-out forwards; }
+.fx.burst { width: 120px; height: 120px; border-radius: 50%; animation: burst 520ms ease-out forwards; }
+.fx.burst.spell { background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(160, 110, 255, 0.6) 35%, transparent 70%); }
+.fx.burst.bomb { background: radial-gradient(circle, rgba(255, 240, 200, 0.95), rgba(240, 120, 40, 0.7) 35%, transparent 70%); }
+@keyframes burst { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; } }
+@keyframes ring { 0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } }
+.fx.healglow { width: 120px; height: 140px; border-radius: 50%; background: radial-gradient(ellipse at 50% 60%, rgba(110, 229, 154, 0.55), transparent 65%); animation: healglow 900ms ease-out forwards; }
+.fx.healglow::before, .fx.healglow::after { content: "+"; position: absolute; left: 30%; bottom: 20%; color: #8ff0b4; font: 700 22px/1 var(--font-ui, sans-serif); text-shadow: 0 0 8px #3fbf72; animation: rise 900ms ease-out forwards; }
+.fx.healglow::after { left: 62%; animation-delay: 180ms; font-size: 18px; }
+@keyframes healglow { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes rise { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
+.fx.shieldfx { width: 110px; height: 120px; border-radius: 45% 45% 50% 50%; border: 3px solid rgba(140, 200, 255, 0.9); box-shadow: 0 0 20px rgba(110, 180, 255, 0.7), inset 0 0 20px rgba(110, 180, 255, 0.5); animation: shield 700ms ease-out forwards; }
+@keyframes shield { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); } }
+.fx.sparkfx { width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 150, 0.7), transparent 65%); animation: burst 600ms ease-out forwards; }
+/* the caption over the stage when an ally acts */
+.act-caption { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  max-width: min(640px, 80%); padding: 8px 16px; border-radius: 12px; background: rgba(11, 16, 23, 0.92); border: var(--bw) solid var(--seat); text-align: center; animation: cap-in 200ms var(--ease); pointer-events: none; }
+.act-caption b { color: var(--seat); font-size: var(--fs-16, 16px); }
+.act-caption span { color: var(--text-2); font-size: var(--fs-14); }
+@keyframes cap-in { from { opacity: 0; transform: translate(-50%, -6px); } }
+@media (prefers-reduced-motion: reduce) { .fx, .fx::before, .fx::after, .unit.melee img { animation-duration: 1ms !important; } }
+
+/* ---- bigger fighters, rows closer together (the owner's request): each side's columns hug the
+   middle instead of spreading over half the stage */
+.side-units { grid-template-columns: auto auto; justify-content: center; column-gap: var(--s-4); }
+.side-units.solo { grid-template-columns: auto; }
+.unit img { width: 120px; height: 120px; }
+.unit.boss img { width: 152px; height: 152px; }
+.col.crowd .unit { width: 264px; grid-template-columns: 80px minmax(0, 1fr); }
+.col.crowd .unit > img { width: 80px; height: 80px; }
+@media (max-height: 860px) {
+  .unit img { width: 96px; height: 96px; }
+  .unit.boss img { width: 120px; height: 120px; }
+  .col.crowd .unit { width: 244px; grid-template-columns: 68px minmax(0, 1fr); }
+  .col.crowd .unit > img { width: 68px; height: 68px; }
+}
+@media (max-width: 700px) {
+  .side-units { grid-template-columns: 1fr 1fr; }
+  .unit img, .col.crowd .unit > img { width: 52px; height: 52px; }
+}
+/* the party and the enemies face each other across the middle, not from the stage's far edges */
+.stage { grid-template-columns: auto auto; justify-content: center; column-gap: clamp(96px, 14vw, 240px); }
+@media (max-width: 700px) { .stage { grid-template-columns: 1fr; } }

@@ -10,7 +10,7 @@ UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10
 # The rising tide: each rise makes every enemy this share stronger, HP and damage (rises come every
 # few turns, by difficulty; see DIFFICULTY in game.py).
-SURGE = 0.025
+SURGE = 0.003
 # Enemies met on the map (roaming groups and lairs) last longer but hit softer, so those fights
 # take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
 ROAM_HP = 2.2

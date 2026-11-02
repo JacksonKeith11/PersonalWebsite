@@ -478,6 +478,7 @@ class Actions:
     def instant(self, h, a, dice, tgt):
         """Actions that set up dice take effect the moment they're placed: each op kind is an
         `_inst_<kind>` method below. Dice they don't keep in play are used up."""
+        since = self.s["fxid"]
         x = self.hs(h)
         m = self.mods(h)
         c = Cast(h=h, a=a, dice=dice, tgt=tgt, x=x, m=m, keep=set(), extra=1 if m.get("second_verse") else 0,
@@ -489,7 +490,8 @@ class Actions:
         for d in dice:
             if d["id"] not in c.keep and d in x["dice"]:
                 d["used"] = True
-        self.s["fight"]["done"].append({"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": None})
+        self.s["fight"]["done"].append({"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": None,
+                                        "vals": [num(d) for d in dice], "out": self.act_outcome(since)})
         self.fx("act", h=h, a=a["key"], tgt=tgt, instant=True)
         self.spite(a)
 

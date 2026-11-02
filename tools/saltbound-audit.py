@@ -2,7 +2,7 @@
 
     python3 tools/saltbound-audit.py [scenario ...]
 
-Plays runs with the bots until a scenario's moment (hero 0 choosing loot, levelling up, at an
+Plays runs with the bots until a scenario's moment (hero 0 choosing loot or claiming from a fight's shared pool, levelling up, at an
 event, in a fight, a boss fight, the end of a run...), then saves it to the server's database
 for the browser token "audit", titled "audit: <scenario>". Hero 0 is left to the browser.
 """
@@ -27,6 +27,7 @@ def pending(g, kind):
 SCENARIOS = {
     "start": lambda g: True,
     "loot": lambda g: pending(g, "loot"),
+    "pool": lambda g: pending(g, "pool") and len(g.s["pools"][str(g.s["pending"]["0"][0]["id"])]["heroes"]) > 1,
     "level": lambda g: pending(g, "level"),
     "event": lambda g: pending(g, "event"),
     "fight": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and g.s["fight"]["round"] >= 2

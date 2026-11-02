@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
-// places, enemies and heroes standing on it, fog, flood warnings, reachable hexes and planned routes.
+// places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=44';
-import { spriteCanvas, placeCanvas } from './art.js?v=44';
+import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=45';
+import { spriteCanvas, placeCanvas } from './art.js?v=45';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -183,7 +183,6 @@ export class MapView {
     this.canvas.width = MAP_W; this.canvas.height = MAP_H;
     this.tex = scene.textures.addCanvas('terrain', this.canvas);
     scene.add.image(0, 0, 'terrain').setOrigin(0);
-    this.gFloods = scene.add.graphics();
     this.gReach = scene.add.graphics();
     this.layerPlaces = scene.add.container();
     this.gPaths = scene.add.graphics();
@@ -195,7 +194,6 @@ export class MapView {
     const cam = scene.cameras.main;
     cam.setBounds(-400, -300, MAP_W + 800, MAP_H + 600);
     cam.setZoom(this.zoom);
-    scene.tweens.add({ targets: this.gFloods, alpha: { from: 1, to: 0.45 }, duration: 900, yoyo: true, repeat: -1 });
     // input: drag to pan, click to choose, hover to inspect
     let down = null;
     scene.input.on('pointerdown', p => { down = { x: p.x, y: p.y, sx: cam.scrollX, sy: cam.scrollY, moved: false }; });
@@ -257,16 +255,7 @@ export class MapView {
       this.paintedKey = key;
     }
     if (this.centerPending !== undefined) { this.centerOn(this.centerPending, false); this.centerPending = undefined; }
-    this.drawFloods(); this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog(); this.drawHover();
-  }
-
-  drawFloods() {
-    const g = this.gFloods; g.clear();
-    for (const t of this.state.floods || []) {
-      if (this.state.seen[t] !== '1') continue;
-      g.fillStyle(0x6aa2d8, 0.28); g.fillPoints(hexPoints(t, 2), true);
-      g.lineStyle(1, 0x9ccbf0, 0.7); g.strokePoints(hexPoints(t, 2), true);
-    }
+    this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog(); this.drawHover();
   }
 
   // Where the selected hero can get to this turn: a lit area with a bold outline around its edge,

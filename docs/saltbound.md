@@ -16,8 +16,8 @@ towns and races a worsening world to a final boss. It is its own game, not a cop
 own combat system (dice you assign, not slot rolls), own names, own UI. Don't borrow For The
 King's content, names, art or layouts.
 
-The setting is the **Sinking Archipelago**: islands are going under, and the rising sea is the
-run's clock. A run is one sitting of 60-90 minutes. Players are on a voice call, so there's no
+The setting is the **Sinking Archipelago**: islands are going under, and the rising tide is the
+run's clock: every rise makes the enemies stronger. A run is one sitting of 60-90 minutes. Players are on a voice call, so there's no
 chat.
 
 ## The owner's design answers
@@ -43,7 +43,7 @@ Keep to these. They came from the owner directly.
 - **No progress between runs.** Everything (all classes, items, events) is available from the
   first run.
 - **Difficulty**, set by the host: Story, Normal, Hard. Changes enemy HP and damage, the revive
-  pool size and how often the sea rises. Nothing structural.
+  pool size and how often the tide rises. Nothing structural.
 
 ### The world
 
@@ -74,10 +74,12 @@ Keep to these. They came from the owner directly.
   | Deep water | skiff only, 1 | |
   | Cliffs, peak | impassable except by path | |
 
-- **The sea rises every 3 turns** (Story 4, Hard 2). The lowest band of hexes floods. Hexes about
-  to flood are marked a full turn ahead. A hero on a hex as it floods either fights a sea
-  encounter there (if one is generated) or is swept to the nearest dry hex and takes damage.
-  Towns and side-quest sites can sink; the three objectives and the final peak can't.
+- **The tide rises every 3 turns** (Story 4) and **every enemy grows stronger** (owner's request,
+  replacing the old flooding): `SURGE` in `tuning.py`, 0.3% HP and damage per rise, on top of
+  difficulty and tier. The land never changes: no hex floods and no town sinks (the flood could cut a
+  party off from the town it needed to cross to another island). After rise 10 more enemies come
+  ashore. The top bar shows "Enemies +N%" and turns until the next rise. There's no turn limit: the
+  growing enemies are the pressure.
 - **Tides** replace day/night: every 4 turns the tide flips between low and high. Low tide opens
   sandbars and shallows; high tide closes them and makes sea encounters stronger. The current tide
   and turns until it changes always show in the top bar.
@@ -170,10 +172,15 @@ Keep to these. They came from the owner directly.
   in. Untagged skills are offered evenly.
 - **Level-up picks** happen on the rewards screen after the fight that levelled the party. All
   three pick at once, each seeing the others' choices as they lock in.
-- **Gold is per hero.** Loot goes to whoever gets the item (pick 1 from a choice of items).
-  Heroes can trade freely on a shared hex or in a town.
+- **Gold is per hero.** **A won fight's loot is one shared pool** (owner's request): everyone who won
+  sees every item and claims one, first claim wins (`Game.offer_pool`, `s["pools"]`, a `pool` dialog
+  per hero); the pool holds `POOL_EXTRA` (2) more items than the winners' picks, and what nobody
+  claims is left behind. Loot found alone (wrecks, quests, events) is a personal pick. Either way an
+  item can go straight to an ally within a hex (`to` on the `choose` message; into their empty slot,
+  else their bag). Heroes can trade freely on a shared hex or in a town. Every item shows what a town
+  pays for it (40%, 60% with Haggler; `Game.sell_price`).
 - **Items**: weapon, armor and trinket slots (each gives a die and maybe an action or passive) plus
-  4 bag slots. 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
+  4 bag slots (`BAG`; Deep Pockets +2). 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
   bombs, scrolls.
 - **Healing**: HP carries over between fights. Heal at inns (gold), at camps (spend the turn, heal
   half), with potions, or from the Mender. Wearing the party down is part of the time pressure.
@@ -197,10 +204,19 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      Players claim any free class and can swap until the host clicks Start; the host picks for
      unclaimed heroes. On resume, the saved heroes are shown instead.
   4. **Map**: the hex map in the middle; three hero cards down the left (HP, dice, moves left,
-     Ready state); top bar with turn, tide and next flood; other heroes' planned paths as ghost
+     Ready state); top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
      trails, like Board Brawl's route previews.
-  5. **Combat overlay**: full screen; the party in one column, enemies in their rows; intents above enemies; each hero's dice tray and action
-     cards along the bottom; allies' placements visible live.
+  5. **Combat overlay**: full screen; the party in one column, enemies in their rows, facing each other
+     across the middle at a good size (owner's request: big fighters, rows close together); intents
+     above enemies (a Stunned enemy shows "Stunned · skips its turn" instead, and no arrow); each
+     hero's dice tray and action cards along the bottom; allies' placements visible live. **What
+     allies do is spelled out** (owner's request): a caption over the stage names an ally's action,
+     its target and what it does; every action animates by kind (`abilityFx` in `combat.js`: a melee
+     lunge and slash, an arrow, a spell orb and burst, a thrown bomb, a green glow on whoever is
+     healed, a blue shimmer for Armor); and the "This round" strip lists each action with who did
+     it, the damage, healing, Armor and kills it caused (`done[i].out`, from `Game.act_outcome`),
+     with the roll and the details on hover. Hovering an ally's portrait lists their actions.
+     Clicking an ally's hero card on the map opens their sheet read-only (skills, gear, about).
   6. **Rewards and level-up**: gold, loot pick, then the 1-of-3 skill offer.
   7. **Town and shop panel**, **event dialog**.
   8. **Run end**: win or lose, a per-hero summary (damage, healing, kills, items), the seed, and a
@@ -211,7 +227,7 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
   spinners.
 - **Onboarding**: no tutorial level. Every keyword (Burn, Mark, shield face) has a hover tooltip.
   A short dismissible hint appears the first time each system shows up (first planning phase,
-  first fight, first level-up, first flood), and the game remembers which have been seen.
+  first fight, first level-up, first rise of the tide), and the game remembers which have been seen.
 - **Readability**: enemy intents show an icon, a number and a colour, from a palette that's safe
   for colourblind players. Text is at least 14 px. Each action card shows its chance to hit
   with the dice picked before it's played.
@@ -241,9 +257,8 @@ Asked of the owner during step 1 (keep to these too):
   for UI text; painted pixel hex terrain.
 - **Saves belong to their players**: a save is listed for every browser (token) that played in
   that run, and any of them can resume it into a new room.
-- **The clock**: after rise 10 (turn 30 on Normal) each rise makes the Drowned Crown 10% tougher
-  and spawns more enemies; at rise 15 (turn 45 on Normal) the peak floods and the run is lost. The
-  top bar always shows rises left.
+- **The clock** (changed at the owner's request): each rise of the tide makes every enemy stronger
+  (see "The world"). It once flooded the lowest land, sank towns and lost the run at rise 15.
 - **Heroes outside a fight** watch it live (read-only) and can go back to the map to pre-plan their
   next path or shop in their town while they wait.
 - **Sprites are bespoke**, drawn by `tools/saltbound-art/` with Roguelike Tactics' pixel kit.
@@ -258,6 +273,8 @@ Smaller calls made while building, not yet confirmed by the owner:
 
 - Frozen enemies hit for half (instead of losing their "weakest intent"; they have only one).
 - Hard was first a rise every 2 turns; it's now every 3 (like Normal), and harder enemies make it hard instead.
+- `SURGE` is small (0.3% a rise) because the bots are very sensitive to it: 2.5% a rise took Hard
+  from 39% to 8%, 1% to 18%, 0.5% to 26%. Raising it is the owner's call.
 - The fight screen is HTML (sprites as pixelated images) rather than a Phaser scene, so targets,
   tooltips and intents are plain DOM. Phaser draws only the map.
 - Movement is planned by clicking a destination; the cheapest route there is used.
@@ -441,7 +458,12 @@ Heart (every die explodes, −6 max HP), Weighted Coin (a 1 counts as the top fa
 rerolls, a miss rerolls for 3 HP), Bosun's Whistle (combos +2), Bosun's Bell (an action: pass a die
 to an ally; key `pass_die`) and Sea-Glass Lens (your armor's die can go on attacks). Shop rows and loot
 cards compare with what you wear in that slot (the die, the change in average, the actions you'd
-lose, the passive).
+lose, the passive). No common may be strictly worse than starting gear (owner's request): the Fishing
+Spear (a Rapier) and Sailcloth Wrap (a worse Wool Robe) were removed; save v5 swaps them for those.
+
+**Skill texts** follow one style (owner's request: clearer): "the die" is the number it shows, "On
+5+:" is what a roll meeting the requirement does and "Otherwise:" what a lower one does, "Any row"
+comes first, and enemies' "intents" are called their coming attack or action.
 
 ## Balance now
 
@@ -451,13 +473,13 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
 
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
-  every 3. Enemies also gain 15% HP and 10% damage per tier.
-- **Where the bots stand** (600 runs on Hard: 300 from seed 5000 and 300 from seed 9000, which plays
-  easier; 150 on Normal): **Hard 39%**: Mender 43%, Herald 43%, Ranger 43%, Scoundrel 40%, Alchemist
-  40%, Warden 40%, Berserker 38%, Vanguard 37%, Arcanist 35%, Duelist 30%. **Normal 89%**, Story every
-  run. Hard is above the 30–35% target because the bots got better (the verification below), not the
-  game easier; the class trims brought it from 42% back to 39%, and the owner's options from here are
-  more class trims or Hard's multiplier. Duelist is now last.
+  every 3. Enemies also gain 15% HP and 10% damage per tier, and `SURGE` per rise of the tide.
+- **Where the bots stand** (after the rising tide became `SURGE` and loot became a shared pool; 600
+  runs on Hard from seeds 5000 and 9000, 200 on Normal): **Hard 29%** (28% and 31%), classes 24–35%
+  on seed 9000 (Berserker 35, Alchemist 33, Ranger 33, Scoundrel 32, Duelist 32, Warden 31, Arcanist
+  31, Herald 30, Mender 26, Vanguard 24; ±5 noise). **Normal 77%**, Story every run. Without `SURGE`
+  the same code plays Hard 39% and Normal 82%. Before these changes: Hard 39% (Mender, Herald and
+  Ranger 43%, Duelist 30%), Normal 89%.
 - **The last pass** (owner's request: buff the Vanguard, trim the top classes rather than touch the
   multipliers): Vanguard 50 HP, Guard and Taunt give the die +3 Armor (was +2), Brace gives the weakest
   ally 3, Last Stand 6 Armor, Iron Will softens the first hit by 3. Extra HP alone did nothing for it
@@ -498,7 +520,7 @@ clock anywhere: the run changes only when someone acts.
 
 | File | Holds |
 |---|---|
-| `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the sea and tides, enemy groups, places, events, loot, levelling, towns, trading, the forecast, `view()`, `static()`. |
+| `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the tides and the rising tide, enemy groups, places, events, loot, levelling, towns, trading, the forecast, `view()`, `static()`. |
 | `app/saltbound/combat.py` | `Combat`, mixed into `Game`: starting fights, the round (`new_round` and its steps), placing actions, resolving, hurting and healing, the end of a fight (`finish_fight`, `fight_won`, `dungeon_advance`, `fight_lost`), `fight_view`. `Invalid` is the error shown to players. It's built from the mixins below. |
 | `app/saltbound/dice.py` | Faces, condition checks, amount expressions (`amt`), and `Dice`: rolling, odds for planning (`outcomes`, `joint_outcomes`), `roll_for` with its rerolls. |
 | `app/saltbound/actions.py` | `Actions`: targets, amount variables (`env` = `dice_env` + `target_env`), one handler per op (`_op_dmg`, `_op_status`...) and per instant (`_inst_flip`...), and the **shared hit sums** (`hit_base`, `hit_finish`, `hit_pierces`, `foe_damage_after`, `foe_soak`, `hit_spill`, `status_amount`) that the fight and the bots both use. |
@@ -523,7 +545,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/screens.js` | Title, lobby (a chosen class in full: `classDetails`), end of run, the painted backdrop. |
 | `js/hud.js` | The map screen's HTML: top bar, party cards, action bar, log, drawers, dialogs, hints, map input and effects. |
 | `js/combat.js` | The fight overlay and playing back a round's effects. |
-| `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, floods, reach, routes. |
+| `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, reach, routes. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`), and how to describe requirements, dice and statuses. |
 | `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
 | `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound and music. |

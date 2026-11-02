@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=44';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=44';
-import { spriteURL } from './art.js?v=44';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=44';
-import { MapView } from './hexmap.js?v=44';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=44';
-import { disconnect } from './main.js?v=44';
-import * as sfx from './audio.js?v=44';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=45';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=45';
+import { spriteURL } from './art.js?v=45';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=45';
+import { MapView } from './hexmap.js?v=45';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge } from './combat.js?v=45';
+import { disconnect } from './main.js?v=45';
+import * as sfx from './audio.js?v=45';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -112,7 +112,6 @@ function onTileHover(t, x, y) {
       const nx = g.dnext[p.region], step = (g.dungeon?.[p.region] || 0) + 1;
       lines.push(h('div', { style: { color: 'var(--danger)' } }, `Fight ${step} of 3 (${S.static.paths[nx.path]?.name || ''}): ` + nx.foes.map(x => typeof x === 'string' ? foeName(x) : foeName(x.k, x.aff)).join(', ')));
     }
-    if ((g.floods || []).includes(t)) lines.push(h('div', { style: { color: 'var(--info)' } }, 'Floods at the next rise.'));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
     if (heroesHere.length) lines.push(h('div', null, heroesHere.join(', ')));
   }
@@ -163,7 +162,6 @@ function placeText(p) {
 // ------------------------------------------------------------------ top bar
 function renderTopbar() {
   const g = S.game;
-  const left = g.loss_rise - g.rises;
   const xpPct = g.xp_next ? Math.round(100 * (g.xp - g.xp_this) / (g.xp_next - g.xp_this)) : 100;
   $('topbar').replaceChildren(h('div.topbar', null,
     h('div.logo', null, 'Salt', h('span', null, 'bound')),
@@ -171,8 +169,8 @@ function renderTopbar() {
       h('div.stat', { tip: `Turn ${g.turn}\nEveryone plans, then everyone moves at once.` }, h('span.lbl', null, 'Turn'), h('b', null, g.turn)),
       h('div.stat.opt', { tip: `${g.tide === 'low' ? 'Low' : 'High'} tide\n${g.tide === 'low' ? 'Sandbars and shallows are walkable.' : 'Shallows are under water: skiffs only.'}\nTurns in ${g.next_tide} turn${g.next_tide === 1 ? '' : 's'}.` },
         icon('moon'), h('b', null, g.tide === 'low' ? 'Low tide' : 'High tide'), h('span.lbl', null, `· ${g.next_tide}`)),
-      h('div.stat' + (left <= 3 ? '.warn' : ''), { tip: `The sea\nRises every ${g.rise_every} turns, next in ${g.next_rise}.\n${left} rises until the peak floods and the voyage is lost.${g.rises >= g.grow_from ? '\nThe Drowned Crown grows stronger with each rise.' : ''}` },
-        icon('wave'), h('b', null, `${left} rises left`), h('span.lbl', null, `· next in ${g.next_rise}`)),
+      h('div.stat' + (g.rises >= g.grow_from ? '.warn' : ''), { tip: `The rising tide\nRises every ${g.rise_every} turns, next in ${g.next_rise}. Each rise makes every enemy stronger (HP and damage).\nRisen ${g.rises} time${g.rises === 1 ? '' : 's'}: enemies are ${g.surge}% stronger.${g.rises >= g.grow_from ? '\nMore enemies come ashore with every rise now.' : ''}` },
+        icon('wave'), h('b', null, `Enemies +${g.surge}%`), h('span.lbl', null, `· rises in ${g.next_rise}`)),
       h('div.stat', { tip: `Party level ${g.level}\n${g.xp_next ? `${g.xp} / ${g.xp_next} XP` : 'Max level'}\nXP is shared: everyone levels together.` },
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
@@ -190,7 +188,7 @@ function heroState(h0) {
   if (!hero.alive) return ['Fallen', ''];
   if (!isOnline(h0)) return ['Disconnected', 'off'];
   if (g.fight && g.fight.heroes.includes(h0)) return ['In a fight', 'wait'];
-  if (g.pending[h0]?.length) return [{ event: 'Reading an event', loot: 'Picking loot', level: 'Levelling up' }[g.pending[h0][0].type], 'wait'];
+  if (g.pending[h0]?.length) return [{ event: 'Reading an event', loot: 'Picking loot', pool: 'Claiming loot', level: 'Levelling up' }[g.pending[h0][0].type], 'wait'];
   const p = g.plans[h0];
   if (g.phase === 'plan' && p) return p.ready ? ['Ready', 'ready'] : p.rest ? ['Resting', ''] : ['Planning', ''];
   return ['', ''];
@@ -203,7 +201,13 @@ function renderParty() {
     const pct = Math.max(0, Math.round(100 * hero.hp / hero.maxhp));
     const card = h('div.hero-card' + (i === sel() ? '.sel' : '') + (hero.alive ? '' : '.dead'), {
       style: { '--seat': seat(i) },
-      onclick: () => { if (my.includes(i)) { S.sel = i; UI.preview = null; renderGame(); } map.centerOn(hero.tile); },
+      // your hero: select it; an ally: open their sheet (skills first) to see what they can do
+      onclick: () => {
+        if (my.includes(i)) { S.sel = i; UI.preview = null; if (UI.drawer?.who != null) UI.drawer = null; renderGame(); }
+        else openDrawer('hero', 'skills', i);
+        map.centerOn(hero.tile);
+      },
+      tip: my.includes(i) ? null : `${hero.name}\nClick to see their skills and gear.`,
     },
       h('div.hero-top', null,
         h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
@@ -386,8 +390,9 @@ function renderMenu() {
 }
 
 // ------------------------------------------------------------------ drawers
-function openDrawer(kind, tab) {
-  UI.drawer = { kind, tab: tab || (kind === 'town' ? 'market' : 'gear'), enter: true };
+// `who`: the hero whose sheet to show (default the selected one); an ally's sheet is read-only.
+function openDrawer(kind, tab, who) {
+  UI.drawer = { kind, tab: tab || (kind === 'town' ? 'market' : 'gear'), enter: true, who };
   renderDrawer();
 }
 function closeDrawer() { UI.drawer = null; renderDrawer(); }
@@ -401,7 +406,8 @@ function drawDrawer() {
   const el = $('drawer');
   const d = UI.drawer;
   if (!d || combatOpen()) { el.replaceChildren(); return; }
-  const h0 = sel(), hero = S.game.heroes[h0];
+  const h0 = d.kind === 'hero' && d.who != null ? d.who : sel(), hero = S.game.heroes[h0];
+  if (d.kind === 'hero' && !mine().includes(h0)) { el.replaceChildren(heroDrawer(h0, d, true)); return; }
   if (!mine().includes(h0) || !hero.alive) { el.replaceChildren(); return; }
   if (d.kind === 'town') {
     const town = inTown(h0);
@@ -540,12 +546,22 @@ function townDrawer(h0, town, d) {
   return drawerShell(town.name, 'Town', [['market', 'Market'], ['inn', 'Inn'], ['docks', 'Docks'], ['board', 'Notice board']], d, body);
 }
 
-function heroDrawer(h0, d) {
+function heroDrawer(h0, d, readonly = false) {
   const g = S.game, hero = g.heroes[h0], c = cls(hero.cls);
   const town = inTown(h0);
   const free = !(g.fight && g.fight.heroes.includes(h0));
   let body;
-  if (d.tab === 'gear') {
+  if (d.tab === 'gear' && readonly) {
+    // an ally's gear, to look at
+    body = [
+      h('h3', null, 'Equipped'),
+      ...['weapon', 'armor', 'trinket'].map(slot => hero.equip[slot] ? itemRow(hero.equip[slot])
+        : h('div.item.empty', null, h('div.ico', null, icon(SLOT_ICON[slot])), h('div', null, `No ${slot}`))),
+      h('div.section-title', null, h('h3', null, `Bag · ${hero.bag.length} of ${hero.bagsize}`), h('span.chip.brass', null, icon('coin'), hero.gold)),
+      ...hero.bag.map(k => itemRow(k)),
+      !hero.bag.length ? h('p.muted', null, 'Their bag is empty.') : null,
+    ];
+  } else if (d.tab === 'gear') {
     const mates = g.heroes.map((x, i) => i).filter(i => i !== h0 && g.heroes[i].alive && g.heroes[i].tile === hero.tile);
     body = [
       h('h3', null, 'Equipped'),
@@ -594,7 +610,7 @@ function heroDrawer(h0, d) {
       ...Object.entries(hero.buffs).map(([b, n]) => h('div.card.skill', null, h('div.row', null, h('b', null, S.static.buffs[b].name), h('span.chip', null, `${n} turns`)), h('p', null, S.static.buffs[b].text))),
     ];
   }
-  return drawerShell(hero.name, `${c.name} · ${controllerName(h0)}`, [['gear', 'Gear'], ['skills', 'Skills'], ['about', 'About']], d, body);
+  return drawerShell(hero.name, `${c.name} · ${controllerName(h0)}${readonly ? ' · ally' : ''}`, [['gear', 'Gear'], ['skills', 'Skills'], ['about', 'About']], d, body);
 }
 
 // The same face a skill has in a fight: the requirement badge, then its effect and miss lines.
@@ -745,37 +761,22 @@ function renderDialogs() {
       h('h2', null, 'Spoils'),
       h('p.lead', null, mates.length ? 'Take one, or hand it to an ally nearby. Put gear on now, or keep it in a bag for later.'
         : 'Take one. Put gear on now, or keep it in your bag for later.'),
-      h('div.picks.loot', null, ...d.opts.map((k, i) => {
-        const it = item(k);
-        const cur = it.slot !== 'use' && hero.equip[it.slot] ? item(hero.equip[it.slot]) : null;
-        const take = equip => send({ t: 'choose', h: h0, n: i, equip });
-        // an ally takes it into an empty slot if it has one, else into their bag
-        const give = m => send({ t: 'choose', h: h0, n: i, to: m, equip: it.slot !== 'use' && !g.heroes[m].equip[it.slot] });
-        const curDie = cur?.die ? ` · ${dieLabel({ faces: cur.die, dk: cur.dk || [] })}` : '';
-        return h('div.pick.loot-card.r-' + it.rarity, { style: { '--i': i } }, h('span.kbd.pick-key', null, i + 1),
-          h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
-          h('h3.rar-' + it.rarity, null, it.name),
-          it.die ? faceRow(it) : null,
-          it.dk?.length ? h('p', null, it.dk.map(k => KIND_TEXT[k]).filter(Boolean).join(' ')) : null,
-          ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
-          it.mods ? h('p', null, modsText(it.mods)) : null,
-          it.text ? h('p.passive', null, it.text) : null,
-          sellChip(k, h0),
-          compareWith(h0, k),
-          h('div.pick-btns', null,
-            it.slot === 'use' || !cur ? h('button.btn.primary.sm', { onclick: () => take(true) }, it.slot === 'use' ? 'Take' : 'Put it on')
-              : [h('button.btn.primary.sm', { onclick: () => take(true) }, 'Put it on'), h('button.btn.sm.ghost', { onclick: () => take(false) }, 'Into the bag')],
-            mates.length ? h('div.give-row', null, h('span.muted', null, 'Give to'),
-              ...mates.map(m => {
-                const full = (it.slot === 'use' || g.heroes[m].equip[it.slot]) && g.heroes[m].bag.length >= g.heroes[m].bagsize;
-                const now = it.slot !== 'use' && g.heroes[m].equip[it.slot] ? item(g.heroes[m].equip[it.slot]).name : null;
-                return h('button.btn.sm.ghost', { disabled: full, onclick: () => give(m),
-                  tip: full ? `${g.heroes[m].name}'s bag is full.` : it.slot === 'use' ? `Into ${g.heroes[m].name}'s bag.`
-                    : now ? `Into ${g.heroes[m].name}'s bag (they wear the ${now}).` : `${g.heroes[m].name} puts it on (their ${it.slot} slot is empty).` },
-                  g.heroes[m].name);
-              })) : null));
-      })),
+      h('div.picks.loot', null, ...d.opts.map((k, i) => lootCard(h0, k, i, mates, extra => send({ t: 'choose', h: h0, n: i, ...extra })))),
       h('button.btn.ghost', { style: { justifySelf: 'end' }, onclick: () => send({ t: 'choose', h: h0, n: -1 }) }, 'Leave it'),
+    ];
+  } else if (d.type === 'pool') {
+    // the fight's shared loot: everyone who won sees every item and claims one, first come first served
+    const pool = g.pools[d.id];
+    const still = pool.heroes.filter(x => x !== h0 && g.pending[x]?.some(p => p.type === 'pool' && p.id === d.id)).map(x => g.heroes[x].name);
+    content = [
+      h('div.eyebrow', null, `${hero.name} · ${pool.heroes.length > 1 ? 'shared spoils' : 'spoils'}`),
+      h('h2', null, 'Spoils'),
+      h('p.lead', null, pool.heroes.length > 1 ? 'Everything the fight turned up. Each hero claims one item; first claim wins it. You can hand your claim to an ally.'
+        : 'Everything the fight turned up. Claim one.'),
+      h('div.picks.loot', null, ...pool.items.map((k, i) => lootCard(h0, k, i, mates, extra => send({ t: 'choose', h: h0, n: i, ...extra }), pool.taken[i]))),
+      h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'flex-end' } },
+        still.length ? h('span.muted', null, `Still choosing: ${still.join(', ')}`) : null,
+        h('button.btn.ghost', { onclick: () => send({ t: 'choose', h: h0, n: -1 }) }, 'Pass')),
     ];
   } else if (d.type === 'level') {
     content = [
@@ -802,10 +803,47 @@ function renderDialogs() {
   const deep = g.phase === 'reward' && here && ((here.kind === 'dungeon' && !g.cleared.includes(here.region)) || here.kind === 'peak');
   el.replaceChildren(modal(content, { wide: d.type !== 'event', enter, backdrop: deep ? 'dungeon' : null }));
   // good loot gets a fanfare as the cards are dealt
-  if (enter && d.type === 'loot') {
-    const best = Math.max(...d.opts.map(k => ['common', 'uncommon', 'rare', 'legendary'].indexOf(item(k).rarity)));
+  if (enter && (d.type === 'loot' || d.type === 'pool')) {
+    const best = Math.max(...(d.opts || g.pools[d.id].items).map(k => ['common', 'uncommon', 'rare', 'legendary'].indexOf(item(k).rarity)));
     if (best >= 2) setTimeout(() => sfx.play(best === 3 ? 'fanfare' : 'rare'), 250);
   }
+}
+
+// One loot card: the item, what it sells for, how it compares with what's worn, and buttons to put it
+// on, bag it or hand it to an ally (`choose(extra)` sends the pick). `taken` ({by, to}) greys it out.
+function lootCard(h0, k, i, mates, choose, taken) {
+  const g = S.game, hero = g.heroes[h0];
+  const it = item(k);
+  const cur = it.slot !== 'use' && hero.equip[it.slot] ? item(hero.equip[it.slot]) : null;
+  const head = [h('span.kbd.pick-key', null, i + 1),
+    h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
+    h('h3.rar-' + it.rarity, null, it.name),
+    it.die ? faceRow(it) : null,
+    it.dk?.length ? h('p', null, it.dk.map(x => KIND_TEXT[x]).filter(Boolean).join(' ')) : null,
+    ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
+    it.mods ? h('p', null, modsText(it.mods)) : null,
+    it.text ? h('p.passive', null, it.text) : null,
+    sellChip(k, h0)];
+  if (taken) {
+    const who = taken.by === taken.to ? g.heroes[taken.by].name : `${g.heroes[taken.by].name}, for ${g.heroes[taken.to].name}`;
+    return h('div.pick.loot-card.taken.r-' + it.rarity, { style: { '--i': i } }, ...head, h('div.claimed', null, icon('check'), `Claimed by ${who}`));
+  }
+  const give = m => choose({ to: m, equip: it.slot !== 'use' && !g.heroes[m].equip[it.slot] });
+  return h('div.pick.loot-card.r-' + it.rarity, { style: { '--i': i } }, ...head,
+    compareWith(h0, k),
+    h('div.pick-btns', null,
+      it.slot === 'use' || !cur ? h('button.btn.primary.sm', { onclick: () => choose({ equip: true }) }, it.slot === 'use' ? 'Take' : 'Put it on')
+        : [h('button.btn.primary.sm', { onclick: () => choose({ equip: true }) }, 'Put it on'), h('button.btn.sm.ghost', { onclick: () => choose({ equip: false }) }, 'Into the bag')],
+      mates.length ? h('div.give-row', null, h('span.muted', null, 'Give to'),
+        ...mates.map(m => {
+          const mate = g.heroes[m];
+          const full = (it.slot === 'use' || mate.equip[it.slot]) && mate.bag.length >= mate.bagsize;
+          const now = it.slot !== 'use' && mate.equip[it.slot] ? item(mate.equip[it.slot]).name : null;
+          return h('button.btn.sm.ghost', { disabled: full, onclick: () => give(m),
+            tip: full ? `${mate.name}'s bag is full.` : it.slot === 'use' ? `Into ${mate.name}'s bag.`
+              : now ? `Into ${mate.name}'s bag (they wear the ${now}).` : `${mate.name} puts it on (their ${it.slot} slot is empty).` },
+            mate.name);
+        })) : null));
 }
 
 // ------------------------------------------------------------------ a fork in a dungeon
@@ -850,14 +888,14 @@ function forkView(fk) {
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
   fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
-  sea: ['The rising sea', 'Every few turns the sea rises and the lowest land floods. Hexes about to go under glow blue. Clear the three objectives and reach the peak before the water does.'],
+  sea: ['The rising tide', 'Every few turns the tide rises and every enemy grows a little stronger, as the top bar shows. The sooner you clear the three objectives and reach the peak, the easier the fights.'],
 };
 function renderHint() {
   const el = $('hint');
   const g = S.game;
   let key = null;
   if (!S.seenHints.plan && g.phase === 'plan') key = 'plan';
-  else if (!S.seenHints.sea && (g.floods || []).length) key = 'sea';
+  else if (!S.seenHints.sea && g.rises > 0) key = 'sea';
   const modalUp = UI.outcomes.length || mine().some(x => g.pending[x]?.length);
   if (!key || combatOpen() || modalUp) { el.replaceChildren(); return; }
   const [title, text] = HINTS[key];
@@ -883,10 +921,7 @@ export function handleFx(list, before) {
         break;
       case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
       case 'rise': {
-        // the last few rises are announced loudly
-        const left = S.game.loss_rise - S.game.rises;
-        if (left <= 3) bigBanner(left > 0 ? `${left} rise${left === 1 ? '' : 's'} left` : 'The peak is under', left > 0 ? 'The sea is closing on the peak' : '', 'danger', 2600);
-        else toast('The sea rises', 'big');
+        toast(`The tide rises: enemies +${S.game.surge}%`, 'big');
         sfx.play('rise');
         break;
       }

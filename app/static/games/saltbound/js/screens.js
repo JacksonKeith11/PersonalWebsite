@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=44';
-import { $, h, icon, toast } from './ui.js?v=44';
-import { spriteURL } from './art.js?v=44';
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=44';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=44';
-import { connect, disconnect, debug } from './main.js?v=44';
+import { S, saved, persist, send } from './store.js?v=45';
+import { $, h, icon, toast } from './ui.js?v=45';
+import { spriteURL } from './art.js?v=45';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=45';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=45';
+import { connect, disconnect, debug } from './main.js?v=45';
 
 const app = () => $('app');
 
@@ -147,7 +147,7 @@ export function renderLobby() {
               'aria-pressed': String(r.diff === k), disabled: !host || !!r.resume, onclick: () => send({ t: 'diff', d: k }),
             }, label))),
             h('p.muted', { style: { fontSize: '14px' } }, {
-              story: 'More revives, softer enemies, a slower sea.', normal: 'The voyage as designed.', hard: 'Fewer revives, tougher enemies, a fast-rising sea.',
+              story: 'More revives, softer enemies, a slower tide.', normal: 'The voyage as designed.', hard: 'Fewer revives, tougher enemies.',
             }[r.diff])),
           h('div.card', null,
             h('div.eyebrow', null, 'Crew'),
@@ -235,7 +235,6 @@ function classDetails(k) {
 
 // Why a run was lost, in a sentence.
 function endCause(g) {
-  if (g.rises >= g.loss_rise) return 'The sea rose over the peak before the Drowned Crown fell.';
   const fight = [...g.log].reverse().find(l => l.m.startsWith('Fight! '));
   return fight ? `The party fell fighting ${fight.m.slice(7).replace(/\.$/, '')}.` : 'The whole party fell.';
 }
@@ -248,7 +247,7 @@ export function renderEnd() {
   app().replaceChildren(withBackdrop(
     h('div.end.panel' + (won ? '.won' : '.lost'), null,
       h('div.eyebrow', null, won ? 'Victory' : 'Defeat'),
-      h('h1', null, won ? 'The isles are saved' : g.rises >= g.loss_rise ? 'The sea took the peak' : 'Lost at sea'),
+      h('h1', null, won ? 'The isles are saved' : 'Lost at sea'),
       h('p.muted', null, `Turn ${g.turn} · party level ${g.level} · ${g.cleared.length} of 3 objectives cleared · ${g.diff[0].toUpperCase() + g.diff.slice(1)}`),
       won ? null : h('p.cause', null, endCause(g)),
       h('table.summary', null,

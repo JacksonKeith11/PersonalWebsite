@@ -523,8 +523,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["cds"][a["key"]] = a["cd"]
         if a.get("per_rest"):
             self.hero(h).setdefault("spent", []).append(a["key"])
+        since = self.s["fxid"]
         hit = self.roll_for(h, a, dice)
-        f["done"].append({"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": hit})
+        done = {"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": hit}
+        f["done"].append(done)
         self.fx("act", h=h, a=a["key"], tgt=tgt, hit=hit)
         ops = a["ops"] if hit else a.get("miss", [])
         self.run_ops(h, a, dice, tgt, ops=ops, hit=hit)
@@ -545,8 +547,28 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.fx("act", h=h, a=a["key"], tgt=tgt, echo=True)
             self.run_ops(h, a, dice, tgt, half=True, ops=ops, hit=hit)
         f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
+        done["vals"] = [num(d) for d in dice]
+        done["out"] = self.act_outcome(since)
         if self.s["fight"] is f:
             self.check_end()
+
+    def act_outcome(self, since):
+        """What an action did, from the effects it set off (fx after id `since`): damage dealt to
+        enemies, HP lost by the party, healing, Armor, kills and statuses, for the round strip."""
+        out = {"dmg": 0, "hurt": 0, "heal": 0, "armor": 0, "kills": 0, "st": []}
+        for e in self.s["fx"]:
+            if e["id"] <= since:
+                continue
+            k, to = e["k"], str(e.get("to", ""))
+            if k == "dmg":
+                out["dmg" if to.startswith("f") else "hurt"] += e.get("n", 0)
+            elif k in ("heal", "armor"):
+                out[k] += e.get("n", 0)
+            elif k == "die" and to.startswith("f"):
+                out["kills"] += 1
+            elif k == "st" and e.get("s") and e["s"] not in out["st"]:
+                out["st"].append(e["s"])
+        return {k: v for k, v in out.items() if v}
 
     def resolve_round(self):
         """Everyone is ready: summons and pets act, then the enemies, fastest first."""

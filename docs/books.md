@@ -76,6 +76,10 @@ Read this before changing `app/books/` or `app/static/books/`.
     the `<audio>` element.
   - The home-screen app's status bar color changes only when the meta tag is replaced, not edited.
   - Layout uses `env(safe-area-inset-*)` throughout `reader.css`.
+- **The page text is selectable** (to copy it; a long press on phones) while the rest of the stage
+  isn't. A tap or swipe that starts with text selected, or ends with a selection made, only changes
+  the selection and never turns the page, and `#viewport` is held at scroll 0 so dragging a
+  selection to the edge can't slide the next page in.
 - **Pagination uses CSS columns.** Each page is one column exactly as wide as the text area, and
   turning a page slides the strip. A relayout (an image loading, a settings change) returns to an
   anchored element rather than a page number, because the text moves.

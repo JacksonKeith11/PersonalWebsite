@@ -295,6 +295,23 @@
   let touch = null;
   let suppressClick = 0;
 
+  // Selected text (to copy it) comes before turning pages: a tap or swipe that starts with text
+  // selected, or ends having made a selection (a long press and drag), only changes the selection.
+  let hadSelection = false;
+  const selecting = () => {
+    const sel = getSelection();
+    return !!sel && !sel.isCollapsed && flow.contains(sel.anchorNode);
+  };
+  stage.addEventListener("pointerdown", () => {
+    hadSelection = selecting();
+  });
+  // Dragging a selection toward the edge would scroll the next page in; the strip's transform is
+  // the only thing that moves pages.
+  viewport.addEventListener("scroll", () => {
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+  });
+
   stage.addEventListener("touchstart", (e) => {
     const t = e.touches[0];
     touch = { x: t.clientX, y: t.clientY };
@@ -302,6 +319,11 @@
 
   stage.addEventListener("touchend", (e) => {
     if (!touch) return;
+    if (hadSelection || selecting()) {
+      touch = null;
+      suppressClick = Date.now();
+      return;
+    }
     const t = e.changedTouches[0];
     const dx = t.clientX - touch.x;
     const dy = t.clientY - touch.y;
@@ -314,7 +336,7 @@
   }, { passive: true });
 
   stage.addEventListener("click", (e) => {
-    if (Date.now() - suppressClick < 500 || e.target.closest("button, a")) return;
+    if (Date.now() - suppressClick < 500 || e.target.closest("button, a") || hadSelection || selecting()) return;
     if (document.body.classList.contains("chrome")) return hideChrome();
     const x = e.clientX / window.innerWidth;
     if (x < 0.3) turn(-1);
@@ -344,6 +366,7 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.target instanceof Element && e.target.closest("input")) return;
+    if (e.shiftKey && e.key.startsWith("Arrow")) return; // extending a selection
     if (e.key === "Escape") return closeSheets() || hideChrome();
     if (!$("#scrim").hidden) return;
     if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) {

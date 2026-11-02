@@ -19,7 +19,7 @@ import re
 import sys
 from collections import defaultdict
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 STATIC = os.path.join(ROOT, "app", "static")
 BOOKS_PAGES = os.path.join(ROOT, "app", "books", "pages.py")
 REF = re.compile(r"""(?P<path>[A-Za-z0-9_./-]+\.(?:js|css|mjs))\?v=(?P<v>\d+)""")

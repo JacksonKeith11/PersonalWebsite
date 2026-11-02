@@ -589,7 +589,13 @@ class far ahead; leave the difficulty multipliers alone unless the owner asks.**
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
-- **Now** (no bag limit, Steeled bosses, the bell and lamp Weaken instead of stunning): **Hard 37%**
+- **After the map's choices** (previews, opportunities, garrisons, priced places, town trades, event
+  chains; 300 Hard runs, seed 5000): first **Hard 47%**, mostly from the new rewards (rare pools,
+  a revive for sale, reforging, drifting cargo) while the garrisons barely bit: the bots clear their
+  first objective before turn 9. Garrisons every 6 turns (was 8), the temple's revive 75 gold (was 50)
+  and reforging 30/60/100 (was 25/45/80) brought it to **Hard 40%**. Still above the 30–35% target,
+  a little more than before (37–38%); the owner's call. The difficulty multipliers are unchanged.
+- **Before that** (no bag limit, Steeled bosses, the bell and lamp Weaken instead of stunning): **Hard 37%**
   (35% seed 5000, 39% seed 9000), **Normal 86%**. Above the Hard target again: the unlimited bag
   (bots keep every potion and no gear is auto-sold) outweighed the tougher bosses. The owner's call.
 - **Where the bots stand** (after the rising tide became `SURGE` and loot became a shared pool; 600

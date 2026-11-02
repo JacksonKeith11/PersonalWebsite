@@ -14,7 +14,9 @@ import shutil
 import time
 import uuid
 import zipfile
+import unicodedata
 from html import escape
+from html.entities import name2codepoint
 from urllib.parse import quote, unquote
 from xml.etree import ElementTree
 
@@ -47,14 +49,63 @@ class EpubError(Exception):
     pass
 
 
+XML_ENTITIES = {"amp", "lt", "gt", "quot", "apos"}
+
+
 def _xml(data: bytes) -> ElementTree.Element:
-    """Parse XML and drop namespaces, which EPUBs use inconsistently."""
-    root = ElementTree.fromstring(data)
+    """Parse XML and drop namespaces, which EPUBs use inconsistently. Some EPUB makers write
+    titles with HTML entities (&rsquo;) or a bare &, or start the file with a byte-order mark;
+    other readers shrug those off, so this cleans them up and tries again."""
+    try:
+        root = ElementTree.fromstring(data)
+    except ElementTree.ParseError:
+        text = data.decode("utf-8", "replace").lstrip("\ufeff \t\r\n")
+        text = re.sub(r"^<\?xml[^>]*\?>", "", text)  # it may name an encoding the text isn't in now
+        text = re.sub(
+            r"&([A-Za-z][A-Za-z0-9]*);",
+            lambda m: m.group(0) if m.group(1) in XML_ENTITIES or m.group(1) not in name2codepoint
+            else f"&#{name2codepoint[m.group(1)]};",
+            text,
+        )
+        text = re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]*;)", "&amp;", text)
+        root = ElementTree.fromstring(text.encode("utf-8"))
     for el in root.iter():
         if isinstance(el.tag, str):
             el.tag = el.tag.rsplit("}", 1)[-1]
         el.attrib = {k.rsplit("}", 1)[-1]: v for k, v in el.attrib.items()}
     return root
+
+
+class _Epub(zipfile.ZipFile):
+    """An EPUB's zip, forgiving about how its file names are written. Some zip tools store UTF-8
+    names without the flag saying so (Python would read them as cp437 gibberish), macOS may store
+    "é" as e plus an accent, and links may be percent-encoded or differ in case. Books with
+    accented or curly-quoted titles hit these, since their files are often named after them."""
+
+    def __init__(self, file):
+        try:
+            super().__init__(file, metadata_encoding="utf-8")
+        except UnicodeDecodeError:  # names really are in the old zip encoding
+            if hasattr(file, "seek"):
+                file.seek(0)
+            super().__init__(file)
+        self._loose = {}
+        for name in self.namelist():
+            self._loose.setdefault(self._key(name), name)
+
+    @staticmethod
+    def _key(name: str) -> str:
+        return unicodedata.normalize("NFC", unquote(name)).casefold()
+
+    def read(self, name, pwd=None):
+        if isinstance(name, str) and name not in self.NameToInfo:
+            name = self._loose.get(self._key(name), name)
+        return super().read(name, pwd)
+
+
+def open_epub(file) -> zipfile.ZipFile:
+    """Open an EPUB (bytes or a path) for reading its files."""
+    return _Epub(io.BytesIO(file) if isinstance(file, bytes) else file)
 
 
 def _resolve(base: str, href: str) -> tuple[str, str]:
@@ -308,14 +359,23 @@ def _ncx_toc(z: zipfile.ZipFile, path: str) -> list[dict]:
 def _read(data: bytes, book_id: str, rev: int) -> tuple[dict, list[dict]]:
     """The book.json fields describing an EPUB's contents, and its sections' markup and text.
     Image links carry `rev`, so a book rebuilt by an update doesn't show cached images."""
+    # Say which part is wrong, so a bad file can be told apart from a gap in this reader.
     try:
-        z = zipfile.ZipFile(io.BytesIO(data))
+        z = open_epub(data)
+    except zipfile.BadZipFile as e:
+        raise EpubError("That doesn't look like a valid EPUB file: it doesn't open as a zip archive (it may be damaged or not an EPUB).") from e
+    try:
         container = _xml(z.read("META-INF/container.xml"))
         rootfile = container.find(".//rootfile")
         opf_path = rootfile.get("full-path")
         opf = _xml(z.read(opf_path))
-    except (zipfile.BadZipFile, KeyError, AttributeError, ElementTree.ParseError) as e:
-        raise EpubError("That doesn't look like a valid EPUB file.") from e
+    except KeyError as e:
+        missing = e.args[0] if e.args else ""
+        raise EpubError(f"That doesn't look like a valid EPUB file: {missing}.") from e
+    except (AttributeError, TypeError) as e:
+        raise EpubError("That doesn't look like a valid EPUB file: META-INF/container.xml doesn't say where the book is.") from e
+    except (ElementTree.ParseError, UnicodeDecodeError, zipfile.BadZipFile) as e:
+        raise EpubError(f"That doesn't look like a valid EPUB file: its book details can't be read ({e}).") from e
 
     metadata = opf.find("metadata")
     title = (metadata.findtext("title") or "").strip() if metadata is not None else ""
@@ -497,7 +557,7 @@ def source_of(book: dict) -> str:
         return book["source"]
     source = ""
     try:
-        with zipfile.ZipFile(store.BOOKS_DIR / book["id"] / "book.epub") as z:
+        with open_epub(store.BOOKS_DIR / book["id"] / "book.epub") as z:
             opf = _xml(z.read("OEBPS/content.opf"))
         link = (opf.findtext("metadata/source") or "").strip()
         if link and opf.findtext("metadata/identifier") == f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, link)}":

@@ -58,6 +58,11 @@ Read this before changing `app/books/` or `app/static/books/`.
 - **Bump `FORMAT`** in `epub.py` when changing how chapters come out of an EPUB. At startup
   `refresh_all` rebuilds older books from their stored EPUB. Narration survives if the spoken text
   is unchanged.
+- **EPUBs from other tools are often slightly malformed**, most often when the title has accents or
+  curly quotes: zip names in UTF-8 without the flag saying so, names in decomposed Unicode or
+  percent-encoded in links, HTML entities (`&rsquo;`) or bare `&` in the package XML, a byte-order
+  mark. Open EPUBs with `epub.open_epub` (not `zipfile.ZipFile`) and parse their XML with `_xml`,
+  which tolerate these. "Not a valid EPUB" errors name the part that failed.
 - **Book ids are content hashes:** `sha256(owner + "\0" + epub)[:12]`. Uploading the same file
   twice is a no-op, and two users get separate copies.
 - **Narration can be played while it's still being written.** It grows in

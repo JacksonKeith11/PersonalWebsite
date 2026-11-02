@@ -269,7 +269,7 @@ def resource(book_id: str, path: str, user: str = Depends(require_user)):
     media_type = book["images"].get(path)
     if not media_type:
         raise HTTPException(404)
-    with zipfile.ZipFile(folder / "book.epub") as z:
+    with epub.open_epub(folder / "book.epub") as z:
         return Response(z.read(path), media_type=media_type, headers=IMMUTABLE)
 
 

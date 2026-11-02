@@ -858,6 +858,10 @@ a:hover { color: var(--accent-hi); }
 .fc-line.fight span { color: #ffb3a0; }
 .fc-line .ok { color: var(--ok); }
 .fc-line.opp { cursor: pointer; }
+.fc-line.job b { color: #e8dcc0; }
+.card.job { padding: 14px 16px; display: grid; gap: 8px; margin-bottom: 10px; }
+.card.job .job-head { display: flex; justify-content: space-between; align-items: center; }
+.card.job .kind { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 .fc-line.opp b { color: var(--accent-hi); }
 .fc-line.opp:hover span { color: var(--text); }
 .hextip .prize { color: var(--accent-hi); }

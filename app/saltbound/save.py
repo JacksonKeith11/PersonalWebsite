@@ -121,8 +121,29 @@ def _v7(state):
     return state
 
 
+def _v8(state):
+    """v9 makes jobs two to a board, with deadlines and rewards. A board's old single offer is dropped
+    (a new board is made the next time someone stands in the town); jobs already taken keep the old
+    reward and get a generous deadline."""
+    places = state["world"]["places"]
+    by_name = {p.get("name"): int(t) for t, p in places.items() if p["kind"] == "town"}
+    for p in places.values():
+        p.pop("quest", None)
+    for i, q in enumerate(state.get("quests", []), 1):
+        q.setdefault("id", i)
+        q.setdefault("failed", False)
+        q.setdefault("until", state["turn"] + 20)
+        q.setdefault("reward", {"gold": 25, "type": "loot"})
+        q.setdefault("src_tile", by_name.get(q.get("src"), state["world"]["start"]))
+        if q["kind"] == "deliver":
+            q.setdefault("tile", q["to"])
+    state["jobid"] = len(state.get("quests", []))
+    state["v"] = 9
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8}
 
 
 class TooOld(Exception):

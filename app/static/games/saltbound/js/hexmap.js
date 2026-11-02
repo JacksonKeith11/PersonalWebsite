@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=60';
-import { spriteCanvas, placeCanvas } from './art.js?v=60';
+import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=61';
+import { spriteCanvas, placeCanvas } from './art.js?v=61';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -356,6 +356,17 @@ export class MapView {
       }
     }
     this.drawOpps(L);
+    this.drawJobs(L);
+  }
+
+  drawJobs(L) {
+    // each job's next stop: a parchment tag with the turns left
+    for (const q of this.state.quests || []) {
+      if (q.done || q.failed || q.goal == null) continue;
+      const [cx, cy] = center(q.goal);
+      L.add(this.scene.add.rectangle(cx + 15, cy - 14, 15, 15, 0xe8dcc0).setStrokeStyle(2, 0x6a5232).setAngle(45));
+      L.add(this.scene.add.text(cx + 15, cy - 14, String(q.left), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#2a2430', resolution: 4 }).setOrigin(0.5));
+    }
   }
 
   drawOpps(L) {

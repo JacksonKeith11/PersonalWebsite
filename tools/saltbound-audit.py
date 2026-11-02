@@ -39,6 +39,10 @@ SCENARIOS = {
     "trade": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
     and (g.place(g.hero(0)["tile"]) or {}).get("spec") in ("smith", "temple", "cartographer"),
     "garrison": lambda g: g.s["phase"] == "fork" and 0 in g.s["fork"]["heroes"] and (g.s["fork"].get("garrison") or {}).get("foes"),
+    "board": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
+    and len((g.place(g.hero(0)["tile"]) or {}).get("jobs") or []) == 2 and not g.place(g.hero(0)["tile"]).get("quest_taken"),
+    "job": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
+    and any(q["kind"] in ("bounty", "salvage") and not q["done"] and not q.get("failed") for q in g.s["quests"]),
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }

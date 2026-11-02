@@ -674,4 +674,28 @@ def event_risk(ev):
         return "risky"
     return "safe"
 
-QUEST_REWARD = 25
+QUEST_REWARD = 25  # the gold every hero got for a job before rewards scaled (old saves' jobs keep it)
+
+# Jobs on town notice boards: each board offers two (`JOBS_PER_BOARD`), one can be taken. Every job has a
+# deadline from how far it is (a hero covers about `JOB_PACE` hexes a turn) plus `JOB_SLACK` turns, and
+# pays every hero `JOB_GOLD` + `JOB_PER_HEX` per hex of the trip + the kind's bonus, and one more thing
+# for whoever finishes it (`JOB_REWARDS`).
+JOBS_PER_BOARD = 2
+JOB_PACE = 3
+JOB_SLACK = {"deliver": 3, "lair": 5, "bounty": 6, "salvage": 4}
+JOB_GOLD = 8
+JOB_PER_HEX = 2
+JOB_BONUS = {"deliver": 0, "lair": 10, "bounty": 15, "salvage": 8}
+JOB_KINDS = {
+    "deliver": {"name": "Delivery", "text": "Carry a parcel to another town."},
+    "lair": {"name": "Clear a lair", "text": "Clear out the lair that's been troubling the town."},
+    "bounty": {"name": "Bounty", "text": "Hunt down a wanted crew. They run from you, a hex a turn, and stay on the map wherever they go."},
+    "salvage": {"name": "Salvage", "text": "Fetch the cargo from a wreck and bring it back here. Whoever picks it up must carry it home."},
+}
+# what else a job pays, with weights; "trade" (a free go at the town's smithy, chart or temple revive)
+# only from a town with one; the rest of the gold is cut a little when the extra is worth more
+JOB_REWARDS = {"loot": 4, "item": 2, "revive": 1, "trade": 2, "restock": 1}
+JOB_GOLD_CUT = {"loot": 1.0, "item": 0.5, "revive": 0.5, "trade": 0.7, "restock": 0.7}
+BOUNTY_NAMES = ["Red Mag's crew", "One-Eyed Pell's lot", "the Brine Sisters", "Captain Gristle's gang", "Old Scuttle's mob",
+                "the Gull-Eaters", "Salt Annie's band", "the Barnacle Brothers", "Mother Kelp's brood", "the Rusted Hooks"]
+BOUNTY_RANGE = (5, 10)  # hexes from the town where the wanted crew is first seen

@@ -346,6 +346,32 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   enters `CASTAWAY_AFTER` (5) or more turns later he's waiting with 15 gold and a pick of rare loot.
   `hidden` events (the collector, the dark shrine) are never placed on the map.
 
+### Jobs (town notice boards)
+
+The owner asked for better quests (Nov 2026). Numbers are in `content/archipelago.py` ("Jobs on town
+notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`, `tick_jobs`,
+`job_land`, `complete_quest`).
+
+- **Each board offers two jobs of different kinds** (`JOBS_PER_BOARD`), made when a hero first
+  stands in the town (the start town's at the start of the run), never when it's looked at. Taking
+  one takes the board down.
+- **Kinds**: **Delivery** (carry a parcel to another town), **Clear a lair** (the nearest lair to the
+  town), **Bounty** (a named elite crew appears when the job is taken, 5-10 hexes out; it runs from heroes
+  within 3, a hex a turn, using `group_step`, and is always shown on the map; catch it to finish),
+  **Salvage** (a wreck 3-12 hexes away, perhaps a guarded one: a hero standing on it once any guards
+  are gone picks up the cargo, and that hero must carry it back to the town; it fails if they fall for good).
+- **A deadline and scaled pay**: each job has `turns` (the trip at `JOB_PACE` hexes a turn plus the
+  kind's `JOB_SLACK`) and fails when they run out (a wanted crew gets away). It pays every hero
+  `JOB_GOLD` + `JOB_PER_HEX` per hex of the trip + the kind's `JOB_BONUS`, and one more thing
+  (`JOB_REWARDS`): a pick of loot for whoever finishes it, a named rare item, +1 revive, a free go at the
+  town's trade (`voucher` on the town: the next reforge, chart or temple revive there is free), or the
+  town restocking its shop with better wares; the gold is cut a little when the extra is worth more.
+- **On the map**: each job's next stop has a parchment tag with the turns left; "This turn" lists the
+  jobs (click to find) and says when a planned move finishes one or picks up salvage, and when a fight
+  is a job; hex tooltips name job targets and wanted crews.
+- **The bots** take the board's job worth most per turn (lairs and bounties from level 3), at most two
+  at once, and head for a job's next stop while there's time to finish it (ahead of the dungeons).
+
 ### Fights
 
 - **A round** (`Combat.new_round`): enrage, elite affixes, Crown of Thorns, Poison and regeneration
@@ -707,7 +733,7 @@ clock anywhere: the run changes only when someone acts.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
   `boss`, `won`, `lost`, and for the map `opp`, `trade` (standing in a smithy, temple or cartographer
-  town), `garrison` (a boss fork with a garrison)...) and saves it for the token "audit"; the browser resumes it and screenshots.
+  town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 

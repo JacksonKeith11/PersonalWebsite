@@ -215,6 +215,13 @@ def plan_move(g, h):
         if not hero["skiff"] and g.docks(hero["tile"]) and hero["gold"] >= 10:
             return {"t": "skiff"}
         town = g.place(hero["tile"])
+        jobs = town.get("jobs") or []
+        active = [q for q in s["quests"] if not q["done"] and not q.get("failed")]
+        if jobs and not town.get("quest_taken") and len(active) < 2:
+            # the best-paying job the party could manage (lairs and bounties once it's strong enough)
+            ok = [i for i, j in enumerate(jobs) if j["kind"] in ("deliver", "salvage") or s["level"] >= 3]
+            if ok:
+                return {"t": "quest", "n": max(ok, key=lambda i: job_value(jobs[i]))}
         if town.get("spec") == "temple":
             if any(A.BUFFS.get(b, {}).get("curse") for b in hero["buffs"]):
                 return {"t": "temple", "what": "cleanse"}
@@ -281,6 +288,13 @@ def party_goal(g):
         if o["kind"] == "drift" or (o["kind"] == "healer" and weakest < 0.75 and len(o["used"]) < len(alive)) \
                 or (o["kind"] == "ship" and lead["gold"] >= 40):
             return o["tile"]
+    # a job, while there's time to finish it
+    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed")]
+    for q in sorted(jobs, key=lambda q: q["until"]):
+        goal = g.job_goal(q)
+        trip = Wd.dist(goal, at) + (Wd.dist(goal, q["src_tile"]) if q["kind"] == "salvage" and q.get("stage") == "fetch" else 0)
+        if goal is not None and trip <= (q["until"] - s["turn"] + 1) * 3 and (q["kind"] not in ("lair", "bounty") or s["level"] >= 3):
+            return goal
     ready_for = 2 + 2 * len(s["cleared"])
     if s["level"] >= ready_for or s["rises"] >= 8:
         dungeons = [int(t) for t, p in places.items() if p["kind"] == "dungeon" and p["region"] not in s["cleared"]]
@@ -295,6 +309,14 @@ def party_goal(g):
     if unseen:
         return min(unseen, key=lambda t: Wd.dist(t, at))
     return None
+
+
+JOB_EXTRA = {"loot": 25, "item": 40, "revive": 45, "trade": 30, "restock": 20}
+
+
+def job_value(j):
+    """What a job is worth to the bots, per turn it takes."""
+    return (3 * j["reward"]["gold"] + JOB_EXTRA[j["reward"]["type"]]) / j["turns"]
 
 
 def route(g, h, goal):

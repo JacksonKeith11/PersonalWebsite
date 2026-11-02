@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=60';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=60';
-import { spriteURL } from './art.js?v=60';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=60';
-import { MapView } from './hexmap.js?v=60';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=60';
-import { disconnect } from './main.js?v=60';
-import * as sfx from './audio.js?v=60';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=61';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=61';
+import { spriteURL } from './art.js?v=61';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=61';
+import { MapView } from './hexmap.js?v=61';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=61';
+import { disconnect } from './main.js?v=61';
+import * as sfx from './audio.js?v=61';
 
 const UI = { drawer: null, log: true, outcomes: [], hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
@@ -114,6 +114,9 @@ function onTileHover(t, x, y) {
       lines.push(h('div', { style: { color: 'var(--danger)' } }, `Fight ${step} of 3 (${S.static.paths[nx.path]?.name || ''}): ` + nx.foes.map(x => typeof x === 'string' ? foeName(x) : foeName(x.k, x.aff)).join(', ')));
       lines.push(h('div', null, garrisonText(p.region)));
     }
+    if (gr?.crew) lines.push(h('div.prize', null, `Wanted: ${gr.crew}. They run from you, a hex a turn.`));
+    for (const q of (g.quests || []).filter(q => !q.done && !q.failed && q.goal === t))
+      lines.push(h('div.prize', null, `Job for ${q.src}: ${jobText(q)} (${q.left} turn${q.left === 1 ? '' : 's'} left).`));
     const opp = (g.opps || []).find(o => o.tile === t);
     if (opp) lines.push(h('div.prize', null, `${S.static.opps[opp.kind].name}, for ${opp.left} more turn${opp.left === 1 ? '' : 's'}: ${S.static.opps[opp.kind].text}`));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
@@ -151,6 +154,22 @@ function placeTitle(p) {
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
 const cap = s => s[0].toUpperCase() + s.slice(1);
+// A job in words: what to do, and what it pays.
+function jobText(q) {
+  const g = S.game;
+  if (q.kind === 'deliver') return `deliver a parcel to ${q.name}`;
+  if (q.kind === 'lair') return 'clear the lair';
+  if (q.kind === 'bounty') return `catch ${q.crew}`;
+  if (q.stage === 'return') return `${g.heroes[q.carrier]?.name || 'someone'} brings the cargo back to ${q.src}`;
+  return `fetch the cargo from a ${q.guarded ? 'guarded ' : ''}wreck`;
+}
+function rewardText(r) {
+  if (!r) return '';
+  const st = S.static;
+  const extra = { loot: 'a pick of loot for whoever finishes it', item: `${st.items[r.item]?.name} (rare ${st.items[r.item]?.slot})`, revive: '+1 revive',
+    trade: `a free go at the ${st.town_specs[r.spec]?.name.toLowerCase()}`, restock: 'the town restocks its shop with better wares' }[r.type];
+  return `${r.gold} gold each, and ${extra}`;
+}
 // What an objective's growing garrison adds to its boss fight, and when it next grows.
 function garrisonText(reg) {
   const g = S.game, gs = g.garrison?.[reg];
@@ -310,7 +329,7 @@ function renderActionbar() {
 // The server works the turn out from what the party can see (Game.forecast): one line per hero, so
 // everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
 const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'reaches a shrine', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair',
-  cache: 'digs up the cache', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer' };
+  cache: 'digs up the cache', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage' };
 // An enemy's name, with its elite affix ("Hulking Crabfolk Brute").
 export function foeName(k, aff) {
   const st = S.static;
@@ -322,7 +341,7 @@ function fightLine(f) {
   f.foes.forEach((k, i) => { const n = foeName(k, f.aff?.[i]); counts[n] = (counts[n] || 0) + 1; });
   const foes = Object.entries(counts).map(([n, c]) => n + (c > 1 ? ` ×${c}` : '')).join(', ');
   const where = f.kind === 'dungeon' ? `${st.dungeons[f.region]} (fight ${f.step + 1} of 3)` : f.kind === 'boss' ? 'the Drowned Crown' : f.kind === 'lair' ? `a lair: ${foes}` : foes;
-  return { where, with: f.heroes.map(x => g.heroes[x].name) };
+  return { where: where + (f.job ? ' (a job)' : ''), with: f.heroes.map(x => g.heroes[x].name) };
 }
 export function renderForecast() {
   const el = $('forecast');
@@ -354,6 +373,10 @@ export function renderForecast() {
     const where = o.kind === 'ship' ? ` at ${g.places[o.tile]?.name || 'a town'}` : '';
     lines.push(h('div.fc-line.opp', { tip: `${S.static.opps[o.kind].text}\nClick to find it on the map.`, onclick: () => map?.centerOn(o.tile) },
       icon('spark'), h('b', null, ` ${S.static.opps[o.kind].name}`), h('span', null, `${where}: ${o.left} turn${o.left === 1 ? '' : 's'} left`)));
+  }
+  for (const q of (g.quests || []).filter(q => !q.done && !q.failed)) {
+    lines.push(h('div.fc-line.opp.job', { tip: `Job for ${q.src}: ${rewardText(q.reward)}\nClick to find it on the map.`, onclick: () => q.goal != null && map?.centerOn(q.goal) },
+      icon('scroll'), h('b', null, ' Job'), h('span', null, `: ${jobText(q)}, ${q.left} turn${q.left === 1 ? '' : 's'} left`)));
   }
   for (const l of g.loans || []) {
     if (l.left <= 3) lines.push(h('div.fc-line.muted', null, icon('coin'), ` The moneylender comes for ${g.heroes[l.h].name}’s 60 gold in ${Math.max(0, l.left)} turn${l.left === 1 ? '' : 's'}.`));
@@ -554,14 +577,15 @@ function townDrawer(h0, town, d) {
   const spec = town.spec && town.spec !== 'fence' ? st.town_specs[town.spec] : null;
   let body;
   if (d.tab === 'trade' && spec) {
-    body = [h('div.section-title', null, h('h3', null, spec.name), h('span.chip.brass', null, icon('coin'), hero.gold)), h('p.muted', null, spec.text)];
+    body = [h('div.section-title', null, h('h3', null, spec.name), h('span.chip.brass', null, icon('coin'), hero.gold)), h('p.muted', null, spec.text),
+      town.voucher ? h('p.chip.brass', null, icon('check'), `A finished job earned ${town.voucher > 1 ? `${town.voucher} free goes` : 'a free go'} here`) : null];
     if (town.spec === 'smith') {
       for (const slot of ['weapon', 'armor', 'trinket']) {
         const k = hero.equip[slot];
         if (!k) continue;
-        const cost = g.reforge?.[k];
-        const nxt = cost ? ['common', 'uncommon', 'rare', 'legendary'][['common', 'uncommon', 'rare', 'legendary'].indexOf(st.items[k].rarity) + 1] : null;
-        body.push(itemRow(k, cost ? h('button.btn.sm' + (hero.gold >= cost ? '.primary' : ''), { disabled: disabled || hero.gold < cost, tip: `Becomes a random ${nxt} ${st.items[k].slot}`, onclick: () => send({ t: 'reforge', h: h0, slot }) }, `Reforge · ${cost}`)
+        const cost = g.reforge?.[k] && town.voucher ? 0 : g.reforge?.[k];
+        const nxt = g.reforge?.[k] ? ['common', 'uncommon', 'rare', 'legendary'][['common', 'uncommon', 'rare', 'legendary'].indexOf(st.items[k].rarity) + 1] : null;
+        body.push(itemRow(k, cost != null ? h('button.btn.sm' + (hero.gold >= cost ? '.primary' : ''), { disabled: disabled || hero.gold < cost, tip: `Becomes a random ${nxt} ${st.items[k].slot}`, onclick: () => send({ t: 'reforge', h: h0, slot }) }, cost ? `Reforge · ${cost}` : 'Reforge · free')
           : h('span.muted', null, 'As good as it gets')));
       }
     } else if (town.spec === 'temple') {
@@ -569,12 +593,12 @@ function townDrawer(h0, town, d) {
       body.push(h('div', { style: { display: 'grid', gap: '10px', justifyItems: 'start' } },
         h('button.btn', { disabled: disabled || !curses.length, onclick: () => send({ t: 'temple', h: h0, what: 'cleanse' }) }, curses.length ? `Lift ${curses.map(b => st.buffs[b].name).join(', ')} · free` : 'You aren’t cursed'),
         town.revive_sold ? h('span.muted', null, 'The temple’s revive has been given.')
-          : h('button.btn.primary', { disabled: disabled || hero.gold < st.temple_revive, onclick: () => send({ t: 'temple', h: h0, what: 'revive' }) }, `+1 revive for the party · ${st.temple_revive}`),
+          : h('button.btn.primary', { disabled: disabled || (!town.voucher && hero.gold < st.temple_revive), onclick: () => send({ t: 'temple', h: h0, what: 'revive' }) }, `+1 revive for the party · ${town.voucher ? 'free' : st.temple_revive}`),
         h('span.muted', null, `The party has ${g.revives} revive${g.revives === 1 ? '' : 's'}.`)));
     } else if (town.spec === 'cartographer') {
       for (const reg of ['coral', 'keys', 'storm', 'peak']) {
         body.push(h('div.item', null, h('div.ico', null, icon('eye')), h('div', null, h('div.name', null, st.regions[reg]), h('div.sub', null, reg === 'peak' ? 'The central island' : `Home of ${st.dungeons[reg]}`)),
-          h('button.btn.sm', { disabled: disabled || hero.gold < st.chart_cost, onclick: () => send({ t: 'chart', h: h0, region: reg }) }, `Chart · ${st.chart_cost}`)));
+          h('button.btn.sm', { disabled: disabled || (!town.voucher && hero.gold < st.chart_cost), onclick: () => send({ t: 'chart', h: h0, region: reg }) }, `Chart · ${town.voucher ? 'free' : st.chart_cost}`)));
       }
     }
   } else if (d.tab === 'market' || d.tab === 'trade') {
@@ -599,14 +623,22 @@ function townDrawer(h0, town, d) {
         : h('button.btn.primary', { disabled: disabled || hero.gold < g.skiff_cost, onclick: () => send({ t: 'skiff', h: h0 }) }, icon('sail'), `Buy a skiff · ${g.skiff_cost} gold`)]
       : [h('p.muted', null, 'No docks here.')];
   } else {
-    const q = town.quest;
-    const qText = q => q.kind === 'lair' ? 'Clear the lair marked on your map.' : `Deliver a parcel to ${q.name}.`;
+    const jobs = town.jobs || [];
+    const mineJobs = g.quests.filter(q2 => !q2.done && !q2.failed);
     body = [h('h3', null, 'Notice board'),
-      q ? h('div.card', { style: { padding: '16px', display: 'grid', gap: '10px' } }, h('b', null, 'Work going'), h('p', null, qText(q)),
-        h('p.muted', null, '25 gold for every hero, and a choice of loot for whoever finishes it.'),
-        h('button.btn.primary', { disabled, onclick: () => send({ t: 'quest', h: h0 }) }, 'Take the job')) : h('p.muted', null, 'Nothing pinned up today.'),
+      jobs.length ? h('p.muted', null, 'Take one of these. The other comes down when you do.') : h('p.muted', null, town.quest_taken ? 'You’ve taken this town’s job.' : 'Nothing pinned up today.'),
+      ...jobs.map((j, n) => h('div.card.job', null,
+        h('div.job-head', null, h('span.kind', null, st.job_kinds[j.kind].name), h('span.chip', { tip: 'Turns to finish it, counting this one' }, icon('clock'), `${j.turns} turns`)),
+        h('b', null, cap(jobText(j))), h('p.muted', null, st.job_kinds[j.kind].text),
+        h('div.gains', null, h('span.chip.brass', null, cap(rewardText(j.reward)))),
+        h('div', { style: { display: 'flex', gap: '8px' } },
+          h('button.btn.primary', { disabled, onclick: () => send({ t: 'quest', h: h0, n }) }, 'Take this job'),
+          h('button.btn.ghost', { onclick: () => map?.centerOn(j.tile) }, icon('target'), 'Show on map')))),
       g.quests.length ? h('h3', null, 'Your jobs') : null,
-      ...g.quests.map(q2 => h('div.item', null, h('div.ico', null, icon(q2.done ? 'check' : 'scroll')), h('div', null, h('div.name', null, qText(q2)), h('div.sub', null, `For ${q2.src}${q2.done ? ' · done' : ''}`)), h('span')))];
+      ...g.quests.slice().reverse().map(q2 => h('div.item', { tip: q2.done || q2.failed ? null : 'Click to find it on the map', onclick: () => q2.goal != null && map?.centerOn(q2.goal) },
+        h('div.ico', null, icon(q2.done ? 'check' : q2.failed ? 'x' : 'scroll')),
+        h('div', null, h('div.name', null, cap(jobText(q2))),
+          h('div.sub', null, `For ${q2.src} · ${q2.done ? 'done' : q2.failed ? 'failed' : `${q2.left} turn${q2.left === 1 ? '' : 's'} left · ${rewardText(q2.reward)}`}`)), h('span')))];
   }
   return drawerShell(town.name, town.spec ? `Town · ${st.town_specs[town.spec].name}` : 'Town',
     [['market', 'Market'], ...(spec ? [['trade', spec.name]] : []), ['inn', 'Inn'], ['docks', 'Docks'], ['board', 'Notice board']], d, body);
@@ -995,6 +1027,7 @@ export function handleFx(list, before) {
       case 'level': later.push(() => { bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); }); break;
       case 'cleared': later.push(() => { bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); }); break;
       case 'buff': if (mine().includes(f.h)) later.push(() => toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`)); break;
+      case 'job': later.push(() => { toast(`Job done for ${f.src}: +${f.gold} gold each${f.extra}`, 'big'); sfx.play('coin'); }); break;
       case 'opp': later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
       case 'garrison': later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;
       case 'event':

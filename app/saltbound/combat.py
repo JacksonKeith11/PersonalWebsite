@@ -936,9 +936,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.say("The guards are beaten: the wreck is yours to pick through.")
         if f["kind"] == "lair" and p and p["kind"] == "lair":
             p["done"] = True
-            for q in s["quests"]:
-                if q["kind"] == "lair" and q["group"] in f["groups"] and not q["done"]:
-                    self.complete_quest(q, winners[0] if winners else party[0])
+        for q in s["quests"]:  # a lair cleared or a wanted crew caught
+            if q.get("group") in f["groups"] and not q["done"] and not q.get("failed"):
+                self.complete_quest(q, winners[0] if winners else party[0])
         final = f["kind"] == "dungeon" and f["step"] >= A.DUNGEON_STEPS - 1
         path = f.get("path")
         # one shared pool of loot for the winners: its size and claims are fixed, the fight sets the rarity

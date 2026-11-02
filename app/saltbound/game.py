@@ -23,7 +23,7 @@ from .content import items as I
 from .rng import Rng
 from .tuning import SURGE
 
-VERSION = 8
+VERSION = 9
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 1.75},
@@ -95,6 +95,7 @@ class Game(Combat):
                 gr = g.add_group(int(t), list(g.rng.choice(A.LAIRS[w["reg"][int(t)] if w["reg"][int(t)] in A.LAIRS else "coral"])), lair=True)
                 gr["prize"] = g.rng.choice([k for k in I.GEAR if I.ITEMS[k]["rarity"] == "rare"])
         g.setup_places(g.rng, guards=True)
+        g.town_jobs(w["start"])
         g.reset_plans()
         g.say("The party sets out from " + w["places"][str(w["start"])]["name"] + ".")
         g.sync()
@@ -415,6 +416,12 @@ class Game(Combat):
             return None
         h = min(near, key=lambda h: Wd.dist(at, heroes[h][0]))
         goal = heroes[h][0]
+        if g.get("bounty"):
+            # a wanted crew runs: the step that takes it furthest from the heroes near it
+            far = lambda n: min(Wd.dist(n, heroes[x][0]) for x in near)
+            opts = [n for n in Wd.neighbors(at) if self.terrain(n) in Wd.COST and self.terrain(n) != "town"
+                    and n not in occupied and not self.place(n) and far(n) > far(at)]
+            return max(opts, key=lambda n: (far(n), -n)) if opts else None
         best = None
         for n in Wd.neighbors(at):
             ter = self.terrain(n)
@@ -487,6 +494,8 @@ class Game(Combat):
                     if len(foes) + len(g["foes"]) <= 5:
                         foes += g["foes"]
                 fight.update(kind="lair" if main["lair"] else "roam", foes=foes[:5])
+                if any(q.get("group") == main["id"] and not q["done"] and not q.get("failed") for q in s["quests"]):
+                    fight["job"] = True
             # the view wants keys, with any elite affixes alongside
             fight["aff"] = [k.get("aff") if isinstance(k, dict) else None for k in fight["foes"]]
             fight["foes"] = [k["k"] if isinstance(k, dict) else k for k in fight["foes"]]
@@ -495,6 +504,10 @@ class Game(Combat):
         for h, (t, af) in pos.items():
             p = self.place(t)
             o = self.opp_at(t)
+            job = self.job_step(h, t)
+            if h not in engaged and job and t != self.hero(h)["tile"]:
+                lands[str(h)] = job
+                continue
             if h not in engaged and o and (o["kind"] == "drift" or (o["kind"] == "healer" and h not in o["used"])):
                 lands[str(h)] = o["kind"]
                 continue
@@ -831,6 +844,7 @@ class Game(Combat):
             self.grow_garrisons()
         self.tick_opps()
         self.tick_chains()
+        self.tick_jobs()
         if (s["turn"] - 1) % SPAWN_EVERY == 0 and len(s["groups"]) < MAX_GROUPS:
             self.spawn()
             if s["rises"] > GROW_FROM:
@@ -1010,6 +1024,7 @@ class Game(Combat):
         o = self.opp_at(t)
         if o:
             self.opp_land(h, o)
+        self.job_land(h, t)
         p = self.place(t)
         if not p:
             return
@@ -1039,9 +1054,7 @@ class Game(Combat):
             hero["shrines"].append(t)
             self.buff(h, p["buff"])
         elif k == "town":
-            for q in self.s["quests"]:
-                if q["kind"] == "deliver" and q["to"] == t and not q["done"]:
-                    self.complete_quest(q, h)
+            self.town_jobs(t)
             for c in [c for c in self.s.get("chains", []) if c["kind"] == "castaway" and c["turn"] <= self.s["turn"]]:
                 self.s["chains"].remove(c)
                 hero["gold"] += 15
@@ -1446,6 +1459,9 @@ class Game(Combat):
         cost = self.reforge_cost(key)
         if cost is None:
             raise Invalid("It can't get any better.")
+        p = self.place(hero["tile"])
+        if p.get("voucher"):
+            cost = 0
         if hero["gold"] < cost:
             raise Invalid("You can't afford that.")
         up = I.RARITIES[I.RARITIES.index(I.ITEMS[key]["rarity"]) + 1]
@@ -1453,6 +1469,8 @@ class Game(Combat):
         if not pool:
             raise Invalid("The smith has nothing better for that slot.")
         hero["gold"] -= cost
+        if not cost:
+            p["voucher"] -= 1
         new = self.rng.choice(pool)
         hero["equip"][slot] = new
         hero["hp"] = min(hero["hp"], self.maxhp(h))
@@ -1465,12 +1483,16 @@ class Game(Combat):
         if msg.get("what") == "revive":
             if p.get("revive_sold"):
                 raise Invalid("The temple has no more to give.")
-            if hero["gold"] < A.TEMPLE_REVIVE:
+            cost = 0 if p.get("voucher") else A.TEMPLE_REVIVE
+            if hero["gold"] < cost:
                 raise Invalid("You can't afford that.")
-            hero["gold"] -= A.TEMPLE_REVIVE
+            hero["gold"] -= cost
+            if not cost:
+                p["voucher"] -= 1
             p["revive_sold"] = True
             self.s["revives"] += 1
-            self.fx("coins", h=h, n=-A.TEMPLE_REVIVE)
+            if cost:
+                self.fx("coins", h=h, n=-cost)
             self.say(f"{hero['name']} pays for the temple's blessing: +1 revive.")
         else:
             curses = [b for b in hero["buffs"] if A.BUFFS.get(b, {}).get("curse")]
@@ -1481,21 +1503,25 @@ class Game(Combat):
             self.say(f"The temple lifts {hero['name']}'s curses.")
 
     def do_chart(self, h, msg):
-        self.town_spec(h, "cartographer")
+        p = self.town_spec(h, "cartographer")
         hero = self.hero(h)
         reg = msg.get("region")
         if reg not in A.REGION_NAMES:
             raise Invalid("A chart of where?")
-        if hero["gold"] < A.CHART_COST:
+        cost = 0 if p.get("voucher") else A.CHART_COST
+        if hero["gold"] < cost:
             raise Invalid("You can't afford that.")
         w = self.s["world"]
         tiles = [t for t in range(Wd.W * Wd.H) if (w["reg"][t] or "peak") == reg and self.terrain(t) in Wd.COST]
         if all(self.s["seen"][t] for t in tiles):
             raise Invalid("You've already seen all of it.")
-        hero["gold"] -= A.CHART_COST
+        hero["gold"] -= cost
+        if not cost:
+            p["voucher"] -= 1
         for t in tiles:
             self.s["seen"][t] = 1
-        self.fx("coins", h=h, n=-A.CHART_COST)
+        if cost:
+            self.fx("coins", h=h, n=-cost)
         self.say(f"{hero['name']} buys a chart of {A.REGION_NAMES[reg]}.")
 
     def do_sell(self, h, msg):
@@ -1542,38 +1568,191 @@ class Game(Combat):
         hero["skiff"] = True
         self.say(f"{hero['name']} buys a skiff.")
 
-    def town_quest(self, t):
-        """The quest a town offers, made on first asking."""
+    # ------------------------------------------------------------------ jobs
+
+    def town_jobs(self, t):
+        """A town's notice board: `JOBS_PER_BOARD` jobs of different kinds, made when a hero first
+        stands in the town (not when it's looked at, so the view never changes the run)."""
         p = self.place(t)
-        if "quest" not in p:
-            lairs = [g for g in self.s["groups"] if g["lair"]]
-            towns = [int(k) for k, q in self.s["world"]["places"].items() if q["kind"] == "town" and int(k) != t]
-            if lairs and self.rng.chance(0.6):
-                g = min(lairs, key=lambda g: Wd.dist(g["tile"], t))
-                p["quest"] = {"kind": "lair", "group": g["id"], "tile": g["tile"]}
-            elif towns:
-                to = self.rng.choice(towns)
-                p["quest"] = {"kind": "deliver", "to": to, "name": self.place(to)["name"]}
-            else:
-                p["quest"] = None
-        return p["quest"]
+        if "jobs" not in p:
+            jobs = []
+            for kind in self.rng.shuffle(list(A.JOB_KINDS)):
+                j = self.make_job(t, kind)
+                if j:
+                    jobs.append(j)
+                if len(jobs) >= A.JOBS_PER_BOARD:
+                    break
+            p["jobs"] = jobs
+        return p["jobs"]
+
+    def job_targets(self):
+        return {q.get("tile") for q in self.s["quests"] if not q["done"] and not q.get("failed")}
+
+    def make_job(self, t, kind):
+        """One job offer from town t, or None if there's nothing of that kind to do."""
+        s = self.s
+        places = s["world"]["places"]
+        busy = self.job_targets()
+        job = {"kind": kind}
+        if kind == "deliver":
+            towns = [int(k) for k, q in places.items() if q["kind"] == "town" and int(k) != t]
+            if not towns:
+                return None
+            to = self.rng.choice(towns)
+            job.update(to=to, tile=to, name=self.place(to)["name"])
+            trip = Wd.dist(t, to)
+        elif kind == "lair":
+            lairs = [g for g in s["groups"] if g["lair"] and (self.place(g["tile"]) or {}).get("kind") == "lair"
+                     and g["tile"] not in busy]
+            if not lairs:
+                return None
+            g = min(lairs, key=lambda g: Wd.dist(g["tile"], t))
+            job.update(group=g["id"], tile=g["tile"])
+            trip = Wd.dist(t, g["tile"])
+        elif kind == "bounty":
+            lo, hi = A.BOUNTY_RANGE
+            cands = [x for x in range(Wd.W * Wd.H) if self.terrain(x) in Wd.COST and self.terrain(x) != "town"
+                     and not self.place(x) and not self.group_at(x) and lo <= Wd.dist(x, t) <= hi]
+            if not cands:
+                return None
+            used = {q.get("crew") for q in s["quests"]} | {j.get("crew") for q in places.values() for j in q.get("jobs", [])}
+            names = [n for n in A.BOUNTY_NAMES if n not in used] or A.BOUNTY_NAMES
+            job.update(tile=self.rng.choice(cands), crew=self.rng.choice(names))
+            trip = Wd.dist(t, job["tile"]) + 2  # they run
+        else:  # salvage
+            wrecks = [int(k) for k, q in places.items() if q["kind"] == "wreck" and int(k) not in busy and 3 <= Wd.dist(int(k), t) <= 12]
+            if not wrecks:
+                return None
+            w = self.rng.choice(wrecks)
+            job.update(tile=w, guarded=bool(self.place(w).get("guard") and not self.place(w).get("done")))
+            trip = 2 * Wd.dist(t, w)
+        job["turns"] = -(-trip // A.JOB_PACE) + A.JOB_SLACK[kind]
+        gold = A.JOB_GOLD + A.JOB_PER_HEX * trip + A.JOB_BONUS[kind]
+        spec = self.place(t).get("spec")
+        weights = [(k, w) for k, w in A.JOB_REWARDS.items() if k != "trade" or spec in ("smith", "cartographer", "temple")]
+        kind_r = self.rng.weighted(weights)
+        r = {"gold": round(gold * A.JOB_GOLD_CUT[kind_r]), "type": kind_r}
+        if kind_r == "item":
+            r["item"] = self.rng.choice([k for k in I.GEAR if I.ITEMS[k]["rarity"] == "rare"])
+        if kind_r == "trade":
+            r["spec"] = spec
+        job["reward"] = r
+        return job
 
     def do_quest(self, h, msg):
         p = self.town(h)
-        q = self.town_quest(self.hero(h)["tile"])
-        if not q or p.get("quest_taken"):
+        t = self.hero(h)["tile"]
+        jobs = p.get("jobs") or []
+        n = msg.get("n", 0)
+        if p.get("quest_taken") or not isinstance(n, int) or not 0 <= n < len(jobs):
             raise Invalid("There's no work going here.")
+        s = self.s
         p["quest_taken"] = True
-        quest = dict(q, done=False, src=p["name"])
-        self.s["quests"].append(quest)
-        self.say(f"{self.hero(h)['name']} takes a job in {p['name']}.")
+        s["jobid"] = s.get("jobid", 0) + 1
+        q = dict(jobs[n], id=s["jobid"], done=False, failed=False, src=p["name"], src_tile=t,
+                 until=s["turn"] + jobs[n]["turns"] - 1)
+        if q["kind"] == "bounty":
+            spot = q["tile"]
+            if self.group_at(spot) or self.place(spot):
+                free = [x for x in Wd.within(spot, 2) if self.terrain(x) in Wd.COST and self.terrain(x) != "town"
+                        and not self.place(x) and not self.group_at(x)]
+                spot = free[0] if free else spot
+            reg = s["world"]["reg"][spot] if s["world"]["reg"][spot] in A.WRECK_GUARDS else "coral"
+            foes = list(self.rng.choice(A.GROUPS[reg][3:7]))
+            i = max(range(len(foes)), key=lambda k: A.FOES[foes[k]]["hp"])
+            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            g = self.add_group(spot, foes)
+            g["bounty"], g["crew"] = q["id"], q["crew"]
+            q["group"], q["tile"] = g["id"], spot
+        if q["kind"] == "salvage":
+            q["stage"] = "fetch"
+        s["quests"].append(q)
+        self.say(f"{self.hero(h)['name']} takes a job in {p['name']}: {self.job_line(q)} ({q['turns']} turns).")
+
+    def job_line(self, q):
+        if q["kind"] == "deliver":
+            return f"a parcel for {q['name']}"
+        if q["kind"] == "lair":
+            return "clear a lair"
+        if q["kind"] == "bounty":
+            return f"the bounty on {q['crew']}"
+        return "salvage from a wreck"
+
+    def tick_jobs(self):
+        """A new turn: jobs past their deadline fail (a wanted crew gets away)."""
+        s = self.s
+        for q in s["quests"]:
+            if q["done"] or q.get("failed"):
+                continue
+            lost = q["kind"] == "salvage" and q.get("stage") == "return" and not self.hero(q["carrier"])["alive"]
+            if q.get("until", 1e9) < s["turn"] or lost:
+                q["failed"] = True
+                if q["kind"] == "bounty":
+                    s["groups"] = [g for g in s["groups"] if g.get("bounty") != q["id"]]
+                self.say(f"The job for {q['src']} has failed: {self.job_line(q)}" + (" (the crew got away)." if q["kind"] == "bounty" else "."))
+
+    def job_land(self, h, t):
+        """A hero standing on t at the end of a turn: a delivery made, salvage picked up or brought home."""
+        for q in self.s["quests"]:
+            if q["done"] or q.get("failed"):
+                continue
+            if q["kind"] == "deliver" and q["to"] == t:
+                self.complete_quest(q, h)
+            elif q["kind"] == "salvage" and q.get("stage") == "fetch" and q["tile"] == t and not self.group_at(t):
+                q["stage"], q["carrier"] = "return", h
+                self.say(f"{self.hero(h)['name']} hauls the cargo out of the wreck. Now back to {q['src']}.")
+            elif q["kind"] == "salvage" and q.get("stage") == "return" and q["carrier"] == h and q["src_tile"] == t:
+                self.complete_quest(q, h)
+
+    def job_step(self, h, t):
+        """What standing on t would do for a job: "job" (finish one), "cargo" (pick salvage up) or None."""
+        for q in self.s["quests"]:
+            if q["done"] or q.get("failed"):
+                continue
+            if (q["kind"] == "deliver" and q["to"] == t) or \
+                    (q["kind"] == "salvage" and q.get("stage") == "return" and q["carrier"] == h and q["src_tile"] == t):
+                return "job"
+            if q["kind"] == "salvage" and q.get("stage") == "fetch" and q["tile"] == t and not self.group_at(t):
+                return "cargo"
+        return None
+
+    def job_goal(self, q, h=None):
+        """Where a job wants a hero to go next."""
+        if q["kind"] == "bounty":
+            g = next((g for g in self.s["groups"] if g.get("bounty") == q["id"]), None)
+            return g["tile"] if g else None
+        if q["kind"] == "salvage" and q.get("stage") == "return":
+            return q["src_tile"]
+        return q["tile"]
 
     def complete_quest(self, q, h):
         q["done"] = True
+        r = q.get("reward") or {"gold": A.QUEST_REWARD, "type": "loot"}
         for x in self.living():
-            self.hero(x)["gold"] += A.QUEST_REWARD
-        self.offer_loot(h, 2, tier_bonus=1)
-        self.say(f"Job done for {q['src']}: +{A.QUEST_REWARD} gold each.")
+            self.hero(x)["gold"] += r["gold"]
+        typ, extra = r["type"], ""
+        if typ == "loot":
+            self.offer_loot(h, 2, tier_bonus=1)
+        elif typ == "item":
+            self.push(h, {"type": "loot", "opts": [r["item"]]})
+            extra = f", and {I.ITEMS[r['item']]['name']}"
+        elif typ == "revive":
+            self.s["revives"] += 1
+            extra = ", and +1 revive"
+        elif typ == "trade":
+            src = self.place(q["src_tile"])
+            src["voucher"] = src.get("voucher", 0) + 1
+            extra = f", and a free go at {q['src']}'s {A.TOWN_SPECS[r['spec']]['name'].lower()}"
+        elif typ == "restock":
+            stock = []
+            for _ in range(5):
+                rr = self.rarity_for(2)
+                pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == rr and k not in stock] or I.GEAR
+                stock.append(self.rng.choice(pool))
+            self.s["shops"][str(q["src_tile"])] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
+            extra = f", and {q['src']} restocks its shop with better wares"
+        self.say(f"Job done for {q['src']}: +{r['gold']} gold each{extra}.")
+        self.fx("job", h=h, src=q["src"], gold=r["gold"], extra=extra)
 
     def wear(self, h, key, into=None):
         """Put new gear straight on; what it replaces goes in the bag."""
@@ -1677,8 +1856,8 @@ class Game(Combat):
         s = self.s
         vis = self.visible_tiles()
         groups = [{"id": g["id"], "tile": g["tile"], "lair": g["lair"], "foes": [f["k"] for f in g["foes"]],
-                   "aff": [f.get("aff") for f in g["foes"]], "prize": g.get("prize")}
-                  for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]])]
+                   "aff": [f.get("aff") for f in g["foes"]], "prize": g.get("prize"), "crew": g.get("crew")}
+                  for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]]) or g.get("bounty")]
         heroes = []
         for h in range(3):
             hero = s["heroes"][h]
@@ -1688,7 +1867,7 @@ class Game(Combat):
         places = {}
         for t, p in s["world"]["places"].items():
             if s["seen"][int(t)]:
-                q = {k: v for k, v in p.items() if k not in ("quest",)}
+                q = {k: v for k, v in p.items() if k not in ("quest", "jobs")}
                 if p["kind"] == "event" and p.get("ev"):
                     ev = next(e for e in A.EVENTS if e["key"] == p["ev"])
                     q["title"], q["risk"] = ev["title"], A.event_risk(ev)
@@ -1697,7 +1876,7 @@ class Game(Combat):
                     q["docks"] = self.docks(int(t))
                     if any(self.hero(x)["tile"] == int(t) for x in self.living()):
                         q["shop"] = self.shop(int(t))
-                        q["quest"] = None if p.get("quest_taken") else self.town_quest(int(t))
+                        q["jobs"] = [] if p.get("quest_taken") else p.get("jobs", [])
                         ship = self.opp_at(int(t))
                         if ship and ship["kind"] == "ship":
                             q["ship"] = ship["stock"]
@@ -1712,7 +1891,8 @@ class Game(Combat):
             "xp_this": C.XP_FOR[s["level"] - 1], "revives": s["revives"], "cleared": s["cleared"],
             "dungeon": s["dungeon"], "fork": s.get("fork"), "dnext": s.get("dnext", {}), "plans": s["plans"], "pending": s["pending"], "pools": s.get("pools", {}), "fight": self.fight_view(),
             "forecast": self.forecast(),
-            "quests": s["quests"], "log": s["log"][-12:], "fx": s["fx"][-60:],
+            "quests": [dict(q, left=q["until"] - s["turn"] + 1 if "until" in q else None, goal=self.job_goal(q))
+                       for q in s["quests"]], "log": s["log"][-12:], "fx": s["fx"][-60:],
             "stats": s["stats"], "waiting": self.waiting(), "inn": self.inn_cost(),
             "skiff_cost": SKIFF_COST, "herald": self.has_class("herald"),
             "opps": [{"id": o["id"], "kind": o["kind"], "tile": o["tile"], "left": o["until"] - s["turn"] + 1,
@@ -1732,7 +1912,7 @@ def static():
     return {
         "classes": C.CLASSES, "actions": acts, "passives": C.PASSIVES, "items": I.ITEMS, "foes": A.FOES,
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,
-        "town_specs": A.TOWN_SPECS, "opps": A.OPPS, "temple_revive": A.TEMPLE_REVIVE, "chart_cost": A.CHART_COST, "garrison_every": A.GARRISON_EVERY,
+        "town_specs": A.TOWN_SPECS, "job_kinds": A.JOB_KINDS, "opps": A.OPPS, "temple_revive": A.TEMPLE_REVIVE, "chart_cost": A.CHART_COST, "garrison_every": A.GARRISON_EVERY,
         "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "paths": A.PATHS, "elites": A.ELITES, "combos": C.COMBOS, "xp_for": C.XP_FOR,
         "prices": {k: I.price(k) for k in I.ITEMS},
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST},

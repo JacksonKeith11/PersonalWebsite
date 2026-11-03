@@ -467,10 +467,11 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   "crit: ..." line under the effect, with a tooltip saying what a crit is (`CRIT_TIP`); in a fight the
   roll tray rings a die that crits and the hero gets a gold "Crit!". Crits are kept to a flavour each
   class owns (Strike gains Armor, Stab Poisons, Toss Burns, Shoot carries on to another enemy, Riposte
-  Cut strikes again) and are never a Stun. About one action in five crits. **Balance after (2026-11-03,
-  300 hard runs, seed 5000): 83% won**, against 46% just before, with crits, armor actions and weapon
-  faces arriving together; every class 76–87% (Vanguard lowest). Hard needs a tuning pass back to about
-  50%: the owner is choosing how.
+  Cut strikes again) and are never a Stun. About one action in five crits. **Balance (2026-11-03, seed 5000):** with crits, armor actions and weapon
+  faces Hard went from 46% to 83%; the owner chose to answer with enemy crits and harder-hitting
+  enemies (Hard `foe_dmg` 2.3 → 2.8, Normal 1.75 → 2.3). Now **Hard 45%** (300 runs; classes 35–58%:
+  Scoundrel 58, Ranger 50, Warden 49, Alchemist 48, Mender 46, Vanguard 43, Herald 42, Arcanist 41,
+  Duelist 37, Berserker 35) and **Normal 90%** (150 runs).
 - **Cooldowns** (`"cd": N`): only basic attacks are usable every round (owner's request). `FREE` in
   `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block, Flee and weapon
   actions except Sweep and Tidal). Everything else has 2; the biggest skills 3. Lift is once per rest

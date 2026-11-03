@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=97';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=97';
-import { spriteURL } from './art.js?v=97';
-import { stageURL, stageKey } from './stage.js?v=97';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=97';
-import { render } from './main.js?v=97';
-import { skillCard } from './hud.js?v=97';
-import { SKILL_FX, foeFx } from './skillfx.js?v=97';
-import * as sfx from './audio.js?v=97';
+import { S, send, mine, controllerName } from './store.js?v=99';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=99';
+import { spriteURL } from './art.js?v=99';
+import { stageURL, stageKey } from './stage.js?v=99';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=99';
+import { render } from './main.js?v=99';
+import { skillCard } from './hud.js?v=99';
+import { SKILL_FX, foeFx } from './skillfx.js?v=99';
+import * as sfx from './audio.js?v=99';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -57,12 +57,23 @@ const INTENT_TEXT = {
   buff: 'Strengthens allies for the rest of the fight', debuff: 'Curses a hero', summon: 'Calls for help', charge: 'Gathering power…', dazed: 'Caught off guard: does nothing this round', thief: 'Snatches a potion', merge: 'Merges with another',
 };
 
+// The battleground's rule, as a chip in the fight's header (Game.ground_of, A.GROUNDS).
+function groundChip(f) {
+  const G = S.static.grounds?.[f.ground.k];
+  if (!G) return null;
+  const good = f.ground.side === 'heroes';
+  const who = f.ground.k === 'high' ? (good ? 'You hold the slope' : 'They hold the slope') : (good ? 'They’re caught in the trees' : 'You’re caught in the trees');
+  return h('span.chip.ground' + (good ? '.good' : '.bad'), { tip: `${G.name} (${G.terrain})\n${G.text}` }, icon(f.ground.k === 'high' ? 'shield' : 'down'), `${G.name}: ${who}`);
+}
 function fightTitle(f) {
   const st = S.static;
   if (f.kind === 'boss') return 'The Drowned Crown';
   if (f.kind === 'dungeon') return `${st.dungeons[f.region]} · fight ${f.step + 1} of 3`;
+  if (f.raid === 'free') return `Freeing ${S.game.places[f.tile]?.name || 'the town'}`;
+  if (f.raid === 'stop') return 'Raiders on the road';
   if (f.kind === 'lair') return 'Lair';
   if (f.kind === 'event') return 'Trouble';
+  if (S.world?.elev?.[f.tile] <= 1) return 'At sea';
   return 'Skirmish';
 }
 
@@ -222,6 +233,7 @@ export function renderCombat(el) {
       h('span.round', null, `Round ${f.round}`),
       h('h2', null, fightTitle(f)),
       f.phase >= 2 ? h('span.chip', { style: { color: 'var(--info)', borderColor: 'var(--info)' } }, icon('wave'), f.phase >= 3 ? 'The Crown is alone: exposed and furious' : 'The Undertow drags someone under each round') : null,
+      f.ground ? groundChip(f) : null,
       !mine().some(x => f.heroes.includes(x)) ? h('span.chip', null, icon('eye'), 'Watching') : null,
       // a fallen hero's spirit die, whenever the bar below isn't offering it
       spiritMine.length && !giveBelow ? spiritBar(f, spiritMine[0], true) : null);

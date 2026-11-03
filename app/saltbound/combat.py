@@ -42,7 +42,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f = {
             "id": s["fid"], "kind": spec["kind"], "tile": spec["tile"], "heroes": spec["heroes"],
             "groups": spec.get("groups", []), "region": spec.get("region"), "step": spec.get("step", 0),
-            "path": spec.get("path"),
+            "path": spec.get("path"), "raid": spec.get("raid"),
             "by": spec.get("by"), "round": 0, "foes": [], "hs": {}, "done": [], "guard": {}, "taunt": None,
             "sanct": 0, "aegis": 0, "xp": 0, "gold": 0, "dmul": diff["foe_dmg"] * (1 + 0.1 * tier) * self.surge(),
             "spirit": {}, "nextfoe": 1, "phase": 1, "allies": [], "nextsum": 1, "acts": {}, "pain": {},
@@ -85,12 +85,38 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if any(self.mods(h).get("open_weak") for h in f["heroes"]):
             for fo in f["foes"]:
                 fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
+        self.apply_ground(spec.get("ground"))
         f["ambush"] = bool(spec.get("ambush_foes")) or (spec.get("by") in f["heroes"] and
                                                         C.CLASSES[self.hero(spec["by"])["cls"]]["map"]["key"] == "ambush")
         names = ", ".join(fo["name"] for fo in f["foes"])
         self.say(f"Fight! {names}.")
         self.fx("fight", fk=f["kind"], tile=f["tile"])
         self.new_round()
+
+    def apply_ground(self, gr):
+        """A battleground's rule (`A.GROUNDS`, chosen by `Game.ground_of`) at the start of a fight."""
+        f = self.s["fight"]
+        f["ground"] = gr
+        if not gr:
+            return
+        G = A.GROUNDS[gr["k"]]
+        if gr["k"] == "high" and gr["side"] == "heroes":
+            for h in f["heroes"]:
+                st = self.hs(h)["st"]
+                st["armor"] = st.get("armor", 0) + G["armor"]
+        elif gr["k"] == "high":
+            for fo in f["foes"]:
+                fo["st"]["armor"] = fo["st"].get("armor", 0) + max(3, round(fo["max"] * G["foe_armor"]))
+        elif gr["side"] == "heroes":
+            for fo in f["foes"]:
+                fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
+        else:
+            for h in f["heroes"]:
+                st = self.hs(h)["st"]
+                st["weak"] = max(st.get("weak", 0), 1)
+        who = {("high", "heroes"): "the party holds the slope", ("high", "foes"): "the enemies hold the slope",
+               ("woods", "heroes"): "the enemies are caught in the trees", ("woods", "foes"): "the party is caught in the trees"}
+        self.say(f"{G['name']}: {who[(gr['k'], gr['side'])]}.")
 
     def add_foe(self, key, hp=None, grow=0.0, aff=None):
         f = self.s["fight"]
@@ -1165,6 +1191,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.hero(h)["gold"] += gold + self.mods(h).get("sticky", 0)
         self.say(f"Victory! +{f['xp']} XP" + (f", +{gold} gold each." if gold else "."))
         prizes = [g["prize"] for g in s["groups"] if g["id"] in f["groups"] and g.get("prize")]
+        self.raids_beaten(f, winners)
         s["groups"] = [g for g in s["groups"] if g["id"] not in f["groups"]]
         p = self.place(f["tile"])
         wreck = f["kind"] == "lair" and p and p["kind"] == "wreck" and p.get("guard") and not p.get("done")
@@ -1256,6 +1283,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)
         out["last"] = f.get("last", [])
+        out["ground"] = f.get("ground")
+        out["raid"] = f.get("raid")
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]],
                              rollmods={m: v for m, v in self.mods(int(k)).items() if m in ROLL_MODS and v})
                      for k, x in f["hs"].items()}

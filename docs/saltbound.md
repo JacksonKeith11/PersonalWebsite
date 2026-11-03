@@ -71,7 +71,7 @@ Keep to these. They came from the owner directly.
   | Forest, jungle | 2 | blocks sight |
   | Hills, rocks | 2 | |
   | Shallows | 2 on foot, 1 by skiff | open or closed by the tide |
-  | Deep water | skiff only, 1 | |
+  | Deep water | skiff only, 1 | a current: 0 downstream, 2 against; a reef: high tide only; by a whirlpool +1; a whirlpool: never |
   | Cliffs, peak | impassable except by path | |
 
 - **The tide rises every 3 turns** (Story 4) and **every enemy grows stronger** (owner's request,
@@ -427,6 +427,72 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   is a job; hex tooltips name job targets and wanted crews.
 - **The bots** take the board's job worth most per turn (lairs and bounties from level 3), at most two
   at once, and head for a job's next stop while there's time to finish it and no dungeon is due.
+
+### The sea, the land's secrets, raids and the weather
+
+The owner asked for the overworld to be improved, looking at similar games (Nov 2026: items 1, 3, 5,
+6 and 8 of a review: the sea after *Sunless Sea* and *Dredge*, battlegrounds after *Battle Brothers*,
+raids after *Wildermyth*'s incursions and *FTL*'s fleet, lookouts after *Heroes*' observatories and
+*Zelda*'s towers, the map's readability). The world's extras are made by `world.add_features` (from
+the run's seed with a generator of its own, after the islands and places); their numbers are in
+`content/archipelago.py` ("the sea, the land's secrets, raids, weather"); the rules are in `game.py`.
+
+- **Currents** (`world["cur"]`: a hex -> the next hex downstream; `LANES` (3) one-way lanes of 6-9
+  hexes, preferring ones that join two regions' waters): a skiff riding one pays **nothing** a hex,
+  against it 2. One turn's route can be up to `PATH_MAX` (20) hexes, so a current carries a skiff a
+  long way. Drawn as pale chevrons with light dashes running downstream.
+- **Reefs** (`reef`, 6 single hexes near the coast): at low tide the rocks are out and no skiff can
+  cross; at high tide one can (a dark shape under the water). **Whirlpools** (`pool`, up to 2, out at
+  sea): no skiff can enter one, and the hexes round it cost a skiff 1 more. Both are in
+  `Game.step_cost` and its copy in `rules.js` (`tools/saltbound-check.py` checks they agree).
+- **Places out at sea**, reached only by skiff: two **smugglers' coves** (`COVE_GOLD` and a three-pick of
+  uncommon or rare loot), three **flotsam** (`FLOTSAM_GOLD` and a two-pick) and a **drowned shrine**
+  (`sea` on a shrine: Siren's Favour, +1 damage and +6 max HP for 8 turns; never dark).
+- **Sea beasts** (`sea` on a group; `SEA_GROUPS`, the Reef Maw now and then from two objectives
+  cleared): `SEA_MAX` (3) groups out on the water, one coming back every `SPAWN_EVERY` turns while
+  there are fewer. At high tide they hunt skiffs within `SEA_HUNT` hexes, a hex a turn, over open
+  water; at low tide they lie still. They never chase heroes on land, and land groups never chase
+  skiffs. `MAX_GROUPS` counts only land groups (`land_groups`). Fights at sea have their own backdrop
+  (`sea` in `stage.js`) and are titled "At sea".
+- **Battlegrounds** (`GROUNDS`, `Game.ground_of`, `Combat.apply_ground`): a roaming or lair fight on
+  hills or a peak is on **high ground**: whoever was already standing there starts with Armor (each
+  hero 6; each enemy a sixth of its health). In a forest it's **ambush ground**: whoever is caught
+  standing in the trees is Weak for the first round. "Already there" and "caught" come from `by`: a
+  hero walking in means the enemies were there. So on a hill, wait for them; in the woods, strike
+  first. The forecast says it per fight, the hex tooltip says what walking in would mean, and the fight
+  shows a chip (green when it helps the party).
+- **Lookouts** (one on each region's high ground): the first hero to climb one sees everything
+  `LOOKOUT_SIGHT` (8) hexes round it, hidden grottos too. **Grottos** (one per region, `hidden`):
+  invisible (the view leaves them out, and so does the forecast) until a hero walks within
+  `GROTTO_SPOT` (1) hex (a Farsighted hero 2) or climbs a lookout near one. A **hoard** holds
+  `GROTTO_GOLD` and a three-pick of rare loot; a **spring** heals whoever drinks fully and gives the
+  party a revive.
+- **Raids** (`raid` on a group; `spawn_raid`, `raid_road`, `occupy`, `raids_beaten`): from turn
+  `RAID_FROM` (8), every `RAID_EVERY` (8) turns, an objective not yet cleared sends a band (its
+  region's enemies, elite-led) to take a town 6-14 turns' march away (`RAID_RANGE`), at most
+  `RAID_MAX` (2) at once. A raid keeps to its road a hex a turn (`raid_road`: the shortest walk over
+  land, off towns and places), ignoring heroes, so standing in its way means a fight; it's always shown,
+  with its road dashed red to a ringed town and the turns left. **Beat it on the road**: `RAID_BOUNTY`
+  gold each, and its objective's garrison skips its next growth (`garrison_skip`). **If it reaches the
+  town with nobody there**, the town is occupied: its shop, inn, board and trade are shut (the raiders
+  stand on its hex, so walking in is a fight), and the objective's garrison grows at once. Freeing it
+  pays `FREE_GOLD` each and restocks its shop (`restock`). A hero standing in the town when the raid
+  arrives fights it there. No merchant ship docks at an occupied town.
+- **Squalls** (`squalls` in the state; `tick_squalls`, `in_squall`): from turn `SQUALL_FROM` (4),
+  every `SQUALL_EVERY` (6) turns while fewer than `SQUALL_MAX` (2) are about, a squall gathers over
+  Stormcrag's waters and drifts a hex a turn toward the middle of the map for `SQUALL_TURNS` (7). A
+  hero inside one (within `SQUALL_R` (1)) sees only `SQUALL_SIGHT` (2) hexes, for the map and for
+  enemies. Drawn as a dark cloud with rain, above the fog, with a dashed ring where it goes next.
+- **Reading the map**: the objectives and the peak are **landmarks** (`world_msg`'s `landmarks`),
+  drawn tall above the fog so the party always knows which way to go (the Lighthouse's beam sweeps
+  until it's cleared); "Next" in the top bar points at them. Zoomed all the way out, region names
+  label the map. A **minimap** (bottom right; hidden on phones) shows what's been seen, the heroes,
+  objectives, raids, opportunities and squalls, and the camera's view; click it to look there. The
+  surf washes in and out (two foam frames cross-faded), currents flow and whirlpools turn. "This
+  turn" keeps the heroes' lines at the top and the world's news (arrivals, raids, squalls,
+  opportunities, jobs) in a list under them that scrolls when it's long.
+- **The bots** go after a raid they can catch before it arrives, steer clear of occupied towns when
+  they need healing, and visit lookouts, found grottos and (once every hero has a skiff) sea places.
 
 ### Fights
 
@@ -1014,7 +1080,7 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/classes.py` | The generic classes, their actions and passives, `SHORT` card text, `COMBOS`, levels and XP. |
 | `app/saltbound/content/items.py` | Items (generic), item passives and the actions weapons give. |
 | `app/saltbound/content/archipelago.py` | This map's enemies, pools, elites, dungeons and paths, the final boss, blessings and events. |
-| `app/saltbound/world.py` | Hex geometry, terrain costs (`COST`, `FAST`), generating a run's map from its seed. |
+| `app/saltbound/world.py` | Hex geometry (`step_dir` for a hex direction), terrain costs (`COST`, `FAST`), generating a run's map from its seed, and its extras (`add_features`: currents, reefs, whirlpools, places at sea, lookouts, grottos). |
 | `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
 | `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. The socket and room codes are the shared `app/rooms.py`. |
 | `app/saltbound/save.py` | SQLite saves (`data/saltbound.db`, one connection under a lock), versions and migrations. |
@@ -1030,8 +1096,8 @@ clock anywhere: the run changes only when someone acts.
 | `js/itemart.js` | Item icons: a 12×12 base shape per kind of thing (axe, robe, shell...) painted in a material with an accent and a glow, then outlined. `ICON` maps each item to its look; a new item needs a line there (or it gets its slot's default). |
 | `js/skillfx.js` | What every action and enemy move looks like (`SKILL_FX`, `foeFx`), from the effects kit `combat.js` passes in (`fxKit`); the styles are the stylesheet's "skill effects" section. |
 | `js/stage.js` | The fights' painted backdrops (`stageKey` picks one for a fight, `stageURL` paints it once). |
-| `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, reach, routes. |
-| `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`), and how to describe requirements, dice and statuses. |
+| `js/hexmap.js` | `MapView` (Phaser): painted terrain (with two surf frames), currents and whirlpools, places, units, fog, reach, routes; above the fog the squalls, raid roads, landmarks and region names; the minimap. |
+| `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`, the world's `cur`/`reef`/`pool` via `seaMap`), and how to describe requirements, dice and statuses. |
 | `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
 | `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound and music. |
 
@@ -1042,8 +1108,10 @@ clock anywhere: the run changes only when someone acts.
   `rules.js`), use `python` rather than `python3`, and cap a long batch's workers (`--jobs=12`):
   the dev PC once powered off under a sustained all-core simulator batch.
 - `python3 tools/saltbound-check.py` forces every action and passive of every class through real
-  fights (bots never use most instant tricks), checks the passive mods against `mods.py`, and that
-  `js/rules.js`'s map size matches the server's. Run it after touching the rules or classes.
+  fights (bots never use most instant tricks), checks the passive mods against `mods.py`, that
+  `js/rules.js`'s map size and `PATH_MAX` match the server's, and runs the browser's `stepCost` in Node
+  (`tools/saltbound-steps.mjs`) against `Game.step_cost` for every step by the sea, at both tides,
+  afloat or not, with and without a skiff. Run it after touching the rules, classes or step costs.
 - `python3 tools/saltbound-sim.py [runs] [difficulty] [--report] [--seed=N] [--saves] [--with=class] [--fast] [--tally]`
   plays whole runs with bots across all cores. **Two kinds of test** (owner's rule):
   - **`--fast` checks that a feature works**: greedy bots (the best single placement per fight move, no
@@ -1081,7 +1149,8 @@ clock anywhere: the run changes only when someone acts.
   `play()` from the simulator and hash `g.s`), refactor, and compare. Any bot or rules change shows.
 - `node tools/saltbound-audit.js [url] [dir] [WxH] [scenario...]` reviews particular moments:
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
-  `boss`, `won`, `lost`, and for the map `tide` (just after a rise that landed enemies), `opp`, `trade` (standing in a smithy, temple or cartographer
+  `boss`, `won`, `lost`, and for the map `tide` (just after a rise that landed enemies), `raid` (a raid on
+  the road and a squall), `occupied`, `seafight`, `ground` (round 1 of a fight with a battleground), `opp`, `trade` (standing in a smithy, temple or cartographer
   town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
@@ -1100,6 +1169,18 @@ clock anywhere: the run changes only when someone acts.
   map. A new key that every place of a kind needs goes in `setup_places`, which fills only what's
   missing, so the save migration can call it too (with its own `Rng`, leaving the run's untouched).
 
+- **Hidden places stay hidden everywhere**: a grotto is in `world["places"]` from the start, but the
+  view leaves out any place with `hidden` and no `found`, and the forecast doesn't say a hero lands
+  on one. Anything new that lists or names places must skip them too, or it gives them away (the
+  bots skip them as well). Groups and spawns still keep off their hexes, which can't be seen.
+- **A current step costs 0**, so a route's length isn't bounded by its cost: `do_path` takes at most
+  `PATH_MAX` hexes, and `reach` in `rules.js` stops at the same number of hops. Change both together
+  (the check compares them).
+- **Sea beasts and land groups never meet a hero of the other kind**: `group_step` hunts only heroes
+  whose `afloat` matches the group's `sea`, and a catch counts only then (`move_groups`, the
+  forecast). A raid steps along its road whatever is in it.
+- **The world message carries the sea** (`cur`, `reef`, `pool`) and the `landmarks`; the client
+  reads the sea's extras through `seaMap(world)`, cached per world object.
 - **Planning odds use the same face rules as rolling** (`face_rules` in `dice.py`: Bulwark Faces,
   Weighted Coin, Keen Edge); the browser gets each hero's `rollmods` in the fight view for its hit
   chances, and the bots' odds cache keys on them (`ROLL_MODS` in `tuning.py`). A new passive that

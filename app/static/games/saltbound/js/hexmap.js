@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=97';
-import { spriteCanvas, placeCanvas } from './art.js?v=97';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=99';
+import { spriteCanvas, placeCanvas } from './art.js?v=99';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -84,6 +84,9 @@ const STAMPS = {
   house: { pal: { k: '#2a1e1a', r: '#a84a3a', R: '#7a3428', w: '#e0d4b8', W: '#b8a888', d: '#4a3020', y: '#ffd870' }, rows: [
     '...kkk...', '..krrrk..', '.krrrrrk.', 'kRRRRRRRk', '.kwwwwwk.', '.kwdwywk.', '.kwdwwWk.', '.kkkkkkk.'] },
   dock: { pal: { k: '#2a1e1a', w: '#8a6a44', W: '#6a4e30' }, rows: ['kkkkkkkk', 'wwwwwwww', 'WkWWkWWk', '.k..k..k'] },
+  // a reef at low tide: dark rocks breaking the surface, ringed in foam
+  reef: { pal: { k: '#2a2622', R: '#5e5850', L: '#7e776c', f: '#d6eef0' }, rows: [
+    '..f.ff....ff..', '.fkkf..fkkkf..', 'fkLRkf.kLRRkf.', 'fkRRkffkRRRkf.', '.fkkf..fkkkf..', '..ff....fff...'] },
 };
 function stamp(img, s, x0, y0) {
   const { pal, rows } = STAMPS[s];
@@ -144,9 +147,15 @@ function roads(world, kinds) {
 }
 
 let ROADS = null, ROADS_FOR = null;
-export function paintTerrain(canvas, world, game) {
+const SURF = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+// `surf` is two canvases the size of the map: two frames of foam a little way out from the shore,
+// which the scene cross-fades so the surf seems to wash in and out.
+export function paintTerrain(canvas, world, game, surf) {
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(MAP_W, MAP_H);
+  const sa = surf ? surf[0].getContext('2d').createImageData(MAP_W, MAP_H) : null;
+  const sb = surf ? surf[1].getContext('2d').createImageData(MAP_W, MAP_H) : null;
+  const sea = seaMap(world);
   const own = owners();
   const kinds = new Array(W * H);
   for (let t = 0; t < W * H; t++) kinds[t] = terrain(world, game, t);
@@ -180,6 +189,28 @@ export function paintTerrain(canvas, world, game) {
           if (o >= 0 && !water(o)) near = Math.min(near, d);
         }
         if (near === 1) c = PAL.foam; else if (near === 2) c = PAL.foam2;
+        else if (sa) {
+          // the surf frames: a broken line of foam 3-4 pixels out (frame A) and 4-6 out (frame B)
+          let far = 99;
+          for (let d = 3; d <= 6 && far === 99; d++) for (const [dx, dy] of SURF) { const o = at(x + dx * d, y + dy * d); if (o >= 0 && !water(o)) { far = d; break; } }
+          const i4 = p * 4, wav = (Math.sin(x * 0.35 + y * 0.2) + 1) / 2;
+          if (far <= 4 && wav > 0.35) { sa.data[i4] = 214; sa.data[i4 + 1] = 238; sa.data[i4 + 2] = 240; sa.data[i4 + 3] = far === 3 ? 200 : 120; }
+          if (far >= 4 && far <= 6 && wav < 0.65) { sb.data[i4] = 190; sb.data[i4 + 1] = 228; sb.data[i4 + 2] = 236; sb.data[i4 + 3] = far === 6 ? 70 : 150; }
+        }
+        // a reef under a high tide: a dark shape below the surface
+        if (sea.reef.has(t) && game.tide === 'high' && hash(x >> 1, y >> 1) > 0.45) {
+          const [cx, cy] = center(t);
+          if (Math.hypot(x - cx, (y - cy) * 1.3) < 13) c = [c[0] * 0.62, c[1] * 0.7, c[2] * 0.74];
+        }
+        // a whirlpool: dark rings spiralling in
+        if (sea.pool.has(t)) {
+          const [cx, cy] = center(t), dx = x - cx, dy = (y - cy) * 1.2, r = Math.hypot(dx, dy);
+          if (r < 19) {
+            const arm = (Math.atan2(dy, dx) + r * 0.32) % (Math.PI / 1.5);
+            if (arm < 0.5 && arm > -0.5 || arm > 1.6) c = r < 5 ? [12, 30, 44] : [c[0] * 0.55, c[1] * 0.6, c[2] * 0.68];
+            else if (r > 6 && arm > 0.9 && arm < 1.1) c = PAL.foam2;
+          }
+        }
       } else {
         // height: a shadow where the ground drops away to the south-east, a lit lip where it rises
         const lo = at(x + 2, y + 3), hi = at(x - 2, y - 3);
@@ -213,8 +244,21 @@ export function paintTerrain(canvas, world, game) {
       }
     }
   }
+  // currents: pale chevrons pointing downstream on each hex of a lane
+  for (const [a, b] of sea.cur) {
+    const [x0, y0] = center(a), [x1, y1] = center(b);
+    const ux = (x1 - x0) / HW, uy = (y1 - y0) / HW;
+    for (const off of [-8, 6]) {
+      const mx = x0 + ux * off, my = y0 + uy * off;
+      for (let k = -5; k <= 5; k++) {
+        const side = Math.abs(k), X = mx - ux * side * 0.9 + -uy * k, Y = my - uy * side * 0.9 + ux * k;
+        dot(X, Y, PAL.wave); if (side < 4) dot(X + ux, Y + uy, rgb('#9fd2de'));
+      }
+    }
+  }
   // props, top to bottom
   for (let t = 0; t < W * H; t++) {
+    if (sea.reef.has(t) && game.tide === 'low') { const [cx, cy] = center(t); stamp(img, 'reef', cx - 7, cy - 3); continue; }
     const k = kinds[t], [cx, cy] = center(t);
     const r = hash(t, 7), r2 = hash(t, 13);
     const coast = k !== 'deep' && world.elev[t] <= game.sea + 3;
@@ -237,6 +281,48 @@ export function paintTerrain(canvas, world, game) {
     }
   }
   ctx.putImageData(img, 0, 0);
+  if (surf) { surf[0].getContext('2d').putImageData(sa, 0, 0); surf[1].getContext('2d').putImageData(sb, 0, 0); }
+}
+
+// The objectives' landmarks, tall enough to see from far off and drawn above the fog, so the party
+// always knows which way to go: the Sunken Chapel's spire, the Black Fort's tower, the Lighthouse
+// (with its beam), the Drowned Peak's crown.
+const LANDMARK = {
+  coral: { pal: { s: '#9aa6a8', S: '#6a7678', d: '#1e1a26', c: '#5fb8a8', y: '#c8a040' }, rows: [
+    '.......y........', '.......s........', '......sSs.......', '......sSs.......', '.....ssSss......', '.....sdSds......', '....ssSSSss.....',
+    '....sdsSsds.....', '...sssSSSsss....', '..ssdsSSSsdss...', '..sssSSdSSsss...', '.cssSSSdSSSssc..', 'cccSSSSdSSSSccc.'] },
+  keys: { pal: { s: '#7a6a5a', S: '#54483c', d: '#1a1410', r: '#b0302a', w: '#8a6a44' }, rows: [
+    '......rrr.......', '......r..w......', '.........w......', '...s.s.s.s.s....', '...sssssssss....', '...sSdsssdSs....', '...sSsssssSs....',
+    '...sSssdssSs....', '.s.sSssdssSs.s..', '.sssSsssssSsss..', '.sSsSsddssSsSs..', '.sSsSsddssSsSs..', 'SSSSSSSSSSSSSSS.'] },
+  storm: { pal: { w: '#e8e4dc', r: '#b0302a', k: '#2a2430', y: '#ffe9a0', s: '#6a6a72' }, rows: [
+    '.......k........', '......kyk.......', '......yyy.......', '.....kkkkk......', '......www.......', '......rrr.......', '......www.......',
+    '.....wrrrw......', '.....wwwww......', '.....rrrrr......', '....wwwwwww.....', '...sssssssss....', '..sssssssssss...'] },
+  peak: { pal: { y: '#e0bb62', Y: '#a8842e', r: '#e07060', k: '#6a655e' }, rows: [
+    '................', '..y....y....y...', '..yy..yyy..yy...', '..yyyyyyyyyyy...', '..yryyyyyyryy...', '..yyyyyryyyyy...', '..YYYYYYYYYYY...',
+    '................', '.....kkkkk......', '...kkkkkkkkk....', '.kkkkkkkkkkkkk..'] },
+};
+function landmarkCanvas(kind) {
+  const art = LANDMARK[kind], rows = art.rows;
+  const c = document.createElement('canvas'); c.width = 16; c.height = rows.length + 2;
+  const x = c.getContext('2d');
+  const at = (X, Y) => (Y < 0 || Y >= rows.length || X < 0 || X >= rows[Y].length ? '.' : rows[Y][X]);
+  for (let Y = -1; Y <= rows.length; Y++) for (let X = 0; X < 16; X++) {
+    const ch = at(X, Y);
+    if (ch !== '.') { x.fillStyle = art.pal[ch]; x.fillRect(X, Y + 1, 1, 1); }
+    else if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => at(X + dx, Y + dy) !== '.')) { x.fillStyle = '#0b1017'; x.fillRect(X, Y + 1, 1, 1); }
+  }
+  return c;
+}
+// The lanes of each current, in order: every hex with a next hex that's nobody's next is a lane's start.
+function lanes(world) {
+  const { cur } = seaMap(world), into = new Set(cur.values()), out = [];
+  for (const a of cur.keys()) {
+    if (into.has(a)) continue;
+    const lane = [a];
+    while (cur.has(lane[lane.length - 1])) lane.push(cur.get(lane[lane.length - 1]));
+    out.push(lane);
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ the scene
@@ -264,6 +350,13 @@ export class MapView {
     this.canvas.width = MAP_W; this.canvas.height = MAP_H;
     this.tex = scene.textures.addCanvas('terrain', this.canvas);
     scene.add.image(0, 0, 'terrain').setOrigin(0);
+    this.surf = [0, 1].map(() => { const c = document.createElement('canvas'); c.width = MAP_W; c.height = MAP_H; return c; });
+    this.surfTex = this.surf.map((c, i) => scene.textures.addCanvas('surf' + i, c));
+    this.surfImg = [0, 1].map(i => scene.add.image(0, 0, 'surf' + i).setOrigin(0).setAlpha(i ? 0 : 1));
+    // the surf washes in and out: frame B fades up as frame A fades down, and back
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      onUpdate: tw => { const v = tw.getValue(); this.surfImg[0].setAlpha(1 - v * 0.85); this.surfImg[1].setAlpha(v); } });
+    this.layerSea = scene.add.container();
     this.layerWaves = scene.add.container();
     this.gReach = scene.add.graphics();
     this.layerPlaces = scene.add.container();
@@ -272,6 +365,12 @@ export class MapView {
     this.layerForecast = scene.add.container();
     this.layerUnits = scene.add.container();
     this.gFog = scene.add.graphics();
+    // above the fog: what the party knows of without seeing it
+    this.gWeather = scene.add.graphics();
+    this.layerWeather = scene.add.container();
+    this.gRaids = scene.add.graphics();
+    this.layerLand = scene.add.container();
+    this.layerLabels = scene.add.container();
     this.gHover = scene.add.graphics();
     const cam = scene.cameras.main;
     cam.setBounds(-400, -300, MAP_W + 800, MAP_H + 600);
@@ -300,11 +399,20 @@ export class MapView {
     });
     scene.input.on('gameout', () => { this.hoverTile = -1; this.drawHover(); this.handlers.hover?.(-1); });
     scene.input.on('wheel', (p, objs, dx, dy) => this.zoomBy(dy > 0 ? -1 : 1, p.x, p.y));
+    this.placeSea();
+    this.placeLandmarks();
     this.ready = true;
     if (this.pending) { const [g, o] = this.pending; this.pending = null; this.setState(g, o); }
   }
 
-  tick() {}
+  // The minimap follows the camera: redrawn when the view moves (checked each frame, drawn at most
+  // a few times a second).
+  tick() {
+    if (!this.mini || !this.scene) return;
+    const cam = this.scene.cameras.main, key = `${cam.scrollX | 0},${cam.scrollY | 0},${cam.zoom},${cam.width},${cam.height}`;
+    const now = performance.now();
+    if (key !== this.miniKey && now - (this.miniAt || 0) > 120) { this.miniKey = key; this.miniAt = now; this.drawMinimap(); }
+  }
 
   zoomBy(d, px, py) {
     if (!this.scene) return;
@@ -318,6 +426,7 @@ export class MapView {
     cam.preRender();
     const after = cam.getWorldPoint(px ?? cam.width / 2, py ?? cam.height / 2);
     cam.scrollX += before.x - after.x; cam.scrollY += before.y - after.y;
+    this.drawLabels();
   }
 
   centerOn(t, smooth = true) {
@@ -332,13 +441,207 @@ export class MapView {
     this.state = game; this.opts = opts;
     const key = game.sea + game.tide;
     if (key !== this.paintedKey) {
-      paintTerrain(this.canvas, this.world, game);
-      this.tex.refresh();
+      paintTerrain(this.canvas, this.world, game, this.surf);
+      this.tex.refresh(); this.surfTex.forEach(t => t.refresh());
       this.paintedKey = key;
       this.placeWaves(game);
     }
     if (this.centerPending !== undefined) { this.centerOn(this.centerPending, false); this.centerPending = undefined; }
-    this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog(); this.drawHover();
+    this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog();
+    this.drawWeather(); this.drawRaids(); this.drawLandmarks(); this.drawLabels(); this.drawHover(); this.drawMinimap();
+  }
+
+  // Currents flow (light dashes running down each lane) and whirlpools turn. Placed once: the sea's
+  // extras never change.
+  placeSea() {
+    const L = this.layerSea, sc = this.scene;
+    for (const lane of lanes(this.world)) {
+      for (let i = 0; i + 1 < lane.length; i++) {
+        const [x0, y0] = center(lane[i]), [x1, y1] = center(lane[i + 1]);
+        const ang = Math.atan2(y1 - y0, x1 - x0);
+        for (const k of [0, 0.5]) {
+          const r = sc.add.rectangle(x0, y0, 7, 2, 0xdff4f7).setAlpha(0).setRotation(ang);
+          L.add(r);
+          sc.tweens.add({ targets: r, x: x1, y: y1, duration: 1300, delay: (i * 260 + k * 1300) % 2600, repeat: -1,
+            onRepeat: () => r.setPosition(x0, y0), alpha: { from: 0, to: 0.85 }, yoyo: false, ease: 'Linear' });
+        }
+      }
+    }
+    for (const t of seaMap(this.world).pool) {
+      const [cx, cy] = center(t);
+      const g = sc.add.graphics({ x: cx, y: cy });
+      for (let k = 0; k < 3; k++) { g.lineStyle(2, 0xbfe4ec, 0.55 - k * 0.12); g.beginPath(); g.arc(0, 0, 6 + k * 5, k * 2, k * 2 + 2.4); g.strokePath(); }
+      g.setScale(1, 0.8);
+      L.add(g);
+      sc.tweens.add({ targets: g, rotation: -Math.PI * 2, duration: 3200, repeat: -1 });
+    }
+  }
+
+  // The objectives' landmarks above the fog (and the Lighthouse's beam sweeping round while it stands).
+  placeLandmarks() {
+    const sc = this.scene, L = this.layerLand;
+    this.marks = [];
+    for (const m of this.world.landmarks || []) {
+      const [cx, cy] = center(m.tile);
+      const kind = LANDMARK[m.region] ? m.region : 'peak';
+      const key = 'mark_' + kind;
+      if (!sc.textures.exists(key)) sc.textures.addCanvas(key, landmarkCanvas(kind));
+      const c = sc.add.container(cx, cy + 12);
+      if (kind === 'storm') {
+        const beam = sc.add.graphics({ x: 0, y: -48 });
+        beam.fillStyle(0xfff2b8, 0.22); beam.fillTriangle(0, 0, 90, -14, 90, 14);
+        beam.fillStyle(0xfff2b8, 0.12); beam.fillTriangle(0, 0, 90, -26, 90, 26);
+        c.add(beam);
+        sc.tweens.add({ targets: beam, rotation: Math.PI * 2, duration: 6000, repeat: -1 });
+        c.beam = beam;
+      }
+      c.add(sc.add.ellipse(0, 0, 30, 9, 0x000000, 0.3));
+      c.add(sc.add.image(0, 2, key).setOrigin(0.5, 1).setScale(2.2));
+      L.add(c);
+      this.marks.push({ ...m, c });
+    }
+  }
+
+  drawLandmarks() {
+    const st = this.state;
+    for (const m of this.marks || []) {
+      const cleared = m.region !== 'peak' && st.cleared.includes(m.region);
+      const sealed = m.region === 'peak' && st.cleared.length < 3;
+      m.c.setAlpha(cleared ? 0.55 : 1);
+      m.c.list.forEach(o => o.setTint?.(sealed ? 0x9a9aa6 : 0xffffff));
+      if (m.c.beam) m.c.beam.setVisible(!cleared);
+      m.c.setDepth(1);
+    }
+  }
+
+  // Region names over the whole map when zoomed all the way out.
+  drawLabels() {
+    const L = this.layerLabels;
+    if (!this.scene) return;
+    if (!L.list.length && this.opts?.regions) {
+      const sum = {};
+      for (let t = 0; t < W * H; t++) {
+        const r = this.world.reg[t];
+        if (!r || r === 'peak' || this.world.elev[t] <= 1) continue;
+        const [x, y] = center(t), a = (sum[r] ||= [0, 0, 0]);
+        a[0] += x; a[1] += y; a[2]++;
+      }
+      for (const [r, [x, y, n]] of Object.entries(sum)) {
+        L.add(this.scene.add.text(x / n, y / n, this.opts.regions[r].toUpperCase(), { fontFamily: 'Fraunces, Georgia, serif', fontSize: '22px', fontStyle: 'bold', color: '#f3ead2', stroke: '#0b1017', strokeThickness: 5, resolution: 3 })
+          .setOrigin(0.5).setAlpha(0.9));
+      }
+    }
+    L.setVisible(this.zoom <= 1);
+  }
+
+  // Squalls: a dark cloud with rain over the hexes inside, and a dashed ring where it drifts next.
+  drawWeather() {
+    const g = this.gWeather, L = this.layerWeather, sc = this.scene;
+    g.clear();
+    const ids = new Set();
+    const r = this.opts?.squallR ?? 1;
+    for (const q of this.state.squalls || []) {
+      ids.add(q.id);
+      let c = L.list.find(o => o.qid === q.id);
+      const [cx, cy] = center(q.tile);
+      if (!c) {
+        c = sc.add.container(cx, cy); c.qid = q.id;
+        for (let k = 0; k < 9; k++) {
+          const a = k / 9 * Math.PI * 2, d = k ? 26 + hash(k, q.id) * 22 : 0;
+          c.add(sc.add.ellipse(Math.cos(a) * d * r, Math.sin(a) * d * 0.7 * r - 14, 46 + hash(k, 3) * 26, 26 + hash(k, 5) * 12, 0x3a4250, 0.5));
+        }
+        for (let k = 0; k < 22; k++) {
+          const x = (hash(k, 11) - 0.5) * 110 * r, y = (hash(k, 12) - 0.5) * 70 * r;
+          const drop = sc.add.rectangle(x, y, 1, 7, 0xa8c4d8, 0.7).setRotation(0.25);
+          c.add(drop);
+          sc.tweens.add({ targets: drop, y: y + 18, x: x + 5, alpha: { from: 0.75, to: 0 }, duration: 520, delay: hash(k, 13) * 520, repeat: -1 });
+        }
+        L.add(c);
+        sc.tweens.add({ targets: c.list.slice(0, 9), scaleX: 1.08, scaleY: 1.06, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      } else if (!c.moving && (c.x !== cx || c.y !== cy)) {
+        c.moving = true;
+        sc.tweens.add({ targets: c, x: cx, y: cy, duration: 900, ease: 'Sine.easeInOut', onComplete: () => { c.moving = false; } });
+      }
+      if (q.next != null && !this.opts?.hideForecast) {
+        const [nx, ny] = center(q.next);
+        g.lineStyle(2, 0xa8c4d8, 0.6);
+        for (let k = 0; k < 16; k += 2) g.lineBetween(nx + Math.cos(k / 16 * 6.283) * 30 * r, ny + Math.sin(k / 16 * 6.283) * 24 * r, nx + Math.cos((k + 1) / 16 * 6.283) * 30 * r, ny + Math.sin((k + 1) / 16 * 6.283) * 24 * r);
+      }
+    }
+    for (const c of [...L.list]) if (!ids.has(c.qid)) { sc.tweens.killTweensOf([c, ...c.list]); c.destroy(); }
+  }
+
+  // Raids: the road each will take to its town, dashed red, and a torch on the town it's after; an
+  // occupied town flies the raiders' red banner.
+  drawRaids() {
+    const g = this.gRaids; g.clear();
+    if (this.raidMarks) this.raidMarks.forEach(o => o.destroy());
+    this.raidMarks = [];
+    for (const r of this.state.raids || []) {
+      const [tx, ty] = center(r.to);
+      if (!r.occupy && !this.opts?.hideForecast) {
+        const pts = [r.tile, ...r.road].map(center);
+        for (let i = 1; i < pts.length; i++) {
+          const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], n = Math.max(1, Math.floor(Math.hypot(x1 - x0, y1 - y0) / 6));
+          for (let k = 0; k < n; k += 2) {
+            const a = k / n, b = Math.min(1, (k + 1) / n);
+            g.lineStyle(4, 0x0b1017, 0.5); g.lineBetween(x0 + (x1 - x0) * a, y0 + (y1 - y0) * a, x0 + (x1 - x0) * b, y0 + (y1 - y0) * b);
+            g.lineStyle(2, 0xff6a4a, 0.9); g.lineBetween(x0 + (x1 - x0) * a, y0 + (y1 - y0) * a, x0 + (x1 - x0) * b, y0 + (y1 - y0) * b);
+          }
+        }
+        g.lineStyle(2, 0xff6a4a, 0.95); g.strokeCircle(tx, ty, 20);
+        const t = this.scene.add.text(tx + 20, ty - 22, String(r.road.length), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffd8cc', backgroundColor: '#6a1d2a', padding: { x: 3, y: 1 }, resolution: 4 }).setOrigin(0.5);
+        this.raidMarks.push(t);
+      } else if (r.occupy) {
+        // smoke over the town (the raiders' own token carries their banner)
+        for (let k = 0; k < 3; k++) {
+          const puff = this.scene.add.circle(tx + 4 + k * 4, ty - 18, 4, 0x4a4650, 0.6);
+          this.scene.tweens.add({ targets: puff, y: ty - 44, alpha: 0, scale: 2, duration: 1800, delay: k * 600, repeat: -1 });
+          this.raidMarks.push(puff);
+        }
+      }
+    }
+    this.raidMarks.forEach(o => this.layerLand.add(o));
+  }
+
+  // ---------------------------------------------------------------- the minimap
+  attachMinimap(canvas, onPick) {
+    this.mini = canvas; this.miniPick = onPick;
+    canvas.addEventListener('pointerdown', e => {
+      const r = canvas.getBoundingClientRect(), s = canvas.width / MAP_W;
+      const x = (e.clientX - r.left) * (canvas.width / r.width) / s, y = (e.clientY - r.top) * (canvas.height / r.height) / s;
+      this.scene?.cameras.main.pan(x, y, 300, 'Sine.easeInOut');
+    });
+    this.drawMinimap();
+  }
+
+  drawMinimap() {
+    const c = this.mini, st = this.state;
+    if (!c || !st) return;
+    const x = c.getContext('2d'), s = c.width / MAP_W;
+    x.fillStyle = '#0b1017'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = '#111a24'; x.fillRect(HW / 2 * s, RS / 2 * s, (MAP_W - HW) * s, (MAP_H - RS) * s);
+    const vis = visibleTiles(st), col = MINI_COL;
+    for (let t = 0; t < W * H; t++) {
+      const [cx, cy] = center(t);
+      if (st.seen[t] !== '1') continue;  // the fog hides the unexplored here too
+      x.fillStyle = col[terrain(this.world, st, t)] || col.grass;
+      x.globalAlpha = vis.has(t) ? 1 : 0.6;
+      x.fillRect((cx - HW / 2) * s, (cy - RS / 2) * s, HW * s + 0.6, RS * s + 0.6);
+    }
+    x.globalAlpha = 1;
+    const dot = (t, color, r = 2.2) => { const [cx, cy] = center(t); x.fillStyle = color; x.beginPath(); x.arc(cx * s, cy * s, r, 0, 7); x.fill(); };
+    for (const m of this.world.landmarks || []) dot(m.tile, st.cleared.includes(m.region) ? '#8a7a50' : '#e0bb62', 3);
+    for (const r of st.raids || []) dot(r.tile, '#ff6a4a', 2.6);
+    for (const o of st.opps || []) dot(o.tile, '#ffe7a8', 2);
+    for (const q of st.squalls || []) { const [cx, cy] = center(q.tile); x.fillStyle = 'rgba(120,135,160,0.55)'; x.beginPath(); x.arc(cx * s, cy * s, 9, 0, 7); x.fill(); }
+    st.heroes.forEach((hero, h) => { if (hero.alive) dot(hero.tile, '#' + SEATS[h].toString(16).padStart(6, '0'), 3); });
+    const cam = this.scene?.cameras.main;
+    if (cam) {
+      const v = cam.worldView;
+      x.strokeStyle = '#f3ead2'; x.lineWidth = 1.5;
+      x.strokeRect(Math.max(0, v.x * s), Math.max(0, v.y * s), Math.min(c.width, v.width * s), Math.min(c.height, v.height * s));
+    }
   }
 
   // Glints on the open sea: short light strokes that fade in and out, so the water moves. Cheap:
@@ -439,8 +742,10 @@ export class MapView {
       const tex = this.texFor('place_' + kind, () => placeCanvas(kind));
       const yoff = p.kind === 'town' ? 14 : 2;
       // places are drawn half again as big as their 16px art, on a soft shadow, so they read at a glance
-      if (p.kind !== 'town') L.add(this.scene.add.ellipse(cx, cy + yoff + 10, 22, 7, 0x000000, 0.3));
-      const img = this.scene.add.image(cx, cy + yoff, tex).setOrigin(0.5, 0.5).setScale(1.5);
+      // (objectives and the peak are drawn as landmarks, above the fog)
+      const mark = p.kind === 'dungeon' || p.kind === 'peak';
+      if (p.kind !== 'town' && !mark) L.add(this.scene.add.ellipse(cx, cy + yoff + 10, 22, 7, 0x000000, 0.3));
+      const img = this.scene.add.image(cx, cy + yoff, tex).setOrigin(0.5, 0.5).setScale(1.5).setVisible(!mark);
       if (p.kind === 'town') {
         img.setVisible(false);
         // a town's name under it, so it's still findable with heroes standing on its houses
@@ -449,11 +754,13 @@ export class MapView {
       if (p.done || (p.kind === 'dungeon' && this.state.cleared.includes(p.region))) img.setAlpha(0.45);
       if (p.kind === 'peak' && this.state.cleared.length < 3) img.setTint(0x8a8a8a);
       if (p.kind === 'shrine' && p.dark) img.setTint(0xb48ae0);
+      if (p.kind === 'shrine' && p.sea) img.setTint(0x7ad8d0);
       L.add(img);
       // what's there, before anyone arrives: a wreck's loot, an event's risk, a garrison's size
       const dot = (x, y, col) => L.add(this.scene.add.circle(cx + x, cy + y, 3.5, col).setStrokeStyle(1, 0x0b1017));
       if (p.kind === 'wreck' && !p.done) dot(13, 10, RARITY_COL[p.rarity] || 0xb8b0a0);
       if (p.kind === 'event' && !p.done && p.risk && p.risk !== 'safe') dot(13, 10, p.risk === 'fight' ? 0xd0624f : 0xe0a050);
+      if (p.kind === 'cove' && !p.done) dot(13, 10, RARITY_COL.rare);
       const gs = p.kind === 'dungeon' && !this.state.cleared.includes(p.region) ? this.state.garrison?.[p.region] : null;
       if (gs?.n) L.add(this.scene.add.text(cx + 12, cy - 16, '+' + gs.n, { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffb3a0', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5));
       if (p.kind === 'town' && p.docks) {
@@ -541,6 +848,16 @@ export class MapView {
         const shadow = this.scene.add.ellipse(0, 12, 26, 8, 0x000000, 0.35);
         const img = this.scene.add.image(0, 14, this.texFor('spr_' + gr.foes[0], () => spriteCanvas(gr.foes[0]))).setOrigin(0.5, 1).setFlipX(true);
         c.add([shadow, img]);
+        if (gr.sea) {
+          // sea beasts: a ring of ripples round them
+          const rip = this.scene.add.ellipse(0, 12, 30, 9).setStrokeStyle(1.5, 0xbfe4ec, 0.8);
+          c.add(rip);
+          this.scene.tweens.add({ targets: rip, scaleX: 1.3, scaleY: 1.3, alpha: 0.2, duration: 1200, repeat: -1 });
+        }
+        if (gr.raid) {
+          // raiders carry their banner
+          c.add([this.scene.add.rectangle(-12, 10, 2, 22, 0x2a1e1a).setOrigin(0.5, 1), this.scene.add.rectangle(-11, -12, 9, 6, 0xb0302a).setOrigin(0, 0)]);
+        }
         if (gr.foes.length > 1 || gr.lair) {
           const badge = this.scene.add.circle(13, -12, 7, gr.lair ? 0x6a1d2a : 0x10161f).setStrokeStyle(1, 0xd0624f);
           const txt = this.scene.add.text(13, -12, String(gr.foes.length), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffd8cc', resolution: 4 }).setOrigin(0.5);
@@ -629,6 +946,8 @@ export class MapView {
 
   destroy() { this.game.destroy(true); }
 }
+
+const MINI_COL = { deep: '#1d4f6a', shoal: '#bfa877', beach: '#d9c48e', grass: '#5d8c47', forest: '#3e6a34', hills: '#7d8a4e', peak: '#7f7a72', town: '#c9a24a' };
 
 function boatCanvas() {
   const c = document.createElement('canvas'); c.width = 28; c.height = 8;

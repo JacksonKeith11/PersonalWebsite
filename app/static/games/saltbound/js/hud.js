@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=97';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=97';
-import { spriteURL, placeURL } from './art.js?v=97';
-import { itemURL } from './itemart.js?v=97';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=97';
-import { MapView } from './hexmap.js?v=97';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=97';
-import { disconnect } from './main.js?v=97';
-import * as sfx from './audio.js?v=97';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=99';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=99';
+import { spriteURL, placeURL } from './art.js?v=99';
+import { itemURL } from './itemart.js?v=99';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=99';
+import { MapView } from './hexmap.js?v=99';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=99';
+import { disconnect } from './main.js?v=99';
+import * as sfx from './audio.js?v=99';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -49,11 +49,13 @@ export function renderGame() {
         h('button.btn.icon', { 'aria-label': 'Zoom in', tip: 'Zoom in\nOr use the mouse wheel', onclick: () => map?.zoomBy(1) }, icon('plus')),
         h('button.btn.icon', { 'aria-label': 'Zoom out', tip: 'Zoom out', onclick: () => map?.zoomBy(-1) }, h('span', { style: { fontSize: '20px', lineHeight: 1 } }, '−')),
         h('button.btn.icon', { 'aria-label': 'Find my hero', tip: 'Find my hero', onclick: () => map?.centerOn(selHero().tile) }, icon('target'))),
+      h('div.minimap', { tip: 'The whole map\nClick to look there. Gold: objectives; red: raids.' }, h('canvas#minimap', { width: 220, height: 134, 'aria-label': 'Minimap' })),
       h('div#drawer'), h('div#modal'), h('div#combat'), h('div#hextip.hextip', { hidden: true }), h('div#menu'));
     $('app').replaceChildren(root);
     mapWorld = S.world;
     map = new MapView($('map'), S.world, { click: onTileClick, hover: onTileHover });
     map.centerOn(g.heroes[sel()]?.tile ?? S.world.start, false);
+    map.attachMinimap($('minimap'));
   }
   updateMap();
   renderTopbar();
@@ -71,7 +73,8 @@ export function renderGame() {
 function updateMap() {
   const g = S.game, h0 = sel();
   const planning = mine().includes(h0) && canPlan(h0) && !g.plans[h0]?.ready && !g.pending[h0]?.length;
-  map.setState(g, { sel: h0, mine: mine(), reach: planning ? reach(S.world, g, S.static, h0) : null, preview: UI.preview });
+  map.setState(g, { sel: h0, mine: mine(), reach: planning ? reach(S.world, g, S.static, h0) : null, preview: UI.preview,
+    regions: S.static.regions, squallR: S.static.squall?.r });
 }
 
 // ------------------------------------------------------------------ map input
@@ -107,9 +110,15 @@ function onTileHover(t, x, y) {
     lines.push(h('b', null, placeTitle(p) || TERRAIN_NAME[ter] || ter));
     if (p) lines.push(h('div', null, placeText(p)));
     lines.push(h('div.muted', null, `${TERRAIN_NAME[ter] || ter}${S.world.reg[t] ? ' · ' + regions[S.world.reg[t]] : ''}`));
+    for (const note of seaNotes(t, ter)) lines.push(h('div.sea-note', null, note));
+    if (inSquall(g, t, S.static.squall.r)) lines.push(h('div.sea-note', null, `In a squall: whoever stands here sees only ${S.static.squall.sight} hexes around.`));
     const vis = visibleTiles(g);
     const gr = g.groups.find(x => x.tile === t);
-    if (gr && (vis.has(t) || gr.lair)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.lair ? (p?.kind === 'wreck' ? 'Guards: ' : 'Lair: ') : 'Enemies: ') + gr.foes.map((k, i) => foeName(k, gr.aff?.[i])).join(', ')));
+    if (gr && (vis.has(t) || gr.lair || gr.raid)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.occupy ? 'Holding the town: ' : gr.raid ? 'Raiders: ' : gr.sea ? 'Sea beasts: ' : gr.lair ? (p?.kind === 'wreck' ? 'Guards: ' : 'Lair: ') : 'Enemies: ') + gr.foes.map((k, i) => foeName(k, gr.aff?.[i])).join(', ')));
+    if (gr?.sea) lines.push(h('div.muted', null, `At high tide they hunt skiffs within ${S.static.sea.hunt} hexes, a hex a turn; at low tide they lie still. They can’t reach you on land.`));
+    const raid = gr?.raid && (g.raids || []).find(r => r.g === gr.id);
+    if (raid && !raid.occupy) lines.push(h('div.prize', null, `From ${S.static.dungeons[raid.reg]}, marching on ${g.places[raid.to]?.name || 'a town'}: ${raid.road.length} turn${raid.road.length === 1 ? '' : 's'} away. Beat them on the road for ${S.static.sea.raid_bounty} gold each, and ${S.static.dungeons[raid.reg]}’s garrison skips its next growth. If they get there with nobody in town, they take it.`));
+    if (gr && vis.has(t) && !gr.sea) { const gt = groundLine(ter); if (gt) lines.push(h('div.ground-note', null, gt)); }
     if (gr?.prize) lines.push(h('div.prize', null, `Guards a prize: ${S.static.items[gr.prize].name} (rare ${S.static.items[gr.prize].slot}), in the loot when they’re beaten.`));
     if (p?.kind === 'dungeon' && !g.cleared?.includes(p.region) && g.dnext?.[p.region]) {
       const nx = g.dnext[p.region], step = (g.dungeon?.[p.region] || 0) + 1;
@@ -145,6 +154,30 @@ function onTileHover(t, x, y) {
   tip.style.top = Math.min(innerHeight - tr.height - 12, y + 16) + 'px';
 }
 
+// What the sea's extras mean for a skiff on this hex.
+function seaNotes(t, ter) {
+  const sea = seaMap(S.world), out = [];
+  if (sea.cur.has(t)) out.push('A current: a skiff riding it downstream pays nothing a hex; against it, 2.');
+  if (sea.reef.has(t)) out.push(S.game.tide === 'low' ? 'A reef, its rocks out at low tide: no skiff can cross until high tide.' : 'A reef under the high tide: a skiff can cross until the tide goes out.');
+  if (sea.pool.has(t)) out.push('A whirlpool: no skiff can enter it.');
+  else if (sea.swirl.has(t) && ter === 'deep') out.push('By a whirlpool: a skiff pays 1 more here.');
+  return out;
+}
+// A battleground's rule for a fight on this terrain (Game.ground_of), for a hero walking in.
+function groundLine(ter) {
+  const G = S.static.grounds;
+  if (ter === 'hills' || ter === 'peak') return `${G.high.name}: walk in and the enemies hold the slope (they start with Armor). Let them come to you and you hold it (6 Armor each).`;
+  if (ter === 'forest') return `${G.woods.name}: walk in and they’re caught in the trees (Weak for a round). Let them come to you and you are.`;
+  return null;
+}
+// A forecast fight's battleground, in words.
+function groundSay(gr) {
+  if (!gr) return '';
+  const G = S.static.grounds[gr.k];
+  const who = gr.k === 'high' ? (gr.side === 'heroes' ? 'you hold the slope' : 'they hold the slope') : (gr.side === 'heroes' ? 'they’re caught in the trees' : 'you’re caught in the trees');
+  return `${G.name}: ${who}`;
+}
+
 function placeTitle(p) {
   if (!p) return null;
   const st = S.static;
@@ -152,7 +185,8 @@ function placeTitle(p) {
     town: p.name + (p.spec ? ` · ${st.town_specs[p.spec].name}` : ''), dungeon: st.dungeons[p.region], peak: 'The Drowned Peak',
     shrine: p.dark ? 'Dark shrine' : 'Shrine', camp: 'Camp', event: p.title && !p.done ? p.title : 'Something curious',
     wreck: p.guard && !p.done ? 'Guarded wreck' : 'Wreck', lair: 'Lair', cache: 'Buried cache',
-  }[p.kind];
+    cove: 'Smugglers’ cove', flotsam: 'Flotsam', lookout: 'Lookout', grotto: p.grotto === 'spring' ? 'Grotto spring' : 'Hidden grotto',
+  }[p.kind] + (p.kind === 'shrine' && p.sea ? ' (drowned)' : '') + (p.occupied ? ' · occupied' : '');
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
 const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -183,16 +217,24 @@ function garrisonText(reg) {
 function placeText(p) {
   const g = S.game;
   switch (p.kind) {
-    case 'town': return 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.') + (p.spec ? ` ${S.static.town_specs[p.spec].text}` : '');
+    case 'town': return p.occupied ? 'Raiders hold it: its shop, inn, board and trade are shut. Walk in to fight them and free it '
+      + `(${S.static.sea.free_gold} gold each, and a better-stocked shop).`
+      : 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.') + (p.spec ? ` ${S.static.town_specs[p.spec].text}` : '');
     case 'dungeon': return g.cleared.includes(p.region) ? 'Cleared.' : `An objective: ${3 - (g.dungeon[p.region] || 0)} fights deep, the way forking between them. No retreat.`;
     case 'peak': return g.cleared.length >= 3 ? 'The Drowned Crown waits at the top.' : `Sealed until all three objectives are cleared (${g.cleared.length} of 3).`;
     case 'shrine': return p.dark ? 'A stronger blessing than a shrine’s, at a price. Once for each hero.'
+      : p.sea && p.buff ? `Out at sea, by skiff only. ${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns), once for each hero.`
       : `${p.buff ? `${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns)` : 'A blessing'}, once for each hero.`;
     case 'camp': return 'Rest here to heal half your HP.';
     case 'event': return p.done ? 'Already seen to.' : `${RISK[p.risk] || 'Step on it to find out.'}${p.needs?.length ? ` ${/^[AEIOU]/.test(S.static.classes[p.needs[0]].name) ? 'An' : 'A'} ${p.needs.map(k => S.static.classes[k].name).join(' or ')} would have another option.` : ''}`;
     case 'wreck': return p.done ? 'Picked clean.' : p.guard ? 'Enemies are camped on it. Beat them for a pool of rare loot.' : `${cap(p.rarity || 'some')} loot, for whoever gets there first.`;
     case 'cache': return p.done ? 'Dug up.' : 'The X from the torn chart: good loot and gold.';
     case 'lair': return p.done ? 'Cleared.' : 'A nest of tougher enemies, guarding good loot.';
+    case 'cove': return p.done ? 'Emptied.' : `Out at sea, by skiff only: a smugglers’ stash (${S.static.sea.cove_gold} gold and a pick of uncommon or rare loot).`;
+    case 'flotsam': return p.done ? 'Picked over.' : `Out at sea, by skiff only: ${S.static.sea.flotsam_gold} gold and a little loot.`;
+    case 'lookout': return p.done ? 'Climbed: the land around is on your map.' : `Climb it to see everything ${S.static.lookout_sight} hexes around, hidden grottos too.`;
+    case 'grotto': return p.done ? 'Already found and taken.' : p.grotto === 'spring' ? 'A clear spring: full health for whoever drinks, and a revive for the party.'
+      : `An old hoard: ${S.static.sea.grotto_gold} gold and a pick of rare loot.`;
   }
   return '';
 }
@@ -243,7 +285,8 @@ function goalTargets(g) {
   const all = Object.entries(g.places).map(([t, p]) => [+t, p]);
   const left = ['coral', 'keys', 'storm'].filter(r => !g.cleared.includes(r)).map(r => {
     const at = all.find(([, p]) => p.kind === 'dungeon' && p.region === r);
-    return { t: at ? at[0] : regionMiddle(r), name: S.static.dungeons[r], found: !!at, where: S.static.regions[r] };
+    const mark = (S.world.landmarks || []).find(m => m.region === r);
+    return { t: at ? at[0] : mark ? mark.tile : regionMiddle(r), name: S.static.dungeons[r], found: !!(at || mark), where: S.static.regions[r] };
   }).filter(x => x.t != null);
   if (!left.length) {
     const peak = all.find(([, p]) => p.kind === 'peak');
@@ -391,7 +434,7 @@ function renderActionbar() {
 // The server works the turn out from what the party can see (Game.forecast): one line per hero, so
 // everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
 const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'reaches a shrine', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair',
-  cache: 'digs up the cache', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage' };
+  cache: 'digs up the cache', cove: 'searches the cove', flotsam: 'hauls in the flotsam', lookout: 'climbs the lookout', grotto: 'enters the grotto', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage' };
 // An enemy's name, with its elite affix ("Hulking Crabfolk Brute").
 export function foeName(k, aff) {
   const st = S.static;
@@ -436,6 +479,8 @@ export function renderForecast() {
       const others = fl.with.filter(n => n !== hero.name);
       text = fight.by === x ? `walks into a fight: ${fl.where}` : fight.by == null ? `is caught by ${fl.where}` : `is pulled into the fight: ${fl.where}`;
       if (others.length) text += ` · with ${others.join(', ')}`;
+      if (fight.ground) text += ` · ${groundSay(fight.ground)}`;
+      if (fight.raid) text += fight.raid === 'free' ? ' · freeing the town' : ' · stopping the raid';
     } else if (p.rest) text = 'rests';
     else if (fc.lands[x]) text = LAND[fc.lands[x]] || 'arrives';
     else if (p.path?.length) text = 'moves';
@@ -443,12 +488,25 @@ export function renderForecast() {
     lines.push(h('div.fc-line' + (fight ? '.fight' : ''), { style: { '--seat': seat(x) } },
       h('i.dot'), h('b', null, hero.name), h('span', null, ' ' + text), p.ready ? h('span.ok', null, ' ✓') : null));
   });
+  // below the heroes' lines, the world's news, in a list of its own that scrolls when it's long
+  const heroLines = lines.splice(0);
   const steps = fc.steps.length;
   if (steps) lines.push(h('div.fc-line.muted', null, icon('skull'), ` ${steps} enemy group${steps > 1 ? 's' : ''} will step toward you (red arrows).`));
   // what the last rise of the tide brought, while it's still there
   for (const n of tideNews(g)) {
     lines.push(h('div.fc-line.opp.tide', { tip: `${n.text}\nClick to find it on the map.`, onclick: () => map?.centerOn(n.at) },
       icon('wave'), h('b', null, ` ${n.name}`), h('span', null, n.where ? ` (${n.where})` : '')));
+  }
+  // raids on the road, and towns they hold
+  for (const r of g.raids || []) {
+    const town = g.places[r.to]?.name || 'a town';
+    const text = r.occupy ? ` hold ${town}: free it to reopen the town` : ` march on ${town}: ${r.road.length} turn${r.road.length === 1 ? '' : 's'} away`;
+    lines.push(h('div.fc-line.opp.raid', { tip: `Raiders from ${S.static.dungeons[r.reg]}.${r.occupy ? '' : ' Beat them on the road and its garrison skips its next growth; if they reach the town with nobody in it, they take it.'}\nClick to find them on the map.`, onclick: () => map?.centerOn(r.tile) },
+      icon('flag'), h('b', null, ' Raiders'), h('span', null, text)));
+  }
+  for (const q of g.squalls || []) {
+    lines.push(h('div.fc-line.opp.squall', { tip: `Inside a squall you see only ${S.static.squall.sight} hexes around you. It drifts a hex a turn (the dashed ring is where it goes next).\nClick to find it on the map.`, onclick: () => map?.centerOn(q.tile) },
+      icon('wave'), h('b', null, ' Squall'), h('span', null, ` over ${S.static.regions[S.world.reg[q.tile]] || 'the sea'}: ${q.left} turn${q.left === 1 ? '' : 's'} left`)));
   }
   // chances that won't wait, and debts that will come
   for (const o of g.opps || []) {
@@ -465,9 +523,9 @@ export function renderForecast() {
   }
   const toggle = () => { UI.fc = !UI.fc; saved.fcOpen = UI.fc; persist(); renderForecast(); };
   const head = h('button.fc-head', { 'aria-expanded': String(UI.fc), tip: UI.fc ? 'Hide' : 'Show what this turn will do', onclick: toggle },
-    h('span.eyebrow', null, 'This turn'), UI.fc ? null : h('span.fc-count', null, `${lines.length} line${lines.length === 1 ? '' : 's'}`), icon(UI.fc ? 'chevron-down' : 'chevron-up'));
+    h('span.eyebrow', null, 'This turn'), UI.fc ? null : h('span.fc-count', null, `${heroLines.length + lines.length} line${heroLines.length + lines.length === 1 ? '' : 's'}`), icon(UI.fc ? 'chevron-down' : 'chevron-up'));
   el.replaceChildren(h('div.forecast' + (UI.fc ? '' : '.closed'), { role: 'status', 'aria-live': 'polite' }, head,
-    ...(UI.fc ? [...lines, h('div.fc-foot', null, 'Hidden enemies can still ambush you.')] : [])));
+    ...(UI.fc ? [...heroLines, lines.length ? h('div.fc-news', null, ...lines) : null, h('div.fc-foot', null, 'Hidden enemies can still ambush you.')] : [])));
 }
 
 function restText(h0) {
@@ -1189,6 +1247,13 @@ export function handleFx(list, before) {
       case 'job': later.push(() => { const t = `Job done for ${f.src}: +${f.gold} gold each${f.extra}`; mine().includes(f.h) ? resultNote(f.h, t, () => toast(t, 'big')) : toast(t, 'big'); sfx.play('coin'); }); break;
       case 'opp': if (list.some(r => r.k === 'rise' && (r.news || []).some(n => n.tile === f.tile))) break; later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
       case 'garrison': later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;
+      case 'raid': later.push(() => { bigBanner('Raiders march', `From ${S.static.dungeons[f.reg]} on ${S.game.places[f.to]?.name || 'a town'}, ${f.eta} turns away`, 'tide', 2600); if (mine().length) map?.centerOn(f.tile); sfx.play('rise'); }); break;
+      case 'occupied': later.push(() => toast(`Raiders take ${S.game.places[f.tile]?.name || 'a town'}: it’s shut until you drive them out`, 'big')); break;
+      case 'freed': later.push(() => { toast(`${S.game.places[f.tile]?.name || 'The town'} is free: +${f.gold} gold each`, 'big'); sfx.play('coin'); }); break;
+      case 'raidstop': later.push(() => toast(`Raid broken: +${f.gold} gold each, and ${S.static.dungeons[f.reg]}’s garrison skips its next growth`, 'big')); break;
+      case 'found': later.push(() => { toast(`${S.game.heroes[f.h].name} finds a hidden grotto`); sfx.play('coin'); }); break;
+      case 'lookout': later.push(() => toast(`${S.game.heroes[f.h].name} climbs the lookout: ${f.r} hexes of land on the map`)); break;
+      case 'squall': later.push(() => toast('A squall gathers over Stormcrag’s waters')); break;
       case 'event':
         if (mine().includes(f.h)) {
           later.push(() => {

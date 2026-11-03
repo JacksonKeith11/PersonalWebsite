@@ -47,6 +47,14 @@ SCENARIOS = {
     # the turn after the tide rose and landed enemies
     "tide": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"] and (g.s["turn"] - 1) % g.diff()["rise"] == 0
     and any(n.get("g") is not None for n in g.s.get("tidenews", [])),
+    # the sea, raids and the weather
+    "raid": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
+    and any(x.get("raid") and not x.get("occupy") for x in g.s["groups"]) and g.s.get("squalls"),
+    "occupied": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"] and any(x.get("occupy") for x in g.s["groups"]),
+    "seafight": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and not g.s["pending"]["0"]
+    and g.s["world"]["elev"][g.s["fight"]["tile"]] <= g.s["sea"],
+    "ground": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and not g.s["pending"]["0"]
+    and g.s["fight"].get("ground") and g.s["fight"]["round"] == 1,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }

@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=97';
+import { SPRITES } from './sprites.js?v=99';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -68,6 +68,15 @@ export const PLACE_ART = {
     '................', '.....bbbb.......', '....rrrrrr......', '....bBbbBb......', '....bBbbBb......', '....rrrrrr......', '..ss.bbbb.ss....', '.ssssssssssss...'] },
   healer: { pal: { t: '#e8e0d0', T: '#b8b0a0', r: '#d04a4a' }, rows: [
     '................', '.......t........', '......ttt.......', '.....ttrtt......', '....ttrrrtt.....', '...tttTrtttt....', '..ttttTttttt....', '..TTTTTTTTTT....'] },
+  // out at sea: an islet with a palm and a half-buried chest
+  cove: { pal: { g: '#4a8a3c', G: '#6aa84a', t: '#7a5a34', s: '#e0cc90', S: '#c4ad78', w: '#8a5a2a', y: '#e0bb62' }, rows: [
+    '......gg.gg.....', '.....gGggGg.....', '.......tg.......', '.......t........', '......t..wwy....', '...sssssswwws...', '..sSssssssssSs..', '...SSSSSSSSSS...'] },
+  flotsam: { pal: { b: '#9a6a3a', B: '#6a4422', r: '#3a3a42', p: '#8a6a44', s: '#8fd0ff' }, rows: [
+    '................', '................', '.....bbb........', '....rrrrr.......', '....bBbBb..ppp..', '....rrrrr.pppp..', '..ss.....ss.ss..', '.ssssssssssssss.'] },
+  lookout: { pal: { w: '#8a6a44', W: '#5a4028', r: '#a84a3a', R: '#7a3428', k: '#2a1e1a' }, rows: [
+    '......rrr.......', '.....rrrrr......', '....RRRRRRR.....', '.....wkkkw......', '.....wwwww......', '.....w.w.w......', '.....ww.ww......', '....w.w.w.w.....', '....ww...ww.....', '...WWW...WWW....'] },
+  grotto: { pal: { r: '#7a7a82', R: '#56565e', d: '#0e0c16', c: '#8fe8ff', g: '#4a7a3c' }, rows: [
+    '.....g..g.......', '....rrrrrrr.....', '...rrRRRRRrr....', '..rrRdddddRrr...', '..rRddcdddRrr...', '..rRdddddcdRr...', '.rrRddddddRrrr..', '.RRRddddddRRRR..'] },
 };
 export function placeCanvas(kind) {
   const key = 'place_' + kind;

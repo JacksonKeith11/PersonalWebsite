@@ -94,8 +94,11 @@ class Room:
 
     def world_msg(self):
         w = self.game.s["world"]
+        marks = sorted((int(t), p.get("region") or "peak") for t, p in w["places"].items() if p["kind"] in ("dungeon", "peak"))
         return {"t": "world", "w": w["w"], "h": w["h"], "elev": w["elev"], "bio": w["bio"], "reg": w["reg"],
-                "peak": w["peak"], "start": w["start"], "seed": self.game.s["seed"]}
+                "peak": w["peak"], "start": w["start"], "seed": self.game.s["seed"],
+                "cur": w.get("cur", {}), "reef": w.get("reef", []), "pool": w.get("pool", []),
+                "landmarks": [{"tile": t, "region": r} for t, r in marks]}
 
     # ---------------------------------------------------------------- joining and leaving
 

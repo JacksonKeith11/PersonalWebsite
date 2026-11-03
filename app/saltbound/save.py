@@ -142,8 +142,30 @@ def _v8(state):
     return state
 
 
+def _v9(state):
+    """v10 fills the sea and the land's secrets: currents, reefs, whirlpools, places at sea, lookouts
+    and hidden grottos (`world.add_features`, from the run's seed, as a new run of it would have them),
+    sea beasts, squalls and raids. The extras come from generators of their own, so the run's main one
+    is untouched."""
+    from .game import Game
+    from .content import archipelago as A
+    from . import world as Wd
+    from .rng import Rng
+    Wd.add_features(state["world"], Rng(state["seed"] ^ 0x5EA5))
+    for p in state["world"]["places"].values():
+        if p["kind"] == "shrine" and p.get("sea"):
+            p.setdefault("buff", A.SEA_SHRINE_BUFF)
+    state.update({k: state.get(k, v) for k, v in {"squalls": [], "sqid": 0, "garrison_skip": {}}.items()})
+    g = Game(state)
+    g.rng = Rng(state["seed"] * 13 + 5)
+    for _ in range(A.SEA_MAX):
+        g.spawn_sea(far=4)
+    state["v"] = 10
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9}
 
 
 class TooOld(Exception):

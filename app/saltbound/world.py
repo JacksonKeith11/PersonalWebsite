@@ -46,6 +46,22 @@ def to_cube(i):
     return x, r, -x - r
 
 
+def from_cube(x, y):
+    """The tile at cube coordinates (x, y), or None off the map."""
+    q, r = x + (y - (y & 1)) // 2, y
+    return idx(q, r) if inside(q, r) else None
+
+
+CUBE_DIRS = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]  # cube (x, y) steps: east, then anticlockwise
+
+
+def step_dir(t, d):
+    """The tile one step from t in hex direction d (0..5), or None off the map."""
+    x, y, _ = to_cube(t)
+    dx, dy = CUBE_DIRS[d % 6]
+    return from_cube(x + dx, y + dy)
+
+
 def dist(a, b):
     ax, ay, az = to_cube(a)
     bx, by, bz = to_cube(b)
@@ -251,8 +267,138 @@ def generate(seed):
             p["name"] = names[k]
             k += 1
 
-    return {"w": W, "h": H, "elev": elev, "bio": bio, "reg": region, "start": start, "peak": peak,
-            "places": {str(i): p for i, p in places.items()}}
+    world = {"w": W, "h": H, "elev": elev, "bio": bio, "reg": region, "start": start, "peak": peak,
+             "places": {str(i): p for i, p in places.items()}}
+    add_features(world, Rng(seed ^ 0x5EA5))
+    return world
+
+
+# ---------------------------------------------------------------- the sea's and the land's extras
+
+LANES = 3         # currents
+LANE_MAX = 9      # hexes in a current at most
+REEFS = 6         # single-hex reefs: a skiff can cross only at high tide
+POOLS = 2         # whirlpools: no skiff can enter one, and the hexes around cost a skiff 1 more
+SEA_PLACES = (("shrine", 1, 2), ("cove", 2, 2), ("flotsam", 3, 1))  # (kind, how many, hexes off the land at least)  # out at sea, reached only by skiff
+GROTTOS = ("hoard", "hoard", "spring")  # hidden until someone walks within a hex (Farsight: two)
+
+
+def on_edge(i):
+    q, r = qr(i)
+    return q == 0 or r == 0 or q == W - 1 or r == H - 1
+
+
+def add_features(w, rng):
+    """What a world gets on top of its islands (new runs, and old saves' worlds, which have none):
+    currents (`cur`: a hex -> the next hex downstream; riding one costs a skiff nothing), reefs
+    (`reef`), whirlpools (`pool`), places out at sea (coves, flotsam, a drowned shrine), a lookout on
+    each region's high ground and hidden grottos. Uses only `rng`, so the run's own generator is
+    untouched, and keeps clear of every place already there."""
+    if "cur" in w:
+        return
+    elev, bio, reg = w["elev"], w["bio"], w["reg"]
+    places = w["places"]
+    taken = {int(t) for t in places}
+    water = [i for i in range(W * H) if elev[i] <= SEA0]
+    # how far each water hex is from land (land is 0)
+    shore = {i: 0 for i in range(W * H) if elev[i] > SEA0}
+    edge = list(shore)
+    while edge:
+        nxt = []
+        for t in edge:
+            for n in neighbors(t):
+                if n not in shore:
+                    shore[n] = shore[t] + 1
+                    nxt.append(n)
+        edge = nxt
+    open_sea = [i for i in water if not on_edge(i)]
+
+    def free(i, gap):
+        return all(dist(i, t) >= gap for t in taken)
+
+    # Currents: a few one-way lanes of open water, 6-9 hexes long, preferring ones that join two
+    # regions' waters, routed a hex off the land where they can be. Riding one is a free trip.
+    land_of = {r: [i for i in range(W * H) if reg[i] == r and elev[i] > SEA0] for r in REGIONS}
+    sea_ok = lambda i: shore.get(i, 0) >= 1 and not on_edge(i)
+    cur, lanes, blocked = {}, [], set()
+    tries = 0
+    while len(lanes) < LANES and tries < 80:
+        tries += 1
+        opts = [i for i in open_sea if i not in blocked]
+        if not opts:
+            break
+        s0 = rng.choice(opts)
+        far = [i for i in opts if 7 <= dist(i, s0) <= 10 and (tries > 40 or reg[i] != reg[s0])]
+        if not far:
+            continue
+        g0 = rng.choice(far)
+        dist_, prev, pq = {s0: 0}, {}, [(0, s0)]
+        while pq:
+            pq.sort()
+            d, t = pq.pop(0)
+            if t == g0:
+                break
+            if d > dist_[t]:
+                continue
+            for n in neighbors(t):
+                if not sea_ok(n) or n in blocked:
+                    continue
+                nd = d + 1 + (1 if shore[n] == 1 else 0)
+                if nd < dist_.get(n, 1e9):
+                    dist_[n] = nd
+                    prev[n] = t
+                    pq.append((nd, n))
+        if g0 not in prev:
+            continue
+        lane = [g0]
+        while lane[-1] != s0:
+            lane.append(prev[lane[-1]])
+        lane.reverse()
+        if len(lane) > 1.5 * dist(s0, g0) + 1:
+            continue  # a winding route isn't a current
+        lane = lane[:LANE_MAX]
+        for x, y in zip(lane, lane[1:]):
+            cur[x] = y
+        lanes.append(lane)
+        blocked |= {n for t in lane for n in neighbors(t)} | set(lane)
+    on_lane = {t for lane in lanes for t in lane}
+    near_lane = {n for t in on_lane for n in neighbors(t)} | on_lane
+
+    def pick(cands, n, gap, kind=None, **kw):
+        rng.shuffle(cands)
+        got = []
+        for i in cands:
+            if len(got) >= n:
+                break
+            if i not in taken and free(i, gap) and all(dist(i, x) >= gap for x in got):
+                got.append(i)
+                if kind:
+                    places[str(i)] = {"kind": kind, **kw}
+                    taken.add(i)
+        return got
+
+    reefs = pick([i for i in open_sea if elev[i] == SEA0 and 1 <= shore[i] <= 2 and i not in near_lane], REEFS, 3)
+    pools = pick([i for i in open_sea if shore[i] >= 2 and i not in near_lane], POOLS, 5)
+    swirl = {n for p in pools for n in neighbors(p)} | set(pools)
+    hazard = set(reefs) | swirl
+    for kind, n, off in SEA_PLACES:
+        cands = [i for i in open_sea if shore[i] >= off and i not in hazard and i not in on_lane]
+        extra = {"sea": True} if kind == "shrine" else {}
+        pick(cands, n, 3, kind, **extra)
+    # a lookout on each region's high ground, away from its other places
+    for r in REGIONS:
+        hi = [i for i in land_of.get(r, []) if bio[i] in ("hills", "peak") and elev[i] < PROTECTED - 1]
+        hi.sort(key=lambda i: -elev[i])
+        pick(hi[:30], 1, 2, "lookout")
+    towns = [int(t) for t, p in places.items() if p["kind"] == "town"]
+    kinds = rng.shuffle(list(GROTTOS))
+    for k, r in enumerate(REGIONS):
+        cands = [i for i in land_of.get(r, []) if bio[i] in ("forest", "hills") and elev[i] < PROTECTED - 1
+                 and all(dist(i, t) >= 3 for t in towns)]
+        pick(cands, 1, 2, "grotto", grotto=kinds[k % len(kinds)], hidden=True)
+    w["cur"] = {str(a): b for a, b in cur.items()}
+    w["reef"] = sorted(reefs)
+    w["pool"] = sorted(pools)
 
 
 TOWN_NAMES = ["Saltmarrow", "Gullhaven", "Tarry Cove", "Brinewick", "Lowmoor", "Kelpstead", "Wrackford",

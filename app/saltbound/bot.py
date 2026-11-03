@@ -309,7 +309,7 @@ def party_goal(g):
         return s["world"]["peak"]
     weakest = min(g.hero(h)["hp"] / g.maxhp(h) for h in alive)
     if weakest < 0.5:
-        towns = [int(t) for t, p in places.items() if p["kind"] == "town"]
+        towns = [int(t) for t, p in places.items() if p["kind"] == "town" and not p.get("occupied")]
         if towns:
             return min(towns, key=lambda t: Wd.dist(t, at))
     # a chance that won't wait, if the party can get there in time
@@ -319,6 +319,11 @@ def party_goal(g):
         if o["kind"] == "drift" or (o["kind"] == "healer" and weakest < 0.75 and len(o["used"]) < len(alive)) \
                 or (o["kind"] == "ship" and lead["gold"] >= 40):
             return o["tile"]
+    # a raid on the road, if the party can catch it before it gets to its town
+    for gr in sorted((x for x in s["groups"] if x.get("raid") and not x.get("occupy")), key=lambda x: Wd.dist(x["tile"], at)):
+        road = g.raid_road(gr["tile"], gr["raid"]["to"]) or []
+        if Wd.dist(gr["tile"], at) <= 2 * len(road) + 2:
+            return gr["tile"]
     # a job, while there's time to finish it, unless it's time for a dungeon
     ready_for = 2 + 2 * len(s["cleared"])
     due = s["level"] >= ready_for or s["rises"] >= 8
@@ -334,8 +339,11 @@ def party_goal(g):
         if dungeons:
             return min(dungeons, key=lambda t: Wd.dist(t, at))
     targets = [gr["tile"] for gr in s["groups"] if s["seen"][gr["tile"]] and (not gr["lair"] or s["level"] >= 3)]
-    targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache")
-                and not p.get("done") and not (p["kind"] == "shrine" and int(t) in lead["shrines"])]
+    sailors = all(g.hero(h)["skiff"] for h in alive)
+    targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache", "lookout", "grotto", "cove", "flotsam")
+                and not p.get("done") and not (p["kind"] == "shrine" and int(t) in lead["shrines"])
+                and not (p.get("hidden") and not p.get("found"))
+                and (sailors or not (p.get("sea") or p["kind"] in ("cove", "flotsam")))]
     if targets:
         return min(targets, key=lambda t: Wd.dist(t, at))
     unseen = [t for t in range(Wd.W * Wd.H) if not s["seen"][t] and g.terrain(t) in Wd.COST]

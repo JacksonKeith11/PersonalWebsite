@@ -23,13 +23,14 @@ from .content import items as I
 from .rng import Rng
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 
-VERSION = 9
+VERSION = 10
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.3},
     "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.8},
 }
 MOVES = 4
+PATH_MAX = 20  # hexes in one turn's route at most (a current carries a skiff a long way)
 VISION = 5  # land seen around a hero: more than a turn's walk, so a move's result is in view
 GROW_FROM = 10  # after this many rises more enemies come ashore
 TIDE_EVERY = 4
@@ -81,6 +82,7 @@ class Game(Combat):
             "fight": None, "after": "turn", "quests": [], "shops": {}, "fx": [], "fxid": 0, "log": [],
             "stats": [{"dmg": 0, "heal": 0, "kills": 0, "taken": 0} for _ in range(3)], "fid": 1,
             "dnext": {}, "fork": None, "opps": [], "oppid": 0, "garrison": {}, "crown_cut": 0, "chains": [],
+            "squalls": [], "sqid": 0, "garrison_skip": {},
         }
         g = cls(s)
         for reg in A.DUNGEONS:
@@ -90,6 +92,8 @@ class Game(Combat):
         g.reveal_all()
         for _ in range(9):
             g.spawn(far=4)
+        for _ in range(A.SEA_MAX):
+            g.spawn_sea(far=4)
         for t, p in w["places"].items():
             if p["kind"] == "lair":
                 gr = g.add_group(int(t), list(g.rng.choice(A.LAIRS[w["reg"][int(t)] if w["reg"][int(t)] in A.LAIRS else "coral"])), lair=True)
@@ -111,7 +115,7 @@ class Game(Combat):
         evs = rng.shuffle([e["key"] for e in A.EVENTS if not e.get("hidden")])
         specs = rng.shuffle(list(A.TOWN_SPECS))
         wrecks = [t for t, p in places if p["kind"] == "wreck" and "rarity" not in p]
-        shrines = [t for t, p in places if p["kind"] == "shrine" and "buff" not in p]
+        shrines = [t for t, p in places if p["kind"] == "shrine" and "buff" not in p and not p.get("sea")]
         guarded = set(rng.sample(wrecks, A.GUARDED_WRECKS)) if guards else set()
         dark = set(rng.sample(shrines, A.DARK_SHRINES))
         k = j = 0
@@ -129,6 +133,8 @@ class Game(Combat):
                     self.add_group(t, foes, lair=True)
                 else:
                     p["rarity"] = rng.weighted(A.WRECK_RARITY)
+            elif p["kind"] == "shrine" and "buff" not in p and p.get("sea"):
+                p["buff"] = A.SEA_SHRINE_BUFF
             elif p["kind"] == "shrine" and "buff" not in p:
                 p["buff"] = None if t in dark else rng.choice(A.SHRINE_BUFFS)
                 if t in dark:
@@ -307,13 +313,36 @@ class Game(Combat):
         if t == "deep":
             if not hero["skiff"]:
                 return None
-            return (1 if afloat else 2), True
+            cur, reef, pool, swirl = self.sea_map()
+            if b in pool or (b in reef and self.tide() == "low"):
+                return None
+            if not afloat:
+                cost = 2  # boarding
+            elif cur.get(a) == b:
+                cost = 0  # riding a current
+            elif cur.get(b) == a:
+                cost = 2  # against one
+            else:
+                cost = 1
+            return cost + (1 if b in swirl else 0), True
         if t == "shoal":
             return (1, True) if afloat else (2, False)
         cost = Wd.COST.get(t, 1)
         if t in Wd.FAST.get(C.CLASSES[hero["cls"]]["map"]["key"], ()):
             cost = 1
         return cost + (1 if afloat else 0), False
+
+    def sea_map(self):
+        """The world's currents (hex -> the next hex downstream), reefs, whirlpools, and the hexes
+        around the whirlpools (a skiff pays 1 more there)."""
+        w = self.s["world"]
+        c = getattr(self, "_sea", None)
+        if c is None or c[0] is not w:
+            cur = {int(k): v for k, v in w.get("cur", {}).items()}
+            pool = set(w.get("pool", []))
+            swirl = {n for t in pool for n in Wd.neighbors(t)} - pool
+            self._sea = c = (w, cur, set(w.get("reef", [])), pool, swirl)
+        return c[1:]
 
     def path_cost(self, h, path):
         hero = self.hero(h)
@@ -338,12 +367,19 @@ class Game(Combat):
             self.s["seen"][u] = 1
 
     def vision(self, h):
+        if self.in_squall(self.hero(h)["tile"]):
+            return A.SQUALL_SIGHT
         key = C.CLASSES[self.hero(h)["cls"]]["map"]["key"]
         return VISION + (1 if key == "farsight" else 0) + (1 if self.mods(h).get("wayfinder") else 0)
 
     def enemy_sight(self, h):
-        """How far a hero can see enemies (Trackers see them further off)."""
+        """How far a hero can see enemies (Trackers see them further off; nobody sees far in a squall)."""
+        if self.in_squall(self.hero(h)["tile"]):
+            return A.SQUALL_SIGHT
         return self.vision(h) + (2 if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "tracker" else 0)
+
+    def in_squall(self, t):
+        return any(Wd.dist(t, q["tile"]) <= A.SQUALL_R for q in self.s.get("squalls", []))
 
     def reveal_all(self):
         for h in self.living():
@@ -397,10 +433,34 @@ class Game(Combat):
             foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
         self.add_group(t, foes)
 
+    def land_groups(self):
+        """The ordinary groups on land (what `MAX_GROUPS` counts): not sea beasts or raids."""
+        return [g for g in self.s["groups"] if not g.get("sea") and not g.get("raid")]
+
+    def spawn_sea(self, far=5):
+        """A group of sea beasts, somewhere out on the water away from the heroes."""
+        s = self.s
+        heroes = [self.hero(h)["tile"] for h in self.living()]
+        _, _, pool, _ = self.sea_map()
+        elev = s["world"]["elev"]
+        cands = [t for t in range(Wd.W * Wd.H) if elev[t] <= s["sea"] and not Wd.on_edge(t) and t not in pool
+                 and not self.place(t) and not self.group_at(t) and all(Wd.dist(t, x) >= far for x in heroes)]
+        if not cands:
+            return None
+        t = self.rng.choice(cands)
+        if self.tier() >= 2 and self.rng.chance(A.SEA_BIG):
+            foes = [A.BIG["coral"]]
+        else:
+            hi = min(len(A.SEA_GROUPS), 2 + self.tier() * 2)
+            foes = list(self.rng.choice(A.SEA_GROUPS[max(0, hi - 3):hi]))
+        g = self.add_group(t, foes)
+        g["sea"] = True
+        return g
+
     def move_groups(self):
-        """Enemies near a hero on land take a step toward them. Returns tiles where they caught someone."""
+        """Enemies take their step: roaming groups toward a hero near them on land, sea beasts toward a
+        skiff at high tide, raids along their road. Returns tiles where they caught someone."""
         caught = []
-        heroes = [h for h in self.living() if not self.hero(h)["afloat"]]
         pos = {h: (self.hero(h)["tile"], self.hero(h)["afloat"]) for h in self.living()}
         for g in self.s["groups"]:
             tile_of = {x["id"]: x["tile"] for x in self.s["groups"]}
@@ -408,8 +468,11 @@ class Game(Combat):
             if best is not None:
                 self.fx("gmove", g=g["id"], path=[g["tile"], best])
                 g["tile"] = best
-                if any(self.hero(x)["tile"] == best for x in heroes):
+                if any(self.hero(x)["tile"] == best and self.hero(x)["afloat"] == bool(g.get("sea")) for x in self.living()):
                     caught.append(best)
+        for g in [g for g in self.s["groups"] if g.get("raid") and not g.get("occupy")]:
+            if g["tile"] == g["raid"]["to"] and g["tile"] not in caught:
+                self.occupy(g)
         return caught
 
     def group_step(self, g, heroes, occupied, tile_of):
@@ -417,9 +480,16 @@ class Game(Combat):
         it stays). `heroes` maps hero to (tile, afloat); `occupied` is every group's tile."""
         if g["lair"]:
             return None
-        beasts = all(A.FOES[f["k"]].get("beast") for f in g["foes"])
         at = tile_of[g["id"]]
-        near = [h for h, (t, af) in heroes.items() if not af and Wd.dist(at, t) <= 3 and
+        if g.get("raid"):
+            # a raid keeps to its road, whoever is about: onto a hero standing in it, or into its town
+            road = self.raid_road(at, g["raid"]["to"])
+            return road[0] if road and road[0] not in occupied else None
+        sea = bool(g.get("sea"))
+        if sea and self.tide() != "high":
+            return None  # sea beasts lie still at low tide
+        beasts = all(A.FOES[f["k"]].get("beast") for f in g["foes"])
+        near = [h for h, (t, af) in heroes.items() if af == sea and Wd.dist(at, t) <= (A.SEA_HUNT if sea else 3) and
                 not (beasts and C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "wildspeak")]
         if not near:
             return None
@@ -432,9 +502,13 @@ class Game(Combat):
                     and n not in occupied and not self.place(n) and far(n) > far(at)]
             return max(opts, key=lambda n: (far(n), -n)) if opts else None
         best = None
+        pool = self.sea_map()[2] if sea else ()
         for n in Wd.neighbors(at):
             ter = self.terrain(n)
-            if ter not in Wd.COST or ter == "town" or n in occupied or (self.place(n) and n != goal):
+            if sea:
+                if ter != "deep" or n in pool or n in occupied or self.place(n):
+                    continue
+            elif ter not in Wd.COST or ter == "town" or n in occupied or (self.place(n) and n != goal):
                 continue
             if Wd.dist(n, goal) < Wd.dist(at, goal) and (best is None or Wd.dist(n, goal) < Wd.dist(best, goal)):
                 best = n
@@ -474,11 +548,11 @@ class Game(Combat):
             best = self.group_step(g, pos, occupied, tile_of)
             if best is None:
                 continue
-            seen = g["tile"] in vis
+            seen = g["tile"] in vis or bool(g.get("raid"))
             tile_of[g["id"]] = best
             if seen:
                 steps.append({"g": g["id"], "from": g["tile"], "to": best})
-                if any(t == best and not af for t, af in pos.values()) and best not in [e[0] for e in encounters]:
+                if any(t == best and af == bool(g.get("sea")) for t, af in pos.values()) and best not in [e[0] for e in encounters]:
                     encounters.append((best, None))
         fights, engaged = [], set()
         for tile, by in encounters:
@@ -503,6 +577,9 @@ class Game(Combat):
                     if len(foes) + len(g["foes"]) <= 5:
                         foes += g["foes"]
                 fight.update(kind="lair" if main["lair"] else "roam", foes=foes[:5])
+                fight["ground"] = self.ground_of(tile, by, fight["kind"])
+                if main.get("raid"):
+                    fight["raid"] = "free" if main.get("occupy") else "stop"
                 if any(q.get("group") == main["id"] and not q["done"] and not q.get("failed") for q in s["quests"]):
                     fight["job"] = True
             # the view wants keys, with any elite affixes alongside
@@ -520,9 +597,9 @@ class Game(Combat):
             if h not in engaged and o and (o["kind"] == "drift" or (o["kind"] == "healer" and h not in o["used"])):
                 lands[str(h)] = o["kind"]
                 continue
-            if h in engaged or not p or t == self.hero(h)["tile"]:
+            if h in engaged or not p or t == self.hero(h)["tile"] or (p.get("hidden") and not p.get("found")):
                 continue
-            if p["kind"] in ("event", "wreck", "cache") and p.get("done"):
+            if p["kind"] in ("event", "wreck", "cache", "cove", "flotsam", "lookout", "grotto") and p.get("done"):
                 continue
             if p["kind"] == "shrine" and t in self.hero(h)["shrines"]:
                 continue
@@ -588,7 +665,7 @@ class Game(Combat):
         if not self.can_plan(h):
             raise Invalid("Not now.")
         p = self.plan(h)
-        path = [int(t) for t in msg.get("path") or [] if isinstance(t, int) and 0 <= t < Wd.W * Wd.H][:12]
+        path = [int(t) for t in msg.get("path") or [] if isinstance(t, int) and 0 <= t < Wd.W * Wd.H][:PATH_MAX]
         if path:
             cost = self.path_cost(h, path)
             if cost is None:
@@ -644,6 +721,7 @@ class Game(Combat):
                 hero["tile"], hero["afloat"] = b, st[1]
                 moved[h].append(b)
                 self.reveal(b, self.vision(h))
+                self.spot_grottos(h)
                 if self.group_at(b) or self.is_dungeon(b):
                     encounters.append((b, h))
                     active.pop(h)
@@ -693,8 +771,23 @@ class Game(Combat):
             g["busy"] = True
             gids.append(g["id"])
             foes += g["foes"]
-        return {"kind": "lair" if main["lair"] else "roam", "tile": tile, "heroes": heroes, "groups": gids,
-                "foes": foes[:5], "by": by}
+        kind = "lair" if main["lair"] else "roam"
+        return {"kind": kind, "tile": tile, "heroes": heroes, "groups": gids, "foes": foes[:5], "by": by,
+                "ground": self.ground_of(tile, by, kind),
+                "raid": ("free" if main.get("occupy") else "stop") if main.get("raid") else None}
+
+    def ground_of(self, tile, by, kind):
+        """The battleground rule a roaming or lair fight takes from its hex (`A.GROUNDS`), and the side
+        it helps: on high ground whoever was already standing there, in the woods whoever came in.
+        `by` is the hero who walked in, or None when enemies stepped onto the heroes."""
+        if kind not in ("roam", "lair"):
+            return None
+        t = self.terrain(tile)
+        if t in ("hills", "peak"):
+            return {"k": "high", "side": "foes" if by is not None else "heroes"}
+        if t == "forest":
+            return {"k": "woods", "side": "heroes" if by is not None else "foes"}
+        return None
 
     # ------------------------------------------------------------------ dungeons: lineups and forks
 
@@ -743,6 +836,11 @@ class Game(Combat):
         for reg, D in A.DUNGEONS.items():
             g = s.setdefault("garrison", {}).setdefault(reg, [])
             if reg in s["cleared"] or len(g) >= A.GARRISON_MAX:
+                continue
+            skip = s.setdefault("garrison_skip", {})
+            if skip.get(reg):
+                skip[reg] -= 1
+                self.say(f"{D['name']}'s garrison doesn't grow: its raiders never came back.")
                 continue
             g.append(self.rng.choice([k for e in D["escort"] for k in e]))
             grown.append(D["name"])
@@ -855,10 +953,16 @@ class Game(Combat):
         self.tick_opps()
         self.tick_chains()
         self.tick_jobs()
-        if (s["turn"] - 1) % SPAWN_EVERY == 0 and len(s["groups"]) < MAX_GROUPS:
-            self.spawn()
-            if s["rises"] > GROW_FROM:
+        self.tick_squalls()
+        if s["turn"] >= A.RAID_FROM and (s["turn"] - A.RAID_FROM) % A.RAID_EVERY == 0:
+            self.spawn_raid()
+        if (s["turn"] - 1) % SPAWN_EVERY == 0:
+            if len(self.land_groups()) < MAX_GROUPS:
                 self.spawn()
+                if s["rises"] > GROW_FROM:
+                    self.spawn()
+            if sum(1 for g in s["groups"] if g.get("sea")) < A.SEA_MAX:
+                self.spawn_sea()
         for h in range(3):
             hero = self.hero(h)
             for b in list(hero["buffs"]):
@@ -922,7 +1026,7 @@ class Game(Combat):
         for kind in self.rng.shuffle(list(A.OPPS)):
             lo, hi = A.OPP_RANGE[kind]
             if kind == "ship":
-                cands = [int(t) for t, p in places.items() if p["kind"] == "town" and self.docks(int(t))]
+                cands = [int(t) for t, p in places.items() if p["kind"] == "town" and self.docks(int(t)) and not p.get("occupied")]
             elif kind == "healer":
                 cands = [int(t) for t, p in places.items() if p["kind"] == "camp"]
             else:
@@ -1084,6 +1188,161 @@ class Game(Combat):
         self.say(f"{a['name']} ({where}).")
         return {"k": k, "tile": t, "name": a["name"], "text": a["text"], "where": where, **({"g": g["id"]} if g else {})}
 
+    # ------------------------------------------------------------------ raids
+
+    def raid_road(self, at, to):
+        """The road a raid takes from `at` to its town: the shortest walk over land that keeps off
+        towns and places (but its own town). The hexes after `at`, or None if there's no way."""
+        if at == to:
+            return []
+        prev, edge = {at: None}, [at]
+        while edge and to not in prev:
+            nxt = []
+            for t in edge:
+                for n in Wd.neighbors(t):
+                    if n in prev:
+                        continue
+                    ter = self.terrain(n)
+                    if n != to and (ter not in Wd.COST or ter == "town" or self.place(n)):
+                        continue
+                    prev[n] = t
+                    nxt.append(n)
+            edge = nxt
+        if to not in prev:
+            return None
+        road = [to]
+        while prev[road[-1]] != at:
+            road.append(prev[road[-1]])
+        return road[::-1]
+
+    def spawn_raid(self):
+        """An objective not yet cleared sends a band to take a town in reach (`A.RAID_*`)."""
+        s = self.s
+        places = s["world"]["places"]
+        raids = [g for g in s["groups"] if g.get("raid")]
+        if len(raids) >= A.RAID_MAX:
+            return None
+        busy = {g["raid"]["reg"] for g in raids}
+        targeted = {g["raid"]["to"] for g in raids}
+        heroes = {self.hero(h)["tile"] for h in self.living()}
+        lo, hi = A.RAID_RANGE
+        opts = []
+        for t, p in sorted(places.items(), key=lambda x: int(x[0])):
+            reg = p.get("region")
+            if p["kind"] != "dungeon" or reg in s["cleared"] or reg in busy:
+                continue
+            d0 = int(t)
+            starts = sorted(n for n in Wd.within(d0, 2) if self.terrain(n) in Wd.COST and self.terrain(n) != "town"
+                            and not self.place(n) and not self.group_at(n) and n not in heroes)
+            towns = sorted(int(x) for x, q in places.items() if q["kind"] == "town" and not q.get("occupied")
+                           and int(x) not in targeted and int(x) not in heroes and Wd.dist(d0, int(x)) <= hi)
+            for town in towns:
+                st = min(starts, key=lambda n: (Wd.dist(n, town), n), default=None)
+                road = self.raid_road(st, town) if st is not None else None
+                if road and lo <= len(road) <= hi:
+                    opts.append((reg, st, town, road))
+        if not opts:
+            return None
+        reg, st, town, road = self.rng.choice(opts)
+        foes = self.group_foes(reg)
+        i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
+        foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+        g = self.add_group(st, foes)
+        g["raid"] = {"reg": reg, "to": town}
+        self.reveal(st, 1)
+        self.reveal(town, 1)
+        name = self.place(town)["name"]
+        self.say(f"Raiders march from {A.DUNGEONS[reg]['name']} on {name}: {len(road)} turns away. Stop them on the road!")
+        self.fx("raid", g=g["id"], tile=st, to=town, reg=reg, eta=len(road))
+        return g
+
+    def occupy(self, g):
+        """A raid reached its town with nobody there to stop it: the town is shut until it's freed,
+        and the objective it came from grows its garrison at once."""
+        s = self.s
+        town = self.place(g["tile"])
+        reg = g["raid"]["reg"]
+        g["occupy"] = True
+        g["lair"] = True
+        town["occupied"] = g["id"]
+        town.pop("jobs", None)
+        gar = s.setdefault("garrison", {}).setdefault(reg, [])
+        if reg not in s["cleared"] and len(gar) < A.GARRISON_MAX:
+            gar.append(self.rng.choice([k for e in A.DUNGEONS[reg]["escort"] for k in e]))
+        self.say(f"Raiders take {town['name']}! Its shop, inn, board and trade are shut until someone drives them out, "
+                 f"and {A.DUNGEONS[reg]['name']}'s garrison grows.")
+        self.fx("occupied", tile=g["tile"], reg=reg)
+
+    def raids_beaten(self, f, winners):
+        """After a won fight: any raid in it is broken (on the road) or driven out (from a town)."""
+        s = self.s
+        for g in [g for g in s["groups"] if g["id"] in f["groups"] and g.get("raid")]:
+            reg = g["raid"]["reg"]
+            if g.get("occupy"):
+                town = self.place(g["tile"])
+                town.pop("occupied", None)
+                for h in winners:
+                    self.hero(h)["gold"] += A.FREE_GOLD
+                self.restock(g["tile"])
+                self.say(f"{town['name']} is free! The townsfolk pay {A.FREE_GOLD} gold each and open a better-stocked shop.")
+                self.fx("freed", tile=g["tile"], gold=A.FREE_GOLD)
+            else:
+                skip = s.setdefault("garrison_skip", {})
+                if reg not in s["cleared"]:
+                    skip[reg] = skip.get(reg, 0) + 1
+                for h in winners:
+                    self.hero(h)["gold"] += A.RAID_BOUNTY
+                self.say(f"The raid is broken (+{A.RAID_BOUNTY} gold each): {A.DUNGEONS[reg]['name']}'s garrison won't grow next time.")
+                self.fx("raidstop", tile=g["tile"], reg=reg, gold=A.RAID_BOUNTY)
+
+    def restock(self, t):
+        """A town's shop fills with better wares."""
+        stock = []
+        for _ in range(5):
+            rr = self.rarity_for(2)
+            pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == rr and k not in stock] or I.GEAR
+            stock.append(self.rng.choice(pool))
+        self.s["shops"][str(t)] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
+
+    # ------------------------------------------------------------------ the weather, grottos and lookouts
+
+    def tick_squalls(self):
+        """A new turn: squalls drift a hex (toward the middle of the map, roughly), blow out when their
+        time is up or they leave the map, and every few turns a new one gathers over Stormcrag's waters."""
+        s = self.s
+        qs = s.setdefault("squalls", [])
+        for q in list(qs):
+            nt = Wd.step_dir(q["tile"], q["dir"])
+            if q["until"] < s["turn"] or nt is None or Wd.on_edge(nt):
+                qs.remove(q)
+                continue
+            q["tile"] = nt
+        if s["turn"] >= A.SQUALL_FROM and s["turn"] % A.SQUALL_EVERY == 0 and len(qs) < A.SQUALL_MAX:
+            w = s["world"]
+            cands = [t for t in range(Wd.W * Wd.H) if w["reg"][t] == "storm" and w["elev"][t] <= s["sea"] and not Wd.on_edge(t)
+                     and all(Wd.dist(t, q["tile"]) > 3 for q in qs)]
+            if not cands:
+                return
+            t = self.rng.choice(cands)
+            toward = [d for d in range(6) if Wd.step_dir(t, d) is not None and Wd.dist(Wd.step_dir(t, d), w["peak"]) < Wd.dist(t, w["peak"])]
+            s["sqid"] = s.get("sqid", 0) + 1
+            qs.append({"id": s["sqid"], "tile": t, "dir": self.rng.choice(toward or list(range(6))), "until": s["turn"] + A.SQUALL_TURNS - 1})
+            self.say("A squall gathers over Stormcrag's waters. Inside it you'll see only a couple of hexes.")
+            self.fx("squall", tile=t)
+
+    def spot_grottos(self, h, r=None):
+        """Hidden grottos near a hero are found (a hex off, or two for a Farsighted hero; `r` for a lookout)."""
+        hero = self.hero(h)
+        if r is None:
+            r = A.GROTTO_SPOT + (1 if C.CLASSES[hero["cls"]]["map"]["key"] == "farsight" else 0)
+        for t, p in self.s["world"]["places"].items():
+            if p["kind"] == "grotto" and p.get("hidden") and not p.get("found") and Wd.dist(int(t), hero["tile"]) <= r:
+                p["found"] = True
+                self.reveal(int(t), 1)
+                where = A.REGION_NAMES.get(self.s["world"]["reg"][int(t)] or "peak", "")
+                self.say(f"{hero['name']} finds a hidden grotto ({where}).")
+                self.fx("found", h=h, tile=int(t))
+
     def surge(self):
         """How much stronger enemies are for the tide having risen: HP and damage both."""
         return 1 + SURGE * self.s["rises"]
@@ -1113,6 +1372,7 @@ class Game(Combat):
     def land(self, h):
         hero = self.hero(h)
         t = hero["tile"]
+        self.spot_grottos(h)
         o = self.opp_at(t)
         if o:
             self.opp_land(h, o)
@@ -1131,6 +1391,36 @@ class Game(Combat):
             n = 2 + (1 if C.CLASSES[hero["cls"]]["map"]["key"] == "light_fingers" else 0)
             self.offer_loot(h, n, tier_bonus=0, rarity=p.get("rarity"))
             self.say(f"{hero['name']} picks through a wreck.")
+        elif k == "cove" and not p.get("done"):
+            p["done"] = True
+            hero["gold"] += A.COVE_GOLD
+            self.offer_loot(h, 3, rarity=self.rng.weighted(A.COVE_RARITY))
+            self.say(f"{hero['name']} finds a smugglers' stash in the cove (+{A.COVE_GOLD} gold).")
+            self.fx("coins", h=h, n=A.COVE_GOLD)
+        elif k == "flotsam" and not p.get("done"):
+            p["done"] = True
+            hero["gold"] += A.FLOTSAM_GOLD
+            self.offer_loot(h, 2, rarity=self.rng.weighted(A.WRECK_RARITY))
+            self.say(f"{hero['name']} hauls in the flotsam (+{A.FLOTSAM_GOLD} gold).")
+            self.fx("coins", h=h, n=A.FLOTSAM_GOLD)
+        elif k == "lookout" and not p.get("done"):
+            p["done"] = True
+            self.reveal(t, A.LOOKOUT_SIGHT)
+            self.spot_grottos(h, A.LOOKOUT_SIGHT)
+            self.say(f"{hero['name']} climbs the lookout: the land is laid out {A.LOOKOUT_SIGHT} hexes around.")
+            self.fx("lookout", h=h, tile=t, r=A.LOOKOUT_SIGHT)
+        elif k == "grotto" and not p.get("done"):
+            p["done"] = p["found"] = True
+            if p.get("grotto") == "spring":
+                self.s["revives"] += 1
+                n = self.heal(h, self.maxhp(h))
+                self.fx("heal", to=f"h{h}", n=n)
+                self.say(f"{hero['name']} drinks from the grotto's spring: full health, and the party gains a revive.")
+            else:
+                hero["gold"] += A.GROTTO_GOLD
+                self.offer_loot(h, 3, rarity="rare")
+                self.say(f"{hero['name']} finds an old hoard in the grotto (+{A.GROTTO_GOLD} gold).")
+                self.fx("coins", h=h, n=A.GROTTO_GOLD)
         elif k == "cache" and not p.get("done"):
             p["done"] = True
             hero["gold"] += 15
@@ -1843,12 +2133,7 @@ class Game(Combat):
             src["voucher"] = src.get("voucher", 0) + 1
             extra = f", and a free go at {q['src']}'s {A.TOWN_SPECS[r['spec']]['name'].lower()}"
         elif typ == "restock":
-            stock = []
-            for _ in range(5):
-                rr = self.rarity_for(2)
-                pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == rr and k not in stock] or I.GEAR
-                stock.append(self.rng.choice(pool))
-            self.s["shops"][str(q["src_tile"])] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
+            self.restock(q["src_tile"])
             extra = f", and {q['src']} restocks its shop with better wares"
         self.say(f"Job done for {q['src']}: +{r['gold']} gold each{extra}.")
         self.fx("job", h=h, src=q["src"], gold=r["gold"], extra=extra)
@@ -1955,9 +2240,16 @@ class Game(Combat):
         s = self.s
         vis = self.visible_tiles()
         groups = [{"id": g["id"], "tile": g["tile"], "lair": g["lair"], "foes": [f["k"] for f in g["foes"]],
-                   "aff": [f.get("aff") for f in g["foes"]], "prize": g.get("prize"), "crew": g.get("crew")}
+                   "aff": [f.get("aff") for f in g["foes"]], "prize": g.get("prize"), "crew": g.get("crew"),
+                   "sea": g.get("sea", False), "raid": g.get("raid"), "occupy": g.get("occupy", False)}
                   for g in s["groups"] if g["tile"] in vis or (g["lair"] and s["seen"][g["tile"]]) or g.get("bounty")
-                  or g.get("sighted", 0) >= s["turn"]]
+                  or g.get("raid") or g.get("sighted", 0) >= s["turn"]]
+        raids = []
+        for g in s["groups"]:
+            if g.get("raid"):
+                road = [] if g.get("occupy") else (self.raid_road(g["tile"], g["raid"]["to"]) or [])
+                raids.append({"g": g["id"], "tile": g["tile"], "to": g["raid"]["to"], "reg": g["raid"]["reg"],
+                              "occupy": g.get("occupy", False), "road": road})
         heroes = []
         for h in range(3):
             hero = s["heroes"][h]
@@ -1966,7 +2258,7 @@ class Game(Combat):
                            "actions": self.actions_of(h)})
         places = {}
         for t, p in s["world"]["places"].items():
-            if s["seen"][int(t)]:
+            if s["seen"][int(t)] and not (p.get("hidden") and not p.get("found")):
                 q = {k: v for k, v in p.items() if k not in ("quest", "jobs")}
                 if p["kind"] == "event" and p.get("ev"):
                     ev = next(e for e in A.EVENTS if e["key"] == p["ev"])
@@ -2005,6 +2297,10 @@ class Game(Combat):
             "crown_cut": round(A.CROWN_CUT * s.get("crown_cut", 0) * 100),
             "reforge": {k: self.reforge_cost(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
             "loans": [{"h": c["h"], "left": c["turn"] - s["turn"]} for c in s.get("chains", []) if c["kind"] == "loan"],
+            "raids": raids, "garrison_skip": s.get("garrison_skip", {}),
+            "squalls": [{"id": q["id"], "tile": q["tile"], "next": Wd.step_dir(q["tile"], q["dir"]), "left": q["until"] - s["turn"] + 1}
+                        for q in s.get("squalls", [])],
+            "raid_next": (A.RAID_EVERY - (s["turn"] - A.RAID_FROM) % A.RAID_EVERY) if s["turn"] >= A.RAID_FROM else A.RAID_FROM - s["turn"],
         }
 
 
@@ -2018,4 +2314,7 @@ def static():
         "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "paths": A.PATHS, "elites": A.ELITES, "combos": C.COMBOS, "xp_for": C.XP_FOR,
         "prices": {k: I.price(k) for k in I.ITEMS},
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST},
+        "grounds": A.GROUNDS, "squall": {"r": A.SQUALL_R, "sight": A.SQUALL_SIGHT}, "lookout_sight": A.LOOKOUT_SIGHT,
+        "sea": {"cove_gold": A.COVE_GOLD, "flotsam_gold": A.FLOTSAM_GOLD, "hunt": A.SEA_HUNT, "grotto_gold": A.GROTTO_GOLD,
+                "raid_bounty": A.RAID_BOUNTY, "free_gold": A.FREE_GOLD},
     }

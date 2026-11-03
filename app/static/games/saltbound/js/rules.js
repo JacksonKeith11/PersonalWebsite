@@ -3,6 +3,7 @@
 // every move again. W and H must match world.py (tools/saltbound-check.py checks).
 
 export const W = 30, H = 22;
+export const PATH_MAX = 20;  // hexes in one turn's route at most (game.py's PATH_MAX)
 export const TERRAIN_NAME = { deep: 'Open water', shoal: 'Shallows', beach: 'Beach', grass: 'Grassland', forest: 'Forest', hills: 'Hills', peak: 'Peak', town: 'Town' };
 
 export const qr = i => [i % W, Math.floor(i / W)];
@@ -32,6 +33,11 @@ export function terrain(world, game, t) {
   return world.bio[t];
 }
 
+// Whether a hex is inside a squall (Game.in_squall).
+export function inSquall(game, t, r) {
+  return (game.squalls || []).some(q => dist(t, q.tile) <= r);
+}
+
 export function visibleTiles(game) {
   const out = new Set();
   game.heroes.forEach((hero, h) => {
@@ -41,12 +47,31 @@ export function visibleTiles(game) {
   return out;
 }
 
+// The sea's extras from the world message (world.add_features): currents (hex -> the next hex
+// downstream), reefs, whirlpools and the hexes around them. Worked out once per world.
+let SEA = null, SEA_FOR = null;
+export function seaMap(world) {
+  if (SEA_FOR === world) return SEA;
+  const cur = new Map(Object.entries(world.cur || {}).map(([a, b]) => [+a, b]));
+  const pool = new Set(world.pool || []), swirl = new Set();
+  for (const t of pool) for (const n of neighbors(t)) if (!pool.has(n)) swirl.add(n);
+  SEA = { cur, reef: new Set(world.reef || []), pool, swirl }; SEA_FOR = world;
+  return SEA;
+}
+
+// Keep in step with Game.step_cost.
 export function stepCost(world, game, static_, h, a, b, afloat) {
   const hero = game.heroes[h];
   if (!neighbors(a).includes(b)) return null;
   if (b === world.peak && game.cleared.length < 3) return null;
   const t = terrain(world, game, b);
-  if (t === 'deep') return hero.skiff ? [afloat ? 1 : 2, true] : null;
+  if (t === 'deep') {
+    if (!hero.skiff) return null;
+    const sea = seaMap(world);
+    if (sea.pool.has(b) || (sea.reef.has(b) && game.tide === 'low')) return null;
+    const c = !afloat ? 2 : sea.cur.get(a) === b ? 0 : sea.cur.get(b) === a ? 2 : 1;
+    return [c + (sea.swirl.has(b) ? 1 : 0), true];
+  }
   if (t === 'shoal') return afloat ? [1, true] : [2, false];
   let c = static_.map.cost[t] ?? 1;
   if ((static_.map.fast[static_.classes[hero.cls].map.key] || []).includes(t)) c = 1;
@@ -63,7 +88,7 @@ export function reach(world, game, static_, h) {
     if ((p.kind === 'dungeon' && !game.cleared.includes(p.region)) || p.kind === 'peak') stops.add(+t);
   }
   const start = hero.tile + '|' + (hero.afloat ? 1 : 0);
-  const cost = { [start]: 0 }, prev = {}, best = new Map();
+  const cost = { [start]: 0 }, hops = { [start]: 0 }, prev = {}, best = new Map();
   const pq = [[0, hero.tile, hero.afloat]];
   while (pq.length) {
     pq.sort((a, b) => a[0] - b[0]);
@@ -72,13 +97,14 @@ export function reach(world, game, static_, h) {
     if (d > cost[key]) continue;
     if (!best.has(t) || best.get(t).cost > d) best.set(t, { cost: d, key });
     if (t !== hero.tile && stops.has(t)) continue;
+    if (hops[key] >= PATH_MAX) continue;
     for (const n of neighbors(t)) {
       const st = stepCost(world, game, static_, h, t, n, af);
       if (!st) continue;
       const nd = d + st[0];
       if (nd > hero.moves) continue;
       const nk = n + '|' + (st[1] ? 1 : 0);
-      if (cost[nk] === undefined || nd < cost[nk]) { cost[nk] = nd; prev[nk] = key; pq.push([nd, n, st[1]]); }
+      if (cost[nk] === undefined || nd < cost[nk]) { cost[nk] = nd; hops[nk] = hops[key] + 1; prev[nk] = key; pq.push([nd, n, st[1]]); }
     }
   }
   return { best, prev, start };

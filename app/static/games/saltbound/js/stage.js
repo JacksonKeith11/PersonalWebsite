@@ -132,6 +132,18 @@ const SCENES = {
     p.floor(['#4a4c50', '#56585a', '#5e6062', '#666868'], '#3e4044', 11, 0.08);
     for (let i = 0; i < 14; i++) { const rx = hash(i, 20) * SW, ry = FLOOR + 10 + hash(i, 21) * 55; p.rect(rx, ry, 4 + hash(i, 22) * 6, 2 + hash(i, 23) * 3, '#3e4044'); p.rect(rx, ry, 3 + hash(i, 22) * 4, 1, '#76787a'); }
   },
+  // out at sea (sea beasts): a grey-green swell to the horizon, the party's skiffs rocking underfoot
+  sea(p) {
+    p.gradient(0, 46, ['#1e2a36', '#2a3c48', '#3e5660', '#5a7676']);
+    for (let i = 0; i < 6; i++) { const cx = 40 + hash(i, 40) * 320, cy = 10 + hash(i, 41) * 22; for (let x = -26; x < 26; x++) for (let y = -4; y < 4; y++) if (x * x / 676 + y * y / 16 < 1 && hash(x, y, i) > 0.2) p.set(cx + x, cy + y, '#4a5e68'); }
+    p.gradient(46, SH, ['#24485a', '#2a5466', '#2e6070', '#346a78', '#3a7280']);
+    waves(p, 48, SH, '#6aa0aa', 5);
+    for (let y = FLOOR + 6; y < SH; y += 9) for (let x = 0; x < SW; x++) if (Math.sin(x * 0.06 + y) > 0.85) p.set(x, y, '#9ccad0');
+    // skiff hulls along the floor
+    for (const [x0, w] of [[60, 70], [170, 64], [276, 74]]) {
+      for (let x = 0; x < w; x++) { const d = Math.abs(x - w / 2) / (w / 2), top = FLOOR + 16 + Math.round(d * d * 6); for (let y = top; y < FLOOR + 26 - Math.round(d * 3); y++) p.set(x0 + x, y, y === top ? '#a07a4a' : y < top + 3 ? '#7a5a34' : '#5a4024'); }
+    }
+  },
   // the open peak (fights on the way to the Crown)
   peak(p) {
     p.gradient(0, FLOOR, ['#20202c', '#2c2a38', '#3c3644', '#4c4450']);
@@ -191,6 +203,7 @@ const SCENES = {
 // region it's fought in (the peak when the tile belongs to none).
 export function stageKey(f, world) {
   if (f.kind === 'boss') return 'crown';
+  if (world?.elev && world.elev[f.tile] <= 1) return 'sea';  // out on the water
   const reg = f.region || world?.reg?.[f.tile] || null;
   if (f.kind === 'dungeon') return { coral: 'chapel', keys: 'fort', storm: 'lighthouse' }[reg] || 'chapel';
   return SCENES[reg] ? reg : 'peak';

@@ -91,17 +91,57 @@ def check_mods():
 
 
 def check_client():
-    """The browser's own copy of the map size (js/rules.js) must match the server's."""
+    """The browser's own copy of the map size and route length (js/rules.js) must match the server's."""
     from app.saltbound import world
     js = open(os.path.join(os.path.dirname(__file__), "..", "app", "static", "games", "saltbound", "js", "rules.js")).read()
     m = re.search(r"export const W = (\d+), H = (\d+);", js)
     if not m or (int(m[1]), int(m[2])) != (world.W, world.H):
         return [f"js/rules.js's map size isn't world.py's {world.W}x{world.H}"]
+    m = re.search(r"export const PATH_MAX = (\d+);", js)
+    if not m or int(m[1]) != game.PATH_MAX:
+        return [f"js/rules.js's PATH_MAX isn't game.py's {game.PATH_MAX}"]
     return []
 
 
+def check_steps():
+    """The browser plans routes with its own copy of the step costs (js/rules.js stepCost, run here
+    in Node): for every step next to the sea, at both tides, afloat or not, with and without a
+    skiff, it must agree with the server's Game.step_cost (currents, reefs, whirlpools)."""
+    import json
+    import subprocess
+    from app.saltbound import world as Wd
+    out = []
+    for seed in (3, 11):
+        g = game.Game.new(seed, ["ranger", "vanguard", "warden"], "normal")
+        w = g.s["world"]
+        world = {k: w[k] for k in ("elev", "bio", "reg", "peak")} | {"cur": w["cur"], "reef": w["reef"], "pool": w["pool"]}
+        near = sorted({n for t in range(Wd.W * Wd.H) if w["elev"][t] <= g.s["sea"] for n in Wd.neighbors(t)} |
+                      {t for t in range(Wd.W * Wd.H) if w["elev"][t] <= g.s["sea"] + 1})
+        games, want = [], []
+        for turn in (1, 5):  # low tide, then high
+            for skiff in (False, True):
+                g.s["turn"] = turn
+                for h in range(3):
+                    g.hero(h)["skiff"] = skiff
+                v = json.loads(json.dumps(g.view()))
+                steps = [[h, a, b, af] for h in (0, 1) for a in near for b in Wd.neighbors(a) for af in (False, True)]
+                games.append({"game": v, "static": json.loads(json.dumps(game.static())), "steps": steps})
+                want.append([list(x) if x else None for x in (g.step_cost(h, a, b, af) for h, a, b, af in steps)])
+        try:
+            got = json.loads(subprocess.run(["node", os.path.join(os.path.dirname(__file__), "saltbound-steps.mjs")],
+                                            input=json.dumps({"world": world, "games": games}), capture_output=True,
+                                            text=True, check=True).stdout)
+        except (OSError, subprocess.CalledProcessError) as e:
+            return [f"couldn't run the browser's step costs in Node: {e}"]
+        for gi, (a, b) in enumerate(zip(want, got)):
+            bad = [(games[gi]["steps"][i], x, y) for i, (x, y) in enumerate(zip(a, b)) if x != y]
+            if bad:
+                out.append(f"seed {seed}: js/rules.js stepCost disagrees with Game.step_cost on {len(bad)} steps, e.g. {bad[0]}")
+    return out
+
+
 def main():
-    problems = check_mods() + check_client()
+    problems = check_mods() + check_client() + check_steps()
     for p in problems:
         print("  problem:", p)
     bad = 0

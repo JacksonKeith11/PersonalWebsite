@@ -368,6 +368,8 @@ BUFFS = {
     # a dark shrine's: stronger than a shrine's, and never free
     "dark_might": {"name": "Drowned Strength", "text": "+2 damage on every hit.", "turns": 8, "mods": {"might": 2}},
     "dark_ward": {"name": "Black Coral Skin", "text": "Start fights with 8 Armor.", "turns": 8, "mods": {"start_armor": 8}},
+    # the drowned shrine's, out at sea
+    "siren_favor": {"name": "Siren's Favour", "text": "+1 damage on every hit and +6 max HP.", "turns": 8, "mods": {"might": 1, "max_hp": 6}},
 }
 SHRINE_BUFFS = ["swift", "might", "warded", "vigor"]
 
@@ -435,6 +437,62 @@ TIDE_STAY = 6    # turns an unfought landing stays before it goes back to sea (a
 TIDE_WRECKS = 3  # unlooted wrecks the tide has left that can be about at once
 TIDE_GROUPS = 3  # enemy groups the tide has landed that can be on the map at once (apart from MAX_GROUPS)
 TIDE_WRECK_RARITY = ([("common", 2), ("uncommon", 3)], [("uncommon", 3), ("rare", 1)])  # early, late
+
+# ---------------------------------------------------------------- the sea, the land's secrets, raids, weather
+# The world's extras (`world.add_features`): currents, reefs and whirlpools are in `world.py`; what
+# the places hold and how the rest behaves is here. Rules in `game.py` (see "The sea and the weather").
+
+# Places out at sea, reached only by skiff
+COVE_GOLD = 12            # a smugglers' cove: this much gold and a three-pick of loot, uncommon or better
+COVE_RARITY = [("uncommon", 2), ("rare", 1)]
+FLOTSAM_GOLD = 6          # flotsam: this much gold and a two-pick of common or uncommon loot
+SEA_SHRINE_BUFF = "siren_favor"
+
+# Sea beasts: groups that live on the water. At high tide they hunt skiffs within `SEA_HUNT` hexes, a
+# hex a turn; at low tide they lie still. Heroes on land are safe from them, and they from heroes on land.
+SEA_GROUPS = [["eel", "eel"], ["jelly", "jelly", "eel"], ["siren", "eel"], ["jelly", "siren", "eel"],
+              ["eel", "eel", "siren"], ["jelly", "jelly", "siren", "eel"]]
+SEA_MAX = 3    # sea groups about at once (one comes back every SPAWN_EVERY turns while there are fewer)
+SEA_HUNT = 3
+SEA_BIG = 0.2  # from two objectives cleared, the chance a new sea group is the Reef Maw instead
+
+# Battlegrounds: a roaming or lair fight takes a rule from the hex it's fought on (`Game.ground_of`),
+# shown in the turn's forecast before anyone commits. `side` is who it helps.
+GROUNDS = {
+    "high": {"name": "High ground", "terrain": "hills and peaks", "armor": 6, "foe_armor": 1 / 6,
+             "text": "Whoever was already standing on the slope starts the fight with Armor (each hero 6, each enemy "
+                     "a sixth of its health). Wait for enemies on a hill; don't charge up one."},
+    "woods": {"name": "Ambush ground", "terrain": "forest",
+              "text": "Whoever is caught standing in the trees is Weak for the first round. Strike into the woods; "
+                      "don't wait in them."},
+}
+
+# Lookouts and grottos
+LOOKOUT_SIGHT = 8   # climbing a lookout shows everything this far around it, hidden grottos too
+GROTTO_GOLD = 20    # a hoard: this much gold and a three-pick of rare loot; a spring: +1 revive and full health
+GROTTO_SPOT = 1     # a hidden grotto is found by walking within this many hexes of it (Farsight: one more)
+
+# Raids: from turn `RAID_FROM`, every `RAID_EVERY` turns, an objective not yet cleared sends a band to
+# take a town in its region, a hex a turn along the road, always shown on the map with its target. If
+# it gets there with nobody in town, the town is occupied (no shop, inn, board or trade until it's
+# freed by a fight) and the objective's garrison grows at once. Beat it on the road and the garrison
+# skips its next growth.
+RAID_FROM = 8
+RAID_EVERY = 8
+RAID_MAX = 2
+RAID_RANGE = (6, 14)  # turns of road from the objective to the town it marches on
+RAID_BOUNTY = 10      # gold each for stopping one on the road
+FREE_GOLD = 15        # gold each for freeing an occupied town, and its shop restocks
+
+# Squalls: storms that drift across the map a hex a turn. A hero inside one sees only `SQUALL_SIGHT`
+# hexes around them. They form over Stormcrag's waters from turn `SQUALL_FROM`, every `SQUALL_EVERY`
+# turns while fewer than `SQUALL_MAX` are about, and last `SQUALL_TURNS` turns.
+SQUALL_FROM = 4
+SQUALL_EVERY = 6
+SQUALL_MAX = 2
+SQUALL_TURNS = 7
+SQUALL_R = 1
+SQUALL_SIGHT = 2
 
 # Event chains: the follow-ups some events set up (`chain` in an outcome).
 LOAN_DUE = 8      # turns until the moneylender comes to collect

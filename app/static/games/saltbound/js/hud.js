@@ -1,13 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=81';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=81';
-import { spriteURL, placeURL } from './art.js?v=81';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=81';
-import { MapView } from './hexmap.js?v=81';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=81';
-import { disconnect } from './main.js?v=81';
-import * as sfx from './audio.js?v=81';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=82';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=82';
+import { spriteURL, placeURL } from './art.js?v=82';
+import { itemURL } from './itemart.js?v=82';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=82';
+import { MapView } from './hexmap.js?v=82';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=82';
+import { disconnect } from './main.js?v=82';
+import * as sfx from './audio.js?v=82';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -550,7 +551,7 @@ function itemRow(key, right, extra) {
   if (it.die && !long) sub.push(faceRow(it));
   sub.push(sellChip(key));
   return h('div.item.r-' + it.rarity, { tip: itemTip(key) },
-    h('div.ico', null, icon(SLOT_ICON[it.slot] || 'spark')),
+    h('div.ico', null, h('img.pix', { src: itemURL(key, it.slot), alt: '' })),
     h('div', null, h('div.name.rar-' + it.rarity, null, it.name), h('div.sub', null, ...interleave(sub, ' · ')),
       long ? h('div.sub', null, faceRow(it)) : null,
       it.text && it.slot !== 'use' ? h('div.passive', null, it.text) : null, extra || null),
@@ -1000,7 +1001,7 @@ function lootCard(h0, k, i, mates, choose, taken) {
   const cur = it.slot !== 'use' && !freeSlot(hero, it.slot) ? item(hero.equip[swapSlot(hero, it.slot)]) : null;
   const head = [h('span.kbd.pick-key', null, i + 1),
     h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
-    h('h3.rar-' + it.rarity, null, it.name),
+    h('div.loot-title', null, h('img.pix', { src: itemURL(k, it.slot), alt: '' }), h('h3.rar-' + it.rarity, null, it.name)),
     it.die ? faceRow(it) : null,
     it.dk?.length ? h('p', null, it.dk.map(x => KIND_TEXT[x]).filter(Boolean).join(' ')) : null,
     ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),

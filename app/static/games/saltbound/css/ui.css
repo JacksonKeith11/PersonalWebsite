@@ -1260,3 +1260,10 @@ a:hover { color: var(--accent-hi); }
   .unit img, .col.crowd .unit > img { width: 52px; height: 52px; }
   .unit.boss img, .col.crowd .unit.boss > img { width: 64px; height: 64px; }
 }
+
+/* item icons (js/itemart.js): pixel pictures in the item rows and on loot cards, framed by rarity */
+.item .ico img { width: 32px; height: 32px; }
+.item[class*="r-"] .ico { border-color: color-mix(in srgb, var(--rar) 45%, var(--border)); background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rar) 14%, var(--bg-2)), var(--bg-2) 70%); }
+.loot-title { display: flex; align-items: center; gap: var(--s-3); padding-right: 28px; }
+.loot-title img { width: 48px; height: 48px; flex: none; padding: 4px; border-radius: var(--r-md); border: var(--bw) solid color-mix(in srgb, var(--rar, var(--border)) 50%, var(--border));
+  background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rar, var(--border)) 16%, var(--bg-2)), var(--bg-2) 70%); }

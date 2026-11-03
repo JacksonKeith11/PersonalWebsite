@@ -620,7 +620,7 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 
 ### Items
 
-About 80 items (`ITEMS` in `content/items.py`; 59 that drop): weapons give a die and actions, armor a guard die and
+About 80 items (`ITEMS` in `content/items.py`; 59 that drop; each has a pixel icon, `ICON` in `js/itemart.js`): weapons give a die and actions, armor a guard die and
 often a passive, trinkets an odd die, a passive or an action. Gear past the starting kit has a passive
 of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
 Shellbreaker Maul ignores Armor, the Oilskin Coat stops Burns, the Diver's Harness a Stun and Freeze,
@@ -922,6 +922,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/screens.js` | Title, lobby (a chosen class in full: `classDetails`), end of run, the painted backdrop. |
 | `js/hud.js` | The map screen's HTML: top bar, party cards, action bar, log, drawers, dialogs, hints, map input and effects. |
 | `js/combat.js` | The fight overlay and playing back a round's effects. |
+| `js/itemart.js` | Item icons: a 12×12 base shape per kind of thing (axe, robe, shell...) painted in a material with an accent and a glow, then outlined. `ICON` maps each item to its look; a new item needs a line there (or it gets its slot's default). |
 | `js/stage.js` | The fights' painted backdrops (`stageKey` picks one for a fight, `stageURL` paints it once). |
 | `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, reach, routes. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`), and how to describe requirements, dice and statuses. |

@@ -92,6 +92,12 @@
   --die-foe: #f1d6cc;
   --die-foe-2: #d9ada0;
 
+  /* stage art behind fighters and fork lineups: a dusky sky and a lit floor */
+  --stage-dusk: #1a2a3c;
+  --stage-floor: rgba(120, 170, 200, 0.22);
+  --stage-glow: rgba(224, 187, 98, 0.22);
+  --stage-shadow: rgba(0, 0, 0, 0.45);
+
   /* type */
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Fraunces", Georgia, serif;

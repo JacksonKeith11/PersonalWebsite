@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=79';
-import { $, h, icon, toast } from './ui.js?v=79';
-import { spriteURL } from './art.js?v=79';
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=79';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=79';
-import { connect, disconnect, debug } from './main.js?v=79';
+import { S, saved, persist, send } from './store.js?v=80';
+import { $, h, icon, toast } from './ui.js?v=80';
+import { spriteURL } from './art.js?v=80';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=80';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=80';
+import { connect, disconnect, debug } from './main.js?v=80';
 
 const app = () => $('app');
 
@@ -255,12 +255,22 @@ export function renderEnd() {
   const g = S.game, r = S.room, st = S.static;
   const won = g.result === 'won';
   const host = r.host === S.you;
+  // the party stands in a row; whoever led a column gets it as an award
+  const AWARDS = [['dmg', 'Most damage'], ['heal', 'Most healing'], ['kills', 'Most kills'], ['taken', 'Took the most hits']];
+  const best = k => Math.max(...g.stats.map(x => x[k]));
+  const lineup = h('div.end-party', null, ...g.heroes.map((hero, i) => h('div.end-hero' + (hero.alive ? '' : '.fallen'), { style: { '--seat': `var(--hero-${i})`, '--i': i } },
+    h('div.end-fig', null, h('img.pix', { src: spriteURL(hero.cls), alt: '' })),
+    h('b', null, hero.name),
+    hero.name !== st.classes[hero.cls].name ? h('span.muted', null, st.classes[hero.cls].name) : null,
+    h('div.end-awards', null, ...AWARDS.filter(([k]) => g.stats[i][k] > 0 && g.stats[i][k] === best(k)).map(([, t]) => h('span.chip.brass', null, t))))));
   showScreen('end',
     h('div.end.panel' + (won ? '.won' : '.lost'), null,
+      won ? h('div.end-rays') : null,
       h('div.eyebrow', null, won ? 'Victory' : 'Defeat'),
       h('h1', null, won ? 'The isles are saved' : 'Lost at sea'),
       h('p.muted', null, `Turn ${g.turn} · party level ${g.level} · ${g.cleared.length} of 3 objectives cleared · ${g.diff[0].toUpperCase() + g.diff.slice(1)}`),
       won ? null : h('p.cause', null, endCause(g)),
+      lineup,
       h('table.summary', null,
         h('thead', null, h('tr', null, ...['Hero', 'Damage dealt', 'Healing', 'Kills', 'Damage taken'].map(t => h('th', null, t)))),
         h('tbody', null, ...g.heroes.map((hero, i) => h('tr', null,

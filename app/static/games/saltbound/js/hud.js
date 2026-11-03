@@ -1,13 +1,13 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=79';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=79';
-import { spriteURL } from './art.js?v=79';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=79';
-import { MapView } from './hexmap.js?v=79';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=79';
-import { disconnect } from './main.js?v=79';
-import * as sfx from './audio.js?v=79';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=80';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=80';
+import { spriteURL, placeURL } from './art.js?v=80';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=80';
+import { MapView } from './hexmap.js?v=80';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=80';
+import { disconnect } from './main.js?v=80';
+import * as sfx from './audio.js?v=80';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -948,7 +948,8 @@ function renderDialogs() {
     } else if (d.type === 'level') {
       wide = true;
       sec = [
-        h('h3', null, `Level ${d.lvl}: ${hero.name} learns something new`),
+        h('div.lvl-head', null, h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
+          h('div', null, h('span.lvl-badge', null, `Level ${d.lvl}`), h('h3', null, `${hero.name} learns something new`))),
         h('p.lead', null, `Choose one. ${d.lvl === 3 || d.lvl === 6 ? 'One of your class dice also grows a size. ' : ''}Max HP went up too.`),
         h('div.picks', null, ...d.opts.map((k, n) => {
           const sk = skillDef(k), up = k.endsWith('+');
@@ -1045,7 +1046,12 @@ function forkView(fk) {
     const boss = foes.find(x => st.foes[x.k]?.boss);
     const kind = !foes.length ? 'No fight' : boss ? 'The boss' : big || affs.length ? 'Elite fight' : 'Fight';
     const mine_ = mineIn.every(x => fk.votes[x] === i);
+    // what waits down this path, drawn: the enemies facing you, or the shrine where nothing does
+    const stage = h('div.fork-stage' + (foes.length ? '' : '.calm'), null, ...(foes.length
+      ? foes.slice(0, 6).map(x => h('img.pix.fork-foe' + (st.foes[x.k]?.boss || st.foes[x.k]?.big ? '.big' : x.aff ? '.elite' : ''), { src: spriteURL(x.k), alt: '', tip: foeName(x.k, x.aff) }))
+      : [h('img.pix.fork-place', { src: placeURL(o.path === 'shrine' ? 'shrine' : 'camp'), alt: '' })]));
     return h('button.pick.fork' + (mine_ ? '.chosen' : ''), { style: { '--i': i }, onclick: () => vote(i) },
+      stage,
       h('span.kbd.pick-key', null, i + 1),
       h('span.kind', null, kind),
       h('h3', null, p.name),

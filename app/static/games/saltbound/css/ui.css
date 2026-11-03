@@ -1218,3 +1218,41 @@ a:hover { color: var(--accent-hi); }
 .col.crowd .unit > .float { grid-column: 1 / -1; grid-row: 1; left: 40px; top: -4px; }
 /* the Ready badge sits on the portrait's corner, clear of the name line (which now names the player) */
 .col.herocol .unit > .intent { right: auto; left: -6px; top: -12px; }
+
+/* ------------------------------------------------------------------ pictures on the text screens */
+/* a fork's path card opens with what waits down it */
+.fork-stage { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 92px; margin: calc(-1 * var(--s-4)) calc(-1 * var(--s-4)) var(--s-1);
+  padding: 0 var(--s-3) 10px; border-radius: var(--r-lg) var(--r-lg) 0 0; overflow: hidden;
+  background: radial-gradient(ellipse 70% 30% at 50% 88%, var(--stage-floor), transparent 70%), linear-gradient(180deg, var(--stage-dusk), var(--panel-2)); }
+.fork-stage.calm { background: radial-gradient(ellipse 50% 45% at 50% 80%, var(--stage-glow), transparent 70%), linear-gradient(180deg, var(--stage-dusk), var(--panel-2)); }
+.fork-foe { width: 56px; height: 56px; transform: scaleX(-1); filter: drop-shadow(0 3px 0 var(--stage-shadow)); flex: none; }
+.fork-foe.elite { width: 64px; height: 64px; filter: drop-shadow(0 0 6px var(--danger)) drop-shadow(0 3px 0 var(--stage-shadow)); }
+.fork-foe.big { width: 80px; height: 80px; }
+.fork-place { width: 48px; height: 54px; margin-bottom: 8px; }
+.pick.fork { overflow: hidden; }
+.pick.fork .pick-key { top: 8px; z-index: 1; background: var(--glass-dark); }
+/* a level-up names the hero with their portrait */
+.lvl-head { display: flex; align-items: center; gap: var(--s-3); }
+.lvl-head img { width: 56px; height: 56px; padding: 4px; border-radius: var(--r-md); background: var(--bg-2); border: var(--bw) solid var(--border); }
+.lvl-badge { display: block; font: var(--fw-semibold) 12px/1.2 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+/* the end of a run: the party in a row, awards under whoever led */
+.end { position: relative; overflow-x: hidden; overflow-y: auto; max-height: calc(100vh - 32px); gap: var(--s-5); }
+.end > * { position: relative; }
+.end-party { display: flex; justify-content: center; align-items: flex-start; gap: var(--s-8); flex-wrap: wrap; }
+.end-hero { display: grid; justify-items: center; align-content: start; gap: 2px; width: 168px; animation: end-in 520ms calc(var(--i) * 140ms + 200ms) cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+.end-fig { position: relative; width: 104px; height: 104px; display: grid; place-items: end center; }
+.end-fig::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: 4px; height: 12px; border-radius: 50%; background: var(--seat); opacity: 0.45; z-index: -1; }
+.end-fig img { width: 96px; height: 96px; }
+.end.won .end-fig img { animation: end-hop 1.6s calc(var(--i) * 180ms + 900ms) ease-in-out infinite; }
+.end-hero.fallen .end-fig img, .end.lost .end-fig img { filter: grayscale(0.85) brightness(0.8); }
+.end-hero.fallen .end-fig img { opacity: 0.6; transform: translateY(6px); }
+.end-hero b { font-family: var(--font-display); font-size: var(--fs-18); color: var(--seat); }
+.end-awards { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; min-height: 26px; margin-top: 4px; }
+.end-rays { position: absolute !important; left: 50%; top: 92px; width: 760px; height: 760px; margin: -380px 0 0 -380px; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, var(--accent-wash) 0deg 6deg, transparent 6deg 18deg);
+  mask: radial-gradient(circle, #000 0%, transparent 58%); -webkit-mask: radial-gradient(circle, #000 0%, transparent 58%); animation: end-spin 40s linear infinite; }
+@keyframes end-in { from { opacity: 0; transform: translateY(18px) scale(0.9); } }
+@keyframes end-hop { 0%, 70%, 100% { transform: none; } 80% { transform: translateY(-8px); } 90% { transform: translateY(0); } }
+@keyframes end-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .end-hero, .end.won .end-fig img, .end-rays { animation: none; } }
+@media (max-width: 700px) { .end-party { gap: var(--s-2); } .end-hero { width: 96px; } .end-fig, .end-fig img { width: 64px; height: 64px; } }

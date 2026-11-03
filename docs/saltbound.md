@@ -249,8 +249,11 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      happened stays on the screen, through a fight an event starts, until one Continue (Enter). Gold,
      blessings and jobs go on it when it's up, and are toasts otherwise.
   7. **Town and shop panel**.
-  8. **Run end**: win or lose, a per-hero summary (damage, healing, kills, items), the seed, and a
-     back-to-lobby button.
+  8. **Run end**: win or lose, the party in a row with an award under whoever led each column (most
+     damage, healing, kills, hits taken; the fallen greyed, a slow ray burst behind a win), then the
+     per-hero summary table, the seed and a back-to-lobby button. Dungeon forks open each path card
+     with the enemies waiting down it (or the shrine where none do), and a level-up shows the hero's
+     portrait.
 
   Plus a settings and pause overlay openable from anywhere (volume, animation speed, save and
   quit). Moving between screens fades or slides in under 250 ms: no hard cuts, no blocking

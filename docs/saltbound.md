@@ -205,7 +205,7 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
 - **Art**: pixel sprites drawn by Python, the same way as Roguelike Tactics (see
   `docs/game-art.md`), in a sibling tool folder.
 - **Screens and flow**:
-  1. **Title**: New run, Resume, Join by code.
+  1. **Title**: New run, Resume, Join by code; the ten heroes stand idling under the name.
   2. **Lobby**: room code and link, players, host settings (difficulty), saved runs.
   3. **Class claim**: a card per class with role, HP, base dice, map ability and sample skills.
      Players claim any free class and can swap until the host clicks Start; the host picks for

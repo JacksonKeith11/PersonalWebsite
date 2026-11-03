@@ -440,7 +440,7 @@ a:hover { color: var(--accent-hi); }
 .float.miss { font-family: var(--font-ui); font-size: var(--fs-16); color: var(--danger); }
 @keyframes roll { 0% { transform: rotate(-25deg) scale(0.8); opacity: 0; } 60% { transform: rotate(8deg) scale(1.05); opacity: 1; } 100% { transform: none; } }
 .tray-tools { display: flex; gap: var(--s-2); align-items: center; }
-.actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); grid-auto-rows: max-content; gap: var(--s-2); align-content: start; max-height: min(30vh, 236px); overflow: auto; padding: 2px; }
+.actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); grid-auto-rows: max-content; gap: var(--s-2); align-content: start; max-height: min(30vh, 236px); overflow: auto; padding: 2px; }
 .action {
   position: relative; display: grid; gap: 4px; align-content: start; text-align: left; padding: var(--s-2) var(--s-3) var(--s-3);
   background: var(--panel-2); border: var(--bw) solid var(--border); border-radius: var(--r-md); cursor: pointer; min-height: 86px;
@@ -1267,3 +1267,21 @@ a:hover { color: var(--accent-hi); }
 .loot-title { display: flex; align-items: center; gap: var(--s-3); padding-right: 28px; }
 .loot-title img { width: 48px; height: 48px; flex: none; padding: 4px; border-radius: var(--r-md); border: var(--bw) solid color-mix(in srgb, var(--rar, var(--border)) 50%, var(--border));
   background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rar, var(--border)) 16%, var(--bg-2)), var(--bg-2) 70%); }
+
+/* ------------------------------------------------------------------ small fixes
+   action cards: a smaller badge and wider cards, so an effect reads as a line, not a word per line */
+.action.v2 { grid-template-columns: 40px minmax(0, 1fr); }
+.action.v2 .rq { width: 40px; height: 40px; }
+.action.v2 .eff { font-size: 13px; }
+/* the ally caption has a strip of its own at the stage's foot, clear of the lowest fighter */
+.stage { padding-bottom: 68px; }
+@media (max-height: 860px) { .stage { padding-bottom: 56px; } .act-caption { padding: 4px 12px; } }
+@media (max-width: 700px) { .stage { padding-bottom: 8px; } }
+/* floating numbers rise from the portrait, not over a foe's intent card */
+.col.crowd .unit > .float { top: 42%; }
+/* the title's roster: the ten heroes in a row, idling */
+.title-roster { display: flex; justify-content: center; gap: 2px; margin: calc(-1 * var(--s-4)) 0 calc(-1 * var(--s-2)); }
+.title-roster img { width: 48px; height: 48px; filter: drop-shadow(0 3px 0 var(--stage-shadow)); animation: idle 2.8s var(--idle-at, 0s) ease-in-out infinite; }
+.title-roster img:nth-child(3n) { --idle-at: -0.9s; }
+.title-roster img:nth-child(3n+1) { --idle-at: -1.8s; }
+@media (max-width: 700px) { .title-roster img { width: 30px; height: 30px; } }

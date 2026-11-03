@@ -1,15 +1,16 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=78';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=78';
-import { spriteURL } from './art.js?v=78';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=78';
-import { MapView } from './hexmap.js?v=78';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=78';
-import { disconnect } from './main.js?v=78';
-import * as sfx from './audio.js?v=78';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=79';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=79';
+import { spriteURL } from './art.js?v=79';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=79';
+import { MapView } from './hexmap.js?v=79';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=79';
+import { disconnect } from './main.js?v=79';
+import * as sfx from './audio.js?v=79';
 
-const UI = { drawer: null, log: true, res: {}, hover: -1, preview: null, menu: false };
+// the log starts closed and "This turn" open; each remembers how you left it
+const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
 let root = null, map = null, mapWorld = null;
 
 export function teardownGame() {
@@ -214,7 +215,7 @@ function renderTopbar() {
       h('div.stat', { tip: `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}` },
         icon('flag'), h('span.pips', null, ...[0, 1, 2].map(i => h('i' + (i < g.cleared.length ? '.on' : '')))))),
     h('div.right', null,
-      h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; renderLog(); } }, icon('list')),
+      h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; saved.logOpen = UI.log; persist(); renderLog(); } }, icon('list')),
       h('button.btn.icon.ghost', { 'aria-label': 'Menu', tip: 'Menu', onclick: () => { UI.menu = !UI.menu; UI.menuFresh = true; renderMenu(); } }, icon('menu')))));
 }
 
@@ -412,8 +413,11 @@ export function renderForecast() {
   for (const l of g.loans || []) {
     if (l.left <= 3) lines.push(h('div.fc-line.muted', null, icon('coin'), ` The moneylender comes for ${g.heroes[l.h].name}’s 60 gold in ${Math.max(0, l.left)} turn${l.left === 1 ? '' : 's'}.`));
   }
-  el.replaceChildren(h('div.forecast', { role: 'status', 'aria-live': 'polite' }, h('span.eyebrow', null, 'This turn'), ...lines,
-    h('div.fc-foot', null, 'Hidden enemies can still ambush you.')));
+  const toggle = () => { UI.fc = !UI.fc; saved.fcOpen = UI.fc; persist(); renderForecast(); };
+  const head = h('button.fc-head', { 'aria-expanded': String(UI.fc), tip: UI.fc ? 'Hide' : 'Show what this turn will do', onclick: toggle },
+    h('span.eyebrow', null, 'This turn'), UI.fc ? null : h('span.fc-count', null, `${lines.length} line${lines.length === 1 ? '' : 's'}`), icon(UI.fc ? 'chevron-down' : 'chevron-up'));
+  el.replaceChildren(h('div.forecast' + (UI.fc ? '' : '.closed'), { role: 'status', 'aria-live': 'polite' }, head,
+    ...(UI.fc ? [...lines, h('div.fc-foot', null, 'Hidden enemies can still ambush you.')] : [])));
 }
 
 function restText(h0) {

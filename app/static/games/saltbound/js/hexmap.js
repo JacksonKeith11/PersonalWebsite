@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=78';
-import { spriteCanvas, placeCanvas } from './art.js?v=78';
+import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=79';
+import { spriteCanvas, placeCanvas } from './art.js?v=79';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -336,16 +336,22 @@ export class MapView {
       const kind = p.kind === 'dungeon' && this.state.cleared.includes(p.region) ? 'dungeon' : p.kind;
       const tex = this.texFor('place_' + kind, () => placeCanvas(kind));
       const yoff = p.kind === 'town' ? 14 : 2;
-      const img = this.scene.add.image(cx, cy + yoff, tex).setOrigin(0.5, 0.5);
-      if (p.kind === 'town') img.setVisible(false);
+      // places are drawn half again as big as their 16px art, on a soft shadow, so they read at a glance
+      if (p.kind !== 'town') L.add(this.scene.add.ellipse(cx, cy + yoff + 10, 22, 7, 0x000000, 0.3));
+      const img = this.scene.add.image(cx, cy + yoff, tex).setOrigin(0.5, 0.5).setScale(1.5);
+      if (p.kind === 'town') {
+        img.setVisible(false);
+        // a town's name under it, so it's still findable with heroes standing on its houses
+        L.add(this.scene.add.text(cx, cy + 25, p.name, { fontFamily: 'Inter', fontSize: '8px', fontStyle: 'bold', color: '#f3ead2', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5, 0.5));
+      }
       if (p.done || (p.kind === 'dungeon' && this.state.cleared.includes(p.region))) img.setAlpha(0.45);
       if (p.kind === 'peak' && this.state.cleared.length < 3) img.setTint(0x8a8a8a);
       if (p.kind === 'shrine' && p.dark) img.setTint(0xb48ae0);
       L.add(img);
       // what's there, before anyone arrives: a wreck's loot, an event's risk, a garrison's size
       const dot = (x, y, col) => L.add(this.scene.add.circle(cx + x, cy + y, 3.5, col).setStrokeStyle(1, 0x0b1017));
-      if (p.kind === 'wreck' && !p.done) dot(10, 8, RARITY_COL[p.rarity] || 0xb8b0a0);
-      if (p.kind === 'event' && !p.done && p.risk && p.risk !== 'safe') dot(10, 8, p.risk === 'fight' ? 0xd0624f : 0xe0a050);
+      if (p.kind === 'wreck' && !p.done) dot(13, 10, RARITY_COL[p.rarity] || 0xb8b0a0);
+      if (p.kind === 'event' && !p.done && p.risk && p.risk !== 'safe') dot(13, 10, p.risk === 'fight' ? 0xd0624f : 0xe0a050);
       const gs = p.kind === 'dungeon' && !this.state.cleared.includes(p.region) ? this.state.garrison?.[p.region] : null;
       if (gs?.n) L.add(this.scene.add.text(cx + 12, cy - 16, '+' + gs.n, { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffb3a0', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5));
       if (p.kind === 'town' && p.docks) {
@@ -452,8 +458,11 @@ export class MapView {
       const id = 'h' + h;
       if (!hero.alive) { const t = this.tokens.get(id); if (t) { t.c.destroy(); this.tokens.delete(id); } return; }
       seen.add(id);
+      // heroes sharing a hex fan out (the middle one a step back) and shrink a little, so each reads
       const mates = byTile[hero.tile], k = mates.indexOf(h), n = mates.length;
-      const [cx0, cy] = center(hero.tile), cx = cx0 + (k - (n - 1) / 2) * 14;
+      const FAN = { 1: [[0, 0]], 2: [[-9, 0], [9, 0]], 3: [[-13, 2], [0, -4], [13, 2]] };
+      const [dx, dy] = (FAN[n] || FAN[3])[Math.min(k, 2)];
+      const [cx0, cy0] = center(hero.tile), cx = cx0 + dx, cy = cy0 + dy;
       let tok = this.tokens.get(id);
       if (!tok) {
         const c = this.scene.add.container(cx, cy);
@@ -463,16 +472,16 @@ export class MapView {
         const img = this.scene.add.image(0, 14, this.texFor('spr_' + hero.cls, () => spriteCanvas(hero.cls))).setOrigin(0.5, 1);
         c.add([ring, ring2, img, boat]);
         L.add(c);
-        tok = { c, tile: hero.tile, boat, ring, kind: 'h', x: cx };
+        tok = { c, tile: hero.tile, boat, ring, kind: 'h', x: cx, y: cy };
         this.tokens.set(id, tok);
-      } else if (!tok.moving && (tok.tile !== hero.tile || tok.x !== cx)) {
-        tok.c.setPosition(cx, cy); tok.tile = hero.tile; tok.x = cx;
+      } else if (!tok.moving && (tok.tile !== hero.tile || tok.x !== cx || tok.y !== cy)) {
+        tok.c.setPosition(cx, cy); tok.tile = hero.tile; tok.x = cx; tok.y = cy;
       }
       tok.boat.setVisible(hero.afloat);
       tok.ring.setVisible(!hero.afloat);
       tok.c.setDepth(cy);
       const sel = this.opts?.sel === h;
-      tok.c.setScale(1);
+      tok.c.setScale(n > 1 ? 0.85 : 1);
       tok.ring.setFillStyle(SEATS[h], sel ? 1 : 0.75);
     });
     for (const [id, tok] of this.tokens) if (!seen.has(id)) { tok.c.destroy(); this.tokens.delete(id); }

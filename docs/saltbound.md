@@ -210,8 +210,10 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
   3. **Class claim**: a card per class with role, HP, base dice, map ability and sample skills.
      Players claim any free class and can swap until the host clicks Start; the host picks for
      unclaimed heroes. On resume, the saved heroes are shown instead.
-  4. **Map**: the hex map in the middle; three hero cards down the left (HP, dice, moves left,
-     Ready state); top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
+  4. **Map**: the hex map in the middle; three hero cards down the left (portrait, HP and Ready
+     state; the selected hero's card adds gold, moves and dice, so the cards don't cover the map);
+     "This turn" bottom left (collapsible), the log closed until opened (each remembers how you left
+     it), first-time hints bottom right; towns are labelled and heroes sharing a hex fan out; top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
      trails, like Board Brawl's route previews.
   5. **Combat overlay**: full screen; the party in one column, enemies in their rows, facing each other
      across the middle at a good size (owner's request: big fighters, rows close together); intents

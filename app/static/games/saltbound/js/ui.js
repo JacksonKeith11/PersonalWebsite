@@ -51,6 +51,8 @@ const P = {
   snow: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
   down: '<path d="M12 4v15M6 13l6 6 6-6"/>',
+  'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+  'chevron-up': '<path d="M6 15l6-6 6 6"/>',
   up: '<path d="M12 20V5M6 11l6-6 6 6"/>',
   crack: '<path d="M12 3l-2 6 4 3-3 4 2 5M5 5l14 14"/>',
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',

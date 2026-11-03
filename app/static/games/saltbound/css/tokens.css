@@ -44,6 +44,7 @@
   --info: #6aa2d8;
   --xp: var(--accent);
   --water: #4f9fc0;
+  --sea-deep: #0d2433;
 
   /* enemy intents: always paired with an icon and a number, never colour alone */
   --intent-attack: #d0624f;
@@ -62,6 +63,34 @@
   --hero-0: #e07a5f;
   --hero-1: #4fb3a9;
   --hero-2: #a48ad8;
+
+  /* glass panels floating over the map or the stage, and the shadows under text on art */
+  --glass: rgba(16, 22, 31, 0.94);
+  --glass-dark: rgba(11, 16, 23, 0.92);
+  --glass-light: rgba(11, 16, 23, 0.55);
+  --text-shadow: rgba(0, 0, 0, 0.8);
+  --lift: rgba(255, 255, 255, 0.04);
+  --press: rgba(0, 0, 0, 0.18);
+
+  /* fight feedback: numbers that float off a fighter, combo gold */
+  --dmg-text: #ff8a70;
+  --dmg-big: #ffb35c;
+  --heal-text: #8ee0a4;
+  --stun-text: #ffe27a;
+  --combo: #ffd36b;
+  --combo-wash: rgba(255, 196, 80, 0.12);
+  --danger-wash: rgba(220, 96, 70, 0.12);
+  --danger-text: #ffb4a0;
+
+  /* special dice faces */
+  --die-shield: #c7d3df;
+  --die-spirit: #cfc4ec;
+  --die-augur: #d9cdf0;
+  --die-fate: #f0dfb8;
+  --die-hidden: #3a4558;
+  --die-hidden-edge: #4e5b72;
+  --die-foe: #f1d6cc;
+  --die-foe-2: #d9ada0;
 
   /* type */
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;

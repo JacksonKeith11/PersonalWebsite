@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=74';
-import { $, h, icon, toast } from './ui.js?v=74';
-import { spriteURL } from './art.js?v=74';
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=74';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=74';
-import { connect, disconnect, debug } from './main.js?v=74';
+import { S, saved, persist, send } from './store.js?v=75';
+import { $, h, icon, toast } from './ui.js?v=75';
+import { spriteURL } from './art.js?v=75';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=75';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=75';
+import { connect, disconnect, debug } from './main.js?v=75';
 
 const app = () => $('app');
 
@@ -30,8 +30,19 @@ function makeBackdrop() {
   paintTerrain(c, { elev, bio }, { sea: 1, tide: 'low' });
   return (backdrop = c);
 }
-function withBackdrop(...kids) {
-  return h('div.screen', null, h('div.backdrop', null, makeBackdrop()), ...kids);
+// Shows a menu screen. Re-rendering the screen already up (the lobby redraws on every room update,
+// such as picking a class) keeps its element, so its fade-in doesn't replay and flash the page,
+// and keeps the scroll position of anything scrolled.
+function showScreen(kind, ...kids) {
+  const cur = app().firstElementChild;
+  if (cur && cur.classList.contains('screen') && cur.dataset.screen === kind) {
+    const [backdrop, ...old] = cur.children;
+    const scroll = old.map(el => el.scrollTop);
+    cur.replaceChildren(backdrop, ...kids);
+    kids.forEach((el, i) => { if (el instanceof Element && scroll[i]) el.scrollTop = scroll[i]; });
+    return;
+  }
+  app().replaceChildren(h('div.screen', { 'data-screen': kind }, h('div.backdrop', null, makeBackdrop()), ...kids));
 }
 
 // ------------------------------------------------------------------ title
@@ -42,7 +53,7 @@ export function renderTitle() {
   const go = (opts) => { saved.name = name.value.trim().slice(0, 16) || 'Sailor'; persist(); connect(opts); };
   code.addEventListener('keydown', e => { if (e.key === 'Enter' && code.value.trim()) go({ room: code.value.trim().toUpperCase() }); });
   const saves = S.saves || [];
-  app().replaceChildren(withBackdrop(
+  showScreen('title',
     h('a.back-link', { href: '/games' }, '← Games'),
     h('div.title-wrap', null,
       h('div.brand', null,
@@ -60,7 +71,7 @@ export function renderTitle() {
             h('button.btn.sm', { disabled: !sv.ok, tip: sv.ok ? null : 'Saved by an older version', onclick: () => { S.afterJoin = { t: 'resume', id: sv.id }; go({ create: true }); } }, 'Resume'),
             h('button.btn.sm.ghost', { 'aria-label': 'Delete save', tip: 'Delete this save', onclick: () => deleteSave(sv) }, icon('x'))))) : null,
         h('p#status.status-line', { role: 'status' }))),
-  ));
+  );
 }
 
 function deleteSave(sv) {
@@ -130,7 +141,7 @@ export function renderLobby() {
   const saves = S.saves || [];
   const diffs = [['story', 'Story'], ['normal', 'Normal'], ['hard', 'Hard']];
   const link = `${location.origin}/games/saltbound?room=${r.code}`;
-  app().replaceChildren(withBackdrop(
+  showScreen('lobby',
     h('div.lobby.panel', null,
       h('div.lobby-head', null,
         h('div', null, h('div.eyebrow', null, r.resume ? 'Resuming a voyage' : 'New voyage'), h('h1', null, 'Gather your crew')),
@@ -166,7 +177,7 @@ export function renderLobby() {
             : h('p.muted', { style: { textAlign: 'center' } }, 'The host starts the voyage.'),
           host && !ready ? h('p.muted', { style: { fontSize: '14px', textAlign: 'center' } }, 'Every hero needs a class. Heroes nobody claims are played by the host.') : null)),
     ),
-  ));
+  );
 }
 
 
@@ -244,7 +255,7 @@ export function renderEnd() {
   const g = S.game, r = S.room, st = S.static;
   const won = g.result === 'won';
   const host = r.host === S.you;
-  app().replaceChildren(withBackdrop(
+  showScreen('end',
     h('div.end.panel' + (won ? '.won' : '.lost'), null,
       h('div.eyebrow', null, won ? 'Victory' : 'Defeat'),
       h('h1', null, won ? 'The isles are saved' : 'Lost at sea'),
@@ -261,5 +272,5 @@ export function renderEnd() {
         host ? h('button.btn.primary.lg', { onclick: () => send({ t: 'quit' }) }, 'Back to the lobby') : h('p.muted', null, 'The host can take everyone back to the lobby.'),
         h('button.btn.lg', { onclick: disconnect }, 'Leave')),
       h('p.faint', { style: { fontSize: '14px' } }, `Seed ${S.world?.seed ?? ''}`)),
-  ));
+  );
 }

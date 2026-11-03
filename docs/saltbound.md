@@ -941,6 +941,10 @@ clock anywhere: the run changes only when someone acts.
   **restart a local server after bumping** or every tab reloads in a loop.
 - A browser keeps only its five newest saves (`save.KEEP`), and resuming one re-saves it under the
   room's title; `tools/saltbound-audit.js` makes each audit save just before using it.
+- **Menu screens redraw in place** (`showScreen` in `screens.js`): the lobby rebuilds on every room
+  update, and `.screen` fades in, so a fresh `.screen` each time made every class pick flash the
+  page. Redrawing the screen already up keeps its element (and its panels' scroll); only moving to
+  another screen (title, lobby, end) builds a new one and fades.
 - **Effects play before the new state is drawn** (`main.js`): map moves start from the old hexes, and a
   fight's last round plays back before the map or end screen replaces it (`combatBusy()`).
 - **Actions resolve as they're played**; each play sends its own effects and the client plays them back

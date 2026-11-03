@@ -238,7 +238,15 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      switches your tray to them. The big skills have signature effects (`SIGNATURE` in `combat.js`:
      Fireball's orb and explosions, Earthshaker's quake, Chain Lightning's bolt, Cleave's arc, Lunge's
      thrust, Volley's arrow rain, Doom's sigil, Renew's party glow, Sanctuary's dome, Hymn's notes,
-     summoning circles and more); anything else uses the generic effect for its kind.
+     summoning circles and more), and **every other action has its own look too** (`SKILL_FX` in
+     `js/skillfx.js`, built from a kit of colourable effects: shots that fly, lob or tumble, impacts,
+     vines, jaws, smoke, rising glyphs, drains back to the hero), each with a body motion (lunge, charge,
+     spin, brace, cast, retreat). A new action needs an entry there, or it falls back to the generic
+     effect for its kind. **Enemies' moves animate as well** (`foeFx` there, called on each `fact`): each
+     kind of enemy lunges, pounces, slams or charges with its own impact, or shoots its own projectile
+     (`LOOK`), and a move's name can override that (`BY_NAME`: pistols, songs, breaths, beams, tidal
+     waves, cannon broadsides, rockslides, hooks); area moves wash over the whole party, and a status
+     rider rings the target in its colour.
      Clicking an ally's hero card on the map opens their sheet read-only (skills, gear, about).
      **Multiplayer clarity** (owner's request, after a two-browser test): another player's hero shows
      who plays it ("Vanguard · Alice") and the dice they hold this round under the portrait (spent
@@ -928,6 +936,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/hud.js` | The map screen's HTML: top bar, party cards, action bar, log, drawers, dialogs, hints, map input and effects. |
 | `js/combat.js` | The fight overlay and playing back a round's effects. |
 | `js/itemart.js` | Item icons: a 12×12 base shape per kind of thing (axe, robe, shell...) painted in a material with an accent and a glow, then outlined. `ICON` maps each item to its look; a new item needs a line there (or it gets its slot's default). |
+| `js/skillfx.js` | What every action and enemy move looks like (`SKILL_FX`, `foeFx`), from the effects kit `combat.js` passes in (`fxKit`); the styles are the stylesheet's "skill effects" section. |
 | `js/stage.js` | The fights' painted backdrops (`stageKey` picks one for a fight, `stageURL` paints it once). |
 | `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, reach, routes. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`), and how to describe requirements, dice and statuses. |
@@ -965,6 +974,9 @@ clock anywhere: the run changes only when someone acts.
   actions, level-up picks, gear, flags. `--saves` checks a run saved and restored at every step
   finishes identically, and that the analytics hooks don't change a run. It exits non-zero on a stuck
   run or a save mismatch.
+- `node tools/saltbound-fxsheet.js <out dir> [skills|foes]` plays every action's effect and a sample of
+  enemy moves on a live fight (through `window.saltboundFx`, on `?bots` pages) and saves three frames
+  of each, for checking the looks by eye.
 - `node tools/saltbound-mp.js [url] [out dir]` plays a **two-player fight** in two browsers (after
   `python3 tools/saltbound-audit.py fight`): Alice resumes the save, Bob joins by code, each plays a
   hero while the other watches, both ready up, and screenshots of both screens go to the out dir.

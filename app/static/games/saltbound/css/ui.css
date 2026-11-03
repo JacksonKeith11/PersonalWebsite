@@ -1296,3 +1296,114 @@ button.stat.goal { font: inherit; color: var(--text); cursor: pointer; transitio
 button.stat.goal:hover { background: var(--panel-3); border-color: var(--accent); }
 button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 1100px) { button.stat.goal .lbl, button.stat.goal b { display: none; } }
+
+/* ------------------------------------------------------------------ skill effects (js/skillfx.js)
+   Each takes its colour as --c. Built on the keyframes above (burst, ring, shield, rise, cloud). */
+.fx.pop { width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, #fff 0 10%, var(--c, #fff) 30%, transparent 68%); animation: burst 520ms ease-out forwards; }
+.fx.pop.big { width: 170px; height: 170px; }
+.fx.pop.small { width: 64px; height: 64px; }
+.fx.hoop { width: 110px; height: 110px; border-radius: 50%; border: 3px solid var(--c, #fff); box-shadow: 0 0 14px var(--c, #fff); animation: ring 600ms ease-out forwards; }
+.fx.rune { width: 120px; height: 120px; border-radius: 50%; border: 3px dashed var(--c); box-shadow: 0 0 22px var(--c), inset 0 0 22px var(--c); animation: sigil 1000ms ease-out forwards; }
+.fx.aura { width: 100px; height: 150px; border-radius: 50% 50% 40% 40%; background: linear-gradient(0deg, var(--c), transparent 85%); opacity: 0.6; animation: aura 900ms ease-out forwards; }
+@keyframes aura { 0% { opacity: 0; transform: translate(-50%, -30%) scaleY(0.4); } 30% { opacity: 0.6; } 100% { opacity: 0; transform: translate(-50%, -65%) scaleY(1.1); } }
+.fx.drops { width: 90px; height: 100px; }
+.fx.drops::before, .fx.drops::after { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(circle, var(--c) 0 4px, transparent 5px) 18% 80% / 22px 22px no-repeat, radial-gradient(circle, var(--c) 0 3px, transparent 4px) 70% 70% / 22px 22px no-repeat,
+    radial-gradient(circle, var(--c) 0 3px, transparent 4px) 45% 95% / 22px 22px no-repeat;
+  filter: drop-shadow(0 0 4px var(--c)); animation: rise 900ms ease-out forwards; }
+.fx.drops::after { transform: translateX(12px); animation-delay: 220ms; opacity: 0; animation-fill-mode: both; }
+.fx.glyph { width: 60px; height: 60px; display: grid; place-items: center; }
+.fx.glyph::before { content: attr(data-g); color: var(--c); font: 700 40px/1 var(--font-ui); text-shadow: 0 0 12px var(--c), 0 2px 0 rgba(0, 0, 0, 0.6); animation: glyph 900ms ease-out forwards; }
+.fx.glyph.spin::before { animation: glyph-spin 800ms ease-out forwards; }
+@keyframes glyph { 0% { transform: translateY(10px) scale(0.6); opacity: 0; } 30% { opacity: 1; transform: scale(1.15); } 100% { transform: translateY(-40px); opacity: 0; } }
+@keyframes glyph-spin { 0% { transform: rotate(-200deg) scale(0.4); opacity: 0; } 40% { opacity: 1; transform: rotate(0) scale(1.15); } 100% { transform: translateY(-30px); opacity: 0; } }
+.fx.claw, .fx.chop, .fx.cross { width: 110px; height: 110px; }
+.fx.claw::before { content: ""; position: absolute; left: 50%; top: 50%; width: 110%; height: 4px; border-radius: 2px; background: var(--c, #fff);
+  box-shadow: 0 14px 0 var(--c, #fff), 0 -14px 0 var(--c, #fff), 0 0 10px var(--c, #fff); transform: translate(-50%, -50%) rotate(-55deg) scaleX(0); animation: slash 420ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards; --r: -55deg; }
+.fx.chop::before { content: ""; position: absolute; left: 50%; top: 50%; width: 130%; height: 7px; border-radius: 4px; background: linear-gradient(90deg, transparent, #fff 40%, var(--c) 65%, transparent);
+  box-shadow: 0 0 14px var(--c); transform: translate(-50%, -50%) rotate(-75deg) scaleX(0); animation: slash 380ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards; --r: -75deg; }
+.fx.chop.flip::before { --r: 75deg; transform: translate(-50%, -50%) rotate(75deg) scaleX(0); }
+.fx.cross::before, .fx.cross::after { content: ""; position: absolute; left: 50%; top: 50%; width: 110%; height: 5px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--c) 30%, #fff 50%, var(--c) 70%, transparent);
+  box-shadow: 0 0 10px var(--c); transform: translate(-50%, -50%) rotate(45deg) scaleX(0); animation: slash 520ms ease-out forwards; --r: 45deg; }
+.fx.cross::after { --r: -45deg; transform: translate(-50%, -50%) rotate(-45deg) scaleX(0); }
+.fx.slash.ghost { opacity: 0.5; filter: blur(1px); }
+.fx.bite { width: 100px; height: 100px; }
+.fx.bite::before, .fx.bite::after { content: ""; position: absolute; left: 10%; right: 10%; height: 42%; border: 6px solid var(--c); filter: drop-shadow(0 0 6px var(--c)); }
+.fx.bite::before { top: 0; border-top: 0; border-radius: 0 0 50% 50%; animation: bite-top 460ms ease-in forwards; }
+.fx.bite::after { bottom: 0; border-bottom: 0; border-radius: 50% 50% 0 0; animation: bite-bot 460ms ease-in forwards; }
+@keyframes bite-top { 0% { transform: translateY(-20px); opacity: 0; } 50% { opacity: 1; } 70% { transform: translateY(14px); opacity: 1; } 100% { transform: translateY(14px); opacity: 0; } }
+@keyframes bite-bot { 0% { transform: translateY(20px); opacity: 0; } 50% { opacity: 1; } 70% { transform: translateY(-14px); opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+.fx.slam { width: 160px; height: 160px; border-radius: 50%; border: 6px solid var(--c, #fff); background: radial-gradient(circle, rgba(255, 255, 255, 0.85), transparent 40%); box-shadow: 0 0 18px var(--c, #fff); animation: ring 480ms ease-out forwards; }
+.fx.splash { width: 130px; height: 130px; border-radius: 50%;
+  background: conic-gradient(from 10deg, transparent 0 6%, var(--c) 7% 12%, transparent 13% 25%, var(--c) 26% 31%, transparent 32% 50%, var(--c) 51% 56%, transparent 57% 75%, var(--c) 76% 81%, transparent 82%);
+  -webkit-mask: radial-gradient(circle, transparent 22%, #000 28%, transparent 70%); mask: radial-gradient(circle, transparent 22%, #000 28%, transparent 70%); animation: burst 560ms ease-out forwards; }
+.fx.vines { width: 130px; height: 120px; }
+.fx.vines::before, .fx.vines::after { content: ""; position: absolute; inset: 0; transform-origin: 50% 100%;
+  background: repeating-linear-gradient(90deg, transparent 0 12px, var(--c) 12px 17px, transparent 17px 28px);
+  -webkit-mask: linear-gradient(0deg, #000 30%, transparent); mask: linear-gradient(0deg, #000 30%, transparent); filter: drop-shadow(0 0 4px var(--c));
+  animation: vines 900ms ease-out forwards; }
+.fx.vines::after { left: 8px; --sk: -18deg; animation-delay: 120ms; }
+.fx.vines::before { --sk: 18deg; }
+@keyframes vines { 0% { transform: skewX(var(--sk)) scaleY(0); opacity: 1; } 45% { transform: skewX(calc(var(--sk) * -0.5)) scaleY(1); opacity: 1; } 100% { transform: skewX(0) scaleY(1); opacity: 0; } }
+.fx.squeeze { width: 110px; height: 110px; border-radius: 50%; border: 4px solid var(--c); box-shadow: 0 0 12px var(--c); animation: squeeze 700ms ease-in forwards; }
+@keyframes squeeze { 0% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } 40% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.45); opacity: 0; } }
+.fx.gather { width: 130px; height: 130px; border-radius: 50%; border: 3px solid var(--c); box-shadow: 0 0 24px var(--c), inset 0 0 24px var(--c); animation: squeeze 800ms ease-in forwards; }
+.fx.smoke { width: 150px; height: 120px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 45%, var(--c), transparent 42%), radial-gradient(circle at 65% 55%, var(--c), transparent 42%), radial-gradient(circle at 50% 30%, var(--c), transparent 38%);
+  animation: cloud 900ms ease-out forwards; }
+.fx.stabfx { width: 130px; height: 5px; margin-left: -30px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--c) 60%, #fff); box-shadow: 0 0 10px var(--c); animation: thrust 340ms ease-out forwards; }
+.fx.tidewall { width: 220px; height: 150px; border-radius: 60% 60% 10% 10%; background: linear-gradient(180deg, #fff 0 4%, var(--c) 10%, transparent 80%); opacity: 0.7; animation: tidewall 800ms ease-out forwards; }
+@keyframes tidewall { 0% { transform: translate(20%, -50%) scaleY(0.3); opacity: 0; } 35% { opacity: 0.75; transform: translate(-50%, -55%) scaleY(1); } 100% { transform: translate(-110%, -40%) scaleY(0.6); opacity: 0; } }
+.fx.rockfall { width: 22px; height: 20px; border-radius: 40%; background: radial-gradient(circle at 35% 35%, #d8cdb6, var(--c) 50%, #5e5446); animation: rockfall 600ms ease-in forwards; }
+@keyframes rockfall { 0% { transform: translate(-50%, -400%) rotate(0); opacity: 1; } 80% { transform: translate(-50%, -50%) rotate(200deg); opacity: 1; } 100% { transform: translate(-50%, -50%) rotate(220deg); opacity: 0; } }
+.fx.notes.dark::before, .fx.notes.dark::after { color: #b79cff; text-shadow: 0 0 10px #5a3a8a; }
+.fx.shout.small { width: 100px; height: 100px; border-color: var(--c, rgba(255, 140, 210, 0.9)); }
+.fx-screen.tint { background: var(--c); }
+/* shots */
+.fx.shot.orb { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle, #fff, var(--c) 45%, transparent 70%); box-shadow: 0 0 16px var(--c); }
+.fx.shot.orb.big { width: 36px; height: 36px; box-shadow: 0 0 28px var(--c); }
+.fx.shot.orb.small { width: 14px; height: 14px; }
+.fx.shot.disc { width: 22px; height: 22px; border-radius: 50%; border: 4px solid var(--c); background: radial-gradient(circle, #fff 0 25%, transparent 30%); box-shadow: 0 0 10px var(--c); }
+.fx.shot.dagger { width: 26px; height: 5px; background: linear-gradient(90deg, #6b5a44 0 25%, var(--c) 25%, #fff); clip-path: polygon(0 20%, 80% 0, 100% 50%, 80% 100%, 0 80%); filter: drop-shadow(0 0 4px var(--c)); }
+.fx.shot.wave { width: 18px; height: 44px; border-right: 4px solid var(--c); border-radius: 50%; filter: drop-shadow(0 0 6px var(--c)); }
+.fx.shot.flask { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #e8f0f4; background: radial-gradient(circle at 35% 35%, #fff 0 15%, var(--c) 40%); box-shadow: 0 0 8px var(--c); }
+.fx.shot.flask::before { content: ""; position: absolute; left: 50%; top: -6px; width: 5px; height: 6px; margin-left: -2.5px; background: #c9b48a; border-radius: 1px; }
+.fx.shot.coin { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff6c0, #ffc83a 55%, #a87a10); box-shadow: 0 0 8px #ffd36b; }
+.fx.shot.thorn { width: 40px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--c) 30%, #d9ffb0); box-shadow: 0 0 6px var(--c); }
+.fx.shot.drop { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
+.fx.shot.note::before { content: "♪"; color: var(--c); font: 700 26px/1 serif; text-shadow: 0 0 8px var(--c); }
+.fx.shot.hawk { width: 30px; height: 12px; }
+.fx.shot.hawk::before, .fx.shot.hawk::after { content: ""; position: absolute; top: 0; width: 50%; height: 100%; border-top: 4px solid var(--c); filter: drop-shadow(0 0 3px var(--c)); }
+.fx.shot.hawk::before { left: 0; border-radius: 100% 0 0 0; }
+.fx.shot.hawk::after { right: 0; border-radius: 0 100% 0 0; }
+.fx.shot.rock { width: 18px; height: 16px; border-radius: 40%; background: radial-gradient(circle at 35% 35%, #d8cdb6, var(--c) 50%, #5e5446); }
+.fx.shot.bullet { width: 16px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--c), #fff); box-shadow: 0 0 6px var(--c); }
+.fx.shot.glob { width: 14px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0 10%, var(--c) 45%); box-shadow: 0 0 8px var(--c); }
+.fx.shot.ball { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #9aa0a8, #23272d 60%); box-shadow: 0 0 10px var(--c); }
+.fx.shot.chain { width: 46px; height: 5px; background: repeating-linear-gradient(90deg, var(--c) 0 6px, transparent 6px 9px); filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)); }
+/* how a fighter's body moves as it acts (combat.js MOTION_MS and FOE_MOTION_MS) */
+.unit.charge img { animation: charge 520ms var(--ease); }
+@keyframes charge { 0% { transform: none; } 18% { transform: translateX(-10px); } 50% { transform: translateX(110px) scale(1.1); } 100% { transform: none; } }
+.unit.spin img { animation: spin 560ms linear; }
+@keyframes spin { 0%, 100% { transform: none; } 25% { transform: translateX(24px) scaleX(-1); } 50% { transform: translateX(36px); } 75% { transform: translateX(24px) scaleX(-1); } }
+.unit.retreat img { animation: retreat 600ms var(--ease); }
+@keyframes retreat { 0%, 100% { transform: none; opacity: 1; } 45% { transform: translateX(-40px); opacity: 0.35; } }
+.unit.brace img { animation: brace 420ms var(--ease); }
+@keyframes brace { 0%, 100% { transform: none; } 40% { transform: translateY(5px) scale(1.06, 0.92); } }
+.unit.cast img { animation: cast 420ms var(--ease); }
+@keyframes cast { 0%, 100% { transform: none; filter: none; } 45% { transform: translateY(-8px); filter: brightness(1.4) drop-shadow(0 0 8px rgba(255, 255, 255, 0.6)); } }
+.unit.foe.f-lunge img { animation: f-lunge 380ms var(--ease); }
+@keyframes f-lunge { 0%, 100% { transform: scaleX(-1); } 45% { transform: scaleX(-1) translateX(48px) scale(1.06); } }
+.unit.foe.f-pounce img { animation: f-pounce 460ms var(--ease); }
+@keyframes f-pounce { 0%, 100% { transform: scaleX(-1); } 20% { transform: scaleX(-1) translateX(-6px) scale(1.05, 0.9); } 50% { transform: scaleX(-1) translate(70px, -18px); } 70% { transform: scaleX(-1) translateX(60px); } }
+.unit.foe.f-slam img { animation: f-slam 520ms var(--ease); }
+@keyframes f-slam { 0%, 100% { transform: scaleX(-1); } 35% { transform: scaleX(-1) translate(10px, -22px) scale(1.08); } 55% { transform: scaleX(-1) translate(36px, 4px) scale(1.1, 0.92); } }
+.unit.foe.f-charge img { animation: f-charge 560ms var(--ease); }
+@keyframes f-charge { 0%, 100% { transform: scaleX(-1); } 20% { transform: scaleX(-1) translateX(-12px); } 55% { transform: scaleX(-1) translateX(120px) scale(1.08); } }
+.unit.foe.f-cast img { animation: f-cast 420ms var(--ease); }
+@keyframes f-cast { 0%, 100% { transform: scaleX(-1); filter: none; } 45% { transform: scaleX(-1) translateY(-8px); filter: brightness(1.4); } }
+.unit.foe.f-brace img { animation: f-brace 420ms var(--ease); }
+@keyframes f-brace { 0%, 100% { transform: scaleX(-1); } 40% { transform: scaleX(-1) translateY(5px) scale(1.06, 0.92); } }
+@media (prefers-reduced-motion: reduce) {
+  .unit.charge img, .unit.spin img, .unit.retreat img, .unit.brace img, .unit.cast img, .unit.foe[class*="f-"] img { animation: none !important; }
+}

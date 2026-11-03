@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=95';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=95';
-import { spriteURL } from './art.js?v=95';
-import { stageURL, stageKey } from './stage.js?v=95';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=95';
-import { render } from './main.js?v=95';
-import { skillCard } from './hud.js?v=95';
-import { SKILL_FX, foeFx } from './skillfx.js?v=95';
-import * as sfx from './audio.js?v=95';
+import { S, send, mine, controllerName } from './store.js?v=96';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=96';
+import { spriteURL } from './art.js?v=96';
+import { stageURL, stageKey } from './stage.js?v=96';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=96';
+import { render } from './main.js?v=96';
+import { skillCard } from './hud.js?v=96';
+import { SKILL_FX, foeFx } from './skillfx.js?v=96';
+import * as sfx from './audio.js?v=96';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -67,12 +67,15 @@ function fightTitle(f) {
 }
 
 // What a crit is, for every crit line's tooltip.
-export const CRIT_TIP = 'Crit\nWhen a die lands on its top face (a 6 on a d6, an 8 on a d8, or a wild face), the action also does its crit.';
-// Whether a rolled die is on its top face (or pushed past it): shields and skulls never are.
+export const CRIT_TIP = 'Crit\nWhen a die lands on its top face (a 6 on a d6, an 8 on a d8, or a wild face), the action also does its crit. A d10 or bigger crits on its top two faces.';
+// Whether a rolled die crits: on its top face (a d10 or bigger: its top two) or pushed past it.
+// Shields and skulls never do. The same rule as crits.py's crit_floor.
 function critDie(v, tag, faces) {
   if (!faces || v == null || tag === 'S' || tag === 'X') return false;
   if (tag === 'W') return true;
-  return v >= Math.max(...faces.map(f => (typeof f === 'number' ? f : parseInt(String(f).slice(1)) || 0)));
+  const nums = [...new Set(faces.filter(f => typeof f === 'number' || /^[FIP]\d/.test(String(f))).map(f => (typeof f === 'number' ? f : parseInt(String(f).slice(1)))))].sort((a, b) => b - a);
+  if (!nums.length) return false;
+  return v >= (faces.length >= 10 && nums.length > 1 ? nums[1] : nums[0]);
 }
 
 // ------------------------------------------------------------------ rendering
@@ -500,7 +503,7 @@ function intentChip(fo, f) {
   const dt = diceText(it);
   if (it.k === 'attack') lines.push(`Rolls ${dt}: ${range} damage${it.each ? ' with each die, a separate hit' : it.sweep ? ` to ${it.sweep} of you at once` : ''}.`);
   else if (it.k === 'all') lines.push(`Rolls ${dt}: ${range} damage to everyone.`);
-  if ((it.k === 'attack' || it.k === 'all') && S.static.foes[fo.k]?.crit_text) lines.push(`Crit (a die on its top face): ${S.static.foes[fo.k].crit_text}.`);
+  if ((it.k === 'attack' || it.k === 'all') && S.static.foes[fo.k]?.crit_text) lines.push(`Crit (a die on its top face; a d10 or bigger, its top two): ${S.static.foes[fo.k].crit_text}.`);
   else if (['block', 'guard', 'heal'].includes(it.k)) lines.push(`Rolls ${dt}: ${range} ${it.k === 'heal' ? (it.self ? 'healing for itself' : 'healing for its most hurt ally') : it.k === 'guard' ? (it.all ? 'Armor for every enemy' : 'Armor for its most hurt ally') : 'Armor for itself'}.`);
   else if (it.k === 'buff') lines.push(it.self ? `It gains +${it.v} might for the rest of the fight.` : `Every enemy gains +${it.v} might for the rest of the fight.`);
   else if (it.k === 'summon') lines.push(`Calls a ${S.static.foes[it.f]?.name || 'friend'} into the fight.`);
@@ -1462,7 +1465,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', cracked: 'Armor cracked!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

@@ -458,7 +458,8 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   Lucky Coin, Quicksilver), then Bloodstone's blood reroll. Pairs and straights are bonuses in
   amounts, not requirements.
 - **Crits** (owner's request: the number on the die should matter more): a die that lands on its top
-  face (a 6 on a d6, an 8 on a d8; a wild face, or a value pushed past the top by Inspire and the
+  face (a 6 on a d6, an 8 on a d8; **a d10 or bigger on its top two faces**, so big dice crit about as
+  often as small ones: `crit_floor`; a wild face, or a value pushed past the top by Inspire and the
   like, counts too; shields and skulls never do) makes the action also do its **crit**. Every class's
   basic, every weapon action, Block and every armor action has one (`crits.py`: `CRITS[key] = (ops,
   card line, sentence)`; importing it writes `crit`, `crit_short` and a closing "Crit: ..." sentence
@@ -466,8 +467,9 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   and the bots count them in each outcome they weigh (`bot.evaluate`). The card shows a gold
   "crit: ..." line under the effect, with a tooltip saying what a crit is (`CRIT_TIP`); in a fight the
   roll tray rings a die that crits and the hero gets a gold "Crit!". Crits are kept to a flavour each
-  class owns (Strike gains Armor, Stab Poisons, Toss Burns, Shoot carries on to another enemy, Riposte
-  Cut strikes again) and are never a Stun. About one action in five crits. **Balance (2026-11-03, seed 5000):** with crits, armor actions and weapon
+  class owns (Strike gains Armor, Stab Poisons 1, Toss Burns, Shoot carries on to another enemy, Riposte
+  Cut strikes again and gains 3 Armor, Hack hits again for half and heals 5) and are never a Stun. The
+  Scoundrel's are small on purpose: its two linked dice roll the same, so they crit together. About one action in five crits. **Balance (2026-11-03, seed 5000):** with crits, armor actions and weapon
   faces Hard went from 46% to 83%; the owner chose to answer with enemy crits and harder-hitting
   enemies (Hard `foe_dmg` 2.3 → 2.8, Normal 1.75 → 2.3). Now **Hard 45%** (300 runs; classes 35–58%:
   Scoundrel 58, Ranger 50, Warden 49, Alchemist 48, Mender 46, Vanguard 43, Herald 42, Arcanist 41,
@@ -577,12 +579,14 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 ### Enemies
 
 - **Enemy crits** (owner's request, to answer the heroes' crits): an attack or party-wide move whose
-  die lands on its top face (or explodes past it) crits, with its kind's effect (`FOE_CRIT` in
-  `foes.py`, written onto `A.FOES` as `crit` and `crit_text`): half again (`half`: the default, for
-  the heavy hitters and bosses), the target's Armor breaking before the hit (`crack`: Crab, Brine
-  Golem, Crag Ram, Iron Bosun, Tide Guard), or a status on whoever it hits (Poison 2 for the
-  Deckhand, Cutthroat; Weak for the Jellyfloat, Barnacle Priest, Harpy; Mark for the Siren, Lamp
-  Keeper; Burn 2 for the powder; Hex, Root, Shock). The roll tray rings the die and says "Crit!", the
+  die lands on its top face (a d10 or bigger: its top two; or explodes past it) crits, with its
+  kind's effect (`FOE_CRIT` in `foes.py`, written onto `A.FOES` as `crit` and `crit_text`): mostly a
+  **status** on whoever it hits (owner's request: statuses, not effects that undo what a player did;
+  an Armor break was tried and removed): Poison 2 (Deckhand, Cutthroat, Deckhound), Weak (Jellyfloat,
+  Barnacle Priest, Crag Ram, Harpy, Storm Roc), Vulnerable (Crab, Tide Guard), Mark (Siren, Corsair
+  Captain, Lamp Keeper), Shock (Reef Eel, the storm enemies), Root (Cliff Hermit, Iron Bosun), Burn 2
+  (the powder), Hex (Tide Cultist), a crusted die (Brine Golem); the bosses and a few heavy hitters
+  hit for half again (`half`). The roll tray rings the die and says "Crit!", the
   intent's tooltip says what its crit does, and the bots expect it (`foe_hits`: the chance times half
   again, or ~2 for a rider). Debuffs, blocks and heals never crit.
 - **Dice and moves** (`foes.py`; the roster is `FOES` in `content/archipelago.py`). Each enemy has a

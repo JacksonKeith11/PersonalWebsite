@@ -1,5 +1,5 @@
-"""Criticals: an action whose die lands on its top face (a 6 on a d6, an 8 on a d8; a wild face, or
-anything pushed past the top, counts too) also does its crit. Shield and skull faces never crit.
+"""Criticals: an action whose die lands on its top face (a 6 on a d6, an 8 on a d8; a d10 or bigger
+on its top two faces; a wild face, or anything pushed past the top, counts too) also does its crit. Shield and skull faces never crit.
 
 `CRITS[key] = (ops, card line, sentence)`: the extra ops run after the action's own when it hits and
 crits (Combat.act); the card line is what the action card shows after "Crit:", and the sentence ends
@@ -17,10 +17,12 @@ CRITS = {
     "strike": ([{"op": "armor", "amt": "3", "to": "self"}], "+3 Armor", "you also gain 3 Armor"),
     "brace": ([{"op": "armor", "amt": "3", "to": "lowest"}], "the weakest ally +3 more", "your weakest ally gains 3 more"),
     "bolt": ([{"op": "status", "s": "shock", "n": "1"}], "Shock", "Shock the enemy (its next hit also hits a neighbour)"),
-    "slash_d": ([{"op": "dmg", "amt": "v"}], "strike again for the die", "strike again for the die"),
-    "hack_b": ([{"op": "heal", "amt": "4", "to": "self"}], "heal 4", "heal 4"),
+    "slash_d": ([{"op": "dmg", "amt": "v"}, {"op": "armor", "amt": "3", "to": "self"}], "strike again · +3 Armor",
+                "strike again for the die, and gain 3 Armor"),
+    "hack_b": ([{"op": "dmg", "amt": "v//2"}, {"op": "heal", "amt": "5", "to": "self"}], "hit again for ½ die · heal 5",
+               "hit again for half the die, and heal 5"),
     "shoot_r": ([{"op": "dmg", "amt": "v", "to": "another"}], "the die to another enemy", "the arrow carries on: the die to another enemy"),
-    "stab": ([{"op": "status", "s": "poison", "n": "2"}], "Poison 2", "Poison it for 2"),
+    "stab": ([{"op": "status", "s": "poison", "n": "1"}], "Poison 1", "Poison it for 1"),
     "jab": ([{"op": "status", "s": "mark", "n": "1"}], "Mark", "Mark it (every hit on it deals +3)"),
     "toss": ([{"op": "status", "s": "burn", "n": "2"}], "Burn 2", "Burn it for 2"),
     "thornlash": ([{"op": "status", "s": "root", "n": "1", "to": "another"}], "Root another enemy", "the vines spread: Root another enemy"),
@@ -37,7 +39,7 @@ CRITS = {
     "sweep": ([{"op": "dmg", "amt": "2"}], "+2 to each", "each enemy hit takes 2 more"),
     "tidal": ([{"op": "status", "s": "weak", "n": "1"}], "every enemy Weak", "every enemy is Weak"),
     "storm_bolt": ([{"op": "dmg", "amt": "5"}], "hit again for 5", "hit again for 5"),
-    "venom_stab": ([{"op": "status", "s": "poison", "n": "2"}], "Poison +2", "Poison it for 2 more"),
+    "venom_stab": ([{"op": "status", "s": "poison", "n": "1"}], "Poison +1", "Poison it for 1 more"),
     "blessing": ([{"op": "heal", "amt": "3"}], "heal 3 more", "heal 3 more"),
 
     # ---- armor actions (they take Block's place)
@@ -60,10 +62,20 @@ for _k, (_ops, _short, _say) in CRITS.items():
     _a["text"] = f"{_a['text']} Crit: {_say}."
 
 
+def crit_floor(faces):
+    """The lowest number that crits on a die: its top face, or on a d10 or bigger its top two (so a big
+    die crits about as often as a small one)."""
+    nums = {int(f[1:]) if isinstance(f, str) else f for f in faces if isinstance(f, int) or (isinstance(f, str) and f[:1] in "FIP")}
+    if not nums:
+        return 10 ** 9
+    nums = sorted(nums, reverse=True)
+    return nums[1] if len(faces) >= 10 and len(nums) > 1 else nums[0]
+
+
 def is_crit(d):
-    """Whether a rolled die landed on its top face (or past it): a wild face does; shields and skulls don't."""
-    from .dice import top_face
+    """Whether a rolled die crits: it landed on its top face (a d10 or bigger: its top two), or past
+    it; a wild face does; shields and skulls don't."""
     t = d.get("tag")
     if t in ("S", "X") or d.get("v") is None:
         return False
-    return t == "W" or d["v"] >= top_face(d["faces"])
+    return t == "W" or d["v"] >= crit_floor(d["faces"])

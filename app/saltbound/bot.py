@@ -11,6 +11,7 @@ from itertools import combinations
 from . import classes as C
 from . import world as Wd
 from .combat import Invalid
+from .crits import crit_floor
 from .dice import amt, check_hit, top_face
 from .dice import face as face_of
 from .tuning import ROLL_MODS
@@ -573,9 +574,13 @@ def foe_hits(g, b, fo):
         # the chance one of its dice lands on its top face and crits (half again, or a rider worth ~2)
         miss_all = 1.0
         for d in it["dice"]:
-            if d.get("faces") and d.get("v") is None:
-                miss_all *= 1 - 1 / len(d["faces"])
-            elif d.get("faces") and d["v"] >= max(x for x in d["faces"] if isinstance(x, int)):
+            if not d.get("faces"):
+                continue
+            floor = crit_floor(d["faces"])
+            if d.get("v") is None:
+                hits = sum(1 for x in d["faces"] if (isinstance(x, int) and x >= floor) or x == "W")
+                miss_all *= 1 - hits / len(d["faces"])
+            elif d["v"] >= floor:
                 miss_all = 0.0
         p = 1 - miss_all
         v += v * 0.5 * p if A.FOES[fo["k"]]["crit"][0] == "half" else 2 * p
@@ -710,7 +715,7 @@ def evaluate(g, b, h, a, dice, tgt):
     hit_ops, miss_ops = prep(a["ops"]), prep(a.get("miss", []))
     # a crit (a die on its top face) adds the action's crit ops to that outcome
     crit_ops = hit_ops + prep(a["crit"]) if a.get("crit") else None
-    tops = [top_face(d["faces"]) for d in dice]
+    tops = [crit_floor(d["faces"]) for d in dice]
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         if hit and crit_ops and any(t == "W" or (t not in ("S", "X") and v is not None and v >= tp) for v, t, tp in zip(vals, tags, tops)):

@@ -33,21 +33,21 @@ from .tuning import SWALLOW_GUT
 
 ELEMENT = {"F": "burn", "I": "freeze", "P": "poison"}
 
-# Enemy crits, the same rule as the heroes': an attack whose die lands on its top face also does
-# its kind's crit. ("half", None): the hit deals half again; ("crack", None): the target's Armor
-# breaks before it lands; (status, n): the target gets that status. Anything not listed hits for
-# half again. Written onto A.FOES as `crit` (and `crit_text`, for the intent's tooltip).
+# Enemy crits, the same rule as the heroes': an attack whose die lands on its top face (a d10 or
+# bigger: its top two) also does its kind's crit. ("half", None): the hit deals half again (the bosses
+# and heavy hitters); (status, n): whoever it hits gets that status. Anything not listed hits for half
+# again. Written onto A.FOES as `crit` (and `crit_text`, for the intent's tooltip).
 FOE_CRIT = {
-    "deckhand": ("poison", 2), "crab": ("crack", None), "jelly": ("weak", 1), "eel": ("half", None),
+    "deckhand": ("poison", 2), "crab": ("vuln", 1), "jelly": ("weak", 1), "eel": ("shock", 1),
     "barnacle_priest": ("weak", 1), "siren": ("mark", 1), "bell_warden": ("half", None), "cutthroat": ("poison", 2),
-    "deckhound": ("half", None), "brine_golem": ("crack", None), "powder_monkey": ("burn", 2), "tide_cultist": ("hex", 1),
-    "corsair_captain": ("half", None), "gallows_admiral": ("half", None), "crag_ram": ("crack", None), "cliff_hermit": ("root", 1),
-    "harpy": ("weak", 1), "storm_wisp": ("shock", 1), "lightning_totem": ("shock", 1), "thunder_wyvern": ("half", None),
-    "lamp_keeper": ("mark", 1), "reef_maw": ("half", None), "iron_bosun": ("crack", None), "storm_roc": ("half", None),
-    "powder_keg": ("burn", 2), "cannon": ("half", None), "tide_guard": ("crack", None), "drowned_crown": ("half", None),
+    "deckhound": ("poison", 2), "brine_golem": ("lock", 1), "powder_monkey": ("burn", 2), "tide_cultist": ("hex", 1),
+    "corsair_captain": ("mark", 1), "gallows_admiral": ("half", None), "crag_ram": ("weak", 1), "cliff_hermit": ("root", 1),
+    "harpy": ("weak", 1), "storm_wisp": ("shock", 1), "lightning_totem": ("shock", 1), "thunder_wyvern": ("shock", 1),
+    "lamp_keeper": ("mark", 1), "reef_maw": ("half", None), "iron_bosun": ("root", 1), "storm_roc": ("weak", 1),
+    "powder_keg": ("burn", 2), "cannon": ("half", None), "tide_guard": ("vuln", 1), "drowned_crown": ("half", None),
 }
-CRIT_SAY = {"half": "the hit deals half again", "crack": "your Armor breaks before it lands", "poison": "Poison 2",
-            "weak": "Weak", "mark": "Marked", "burn": "Burn 2", "hex": "Hexed", "root": "Rooted", "shock": "Shocked"}
+CRIT_SAY = {"half": "the hit deals half again", "poison": "Poison 2", "weak": "Weak", "mark": "Marked", "burn": "Burn 2",
+            "hex": "Hexed", "root": "Rooted", "shock": "Shocked", "vuln": "Vulnerable", "lock": "a die crusted over"}
 for _k, _d in A.FOES.items():
     _c = FOE_CRIT.get(_k, ("half", None))
     _d["crit"] = list(_c)
@@ -55,11 +55,13 @@ for _k, _d in A.FOES.items():
 
 
 def foe_crits(it, rolled):
-    """Whether an enemy's rolled attack dice crit: one landed on its die's top face (or exploded past it)."""
+    """Whether an enemy's rolled attack dice crit: one landed on its die's top face (a d10 or bigger:
+    its top two), or exploded past it."""
+    from .crits import crit_floor
     for d, r in zip(it.get("dice") or [], rolled):
         if r.get("tag") in ("X", "S") or not d.get("faces"):
             continue
-        if r["v"] >= die_range(d["faces"])[1]:
+        if r["v"] >= crit_floor(d["faces"]):
             return True
     return False
 SKULL_SELF = 2
@@ -480,7 +482,7 @@ class Foes:
         ck, cn = A.FOES[fo["k"]]["crit"] if crit else (None, None)
         if crit:
             self.fx("st", to=f"f{fo['id']}", s="crit")
-            if ck not in ("half", "crack"):
+            if ck != "half":
                 riders.append((ck, cn))
 
         def scale(n):
@@ -493,14 +495,6 @@ class Foes:
             return max(0, n)
 
         hurt_unit = self.hurt_unit
-
-        def crack_then_hurt(u, n, fo_):
-            # a crit that breaks Armor: the target's Armor is gone before the hit lands
-            if u.startswith("h") and self.hs(int(u[1:]))["st"].pop("armor", 0):
-                self.fx("st", to=u, s="cracked")
-            return self.hurt_unit(u, n, fo_)
-        if ck == "crack":
-            hurt_unit = crack_then_hurt
 
         def landed(u, n, elems):
             if not u or not self.unit_alive(u):

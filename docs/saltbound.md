@@ -496,11 +496,17 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   copied number always matches for Pincer.
 - **Dice picks** (owner's request: more level-ups that change dice): passives that change a hero's
   dice for the fight (`Combat.dice_picks`; `NEW_DICE_PICKS` in `classes.py` adds them to the pools):
-  Shield Rim (Vanguard: the armor die's lowest face becomes a shield face), Wild Surge (Arcanist: the
-  biggest die's lowest face is wild), Steady Hands (Mender: every die is Steady), Fated Blade (Duelist:
+  Shield Rim (Vanguard: the armor die's two lowest faces become shield faces), Wild Surge (Arcanist:
+  the biggest die's two lowest faces are wild), Steady Hands (Mender: every die is Steady), Fated Blade (Duelist:
   the weapon die is a Fate die), Powder Edge (Berserker: the weapon die explodes), Hawk's Eye (Ranger:
-  the Augur die is a Seer die), Loaded Bones (Scoundrel: linked dice's 1s are wild), Reactive Mix
+  the Augur die is a Seer die), Loaded Bones (Scoundrel: linked dice's 1s and 2s are wild), Reactive Mix
   (Alchemist: the weapon die's two lowest numbers burn and poison), plus the Swell and Echo picks.
+  Measured (2026-11-03, 300 hard runs, seed 5000: **Hard 48%**, classes 40–55%), picks against those
+  passed up at the same level-up: Building Rage +12, Hawk's Eye +8, Mirror Step, Reactive Mix and Sap
+  Rising +4, Steady Hands +3, the rest within noise, except Loaded Bones −26, Wild Surge −16 and Shield
+  Rim −9. A same-seed A/B (60 runs each) put the first two at −10 and −5, so they were small, not
+  broken: one face each barely moved a die. Each now changes its die's two lowest faces (not yet
+  re-measured).
 - **Guard dice** (owner's choice): every armor's die carries `guard` and only goes on
   defensive actions (`is_defensive`, sent as each action's `def`). Every hero has a defensive action
   for it, so a guard die is never wasted.

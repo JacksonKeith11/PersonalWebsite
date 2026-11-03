@@ -396,21 +396,19 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
     @staticmethod
     def dice_picks(dice, m):
         """Level-up picks that change a hero's dice for the fight (each a mod in mods.py)."""
-        def low(d):
-            nums = [i for i, f in enumerate(d["faces"]) if isinstance(f, int)]
-            return min(nums, key=lambda i: d["faces"][i]) if nums else None
+        def lows(d, n=2):
+            # the indices of a die's n lowest number faces
+            return sorted((i for i, f in enumerate(d["faces"]) if isinstance(f, int)), key=lambda i: d["faces"][i])[:n]
 
         def by_src(src):
             return [d for d in dice if d["src"] == src]
-        if m.get("shield_rim"):  # Shield Rim: the armor die's lowest face becomes a shield face
+        if m.get("shield_rim"):  # Shield Rim: the armor die's two lowest faces become shield faces
             for d in by_src("armor"):
-                i = low(d)
-                if i is not None:
+                for i in lows(d):
                     d["faces"][i] = "S"
-        if m.get("wild_low") and dice:  # Wild Surge: the biggest die's lowest face is wild
+        if m.get("wild_low") and dice:  # Wild Surge: the biggest die's two lowest faces are wild
             d = max(dice, key=lambda d: top_face(d["faces"]))
-            i = low(d)
-            if i is not None:
+            for i in lows(d):
                 d["faces"][i] = "W"
         if m.get("steady_all"):  # Steady Hands: every die is Steady
             for d in dice:
@@ -424,10 +422,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for d in dice:
                 if "augur" in d["dk"]:
                     d["dk"] = ["seer" if k == "augur" else k for k in d["dk"]]
-        if m.get("wild_link"):  # Loaded Bones: linked dice's 1s are wild
+        if m.get("wild_link"):  # Loaded Bones: linked dice's 1s and 2s are wild
             for d in dice:
                 if any(k.startswith("link:") for k in d["dk"]):
-                    d["faces"] = ["W" if f == 1 else f for f in d["faces"]]
+                    d["faces"] = ["W" if f in (1, 2) else f for f in d["faces"]]
         if m.get("catalyst"):  # Catalyst: the weapon die's two lowest numbers burn and poison
             for d in by_src("weapon"):
                 nums = sorted((i for i, f in enumerate(d["faces"]) if isinstance(f, int)), key=lambda i: d["faces"][i])

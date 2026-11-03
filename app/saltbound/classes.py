@@ -610,9 +610,9 @@ ACTIONS.update({
 # Echo dice, Combat.round_dice). One or two per class, in its flavour.
 PASSIVES.update({
     "shield_rim": {"name": "Shield Rim", "mods": {"shield_rim": 1}, "tags": ["bulwark"],
-                   "text": "Your armor die's lowest face becomes a shield face (3 Armor whenever it lands)."},
+                   "text": "Your armor die's two lowest faces become shield faces (3 Armor whenever one lands)."},
     "wild_surge": {"name": "Wild Surge", "mods": {"wild_low": 1}, "tags": ["elementalist"],
-                   "text": "Your biggest die's lowest face becomes wild: it counts as the top face, and crits."},
+                   "text": "Your biggest die's two lowest faces become wild: they count as the top face, and crit."},
     "steady_hands": {"name": "Steady Hands", "mods": {"steady_all": 1}, "tags": ["restoration"],
                      "text": "All your dice are Steady: when an action misses, its dice reroll once."},
     "fated_blade": {"name": "Fated Blade", "mods": {"fate_weapon": 1}, "tags": ["precision"],
@@ -626,7 +626,7 @@ PASSIVES.update({
     "hawks_eye": {"name": "Hawk's Eye", "mods": {"seer_augur": 1}, "tags": ["marksman"],
                   "text": "Your Augur die becomes a Seer die: rolled and shown while you plan."},
     "loaded_bones": {"name": "Loaded Bones", "mods": {"wild_link": 1}, "tags": ["tricks"],
-                     "text": "The 1s on your linked dice are wild: they count as the top face, and crit."},
+                     "text": "The 1s and 2s on your linked dice are wild: they count as the top face, and crit."},
     "echo_chorus": {"name": "Echo Chorus", "mods": {"echo_die": 1}, "tags": ["anthem"],
                     "text": "Gain an Echo die: a d8 until an ally uses a die this round, then it shows the biggest number of their last play."},
     "reactive_mix": {"name": "Reactive Mix", "mods": {"catalyst": 1}, "tags": ["bombs"],

@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=82';
-import { spriteCanvas, placeCanvas } from './art.js?v=82';
+import { W, H, terrain, visibleTiles, neighbors } from './rules.js?v=83';
+import { spriteCanvas, placeCanvas } from './art.js?v=83';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -70,6 +70,11 @@ const STAMPS = {
     '...gggg...', '..gGGGGg..', '.gGLLGGGg.', 'gGLLGGGGGg', 'gGGGGGGGDg', 'gGGGGGGDDg', '.gGGGGDDg.', '..gDDDDg..', '....tt....', '....tt....'] },
   palm: { pal: { g: '#2c4a2a', G: '#4a8a3c', L: '#6aa84a', t: '#7a5a34', T: '#5a4024' }, rows: [
     '.gg...gg..', 'gLGg.gGLg.', '..gGgGg...', '.gGGLGGg..', 'gG.gTg.Gg.', '....tT....', '....tT....', '...tT.....', '...tT.....'] },
+  pine: { pal: { g: '#24402a', G: '#335e36', L: '#4a7a44', t: '#4a3020' }, rows: [
+    '....gg....', '...gGGg...', '..gGLGGg..', '...gGGg...', '..gGLGGg..', '.gGGGGGGg.', 'gGGLGGGGGg', '.ggggggggg', '....tt....', '....tt....'] },
+  round: { pal: { g: '#2c4a2a', G: '#4a7e3a', L: '#6a9a4e', t: '#5a3a24' }, rows: [
+    '..gggggg..', '.gGLLGGGg.', 'gGLGGGGGGg', 'gGGGGGGGGg', '.gGGGGGGg.', '..gggggg..', '....tt....', '....tt....'] },
+  bush: { pal: { g: '#2c4a2a', G: '#4a7a3c', L: '#62924a' }, rows: ['..gggg..', '.gGLGGg.', 'gGGGGGGg', '.gggggg.'] },
   mound: { pal: { h: '#56603a', H: '#7d8a4e', L: '#9aa866', D: '#68743f' }, rows: [
     '.....hhhhh......', '...hhHHLHHhh....', '..hHHLLHHHHHh...', '.hHLLHHHHHHDDh..', 'hHHHHHHHHHDDDDh.'] },
   rock: { pal: { k: '#4a4640', R: '#8f8a82', L: '#b2ada4', D: '#6e6a62' }, rows: [
@@ -100,6 +105,45 @@ function owners() {
   return OWNER;
 }
 
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
+const LANDISH = k => k !== 'deep';
+const ROAD = rgb('#a08a62'), ROAD_D = rgb('#7e6a48');
+
+// Dirt roads between towns: each town joins its nearest other town by the cheapest walk over land
+// (no water, no peaks), found once per map. Returns the hex sequences.
+function roads(world, kinds) {
+  const towns = [];
+  for (let t = 0; t < W * H; t++) if (kinds[t] === 'town') towns.push(t);
+  const ok = t => kinds[t] !== 'deep' && kinds[t] !== 'shoal' && kinds[t] !== 'peak';
+  const cost = t => (kinds[t] === 'forest' || kinds[t] === 'hills' ? 2 : 1);
+  const out = [], joined = new Set();
+  for (const a of towns) {
+    // Dijkstra on a small grid: fine for 30×22
+    const dist = new Map([[a, 0]]), prev = new Map(), open = [[0, a]];
+    let goal = -1;
+    while (open.length) {
+      open.sort((x, y) => x[0] - y[0]);
+      const [d, t] = open.shift();
+      if (d > dist.get(t)) continue;
+      if (t !== a && kinds[t] === 'town') { goal = t; break; }
+      for (const n of neighbors(t)) {
+        if (!ok(n)) continue;
+        const nd = d + cost(n);
+        if (nd < (dist.get(n) ?? 1e9) && nd < 24) { dist.set(n, nd); prev.set(n, t); open.push([nd, n]); }
+      }
+    }
+    if (goal < 0) continue;
+    const key = [Math.min(a, goal), Math.max(a, goal)].join('-');
+    if (joined.has(key)) continue;
+    joined.add(key);
+    const path = [goal];
+    while (path[path.length - 1] !== a) path.push(prev.get(path[path.length - 1]));
+    out.push(path);
+  }
+  return out;
+}
+
+let ROADS = null, ROADS_FOR = null;
 export function paintTerrain(canvas, world, game) {
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(MAP_W, MAP_H);
@@ -107,49 +151,85 @@ export function paintTerrain(canvas, world, game) {
   const kinds = new Array(W * H);
   for (let t = 0; t < W * H; t++) kinds[t] = terrain(world, game, t);
   const water = t => t < 0 || kinds[t] === 'deep';
+  const at = (x, y) => (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H ? -1 : own[y * MAP_W + x]);
   for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
     const p = y * MAP_W + x, t = own[p];
     let c;
     if (t < 0) c = PAL.deep[0];
     else {
-      const k = kinds[t];
+      let k = kinds[t];
+      // where two kinds of land meet, the edge is dithered over a few pixels instead of a hard line
+      if (LANDISH(k)) {
+        for (const [dx, dy] of [[3, 0], [-3, 0], [0, 3], [0, -3], [2, 2], [-2, -2]]) {
+          const o = at(x + dx, y + dy);
+          if (o >= 0 && o !== t && LANDISH(kinds[o]) && kinds[o] !== k && kinds[o] !== 'town' && k !== 'town') {
+            const near = Math.max(Math.abs(dx), Math.abs(dy));
+            const o1 = at(x + Math.sign(dx), y + Math.sign(dy));
+            const d = o1 !== t ? 1 : near;
+            if ((1 - d / 4) * 0.55 > BAYER[(y & 3) * 4 + (x & 3)]) { k = kinds[o]; }
+            break;
+          }
+        }
+      }
       c = groundPixel(k, x, y, game.sea - world.elev[t]);
-      if (k === 'deep') {
+      if (kinds[t] === 'deep') {
         // foam where water meets land
         let near = 99;
         for (const [dx, dy, d] of [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [2, 0, 2], [-2, 0, 2], [0, 2, 2], [0, -2, 2]]) {
-          const X = x + dx, Y = y + dy;
-          if (X < 0 || Y < 0 || X >= MAP_W || Y >= MAP_H) continue;
-          const o = own[Y * MAP_W + X];
+          const o = at(x + dx, y + dy);
           if (o >= 0 && !water(o)) near = Math.min(near, d);
         }
         if (near === 1) c = PAL.foam; else if (near === 2) c = PAL.foam2;
+      } else {
+        // height: a shadow where the ground drops away to the south-east, a lit lip where it rises
+        const lo = at(x + 2, y + 3), hi = at(x - 2, y - 3);
+        if (lo >= 0 && lo !== t && !water(lo) && world.elev[lo] < world.elev[t] - 2) c = [c[0] * 0.74, c[1] * 0.74, c[2] * 0.8];
+        else if (hi >= 0 && hi !== t && !water(hi) && world.elev[hi] < world.elev[t] - 2) c = [Math.min(255, c[0] * 1.1), Math.min(255, c[1] * 1.1), Math.min(255, c[2] * 1.06)];
       }
-      // a faint line where hexes meet
+      // the hex grid: a faint dotted line where hexes meet, enough to plan by
       const r = x + 1 < MAP_W ? own[p + 1] : t, d = y + 1 < MAP_H ? own[p + MAP_W] : t;
-      if (r !== t || d !== t) {
-        const f = k === 'deep' ? 0.92 : 0.84;
+      if ((r !== t || d !== t) && ((x + y) & 1)) {
+        const f = kinds[t] === 'deep' ? 0.92 : 0.86;
         c = [c[0] * f, c[1] * f, c[2] * f];
       }
     }
     const i = p * 4;
     img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255;
   }
+  // roads, before the props so trees stand beside them
+  const key = world.elev.length + ':' + game.sea + game.tide;
+  if (ROADS_FOR !== key) { ROADS = roads(world, kinds); ROADS_FOR = key; }
+  const onRoad = new Set(ROADS.flat());
+  const dot = (X, Y, col) => { X |= 0; Y |= 0; if (X < 0 || Y < 0 || X >= MAP_W || Y >= MAP_H) return; const i = (Y * MAP_W + X) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; };
+  for (const path of ROADS) {
+    for (let i = 1; i < path.length; i++) {
+      const [x0, y0] = center(path[i - 1]), [x1, y1] = center(path[i]);
+      const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
+      for (let k = 0; k <= n; k++) {
+        const wob = Math.sin((i * 40 + k) * 0.25) * 1.2;
+        const X = x0 + (x1 - x0) * k / n + wob, Y = y0 + (y1 - y0) * k / n + 6;
+        for (let w = -1; w <= 1; w++) for (let v = -1; v <= 1; v++) dot(X + w, Y + v, hash((X | 0) + w, (Y | 0) + v) > 0.88 ? ROAD_D : ROAD);
+        if (hash(k, i) > 0.6) dot(X + 2, Y + 2, ROAD_D);
+      }
+    }
+  }
   // props, top to bottom
   for (let t = 0; t < W * H; t++) {
     const k = kinds[t], [cx, cy] = center(t);
     const r = hash(t, 7), r2 = hash(t, 13);
     const coast = k !== 'deep' && world.elev[t] <= game.sea + 3;
+    const road = onRoad.has(t);
+    const tree = i => (coast && hash(t, i + 9) > 0.5 ? 'palm' : ['tree', 'tree', 'pine', 'round'][Math.floor(hash(t, i + 21) * 4)]);
     if (k === 'forest') {
       const spots = [[-12, -14], [4, -16], [-4, -4], [10, -4], [-14, 4], [2, 6]];
-      for (let i = 0; i < spots.length; i++) if (hash(t, i) > 0.25) stamp(img, coast && hash(t, i + 9) > 0.5 ? 'palm' : 'tree', cx + spots[i][0] - 5, cy + spots[i][1] - 4);
+      for (let i = 0; i < spots.length; i++) if (hash(t, i) > (road ? 0.6 : 0.25)) stamp(img, tree(i), cx + spots[i][0] - 5, cy + spots[i][1] - 4);
     } else if (k === 'hills') {
-      stamp(img, 'mound', cx - 14 + (r * 6 | 0), cy - 10); stamp(img, 'mound', cx - 4 + (r2 * 6 | 0), cy + 2);
+      stamp(img, 'mound', cx - 14 + (r * 6 | 0), cy - 10); stamp(img, r2 > 0.5 ? 'mound' : 'bush', cx - 4 + (r2 * 6 | 0), cy + 2);
     } else if (k === 'peak') {
       stamp(img, world.elev[t] >= 17 ? 'snowrock' : 'rock', cx - 12 + (r * 4 | 0), cy - 12); stamp(img, 'rock', cx + (r2 * 4 | 0), cy - 2);
       if (r > 0.5) stamp(img, 'rock', cx - 10, cy + 6);
-    } else if (k === 'grass' && r > 0.78) {
-      stamp(img, 'tree', cx - 5 + (r2 * 16 - 8 | 0), cy - 8);
+    } else if (k === 'grass' && r > 0.72 && !road) {
+      stamp(img, r2 > 0.6 ? 'bush' : tree(1), cx - 5 + (r2 * 16 - 8 | 0), cy - 8);
     } else if (k === 'beach' && r > 0.82) {
       stamp(img, 'palm', cx - 5 + (r2 * 12 - 6 | 0), cy - 8);
     } else if (k === 'town') {
@@ -184,6 +264,7 @@ export class MapView {
     this.canvas.width = MAP_W; this.canvas.height = MAP_H;
     this.tex = scene.textures.addCanvas('terrain', this.canvas);
     scene.add.image(0, 0, 'terrain').setOrigin(0);
+    this.layerWaves = scene.add.container();
     this.gReach = scene.add.graphics();
     this.layerPlaces = scene.add.container();
     this.gPaths = scene.add.graphics();
@@ -254,9 +335,30 @@ export class MapView {
       paintTerrain(this.canvas, this.world, game);
       this.tex.refresh();
       this.paintedKey = key;
+      this.placeWaves(game);
     }
     if (this.centerPending !== undefined) { this.centerOn(this.centerPending, false); this.centerPending = undefined; }
     this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog(); this.drawHover();
+  }
+
+  // Glints on the open sea: short light strokes that fade in and out, so the water moves. Cheap:
+  // a few dozen tweened rectangles, placed again only when the sea or the tide changes.
+  placeWaves(game) {
+    const L = this.layerWaves;
+    this.scene.tweens.killTweensOf(L.list);
+    L.removeAll(true);
+    const deep = [];
+    for (let t = 0; t < W * H; t++) if (terrain(this.world, game, t) === 'deep') deep.push(t);
+    const n = Math.min(90, Math.floor(deep.length / 3));
+    for (let i = 0; i < n; i++) {
+      const t = deep[Math.floor(hash(i, 77) * deep.length)];
+      const [cx, cy] = center(t);
+      const x = cx + (hash(i, 78) - 0.5) * 32, y = cy + (hash(i, 79) - 0.5) * 30;
+      const r = this.scene.add.rectangle(x, y, 4 + Math.floor(hash(i, 80) * 4), 1, 0xbfe4ec).setAlpha(0);
+      L.add(r);
+      this.scene.tweens.add({ targets: r, alpha: 0.75, x: x + 3, duration: 1100 + hash(i, 81) * 900, delay: hash(i, 82) * 4000,
+        yoyo: true, repeat: -1, repeatDelay: 1500 + hash(i, 83) * 3000, ease: 'Sine.easeInOut' });
+    }
   }
 
   // Where the selected hero can get to this turn: a lit area with a bold outline around its edge,

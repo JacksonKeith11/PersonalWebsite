@@ -213,7 +213,9 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
   4. **Map**: the hex map in the middle; three hero cards down the left (portrait, HP and Ready
      state; the selected hero's card adds gold, moves and dice, so the cards don't cover the map);
      "This turn" bottom left (collapsible), the log closed until opened (each remembers how you left
-     it), first-time hints bottom right; towns are labelled and heroes sharing a hex fan out; top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
+     it), first-time hints bottom right; towns are labelled and heroes sharing a hex fan out; the terrain
+     (`paintTerrain`) blends where kinds of land meet, shades drops in height, runs dirt roads between
+     towns (each to its nearest by land) and has glints moving on the sea (`placeWaves`); top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
      trails, like Board Brawl's route previews.
   5. **Combat overlay**: full screen, over a painted backdrop of where the fight is (`js/stage.js`:
      each region's open ground, each dungeon's interior, the Crown's peak; painted in code at 400×150

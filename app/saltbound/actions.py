@@ -178,6 +178,9 @@ class Actions:
         if to == "lowest":
             others = [y for y in self.actives() if y != h]
             return [("h", min(others, key=lambda y: self.hero(y)["hp"]))] if others else []
+        if to == "aiming":
+            # every enemy whose coming attack is aimed at the hero
+            return [fo for fo in self.foes() if f"h{h}" in self.intent_aims(fo.get("intent") or {})]
         return base
 
     # ------------------------------------------------------------------ one hit's numbers

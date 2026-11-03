@@ -19,6 +19,7 @@ from .content import archipelago as A
 from .content import items as I
 from .dice import Dice, face, num, top_face
 from .foes import Foes
+from .crits import is_crit
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
 
@@ -601,6 +602,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if fo and fo["hp"] > 0:
                 fo["st"]["freeze"] = 1
         self.run_ops(h, a, dice, tgt, ops=ops, hit=hit)
+        if hit and a.get("crit") and self.s["fight"] is f and any(is_crit(d) for d in dice):
+            # a die on its top face: the action's crit lands too
+            self.fx("st", to=f"h{h}", s="crit")
+            self.run_ops(h, a, dice, tgt, ops=a["crit"], hit=hit)
         x.pop("acting", None)
         if self.s["fight"] is f:
             self.after_action(h, a, tgt)
@@ -613,8 +618,6 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["tempo"] = True
                 x["dice"].append(self.new_die(h, list(range(1, 7)), "tempo"))
                 self.fx("st", to=f"h{h}", s="tempo")
-        if a["key"] == "block" and self.mods(h).get("block_heal") and self.s["fight"] is f:
-            self.fight_heal(h, self.mods(h)["block_heal"], h)
         echo = (a.get("spell") and self.mods(h).get("spell_echo")) or (self.mods(h).get("echo_any") and a["key"] not in C.GENERIC)
         if echo and not x["echo"] and self.s["fight"] is f:
             x["echo"] = True

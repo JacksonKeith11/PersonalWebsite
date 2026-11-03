@@ -249,7 +249,9 @@ class Game(Combat):
             if w:
                 out += [a for a in I.ITEMS[w].get("acts", []) if a not in out]
         out += [g for g in self.mods(h)["grant"] if g not in out]
-        out += C.GENERIC
+        armor = hero["equip"].get("armor")
+        guard = I.ITEMS[armor].get("guard") if armor else None
+        out += [guard if g == "block" and guard else g for g in C.GENERIC]
         return out
 
     def equip_slot(self, h, key, into=None):

@@ -714,6 +714,11 @@ SHORT = {
     "storm_bolt": ("bolt", "die +4 · Shock", "nothing"), "venom_stab": ("drop", "½ die · Poison 2", None),
     "blessing": ("plus", "heal die · 2 Armor", None),
     "pass_die": ("spark", "give a die to an ally", None),
+    # armor actions (they take Block's place)
+    "hunker": ("shield", "die +1 Armor", None), "patch_up": ("shield", "die Armor · heal 2", None),
+    "coral_growth": ("shield", "die Armor · heal 3", None), "bristle": ("shield", "die Armor · attackers take 2", None),
+    "sidestep": ("shield", "die Armor · 5+: dodge the next hit", None), "echo_shell": ("shield", "die Armor · attacks on you −2", None),
+    "cover": ("shield", "you or an ally: die +1 Armor", None), "tidewall": ("shield", "die Armor · party +2", None),
     "encore": ("refresh", "flip a low die, +1", None), "potency": ("spark", "split a die in two", None),
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),

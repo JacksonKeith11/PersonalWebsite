@@ -1408,3 +1408,11 @@ button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis
   .unit.charge img, .unit.spin img, .unit.retreat img, .unit.brace img, .unit.cast img, .unit.foe[class*="f-"] img { animation: none !important; }
 }
 .faces .block-avg { color: var(--info); font-weight: var(--fw-semibold); white-space: nowrap; margin-left: var(--s-1); }
+/* ---- crits: a die on its top face also does the action's crit */
+.action.v2 .crit, .skill-face .crit { font-size: 12px; color: var(--accent); font-weight: var(--fw-semibold); }
+.float.crit { font-family: var(--font-ui); font-size: var(--fs-20); font-weight: 800; color: var(--accent); text-shadow: 0 0 12px rgba(255, 200, 90, 0.8), 0 2px 0 rgba(0, 0, 0, 0.6); }
+.unit.critfx img { animation: critfx 520ms var(--ease); }
+@keyframes critfx { 0%, 100% { filter: none; } 30% { filter: brightness(1.8) drop-shadow(0 0 10px rgba(255, 210, 110, 0.95)); } }
+.big-die.crit { box-shadow: 0 0 0 3px var(--accent), 0 0 22px rgba(255, 200, 90, 0.75); }
+.item .guard-act { color: var(--info); font-weight: var(--fw-semibold); }
+@media (prefers-reduced-motion: reduce) { .unit.critfx img { animation: none; } }

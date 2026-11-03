@@ -698,12 +698,17 @@ def evaluate(g, b, h, a, dice, tgt):
             out.append((op, k, tg, info))
         return out
     hit_ops, miss_ops = prep(a["ops"]), prep(a.get("miss", []))
+    # a crit (a die on its top face) adds the action's crit ops to that outcome
+    crit_ops = hit_ops + prep(a["crit"]) if a.get("crit") else None
+    tops = [top_face(d["faces"]) for d in dice]
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
+        if hit and crit_ops and any(t == "W" or (t not in ("S", "X") and v is not None and v >= tp) for v, t, tp in zip(vals, tags, tops)):
+            hit = "crit"
         val = 0.0
         dealt = {}
         hit_any = False
-        for op, k, tg, info in (hit_ops if hit else miss_ops):
+        for op, k, tg, info in (crit_ops if hit == "crit" else hit_ops if hit else miss_ops):
             if k == "dmg":
                 # worked out with the fight's own sums (Combat.hit_base, hit_finish, foe_soak, hit_spill)
                 per, each_op, pierce, cond, leech = info
@@ -981,6 +986,8 @@ def op_targets(g, h, op, base):
     if to == "lowest":
         others = [y for y in g.actives() if y != h]
         return [(("h", min(others, key=lambda y: g.hero(y)["hp"])), 1)] if others else []
+    if to == "aiming":
+        return [(fo, 1) for fo in g.foes() if f"h{h}" in g.intent_aims(fo.get("intent") or {})]
     return [(t, 1) for t in base]
 
 

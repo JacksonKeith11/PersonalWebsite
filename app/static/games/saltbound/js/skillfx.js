@@ -22,6 +22,16 @@ export const SKILL_FX = {
   block: x => { x.me('shieldfx', null, 700); x.me('hoop', C.shield, 500, 80); return 'brace'; },
   flee: x => { x.me('smoke', C.smoke, 800); return 'retreat'; },
 
+  // armor's own actions (they take Block's place)
+  hunker: x => { x.me('shieldfx', null, 700); x.me('slam', C.shield, 480, 60); return 'brace'; },
+  patch_up: x => { x.me('shieldfx', null, 700); x.me('healglow', null, 900, 120); return 'brace'; },
+  coral_growth: x => { x.me('shieldfx', null, 700); x.me('vines', '#ff8a7a', 800, 80); x.me('healglow', null, 900, 200); return 'brace'; },
+  bristle: x => { x.me('dome thorny', null, 900); return 'brace'; },
+  sidestep: x => { x.me('shieldfx', null, 600); x.me('smoke', C.smoke, 700, 100); return 'retreat'; },
+  echo_shell: x => { x.me('shieldfx', null, 700); x.me('hoop', C.song, 600, 120); x.foes.forEach((u, i) => x.on(u, 'hoop', C.song, 500, 260 + i * 60)); return 'brace'; },
+  cover: x => { x.t[0] === x.from ? x.me('shieldfx', null, 700) : x.shot('shieldorb', null, ['shieldfx', null, 700]); return 'brace'; },
+  tidewall: x => { x.me('shieldfx', null, 700); x.party.forEach((u, i) => x.on(u, 'tidewall', C.water, 800, 100 + i * 70)); return 'brace'; },
+
   // Vanguard
   strike: x => { x.hit('slash', null, 420, 150); if (!x.miss) x.hit('pop small', C.steel, 400, 260); return 'melee'; },
   brace: x => { x.me('slam', C.shield, 520); x.me('shieldfx', null, 700, 120); return 'brace'; },

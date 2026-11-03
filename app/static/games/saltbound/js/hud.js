@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=92';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=92';
-import { spriteURL, placeURL } from './art.js?v=92';
-import { itemURL } from './itemart.js?v=92';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=92';
-import { MapView } from './hexmap.js?v=92';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=92';
-import { disconnect } from './main.js?v=92';
-import * as sfx from './audio.js?v=92';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=94';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=94';
+import { spriteURL, placeURL } from './art.js?v=94';
+import { itemURL } from './itemart.js?v=94';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=94';
+import { MapView } from './hexmap.js?v=94';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=94';
+import { disconnect } from './main.js?v=94';
+import * as sfx from './audio.js?v=94';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -595,6 +595,8 @@ function itemRow(key, right, extra) {
   const it = item(key);
   const sub = [];
   if (it.slot !== 'use') sub.push(it.slot[0].toUpperCase() + it.slot.slice(1));
+  // an armor's own action, which takes Block's place
+  if (it.guard) { const ad = S.static.actions[it.guard]; sub.push(h('span.guard-act', { tip: `${ad.name}, in place of Block\n${ad.text}` }, ad.name)); }
   // a long die (8+ faces) gets its own line rather than wrapping after a dangling separator
   const long = it.die && it.die.length > 6;
   if (it.die && !long) sub.push(faceRow(it));
@@ -651,6 +653,7 @@ function itemTip(key) {
   const lines = [it.name, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`];
   if (it.die) lines.push(...dieTip({ faces: it.die, dk: it.dk || [] }).split('\n'));
   for (const a of it.acts || []) { const ad = S.static.actions[a]; lines.push(`${ad.name} (${reqText(ad.req)}): ${ad.text}`); }
+  if (it.guard) { const ad = S.static.actions[it.guard]; lines.push(`In place of Block, ${ad.name}: ${ad.text}`); }
   if (it.mods) lines.push(modsText(it.mods));
   if (it.text) lines.push(it.text);
   return lines.filter(Boolean).join('\n');
@@ -785,11 +788,12 @@ function heroDrawer(h0, d, readonly = false) {
     const passives = hero.skills.filter(k => S.static.passives[k.replace(/\+$/, '')]);
     body = [
       h('h3', null, 'Actions'),
-      ...acts.map(k => skillCard(k, (weapon?.acts || []).includes(k.replace(/\+$/, '')) ? weapon.name : null)),
+      ...acts.map(k => skillCard(k, (weapon?.acts || []).includes(k.replace(/\+$/, '')) ? weapon.name
+        : hero.equip.armor && item(hero.equip.armor).guard === k ? `${item(hero.equip.armor).name}, in place of Block` : null)),
       h('h3', null, 'Passives'),
       passives.length ? passives.map(k => skillCard(k)) : h('p.muted', null, 'None yet: pick them as you level up.'),
       h('h3', null, 'Always available'),
-      skillCard('block'), skillCard('flee'),
+      ...(hero.actions.includes('block') ? [skillCard('block')] : []), skillCard('flee'),
     ];
   } else {
     body = [
@@ -816,7 +820,8 @@ export function skillFace(k) {
   const [ico, eff, miss] = a.short || ['spark', a.text, null];
   return h('div.skill-face', null,
     h('div.rq' + (bd.risky ? '.risky' : ''), { tip: `Needs: ${reqText(a.req)}` }, h('b', null, bd.main), bd.sub ? h('small', null, bd.sub) : null),
-    h('div.ab', null, h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''))), miss ? h('div.miss', null, `miss: ${miss}`) : null));
+    h('div.ab', null, h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''))), miss ? h('div.miss', null, `miss: ${miss}`) : null,
+      a.crit_short ? h('div.crit', { tip: CRIT_TIP }, `crit: ${a.crit_short}`) : null));
 }
 
 export function skillCard(k, source = null) {

@@ -45,6 +45,33 @@ WEAPON_ACTIONS = {
                  "ops": [{"op": "heal", "amt": "v"}, {"op": "armor", "amt": "2"}], "text": "Heal an ally by the die and give them 2 Armor."},
 }
 
+# Each armor's own defensive action, which takes the place of Block for whoever wears it (`guard` on
+# the armor; Game.actions_of swaps it in). All of them take a guard die.
+ARMOR_ACTIONS = {
+    "hunker": {"name": "Hunker Down", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v+1"}],
+               "text": "Gain the die +1 as Armor."},
+    "patch_up": {"name": "Patch Up", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}, {"op": "heal", "amt": "2", "to": "self"}],
+                 "text": "Gain the die as Armor and heal 2."},
+    "coral_growth": {"name": "Coral Growth", "req": {"n": 1}, "tgt": "self",
+                     "ops": [{"op": "armor", "amt": "v"}, {"op": "heal", "amt": "3", "to": "self"}],
+                     "text": "Gain the die as Armor and heal 3."},
+    "bristle": {"name": "Bristle", "req": {"n": 1}, "tgt": "self",
+                "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "thorns", "n": "2", "to": "self"}],
+                "text": "Gain the die as Armor. Enemies that hit you this round take 2."},
+    "sidestep": {"name": "Sidestep", "req": {"n": 1}, "tgt": "self",
+                 "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "dodge", "n": "1", "to": "self", "if": "v>=5"}],
+                 "text": "Gain the die as Armor. On 5+, the next hit on you also misses."},
+    "echo_shell": {"name": "Echo Shell", "req": {"n": 1}, "tgt": "self",
+                   "ops": [{"op": "armor", "amt": "v"}, {"op": "weaken", "amt": "2", "to": "aiming"}],
+                   "text": "Gain the die as Armor. Every attack aimed at you drops by 2."},
+    "cover": {"name": "Cover", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "armor", "amt": "v+1"}],
+              "text": "You or an ally gains the die +1 as Armor."},
+    "tidewall": {"name": "Tidewall", "req": {"n": 1}, "tgt": "self",
+                 "ops": [{"op": "armor", "amt": "v"}, {"op": "armor", "amt": "2", "to": "party"}],
+                 "text": "Gain the die as Armor, and the whole party gains 2 more."},
+}
+WEAPON_ACTIONS.update(ARMOR_ACTIONS)
+
 ITEMS = {
     # ---- starting gear
     "hand_axe": {"name": "Hand Axe", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["hack"],
@@ -69,18 +96,18 @@ ITEMS = {
                      "start": True},
 
     # ---- weapons
-    "rusty_harpoon": {"name": "Rusty Harpoon", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["harpoon"]},
-    "flintlock": {"name": "Flintlock", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, 6, 8], "acts": ["shoot"]},
-    "coral_blade": {"name": "Coral Blade", "slot": "weapon", "rarity": "uncommon", "die": D(8), "dk": ["steady"], "acts": ["slash"]},
+    "rusty_harpoon": {"name": "Rusty Harpoon", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, "I4", 5, 6], "acts": ["harpoon"]},
+    "flintlock": {"name": "Flintlock", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, "F6", 8], "acts": ["shoot"]},
+    "coral_blade": {"name": "Coral Blade", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, 3, 4, "S", 6, 7, 8], "dk": ["steady"], "acts": ["slash"]},
     "tide_hammer": {"name": "Tide Hammer", "slot": "weapon", "rarity": "uncommon", "die": [2, 3, 4, 5, 6, 7, 8, "S"],
                     "acts": ["crush"]},
     "kelp_wand": {"name": "Kelp Wand", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, "P3", 4, 5, "P6", 7, 8], "acts": ["zap", "venom_stab"]},
-    "chaplain_censer": {"name": "Chaplain's Censer", "slot": "weapon", "rarity": "uncommon", "die": D(8), "dk": ["augur"],
+    "chaplain_censer": {"name": "Chaplain's Censer", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, 3, 4, 5, 6, 7, "W"], "dk": ["augur"],
                         "acts": ["blessing"]},
-    "captains_sabre": {"name": "Captain's Sabre", "slot": "weapon", "rarity": "rare", "die": D(10), "dk": ["fate"], "acts": ["slash", "sweep"]},
+    "captains_sabre": {"name": "Captain's Sabre", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, 4, 5, 6, 7, 8, 9, "W"], "dk": ["fate"], "acts": ["slash", "sweep"]},
     "storm_staff": {"name": "Storm Staff", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, "I4", 5, 6, "I7", 8, 9, 10], "dk": ["exploding"], "acts": ["storm_bolt", "zap"]},
-    "leviathan_rod": {"name": "Leviathan Rod", "slot": "weapon", "rarity": "rare", "die": D(10), "dk": ["seer"], "acts": ["tidal"]},
-    "crownbreaker": {"name": "Crownbreaker", "slot": "weapon", "rarity": "legendary", "die": D(12), "dk": ["seer", "exploding"], "acts": ["crush", "sweep"]},
+    "leviathan_rod": {"name": "Leviathan Rod", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, 4, 5, 6, "I7", 8, 9, 10], "dk": ["seer"], "acts": ["tidal"]},
+    "crownbreaker": {"name": "Crownbreaker", "slot": "weapon", "rarity": "legendary", "die": [1, 2, "S", 4, 5, 6, 7, 8, 9, 10, 11, 12], "dk": ["seer", "exploding"], "acts": ["crush", "sweep"]},
     "abyssal_tome": {"name": "Abyssal Tome", "slot": "weapon", "rarity": "legendary", "die": [1, 2, 3, 4, 5, 6, 7, 8, "W", "W"], "dk": ["fate"],
                      "acts": ["tidal", "storm_bolt"]},
 
@@ -116,7 +143,7 @@ ITEMS = {
     "frost_locket": {"name": "Frost Locket", "slot": "trinket", "rarity": "uncommon", "die": [1, "I2", 3, "I4", 5, "I6"]},
 
     # ---- rule-benders: gear that changes how you play rather than adding numbers
-    "forked_staff": {"name": "Forked Staff", "slot": "weapon", "rarity": "rare", "die": D(8), "acts": ["zap"]},
+    "forked_staff": {"name": "Forked Staff", "slot": "weapon", "rarity": "rare", "die": [1, 2, "I3", 4, 5, 6, 7, "W"], "acts": ["zap"]},
     "siren_conch": {"name": "Siren's Conch", "slot": "armor", "rarity": "uncommon", "die": [1, 2, 3, "S", "S", 5]},
     "tide_hourglass": {"name": "Tide Hourglass", "slot": "trinket", "rarity": "legendary", "die": D(8)},
     "powder_heart": {"name": "Powder Heart", "slot": "trinket", "rarity": "rare", "die": D(6)},
@@ -127,13 +154,13 @@ ITEMS = {
     "sea_glass_lens": {"name": "Sea-Glass Lens", "slot": "trinket", "rarity": "rare", "die": D(6), "dk": ["seer"]},
 
     # ---- more gear: low rarities that beat a rare in the right hands or the right fight
-    "gutting_knife": {"name": "Gutting Knife", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["venom_stab"]},
-    "boarding_axe": {"name": "Boarding Axe", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, 7, 8], "acts": ["hack"]},
-    "driftwood_staff": {"name": "Driftwood Staff", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["flare"]},
-    "shellbreaker": {"name": "Shellbreaker Maul", "slot": "weapon", "rarity": "uncommon", "die": [2, 3, 4, 5, 6, 6], "acts": ["crush"]},
-    "gull_bow": {"name": "Gull-Feather Bow", "slot": "weapon", "rarity": "uncommon", "die": D(8), "acts": ["shoot"]},
-    "reef_lantern": {"name": "Reef Lantern", "slot": "weapon", "rarity": "uncommon", "die": D(6), "acts": ["blessing", "flare"]},
-    "harpoon_gun": {"name": "Harpoon Gun", "slot": "weapon", "rarity": "rare", "die": D(10), "acts": ["harpoon", "shoot"]},
+    "gutting_knife": {"name": "Gutting Knife", "slot": "weapon", "rarity": "common", "die": [1, 2, "P3", 4, 5, "P6"], "acts": ["venom_stab"]},
+    "boarding_axe": {"name": "Boarding Axe", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, "S", 6, 7, 8], "acts": ["hack"]},
+    "driftwood_staff": {"name": "Driftwood Staff", "slot": "weapon", "rarity": "common", "die": [1, 2, "I3", 4, 5, 6], "acts": ["flare"]},
+    "shellbreaker": {"name": "Shellbreaker Maul", "slot": "weapon", "rarity": "uncommon", "die": [2, 3, 4, "S", 6, 6], "acts": ["crush"]},
+    "gull_bow": {"name": "Gull-Feather Bow", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, 3, 4, 5, 6, 7, "W"], "acts": ["shoot"]},
+    "reef_lantern": {"name": "Reef Lantern", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, 3, "W", 5, 6], "acts": ["blessing", "flare"]},
+    "harpoon_gun": {"name": "Harpoon Gun", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, 4, "I5", 6, 7, 8, "I9", 10], "acts": ["harpoon", "shoot"]},
     "oilskin_coat": {"name": "Oilskin Coat", "slot": "armor", "rarity": "common", "die": [1, 2, 3, 4, "S", "S"]},
     "barnacle_plate": {"name": "Barnacle Plate", "slot": "armor", "rarity": "common", "die": [2, 3, 3, 4]},
     "divers_harness": {"name": "Diver's Harness", "slot": "armor", "rarity": "uncommon", "die": D(6)},
@@ -178,7 +205,6 @@ PASSIVES = {
     "crownbreaker": ({"pierce_all": 1}, "Shatter: your hits ignore Armor."),
     "abyssal_tome": ({"echo_any": 1}, "Echo of the deep: your first action each fight happens twice, the second at half strength."),
     # armor
-    "coral_mail": ({"block_heal": 2}, "Coral growth: Block also heals you 2."),
     "whaleplate": ({"first_hit_soak": 3}, "Blubber: the first hit on you each round deals 3 less."),
     "mistweave": ({"evasive": 1}, "Mist: the first hit on you each fight misses."),
     "tidelord_aegis": ({"unbreakable": 1}, "Unbreakable: once a fight, survive a lethal hit at 1 HP."),
@@ -225,6 +251,28 @@ PASSIVES = {
 for _k, (_m, _t) in PASSIVES.items():
     ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}
     ITEMS[_k]["text"] = (ITEMS[_k].get("text", "") + " " + _t).strip()
+
+GUARD_ACT = {'hide_vest': 'hunker',
+             'padded_coat': 'hunker',
+             'wool_robe': 'hunker',
+             'leather_apron': 'hunker',
+             'nurses_apron': 'patch_up',
+             'cork_vest': 'hunker',
+             'oilskin_coat': 'hunker',
+             'barnacle_plate': 'bristle',
+             'sharkskin': 'bristle',
+             'coral_mail': 'coral_growth',
+             'pilgrim_shawl': 'patch_up',
+             'kelpweave_robe': 'patch_up',
+             'divers_harness': 'cover',
+             'smugglers_cloak': 'sidestep',
+             'mistweave': 'sidestep',
+             'siren_conch': 'echo_shell',
+             'whaleplate': 'cover',
+             'gilded_cuirass': 'cover',
+             'tidelord_aegis': 'tidewall'}
+for _k, _a in GUARD_ACT.items():
+    ITEMS[_k]["guard"] = _a
 
 # Guard dice: every armor's die (and any charm named in GUARD_TRINKETS) only goes on defensive actions (Block, Armor,
 # healing, Dodge...), so armor protects instead of adding another attack die.

@@ -94,7 +94,6 @@ MODS = {
     "last_stand": "at half HP or less, n Armor each round",
     "overguard": "a third of Armor carries into the next round",
     "guard_share": "Guard also gives the ally n Armor; Taunt gives every ally 2",
-    "block_heal": "Block also heals n",
     "unbreakable": "once per fight, survive a lethal hit at 1 HP",
     "undying": "when knocked down, hit back for n",
     "camouflage": "enemies attack the hero only when there's nobody else",

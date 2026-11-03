@@ -1,0 +1,69 @@
+"""Criticals: an action whose die lands on its top face (a 6 on a d6, an 8 on a d8; a wild face, or
+anything pushed past the top, counts too) also does its crit. Shield and skull faces never crit.
+
+`CRITS[key] = (ops, card line, sentence)`: the extra ops run after the action's own when it hits and
+crits (Combat.act); the card line is what the action card shows after "Crit:", and the sentence ends
+the action's text. Importing this module writes them onto the actions (`crit`, `crit_short`, and the
+text), the way items.py merges PASSIVES.
+"""
+from . import classes as C
+from .content import items as I
+
+CRITS = {
+    # ---- for everyone
+    "block": ([{"op": "armor", "amt": "2"}], "+2 Armor", "gain 2 more Armor"),
+
+    # ---- each class's basic
+    "strike": ([{"op": "armor", "amt": "3", "to": "self"}], "+3 Armor", "you also gain 3 Armor"),
+    "brace": ([{"op": "armor", "amt": "3", "to": "lowest"}], "the weakest ally +3 more", "your weakest ally gains 3 more"),
+    "bolt": ([{"op": "status", "s": "shock", "n": "1"}], "Shock", "Shock the enemy (its next hit also hits a neighbour)"),
+    "slash_d": ([{"op": "dmg", "amt": "v"}], "strike again for the die", "strike again for the die"),
+    "hack_b": ([{"op": "heal", "amt": "4", "to": "self"}], "heal 4", "heal 4"),
+    "shoot_r": ([{"op": "dmg", "amt": "v", "to": "another"}], "the die to another enemy", "the arrow carries on: the die to another enemy"),
+    "stab": ([{"op": "status", "s": "poison", "n": "2"}], "Poison 2", "Poison it for 2"),
+    "jab": ([{"op": "status", "s": "mark", "n": "1"}], "Mark", "Mark it (every hit on it deals +3)"),
+    "toss": ([{"op": "status", "s": "burn", "n": "2"}], "Burn 2", "Burn it for 2"),
+    "thornlash": ([{"op": "status", "s": "root", "n": "1", "to": "another"}], "Root another enemy", "the vines spread: Root another enemy"),
+
+    # ---- weapon actions
+    "hack": ([{"op": "dmg", "amt": "3"}], "hit again for 3", "hit again for 3"),
+    "zap": ([{"op": "dmg", "amt": "v", "to": "another"}], "arc: the die to another", "it arcs: the die to another enemy"),
+    "flare": ([{"op": "dmg", "amt": "v-v//2"}], "the full die", "deal the full die instead"),
+    "thrust": ([{"op": "dmg", "amt": "3"}], "hit again for 3", "hit again for 3"),
+    "harpoon": ([{"op": "status", "s": "root", "n": "1"}], "Root", "Root it"),
+    "shoot": ([{"op": "dmg", "amt": "4"}], "hit again for 4", "hit again for 4"),
+    "slash": ([{"op": "status", "s": "poison", "n": "2"}], "bleed: Poison 2", "it bleeds: Poison 2"),
+    "crush": ([{"op": "status", "s": "weak", "n": "1"}], "Weak", "it reels: Weak"),
+    "sweep": ([{"op": "dmg", "amt": "2"}], "+2 to each", "each enemy hit takes 2 more"),
+    "tidal": ([{"op": "status", "s": "weak", "n": "1"}], "every enemy Weak", "every enemy is Weak"),
+    "storm_bolt": ([{"op": "dmg", "amt": "5"}], "hit again for 5", "hit again for 5"),
+    "venom_stab": ([{"op": "status", "s": "poison", "n": "2"}], "Poison +2", "Poison it for 2 more"),
+    "blessing": ([{"op": "heal", "amt": "3"}], "heal 3 more", "heal 3 more"),
+
+    # ---- armor actions (they take Block's place)
+    "hunker": ([{"op": "armor", "amt": "3"}], "+3 Armor", "gain 3 more Armor"),
+    "patch_up": ([{"op": "heal", "amt": "3", "to": "self"}], "heal 3 more", "heal 3 more"),
+    "coral_growth": ([{"op": "armor", "amt": "3"}], "+3 Armor", "gain 3 more Armor"),
+    "bristle": ([{"op": "status", "s": "thorns", "n": "5", "to": "self"}], "they take 5", "enemies that hit you take 5 instead"),
+    "sidestep": ([{"op": "status", "s": "dodge", "n": "1", "to": "self"}], "the next hit misses", "the next hit on you misses"),
+    "echo_shell": ([{"op": "weaken", "amt": "2", "to": "aiming"}], "they drop by 4", "every attack aimed at you drops by 4 instead"),
+    "cover": ([{"op": "armor", "amt": "v", "to": "self"}], "you gain it too", "you gain the die as Armor too"),
+    "tidewall": ([{"op": "armor", "amt": "2", "to": "party"}], "the party +2 more", "the whole party gains 2 more"),
+}
+
+for _k, (_ops, _short, _say) in CRITS.items():
+    _a = C.ACTIONS.get(_k) or I.WEAPON_ACTIONS[_k]
+    if "crit" in _a:
+        continue  # already written (a second import)
+    _a["crit"] = _ops
+    _a["crit_short"] = _short
+    _a["text"] = f"{_a['text']} Crit: {_say}."
+
+
+def is_crit(d):
+    """Whether a rolled die landed on its top face (or past it): a wild face does; shields and skulls don't."""
+    from .dice import top_face
+    t = d.get("tag")
+    if t in ("S", "X") or d.get("v") is None:
+        return False
+    return t == "W" or d["v"] >= top_face(d["faces"])

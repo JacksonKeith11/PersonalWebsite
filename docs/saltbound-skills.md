@@ -117,7 +117,8 @@ and a bonus that repeats one the class already has (Backstab on top of Stab).
    status rider needs one in `bot.evaluate`. Bookkeeping about what was played (spells cast, bombs
    thrown, streaks) goes in `Combat.after_action`.
 6. **The plumbing.** List each new mod in `mods.py`; put it in the class's `pool` with the tags of the
-   pick it joins; give actions a `SHORT` line; add pop-up labels for any new `fx("st", s=...)` to the
+   pick it joins; give actions a `SHORT` line (and a basic, weapon or armor action a crit in `crits.py`: one effect
+   in the class's flavour, never a Stun, said in a few words on the card); add pop-up labels for any new `fx("st", s=...)` to the
    label map in `combat.js`; bump the cache versions. Keep an old pick's definition when it leaves a
    pool, so saves load.
 7. **Check it fires.** `python3 tools/saltbound-check.py` (every action and passive through real fights),

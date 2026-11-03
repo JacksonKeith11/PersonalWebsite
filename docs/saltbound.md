@@ -457,13 +457,33 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   lets Steady dice reroll, then spends one of the hero's automatic rerolls (1 per fight, more from
   Lucky Coin, Quicksilver), then Bloodstone's blood reroll. Pairs and straights are bonuses in
   amounts, not requirements.
+- **Crits** (owner's request: the number on the die should matter more): a die that lands on its top
+  face (a 6 on a d6, an 8 on a d8; a wild face, or a value pushed past the top by Inspire and the
+  like, counts too; shields and skulls never do) makes the action also do its **crit**. Every class's
+  basic, every weapon action, Block and every armor action has one (`crits.py`: `CRITS[key] = (ops,
+  card line, sentence)`; importing it writes `crit`, `crit_short` and a closing "Crit: ..." sentence
+  onto the action). The extra ops run after the action's own when it hits (`Combat.act`, `is_crit`),
+  and the bots count them in each outcome they weigh (`bot.evaluate`). The card shows a gold
+  "crit: ..." line under the effect, with a tooltip saying what a crit is (`CRIT_TIP`); in a fight the
+  roll tray rings a die that crits and the hero gets a gold "Crit!". Crits are kept to a flavour each
+  class owns (Strike gains Armor, Stab Poisons, Toss Burns, Shoot carries on to another enemy, Riposte
+  Cut strikes again) and are never a Stun. About one action in five crits.
 - **Cooldowns** (`"cd": N`): only basic attacks are usable every round (owner's request). `FREE` in
   `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block, Flee and weapon
   actions except Sweep and Tidal). Everything else has 2; the biggest skills 3. Lift is once per rest
   (`per_rest`, the hero's `spent` list).
 - **Guard dice** (owner's choice): every armor's die carries `guard` and only goes on
-  defensive actions (`is_defensive`, sent as each action's `def`). Every hero has Block, so a guard die
-  is never wasted.
+  defensive actions (`is_defensive`, sent as each action's `def`). Every hero has a defensive action
+  for it, so a guard die is never wasted.
+- **Armor actions** (owner's request: armor should play differently): every armor brings its own
+  defensive action, which **takes Block's place** for its wearer (`guard` on the item, from
+  `GUARD_ACT`; `Game.actions_of` swaps it in; the actions are `ARMOR_ACTIONS` in `items.py`): Hunker
+  Down (die +1 Armor: the plain coats), Patch Up (die Armor, heal 2: the healers' robes), Coral Growth
+  (heal 3: Coral Mail, whose old "Block heals 2" passive it replaced), Bristle (attackers take 2:
+  Barnacle Plate, Sharkskin), Sidestep (5+: dodge the next hit: Mistweave, Smuggler's Cloak), Echo
+  Shell (attacks aimed at you −2: Siren's Conch; `to: "aiming"`), Cover (you or an ally: Diver's
+  Harness, Whaleplate, Gilded Cuirass) and Tidewall (the party +2: Tidelord's Aegis). Plain Block is
+  left only for a hero with no armor. The hero sheet and item rows name the action.
 - **Instant actions** (`"instant": True`) change dice instead of rolling for an effect: Perfect Form
   (a die rolls its top face), Bloodprice (+2), Loaded Dice (link two dice), Inspire, Hymn of Valor,
   Lend a Hand, Quicksilver, Bottle It, Counterpoint (flip a low roll), Splitting Flask (one die into
@@ -652,6 +672,13 @@ steadier, not stronger, unless a Vanguard's Shieldwall makes each shield worth 5
 guard dice (`GUARD_TRINKETS` is empty: Lucky Shell and Pearl Charm used to be, a hidden cost no other
 trinket had). No common may be strictly worse than starting gear (owner's request): the Fishing
 Spear (a Rapier) and Sailcloth Wrap (a worse Wool Robe) were removed; save v5 swaps them for those.
+
+**Weapon faces** (owner's request): every found weapon but the Heirloom Sword (whose faces grow
+with the party's level) has a special face or two, in its theme: freeze faces on the harpoons, the
+Driftwood Staff, the Leviathan Rod and the Forked Staff; poison on the Gutting Knife; a burn on the
+Flintlock; shield faces on the Coral Blade, Boarding Axe, Shellbreaker Maul and Crownbreaker; a wild
+top face on the Chaplain's Censer, Captain's Sabre, Gull-Feather Bow and Reef Lantern (a wild face
+always crits). Starting weapons stay plain.
 
 **Item audit (2026-11-03).** Fixed: Tide Hammer's die became `[2..8, S]` (it was worse than the
 starting Great Axe); Drowned Idol has one 12, not two (it averaged ~17 a roll); a freeze face now
@@ -931,6 +958,7 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/game.py` | `Game`: the whole run as one JSON-able dict (`Game.s`). Map turns, terrain and step costs, the tides and the rising tide, enemy groups, places (and what they show, `setup_places`), opportunities, garrisons, event chains, events, loot, levelling, towns and their trades, the forecast, `view()`, `static()`. |
 | `app/saltbound/combat.py` | `Combat`, mixed into `Game`: starting fights, the round (`new_round` and its steps), placing actions, resolving, hurting and healing, the end of a fight (`finish_fight`, `fight_won`, `dungeon_advance`, `fight_lost`), `fight_view`. `Invalid` is the error shown to players. It's built from the mixins below. |
 | `app/saltbound/dice.py` | Faces, condition checks, amount expressions (`amt`), and `Dice`: rolling, odds for planning (`outcomes`, `joint_outcomes`), `roll_for` with its rerolls. |
+| `app/saltbound/crits.py` | The crit each action does when a die lands on its top face (`CRITS`), written onto the actions on import, and `is_crit`. |
 | `app/saltbound/actions.py` | `Actions`: targets, amount variables (`env` = `dice_env` + `target_env`), one handler per op (`_op_dmg`, `_op_status`...) and per instant (`_inst_flip`...), and the **shared hit sums** (`hit_base`, `hit_finish`, `hit_pierces`, `foe_damage_after`, `foe_soak`, `hit_spill`, `status_amount`) that the fight and the bots both use. |
 | `app/saltbound/combos.py` | `Combos`: Pincer, Covered, Shatter, the Bell, Wildfire, Spiteful elites. |
 | `app/saltbound/bosses.py` | `Bosses`: the Crown's phases and Undertow, the Bell-Warden, the Lamp Keeper, the Iron Bosun's crew, Harpies' flight, splitting, the Maw's swallow. |

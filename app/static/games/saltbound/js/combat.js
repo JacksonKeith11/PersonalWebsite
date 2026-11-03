@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=92';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=92';
-import { spriteURL } from './art.js?v=92';
-import { stageURL, stageKey } from './stage.js?v=92';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=92';
-import { render } from './main.js?v=92';
-import { skillCard } from './hud.js?v=92';
-import { SKILL_FX, foeFx } from './skillfx.js?v=92';
-import * as sfx from './audio.js?v=92';
+import { S, send, mine, controllerName } from './store.js?v=94';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=94';
+import { spriteURL } from './art.js?v=94';
+import { stageURL, stageKey } from './stage.js?v=94';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=94';
+import { render } from './main.js?v=94';
+import { skillCard } from './hud.js?v=94';
+import { SKILL_FX, foeFx } from './skillfx.js?v=94';
+import * as sfx from './audio.js?v=94';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -64,6 +64,15 @@ function fightTitle(f) {
   if (f.kind === 'lair') return 'Lair';
   if (f.kind === 'event') return 'Trouble';
   return 'Skirmish';
+}
+
+// What a crit is, for every crit line's tooltip.
+export const CRIT_TIP = 'Crit\nWhen a die lands on its top face (a 6 on a d6, an 8 on a d8, or a wild face), the action also does its crit.';
+// Whether a rolled die is on its top face (or pushed past it): shields and skulls never are.
+function critDie(v, tag, faces) {
+  if (!faces || v == null || tag === 'S' || tag === 'X') return false;
+  if (tag === 'W') return true;
+  return v >= Math.max(...faces.map(f => (typeof f === 'number' ? f : parseInt(String(f).slice(1)) || 0)));
 }
 
 // ------------------------------------------------------------------ rendering
@@ -434,7 +443,7 @@ function rollTray() {
       h('span.rt-who', null, S.game.heroes[t.h].name),
       ad ? h('span.rt-act', null, ad.name) : null,
       ad && isRisky(ad.req) ? h('span.rt-need', null, `Needs ${reqText(ad.req)}`) : null),
-    h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die' + (x.re ? '.re' : ''), { style: since(x.t) },
+    h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die' + (x.re ? '.re' : '') + (x.crit ? '.crit' : ''), { style: since(x.t) },
       h('span', { style: since(x.t) }, shown(x)),
       x.re ? h('small', null, x.re === 'steady' ? 'Steady' : 'Reroll') : null))),
     h('div.rt-slot', null, t.verdict ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'miss' ? 'Miss' : 'Hit!') : null));
@@ -825,7 +834,8 @@ function actionCard(f, x, k, i, selDice, ready) {
         cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling}` : '1')
           : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null),
       h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''))),
-      miss ? h('div.miss', null, `miss: ${miss}`) : null),
+      miss ? h('div.miss', null, `miss: ${miss}`) : null,
+      a.crit_short ? h('div.crit', { tip: CRIT_TIP }, `crit: ${a.crit_short}`) : null),
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
 }
 
@@ -1344,7 +1354,9 @@ function apply(f) {
       // the action these dice are for comes next
       const act = C.fx.slice(C.fxAt).find(x => x.k === 'act' && x.h === f.h && !x.instant);
       const now = performance.now();
-      C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now })) };
+      const held = d.hs[f.h]?.dice || [];
+      const ad0 = act && S.static.actions[act.a];
+      C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now, crit: !!ad0?.crit_short && critDie(x.v, x.tag, held.find(y => y.id === x.id)?.faces) })) };
       // the caption names the action now playing, from its first roll (never the one before it)
       C.caption = act && !mine().includes(f.h) && S.static.actions[act.a] ? makeCaption(act, S.static.actions[act.a], d, true) : null;
       flash('h' + f.h, 'act');
@@ -1440,6 +1452,13 @@ function apply(f) {
       return 420;
     }
     case 'st': {
+      if (f.s === 'crit') {
+        // a crit: a gold callout over the hero, and the stage gives a jolt
+        addFloat(f.to, 'Crit!', 'crit');
+        flash(f.to, 'critfx', 520);
+        sfx.play('crit');
+        return 360;
+      }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
         robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', flipped: 'Flipped!', split: 'Split!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;

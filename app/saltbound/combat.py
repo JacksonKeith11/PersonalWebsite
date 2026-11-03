@@ -282,7 +282,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         x["links"] = {}
         x["tempo"] = False
         x["kdie"] = False
-        x["inspire"] = 0
+        x["inspire"] = x.pop("carry", 0)  # Clean Bill's bonus, earned after their dice were spent
+        x.pop("spells", None)
+        x.pop("cued", None)
         x["pain_bonus"] = pain.get(str(h), 0)
         x["soaked"] = False
         if not self.active(h):
@@ -538,7 +540,17 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f["done"].append(done)
         self.fx("act", h=h, a=a["key"], tgt=tgt, hit=hit)
         ops = a["ops"] if hit else a.get("miss", [])
+        m = self.mods(h)
+        if not hit and a.get("spell") and m.get("miss_armor") and dice:
+            # Backlash Ward: a spell that fizzles still throws up a shield
+            n = sum(num(d) for d in dice)
+            x["st"]["armor"] = x["st"].get("armor", 0) + n
+            self.fx("armor", to=f"h{h}", n=n)
+        x["acting"] = a["key"]
         self.run_ops(h, a, dice, tgt, ops=ops, hit=hit)
+        x.pop("acting", None)
+        if self.s["fight"] is f:
+            self.after_action(h, a, tgt)
         self.elements(h, a, dice, tgt)
         if self.s["fight"] is f and a["tgt"] == "foe" and dice and isinstance(tgt, str) and tgt.startswith("f"):
             f.setdefault("lastdie", {})[tgt[1:]] = [h, [num(d) for d in dice]]
@@ -560,6 +572,29 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         done["out"] = self.act_outcome(since)
         if self.s["fight"] is f:
             self.check_end()
+
+    def after_action(self, h, a, tgt):
+        """Bookkeeping for the passives that care what was done: Spellweave, Reagents, Quarry,
+        Call and Response (instants call it too)."""
+        f = self.s["fight"]
+        x = self.hs(h)
+        if a.get("spell"):
+            x.setdefault("spells", []).append(a["key"])
+        if a.get("bomb"):
+            x["bombs"] = x.get("bombs", 0) + 1
+        if self.mods(h).get("quarry") and a["tgt"] == "foe" and isinstance(tgt, str) and tgt.startswith("f"):
+            fid, r, q = int(tgt[1:]), f["round"], x.get("quarry")
+            if q and q["id"] == fid and q["r"] == r - 1:
+                x["quarry"] = {"id": fid, "r": r, "n": q["n"] + 1}
+            elif not (q and q["id"] == fid and q["r"] == r):
+                x["quarry"] = {"id": fid, "r": r, "n": 1}
+        if x.get("cued") and any(o["op"] == "dmg" for o in a["ops"]):
+            x.pop("cued")
+        cue = self.mods(h).get("cue")
+        if cue:
+            for y in self.actives():
+                if y != h:
+                    self.hs(y)["cued"] = cue
 
     def act_outcome(self, since):
         """What an action did, from the effects it set off (fx after id `since`): damage dealt to
@@ -652,6 +687,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if fo["hp"] <= 0:
             self.foe_dies(fo, h, bomb)
         else:
+            if not pure and h is not None and fo["st"].get("poison"):
+                fester = max(self.mods(y).get("fester", 0) for y in self.actives()) if self.actives() else 0
+                if fester:
+                    fo["st"]["poison"] += fester
+                    self.fx("st", to=f"f{fo['id']}", s="poison")
             self.foe_hit_hooks(fo, n, h, pure)
             self.foe_bloodied(fo)
         return n
@@ -686,6 +726,19 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if m.get("kill_gold"):
                 self.hero(h)["gold"] += m["kill_gold"]
                 self.fx("coins", h=h, n=m["kill_gold"])
+            if m.get("rampage") and x and x.get("acting") in x["cds"]:
+                x["cds"][x["acting"]] = 1  # Rampage: ready again next round
+                self.fx("st", to=f"h{h}", s="rampage")
+            if m.get("dirty_trick"):
+                aimed = [o for o in self.foes() if (o.get("intent") or {}).get("dice")]
+                if aimed:
+                    self._op_steal(None, {}, [max(aimed, key=lambda o: o["intent"].get("hi", 0))])
+        if fo["st"].get("mark") and any(self.mods(y).get("mark_pass") for y in self.actives()):
+            others = [o for o in self.foes() if not o["st"].get("mark")]
+            if others:
+                o = min(others, key=lambda o: o["hp"])
+                o["st"]["mark"] = fo["st"]["mark"]
+                self.fx("st", to=f"f{o['id']}", s="mark")
         poisoned = fo["st"].get("poison")
         if poisoned and any(self.mods(y).get("plague") for y in self.actives()):
             others = self.foes()
@@ -726,6 +779,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             over = n - got
             if over > 0 and self.mods(by).get("overflow"):
                 self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + over
+            bill = self.mods(by).get("clean_bill", 0)
+            if bill and got > 0 and h != by and hero["hp"] >= mx and self.active(h):
+                # Clean Bill: their next die this round, or next round's if they've nothing left to roll
+                y = self.hs(h)
+                key = "inspire" if any(not d["used"] and not d.get("rolled") for d in y["dice"]) else "carry"
+                y[key] = y.get(key, 0) + bill
+                self.fx("st", to=f"h{h}", s="inspired")
         self.fx("heal", to=f"h{h}", n=got)
         return got
 
@@ -741,6 +801,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if a["hp"] <= 0:
             a["hp"] = 0
             self.fx("die", to=f"s{a['id']}")
+            if a.get("owner") is not None and self.mods(a["owner"]).get("bloom"):
+                for y in self.actives():
+                    self.fight_heal(y, a["max"] // 2, a["owner"])
         return n
 
     def hurt_hero(self, h, n, fo, melee=False, pure=False):
@@ -792,11 +855,22 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 others = [y for y in self.actives() if y != h]
                 if others:
                     self.hurt_hero(others[0], n // 2, None, pure=True)
+        burden = next((y for y in self.actives() if y != h and self.mods(y).get("burden")
+                       and str(y) not in f.get("burdened", [])), None) if hero["hp"] <= 0 else None
         if hero["hp"] <= 0:
             if self.mods(h).get("unbreakable") and not x["unbreak"]:
                 x["unbreak"] = True
                 hero["hp"] = 1
                 self.fx("st", to=f"h{h}", s="unbreakable")
+            elif burden is not None:
+                # Shared Burden: the healer takes half the blow, and the ally none of it
+                f.setdefault("burdened", []).append(str(burden))
+                hero["hp"] += n
+                self.s["stats"][h]["taken"] -= n
+                self.fx("heal", to=f"h{h}", n=n)
+                self.fx("st", to=f"h{h}", s="shielded")
+                self.hurt_hero(burden, (n + 1) // 2, None, pure=True)
+                return 0
             else:
                 hero["hp"] = 0
                 x["down"] = True

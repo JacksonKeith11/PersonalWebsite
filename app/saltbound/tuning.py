@@ -44,4 +44,4 @@ SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of i
 
 # Passives that change what a die can show while planning (the bots' odds cache and the browser's
 # hit chances need them): Sleight of Hand, Bulwark Faces, Weighted Coin, Keen Edge.
-ROLL_MODS = ("sleight", "shield_top", "one_is_top", "keen_edge")
+ROLL_MODS = ("sleight", "shield_top", "one_is_top", "keen_edge", "skull_top")

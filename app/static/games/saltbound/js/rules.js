@@ -149,6 +149,7 @@ export function countOk(req, dice) {
 // What a passive makes of a face before bonuses (Combat.face_rules): `rm` is the hero's `rollmods`.
 function faceRules(d, v, t, rm) {
   if (rm.shield_top && t === 'S') v = topFace(d.faces);
+  if (rm.skull_top && t === 'X') v = topFace(d.faces);
   if (rm.one_is_top && v === 1 && !t) v = topFace(d.faces);
   if (rm.keen_edge && v === 6) v = 7;
   return v;

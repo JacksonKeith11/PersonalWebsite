@@ -149,7 +149,7 @@ def replaced(g, h, key):
 
 # Item passives that only do something with the right actions: (mods, what the hero needs)
 NEEDS = [
-    ({"bomb_bonus", "splash_bonus", "chain_reaction"}, lambda a: a.get("bomb")),
+    ({"bomb_bonus", "splash_bonus", "chain_reaction", "bomb_poison", "short_fuse", "reagents"}, lambda a: a.get("bomb")),
     ({"spell_burn", "spell_chain", "spell_echo"}, lambda a: a.get("spell")),
     ({"heal_bonus", "heal_armor", "overflow"}, lambda a: any(o["op"] == "heal" for o in a["ops"])),
     ({"summon_cap", "summon_hp", "summon_regen"}, lambda a: any(o["op"] == "summon" for o in a["ops"])),
@@ -673,6 +673,7 @@ def evaluate(g, b, h, a, dice, tgt):
     # in the same order as ever, so this only saves time (the run fingerprints must not change).
     cres = 1.0 if g.hs(h)["st"].get("crescendo") else b.cresc.get(h, 0)
     spell_burn = bool(a.get("spell") and m.get("spell_burn"))
+    bomb_poison = bool(a.get("bomb") and m.get("bomb_poison"))
     red_mist = bool(m.get("red_mist") and g.hero(h)["hp"] < g.maxhp(h) / 2)
     melee = a.get("melee")
 
@@ -742,6 +743,8 @@ def evaluate(g, b, h, a, dice, tgt):
                         bump(eff["stop"], tid, pr * share)
                     elif n > 0 and spell_burn:
                         val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share)
+                    if 0 < n < left and bomb_poison:
+                        val += share * foe_status(g, b, "poison", 1, t, now, tb, top, eff, pr * share)
                     if leech:
                         val += share * min(n, left) * 0.3
                     if red_mist:
@@ -1110,7 +1113,7 @@ def instant_value(g, h, a, dice):
         bonus = max(2, die_mean(g, h, dice[0]) // 2) + extra
         return [(None, sum(bonus * (1.2 if has_risky(g, y) else 1.0) + bolster for y in cand) - 0.5)]
     if key == "hymn_of_valor":
-        # +1 (+2 on a match) to every die the party still rolls this round
+        # +2 (+3 on a match) to every die the party still rolls this round
         if len(dice) < 2:
             return []
         count = sum(len(unrolled(g, y)) for y in g.actives()) - len(dice)
@@ -1119,7 +1122,7 @@ def instant_value(g, h, a, dice):
             match = 1.0 if a0["v"] == b0["v"] else 0.0
         else:
             match = 1 / max(len(a0["faces"]), len(b0["faces"]))
-        return [(None, (1 + match + extra) * count * 0.9)]
+        return [(None, (2 + match + extra) * count * 0.9)]
     if key == "lend_a_hand":
         cand = [y for y in others if not g.hs(y)["ready"]]
         if not cand or not dice:
@@ -1174,7 +1177,7 @@ def instant_value(g, h, a, dice):
         if not cand:
             return []
         y = max(cand, key=lambda z: (has_risky(g, z), len(unrolled(g, z))))
-        return [(f"h{y}", 2.5 + (1.5 if has_risky(g, y) else 0))]
+        return [(f"h{y}", 3.5 + (2.0 if has_risky(g, y) else 0))]  # best of three
     if key == "transfusion":
         cand = others or [h]
         y = max(cand, key=lambda z: g.maxhp(z) - g.hero(z)["hp"])

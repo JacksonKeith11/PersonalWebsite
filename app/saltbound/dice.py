@@ -168,10 +168,13 @@ class Dice:
 
     def face_rules(self, h, d, v, t):
         """What a hero's passives make of a face before bonuses: Bulwark Faces (a shield still
-        blocks, and is worth the top face), Weighted Coin (a 1 is the top face), Keen Edge (6 is 7).
-        Rolling and planning (`outcomes`) both use this."""
+        blocks, and is worth the top face), Heedless (a skull is the top face, and still hurts),
+        Weighted Coin (a 1 is the top face), Keen Edge (6 is 7). Rolling and planning (`outcomes`)
+        both use this."""
         m = self.mods(h)
         if m.get("shield_top") and t == "S":
+            v = top_face(d["faces"])
+        if m.get("skull_top") and t == "X":
             v = top_face(d["faces"])
         if m.get("one_is_top") and v == 1 and t is None:
             v = top_face(d["faces"])

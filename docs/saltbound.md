@@ -627,6 +627,9 @@ comes first, and enemies' "intents" are called their coming attack or action.
 
 ## Balance now
 
+`docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
+what tends to be strong, weak and fun, the design checklist, and how to measure.
+
 The owner reviews every balance change: ask before changing a class or the difficulty, and give the
 options with their trade-offs. **Hard's target is now about 50% for the bots (owner, Nov 2026, "for
 now"; it was 30–35% while the bots split up) with no class far ahead; leave the difficulty
@@ -705,6 +708,53 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
     Hand and Rousing Chorus also give 3 Armor; `bolster` mod; +12). **Crescendo** now takes one die
     (cooldown 3; was two dice, −18): +5.
   - Bots: the instant values count Bolster's Armor and the Chorus; Cleanse counts a Hex (+3).
+- **Flat picks replaced, then a pick study** (owner's request, Nov 2026: find the skills that move the
+  win rate most, rebalance outliers, and replace dull ones with ones like Slice & Dice's and Dicey
+  Dungeons', where the dice values matter). After all of it, with enemy Armor lasting to their next turn
+  (300 Hard runs, seed 5000): **Hard 44%** (was 48%), runs of 61 turns, level 6.2; losses by objectives
+  cleared 0: 43, 1: 37, 2: 41, 3: 48. Scoundrel 59%, Mender 51%, Vanguard 50%, Duelist 43%, Ranger 42%,
+  Alchemist 40%, Warden 39%, Herald 38%, Arcanist 38%, Berserker 35% (±5 noise per class; the same
+  batch before the enemy-Armor change gave 45%, Berserker 43%, Duelist 39%). Below the ~50% target, with
+  the Scoundrel ahead: the owner's call.
+  - **Out of the pools** (flat numbers, durations, immunities or map-only; definitions kept so saves
+    load), each replaced in its class's pool with tags carried over: Arcane Shield → **Backlash Ward**
+    (a missed spell gives Armor equal to its dice, `miss_armor`), Overcharge → **Spellweave** (+3 on a
+    spell after a different spell this round), Malediction → **Wither** (spells +1 per kind of debuff
+    on the target), Calm → **Clean Bill** (an ally healed to full gets +2 on their next die, carried
+    into next round if their dice are spent), Miracle → **Shared Burden** (cap: once per fight the
+    Mender takes half of a knock-down blow and the ally none, `burden`), Footwork → **Engage** (+4 against
+    enemies at full health), Thick Skull → **Heedless** (a skull face counts as the top face and still
+    hurts, `skull_top`, in `face_rules`, `ROLL_MODS` and `rules.js`), Undying Fury → **Rampage** (an
+    action that kills is ready again next round), Field Dressing → **Quarry** (+2 per round in a row
+    you've hit that enemy, up to +6), Long Mark → **Pass the Mark** (a Marked enemy's Mark jumps to
+    another enemy when it dies), Sticky Fingers → **Dirty Trick** (a kill snatches the biggest die from
+    another enemy's coming attack), Virulence → **Fester** (every hit on a Poisoned enemy adds 1
+    Poison), Backstab (which repeated Stab's own bonus) → **Unseen** (+2 while no enemy aims at you),
+    Battle Hymn → **Call and Response** (after the Herald acts, each ally's next damaging action that
+    round deals +3, `cue`; not "matching numbers", which Pincer already rewards), Volatile → **Short
+    Fuse** (a bomb showing 1 or 2 deals as if it were an 8, in `hit_base`), Deep Pockets → **Reagents**
+    (bombs +1 per bomb already thrown this fight, up to +5), Verdant → **Bloom** (a summon's death heals
+    the party half its max HP), and after the study, Distiller → **Catalyst** (bombs also Poison 1).
+    The damage ones live in `dmg_bonus` (so the bots see them); the bookkeeping (spells cast, bombs
+    thrown, the Quarry streak, cues) is `Combat.after_action`, called by actions and instants.
+  - **The study** (400 Hard runs per class with `--with`, 4,000 in all, seed 20000, on the new pool):
+    vs passed has a bias by kind of pick (actions −3.7 points on average, passives +0.3, capstones
+    +1.1: a run counts once per offer, and actions are taken early), so judge picks against their kind.
+    Even so, the z spread was 2.15. **Stuns were the outliers**: Lunge (+28 after the bias), Earthshaker
+    (+21), Concussion (+19), Cacophony (+18), Shield Bash (+15), plus Shrapnel (+14) and Grand Curse
+    (+16, left alone: the Arcanist is the weakest class). The low ones were mostly actions that barely
+    beat the class's free basic: Twin Cut (−13; two Riposte Cuts did as much), Drink Deep (−12), Second
+    Opinion (−11), Distiller (−11), Envenom (−11), Ward (−10), Called Shot (−9; two Shoots on a Marked
+    enemy out-damaged it), Briar Wall (−9), Hymn of Valor (−8). Classes in that batch: Vanguard and
+    Scoundrel 55%, Berserker, Mender, Duelist 49%, Alchemist 48%, Ranger 47%, Herald and Warden 41%,
+    Arcanist 40%. Of the 17 new picks, 14 were within noise; Bloom (+10), Reagents (+9) and Call and
+    Response (+7) a little high, Backlash Ward (−7) a little low.
+  - **Tuned**: Lunge no longer Stuns; Earthshaker drops one enemy's coming attack by half the sum
+    instead of Stunning; Concussion and Shield Bash Stun on a 6 (Shield Bash also on a shield face);
+    Shrapnel +2 (was 3); Twin Cut each die +4 (was +2); Drink Deep the die +4 (was +2); Second Opinion
+    best of three rolls (was two); Envenom Poisons half the die +1 and deals half the die; Ward twice the
+    die (was 1½×); Called Shot sum +8; Briar Wall half the sum (was a third); Hymn of Valor +2, +3 on a
+    match (was +1, +2). The bots' values for Hymn and Second Opinion follow.
 - **Strike and Overguard split, Mender and Duelist buffed** (owner's request, Nov 2026; 300 Hard runs,
   seed 5000): **Hard 47%**. Vanguard 60%, Scoundrel 51%, Duelist 50% (was 29%), Mender 49% (was 28%),
   Berserker 49%, Ranger 48%, Arcanist 48%, Alchemist 47%, Warden 39%, Herald 34% (Battle Hymn's trim).
@@ -862,6 +912,9 @@ clock anywhere: the run changes only when someone acts.
 ## Testing
 
 - `tools/check-all.sh` runs every fast check in the repo (about a minute); run it before pushing.
+- **On Windows**, run the Python tools with `PYTHONUTF8=1` (the default code page can't read
+  `rules.js`), use `python` rather than `python3`, and cap a long batch's workers (`--jobs=12`):
+  the dev PC once powered off under a sustained all-core simulator batch.
 - `python3 tools/saltbound-check.py` forces every action and passive of every class through real
   fights (bots never use most instant tricks), checks the passive mods against `mods.py`, and that
   `js/rules.js`'s map size matches the server's. Run it after touching the rules or classes.

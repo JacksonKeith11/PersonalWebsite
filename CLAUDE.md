@@ -55,6 +55,7 @@ up front. Read the matching one before you change something in that area:
 | `app/arena/`, `app/static/games/arena/`, `tools/arena-*` | `docs/arena.md` |
 | `app/brawl/`, `app/static/games/brawl/`, `tools/brawl-*` | `docs/brawl.md` |
 | `app/saltbound/`, `app/static/games/saltbound/`, `tools/saltbound-*`, `tools/saltbound-art/` | `docs/saltbound.md` |
+| Saltbound skills, classes, dice or balance | `docs/saltbound-skills.md` too |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

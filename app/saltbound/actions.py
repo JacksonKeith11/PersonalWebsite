@@ -82,11 +82,25 @@ class Actions:
         n = m.get("might", 0) + self.herald_aura()
         n += m.get("momentum", 0) * f["acts"].get(str(h), 0)
         n += m.get("rage", 0) * ((self.maxhp(h) - self.hero(h)["hp"]) // 5)
+        x = self.hs(h)
         if a.get("bomb"):
-            n += m.get("bomb_bonus", 0)
-        if m.get("first_strike") and not self.hs(h).get("struck"):
+            n += m.get("bomb_bonus", 0) + m.get("reagents", 0) * min(5, x.get("bombs", 0))
+        if a.get("spell") and m.get("spellweave") and any(k != a["key"] for k in x.get("spells", [])):
+            n += m["spellweave"]
+        n += x.get("cued", 0)
+        if m.get("first_strike") and not x.get("struck"):
             n += m["first_strike"]
+        if m.get("unseen") and not any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()):
+            n += m["unseen"]
         if isinstance(target, dict):
+            if m.get("engage") and target["hp"] >= target["max"]:
+                n += m["engage"]
+            if a.get("spell") and m.get("wither"):
+                n += m["wither"] * sum(1 for s in DEBUFFS if target["st"].get(s))
+            q = x.get("quarry")
+            if m.get("quarry") and q and q["id"] == target["id"]:
+                r = f["round"]
+                n += m["quarry"] * min(3, q["n"] - 1 if q["r"] == r else q["n"] if q["r"] == r - 1 else 0)
             if target["st"].get("stun") or target["st"].get("root"):
                 n += m.get("opportunist", 0)
             if target["st"].get("burn"):
@@ -177,6 +191,9 @@ class Actions:
         env = self.env(h, a, dice, t, vals, tags) if env is None else dict(env)
         if i is not None:
             env["d"] = vals[i]
+        fuse = self.mods(h).get("short_fuse") if a.get("bomb") else 0
+        if fuse and vals and 0 < vals[0] <= 2:
+            env["v"] = env["d"] = fuse  # Short Fuse: a 1 or 2 burns down fast
         n = amt(op["amt"], env) + (2 if a["plus"] else 0)
         return (n // 2 if half else n) + (self.dmg_bonus(h, a, t) if bonus is None else bonus), env
 
@@ -276,6 +293,10 @@ class Actions:
                     t["st"]["burn"] = t["st"].get("burn", 0) + 1
                     self.fx("st", to=f"f{t['id']}", s="burn")
                     self.foe_status_by(t, "burn", h)
+                if a.get("bomb") and m.get("bomb_poison") and done and t["hp"] > 0:
+                    t["st"]["poison"] = t["st"].get("poison", 0) + m["bomb_poison"]
+                    self.fx("st", to=f"f{t['id']}", s="poison")
+                    self.foe_status_by(t, "poison", h)
                 for kind, k_n in self.hit_spill(h, a, op, n, c.used):
                     if kind == "chain":
                         c.used.add("chain")
@@ -530,6 +551,7 @@ class Actions:
                                         "vals": [num(d) for d in dice], "out": self.act_outcome(since)})
         self.fx("act", h=h, a=a["key"], tgt=tgt, instant=True)
         self.spite(a)
+        self.after_action(h, a, tgt)
 
     def show_die(self, d, v, t):
         """A die rolled in the open while planning: it shows this face from now on."""
@@ -589,7 +611,7 @@ class Actions:
     def _inst_hymn(self, c, op):
         vals = [self.roll(c.h, d) for d in c.dice]
         f = self.s["fight"]
-        f["hymn"] = f.get("hymn", 0) + 1 + (1 if len(set(vals)) == 1 else 0) + c.extra
+        f["hymn"] = f.get("hymn", 0) + 2 + (1 if len(set(vals)) == 1 else 0) + c.extra
         self.fx("st", to="party", s="hymn")
 
     def _inst_give(self, c, op):
@@ -640,7 +662,7 @@ class Actions:
         hid = [d for d in self.hs(c.other)["dice"] if not d["used"] and d.get("v") is None and not d.get("fc")]
         if hid:
             d = max(hid, key=lambda d: top_face(d["faces"]))
-            rolls = [self.raw_roll(c.other, d) for _ in range(2)]
+            rolls = [self.raw_roll(c.other, d) for _ in range(3)]
             self.show_die(d, *max(rolls, key=lambda r: (r[1] not in ("X", "S"), r[0] or 0)))
             self.fx("st", to=f"h{c.other}", s="second_opinion")
 

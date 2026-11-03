@@ -566,6 +566,25 @@ class Actions:
         y = self.hs(c.other)
         y["inspire"] = y.get("inspire", 0) + max(2, v // 2) + c.extra + c.plus
         self.fx("st", to=f"h{c.other}", s="inspired")
+        self.bolster(c, c.other)
+
+    def _inst_chorus(self, c, op):
+        """Rousing Chorus: every ally's next die rolls higher by half the die (at least 2)."""
+        v = self.roll(c.h, c.dice[0])
+        for y in self.actives():
+            if y != c.h:
+                x = self.hs(y)
+                x["inspire"] = x.get("inspire", 0) + max(2, v // 2) + c.extra + c.plus
+                self.fx("st", to=f"h{y}", s="inspired")
+                self.bolster(c, y)
+
+    def bolster(self, c, y):
+        """Bolster: the Herald's help comes with Armor."""
+        n = c.m.get("bolster", 0)
+        if n and self.active(y):
+            st = self.hs(y)["st"]
+            st["armor"] = st.get("armor", 0) + n
+            self.fx("armor", to=f"h{y}", n=n)
 
     def _inst_hymn(self, c, op):
         vals = [self.roll(c.h, d) for d in c.dice]
@@ -579,6 +598,7 @@ class Actions:
         self.hs(c.other)["dice"].append(dict(d, id=f"g{d['id']}", src="gift", used=False,
                                              bonus=d.get("bonus", 0) + c.extra + op.get("bonus", 0)))
         c.keep.add(d["id"])
+        self.bolster(c, c.other)
 
     def _inst_reroll_ally(self, c, op):
         y = self.hs(c.other)

@@ -803,7 +803,9 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, tuple):
                         st = g.hs(t[1])["st"]
-                        val += share * (st.get("burn", 0) + 2 * st.get("poison", 0) + 2 * sum(1 for s in ("weak", "vuln", "mark", "root") if st.get(s)))
+                        # a Hex would swap next round's biggest die for a cursed one: about 3 off a roll
+                        val += share * (st.get("burn", 0) + 2 * st.get("poison", 0) + 2 * sum(1 for s in ("weak", "vuln", "mark", "root") if st.get(s))
+                                        + 3 * bool(st.get("hex")))
             elif k == "weaken":
                 n = amt(op["amt"], de) + plus
                 for t, share in tg:
@@ -1091,6 +1093,7 @@ def instant_value(g, h, a, dice):
     m = g.mods(h)
     extra = (1 if m.get("second_verse") else 0) + (2 if a["plus"] else 0)
     others = [y for y in g.actives() if y != h]
+    bolster = m.get("bolster", 0) * 0.8  # Armor on whoever the Herald helps
     if key == "inspire":
         # half the die (at least 2) on an ally's next roll: best on the ally with the most still to roll
         cand = [y for y in others if unrolled(g, y)]
@@ -1098,7 +1101,14 @@ def instant_value(g, h, a, dice):
             return []
         y = max(cand, key=lambda z: (len(unrolled(g, z)), has_risky(g, z)))
         bonus = max(2, die_mean(g, h, dice[0]) // 2) + extra
-        return [(f"h{y}", bonus * (1.3 if has_risky(g, y) else 1.1) * (0.8 if g.hs(y).get("inspire") else 1))]
+        return [(f"h{y}", bonus * (1.3 if has_risky(g, y) else 1.1) * (0.8 if g.hs(y).get("inspire") else 1) + bolster)]
+    if key == "rousing_chorus":
+        # half the die (at least 2) on each ally's next roll, for those still to roll
+        cand = [y for y in others if unrolled(g, y)]
+        if not cand or not dice:
+            return []
+        bonus = max(2, die_mean(g, h, dice[0]) // 2) + extra
+        return [(None, sum(bonus * (1.2 if has_risky(g, y) else 1.0) + bolster for y in cand) - 0.5)]
     if key == "hymn_of_valor":
         # +1 (+2 on a match) to every die the party still rolls this round
         if len(dice) < 2:
@@ -1117,7 +1127,7 @@ def instant_value(g, h, a, dice):
         seer = dice[0].get("v") is not None
         y = max(cand, key=lambda z: (has_risky(g, z) and seer, -len(unrolled(g, z))))
         bonus = C.ACTIONS["lend_a_hand"]["ops"][0].get("bonus", 0)
-        return [(f"h{y}", die_mean(g, h, dice[0]) + bonus + extra + (2 if seer and has_risky(g, y) else 0) - 0.5)]
+        return [(f"h{y}", die_mean(g, h, dice[0]) + bonus + extra + (2 if seer and has_risky(g, y) else 0) - 0.5 + bolster)]
     if key == "perfect_form":
         d = dice[0] if dice else None
         if not d or d.get("top"):

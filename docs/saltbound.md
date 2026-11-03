@@ -685,6 +685,22 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
   The gear changes, mostly the sixth die, took Hard from about 37% to 51%; the skill reworks barely
   moved the total. Hard is well above the 30–35% target: the owner's call (`SURGE`, Hard's
   multipliers, or a later second trinket slot).
+- **Vanguard and Herald level-ups replaced** (owner's request, Nov 2026: swap the least fun picks for
+  ones at the right power; 300 Hard runs, seed 5000): **Hard 48%**, every class 42–55%: Vanguard 55%,
+  Berserker 52%, Scoundrel 52%, Alchemist 49%, Arcanist 49%, Ranger 48%, Mender 47%, Duelist 45%,
+  Warden 42%, Herald 42% (was 34%).
+  - **Out** (flat numbers with no decision in them; their definitions stay so saves load): the Vanguard's
+    Iron Will, Last Stand and Spiked Plate; the Herald's Haggler and Silver Voice (map-only) and Heckler.
+  - **Vanguard in**: **Shield Throw** (any row: the die plus half your Armor, then lose that half:
+    spend defence for reach), **Rallying Shout** (two dice, cooldown 3: the party is cleansed and gains
+    half the sum as Armor; good against the bosses' Hex and Burn), **Interpose** (Guard every round, but
+    no Armor from it: an `override`). In this batch they read −17, −12 and −6 vs passed: within noise.
+  - **Herald in**: **Mocking Jest** (any row: the die +1 and Mark: a set-up for everyone's hits; +20),
+    **Rousing Chorus** (instant, cooldown 3: every ally's next die rolls higher by half the die, at least
+    2; `_inst_chorus`; −28, from about 27 runs: noise or weak, watch it), **Bolster** (Inspire, Lend a
+    Hand and Rousing Chorus also give 3 Armor; `bolster` mod; +12). **Crescendo** now takes one die
+    (cooldown 3; was two dice, −18): +5.
+  - Bots: the instant values count Bolster's Armor and the Chorus; Cleanse counts a Hex (+3).
 - **Strike and Overguard split, Mender and Duelist buffed** (owner's request, Nov 2026; 300 Hard runs,
   seed 5000): **Hard 47%**. Vanguard 60%, Scoundrel 51%, Duelist 50% (was 29%), Mender 49% (was 28%),
   Berserker 49%, Ranger 48%, Arcanist 48%, Alchemist 47%, Warden 39%, Herald 34% (Battle Hymn's trim).

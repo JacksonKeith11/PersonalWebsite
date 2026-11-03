@@ -18,6 +18,7 @@ MODS = {
     "execute_bonus": "+n against enemies below half health",
     "backstab": "+n against enemies aiming at someone else",
     "frozen_bonus": "+n against Frozen enemies",
+    "bolster": "Inspire, Lend a Hand and Rousing Chorus give each ally they help n Armor",
     "hymn_aura": "+n damage for the whole party while above half HP",
     "eagle_eye": "a die showing its top face deals half again",
     "keen_edge": "6s count as 7",

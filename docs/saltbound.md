@@ -637,7 +637,8 @@ About 80 items (`ITEMS` in `content/items.py`; 59 that drop; each has a pixel ic
 often a passive, trinkets an odd die, a passive or an action. Gear past the starting kit has a passive
 of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
 Shellbreaker Maul ignores Armor, the Oilskin Coat stops Burns, the Diver's Harness a Stun and Freeze,
-the Smuggler's Cloak makes enemies ignore you (bad on a Vanguard: the bots know), the Gutting Knife
+the Smuggler's Cloak turns the first enemy each round that would attack you onto someone else (its own
+mod, `cloak`; the Ranger's Camouflage passive is the stronger "only when there's no one else"), the Gutting Knife
 finishes the wounded, the Gull-Feather Bow punishes enemies aiming elsewhere, and so on. **Rule-benders**
 (the end of `ITEMS`): Forked Staff (a single-target spell also hits another enemy for half), Siren's
 Conch (whoever hits you is Marked), Tide Hourglass (your biggest unused die carries over), Powder
@@ -645,8 +646,25 @@ Heart (every die explodes, −6 max HP), Weighted Coin (a 1 counts as the top fa
 rerolls, a miss rerolls for 3 HP), Bosun's Whistle (combos +2), Bosun's Bell (an action: pass a die
 to an ally; key `pass_die`) and Sea-Glass Lens (your armor's die can go on attacks). Shop rows and loot
 cards compare with what you wear in that slot (the die, the change in average, the actions you'd
-lose, the passive). No common may be strictly worse than starting gear (owner's request): the Fishing
+lose, the passive). An armor's die shows its **Block average** (`blockAvg` in `hud.js`), and armor
+compares on that: a shield face is 3 Armor on Block but 0 on an attack, so shield-heavy armor is
+steadier, not stronger, unless a Vanguard's Shieldwall makes each shield worth 5. Only armor dice are
+guard dice (`GUARD_TRINKETS` is empty: Lucky Shell and Pearl Charm used to be, a hidden cost no other
+trinket had). No common may be strictly worse than starting gear (owner's request): the Fishing
 Spear (a Rapier) and Sailcloth Wrap (a worse Wool Robe) were removed; save v5 swaps them for those.
+
+**Item audit (2026-11-03).** Fixed: Tide Hammer's die became `[2..8, S]` (it was worse than the
+starting Great Axe); Drowned Idol has one 12, not two (it averaged ~17 a roll); a freeze face now
+freezes before its own hit, so Frostbite and the Frost Locket (now three freeze faces) count on it;
+Bosun's Bell's passed die rolls 2 higher; Sharkskin's thorns 1→3 (it trailed the common Barnacle
+Plate); Rum Flask heals 5 a kill and rests 15% better; Ember Charm's Burns +2; Spyglass is a seer d8;
+Captain's Medal and Leviathan Rod's texts now say what they do (above half health; Weak for the first
+round). Measured after, with the **loot picks** table (300 hard runs, seed 5000, 46% won): every item is
+within about ±10 points of the runs that passed it up at the same moment, inside the noise (±6 at
+~130 picks). The most negative were Salt-Crusted Locket −11, Boarding Axe and Cork Vest −10, Brass
+Compass −9, Flintlock and Sharkskin −8; the most positive Frost Locket +9. Tide Hourglass's runs win
+42% whether they take it or not (other legendaries' 60–65%), so where it's offered, not the item,
+sets that.
 
 **Skill texts** follow one style (owner's request: clearer): "the die" is the number it shows, "On
 5+:" is what a roll meeting the requirement does and "Otherwise:" what a lower one does, "Any row"
@@ -974,6 +992,9 @@ clock anywhere: the run changes only when someone acts.
   actions, level-up picks, gear, flags. `--saves` checks a run saved and restored at every step
   finishes identically, and that the analytics hooks don't change a run. It exits non-zero on a stuck
   run or a save mismatch.
+- The `--report`'s **Loot picks** table is the fair way to judge gear: each item's taken runs against
+  runs offered it at the same moment that took something else (`vs passed`), as for level-ups. "Gear
+  worn at the end" flatters rarer items, since runs that die early never upgrade.
 - `node tools/saltbound-fxsheet.js <out dir> [skills|foes]` plays every action's effect and a sample of
   enemy moves on a live fight (through `window.saltboundFx`, on `?bots` pages) and saves three frames
   of each, for checking the looks by eye.

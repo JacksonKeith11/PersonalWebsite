@@ -259,6 +259,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f["guard"] = {}
         f["lastdie"] = {}
         f["pincered"] = []
+        f["cloaked"] = []
         f["covered"] = []
         f["taunt"] = None
         f["sanct"] = 0
@@ -594,6 +595,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["st"]["armor"] = x["st"].get("armor", 0) + n
             self.fx("armor", to=f"h{h}", n=n)
         x["acting"] = a["key"]
+        if m.get("frozen_bonus") and isinstance(tgt, str) and tgt.startswith("f") and any(d.get("tag") == "freeze" for d in dice):
+            # a freeze face freezes before its own hit lands, so Frostbite counts on that hit too
+            fo = self.foe(int(tgt[1:]))
+            if fo and fo["hp"] > 0:
+                fo["st"]["freeze"] = 1
         self.run_ops(h, a, dice, tgt, ops=ops, hit=hit)
         x.pop("acting", None)
         if self.s["fight"] is f:

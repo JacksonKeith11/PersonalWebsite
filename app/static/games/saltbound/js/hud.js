@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=90';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=90';
-import { spriteURL, placeURL } from './art.js?v=90';
-import { itemURL } from './itemart.js?v=90';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=90';
-import { MapView } from './hexmap.js?v=90';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=90';
-import { disconnect } from './main.js?v=90';
-import * as sfx from './audio.js?v=90';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=92';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=92';
+import { spriteURL, placeURL } from './art.js?v=92';
+import { itemURL } from './itemart.js?v=92';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=92';
+import { MapView } from './hexmap.js?v=92';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=92';
+import { disconnect } from './main.js?v=92';
+import * as sfx from './audio.js?v=92';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -606,13 +606,19 @@ function itemRow(key, right, extra) {
       it.text && it.slot !== 'use' ? h('div.passive', null, it.text) : null, extra || null),
     h('div.acts', null, right));
 }
-// A die's faces as little tiles, with its kinds (Seer, Fate...) in front.
+// What a guard die gives on Block, on average: a shield face is 3 Armor there, not the 0 it is on an
+// attack, so an armor's plain average would undersell its shields (and oversell them against numbers).
+const SHIELD_ARMOR = 3;
+const blockAvg = faces => faces.reduce((a, f) => a + (f === 'S' ? SHIELD_ARMOR : f === 'X' ? 0 : f === 'W' ? topFace(faces) : face(f)[0]), 0) / faces.length;
+const isGuard = it => (it.dk || []).includes('guard');
+// A die's faces as little tiles, with its kinds (Seer, Fate...) in front, and a guard die's Block average.
 function faceRow(it) {
   const kinds = (it.dk || []).filter(k => !k.startsWith('link:') && k !== 'top');
   return h('span.faces', { tip: dieTip({ faces: it.die, dk: it.dk || [] }) },
     ...kinds.map(k => h('span.chip.brass', { style: { height: '20px' }, tip: `${k[0].toUpperCase() + k.slice(1)} die\n${KIND_TEXT[k] || ''}` }, k[0].toUpperCase() + k.slice(1))),
     ...(it.die.every((f, i) => f === i + 1) ? [h('span.face', null, 'd' + it.die.length)]
-      : it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), typeof f === 'string' ? { tip: faceTip(f) } : null, faceText(f)))));
+      : it.die.map(f => h('span.face' + (f === 'S' ? '.s' : ''), typeof f === 'string' ? { tip: faceTip(f) } : null, faceText(f)))),
+    isGuard(it) ? h('span.block-avg', { tip: `Block ${blockAvg(it.die).toFixed(1)} on average\nArmor dice go on Block, healing and other defensive actions. A shield face gives ${SHIELD_ARMOR} Armor there.` }, `Block ${blockAvg(it.die).toFixed(1)}`) : null);
 }
 // What a hero has in an item's slot now, to compare against: its die (with the change in average),
 // its actions and its passive. Null for consumables.
@@ -624,15 +630,17 @@ function compareWith(h0, key, compact) {
   const curKey = hero.equip[swapSlot(hero, it.slot)];
   if (curKey === key) return h('div.compare.same', null, h('span.cmp-lbl', null, 'Now'), 'You already wear one of these.');
   const cur = item(curKey);
-  const avg = x => (x.die ? expected({ faces: x.die, dk: x.dk || [] }) : 0);
+  // armor compares what it gives on Block; other gear the die's average roll
+  const guard = isGuard(it) && isGuard(cur);
+  const avg = x => (!x.die ? 0 : guard ? blockAvg(x.die) : expected({ faces: x.die, dk: x.dk || [] }));
   const diff = avg(it) - avg(cur);
   const acts = (cur.acts || []).map(a => S.static.actions[a].name);
   const lost = (cur.acts || []).filter(a => !(it.acts || []).includes(a)).map(a => S.static.actions[a].name);
   return h('div.compare', null,
     h('span.cmp-lbl', null, 'Now'),
     h('b.rar-' + cur.rarity, null, cur.name), cur.die ? faceRow(cur) : null,
-    it.die && cur.die ? h('span.cmp-diff' + (diff > 0.05 ? '.up' : diff < -0.05 ? '.down' : ''), { tip: 'Change in the die’s average roll' },
-      diff > 0.05 ? `▲ +${diff.toFixed(1)} avg` : diff < -0.05 ? `▼ ${diff.toFixed(1)} avg` : '= same avg') : null,
+    it.die && cur.die ? h('span.cmp-diff' + (diff > 0.05 ? '.up' : diff < -0.05 ? '.down' : ''), { tip: guard ? 'Change in the die’s average on Block' : 'Change in the die’s average roll' },
+      diff > 0.05 ? `▲ +${diff.toFixed(1)} ${guard ? 'Block' : 'avg'}` : diff < -0.05 ? `▼ ${diff.toFixed(1)} ${guard ? 'Block' : 'avg'}` : `= same ${guard ? 'Block' : 'avg'}`) : null,
     !compact && acts.length ? h('span.cmp-acts', null, `Actions: ${acts.join(', ')}${lost.length ? ` (you'd lose ${lost.join(', ')})` : ''}`) : null,
     compact && lost.length ? h('span.cmp-acts', null, `You'd lose ${lost.join(', ')}`) : null,
     !compact && cur.text ? h('span.cmp-pass', null, cur.text) : null);

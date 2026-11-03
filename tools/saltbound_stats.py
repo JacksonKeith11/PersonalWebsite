@@ -261,6 +261,11 @@ def record_choice(stats, g, h, dialog, n, run):
             stats.add("loot", o, "offered")
         if 0 <= n < len(dialog["opts"]):
             stats.add("loot", dialog["opts"][n], "taken")
+            # gear taken, and gear turned down at the same moment: the fair comparison, as for level-ups
+            gear = lambda k: I.ITEMS[k]["slot"] != "use"
+            if gear(dialog["opts"][n]):
+                run.setdefault("loot", []).append(dialog["opts"][n])
+            run.setdefault("loot_passed", []).extend(o for i, o in enumerate(dialog["opts"]) if i != n and gear(o))
     elif dialog["type"] == "event":
         stats.add("events", f"{dialog['key']}:{n}", "n")
 
@@ -289,6 +294,12 @@ def record_run(stats, g, res, run):
     for p in run.get("passed", []):
         stats.add("picks", p, "passed")
         stats.add("picks", p, "pwon", won)
+    for k in run.get("loot", []):
+        stats.add("lootpick", k, "taken")
+        stats.add("lootpick", k, "won", won)
+    for k in run.get("loot_passed", []):
+        stats.add("lootpick", k, "passed")
+        stats.add("lootpick", k, "pwon", won)
     if res == "lost":
         stats.add("runs", "lost at turn", str(10 * (s["turn"] // 10)) + "s")
         stats.add("runs", "lost with regions cleared", str(len(s["cleared"])))
@@ -441,6 +452,25 @@ def report(stats, top=12):
            "win rate, which flatters late picks; vs passed: points above runs offered it at the same moment that took "
            "something else, the fair comparison)",
            ["pick", "offered", "taken", "won", "vs class", "vs passed"], rows, out)
+
+    # loot picks: each piece of gear taken, against the runs offered it that took something else
+    lp, offered = t.get("lootpick", {}), t.get("loot", {})
+    rows = []
+    rank = {r: i for i, r in enumerate(I.RARITIES)}
+    for k, d in sorted(lp.items(), key=lambda kv: (rank[I.ITEMS[kv[0]]["rarity"]], kv[0])):
+        tk, ps = d.get("taken", 0), d.get("passed", 0)
+        if tk + ps < 6:
+            continue
+        wr = d.get("won", 0) / tk if tk else None
+        pr = d.get("pwon", 0) / ps if ps else None
+        rows.append([I.ITEMS[k]["name"], I.ITEMS[k]["rarity"], offered.get(k, {}).get("offered", 0), tk,
+                     _pct(d.get("won", 0), tk) if tk else "", _pct(d.get("pwon", 0), ps) if ps else "",
+                     f"{100 * (wr - pr):+.0f}" if wr is not None and pr is not None else ""])
+        if wr is not None and pr is not None and tk >= 15 and ps >= 15 and abs(wr - pr) > 0.12:
+            flags.append(f"Runs that took {I.ITEMS[k]['name']} won {100 * wr:.0f}%, against {100 * pr:.0f}% for runs that passed it up.")
+    _table("Loot picks (taken: times a bot took it; won: runs that took it; passed won: runs offered it at the same moment "
+           "that took something else; vs passed: the difference in points, the fair comparison)",
+           ["item", "rarity", "offered", "taken", "won", "passed won", "vs passed"], rows, out)
 
     # gear and consumables
     gear = [(k, d) for k, d in t.get("gear", {}).items() if d["runs"] >= 4]

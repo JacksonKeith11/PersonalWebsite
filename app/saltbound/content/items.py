@@ -40,7 +40,7 @@ WEAPON_ACTIONS = {
     "venom_stab": {"name": "Venom Stab", "req": {"n": 1}, "tgt": "foe", "melee": True,
                    "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "poison", "n": 2}], "text": "Deal half the die and Poison the enemy for 2."},
     "pass_die": {"name": "Pass a Die", "req": {"n": 1}, "tgt": "other", "instant": True,
-             "ops": [{"op": "give"}], "text": "Give one of your dice to an ally to use this round."},
+             "ops": [{"op": "give", "bonus": 2}], "text": "Give one of your dice to an ally to use this round; it rolls 2 higher."},
     "blessing": {"name": "Blessing", "req": {"n": 1}, "tgt": "ally",
                  "ops": [{"op": "heal", "amt": "v"}, {"op": "armor", "amt": "2"}], "text": "Heal an ally by the die and give them 2 Armor."},
 }
@@ -72,7 +72,7 @@ ITEMS = {
     "rusty_harpoon": {"name": "Rusty Harpoon", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["harpoon"]},
     "flintlock": {"name": "Flintlock", "slot": "weapon", "rarity": "common", "die": [1, 2, 3, 4, 5, 6, 6, 8], "acts": ["shoot"]},
     "coral_blade": {"name": "Coral Blade", "slot": "weapon", "rarity": "uncommon", "die": D(8), "dk": ["steady"], "acts": ["slash"]},
-    "tide_hammer": {"name": "Tide Hammer", "slot": "weapon", "rarity": "uncommon", "die": [2, 3, 4, 5, 6, "S"],
+    "tide_hammer": {"name": "Tide Hammer", "slot": "weapon", "rarity": "uncommon", "die": [2, 3, 4, 5, 6, 7, 8, "S"],
                     "acts": ["crush"]},
     "kelp_wand": {"name": "Kelp Wand", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, "P3", 4, 5, "P6", 7, 8], "acts": ["zap", "venom_stab"]},
     "chaplain_censer": {"name": "Chaplain's Censer", "slot": "weapon", "rarity": "uncommon", "die": D(8), "dk": ["augur"],
@@ -90,7 +90,7 @@ ITEMS = {
     # ---- armor
     "cork_vest": {"name": "Cork Vest", "slot": "armor", "rarity": "common", "die": [2, 2, 3, 3, 4, 4], "mods": {"max_hp": 4}},
     "sharkskin": {"name": "Sharkskin", "slot": "armor", "rarity": "uncommon", "die": [2, 3, 4, 5, "S", "S"], "dk": ["steady"],
-                  "mods": {"thorns": 1}},
+                  "mods": {"thorns": 3}},
     "coral_mail": {"name": "Coral Mail", "slot": "armor", "rarity": "uncommon", "die": [1, 2, "S", "S", "S", 6],
                    "mods": {"max_hp": 4}},
     "pilgrim_shawl": {"name": "Pilgrim's Shawl", "slot": "armor", "rarity": "uncommon", "die": D(6), "dk": ["augur"],
@@ -109,11 +109,11 @@ ITEMS = {
     "pearl_charm": {"name": "Pearl Charm", "slot": "trinket", "rarity": "uncommon", "die": D(6), "dk": ["steady"], "mods": {"regen": 1}},
     "black_pearl": {"name": "Black Pearl", "slot": "trinket", "rarity": "rare", "die": [1, 6, 6, 6], "dk": ["seer"]},
     "storm_glass": {"name": "Storm Glass", "slot": "trinket", "rarity": "rare", "die": D(8), "dk": ["fate"], "mods": {"reroll": 1, "might": 1}},
-    "drowned_idol": {"name": "Drowned Idol", "slot": "trinket", "rarity": "legendary", "die": [1, "W", 12, 12], "dk": ["exploding"],
+    "drowned_idol": {"name": "Drowned Idol", "slot": "trinket", "rarity": "legendary", "die": [1, "W", 6, 12], "dk": ["exploding"],
                      "mods": {"might": 2}},
 
     "gamblers_bones": {"name": "Gambler's Bones", "slot": "trinket", "rarity": "rare", "die": ["X", "X", 8, 10, 12, 12]},
-    "frost_locket": {"name": "Frost Locket", "slot": "trinket", "rarity": "uncommon", "die": [1, "I2", 3, "I4", 5, 6]},
+    "frost_locket": {"name": "Frost Locket", "slot": "trinket", "rarity": "uncommon", "die": [1, "I2", 3, "I4", 5, "I6"]},
 
     # ---- rule-benders: gear that changes how you play rather than adding numbers
     "forked_staff": {"name": "Forked Staff", "slot": "weapon", "rarity": "rare", "die": D(8), "acts": ["zap"]},
@@ -144,7 +144,7 @@ ITEMS = {
     "gull_bone": {"name": "Gull-Bone Charm", "slot": "trinket", "rarity": "common", "die": [1, 2, 2, 3]},
     "salt_locket": {"name": "Salt-Crusted Locket", "slot": "trinket", "rarity": "common", "die": D(4)},
     "rum_flask": {"name": "Rum Flask", "slot": "trinket", "rarity": "uncommon", "die": D(6)},
-    "spyglass": {"name": "Spyglass", "slot": "trinket", "rarity": "uncommon", "die": D(6), "dk": ["seer"]},
+    "spyglass": {"name": "Spyglass", "slot": "trinket", "rarity": "uncommon", "die": D(8), "dk": ["seer"]},
     "ember_charm": {"name": "Ember Charm", "slot": "trinket", "rarity": "uncommon", "die": [1, 2, "F3", 4, "F5", "F6"]},
     "captains_medal": {"name": "Captain's Medal", "slot": "trinket", "rarity": "rare", "die": D(8)},
     "anchor_pendant": {"name": "Anchor Pendant", "slot": "trinket", "rarity": "rare", "die": [4, 4, 5, 5, 6, 6], "dk": ["steady"]},
@@ -174,7 +174,7 @@ PASSIVES = {
     "ember_blade": ({"burn_bonus_hit": 2}, "Kindle: +2 damage against Burning enemies."),
     "captains_sabre": ({"kill_armor": 4}, "Boarding party: each kill gives you 4 Armor."),
     "storm_staff": ({"frozen_bonus": 3}, "Frostbite: Frozen enemies take +3 from you."),
-    "leviathan_rod": ({"open_weak": 1}, "Tidecaller: every enemy starts the fight Weak."),
+    "leviathan_rod": ({"open_weak": 1}, "Tidecaller: every enemy is Weak for the fight's first round."),
     "crownbreaker": ({"pierce_all": 1}, "Shatter: your hits ignore Armor."),
     "abyssal_tome": ({"echo_any": 1}, "Echo of the deep: your first action each fight happens twice, the second at half strength."),
     # armor
@@ -211,24 +211,24 @@ PASSIVES = {
     "barnacle_plate": ({"thorns": 2}, "Barnacled: enemies that hit you take 2."),
     "divers_harness": ({"stun_ward": 1, "freeze_immune": 1}, "Steady breath: ignore the first Stun each fight, and your dice can't be Frozen."),
     "kelpweave_robe": ({"regen": 2}, "Living weave: heal 2 each round in fights."),
-    "smugglers_cloak": ({"camouflage": 1}, "Unseen: enemies attack you only when there's no one else to attack."),
+    "smugglers_cloak": ({"cloak": 1}, "Unseen: each round, the first enemy that would attack you picks someone else (if there's anyone)."),
     "gilded_cuirass": ({"start_armor": 5, "max_hp": 4}, "Gleaming: start each fight with 5 Armor. +4 max HP."),
     "tarnished_ring": ({"might": 1}, "Old weight: +1 damage on every hit."),
     "gull_bone": ({"heckler": 3}, "Bad omen: each enemy's first attack each fight deals 3 less."),
     "salt_locket": ({"weak_immune": 1, "max_hp": 3}, "Salted: you can't be made Weak. +3 max HP."),
-    "rum_flask": ({"kill_heal": 3, "rest_bonus": 0.1}, "A swig: heal 3 per kill, and resting heals an extra 10% of your max HP."),
+    "rum_flask": ({"kill_heal": 5, "rest_bonus": 0.15}, "A swig: heal 5 per kill, and resting heals an extra 15% of your max HP."),
     "spyglass": ({"wayfinder": 1}, "Far sight: see further along your path on the map; its die shows while you plan."),
-    "ember_charm": ({"burn_bonus": 1}, "Banked coals: your Burns are 1 stronger."),
-    "captains_medal": ({"hymn_aura": 1}, "Rally the crew: while you're standing, the whole party deals +1 damage."),
+    "ember_charm": ({"burn_bonus": 2}, "Banked coals: your Burns are 2 stronger."),
+    "captains_medal": ({"hymn_aura": 1}, "Rally the crew: while you're above half health, the whole party deals +1 damage."),
     "anchor_pendant": ({"first_hit_soak": 2}, "Anchored: the first hit on you each round deals 2 less."),
 }
 for _k, (_m, _t) in PASSIVES.items():
     ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}
     ITEMS[_k]["text"] = (ITEMS[_k].get("text", "") + " " + _t).strip()
 
-# Guard dice: every armor's die, and a few charms', only go on defensive actions (Block, Armor,
+# Guard dice: every armor's die (and any charm named in GUARD_TRINKETS) only goes on defensive actions (Block, Armor,
 # healing, Dodge...), so armor protects instead of adding another attack die.
-GUARD_TRINKETS = ("lucky_shell", "pearl_charm")
+GUARD_TRINKETS = ()
 for _k, _v in ITEMS.items():
     if _v["slot"] == "armor" or _k in GUARD_TRINKETS:
         _v["dk"] = ["guard"] + list(_v.get("dk", []))

@@ -278,11 +278,20 @@ class Foes:
         units = seen or units
         kind = it.get("tgt_kind", "random")
         hp = lambda u: self.hero(int(u[1:]))["hp"] if u.startswith("h") else self.ally(int(u[1:]))["hp"]
-        if kind == "weakest":
-            return min(units, key=hp)
-        if kind == "strongest":
-            return max(units, key=hp)
-        return self.rng.choice(units)
+
+        def pick(units):
+            if kind == "weakest":
+                return min(units, key=hp)
+            if kind == "strongest":
+                return max(units, key=hp)
+            return self.rng.choice(units)
+        u = pick(units)
+        # the Smuggler's Cloak: the first enemy each round that would attack its wearer looks elsewhere
+        cloaked = f.setdefault("cloaked", [])
+        if u.startswith("h") and self.mods(int(u[1:])).get("cloak") and u not in cloaked and len(units) > 1:
+            cloaked.append(u)
+            u = pick([v for v in units if v != u])
+        return u
 
     def foe_targets(self, it, n):
         units = self.party_units()

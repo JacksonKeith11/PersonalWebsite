@@ -98,6 +98,7 @@ MODS = {
     "unbreakable": "once per fight, survive a lethal hit at 1 HP",
     "undying": "when knocked down, hit back for n",
     "camouflage": "enemies attack the hero only when there's nobody else",
+    "cloak": "each round, the first enemy that would attack the hero picks someone else",
     "regen": "heal n each round in fights",
     "heal_bonus": "+n on heals",
     "heal_armor": "heals also give n Armor",

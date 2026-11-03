@@ -461,7 +461,7 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block, Flee and weapon
   actions except Sweep and Tidal). Everything else has 2; the biggest skills 3. Lift is once per rest
   (`per_rest`, the hero's `spent` list).
-- **Guard dice** (owner's choice): every armor's die and two charms' carry `guard` and only go on
+- **Guard dice** (owner's choice): every armor's die carries `guard` and only goes on
   defensive actions (`is_defensive`, sent as each action's `def`). Every hero has Block, so a guard die
   is never wasted.
 - **Instant actions** (`"instant": True`) change dice instead of rolling for an effect: Perfect Form

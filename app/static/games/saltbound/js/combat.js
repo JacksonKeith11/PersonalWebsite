@@ -1,14 +1,14 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=84';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=84';
-import { spriteURL } from './art.js?v=84';
-import { stageURL, stageKey } from './stage.js?v=84';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=84';
-import { render } from './main.js?v=84';
-import { skillCard } from './hud.js?v=84';
-import * as sfx from './audio.js?v=84';
+import { S, send, mine, controllerName } from './store.js?v=88';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=88';
+import { spriteURL } from './art.js?v=88';
+import { stageURL, stageKey } from './stage.js?v=88';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=88';
+import { render } from './main.js?v=88';
+import { skillCard } from './hud.js?v=88';
+import * as sfx from './audio.js?v=88';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -164,9 +164,12 @@ export function renderCombat(el) {
   const done = f.done || [];
   const combos = S.static.combos || {};
   const comboTip = 'Combos: what two heroes do together\n' + Object.values(combos).map(c => `${c.name}: ${c.text}`).join('\n');
-  const plan = h('div.planstrip', null, h('span.eyebrow', null, 'This round'),
+  const live0 = S.game.fight;
+  // while a round plays back, only once it's this round's (an older one would sit over the new enemy turn)
+  const recap = !C.playing || (live0 && live0.id === f.id && live0.round === f.round) ? recapChips(f, done.length > 0) : [];
+  const plan = h('div.planstrip', null, ...recap, h('span.eyebrow', null, 'This round'),
     h('span.chip.brass.combo-help', { tip: comboTip }, icon('spark'), 'Combos'),
-    done.length ? stripChips(done, f) : h('span.muted', { style: { fontSize: '14px' } }, 'Actions happen the moment they’re played, in the order the party plays them. Enemies act once everyone is ready.'));
+    done.length ? stripChips(done, f) : recap.length ? null : h('span.muted', { style: { fontSize: '14px' } }, 'Actions happen the moment they’re played, in the order the party plays them. Enemies act once everyone is ready.'));
 
   let bottom, giveBelow = false;
   const spiritMine = mine().filter(x => f.spirit?.[x] && !f.spirit[x].used);
@@ -555,6 +558,65 @@ function doneChip(p, i, f) {
     h('span.muted', null, `${i + 1}.`), h('span.who', null, mine().includes(p.h) ? g.heroes[p.h].name : controllerName(p.h)), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
     ...nums, h('span', { style: { width: '6px' } }));
 }
+// What the enemies' last turn did (`f.last`, recorded by the server): a chip per enemy action, with
+// what it did to each hero or summon; once the party has played this round, one folded chip.
+function recapChips(f, folded) {
+  const turn = (f.last || []).filter(e => e.f != null || e.ev.length);
+  if (!turn.length) return [];
+  const g = S.game;
+  const nameOf = u => u.startsWith('h') ? g.heroes[+u.slice(1)].name
+    : u.startsWith('s') ? (f.allies || []).find(a => 's' + a.id === u)?.name || 'Summon'
+    : f.foes.find(fo => 'f' + fo.id === u)?.name || 'Enemy';
+  const stName = k => STATUS[k]?.name || k[0].toUpperCase() + k.slice(1);
+  const party = u => u.startsWith('h') || u.startsWith('s');
+  const rows = turn.map(e => {
+    const per = new Map();
+    for (const ev of e.ev) {
+      if (!ev.to || (e.f != null && !party(ev.to) && ev.to !== 'f' + e.f)) continue;
+      if (!per.has(ev.to)) per.set(ev.to, { dmg: 0, block: 0, heal: 0, armor: 0, down: false, st: [] });
+      const o = per.get(ev.to);
+      if (ev.k === 'dmg') { o.dmg += ev.n || 0; o.block += ev.block || 0; }
+      else if (ev.k === 'heal') o.heal += ev.n || 0;
+      else if (ev.k === 'armor') o.armor += ev.n || 0;
+      else if (ev.k === 'down' || ev.k === 'die') o.down = true;
+      else if (ev.k === 'st' && ev.s) o.st.push(ev.s);
+    }
+    const hits = [...per].filter(([u, o]) => party(u) && (o.dmg || o.block || o.down || o.st.length));
+    const self = e.f != null ? per.get('f' + e.f) : null;
+    const words = (u, o) => {
+      const p = [];
+      if (o.dmg || o.block) p.push(`${o.dmg} damage${o.block ? ` (${o.block} blocked)` : ''}`);
+      if (o.heal) p.push(`healed ${o.heal}`);
+      if (o.armor) p.push(`${o.armor} Armor`);
+      if (o.st.length) p.push(o.st.map(stName).join(', '));
+      if (o.down) p.push(u.startsWith('h') ? 'knocked down' : u.startsWith('s') ? 'destroyed' : 'dies');
+      return `${nameOf(u)}: ${p.join(', ') || 'nothing'}`;
+    };
+    const lines = [...per].filter(([u]) => e.f == null || party(u) || u === 'f' + e.f).map(([u, o]) => words(u, o));
+    return { e, hits, self, tip: `${e.who}${e.a ? ': ' + e.a : ''}\n${lines.join('\n') || 'No visible effect.'}` };
+  });
+  const head = h('span.eyebrow', { tip: 'What the enemies did on their last turn' }, 'Enemy turn');
+  if (folded) {
+    const dmg = rows.reduce((a, r) => a + r.hits.reduce((b, [, o]) => b + o.dmg, 0), 0);
+    const downs = rows.reduce((a, r) => a + r.hits.filter(([u, o]) => o.down && u.startsWith('h')).length, 0);
+    return [head, h('span.plan-chip.folded.foe-chip', { tip: rows.map(r => r.tip).join('\n\n') },
+      h('span.muted', null, `${rows.length} action${rows.length === 1 ? '' : 's'}`),
+      dmg ? h('span.o-dmg', null, icon('sword'), dmg) : null,
+      downs ? h('span.o-kill', null, icon('skull'), downs > 1 ? `×${downs}` : '') : null,
+      h('span', { style: { width: '6px' } })), h('span.strip-gap')];
+  }
+  return [head, ...rows.map(({ e, hits, self, tip }) => h('span.plan-chip.foe-chip', { tip },
+    h('span.who', null, e.who), e.a ? h('b', null, e.a) : null,
+    ...hits.flatMap(([u, o]) => [
+      h('span.muted', null, '→ ' + nameOf(u)),
+      o.dmg || !o.block ? h('span.o-dmg', null, icon('sword'), o.dmg) : null,
+      o.block ? h('span.o-armor', { }, icon('shield'), o.block) : null,
+      o.down ? h('span.o-kill', null, icon('skull')) : null]),
+    !hits.length && self?.armor ? h('span.o-armor', null, icon('shield'), self.armor) : null,
+    !hits.length && self?.heal ? h('span.o-heal', null, icon('plus'), self.heal) : null,
+    h('span', { style: { width: '6px' } }))), h('span.strip-gap')];
+}
+
 // The round strip: the last three plays in full; each hero's earlier ones folded into one chip with
 // their totals (hover for the list), so the newest never scroll out of sight.
 function stripChips(done, f) {

@@ -153,6 +153,9 @@ class Game(Combat):
         self.s["fxid"] += 1
         self.s["fx"].append({"id": self.s["fxid"], "k": kind_, **kw})
         del self.s["fx"][:-FX_KEEP]
+        f = self.s.get("fight")
+        if f and f.get("rec"):
+            self.recap(f, kind_, kw)
 
     def diff(self):
         return DIFFICULTY[self.s["diff"]]

@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=84';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=84';
-import { spriteURL, placeURL } from './art.js?v=84';
-import { itemURL } from './itemart.js?v=84';
-import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=84';
-import { MapView } from './hexmap.js?v=84';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=84';
-import { disconnect } from './main.js?v=84';
-import * as sfx from './audio.js?v=84';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=88';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=88';
+import { spriteURL, placeURL } from './art.js?v=88';
+import { itemURL } from './itemart.js?v=88';
+import { reach, routeTo, terrain, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected } from './rules.js?v=88';
+import { MapView } from './hexmap.js?v=88';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat } from './combat.js?v=88';
+import { disconnect } from './main.js?v=88';
+import * as sfx from './audio.js?v=88';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -213,11 +213,60 @@ function renderTopbar() {
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
         icon('feather'), h('b', null, g.revives)),
-      h('div.stat', { tip: `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}` },
-        icon('flag'), h('span.pips', null, ...[0, 1, 2].map(i => h('i' + (i < g.cleared.length ? '.on' : '')))))),
+      goalStat(g, `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}`)),
     h('div.right', null,
       h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; saved.logOpen = UI.log; persist(); renderLog(); } }, icon('list')),
       h('button.btn.icon.ghost', { 'aria-label': 'Menu', tip: 'Menu', onclick: () => { UI.menu = !UI.menu; UI.menuFresh = true; renderMenu(); } }, icon('menu')))));
+}
+
+// The run's goal in the top bar: the nearest objective not yet cleared (the Drowned Peak once all
+// three are), by name; clicking it finds it on the map, and clicking again moves on to the next one.
+// An objective not found yet points at the middle of its region instead.
+let midOf = null;
+function regionMiddle(r) {
+  if (midOf?.world !== S.world) midOf = { world: S.world };
+  if (!(r in midOf)) {
+    const ts = [];
+    S.world.reg.forEach((x, t) => { if (x === r) ts.push(t); });
+    let best = ts[0], bestSum = Infinity;
+    for (const t of ts) {
+      let sum = 0;
+      for (let i = 0; i < ts.length; i += 3) sum += hexDist(t, ts[i]);
+      if (sum < bestSum) { bestSum = sum; best = t; }
+    }
+    midOf[r] = best;
+  }
+  return midOf[r];
+}
+function goalTargets(g) {
+  const from = g.heroes[sel()]?.tile ?? g.heroes[0].tile;
+  const all = Object.entries(g.places).map(([t, p]) => [+t, p]);
+  const left = ['coral', 'keys', 'storm'].filter(r => !g.cleared.includes(r)).map(r => {
+    const at = all.find(([, p]) => p.kind === 'dungeon' && p.region === r);
+    return { t: at ? at[0] : regionMiddle(r), name: S.static.dungeons[r], found: !!at, where: S.static.regions[r] };
+  }).filter(x => x.t != null);
+  if (!left.length) {
+    const peak = all.find(([, p]) => p.kind === 'peak');
+    left.push({ t: peak ? peak[0] : S.world.peak, name: 'The Drowned Peak', found: true });
+  }
+  return left.map(x => ({ ...x, far: hexDist(from, x.t) })).sort((a, b) => b.found - a.found || a.far - b.far);
+}
+function goalStat(g, tip) {
+  const goals = goalTargets(g);
+  const first = goals[0];
+  const pips = h('span.pips', null, ...[0, 1, 2].map(i => h('i' + (i < g.cleared.length ? '.on' : ''))));
+  if (!first) return h('div.stat', { tip }, icon('flag'), pips);
+  const next = goals.length > 1 ? `\nClick again for ${goals.slice(1).map(x => x.name).join(', then ')}.` : '';
+  return h('button.stat.goal', {
+    tip: `${tip}\n\nNext: ${first.name}, ${first.found ? `${first.far} hex${first.far === 1 ? '' : 'es'} from ${g.heroes[sel()]?.name ?? 'you'}.\nClick to find it on the map.` : `not found yet: it's somewhere in ${first.where}.\nClick to look that way.`}${next}`,
+    onclick: () => {
+      // clicking again moves on to the next one, until the turn or the selected hero changes
+      const key = `${g.turn}:${sel()}`;
+      UI.goalAt = UI.goalKey === key ? (UI.goalAt + 1) % goals.length : 0;
+      UI.goalKey = key;
+      map?.centerOn(goals[UI.goalAt].t);
+    },
+  }, icon('flag'), pips, h('span.lbl', null, 'Next'), h('b', null, first.name));
 }
 
 // ------------------------------------------------------------------ party cards

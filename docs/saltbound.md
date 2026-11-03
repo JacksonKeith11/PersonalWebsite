@@ -215,7 +215,7 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      "This turn" bottom left (collapsible), the log closed until opened (each remembers how you left
      it), first-time hints bottom right; towns are labelled and heroes sharing a hex fan out; the terrain
      (`paintTerrain`) blends where kinds of land meet, shades drops in height, runs dirt roads between
-     towns (each to its nearest by land) and has glints moving on the sea (`placeWaves`); top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
+     towns (each to its nearest by land) and has glints moving on the sea (`placeWaves`); top bar with turn, tide, the rising tide's enemy strength and the next objective by name (the nearest not cleared, found ones first, then the Drowned Peak; an objective not found yet points at the middle of its region; clicking finds it on the map, clicking again moves on to the next); other heroes' planned paths as ghost
      trails, like Board Brawl's route previews.
   5. **Combat overlay**: full screen, over a painted backdrop of where the fight is (`js/stage.js`:
      each region's open ground, each dungeon's interior, the Crown's peak; painted in code at 400×150
@@ -229,7 +229,10 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      lunge and slash, an arrow, a spell orb and burst, a thrown bomb, a green glow on whoever is
      healed, a blue shimmer for Armor); and the "This round" strip lists each action with who did
      it, the damage, healing, Armor and kills it caused (`done[i].out`, from `Game.act_outcome`),
-     with the roll and the details on hover. Hovering an ally's portrait lists their actions, and
+     with the roll and the details on hover. Before it, "Enemy turn" recaps what the enemies did on
+     their last turn (`f["last"]`, recorded on the server by `Combat.recap` from the effects the enemy
+     turn and the round's end give off): a chip per enemy action, with the damage, blocks and
+     knock-downs it dealt to each hero or summon, folding into one chip once the party has played. Hovering an ally's portrait lists their actions, and
      clicking one (when not aiming) opens their full sheet over the stage: every action with its
      cooldown, their passives and this round's dice (`allyPanel`); clicking your own other hero
      switches your tray to them. The big skills have signature effects (`SIGNATURE` in `combat.js`:

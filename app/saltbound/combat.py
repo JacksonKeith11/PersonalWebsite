@@ -255,6 +255,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f = self.s["fight"]
         f["round"] += 1
         f["done"] = []
+        f["rec"] = None
         f["guard"] = {}
         f["lastdie"] = {}
         f["pincered"] = []
@@ -686,13 +687,37 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         # Block, a Guard or a shield face gives them protects them through the heroes' next round.
         for fo in self.foes():
             fo["st"].pop("armor", None)
+        f = self.s["fight"]
+        f["last"], f["rec"] = [], "foes"
         for fo in sorted(self.foes(), key=lambda fo: -A.FOES[fo["k"]]["speed"]):
             if fo["hp"] <= 0:
                 continue
             self.foe_act(fo)
             if self.check_end():
                 return
+        f["rec"] = "end"
         self.end_round()
+
+    # What the enemies' turn did, kept for the next round's recap (`f["last"]`): one entry per enemy
+    # action, holding what it did to whom, and one for the round's end (Undertow, Burn, Doom).
+    RECAP = {"dmg", "heal", "armor", "down", "die", "st", "summon", "revive"}
+
+    def recap(self, f, k, kw):
+        last = f.setdefault("last", [])
+        cur = last[-1] if last else None
+        if f["rec"] == "foes" and (k in ("froll", "fact") or (k == "st" and kw.get("s") == "stunned" and kw["to"].startswith("f"))):
+            fid = kw.get("f", None) if k != "st" else int(kw["to"][1:])
+            if not cur or cur.get("f") != fid or k == "st":
+                fo = next((o for o in f["foes"] if o["id"] == fid), None)
+                cur = {"f": fid, "who": fo["name"] if fo else "?", "ik": kw.get("ik"),
+                       "a": "Stunned" if k == "st" else kw.get("name") or ((fo or {}).get("intent") or {}).get("name"), "ev": []}
+                last.append(cur)
+            return
+        if f["rec"] == "end" and (not cur or cur.get("f") is not None):
+            cur = {"f": None, "who": "Round end", "a": None, "ev": []}
+            last.append(cur)
+        if cur is not None and k in self.RECAP:
+            cur["ev"].append({x: kw[x] for x in ("to", "n", "block", "s") if kw.get(x) not in (None, 0)} | {"k": k})
 
     def lift(self, h, n):
         x = self.hs(h)
@@ -1149,6 +1174,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         out["pincered"] = f.get("pincered", [])
         out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)
+        out["last"] = f.get("last", [])
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]],
                              rollmods={m: v for m, v in self.mods(int(k)).items() if m in ROLL_MODS and v})
                      for k, x in f["hs"].items()}

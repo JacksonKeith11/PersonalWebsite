@@ -575,6 +575,15 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 
 ### Enemies
 
+- **Enemy crits** (owner's request, to answer the heroes' crits): an attack or party-wide move whose
+  die lands on its top face (or explodes past it) crits, with its kind's effect (`FOE_CRIT` in
+  `foes.py`, written onto `A.FOES` as `crit` and `crit_text`): half again (`half`: the default, for
+  the heavy hitters and bosses), the target's Armor breaking before the hit (`crack`: Crab, Brine
+  Golem, Crag Ram, Iron Bosun, Tide Guard), or a status on whoever it hits (Poison 2 for the
+  Deckhand, Cutthroat; Weak for the Jellyfloat, Barnacle Priest, Harpy; Mark for the Siren, Lamp
+  Keeper; Burn 2 for the powder; Hex, Root, Shock). The roll tray rings the die and says "Crit!", the
+  intent's tooltip says what its crit does, and the bots expect it (`foe_hits`: the chance times half
+  again, or ~2 for a rider). Debuffs, blocks and heals never crit.
 - **Dice and moves** (`foes.py`; the roster is `FOES` in `content/archipelago.py`). Each enemy has a
   pool of `dice` (the heroes' face and kind vocabulary) and `moves`; each round it picks one (`w`
   weights, or a boss's `seq`), which rolls the dice it names (`use` indices or the first `n`) and adds

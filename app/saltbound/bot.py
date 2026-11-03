@@ -569,6 +569,16 @@ def foe_hits(g, b, fo):
         v //= 2
     if fo["st"].get("weak"):
         v = int(v * 0.75)
+    if k in ("attack", "all") and it.get("dice"):
+        # the chance one of its dice lands on its top face and crits (half again, or a rider worth ~2)
+        miss_all = 1.0
+        for d in it["dice"]:
+            if d.get("faces") and d.get("v") is None:
+                miss_all *= 1 - 1 / len(d["faces"])
+            elif d.get("faces") and d["v"] >= max(x for x in d["faces"] if isinstance(x, int)):
+                miss_all = 0.0
+        p = 1 - miss_all
+        v += v * 0.5 * p if A.FOES[fo["k"]]["crit"][0] == "half" else 2 * p
     v = (0 if k == "debuff" else v) + (2 if it.get("st") else 0) + (4 if k == "debuff" else 0)
     units = g.party_units()
     if k == "all":

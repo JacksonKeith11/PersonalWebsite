@@ -1,13 +1,13 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=77';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=77';
-import { spriteURL } from './art.js?v=77';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=77';
-import { render } from './main.js?v=77';
-import { skillCard } from './hud.js?v=77';
-import * as sfx from './audio.js?v=77';
+import { S, send, mine, controllerName } from './store.js?v=78';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=78';
+import { spriteURL } from './art.js?v=78';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=78';
+import { render } from './main.js?v=78';
+import { skillCard } from './hud.js?v=78';
+import * as sfx from './audio.js?v=78';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };

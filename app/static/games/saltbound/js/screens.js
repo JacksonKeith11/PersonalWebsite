@@ -1,11 +1,11 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=77';
-import { $, h, icon, toast } from './ui.js?v=77';
-import { spriteURL } from './art.js?v=77';
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=77';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=77';
-import { connect, disconnect, debug } from './main.js?v=77';
+import { S, saved, persist, send } from './store.js?v=78';
+import { $, h, icon, toast } from './ui.js?v=78';
+import { spriteURL } from './art.js?v=78';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=78';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=78';
+import { connect, disconnect, debug } from './main.js?v=78';
 
 const app = () => $('app');
 
@@ -240,7 +240,7 @@ function classDetails(k) {
         ...(weapon?.acts || []).map(a => skillCard(a, `${weapon.name}`)))),
     h('div.sec', { tip: `${c.map.name}\n${c.map.text}` }, h('div.sec-title', null, 'On the map'),
       h('p.map-ab', null, h('b', null, c.map.name + ': '), c.map.text)),
-    h('p.muted.small', null, 'Every hero can also Block, Shift and Flee. More skills come at each level.'),
+    h('p.muted.small', null, 'Every hero can also Block and Flee. More skills come at each level.'),
   ];
 }
 

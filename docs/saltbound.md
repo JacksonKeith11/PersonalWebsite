@@ -814,6 +814,12 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
+**Latest (Nov 2026, after the sea, battlegrounds, raids, lookouts and grottos; 300 Hard runs, seed
+5000): 46.0%** (48% before, within noise), classes 40-52% (Herald 52, Mender 40). Runs are longer
+(73 turns on average, from 59) with more roaming fights (6.5 a run, from 4.9): the bots chase raids
+and fight sea beasts. More losses come before the first objective (67 of 162, from 43 of 157),
+mostly early raid interceptions. Nothing was retuned.
+
 The owner reviews every balance change: ask before changing a class or the difficulty, and give the
 options with their trade-offs. **Hard's target is now about 50% for the bots (owner, Nov 2026, "for
 now"; it was 30–35% while the bots split up) with no class far ahead; leave the difficulty

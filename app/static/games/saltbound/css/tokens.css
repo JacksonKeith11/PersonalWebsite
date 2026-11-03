@@ -97,6 +97,7 @@
   --stage-floor: rgba(120, 170, 200, 0.22);
   --stage-glow: rgba(224, 187, 98, 0.22);
   --stage-shadow: rgba(0, 0, 0, 0.45);
+  --stage-veil: rgba(9, 14, 21, 0.78);
 
   /* type */
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;

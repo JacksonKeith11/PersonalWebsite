@@ -322,7 +322,6 @@ a:hover { color: var(--accent-hi); }
 .combat-head h2 { font-size: var(--fs-24); flex: 1; }
 .combat-head .round { font-family: var(--font-display); color: var(--accent); font-size: var(--fs-18); font-weight: var(--fw-semibold); }
 .stage { position: relative; display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: var(--s-6) var(--s-8) var(--s-4); min-height: 0; }
-.stage::after { content: ""; position: absolute; left: 6%; right: 6%; bottom: 18%; height: 30%; background: radial-gradient(ellipse at 50% 50%, rgba(79, 159, 192, 0.10), transparent 70%); pointer-events: none; }
 .side-units { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); align-items: center; height: 100%; }
 .col { display: flex; flex-direction: column; justify-content: center; gap: var(--s-4); align-items: center; }
 .col .lbl { font-size: var(--fs-14); color: var(--faint); font-weight: var(--fw-semibold); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -330,8 +329,7 @@ a:hover { color: var(--accent-hi); }
   position: relative; width: 172px; padding: var(--s-2) var(--s-3) var(--s-3); display: grid; justify-items: center; gap: 6px;
   border-radius: var(--r-lg); border: var(--bw) solid transparent; transition: border-color var(--t-fast), background var(--t-fast), opacity var(--t-slow), transform var(--t-fast);
 }
-.unit img { width: 96px; height: 96px; transition: transform var(--t-fast); }
-.unit.boss img { width: 128px; height: 128px; }
+.unit img { transition: transform var(--t-fast); }
 .unit.foe img { transform: scaleX(-1); }
 .unit .uname { font-weight: var(--fw-semibold); font-size: var(--fs-14); text-align: center; line-height: 1.25; }
 .unit .bar { width: 100%; }
@@ -343,7 +341,6 @@ a:hover { color: var(--accent-hi); }
 .st.burn, .st.poison { color: var(--intent-attack); }
 .col.crowd { gap: var(--s-1); }
 .col.crowd .unit { gap: 2px; padding: 2px var(--s-2); }
-.col.crowd .unit img { width: 64px; height: 64px; }
 .col.crowd .unit .sts { min-height: 0; }
 .col.crowd .intent { height: 26px; }
 .unit.target { cursor: pointer; border-color: var(--accent-ring); background: var(--accent-wash); }
@@ -501,10 +498,7 @@ a:hover { color: var(--accent-hi); }
   .stage { padding: var(--s-3) var(--s-8) var(--s-2); }
   .col { gap: var(--s-2); }
   .unit { width: 150px; gap: 4px; padding: var(--s-1) var(--s-2) var(--s-2); }
-  .unit img { width: 64px; height: 64px; }
-  .unit.boss img { width: 88px; height: 88px; }
   .unit .sts { min-height: 0; }
-  .col.crowd .unit img { width: 48px; height: 48px; }
   .col.crowd .uname { font-size: var(--fs-14); line-height: 1.1; }
   .combat-head { padding: var(--s-2) var(--s-6); }
   .tray { padding: var(--s-3) var(--s-6) var(--s-3); }
@@ -658,8 +652,6 @@ a:hover { color: var(--accent-hi); }
   .col { gap: 6px; justify-content: flex-start; }
   .col .lbl { font-size: 11px; }
   .unit { width: 100%; max-width: 170px; padding: 4px; gap: 3px; }
-  .unit img, .col.crowd .unit img { width: 44px; height: 44px; }
-  .unit.boss img { width: 64px; height: 64px; }
   .unit .uname { font-size: 12px; }
   .unit .bar { height: 14px; } .unit .bar span { font-size: 11px; line-height: 14px; }
   .unit .sts { min-height: 0; }
@@ -795,21 +787,19 @@ a:hover { color: var(--accent-hi); }
   column-gap: 10px; row-gap: 3px; padding: 6px 8px; }
 .col.crowd .unit > * { grid-column: 2; }
 .col.crowd .unit > .intent { grid-column: 1 / -1; justify-self: center; height: 26px; }
-.col.crowd .unit > img { grid-column: 1; grid-row: 2 / span 4; width: 56px; height: 56px; }
+.col.crowd .unit > img { grid-column: 1; grid-row: 2 / span 4; }
 .col.crowd .unit .uname { text-align: left; }
 .col.crowd .unit .bar { width: 100%; }
 .col.crowd .unit .preview, .col.crowd .unit .sts { justify-content: flex-start; min-height: 0; }
 .col.crowd .unit .preview:empty, .col.crowd .unit .sts:empty { display: none; }
 .col.herocol .unit > .intent { position: absolute; top: -10px; right: 8px; height: 24px; z-index: 3; }
 .col.herocol .unit > img { grid-row: 1 / span 4; }
-.unit.boss img { width: 112px; height: 112px; }
 @media (max-width: 700px) {
   .stage { padding-top: 70px; }
   .roll-tray .big-die { width: 42px; height: 42px; font-size: 22px; }
   .roll-tray .rt-act { font-size: 15px; }
   .intent .mv { display: none; }
 }
-.unit img { width: 80px; height: 80px; }
 .unit .preview:empty, .unit .sts:empty { display: none; }
 .unit { gap: 4px; }
 
@@ -832,8 +822,6 @@ a:hover { color: var(--accent-hi); }
   .stage { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
   .side-units { height: auto; flex: none; }
   .col { height: auto; justify-content: flex-start; gap: 6px; }
-  .unit img, .col.crowd .unit > img { width: 44px; height: 44px; }
-  .unit.boss img { width: 64px; height: 64px; }
   .col.crowd .unit { width: 100%; max-width: 190px; grid-template-columns: 44px minmax(0, 1fr); column-gap: 6px; padding: 4px; }
   .side-units.solo { justify-items: stretch; }
   .col.herocol { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: stretch; width: 100%; }
@@ -1041,7 +1029,6 @@ a:hover { color: var(--accent-hi); }
 .bag-acts .input.give { height: 30px; }
 .item .acts:empty { display: none; }
 .item:has(> .acts:empty) { grid-template-columns: auto minmax(0, 1fr); }
-.col.crowd .unit.boss > img { width: 72px; height: 72px; }
 
 /* what an item sells for, on every item row and loot card */
 .sells { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--accent); }
@@ -1105,20 +1092,9 @@ a:hover { color: var(--accent-hi); }
    middle instead of spreading over half the stage */
 .side-units { grid-template-columns: auto auto; justify-content: center; column-gap: var(--s-4); }
 .side-units.solo { grid-template-columns: auto; }
-.unit img { width: 120px; height: 120px; }
-.unit.boss img { width: 152px; height: 152px; }
-.col.crowd .unit { width: 264px; grid-template-columns: 80px minmax(0, 1fr); }
-.col.crowd .unit > img { width: 80px; height: 80px; }
-@media (max-height: 860px) {
-  .unit img { width: 96px; height: 96px; }
-  .unit.boss img { width: 120px; height: 120px; }
-  .col.crowd .unit { width: 244px; grid-template-columns: 68px minmax(0, 1fr); }
-  .col.crowd .unit > img { width: 68px; height: 68px; }
-}
-@media (max-width: 700px) {
-  .side-units { grid-template-columns: 1fr 1fr; }
-  .unit img, .col.crowd .unit > img { width: 52px; height: 52px; }
-}
+.col.crowd .unit { width: 272px; grid-template-columns: 88px minmax(0, 1fr); }
+@media (max-height: 860px) { .col.crowd .unit { width: 244px; grid-template-columns: 68px minmax(0, 1fr); } }
+@media (max-width: 700px) { .side-units { grid-template-columns: 1fr 1fr; } }
 /* the party and the enemies face each other across the middle, not from the stage's far edges */
 .stage { grid-template-columns: auto auto; justify-content: center; column-gap: clamp(96px, 14vw, 240px); }
 @media (max-width: 700px) { .stage { grid-template-columns: 1fr; } }
@@ -1256,3 +1232,31 @@ a:hover { color: var(--accent-hi); }
 @keyframes end-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .end-hero, .end.won .end-fig img, .end-rays { animation: none; } }
 @media (max-width: 700px) { .end-party { gap: var(--s-2); } .end-hero { width: 96px; } .end-fig, .end-fig img { width: 64px; height: 64px; } }
+
+/* ------------------------------------------------------------------ the fight's stage (js/stage.js)
+   A painted place behind the fighters, darkened where the roll tray and the round strip sit over
+   it; fighters cast a shadow on its floor and breathe while they wait. Every fighter size is here. */
+.stage { background: var(--stage-art, none) center 42% / cover no-repeat; image-rendering: pixelated; }
+.stage::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, var(--stage-veil) 0, transparent 22%, transparent 70%, var(--stage-veil) 100%); }
+.unit > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)); }
+/* low specificity on purpose: a hit, lunge or kill animation (.unit.hit img and so on) replaces the idle */
+.unit:where(:not(.down):not(.dead)) > img { animation: idle 2.8s var(--idle-at, 0s) ease-in-out infinite; }
+.unit:nth-child(3n) { --idle-at: -0.9s; }
+.unit:nth-child(3n+1) { --idle-at: -1.8s; }
+@keyframes idle { 50% { translate: 0 -3px; } }
+@media (prefers-reduced-motion: reduce) { .unit > img { animation: none !important; } }
+.unit img { width: 120px; height: 120px; }
+.unit.boss img { width: 152px; height: 152px; }
+.col.crowd .unit > img { width: 88px; height: 88px; }
+.col.crowd .unit.boss > img { width: 104px; height: 104px; }
+@media (max-height: 860px) {
+  .unit img { width: 96px; height: 96px; }
+  .unit.boss img { width: 120px; height: 120px; }
+  .col.crowd .unit > img { width: 68px; height: 68px; }
+  .col.crowd .unit.boss > img { width: 80px; height: 80px; }
+}
+@media (max-width: 700px) {
+  .unit img, .col.crowd .unit > img { width: 52px; height: 52px; }
+  .unit.boss img, .col.crowd .unit.boss > img { width: 64px; height: 64px; }
+}

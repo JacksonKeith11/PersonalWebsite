@@ -215,7 +215,10 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      "This turn" bottom left (collapsible), the log closed until opened (each remembers how you left
      it), first-time hints bottom right; towns are labelled and heroes sharing a hex fan out; top bar with turn, tide and the rising tide's enemy strength; other heroes' planned paths as ghost
      trails, like Board Brawl's route previews.
-  5. **Combat overlay**: full screen; the party in one column, enemies in their rows, facing each other
+  5. **Combat overlay**: full screen, over a painted backdrop of where the fight is (`js/stage.js`:
+     each region's open ground, each dungeon's interior, the Crown's peak; painted in code at 400×150
+     like the map's terrain and scaled up crisp), fighters casting shadows on its floor and breathing
+     while they wait; the party in one column, enemies in their rows, facing each other
      across the middle at a good size (owner's request: big fighters, rows close together); intents
      above enemies (a Stunned enemy shows "Stunned · skips its turn" instead, and no arrow); each
      hero's dice tray and action cards along the bottom; allies' placements visible live. **What
@@ -919,6 +922,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/screens.js` | Title, lobby (a chosen class in full: `classDetails`), end of run, the painted backdrop. |
 | `js/hud.js` | The map screen's HTML: top bar, party cards, action bar, log, drawers, dialogs, hints, map input and effects. |
 | `js/combat.js` | The fight overlay and playing back a round's effects. |
+| `js/stage.js` | The fights' painted backdrops (`stageKey` picks one for a fight, `stageURL` paints it once). |
 | `js/hexmap.js` | `MapView` (Phaser): painted terrain, places, units, fog, reach, routes. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`), and how to describe requirements, dice and statuses. |
 | `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
@@ -1017,6 +1021,9 @@ clock anywhere: the run changes only when someone acts.
   update, and `.screen` fades in, so a fresh `.screen` each time made every class pick flash the
   page. Redrawing the screen already up keeps its element (and its panels' scroll); only moving to
   another screen (title, lobby, end) builds a new one and fades.
+- **The fighters' idle bob uses the `translate` property, at low specificity** (`:where()` in `ui.css`): a
+  hit, lunge or kill animation (`.unit.hit img`...) uses `transform` and must replace it, so a more
+  specific idle rule would swallow every hit. Its stagger is a variable (`--idle-at`) for the same reason.
 - **Effects play before the new state is drawn** (`main.js`): map moves start from the old hexes, and a
   fight's last round plays back before the map or end screen replaces it (`combatBusy()`).
 - **Actions resolve as they're played**; each play sends its own effects and the client plays them back

@@ -494,6 +494,50 @@ the run's seed with a generator of its own, after the islands and places); their
 - **The bots** go after a raid they can catch before it arrives, steer clear of occupied towns when
   they need healing, and visit lookouts, found grottos and (once every hero has a skiff) sea places.
 
+### Animation and feedback
+
+The owner asked for every idea of a review of the UI's graphics and animation (Nov 2026). Everything
+here respects `prefers-reduced-motion` (each block of CSS ends with its own guard).
+
+- **Pose frames** (`art.js` `poseCanvas`/`poseURL`, `POSES`): every character has one drawn frame; the
+  fights' other poses are made from its pixel grid before the outline and shading, so they get the
+  same finish. `attack` leans into the swing, `cast` and `hurt` lean back (hurt further, knocked a
+  pixel back), `fallen` lies on its back (a creature wider than it's tall rolls belly-up instead). A
+  fighter shows the pose for the motion it's playing (`POSE_OF` in `combat.js`: a lunge, slam or
+  charge is `attack`; cast, brace, a big heal or the victory hop `cast`; a hit `hurt`; a kill or
+  being knocked down `fallen`). `warmPoses` decodes a character's poses the first time it's drawn.
+- **Map tokens** (`hexmap.js`): heroes and enemies bob while they wait (`bob`), hop on every hex as
+  they move (`playMove`), a hero in a skiff rocks on the swell, a group that will step toward the
+  party this turn shows a bouncing "!" (from the forecast's `steps`), and where a fight starts crossed
+  blades flash with sparks (`clash`, from the `fight` effect) before the fight opens (`holdCombat`
+  waits for it).
+- **Dice**: a big die in the roll tray flickers through its own faces, blurred, as it tumbles
+  (`flickFaces`, from the faces the roll passes along), then lands; a shield, skull, wild or elemental
+  face flips in with its own colour; a crit lands with a squash-and-stretch thump and a gold ring. In
+  the hand, a Swell die is drawn bigger with every round it waits and pops when it grows; an Echo die
+  copying a play gets a link line drawn from the hero who made it.
+- **The enemy turn**: while an enemy rolls, it lifts and glows red, its intent card lights, and a
+  dashed aim line draws to each target (`fxLine`). Damage soaked by Armor chips off in shield shards;
+  a health bar that loses health keeps a pale trail that drains down to the new value (`noteLag`,
+  `hpBar`'s `lag`).
+- **Statuses on the fighters** (`statusAura`, `statusCls`): over the sprite (each fighter's sprite sits
+  in a `.fig` with an overlay the same size), Poison drips, Burn throws up embers, Shock sparks, Mark is
+  a scope ring, a Stun circles stars (and tilts the sprite), Root grows vines at the feet, Freeze
+  frosts the sprite over with ice at its feet, Vulnerable pulses red, Hex throws off motes, Weak sags
+  the sprite. Each loop keeps its phase across redraws.
+- **Battlegrounds on the stage** (`stageURL(key, ground)`): high ground paints a lit rocky slope under
+  the side holding it; ambush ground hangs dark trees and undergrowth over the edges, with leaves
+  drifting down.
+- **Victory**: the heroes still standing hop with their arms raised, and the banner counts up the
+  gold each and the XP (the `fightend` effect carries them for a won fight).
+- **Loot and level-ups**: loot cards are dealt face down and flip over, flaring in their rarity's
+  colour (uncommon green, rare blue, legendary gold); a level-up pick flies from the dialog into its
+  hero's card, which flashes gold.
+- **The tide and the weather**: when the tide rises a wave of light washes across the map and each
+  arrival comes in where it lands (rings, and a boat from the nearest open water for wreckage and
+  landings: `arrive`); the hexes under a squall go dark; at high tide the whole map is a shade darker
+  and bluer.
+
 ### Fights
 
 - **A round** (`Combat.new_round`): enrage, elite affixes, Crown of Thorns, Poison and regeneration
@@ -1175,6 +1219,10 @@ clock anywhere: the run changes only when someone acts.
   map. A new key that every place of a kind needs goes in `setup_places`, which fills only what's
   missing, so the save migration can call it too (with its own `Rng`, leaving the run's untouched).
 
+- **A fighter's sprite is inside a `.fig`** (with its status overlay): layout rules target `.unit > .fig`,
+  animations and sizes `.unit .fig > img`, and the idle bob keeps its low specificity with
+  `:where(.fig)` so hit, lunge and kill animations still replace it. A new sprite rule follows the same
+  pattern, and anything looking for a fighter's sprite finds it with `[data-uid] img`.
 - **Hidden places stay hidden everywhere**: a grotto is in `world["places"]` from the start, but the
   view leaves out any place with `hidden` and no `found`, and the forecast doesn't say a hero lands
   on one. Anything new that lists or names places must skip them too, or it gives them away (the

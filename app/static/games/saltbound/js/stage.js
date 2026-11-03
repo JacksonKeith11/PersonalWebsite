@@ -209,8 +209,52 @@ export function stageKey(f, world) {
   return SCENES[reg] ? reg : 'peak';
 }
 
-export function stageURL(key) {
-  if (!urls[key]) { const p = painter(); (SCENES[key] || SCENES.peak)(p); urls[key] = p.done(); }
-  return urls[key];
+// `ground` (a fight's battleground, Game.ground_of) is painted on top: high ground raises a rocky
+// slope under the side holding it (the party stands on the left, the enemies on the right); ambush
+// ground hangs dark trees over both edges of the scene.
+export function stageURL(key, ground = null) {
+  const id = key + (ground ? `|${ground.k}-${ground.side}` : '');
+  if (!urls[id]) {
+    const p = painter();
+    (SCENES[key] || SCENES.peak)(p);
+    if (ground?.k === 'high') slope(p, ground.side === 'heroes' ? 'left' : 'right');
+    if (ground?.k === 'woods') woods(p);
+    urls[id] = p.done();
+  }
+  return urls[id];
+}
+
+function slope(p, side) {
+  const x0 = side === 'left' ? 0 : SW / 2 - 10, x1 = side === 'left' ? SW / 2 + 10 : SW;
+  for (let x = x0; x < x1; x++) {
+    const u = (x - x0) / (x1 - x0), along = side === 'left' ? u : 1 - u;  // 0 at the outer edge
+    const rise = Math.round(26 * Math.cos(Math.min(1, along * 1.05) * Math.PI / 2) + Math.sin(x * 0.11) * 2 + (hash(x >> 2, 77) - 0.5) * 3);
+    if (rise <= 1) continue;
+    const top = FLOOR + 34 - rise;
+    for (let y = top; y < SH; y++) {
+      const [r, g, b] = p.get(x, Math.min(SH - 1, y + rise));  // the floor, lifted
+      const lit = y < top + 2, shade = y > top + 6 && hash(x, y, 78) < 0.08;
+      p.set(x, y, lit ? [Math.min(255, r * 1.32 + 10), Math.min(255, g * 1.3 + 10), Math.min(255, b * 1.25 + 8)] : shade ? [r * 0.7, g * 0.7, b * 0.72] : [r * 0.92, g * 0.9, b * 0.9]);
+    }
+    if (hash(x, 79) > 0.965) p.rect(x, top + 6 + hash(x, 80) * 10, 3 + hash(x, 81) * 3, 2, '#3e3c40');
+  }
+}
+
+function woods(p) {
+  const trunk = '#2a2420', leaf = ['#1e3020', '#24382a', '#2c4430'];
+  for (const [cx, w] of [[10, 12], [SW - 12, 14], [44, 7], [SW - 46, 8]]) {
+    for (let y = 0; y < SH; y++) for (let i = 0; i < w; i++) p.set(cx - w / 2 + i + Math.sin(y * 0.05) * 2, y, i < 2 || i > w - 3 ? '#1c1814' : trunk);
+  }
+  // canopy over the top corners
+  for (let y = 0; y < 46; y++) for (let x = 0; x < SW; x++) {
+    const edge = Math.min(x, SW - 1 - x);
+    const reach = 90 - y * 1.6 + Math.sin(x * 0.09 + y * 0.3) * 8 + (hash(x >> 1, y >> 1, 90) - 0.5) * 14;
+    if (edge < reach) p.set(x, y, leaf[Math.floor(hash(x >> 2, y >> 2, 91) * 3)]);
+  }
+  // undergrowth along the bottom edges
+  for (let x = 0; x < SW; x++) {
+    const edge = Math.min(x, SW - 1 - x), h = Math.round(Math.max(0, 22 - edge * 0.25) + hash(x >> 1, 92) * 4);
+    for (let y = SH - h; y < SH; y++) if (edge < 120) p.set(x, y, leaf[(x + y) % 3]);
+  }
 }
 export const STAGE_FLOOR = FLOOR / SH;

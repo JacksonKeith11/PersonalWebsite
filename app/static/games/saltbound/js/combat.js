@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=99';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=99';
-import { spriteURL } from './art.js?v=99';
-import { stageURL, stageKey } from './stage.js?v=99';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=99';
-import { render } from './main.js?v=99';
-import { skillCard } from './hud.js?v=99';
-import { SKILL_FX, foeFx } from './skillfx.js?v=99';
-import * as sfx from './audio.js?v=99';
+import { S, send, mine, controllerName } from './store.js?v=103';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=103';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=103';
+import { stageURL, stageKey } from './stage.js?v=103';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=103';
+import { render } from './main.js?v=103';
+import { skillCard } from './hud.js?v=103';
+import { SKILL_FX, foeFx } from './skillfx.js?v=103';
+import * as sfx from './audio.js?v=103';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -57,6 +57,14 @@ const INTENT_TEXT = {
   buff: 'Strengthens allies for the rest of the fight', debuff: 'Curses a hero', summon: 'Calls for help', charge: 'Gathering power…', dazed: 'Caught off guard: does nothing this round', thief: 'Snatches a potion', merge: 'Merges with another',
 };
 
+// Leaves drifting down over an ambush-ground fight (each keeps its phase across redraws).
+function leaves() {
+  const now = performance.now();
+  return h('div.leaves', { 'aria-hidden': 'true' }, ...[0, 1, 2, 3, 4, 5, 6].map(i => {
+    const ms = 5200 + i * 700;
+    return h('i', { style: { '--i': i, left: `${6 + i * 13 + (i % 2) * 4}%`, animationDuration: ms + 'ms', animationDelay: `-${Math.round((now + i * 1900) % ms)}ms` } });
+  }));
+}
 // The battleground's rule, as a chip in the fight's header (Game.ground_of, A.GROUNDS).
 function groundChip(f) {
   const G = S.static.grounds?.[f.ground.k];
@@ -110,13 +118,14 @@ export function renderCombat(el) {
     const cl = ['unit', 'hero'];
     if (hs?.down) cl.push('down');
     if (hs?.fled) cl.push('fled');
+    if (!hs?.down) cl.push(...statusCls(st));
     if (C.anim['h' + x]) cl.push(C.anim['h' + x]);
     if (x === active) cl.push('mine-sel');
     if (isTarget('h' + x, f)) cl.push('target');
     const ready = hs?.ready && !C.playing;
     return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, tip: mine().includes(x) ? null : heroTip(x, hs) },
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
-      h('img.pix', { src: spriteURL(hero.cls), alt: '' }),
+      poseImg(hero.cls, 'h' + x, hs?.down, st),
       // another player's hero: who plays it (by the name), and the dice they hold this round (for combos)
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, mine().includes(x) ? null : h('span.ctl-name', null, ` · ${controllerName(x)}`),
         f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
@@ -126,7 +135,7 @@ export function renderCombat(el) {
       hs?.static ? h('div.covered-chip.undertow', { tip: 'Static: any of your dice that rolls 1 or 2 shocks you for 3 this round.' }, 'Static: 1–2 shocks you') : null,
       hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
       (f.covered || []).includes(x) ? h('div.covered-chip', { tip: `Covered\n${S.static.combos.covered.text}` }, `Covered: next hit +3`) : null,
-      hpBar(hpOf(x), max),
+      hpBar(hpOf(x), max, false, 'h' + x),
       previewRow('h' + x, prev),
       statusRow(st, hs?.down ? ['Knocked down'] : []),
       floats('h' + x));
@@ -136,17 +145,18 @@ export function renderCombat(el) {
     const cl = ['unit', 'foe'];
     if (d.boss || d.big) cl.push('boss');
     if (fo.hp <= 0 && !fo.dying) cl.push('dead', 'gone');
+    else cl.push(...statusCls(fo.st));
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
     return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, tip: foeTip(fo) },
       intentChip(fo, f),
-      h('img.pix', { src: spriteURL(fo.k), alt: '' }),
+      poseImg(fo.k, 'f' + fo.id, false, fo.st),
       h('div.uname', null, fo.name),
       fo.aff || d.big || fo.bl ? h('div.foe-tags', null,
         fo.aff ? h('span.foe-tag', { tip: `${S.static.elites[fo.aff].name}\n${S.static.elites[fo.aff].text}` }, 'Elite') : null,
         d.big && !fo.bl ? h('span.foe-tag', { tip: `Big threat\nAt half health it's bloodied: ${d.bloodied?.text || ''}` }, 'Big') : null,
         fo.bl ? h('span.foe-tag.bloodied', { tip: `Bloodied\n${d.bloodied?.text || ''}` }, 'Bloodied') : null) : null,
-      hpBar(Math.max(0, fo.hp), fo.max, true),
+      hpBar(Math.max(0, fo.hp), fo.max, true, 'f' + fo.id),
       previewRow('f' + fo.id, prev, fo.hp),
       statusRow(fo.st, [...(fo.might ? [`+${fo.might} might`] : []), ...(fo.st.warded ? ['Warded: ½ damage'] : []), ...(fo.st.exposed ? ['Exposed: +50%'] : [])], traitChips(d)),
       fo.hp > 0 ? foeState(fo, f) : null,
@@ -159,7 +169,7 @@ export function renderCombat(el) {
     if (C.anim['s' + a.id]) cl.push(C.anim['s' + a.id]);
     return h('div.' + cl.join('.'), { 'data-uid': 's' + a.id, tip: `${a.name}\nSummoned by ${g.heroes[a.owner].name}${a.atk ? `. Hits ${a.all ? 'every enemy' : 'the weakest front enemy'} for ${a.atk} each round.` : '. Soaks up hits.'}` },
       h('div.intent.none', null, '·'),
-      h('img.pix', { src: spriteURL(a.k), alt: '' }),
+      poseImg(a.k, 's' + a.id, false),
       h('div.uname', { style: { color: `var(--hero-${a.owner})` } }, a.name),
       hpBar(Math.max(0, a.hp), a.max),
       previewRow('s' + a.id, prev),
@@ -173,7 +183,8 @@ export function renderCombat(el) {
 
   // three or more in a column: shrink them so the column fits
   const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 2 || party ? '.crowd' : '') + (!units.length ? '.empty' : ''), null, h('span.lbl', null, label), ...units);
-  const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), { style: { '--stage-art': `url(${stageURL(stageKey(f, S.world))})` } },
+  const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), { style: { '--stage-art': `url(${stageURL(stageKey(f, S.world), f.ground)})` } },
+    f.ground?.k === 'woods' ? leaves() : null,
     h('div.side-units' + (allies.length ? '' : '.solo'), null,
       allies.length ? col('Allies', allies.map(unitAlly)) : null,
       col('Party', f.heroes.map(unitHero), true)),
@@ -407,8 +418,50 @@ export function hpClass(hp, max, foe) {
   const f = hp / max;
   return f > 0.6 ? '.ok' : f > 0.3 ? '.mid' : '.low';
 }
-function hpBar(hp, max, foe = false) {
-  return h('div.bar' + hpClass(hp, max, foe), null, h('i', { style: { width: Math.max(0, Math.round(100 * hp / max)) + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
+// Which pose a fighter's sprite shows (art.js poseURL), from the motion it's playing: leaning into
+// a swing, leaning back to cast or brace, knocked back by a hit, lying down when out.
+const POSE_OF = { act: 'attack', melee: 'attack', charge: 'attack', spin: 'attack', 'f-lunge': 'attack', 'f-pounce': 'attack', 'f-slam': 'attack', 'f-charge': 'attack',
+  cast: 'cast', brace: 'cast', retreat: 'cast', 'f-cast': 'cast', 'f-brace': 'cast', healbig: 'cast', revive: 'cast', victory: 'cast',
+  hit: 'hurt', bighit: 'hurt', stunned: 'hurt', kill: 'fallen' };
+function poseImg(k, uid, out, st) {
+  warmPoses(k);
+  const pose = out ? 'fallen' : POSE_OF[C.anim[uid]] || null;
+  return h('span.fig', null, h('img.pix' + (pose ? '.pose-' + pose : ''), { src: poseURL(k, pose), alt: '' }), out ? null : statusAura(st));
+}
+// What a fighter's statuses look like on the fighter itself, over the sprite: Poison drips, Burn
+// throws up embers, Shock sparks, Mark is a crosshair, a Stun circles stars, Root grows vines at the
+// feet, Freeze frosts the sprite over, Weak sags it. Each loop keeps its phase across redraws (the
+// stage is rebuilt many times a second), so nothing restarts.
+const AURA = {
+  poison: ['drip', 3, 1400], burn: ['ember', 4, 1200], shock: ['spark', 3, 700], mark: ['cross', 1, 4000],
+  stun: ['star', 3, 1600], root: ['vine', 3, 2600], freeze: ['frost', 3, 3000], vuln: ['crack', 1, 1800], hex: ['hexmote', 2, 2200],
+};
+function statusAura(st) {
+  const on = Object.keys(AURA).filter(k => st?.[k]);
+  if (!on.length) return null;
+  const now = performance.now();
+  return h('span.aura', { 'aria-hidden': 'true' }, ...on.flatMap(k => {
+    const [cls, n, ms] = AURA[k];
+    return Array.from({ length: n }, (_, i) => h('i.' + cls, { style: { '--i': i, animationDelay: `-${Math.round((now + i * ms / n) % ms)}ms` } }));
+  }));
+}
+// classes on a fighter for statuses that change the sprite itself (Freeze tints it, Weak sags it)
+function statusCls(st) { return ['freeze', 'weak', 'stun'].filter(k => st?.[k]).map(k => 'st-' + k); }
+
+// A health bar; just after a hit, a pale trail shows what was lost and drains down to the new value.
+function hpBar(hp, max, foe = false, uid = null) {
+  const pct = Math.max(0, Math.round(100 * hp / max));
+  const lag = uid && C.lag?.[uid], now = performance.now();
+  const trail = lag && now - lag.t < LAG_MS && lag.from > pct
+    ? h('b.lag', { style: { '--from': lag.from + '%', '--to': pct + '%', animationDelay: `-${Math.round(now - lag.t)}ms` } }) : null;
+  return h('div.bar' + hpClass(hp, max, foe), null, trail, h('i', { style: { width: pct + '%' } }), h('span', null, `${Math.max(0, hp)} / ${max}`));
+}
+const LAG_MS = 950;
+function noteLag(uid, hp, max) {
+  const now = performance.now(), old = (C.lag ||= {})[uid];
+  const from = old && now - old.t < LAG_MS ? old.from : Math.max(0, Math.round(100 * hp / max));
+  C.lag[uid] = { from, t: now };
+  setTimeout(render, LAG_MS + 20);
 }
 
 const ST_SHORT = { steeled: 'Steeled', vuln: 'Vuln', stun: 'Stunned', freeze: 'Frozen', root: 'Rooted', shock: 'Shocked', hex: 'Hexed', crescendo: 'Crescendo', lifeline: 'Lifeline' };
@@ -425,6 +478,21 @@ function statusRow(st, extra = [], tail = []) {
   }
   for (const e of extra) chips.push(h('span.st', null, e));
   return h('div.sts', null, ...chips, ...tail);
+}
+
+// While a big die tumbles it flickers through a few of its own faces (blurred), then lands on the
+// roll; a shield, skull or wild face flips in, and a crit lands with a thump.
+const FLICK = { S: '◆', X: '☠', W: '★' };
+function flickFaces(x) {
+  const fs = (x.faces || [1, 2, 3, 4, 5, 6]).map(v => (typeof v === 'number' ? String(v) : FLICK[v] || v.replace(/^[FIP]/, '')));
+  const seed = String(x.id ?? '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) + (x.v || 0);
+  return [0, 1, 2, 3].map(k => fs[(seed * 7 + k * 5) % fs.length]);
+}
+function bigDie(x, cls, face, since, extra) {
+  const special = ['S', 'X', 'W'].includes(x.tag) ? '.special.f' + x.tag : ['F', 'I', 'P', 'burn', 'freeze', 'poison'].includes(x.tag) ? '.special.fel' : '';
+  return h('div.big-die' + cls + (x.re ? '.re' : '') + (x.crit ? '.crit' : '') + special, { style: since(x.t) },
+    h('i.flick', { style: since(x.t) }, h('s.strip', { style: since(x.t) }, ...flickFaces(x).map(v => h('b', null, v)))),
+    h('span', { style: since(x.t) }, face), extra);
 }
 
 // The dice an action just rolled, big in the middle of the fight: they tumble, land, then say hit or miss.
@@ -446,8 +514,7 @@ function rollTray() {
     const foeFace = x => (x.tag === 'X' || x.tag === 'S' || x.tag === 'W' ? faceText(x.tag) : x.tag ? faceText(x.tag + x.v) : x.v);
     return h('div.roll-tray.foe-roll' + (t.verdict && late ? '.' + t.verdict : ''), { style: since(t.t), role: 'status' },
       h('div.rt-info', null, h('span.rt-who', null, t.foe), h('span.rt-act', null, t.name || 'Attack'), h('span.rt-need', null, t.range ? `Rolls ${t.range}` : '')),
-      h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die.foe' + (x.re != null ? '.re' : '') + (x.crit ? '.crit' : ''), { style: since(x.t) },
-        h('span', { style: since(x.t) }, foeFace(x)),
+      h('div.rt-dice', null, ...t.dice.map(x => bigDie({ ...x, re: x.re != null }, '.foe', foeFace(x), since,
         x.re != null ? h('small', null, `${x.re} → again`) : x.ex != null ? h('small', null, `boom +${x.ex}`) : null)),
         t.bonus ? h('div.rt-bonus', null, `${t.bonus > 0 ? '+' : '−'}${Math.abs(t.bonus)}`) : null),
       h('div.rt-slot', null, late && t.total != null ? h('div.rt-total', { style: since(t.vt) }, `= ${t.total}`) : null,
@@ -458,8 +525,7 @@ function rollTray() {
       h('span.rt-who', null, S.game.heroes[t.h].name),
       ad ? h('span.rt-act', null, ad.name) : null,
       ad && isRisky(ad.req) ? h('span.rt-need', null, `Needs ${reqText(ad.req)}`) : null),
-    h('div.rt-dice', null, ...t.dice.map(x => h('div.big-die' + (x.re ? '.re' : '') + (x.crit ? '.crit' : ''), { style: since(x.t) },
-      h('span', { style: since(x.t) }, shown(x)),
+    h('div.rt-dice', null, ...t.dice.map(x => bigDie(x, '', shown(x), since,
       x.re ? h('small', null, x.re === 'steady' ? 'Steady' : 'Reroll') : null))),
     h('div.rt-slot', null, t.verdict ? h('div.rt-verdict.' + t.verdict, { style: since(t.vt) }, t.verdict === 'miss' ? 'Miss' : 'Hit!') : null));
 }
@@ -787,6 +853,8 @@ function dieButton(d, i, ready) {
   if (pinc.length || bells.length) cls += '.combo';
   if (d.locked) cls += '.locked';
   const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nPincer +5 on ${pinc.join(', ')}: it matches an ally's die.` : ''}${bells.length ? '\nMatches the bell: hit the Bell-Warden with it to crack the bell.' : ''}${d.locked ? '\nCrusted over by a Barnacle Priest: you can’t use it this round.' : ''}`;
+  // a Swell die is drawn bigger with every round it waits (its step: d4, d10+2, d12+7, d20+12)
+  if (d.src === 'swell') cls += '.swell.s' + Math.max(0, [4, 10, 12, 20].indexOf(d.faces.length));
   return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
     style: { '--src': srcCol }, disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${size}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
   }, h('span.k', null, i + 1), face,
@@ -1057,17 +1125,33 @@ function finish(ended) {
     flushIdle();
   };
   if (!ended) { close(); return; }
-  // the fight's last moment stays up under the banner; loot and the map come after
+  // the fight's last moment stays up under the banner, the heroes still standing celebrate; loot
+  // and the map come after
   C.tray = null;
+  if (ended.result === 'won') for (const x of C.display?.heroes || []) if (!C.display.hs[x]?.down && !C.display.hs[x]?.fled) flash('h' + x, 'victory', 1300);
   render();
-  banner(ended.result);
+  banner(ended);
   setTimeout(close, 1300 / (S.settings.speed || 1));
 }
 
-function banner(result) {
+// The end-of-fight banner; a win counts up its gold and XP.
+function banner(ended) {
+  const result = ended.result;
   sfx.play(result === 'won' ? 'win' : 'lose');
-  if (result === 'won') bigBanner('Victory', '', 'gold', 1600);
+  if (result === 'won') bigBanner('Victory', ended.xp != null ? countUp([[ended.gold, 'gold each', 'coin'], [ended.xp, 'XP', 'star']]) : '', 'gold', 1700);
   else bigBanner(result === 'fled' ? 'Escaped' : 'Defeat', '', 'danger', 1600);
+}
+function countUp(parts) {
+  const out = h('span.count-up');
+  for (const [n, label, ic] of parts) {
+    if (!n) continue;
+    const num = h('b', null, '+0');
+    out.append(h('span', null, icon(ic), num, ' ' + label));
+    const t0 = performance.now(), ms = 650;
+    const tick = () => { const k = Math.min(1, (performance.now() - t0 - 250) / ms); num.textContent = '+' + Math.round(n * Math.max(0, 1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  return out;
 }
 
 let floatId = 0;
@@ -1173,6 +1257,19 @@ function fxShot(from, to, cls, done, o = {}) {
     : [at(0, 0, ang), at(1, 0, ang + (o.spin ? 720 : 0))];
   const anim = el.animate(frames, { duration: ms, easing: o.arc ? 'linear' : 'ease-in' });
   anim.onfinish = () => { el.remove(); done?.(); };
+}
+// A line between two units that draws itself, holds, then fades: an enemy's aim, an Echo's link.
+function fxLine(from, to, cls, ms = 900) {
+  const a = unitCenter(from), b = unitCenter(to);
+  if (!a || !b) return;
+  const el = document.createElement('div');
+  el.className = 'fx line ' + cls;
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  el.style.left = a[0] + 'px'; el.style.top = a[1] + 'px'; el.style.width = len + 'px';
+  el.style.transform = `rotate(${Math.atan2(b[1] - a[1], b[0] - a[0])}rad)`;
+  el.style.setProperty('--ms', (ms / (S.settings.speed || 1)) + 'ms');
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), ms / (S.settings.speed || 1));
 }
 // A screen-wide flash of colour, for the biggest moments.
 function fxScreen(cls, ms = 500, col = null) {
@@ -1373,7 +1470,8 @@ function apply(f) {
       const now = performance.now();
       const held = d.hs[f.h]?.dice || [];
       const ad0 = act && S.static.actions[act.a];
-      C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now, crit: !!ad0?.crit_short && critDie(x.v, x.tag, held.find(y => y.id === x.id)?.faces) })) };
+      C.lastHero = f.h;
+      C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now, faces: held.find(y => y.id === x.id)?.faces, crit: !!ad0?.crit_short && critDie(x.v, x.tag, held.find(y => y.id === x.id)?.faces) })) };
       // the caption names the action now playing, from its first roll (never the one before it)
       C.caption = act && !mine().includes(f.h) && S.static.actions[act.a] ? makeCaption(act, S.static.actions[act.a], d, true) : null;
       flash('h' + f.h, 'act');
@@ -1423,9 +1521,16 @@ function apply(f) {
       }
       C.caption = null;
       C.tray = { fid: f.f, foe: fo?.name || 'Enemy', name: f.name, range: f.lo != null ? `${f.lo}–${f.hi}` : '', t: now, verdict, label, total,
-        bonus: f.bonus || 0, vt: now + 420 / (S.settings.speed || 1), dice: dice.map((x, j) => ({ ...x, id: 'f' + f.f + '.' + j, t: now,
+        bonus: f.bonus || 0, vt: now + 420 / (S.settings.speed || 1), dice: dice.map((x, j) => ({ ...x, id: 'f' + f.f + '.' + j, t: now, faces: fo?.intent?.dice?.[j]?.faces,
           crit: f.note === 'crit' && critDie(x.v, x.tag, fo?.intent?.dice?.[j]?.faces) })) };
-      flash('f' + f.f, 'act');
+      // the enemy about to act stands out, and its aim draws itself to whoever it's after
+      flash('f' + f.f, 'acting', 1150);
+      if (fo?.intent && S.settings.speed) {
+        const it = fo.intent;
+        const party = [...(d.heroes || []).filter(y => !d.hs[y]?.down && !d.hs[y]?.fled).map(y => 'h' + y), ...(d.allies || []).filter(a => a.hp > 0).map(a => 's' + a.id)];
+        const tgts = it.k === 'all' ? party : (it.tgts || (it.tgt ? [it.tgt] : [])).filter(u => typeof u === 'string' && party.includes(u));
+        tgts.forEach(u => fxLine('f' + f.f, u, 'aim', 1100));
+      }
       sfx.play('dice');
       setTimeout(render, 440 / (S.settings.speed || 1));
       return 760;
@@ -1443,10 +1548,15 @@ function apply(f) {
       return Math.max(300, ms || 0);
     }
     case 'dmg': {
+      if (f.n > 0) {
+        if (f.to.startsWith('h')) { const x = +f.to.slice(1); noteLag(f.to, C.hp[x] ?? 0, C.maxhp?.[x] ?? S.game.heroes[x].maxhp); }
+        else { const fo = foe(f.to); if (fo) noteLag(f.to, fo.hp, fo.max); }
+      }
       if (f.to.startsWith('h')) { const x = +f.to.slice(1); C.hp[x] = (C.hp[x] ?? 0) - f.n; }
       else if (f.to.startsWith('s')) { const al = ally(f.to); if (al) al.hp -= f.n; }
       else { const fo = foe(f.to); if (fo) { fo.hp -= f.n; if (fo.hp <= 0) fo.dying = true; } }
-      if (f.block) addFloat(f.to, `◆${f.block}`, 'arm');
+      // Armor takes the hit first: it chips off in shards, then the rest reaches the health bar
+      if (f.block) { addFloat(f.to, `◆${f.block}`, 'arm'); fxAt(f.to, 'shards' + (f.n ? '' : ' full'), 560); }
       // a big hit: 12 or more, or 40% of its health (at least 8)
       const max = f.to.startsWith('h') ? S.game.heroes[+f.to.slice(1)].maxhp : (foe(f.to) || ally(f.to))?.max || 99;
       const big = f.n >= 12 || (f.n >= 8 && f.n >= max * 0.4);
@@ -1475,6 +1585,14 @@ function apply(f) {
         addFloat(f.to, 'Crit!', 'crit');
         flash(f.to, 'critfx', 520);
         sfx.play('crit');
+        return 360;
+      }
+      if (f.s === 'echo') {
+        // an Echo die copies the play that just happened: a link from that hero to this one
+        const src = C.lastHero;
+        if (src != null && 'h' + src !== f.to) fxLine('h' + src, f.to, 'echo', 900);
+        addFloat(f.to, 'Echo!', 'txt');
+        flash(f.to, 'echoed', 700);
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',

@@ -61,6 +61,14 @@ Use magic colours sparingly, as small glowing accents rather than large areas:
 - poison `#8be04e`
 - hex `#e070c0`
 
+## Poses (Saltbound)
+
+Saltbound draws one frame per character; its fights' other poses (attack, cast, hurt, fallen) are
+made from that frame's pixel grid by `poseCanvas` in its `art.js`, before the outline and shading.
+They lean the figure over its feet or lay it down, so a sprite drawn to the rules above (feet on rows
+29-30, facing right, a pixel of margin) poses well with no extra work. A character that needs a
+hand-drawn pose can still have one: it would replace the derived frame for that pose.
+
 ## Faces
 
 - **Eyes:** two dark pixels three apart (for example x 12 and x 15), on a face 6–8 px wide.

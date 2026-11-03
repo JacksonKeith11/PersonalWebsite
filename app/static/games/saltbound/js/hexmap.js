@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=99';
-import { spriteCanvas, placeCanvas } from './art.js?v=99';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=103';
+import { spriteCanvas, placeCanvas } from './art.js?v=103';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -356,6 +356,8 @@ export class MapView {
     // the surf washes in and out: frame B fades up as frame A fades down, and back
     scene.tweens.addCounter({ from: 0, to: 1, duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
       onUpdate: tw => { const v = tw.getValue(); this.surfImg[0].setAlpha(1 - v * 0.85); this.surfImg[1].setAlpha(v); } });
+    // high tide: the whole map a shade darker and bluer
+    this.tideTint = scene.add.rectangle(0, 0, MAP_W, MAP_H, 0x0a2a4a, 0).setOrigin(0);
     this.layerSea = scene.add.container();
     this.layerWaves = scene.add.container();
     this.gReach = scene.add.graphics();
@@ -447,6 +449,8 @@ export class MapView {
       this.placeWaves(game);
     }
     if (this.centerPending !== undefined) { this.centerOn(this.centerPending, false); this.centerPending = undefined; }
+    const tint = game.tide === 'high' ? 0.16 : 0;
+    if (this.tideTint.alpha !== tint && this.tintTo !== tint) { this.tintTo = tint; this.scene.tweens.add({ targets: this.tideTint, alpha: tint, duration: 1400 }); }
     this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog();
     this.drawWeather(); this.drawRaids(); this.drawLandmarks(); this.drawLabels(); this.drawHover(); this.drawMinimap();
   }
@@ -541,6 +545,10 @@ export class MapView {
     const ids = new Set();
     const r = this.opts?.squallR ?? 1;
     for (const q of this.state.squalls || []) {
+      // the hexes under a squall go dark
+      for (let t = 0; t < W * H; t++) if (dist(t, q.tile) <= r) { g.fillStyle(0x0e1620, 0.32); g.fillPoints(hexPoints(t, -0.5), true); }
+    }
+    for (const q of this.state.squalls || []) {
       ids.add(q.id);
       let c = L.list.find(o => o.qid === q.id);
       const [cx, cy] = center(q.tile);
@@ -602,6 +610,28 @@ export class MapView {
       }
     }
     this.raidMarks.forEach(o => this.layerLand.add(o));
+  }
+
+  // What the rising tide brings, arriving: rings spread where each thing lands, and a wreck or a
+  // landing party comes in on a boat from the nearest open water.
+  arrive(t, kind) {
+    if (!this.scene) return;
+    const sc = this.scene, [cx, cy] = center(t);
+    for (let k = 0; k < 3; k++) {
+      const ring = sc.add.ellipse(cx, cy + 8, 22, 9).setStrokeStyle(2, kind === 'boon' ? 0xffe7a8 : 0xbfe4ec, 0.9);
+      this.layerLand.add(ring);
+      sc.tweens.add({ targets: ring, scale: 3.2, alpha: 0, duration: 1300, delay: 250 + k * 320, onComplete: () => ring.destroy() });
+    }
+    if (!['wreckage', 'landing', 'warband'].includes(kind)) return;
+    let from = null;
+    for (let r = 2; r <= 4 && from == null; r++) for (let u = 0; u < W * H; u++) if (dist(u, t) === r && terrain(this.world, this.state, u) === 'deep') { from = u; break; }
+    if (from == null) return;
+    const [fx, fy] = center(from);
+    const boat = sc.add.image(fx, fy + 8, this.texFor('boat', boatCanvas)).setScale(1.4).setAlpha(0);
+    this.layerLand.add(boat);
+    sc.tweens.add({ targets: boat, alpha: 1, duration: 200 });
+    sc.tweens.add({ targets: boat, x: cx, y: cy + 8, duration: 1500, ease: 'Sine.easeOut', onComplete: () => sc.tweens.add({ targets: boat, alpha: 0, duration: 400, onComplete: () => boat.destroy() }) });
+    sc.tweens.add({ targets: boat, angle: { from: -6, to: 6 }, duration: 380, yoyo: true, repeat: 3 });
   }
 
   // ---------------------------------------------------------------- the minimap
@@ -863,11 +893,24 @@ export class MapView {
           const txt = this.scene.add.text(13, -12, String(gr.foes.length), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffd8cc', resolution: 4 }).setOrigin(0.5);
           c.add([badge, txt]);
         }
+        // "!" over a group that's coming for you this turn
+        const alert = this.scene.add.text(0, -24, '!', { fontFamily: 'Inter', fontSize: '16px', fontStyle: 'bold', color: '#ffd36b', stroke: '#6a1d2a', strokeThickness: 4, resolution: 4 }).setOrigin(0.5).setVisible(false);
+        c.add(alert);
         L.add(c);
-        tok = { c, tile: gr.tile, kind: 'g' };
+        tok = { c, img, alert, tile: gr.tile, kind: 'g' };
+        if (!gr.lair) tok.bob = this.bob(img, 14);
         this.tokens.set(id, tok);
       } else if (tok.tile !== gr.tile && !tok.moving) {
         tok.c.setPosition(cx, cy); tok.tile = gr.tile;
+      }
+      const hunting = !!this.state.forecast?.steps?.some(st => st.g === gr.id) && !this.opts?.hideForecast;
+      if (hunting && !tok.alert.visible) {
+        tok.alert.setVisible(true).setScale(0);
+        this.scene.tweens.add({ targets: tok.alert, scale: 1, duration: 260, ease: 'Back.easeOut' });
+        this.scene.tweens.add({ targets: tok.alert, y: -27, duration: 500, yoyo: true, repeat: -1, delay: 260, ease: 'Sine.easeInOut' });
+      } else if (!hunting && tok.alert.visible) {
+        this.scene.tweens.killTweensOf(tok.alert);
+        tok.alert.setVisible(false).setY(-24);
       }
     }
     // heroes, spread out when sharing a hex
@@ -891,13 +934,17 @@ export class MapView {
         const img = this.scene.add.image(0, 14, this.texFor('spr_' + hero.cls, () => spriteCanvas(hero.cls))).setOrigin(0.5, 1);
         c.add([ring, ring2, img, boat]);
         L.add(c);
-        tok = { c, tile: hero.tile, boat, ring, kind: 'h', x: cx, y: cy };
+        tok = { c, img, tile: hero.tile, boat, ring, kind: 'h', x: cx, y: cy };
+        tok.bob = this.bob(img, 14);
         this.tokens.set(id, tok);
       } else if (!tok.moving && (tok.tile !== hero.tile || tok.x !== cx || tok.y !== cy)) {
         tok.c.setPosition(cx, cy); tok.tile = hero.tile; tok.x = cx; tok.y = cy;
       }
       tok.boat.setVisible(hero.afloat);
       tok.ring.setVisible(!hero.afloat);
+      // a skiff rocks on the swell
+      if (hero.afloat && !tok.rock) tok.rock = this.scene.tweens.add({ targets: tok.c, angle: { from: -3, to: 3 }, duration: 1300 + h * 170, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      else if (!hero.afloat && tok.rock) { tok.rock.remove(); tok.rock = null; tok.c.setAngle(0); }
       tok.c.setDepth(cy);
       const sel = this.opts?.sel === h;
       tok.c.setScale(n > 1 ? 0.85 : 1);
@@ -926,6 +973,31 @@ export class MapView {
   // ---------------------------------------------------------------- effects
   // Walk a token along a path, hex by hex, starting from where the path begins (the state may
   // already have it at the end). `delay` lets enemies move after the heroes.
+  // A token's idle bob: its sprite rises and settles, out of step with the others.
+  bob(img, y0) {
+    return this.scene.tweens.add({ targets: img, y: y0 - 2, duration: 900 + Math.random() * 500, yoyo: true, repeat: -1, delay: Math.random() * 900, ease: 'Sine.easeInOut' });
+  }
+
+  // A fight starts here: crossed blades flash and sparks fly, just before the fight opens.
+  clash(t) {
+    if (!this.scene) return;
+    const [cx, cy] = center(t), sc = this.scene;
+    const g = sc.add.graphics({ x: cx, y: cy - 8 });
+    g.lineStyle(4, 0x0b1017, 0.8); g.lineBetween(-13, -13, 13, 13); g.lineBetween(13, -13, -13, 13);
+    g.lineStyle(2.5, 0xffe7c0, 1); g.lineBetween(-13, -13, 13, 13); g.lineBetween(13, -13, -13, 13);
+    g.setScale(0.3).setAlpha(0);
+    this.layerLand.add(g);
+    sc.tweens.add({ targets: g, scale: 1.2, alpha: 1, duration: 160, ease: 'Back.easeOut', onComplete: () => sc.tweens.add({ targets: g, alpha: 0, scale: 1.5, duration: 320, delay: 160, onComplete: () => g.destroy() }) });
+    for (let k = 0; k < 10; k++) {
+      const a = k / 10 * Math.PI * 2, sp = sc.add.rectangle(cx, cy - 8, 3, 3, k % 2 ? 0xffd36b : 0xff8a5c);
+      this.layerLand.add(sp);
+      sc.tweens.add({ targets: sp, x: cx + Math.cos(a) * 30, y: cy - 8 + Math.sin(a) * 24, alpha: 0, duration: 420, ease: 'Quad.easeOut', onComplete: () => sp.destroy() });
+    }
+    const ring = sc.add.circle(cx, cy - 8, 6).setStrokeStyle(2, 0xffd36b, 0.9);
+    this.layerLand.add(ring);
+    sc.tweens.add({ targets: ring, scale: 4, alpha: 0, duration: 480, onComplete: () => ring.destroy() });
+  }
+
   playMove(id, path, speed = 1, delay = 0) {
     const tok = this.tokens.get(id);
     if (!tok || !path || path.length < 2) return Promise.resolve();
@@ -933,12 +1005,15 @@ export class MapView {
     const [sx, sy] = center(path[0]);
     tok.c.setPosition(sx, sy);
     const pts = path.slice(1).map(center);
+    // a little hop on every hex, instead of the idle bob
+    tok.bob?.pause();
+    const hop = tok.img ? this.scene.tweens.add({ targets: tok.img, y: 14 - 6, duration: 130 / speed, yoyo: true, repeat: pts.length - 1, delay, ease: 'Quad.easeOut' }) : null;
     return new Promise(res => {
       this.scene.tweens.chain({
         targets: tok.c,
         delay,
         tweens: pts.map(([x, y]) => ({ x, y, duration: 260 / speed, ease: 'Sine.easeInOut' })),
-        onComplete: () => { tok.moving = false; tok.tile = -1; res(); this.drawUnits(); },
+        onComplete: () => { tok.moving = false; tok.tile = -1; hop?.remove(); if (tok.img) tok.img.y = 14; tok.bob?.resume(); res(); this.drawUnits(); },
       });
     });
   }

@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=99';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=99';
-import { spriteURL, placeURL } from './art.js?v=99';
-import { itemURL } from './itemart.js?v=99';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=99';
-import { MapView } from './hexmap.js?v=99';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=99';
-import { disconnect } from './main.js?v=99';
-import * as sfx from './audio.js?v=99';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=103';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=103';
+import { spriteURL, placeURL } from './art.js?v=103';
+import { itemURL } from './itemart.js?v=103';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=103';
+import { MapView } from './hexmap.js?v=103';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=103';
+import { disconnect } from './main.js?v=103';
+import * as sfx from './audio.js?v=103';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -322,6 +322,25 @@ function heroState(h0) {
   const p = g.plans[h0];
   if (g.phase === 'plan' && p) return p.ready ? ['Ready', 'ready'] : p.rest ? ['Resting', ''] : ['Planning', ''];
   return ['', ''];
+}
+
+// A level-up pick flies from the dialog into its hero's card in the party column, which flashes
+// gold as it lands.
+function flyToHero(el, x) {
+  const to = $('party')?.children[x];
+  if (!el || !to || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const a = el.getBoundingClientRect(), b = to.getBoundingClientRect();
+  const ghost = el.cloneNode(true);
+  Object.assign(ghost.style, { position: 'fixed', left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px', margin: 0, zIndex: 60, pointerEvents: 'none' });
+  ghost.classList.add('flying');
+  document.body.append(ghost);
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const s = Math.min(0.35, b.width / a.width);
+  ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx * 0.55}px, ${dy * 0.45 - 60}px) scale(0.6) rotate(-6deg)`, opacity: 1, offset: 0.55 },
+    { transform: `translate(${dx}px, ${dy}px) scale(${s})`, opacity: 0.2 }], { duration: 720, easing: 'cubic-bezier(0.4, 0, 0.6, 1)' }).onfinish = () => {
+    ghost.remove();
+    $('party')?.children[x]?.animate([{ boxShadow: '0 0 0 2px #e0bb62, 0 0 26px rgba(224,187,98,0.8)' }, { boxShadow: 'none' }], { duration: 700 });
+  };
 }
 
 function renderParty() {
@@ -1075,7 +1094,7 @@ function renderDialogs() {
         h('div.picks', null, ...d.opts.map((k, n) => {
           const sk = skillDef(k), up = k.endsWith('+');
           const isAct = !!S.static.actions[k.replace(/\+$/, '')];
-          return h('button.pick', { style: { '--i': n }, onclick: () => choose(i, n, null, `Learned ${sk.name}${up ? '+' : ''}`) }, h('span.kbd.pick-key', null, n + 1),
+          return h('button.pick', { style: { '--i': n }, onclick: e => { flyToHero(e.currentTarget, h0); choose(i, n, null, `Learned ${sk.name}${up ? '+' : ''}`); } }, h('span.kbd.pick-key', null, n + 1),
             h('span.kind', null, up ? 'Upgrade' : sk.cap ? 'Capstone' : isAct ? 'New action' : 'Passive'),
             h('h3', null, sk.name + (up ? '+' : '')),
             isAct ? skillFace(k) : null,
@@ -1232,11 +1251,16 @@ export function handleFx(list, before) {
         if (mine().includes(f.h)) sfx.play('step');
         break;
       case 'gmove': if (map && speed) map.playMove('g' + f.g, f.path, speed, heroSteps * map.stepTime(speed) + 120); break;
+      case 'fight': if (map && speed) { const at = heroSteps * map.stepTime(speed); setTimeout(() => map?.clash(f.tile), at); } break;
       case 'rise': later.push(() => {
         const news = f.news || [];
         bigBanner('The tide rises', news.map(n => n.name).join(' · ') || 'The sea creeps higher', 'tide', 2600);
         for (const n of news) toast(`${n.name}: ${n.text}`);
         if (news.length && mine().length) map?.centerOn(news[0].tile);
+        // a wave washes over the map, then each arrival comes in where it lands
+        const mapEl = $('map');
+        if (mapEl && speed) { mapEl.classList.remove('tide-wave'); void mapEl.offsetWidth; mapEl.classList.add('tide-wave'); setTimeout(() => mapEl.classList.remove('tide-wave'), 1700); }
+        news.forEach((n, j) => setTimeout(() => map?.arrive(n.tile, n.k), 500 + j * 450));
         sfx.play('rise');
       }); break;
       case 'coins': if (mine().includes(f.h)) coins[f.h] = (coins[f.h] || 0) + f.n; break;
@@ -1267,7 +1291,8 @@ export function handleFx(list, before) {
   // gold comes as one line per hero, however many kills paid it
   for (const [x, n] of Object.entries(coins)) later.push(() => { const t = `${n > 0 ? '+' : ''}${n} gold`; n > 0 ? resultNote(+x, t, () => toast(`${S.game.heroes[x].name}: ${t}`)) : toast(`${S.game.heroes[x].name}: ${t}`); sfx.play('coin'); });
   // walking into a fight: the walk plays out on the map before the fight covers it
-  if (heroSteps && map && speed && list.some(f => f.k === 'fight')) holdCombat(heroSteps * map.stepTime(speed) + 250);
+  // walking into a fight: the walk plays out on the map, then the clash, before the fight covers it
+  if (map && speed && list.some(f => f.k === 'fight')) holdCombat(heroSteps * map.stepTime(speed) + 480);
   combatFx(list, before);
   for (const fn of later) afterCombat(fn);
 }

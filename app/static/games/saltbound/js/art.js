@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=99';
+import { SPRITES } from './sprites.js?v=103';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -38,6 +38,61 @@ function flat32(art) {
 const canvases = {}, urls = {};
 export function spriteCanvas(name) { return canvases[name] ||= flat32(SPRITES[name] || SPRITES.deckhand); }
 export function spriteURL(name) { return urls[name] ||= spriteCanvas(name).toDataURL(); }
+
+// ------------------------------------------------------------------ pose frames
+// Every character has one drawn frame; the fights' other poses are made from it on its pixel grid,
+// before the outline and shading (so they get the same finish): `attack` leans into the swing,
+// `cast` and `hurt` lean back (hurt further, and knocked a pixel back), `fallen` lies on its back.
+// Sprites face right, so for enemies (mirrored in battle) the lean still points at the heroes.
+export const POSES = ['attack', 'cast', 'hurt', 'fallen'];
+function bounds(rows) {
+  let top = rows.length, bottom = -1, left = rows[0].length, right = -1;
+  rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') { top = Math.min(top, y); bottom = Math.max(bottom, y); left = Math.min(left, x); right = Math.max(right, x); } });
+  return { top, bottom, left, right };
+}
+const shiftRow = (r, k) => (k > 0 ? '.'.repeat(k) + r.slice(0, r.length - k) : k < 0 ? r.slice(-k) + '.'.repeat(-k) : r);
+// lean: the feet stay put and each row above slides by up to `k` pixels toward the top
+function lean(rows, k, nudge = 0) {
+  const { top, bottom } = bounds(rows), tall = Math.max(1, bottom - top);
+  return rows.map((r, y) => shiftRow(r, Math.round(k * Math.max(0, bottom - y) / tall) + nudge));
+}
+function lieDown(rows) {
+  const n = rows.length, w = rows[0].length, { top, bottom, left, right } = bounds(rows);
+  if (right - left > (bottom - top) * 1.1) {
+    // a creature wider than it's tall rolls belly-up, settled where its feet were
+    const flipped = rows.slice(top, bottom + 1).reverse();
+    return rows.map((r, y) => (y >= top && y <= bottom ? flipped[y - top] : '.'.repeat(w)));
+  }
+  // otherwise a quarter turn anticlockwise (falling backwards: the head ends up behind, to the
+  // left), settled onto the floor row the feet stood on
+  const out = [];
+  for (let y = 0; y < w; y++) { let r = ''; for (let x = 0; x < n; x++) r += rows[x][w - 1 - y] ?? '.'; out.push(r); }
+  const b = bounds(out), drop = bottom - b.bottom;
+  const blank = '.'.repeat(n);
+  const moved = out.map((_, y) => out[y - drop] ?? blank);
+  // centred across where the figure stood
+  const c = bounds(moved), shift = Math.round((w - 1 - c.right - c.left) / 2);
+  return moved.map(r => shiftRow(r, shift));
+}
+export function poseCanvas(name, pose) {
+  const key = name + '@' + pose;
+  if (canvases[key]) return canvases[key];
+  const art = SPRITES[name] || SPRITES.deckhand;
+  const rows = pose === 'attack' ? lean(art.rows, 3, 1) : pose === 'cast' ? lean(art.rows, -2) : pose === 'hurt' ? lean(art.rows, -3, -1) : pose === 'fallen' ? lieDown(art.rows) : art.rows;
+  return (canvases[key] = flat32({ pal: art.pal, rows }));
+}
+export function poseURL(name, pose) {
+  if (!pose) return spriteURL(name);
+  const key = name + '@' + pose;
+  return urls[key] ||= poseCanvas(name, pose).toDataURL();
+}
+// Decode a fighter's poses ahead of time, so the first swap to one never shows a blank frame.
+const warmed = new Set();
+export function warmPoses(name) {
+  if (warmed.has(name)) return;
+  warmed.add(name);
+  for (const p of POSES) { const im = new Image(); im.src = poseURL(name, p); }
+}
 export function placeURL(kind) { return urls['place_' + kind] ||= placeCanvas(kind).toDataURL(); }
 export const hasSprite = name => !!SPRITES[name];
 

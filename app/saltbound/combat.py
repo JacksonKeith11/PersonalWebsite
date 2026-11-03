@@ -1145,7 +1145,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if self.hs(h)["down"]:
                 self.revive_or_fall(h)
         s["fight"] = None
-        self.fx("fightend", result=result)
+        self.fx("fightend", result=result, **({"xp": f["xp"], "gold": f["gold"]} if result == "won" and f["kind"] != "boss" else {}))
         if not self.living():
             self.say("The whole party has fallen.")
             self.end("lost")

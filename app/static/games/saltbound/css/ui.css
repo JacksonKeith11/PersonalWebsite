@@ -347,7 +347,7 @@ a:hover { color: var(--accent-hi); }
 .unit.target:hover { border-color: var(--accent); }
 .unit.mine-sel { border-color: var(--border-strong); background: rgba(255, 255, 255, 0.03); }
 .unit.down { opacity: 0.45; }
-.unit.down img { transform: rotate(90deg) translateX(20px); filter: grayscale(0.8); }
+.unit.down img { filter: grayscale(0.8); }  /* the sprite itself lies down (art.js fallen pose) */
 .unit.dead { opacity: 0; transform: translateY(8px); pointer-events: none; }
 .unit.fled { opacity: 0.3; }
 .unit.hit img { animation: hit 260ms var(--ease); }
@@ -697,6 +697,8 @@ a:hover { color: var(--accent-hi); }
 .unit.kill::after { animation: ring 520ms var(--ease) both; border: 3px solid #ffd27a; box-shadow: 0 0 18px rgba(255, 200, 100, 0.8); }
 .unit.kill img { animation: killflash 520ms var(--ease) both; }
 @keyframes killflash { 0% { filter: brightness(3) saturate(0); } 60% { filter: brightness(2) saturate(0); transform: scale(1.08); opacity: 1; } 100% { opacity: 0.2; transform: scale(0.9) translateY(6px); } }
+.unit.foe.kill img { animation-name: killflash-foe; }
+@keyframes killflash-foe { 0% { transform: scaleX(-1); filter: brightness(3) saturate(0); } 60% { filter: brightness(2) saturate(0); transform: scaleX(-1) scale(1.08); opacity: 1; } 100% { opacity: 0.2; transform: scaleX(-1) scale(0.9) translateY(6px); } }
 .unit.stunned::after { animation: ring 700ms var(--ease) both; border: 3px dashed #ffe27a; }
 .unit.stunned img { animation: wobble 700ms var(--ease); }
 @keyframes wobble { 20% { transform: rotate(-8deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(2deg); } }
@@ -787,13 +789,13 @@ a:hover { color: var(--accent-hi); }
   column-gap: 10px; row-gap: 3px; padding: 6px 8px; }
 .col.crowd .unit > * { grid-column: 2; }
 .col.crowd .unit > .intent { grid-column: 1 / -1; justify-self: center; height: 26px; }
-.col.crowd .unit > img { grid-column: 1; grid-row: 2 / span 4; }
+.col.crowd .unit > .fig { grid-column: 1; grid-row: 2 / span 4; }
 .col.crowd .unit .uname { text-align: left; }
 .col.crowd .unit .bar { width: 100%; }
 .col.crowd .unit .preview, .col.crowd .unit .sts { justify-content: flex-start; min-height: 0; }
 .col.crowd .unit .preview:empty, .col.crowd .unit .sts:empty { display: none; }
 .col.herocol .unit > .intent { position: absolute; top: -10px; right: 8px; height: 24px; z-index: 3; }
-.col.herocol .unit > img { grid-row: 1 / span 4; }
+.col.herocol .unit > .fig { grid-row: 1 / span 4; }
 @media (max-width: 700px) {
   .stage { padding-top: 70px; }
   .roll-tray .big-die { width: 42px; height: 42px; font-size: 22px; }
@@ -828,7 +830,7 @@ a:hover { color: var(--accent-hi); }
   .col.herocol .lbl { width: 100%; text-align: center; }
   .col.herocol .unit { width: 112px; grid-template-columns: 1fr; justify-items: center; }
   .col.herocol .unit > * { grid-column: auto; }
-  .col.herocol .unit > img { grid-row: auto; }
+  .col.herocol .unit > .fig { grid-row: auto; }
   .col.herocol .unit .uname, .col.herocol .unit .preview, .col.herocol .unit .sts { text-align: center; justify-content: center; }
   .intent:not(.none) { padding: 3px 7px; }
 }
@@ -1239,26 +1241,26 @@ a:hover { color: var(--accent-hi); }
 .stage { background: var(--stage-art, none) center 42% / cover no-repeat; image-rendering: pixelated; }
 .stage::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background: linear-gradient(180deg, var(--stage-veil) 0, transparent 22%, transparent 70%, var(--stage-veil) 100%); }
-.unit > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)); }
+.unit .fig > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)); }
 /* low specificity on purpose: a hit, lunge or kill animation (.unit.hit img and so on) replaces the idle */
-.unit:where(:not(.down):not(.dead)) > img { animation: idle 2.8s var(--idle-at, 0s) ease-in-out infinite; }
+.unit:where(:not(.down):not(.dead)) > :where(.fig) > img { animation: idle 2.8s var(--idle-at, 0s) ease-in-out infinite; }
 .unit:nth-child(3n) { --idle-at: -0.9s; }
 .unit:nth-child(3n+1) { --idle-at: -1.8s; }
 @keyframes idle { 50% { translate: 0 -3px; } }
-@media (prefers-reduced-motion: reduce) { .unit > img { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .unit .fig > img { animation: none !important; } }
 .unit img { width: 120px; height: 120px; }
 .unit.boss img { width: 152px; height: 152px; }
-.col.crowd .unit > img { width: 88px; height: 88px; }
-.col.crowd .unit.boss > img { width: 104px; height: 104px; }
+.col.crowd .unit .fig > img { width: 88px; height: 88px; }
+.col.crowd .unit.boss .fig > img { width: 104px; height: 104px; }
 @media (max-height: 860px) {
   .unit img { width: 96px; height: 96px; }
   .unit.boss img { width: 120px; height: 120px; }
-  .col.crowd .unit > img { width: 68px; height: 68px; }
-  .col.crowd .unit.boss > img { width: 80px; height: 80px; }
+  .col.crowd .unit .fig > img { width: 68px; height: 68px; }
+  .col.crowd .unit.boss .fig > img { width: 80px; height: 80px; }
 }
 @media (max-width: 700px) {
-  .unit img, .col.crowd .unit > img { width: 52px; height: 52px; }
-  .unit.boss img, .col.crowd .unit.boss > img { width: 64px; height: 64px; }
+  .unit img, .col.crowd .unit .fig > img { width: 52px; height: 52px; }
+  .unit.boss img, .col.crowd .unit.boss .fig > img { width: 64px; height: 64px; }
 }
 
 /* item icons (js/itemart.js): pixel pictures in the item rows and on loot cards, framed by rarity */
@@ -1433,3 +1435,123 @@ button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis
 @media (max-width: 700px) { .minimap { display: none; } }
 .fc-news { display: grid; gap: 3px; max-height: 132px; overflow-y: auto; margin-top: 2px; padding-top: 4px; border-top: var(--bw) solid var(--border); scrollbar-width: thin; }
 @media (max-width: 700px) { .fc-news { max-height: 74px; } }
+
+/* ---- physical dice (Nov 2026): a big die flickers through its own faces as it tumbles (blurred),
+   lands on the roll; a shield, skull, wild or elemental face flips in; a crit lands with a thump */
+.big-die::before { content: none; }
+.big-die .flick { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; border-radius: inherit;
+  color: rgba(22, 29, 43, 0.55); filter: blur(1.2px); animation: unland 600ms steps(1, end) both; font-style: normal; }
+.big-die .flick .strip { display: grid; text-decoration: none; animation: flickroll 600ms steps(4, end) both; }
+.big-die .flick b { display: block; height: 1em; line-height: 1em; text-align: center; }
+@keyframes flickroll { 0% { transform: translateY(1.5em); } 100% { transform: translateY(-2.5em); } }
+.big-die.special span { animation: landflip 960ms var(--ease) both; display: inline-block; }
+@keyframes landflip { 0%, 60% { opacity: 0; transform: perspective(200px) rotateY(90deg) scale(1.3); } 62% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.big-die.special.fS { background: linear-gradient(160deg, #e4ecf4, #a9bccd); color: #2a4058; }
+.big-die.special.fX { background: linear-gradient(160deg, #e0c8c4, #a07a74); color: #4a1e1a; }
+.big-die.special.fW { background: linear-gradient(160deg, #fff2c0, #e0bb62); color: #5a3e08; box-shadow: 0 0 0 2px #ffe08a, 0 0 16px rgba(255, 210, 110, 0.7); }
+.big-die.special.fel { box-shadow: 0 0 0 2px var(--accent-lo), 0 6px 14px rgba(0, 0, 0, 0.45); }
+.big-die.crit { animation: tumble-crit 1000ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+@keyframes tumble-crit { 0% { transform: translateY(-30px) rotate(-220deg) scale(0.55); opacity: 0; }
+  33% { transform: translateY(5px) rotate(18deg) scale(1.06); opacity: 1; } 47% { transform: rotate(-6deg) scale(0.98); }
+  60% { transform: none; } 70% { transform: translateY(4px) scale(1.32, 0.86); } 82% { transform: translateY(-3px) scale(0.94, 1.08); } 100% { transform: none; } }
+.big-die.crit::after { content: ""; position: absolute; inset: -6px; border-radius: 18px; border: 3px solid #ffd27a; opacity: 0; pointer-events: none;
+  animation: critring 1000ms ease-out both; animation-delay: inherit; }
+@keyframes critring { 0%, 62% { opacity: 0; transform: scale(0.8); } 70% { opacity: 1; } 100% { opacity: 0; transform: scale(1.6); } }
+
+/* the Swell die grows a size with every round it waits, and pops when it grows */
+.die.tile.swell.s1 { transform: scale(1.06); box-shadow: 0 0 10px rgba(201, 162, 74, 0.35); }
+.die.tile.swell.s2 { transform: scale(1.12); box-shadow: 0 0 14px rgba(201, 162, 74, 0.55); }
+.die.tile.swell.s3 { transform: scale(1.18); box-shadow: 0 0 20px rgba(224, 187, 98, 0.8); }
+.die.tile.roll.swell.s1, .die.tile.roll.swell.s2, .die.tile.roll.swell.s3 { animation: swellgrow 620ms var(--ease); }
+@keyframes swellgrow { 0% { transform: scale(0.9); } 55% { transform: scale(1.32); filter: brightness(1.3); } 100% { } }
+
+/* lines between fighters: an enemy's aim (red, drawn toward its target) and an Echo's link */
+.fx.line { height: 3px; transform-origin: 0 50%; border-radius: 2px; translate: 0 -50%; }
+.fx.line.aim { background: repeating-linear-gradient(90deg, #ff7a5c 0 10px, transparent 10px 16px); box-shadow: 0 0 6px rgba(255, 110, 80, 0.6);
+  clip-path: inset(0 100% 0 0); animation: linedraw var(--ms, 900ms) var(--ease) both; }
+.fx.line.echo { height: 2px; background: linear-gradient(90deg, rgba(207, 196, 236, 0.2), #cfc4ec, rgba(207, 196, 236, 0.2)); box-shadow: 0 0 10px #a48ad8;
+  clip-path: inset(0 100% 0 0); animation: linedraw var(--ms, 900ms) var(--ease) both; }
+@keyframes linedraw { 0% { clip-path: inset(0 100% 0 0); opacity: 1; } 35% { clip-path: inset(0 0 0 0); } 75% { opacity: 1; } 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
+.unit.echoed img { animation: echoglow 700ms var(--ease); }
+@keyframes echoglow { 0%, 100% { filter: none; } 40% { filter: drop-shadow(0 0 10px #a48ad8) brightness(1.25); } }
+@media (prefers-reduced-motion: reduce) { .big-die .flick, .big-die .flick .strip, .big-die.special span, .big-die.crit, .big-die.crit::after, .die.tile.swell, .fx.line { animation: none !important; } .big-die .flick { display: none; } }
+
+/* ---- the enemy turn, readable (Nov 2026): the enemy about to act lifts and glows, its intent card
+   lights, and a dashed aim line draws to its target; Armor chips off in shards before a pale trail
+   drains the health bar */
+.unit.foe.acting { border-color: var(--danger); background: var(--danger-wash); box-shadow: 0 0 22px rgba(208, 98, 79, 0.35); }
+.unit.foe.acting img { translate: 0 -6px; filter: drop-shadow(0 0 8px rgba(255, 120, 90, 0.7)); }
+.unit.foe.acting .intent.card { box-shadow: 0 0 0 2px var(--danger), 0 0 16px rgba(255, 110, 80, 0.55); transform: scale(1.06); }
+.bar b.lag { position: absolute; inset: 0 auto 0 0; background: #f4dcb0; animation: hplag 950ms ease-in both; }
+@keyframes hplag { 0%, 35% { width: var(--from); opacity: 1; } 100% { width: var(--to); opacity: 0.6; } }
+.fx.shards { width: 80px; height: 80px; }
+.fx.shards::before, .fx.shards::after { content: ""; position: absolute; left: 50%; top: 50%; width: 9px; height: 7px; background: #b8c8d8;
+  border-radius: 1px 5px 1px 5px;
+  box-shadow: 18px -10px 0 #8fa3b8, -16px -14px 0 #cdd8e4, 22px 12px 0 #8fa3b8, -20px 10px 0 #b8c8d8, 4px -22px 0 #cdd8e4, -4px 20px 0 #8fa3b8;
+  animation: shards 560ms ease-out both; }
+.fx.shards::after { transform: rotate(60deg); animation-delay: 40ms; }
+.fx.shards.full::before { background: #dfe8f2; }
+@keyframes shards { 0% { opacity: 1; transform: translate(-50%, -50%) scale(0.3); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9) rotate(40deg); } }
+@media (prefers-reduced-motion: reduce) { .bar b.lag, .fx.shards::before, .fx.shards::after { animation: none !important; display: none; } }
+
+/* ---- statuses on the fighters (Nov 2026; combat.js statusAura): the sprite sits in a .fig with an
+   overlay the same size; each status draws its own loop over it */
+.unit .fig { position: relative; display: block; line-height: 0; }
+.unit .fig .aura { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.aura i { position: absolute; display: block; animation-iteration-count: infinite; animation-timing-function: linear; }
+.aura .drip { left: calc(34% + var(--i) * 14%); top: 44%; width: 6px; height: 9px; border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%; background: #8be04e; box-shadow: 0 0 6px #5aa83a; animation-name: drip; animation-duration: 1400ms; }
+@keyframes drip { 0% { transform: translateY(0) scaleY(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(46px) scaleY(1.2); opacity: 0; } }
+.aura .ember { left: calc(28% + var(--i) * 15%); bottom: 18%; width: 6px; height: 6px; border-radius: 1px; background: #ffc061; box-shadow: 0 0 8px #ff7a1a, 0 0 2px #fff2c0; animation-name: ember; animation-duration: 1200ms; }
+@keyframes ember { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(calc((var(--i) - 1.5) * 6px), -58px); opacity: 0; } }
+.aura .spark { left: calc(30% + var(--i) * 18%); top: calc(30% + var(--i) * 12%); width: 14px; height: 3px; background: #fff0a8; box-shadow: 0 0 8px #ffe27a; animation-name: spark; animation-duration: 700ms; animation-timing-function: steps(2, end); }
+@keyframes spark { 0%, 60% { opacity: 0; transform: rotate(calc(var(--i) * 70deg)) scaleX(0.4); } 70% { opacity: 1; transform: rotate(calc(var(--i) * 70deg + 30deg)) scaleX(1); } 100% { opacity: 0; } }
+.aura .cross { left: 50%; top: 46%; width: 46%; aspect-ratio: 1; translate: -50% -50%; border: 2px solid rgba(255, 110, 90, 0.85); border-radius: 50%;
+  --c: rgba(255, 110, 90, 0.9);
+  background: radial-gradient(circle, var(--c) 0 2px, transparent 2.5px),
+    linear-gradient(var(--c), var(--c)) 50% 0 / 2px 26% no-repeat, linear-gradient(var(--c), var(--c)) 50% 100% / 2px 26% no-repeat,
+    linear-gradient(var(--c), var(--c)) 0 50% / 26% 2px no-repeat, linear-gradient(var(--c), var(--c)) 100% 50% / 26% 2px no-repeat;
+  animation-name: crosshair-pulse; animation-duration: 4000ms; animation-timing-function: ease-in-out; }
+@keyframes crosshair-pulse { 0%, 100% { scale: 1; opacity: 0.75; } 50% { scale: 0.86; opacity: 1; } }
+.aura .star { left: 50%; top: 4%; width: 10px; height: 10px; background: #ffe27a; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation-name: orbit; animation-duration: 1600ms; }
+@keyframes orbit { 0% { transform: translate(-50%, 0) rotate(0deg) translateX(22px) rotate(0deg) scaleY(0.5); } 100% { transform: translate(-50%, 0) rotate(360deg) translateX(22px) rotate(-360deg) scaleY(0.5); } }
+.aura .star { transform-origin: 50% 50%; }
+.aura .vine { bottom: 2%; left: calc(26% + var(--i) * 18%); width: 5px; height: 26%; border-radius: 3px 3px 0 0; background: linear-gradient(#6aa84a, #3e6a34); transform-origin: 50% 100%; animation-name: vine; animation-duration: 2600ms; animation-timing-function: ease-in-out; }
+@keyframes vine { 0%, 100% { transform: rotate(calc((var(--i) - 1) * 14deg)); } 50% { transform: rotate(calc((var(--i) - 1) * 14deg + 8deg)); } }
+.aura .frost { left: calc(24% + var(--i) * 22%); bottom: 6%; width: 8px; height: 12px; background: #bfeeff; clip-path: polygon(50% 0, 100% 100%, 0 100%); opacity: 0.85; animation-name: frost; animation-duration: 3000ms; animation-timing-function: ease-in-out; }
+@keyframes frost { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+.aura .crack { inset: 10% 20%; border-radius: 50%; box-shadow: inset 0 0 14px rgba(255, 90, 70, 0.55); animation-name: vulnpulse; animation-duration: 1800ms; animation-timing-function: ease-in-out; }
+@keyframes vulnpulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.aura .hexmote { left: calc(36% + var(--i) * 22%); top: 30%; width: 6px; height: 6px; border-radius: 50%; background: #e070c0; box-shadow: 0 0 8px #e070c0; animation-name: hexmote; animation-duration: 2200ms; animation-timing-function: ease-in-out; }
+@keyframes hexmote { 0%, 100% { transform: translate(0, 0); opacity: 0.3; } 50% { transform: translate(calc((var(--i) - 0.5) * 16px), -14px); opacity: 1; } }
+.unit.st-freeze .fig > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)) saturate(0.4) brightness(1.15) hue-rotate(160deg); }
+.unit.st-weak .fig > img { scale: 1 0.93; transform-origin: 50% 100%; filter: drop-shadow(0 5px 3px var(--stage-shadow)) saturate(0.6) brightness(0.9); }
+.unit.st-stun .fig > img { rotate: -4deg; transform-origin: 50% 100%; }
+@media (prefers-reduced-motion: reduce) { .aura i { animation: none !important; } }
+/* ambush ground: leaves drifting down over the stage */
+.stage .leaves { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.stage .leaves i { position: absolute; top: -12px; width: 7px; height: 4px; border-radius: 4px 0; background: #4a6a34; opacity: 0.85;
+  animation: leaf linear infinite; }
+.stage .leaves i:nth-child(2n) { background: #6a7a3a; }
+@keyframes leaf { 0% { transform: translate(0, 0) rotate(0deg); } 25% { transform: translate(18px, 25vh) rotate(90deg); } 50% { transform: translate(-6px, 50vh) rotate(200deg); }
+  75% { transform: translate(14px, 75vh) rotate(300deg); } 100% { transform: translate(0, 105vh) rotate(400deg); } }
+/* a win: the heroes still standing hop and raise their arms (the cast pose) under the banner */
+.unit.victory .fig > img { animation: victory 650ms var(--ease) 2; }
+@keyframes victory { 0%, 100% { transform: none; } 40% { transform: translateY(-14px) scale(1.04); } 70% { transform: translateY(0) scale(1.06, 0.95); } }
+.big-banner .count-up { display: inline-flex; gap: 18px; font-variant-numeric: tabular-nums; }
+.big-banner .count-up span { display: inline-flex; align-items: center; gap: 6px; }
+.big-banner .count-up .icon-svg { width: 18px; height: 18px; }
+@media (prefers-reduced-motion: reduce) { .stage .leaves { display: none; } .unit.victory .fig > img { animation: none; } }
+/* loot cards are dealt face down and flip over; the flip flares in the card's rarity colour */
+.scrim.enter .picks > .loot-card { animation: flipdeal 620ms calc(var(--i, 0) * 140ms + 120ms) cubic-bezier(0.3, 1.2, 0.4, 1) both; }
+.scrim.enter .loot-card.r-legendary { animation: flipdeal 620ms calc(var(--i, 0) * 140ms + 120ms) cubic-bezier(0.3, 1.2, 0.4, 1) both, legend-glow 2.4s 900ms ease-in-out infinite; }
+@keyframes flipdeal { 0% { opacity: 0; transform: perspective(900px) translateY(40px) rotateY(180deg) scale(0.9); filter: brightness(0.35); }
+  45% { opacity: 1; filter: brightness(0.35); } 50% { filter: brightness(1.6); } 100% { transform: none; filter: none; } }
+.loot-card.r-uncommon { box-shadow: 0 0 0 1px rgba(99, 183, 126, 0.3), 0 0 20px rgba(99, 183, 126, 0.12); }
+.flying { transform-origin: 50% 50%; box-shadow: 0 0 0 2px #e0bb62, 0 0 30px rgba(224, 187, 98, 0.6); }
+@media (prefers-reduced-motion: reduce) { .scrim.enter .picks > .loot-card { animation: none !important; } }
+/* the tide rises: a wave of light washes across the map */
+.map.tide-wave::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: linear-gradient(100deg, transparent 0 30%, rgba(170, 220, 240, 0.0) 34%, rgba(170, 220, 240, 0.32) 44%, rgba(230, 248, 255, 0.5) 48%, rgba(170, 220, 240, 0.2) 54%, transparent 64%);
+  background-size: 260% 100%; animation: tidewash 1600ms ease-in-out both; }
+@keyframes tidewash { from { background-position: 120% 0; } to { background-position: -40% 0; } }
+@media (prefers-reduced-motion: reduce) { .map.tide-wave::after { display: none; } }

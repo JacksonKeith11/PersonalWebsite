@@ -148,7 +148,7 @@ Keep to these. They came from the owner directly.
   | Weak | deals 25% less damage |
   | Vulnerable | takes 25% more damage |
   | Stun | skips its next action |
-  | Armor | blocks N damage, cleared at end of round unless a skill says otherwise |
+  | Armor | blocks N damage; a hero's clears at end of round unless a skill says otherwise, an enemy's when the enemies' next turn starts |
   | Mark | takes +3 damage from every hit |
   | Root | can't change rows or flee |
 
@@ -415,7 +415,11 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   the enemies' intents. The party plays actions, each resolving the moment it's played
   (`do_place` → `resolve_action` → `run_ops`). When everyone is ready, summons and pets act, then
   enemies fastest first (`resolve_round`), then end-of-round effects (`end_round`: Triage, Burn,
-  Doom, statuses ticking down, Armor clearing, the Crown's phase).
+  Doom, statuses ticking down, the heroes' Armor clearing, the Crown's phase).
+- **Enemy Armor lasts from one enemy turn to the next** (owner's request, Nov 2026): it clears when
+  the enemies' turn starts (`resolve_round`), not at the end of the round. Before, what a Block, a
+  Guard or a shield face gave was wiped the moment the round ended, so it never met a hero's attack
+  (only Ironclad's, given at the start of the round, did). No balance run was done after the change.
 - **Dice roll when their action resolves**, not while planning. Planning shows each die face-down with
   its kind and size; each action card shows the chance to hit with the dice picked. Exceptions: Seer
   dice are rolled and shown while planning, Augur dice show only high or low, Fate dice show two faces

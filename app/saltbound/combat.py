@@ -5,7 +5,8 @@ places dice on actions together, and each action happens the moment it's placed:
 its effects land before anyone places another, so the party's actions go in the order they were
 played (`f["done"]` lists them for the round). When everyone is ready, summons and pets act, then
 enemies act in speed order, then end-of-round effects (Burn, Doom, Lifeline, statuses running out,
-Armor clearing).
+the heroes' Armor clearing). Enemy Armor clears when the enemies' turn starts instead, so Armor they
+gain on their turn lasts through the heroes' next round.
 
 Heroes are "h0".."h2", enemies "f<id>" and summons "s<id>" wherever the browser names a target.
 """
@@ -600,7 +601,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.hurt_foe(fo, 3, h)
         if self.check_end():
             return
-        # Enemies act, fastest first.
+        # Enemies act, fastest first. Their Armor lasts from one enemy turn to the next, so what a
+        # Block, a Guard or a shield face gives them protects them through the heroes' next round.
+        for fo in self.foes():
+            fo["st"].pop("armor", None)
         for fo in sorted(self.foes(), key=lambda fo: -A.FOES[fo["k"]]["speed"]):
             if fo["hp"] <= 0:
                 continue
@@ -844,7 +848,6 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for s in TICKING:
                 if st.get(s):
                     st[s] -= 1
-            st["armor"] = 0
             for s in [s for s, v in st.items() if not v]:
                 del st[s]
         for h in self.actives():

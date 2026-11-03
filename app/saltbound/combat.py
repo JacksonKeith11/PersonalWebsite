@@ -110,9 +110,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         m = self.mods(h)
         cap = C.SUMMON_CAP + m.get("summon_cap", 0)
         mine = [a for a in self.allies() if a["owner"] == h]
+        replaced = []
         while len(mine) >= cap:
             old = mine.pop(0)
             old["hp"] = 0
+            replaced.append(f"s{old['id']}")
             self.fx("die", to=f"s{old['id']}")
         mx = max(1, round((hp or d["hp"]) * (1 + m.get("summon_hp", 0))))
         a = {"id": f["nextsum"], "k": kind, "name": d["name"], "hp": mx, "max": mx, "row": d["row"], "atk": d["atk"],
@@ -120,7 +122,51 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f["nextsum"] += 1
         f["allies"].append(a)
         self.fx("summon", s=a["id"])
+        me = f"s{a['id']}"
+        # A summon that replaces an older one takes over the attacks aimed at it...
+        for fo in self.foes():
+            it = fo.get("intent") or {}
+            if it.get("k") != "attack":
+                continue
+            if it.get("tgt") in replaced:
+                it["tgt"] = me
+                self.fx("retarget", f=fo["id"], to=me)
+            elif any(t in replaced for t in it.get("tgts") or []):
+                it["tgts"] = [me if t in replaced else t for t in it["tgts"]]
+                self.fx("retarget", f=fo["id"], to=me)
+        # ...and every new summon draws one attack this round, so it protects someone at once.
+        pull = self.summon_pull(h)
+        if pull:
+            fo, i = pull
+            it = fo["intent"]
+            if i is None:
+                it["tgt"] = me
+            else:
+                it["tgts"][i] = me
+            self.fx("retarget", f=fo["id"], to=me)
         return a
+
+    def summon_pull(self, h):
+        """The attack a summon called by hero `h` now would draw onto itself: the first enemy (in the
+        order they act) with a single-target attack aimed at a hero, one aimed at `h` first. Returns
+        (enemy, index into `tgts`, or None for `tgt`), or None. The bots use it to value summoning."""
+        f = self.s["fight"]
+        if f["taunt"] is not None and self.active(f["taunt"]):
+            return None  # a Taunt takes every attack whatever it was aimed at
+        order = sorted(self.foes(), key=lambda fo: -A.FOES[fo["k"]]["speed"])
+        best = None
+        for fo in order:
+            it = fo.get("intent") or {}
+            if it.get("k") != "attack":
+                continue
+            aims = [(None, it["tgt"])] if it.get("tgt") else list(enumerate(it.get("tgts") or []))
+            for i, t in aims:
+                if not (t and t.startswith("h")):
+                    continue
+                if t == f"h{h}":
+                    return fo, i
+                best = best or (fo, i)
+        return best
 
     # ------------------------------------------------------------------ lookups
 

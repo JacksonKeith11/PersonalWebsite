@@ -476,7 +476,13 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   `fo["st_by"]`; the dice each enemy was last hit with this round are in `f["lastdie"]`.
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
-  one replacing the oldest. **The Ranger's hawk** is a die, not a unit (Companion a d6; Alpha a d8 and
+  one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the
+  round, from the heroes and summons standing then; so a summon would protect nobody in the round it
+  arrives. Two rules fix that (owner's request, Nov 2026; `summon`, `summon_pull` in `combat.py`):
+  **a new summon draws one attack** (the first enemy to act with a single-target attack on a hero, one
+  aimed at its Warden first; not while a Taunt holds), and **a replacement takes over the attacks aimed
+  at the summon it replaced** (they used to fall back on a random target, often a hero). The bots count
+  the drawn hit when valuing a summon (`bot.evaluate`). **The Ranger's hawk** is a die, not a unit (Companion a d6; Alpha a d8 and
   it strikes the weakest enemy for 3 each round).
 - **Fleeing**: a die on Flee takes the hero back to the hex they came from; not from dungeons or
   bosses.
@@ -636,6 +642,10 @@ now"; it was 30–35% while the bots split up) with no class far ahead; leave th
 multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/archipelago.py`
 (1.0: at 1.1–1.25 most losing parties died at their first dungeon).
 
+- **Summons draw an attack on arrival** (Nov 2026; 300 Hard runs with a Warden in every party, seed
+  5000, before and after): **Warden parties 39% → 50%**, the Warden's deaths 0.67 → 0.55 a run and
+  damage taken 3.3 → 2.6 a round; the Crown won 45% → 34% of its fights. The bots summon more now that
+  they count the drawn hit: Sprout 5151 → 6360 casts, Swarm 632 → 1326, Call Bear 53 → 400.
 - **Difficulty** (`DIFFICULTY` in `game.py`): Story 1.0× enemy HP and 0.95× damage, 4 revives, a rise
   every 4 turns; Normal 1.9× / 1.75×, 3 revives, a rise every 3; Hard 2.35× / 2.3×, 2 revives, a rise
   every 3. Enemies also gain 15% HP and 10% damage per tier (objective cleared), and `SURGE` per rise

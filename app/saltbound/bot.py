@@ -848,6 +848,10 @@ def evaluate(g, b, h, a, dice, tgt):
                         val += share * 1.0
             elif k == "summon":
                 mine = sum(1 for al in g.allies() if al["owner"] == h) + b.summons.get(h, 0)
+                if not b.summons.get(h):
+                    pull = g.summon_pull(h)  # the new summon takes this hit instead of a hero
+                    if pull:
+                        val += pull[0]["intent"].get("v", 0)
                 if mine < C.SUMMON_CAP + m.get("summon_cap", 0):
                     val += 6 + min(6, sum(fo["hp"] for fo in foes) / 12)
                     bump(eff["summons"], h, pr)

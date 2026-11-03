@@ -322,7 +322,7 @@ ACTIONS = {
     "thornlash": {"name": "Thornlash", "req": {"n": 1}, "tgt": "foe",
                   "ops": [{"op": "dmg", "amt": "v+1"}, {"op": "status", "s": "root", "n": 1, "if": "v>=5"}], "text": "Any row: deal the die +1, and Root the enemy on 5+."},
     "sprout": {"name": "Sprout", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "summon", "k": "sapling", "hp": "v*2"}],
-               "text": "Grow a sapling with twice the die in HP. Enemies can attack it instead of you."},
+               "text": "Grow a sapling with twice the die in HP. It draws one attack this round (one aimed at you first), and enemies can attack it after that."},
     "call_bear": {"cd": 3, "name": "Call Bear", "req": {"n": 2, "sum_min": 9}, "tgt": "self", "tags": ["grove"],
                   "ops": [{"op": "summon", "k": "bear"}], "miss": [],
                   "text": "Two dice summing to 9+: a bear joins the fight (15 HP, hits for 4 each round). Otherwise: nothing."},

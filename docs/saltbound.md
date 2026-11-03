@@ -473,7 +473,12 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   faces Hard went from 46% to 83%; the owner chose to answer with enemy crits and harder-hitting
   enemies (Hard `foe_dmg` 2.3 → 2.8, Normal 1.75 → 2.3). Now **Hard 45%** (300 runs; classes 35–58%:
   Scoundrel 58, Ranger 50, Warden 49, Alchemist 48, Mender 46, Vanguard 43, Herald 42, Arcanist 41,
-  Duelist 37, Berserker 35) and **Normal 90%** (150 runs).
+  Duelist 37, Berserker 35) and **Normal 90%** (150 runs). Then the class pass (enemy Armor breaks
+  became statuses, big dice crit on their top two faces, Scoundrel Poison crits 1, Riposte Cut and
+  Hack crits gained Armor and healing): **Hard 44%**, classes 35–52% (Ranger 52, Scoundrel 46, Alchemist
+  and Arcanist 46, Herald 45, Warden 44, Mender 43, Berserker 43 (was 35), Vanguard 42, Duelist 35). The
+  Duelist dealt the most damage but died the most (0.70 a run), so its HP went 27 → 31: parties with a
+  Duelist now win 52% (150 hard runs, `--with=duelist`).
 - **Cooldowns** (`"cd": N`): only basic attacks are usable every round (owner's request). `FREE` in
   `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block, Flee and weapon
   actions except Sweep and Tidal). Everything else has 2; the biggest skills 3. Lift is once per rest
@@ -544,7 +549,7 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 | Class | HP (per level) | Map ability | Role | Tags |
 |---|---|---|---|---|
 | Vanguard | 46 (+5) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
-| Duelist | 27 (+4) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
+| Duelist | 31 (+4) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
 | Berserker | 32 (+4) | **Forage**: camps heal them fully | High-risk damage | Bloodlust, Rampage |
 | Ranger | 24 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
 | Arcanist | 23 (+4) | **Farsight**: sees 1 hex further; spots cursed loot | AoE and burst | Elementalist, Hexer |

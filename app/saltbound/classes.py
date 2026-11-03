@@ -509,7 +509,7 @@ PASSIVES.update({
 
 CLASSES.update({
     "duelist": {
-        "name": "Duelist", "hp": 27, "hp_lvl": 4, "role": "Single-target damage",
+        "name": "Duelist", "hp": 31, "hp_lvl": 4, "role": "Single-target damage",
         "dice": [D(8), D(6)], "tags": ["flurry", "precision"],
         "map": {"key": "ambush", "name": "Ambush", "text": "A fight you start gives the party a free first round."},
         "start": ["slash_d", "parry"], "weapon": "rapier", "armor": "padded_coat",

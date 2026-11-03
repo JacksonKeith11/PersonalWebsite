@@ -44,4 +44,14 @@ SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of i
 
 # Passives that change what a die can show while planning (the bots' odds cache and the browser's
 # hit chances need them): Sleight of Hand, Bulwark Faces, Weighted Coin, Keen Edge.
+# The Swell die (a level-up pick): it starts each fight small and grows a step each round it goes
+# unused, back to the start once used. (faces, flat bonus) per step. Each step pays better per round
+# waited than spending it every round: a d4 is 2.5 a round; d10+2 after one round waited is 3.75 a
+# round over the two; d12+7 after two, 4.5; d20+12 after three, 5.6. So holding it is the play, and
+# the choice is when to cash it in.
+SWELL = ((4, 0), (10, 2), (12, 7), (20, 12))
+# The Echo die (a level-up pick): until an ally uses a die this round it's this size; after, it
+# shows the biggest number of that ally's last play.
+ECHO_FACES = 8
+
 ROLL_MODS = ("sleight", "shield_top", "one_is_top", "keen_edge", "skull_top")

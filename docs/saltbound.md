@@ -483,6 +483,24 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
   `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block, Flee and weapon
   actions except Sweep and Tidal). Everything else has 2; the biggest skills 3. Lift is once per rest
   (`per_rest`, the hero's `spent` list).
+- **Swell and Echo dice** (owner's request: dice that change what you plan around). The **Swell die**
+  (Building Rage for the Berserker, Sap Rising for the Warden) starts each fight as a d4 and grows a
+  step each round it's left unused: d10 +2, d12 +7, d20 +12 (`SWELL` in `tuning.py`); using it starts it
+  over. Each step pays more per round waited than spending it every round (2.5 a round; then 3.75,
+  4.5, 5.6), so holding it is the play and the decision is when to cash it in (the owner asked that the
+  growth be worth more than using it each turn). Enemies' die attacks (Hex, theft, Barnacle Crust)
+  never take it. The bots hold it until it's a d12 +7, unless the fight is nearly won or they're about
+  to go down. The **Echo die** (Echo Chorus for the Herald, Mirror Step for the Duelist) is a d8 until
+  an ally uses a die this round; then it shows the biggest number of that ally's last play
+  (`Combat.echo_out`, after every action and instant), so the order of play is a party decision, and a
+  copied number always matches for Pincer.
+- **Dice picks** (owner's request: more level-ups that change dice): passives that change a hero's
+  dice for the fight (`Combat.dice_picks`; `NEW_DICE_PICKS` in `classes.py` adds them to the pools):
+  Shield Rim (Vanguard: the armor die's lowest face becomes a shield face), Wild Surge (Arcanist: the
+  biggest die's lowest face is wild), Steady Hands (Mender: every die is Steady), Fated Blade (Duelist:
+  the weapon die is a Fate die), Powder Edge (Berserker: the weapon die explodes), Hawk's Eye (Ranger:
+  the Augur die is a Seer die), Loaded Bones (Scoundrel: linked dice's 1s are wild), Reactive Mix
+  (Alchemist: the weapon die's two lowest numbers burn and poison), plus the Swell and Echo picks.
 - **Guard dice** (owner's choice): every armor's die carries `guard` and only goes on
   defensive actions (`is_defensive`, sent as each action's `def`). Every hero has a defensive action
   for it, so a guard die is never wasted.

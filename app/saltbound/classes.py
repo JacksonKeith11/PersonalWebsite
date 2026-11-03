@@ -606,6 +606,41 @@ ACTIONS.update({
                     "ops": [{"op": "transfusion"}], "text": "Roll the die now: heal an ally by that much +2, and their next die rolls 2 higher."},
 })
 
+# Dice picks: passives that change a hero's dice (Combat.dice_picks), or add one (the Swell and
+# Echo dice, Combat.round_dice). One or two per class, in its flavour.
+PASSIVES.update({
+    "shield_rim": {"name": "Shield Rim", "mods": {"shield_rim": 1}, "tags": ["bulwark"],
+                   "text": "Your armor die's lowest face becomes a shield face (3 Armor whenever it lands)."},
+    "wild_surge": {"name": "Wild Surge", "mods": {"wild_low": 1}, "tags": ["elementalist"],
+                   "text": "Your biggest die's lowest face becomes wild: it counts as the top face, and crits."},
+    "steady_hands": {"name": "Steady Hands", "mods": {"steady_all": 1}, "tags": ["restoration"],
+                     "text": "All your dice are Steady: when an action misses, its dice reroll once."},
+    "fated_blade": {"name": "Fated Blade", "mods": {"fate_weapon": 1}, "tags": ["precision"],
+                    "text": "Your weapon's die is a Fate die: you see two faces while you plan, and one of them comes up."},
+    "mirror_step": {"name": "Mirror Step", "mods": {"echo_die": 1}, "tags": ["flurry"],
+                    "text": "Gain an Echo die: a d8 until an ally uses a die this round, then it shows the biggest number of their last play."},
+    "building_rage": {"name": "Building Rage", "mods": {"swell_die": 1}, "tags": ["rampage"],
+                      "text": "Gain a Swell die. It starts each fight as a d4 and grows each round you leave it: d10 +2, d12 +7, then d20 +12. Using it starts it over."},
+    "powder_edge": {"name": "Powder Edge", "mods": {"explosive_weapon": 1}, "tags": ["bloodlust"],
+                    "text": "Your weapon's die explodes: its top face rolls again and adds."},
+    "hawks_eye": {"name": "Hawk's Eye", "mods": {"seer_augur": 1}, "tags": ["marksman"],
+                  "text": "Your Augur die becomes a Seer die: rolled and shown while you plan."},
+    "loaded_bones": {"name": "Loaded Bones", "mods": {"wild_link": 1}, "tags": ["tricks"],
+                     "text": "The 1s on your linked dice are wild: they count as the top face, and crit."},
+    "echo_chorus": {"name": "Echo Chorus", "mods": {"echo_die": 1}, "tags": ["anthem"],
+                    "text": "Gain an Echo die: a d8 until an ally uses a die this round, then it shows the biggest number of their last play."},
+    "reactive_mix": {"name": "Reactive Mix", "mods": {"catalyst": 1}, "tags": ["bombs"],
+                     "text": "Your weapon die's two lowest numbers become a burn face and a poison face."},
+    "sap_rising": {"name": "Sap Rising", "mods": {"swell_die": 1}, "tags": ["grove"],
+                   "text": "Gain a Swell die. It starts each fight as a d4 and grows each round you leave it: d10 +2, d12 +7, then d20 +12. Using it starts it over."},
+})
+NEW_DICE_PICKS = {"vanguard": ["shield_rim"], "arcanist": ["wild_surge"], "mender": ["steady_hands"],
+                  "duelist": ["fated_blade", "mirror_step"], "berserker": ["building_rage", "powder_edge"],
+                  "ranger": ["hawks_eye"], "scoundrel": ["loaded_bones"], "herald": ["echo_chorus"],
+                  "alchemist": ["reactive_mix"], "warden": ["sap_rising"]}
+for _c, _ks in NEW_DICE_PICKS.items():
+    CLASSES[_c]["pool"] += [k for k in _ks if k not in CLASSES[_c]["pool"]]
+
 GENERIC = ["block", "flee"]
 
 # Guard dice (armor and some trinkets) only go on defensive actions: ones that do nothing but

@@ -20,6 +20,7 @@ from .content import items as I
 from .dice import Dice, face, num, top_face
 from .foes import Foes
 from .crits import is_crit
+from .tuning import SWELL, ECHO_FACES
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
 
@@ -325,6 +326,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 big = max(left, key=lambda d: top_face(d["faces"]))
                 x["hoard"] = {"faces": big["faces"], "src": "hoard",
                               "dk": [k for k in big["dk"] if k not in ("seer", "augur", "fate", "top") and not k.startswith("link:")]}
+        if self.mods(h).get("swell_die"):
+            old = next((d for d in x["dice"] if d.get("src") == "swell"), None)
+            if old is not None:
+                x["swell"] = 0 if old["used"] else min(x.get("swell", 0) + 1, len(SWELL) - 1)
         x["dice"] = []
         x["round_once"] = []
         x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
@@ -351,7 +356,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         m = self.mods(h)
         for i, d in enumerate(self.round_dice(h, x, m, anthem)):
             inst = {"id": f"{h}.{f['round']}.{i}", "faces": d["faces"], "dk": d["dk"], "src": d["src"], "used": False,
-                    "v": None, "bonus": 0, "top": "top" in d["dk"]}
+                    "v": None, "bonus": d.get("bonus", 0), "top": "top" in d["dk"]}
             for k in d["dk"]:
                 if k.startswith("link:"):
                     inst["link"] = k[5:]
@@ -368,7 +373,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
 
     def round_dice(self, h, x, m, anthem):
         """The dice a hero rolls this round: gear and class dice, then pets, Anthem, Slack Water."""
-        dice = self.dice_of(h)
+        dice = [dict(d, faces=list(d["faces"]), dk=list(d["dk"])) for d in self.dice_of(h)]
+        self.dice_picks(dice, m)
+        if m.get("swell_die"):
+            size, bonus = SWELL[x.get("swell", 0)]
+            dice.append({"faces": list(range(1, size + 1)), "dk": ["swell"], "src": "swell", "bonus": bonus})
+        if m.get("echo_die"):
+            dice.append({"faces": list(range(1, ECHO_FACES + 1)), "dk": ["echo"], "src": "echo"})
         if m.get("pet"):
             dice.append({"faces": list(range(1, (8 if m.get("pet_strike") else min(8, m["pet"])) + 1)), "dk": [], "src": "pet"})
         if any(y != h for y in anthem):
@@ -382,23 +393,84 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             big["dk"] = list(big["dk"]) + ["seer", "top"]
         return dice
 
+    @staticmethod
+    def dice_picks(dice, m):
+        """Level-up picks that change a hero's dice for the fight (each a mod in mods.py)."""
+        def low(d):
+            nums = [i for i, f in enumerate(d["faces"]) if isinstance(f, int)]
+            return min(nums, key=lambda i: d["faces"][i]) if nums else None
+
+        def by_src(src):
+            return [d for d in dice if d["src"] == src]
+        if m.get("shield_rim"):  # Shield Rim: the armor die's lowest face becomes a shield face
+            for d in by_src("armor"):
+                i = low(d)
+                if i is not None:
+                    d["faces"][i] = "S"
+        if m.get("wild_low") and dice:  # Wild Surge: the biggest die's lowest face is wild
+            d = max(dice, key=lambda d: top_face(d["faces"]))
+            i = low(d)
+            if i is not None:
+                d["faces"][i] = "W"
+        if m.get("steady_all"):  # Steady Hands: every die is Steady
+            for d in dice:
+                if "steady" not in d["dk"]:
+                    d["dk"].append("steady")
+        if m.get("fate_weapon"):  # Fated Blade: the weapon die is a Fate die
+            for d in by_src("weapon"):
+                if "fate" not in d["dk"]:
+                    d["dk"].append("fate")
+        if m.get("seer_augur"):  # Hawk's Eye: an Augur die is a Seer die
+            for d in dice:
+                if "augur" in d["dk"]:
+                    d["dk"] = ["seer" if k == "augur" else k for k in d["dk"]]
+        if m.get("wild_link"):  # Loaded Bones: linked dice's 1s are wild
+            for d in dice:
+                if any(k.startswith("link:") for k in d["dk"]):
+                    d["faces"] = ["W" if f == 1 else f for f in d["faces"]]
+        if m.get("catalyst"):  # Catalyst: the weapon die's two lowest numbers burn and poison
+            for d in by_src("weapon"):
+                nums = sorted((i for i, f in enumerate(d["faces"]) if isinstance(f, int)), key=lambda i: d["faces"][i])
+                for i, tag in zip(nums[:2], "FP"):
+                    d["faces"][i] = f"{tag}{d['faces'][i]}"
+        if m.get("explosive_weapon"):  # Powder Edge: the weapon die explodes
+            for d in by_src("weapon"):
+                if "exploding" not in d["dk"]:
+                    d["dk"].append("exploding")
+
+    def echo_out(self, h, dice):
+        """An ally's play sets every other hero's unused Echo die to its biggest number."""
+        vals = [d["v"] for d in dice if isinstance(d.get("v"), int) and d.get("tag") not in ("S", "X")]
+        if not vals or not self.s.get("fight"):
+            return
+        v = max(vals)
+        for y in self.s["fight"]["heroes"]:
+            if y == h or not self.active(y):
+                continue
+            for d in self.hs(y)["dice"]:
+                if "echo" in d["dk"] and not d["used"]:
+                    self.show_die(d, v, None)
+                    self.fx("st", to=f"h{y}", s="echo")
+
     def dice_attacks(self, h, x, m):
         """What enemies did to a hero's dice: Hex swaps the biggest for a cursed one, Freeze takes
         the smallest, thieves take the biggest, Barnacle Crust locks it, static shocks low rolls.
         Then Diagnosis shows the smallest."""
-        if x["st"].pop("hex", 0) and x["dice"]:
-            big = max(x["dice"], key=lambda d: top_face(d["faces"]))
+        pool = [d for d in x["dice"] if d["src"] != "swell"]
+        if x["st"].pop("hex", 0) and pool:
+            big = max(pool, key=lambda d: top_face(d["faces"]))
             big.update(faces=list(CURSED_DIE), dk=[], src="hex", v=None, top=False)
             for k2 in ("link", "sv", "stag", "hint", "fc", "tag"):
                 big.pop(k2, None)
             self.fx("st", to=f"h{h}", s="hexed")
         if x["st"].pop("freeze", 0) and not m.get("freeze_immune") and x["dice"]:
             x["dice"].remove(min(x["dice"], key=num))
-        if x["st"].pop("steal", 0) and x["dice"]:
-            x["dice"].remove(max(x["dice"], key=lambda d: top_face(d["faces"])))
+        if x["st"].pop("steal", 0) and pool:
+            x["dice"].remove(max(pool, key=lambda d: top_face(d["faces"])))
             self.fx("st", to=f"h{h}", s="robbed")
-        if x["st"].pop("lock", 0) and x["dice"]:
-            big = max(x["dice"], key=lambda d: top_face(d["faces"]))
+        pool = [d for d in x["dice"] if d["src"] != "swell"]
+        if x["st"].pop("lock", 0) and pool:
+            big = max(pool, key=lambda d: top_face(d["faces"]))
             big["used"], big["locked"] = True, True
             self.fx("st", to=f"h{h}", s="locked")
         x["static"] = bool(x["st"].pop("static", 0))
@@ -490,6 +562,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["round_once"].append(a["key"])
         if a.get("instant"):
             self.instant(h, a, dice, tgt)
+            self.echo_out(h, dice)
             return
         # Everything else happens now, in the order the party plays it: the dice roll and the action
         # lands before anyone places another.
@@ -585,6 +658,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.hero(h).setdefault("spent", []).append(a["key"])
         since = self.s["fxid"]
         hit = self.roll_for(h, a, dice)
+        self.echo_out(h, dice)
         done = {"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": hit}
         f["done"].append(done)
         self.fx("act", h=h, a=a["key"], tgt=tgt, hit=hit)

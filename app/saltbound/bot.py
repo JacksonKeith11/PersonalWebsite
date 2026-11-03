@@ -454,6 +454,11 @@ def _fight_move(g, h, x):
     if use:
         return use
     free = [d for d in x["dice"] if not d["used"]]
+    # the Swell die is worth more the longer it's left: hold it until it's a d12 +7, unless the fight
+    # is nearly won (it finishes the last of them) or the hero is about to go down
+    left = sum(fo["hp"] for fo in g.foes())
+    hold = x.get("swell", 0) < 2 and left > 14 and g.hero(h)["hp"] > g.maxhp(h) * 0.35
+    free = [d for d in free if not (hold and d.get("src") == "swell")]
     if free:
         val, msg = plan_hand(g, h, b, free, DEPTH)
         if msg and val > 0.3:

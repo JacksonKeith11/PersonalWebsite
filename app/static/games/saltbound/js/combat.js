@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=96';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=96';
-import { spriteURL } from './art.js?v=96';
-import { stageURL, stageKey } from './stage.js?v=96';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=96';
-import { render } from './main.js?v=96';
-import { skillCard } from './hud.js?v=96';
-import { SKILL_FX, foeFx } from './skillfx.js?v=96';
-import * as sfx from './audio.js?v=96';
+import { S, send, mine, controllerName } from './store.js?v=97';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=97';
+import { spriteURL } from './art.js?v=97';
+import { stageURL, stageKey } from './stage.js?v=97';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=97';
+import { render } from './main.js?v=97';
+import { skillCard } from './hud.js?v=97';
+import { SKILL_FX, foeFx } from './skillfx.js?v=97';
+import * as sfx from './audio.js?v=97';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -747,8 +747,9 @@ function tray(f, x, my) {
 const SRC = { base: ['Class die', 'var(--src-class)'], weapon: ['Weapon die', 'var(--src-weapon)'], armor: ['Armor die', 'var(--src-armor)'],
   trinket: ['Trinket die', 'var(--src-trinket)'], spirit: ['Spirit die from a fallen ally', 'var(--src-spirit)'], pet: ['Your hawk’s die', 'var(--src-pet)'],
   anthem: ['From the Anthem of Kings', 'var(--src-spirit)'], gift: ['Given by an ally', 'var(--src-spirit)'], hex: ['Cursed: a hex swapped your biggest die', 'var(--danger)'],
-  split: ['Split off by your flask', 'var(--src-class)'], graft: ['Grafted from two dice', 'var(--src-class)'], tempo: ['Stolen tempo: a fresh die', 'var(--src-spirit)'], bloodlust: ['Bloodlust: a fresh die from a kill', 'var(--src-spirit)'] };
-const KIND_ICON = { seer: 'eye', exploding: 'spark', steady: 'refresh', heirloom: 'star', guard: 'shield' };
+  split: ['Split off by your flask', 'var(--src-class)'], graft: ['Grafted from two dice', 'var(--src-class)'], tempo: ['Stolen tempo: a fresh die', 'var(--src-spirit)'], bloodlust: ['Bloodlust: a fresh die from a kill', 'var(--src-spirit)'],
+  echo: ['Echo die: it copies an ally', 'var(--src-spirit)'], swell: ['Swell die: it grows while you leave it', 'var(--src-class)'] };
+const KIND_ICON = { seer: 'eye', exploding: 'spark', steady: 'refresh', heirloom: 'star', guard: 'shield', echo: 'link', swell: 'up' };
 function dieButton(d, i, ready) {
   const [srcName, srcCol] = SRC[d.src] || [`From your ${d.src}`, 'var(--border-strong)'];
   let face, cls = '';

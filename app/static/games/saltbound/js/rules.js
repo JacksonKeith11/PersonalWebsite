@@ -208,7 +208,7 @@ export function hitChance(req, dice, hymn = 0, rm = {}) {
 }
 export const expected = d => outcomes(d).reduce((a, [v, , p]) => a + v * p, 0);
 
-const KIND_NAME = { guard: 'Guard', seer: 'Seer', augur: 'Augur', fate: 'Fate', exploding: 'Exploding', steady: 'Steady', heirloom: 'Heirloom' };
+const KIND_NAME = { guard: 'Guard', seer: 'Seer', augur: 'Augur', fate: 'Fate', exploding: 'Exploding', steady: 'Steady', heirloom: 'Heirloom', echo: 'Echo', swell: 'Swell' };
 export const KIND_TEXT = {
   guard: 'Defence only: goes on Block, Armor, healing and other defensive actions.',
   seer: 'Rolled and shown while you plan.',
@@ -219,6 +219,8 @@ export const KIND_TEXT = {
   heirloom: 'Its lowest face rises every level.',
   link: 'Linked: rolls the same as the other die in its group.',
   top: 'Always comes up on its top face.',
+  echo: 'A d8 until an ally uses a die this round; then it shows the biggest number of their last play.',
+  swell: 'Grows each round you leave it: d4, then d10 +2, d12 +7, d20 +12. Using it starts it over.',
 };
 // "d8", "Seer d4", "◆ d6": the die's size (or its faces, when they're unusual) and its kinds.
 export function dieLabel(d) {

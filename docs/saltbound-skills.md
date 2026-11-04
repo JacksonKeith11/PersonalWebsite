@@ -57,6 +57,19 @@ passes:
   die +2, which is just Riposte Cut twice, on a cooldown (−13). Called Shot dealt two dice's sum to a
   Marked enemy, less than two Shoots on that same enemy, each getting the Mark's +3 (−9). Drink Deep, Ward
   and Briar Wall were the same story.
+- **An action that is just the basic played more than once.** "Two dice: hit once with each, and each
+  hit carves a Sigil" is the basic twice on one card: the player gets nothing for using it except a
+  cooldown, and loses the choice of splitting the hits between enemies. Before writing a multi-die or
+  multi-hit action, write down what it does that **no sequence of the class's one-die actions can**:
+  one hit big enough to break Armor, an effect that needs the sum or the dice's numbers together, a
+  status that only lands from a combined hit, a verb no other action has. If the answer is "a bit more
+  damage", it's a flat number on a card; make it a passive or an upgrade of the basic instead.
+- **Requiring a pair (or a straight).** Dice are hidden until the action resolves, so the player can't
+  pick two dice that match; a pair requirement is a lottery. Two d6 match 1 time in 6, a d6 and a d8 1
+  in 8, a d8 and a d10 1 in 10, and an action that does nothing otherwise mostly sits unused. Pairs and
+  straights belong in the amounts as a bonus on an action that's already worth playing (Renew, Twin Cut,
+  Called Shot), never in the requirement. The one exception is a class that can see or steer the match
+  (the Scoundrel's linked dice make Smoke Bomb's pair likely); without that, don't.
 - **Multi-die actions**: they have to beat the sum of what each die would do alone, plus whatever bonus
   per hit (Mark, Pincer, Crescendo) they give up by being one hit. Budget about +3 to +4 per extra die.
 - **Risky actions** (5+, 6+, a big sum, a pair) need to pay about a quarter more on average than a safe
@@ -106,7 +119,9 @@ and a bonus that repeats one the class already has (Backstab on top of Stab).
    "nothing", it's a flat number.
 2. **The Block and basic test.** Compare it with the same dice on Block and on the class's basic attack,
    over a typical round. A new action must clearly beat both in its situation; a new passive must matter
-   in most fights.
+   in most fights. A two-die action is compared with the class's two best one-die plays, not one: name
+   what it does that they can't (see "the basic played more than once" above). And check the requirement
+   can come up: no pair or straight as a requirement, and a 6+ or big sum needs a payoff to match.
 3. **Nothing erases it.** Check its timing against `end_round` and `deal_dice` (Armor clears, `inspire`
    resets, statuses tick).
 4. **Overlap.** Search `classes.py`, `COMBOS` and the item passives in `content/items.py` for the same

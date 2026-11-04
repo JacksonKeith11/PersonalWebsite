@@ -102,7 +102,9 @@ class Game(Combat, Biomes):
         g.setup_places(g.rng, guards=True)
         g.town_jobs(w["start"])
         g.reset_plans()
-        g.say("The party sets out from " + w["places"][str(w["start"])]["name"] + ".")
+        names = [f"{A.DUNGEONS[r]['name']} in {A.REGION_NAMES[r]}" for r in g.regions()]
+        g.say("The party sets out from " + w["places"][str(w["start"])]["name"] + ". This time the objectives are "
+              + ", ".join(names[:-1]) + " and " + names[-1] + ".")
         g.sync()
         return g
 

@@ -282,6 +282,11 @@ def record_run(stats, g, res, run):
     stats.add("runs", "all", "cleared", len(s["cleared"]))
     stats.add("combos", combo, "n")
     stats.add("combos", combo, "won", won)
+    from app.saltbound import world as Wd
+    for r in Wd.regions(s["world"]):  # which three objectives this run drew
+        stats.add("regions", r, "runs")
+        stats.add("regions", r, "wins", won)
+        stats.add("regions", r, "cleared", r in s["cleared"])
     for hero in s["heroes"]:
         stats.add("classes", hero["cls"], "runs")
         stats.add("classes", hero["cls"], "wins", won)
@@ -364,6 +369,16 @@ def report(stats, top=12):
             flags.append(f"{C.CLASSES[cls]['name']} wins {100 * wr:.0f}% of its runs vs {100 * base_wr:.0f}% overall.")
     _table("Classes (per fight round: damage, healing, armor blocked, damage taken; per run: downs, deaths)",
            ["class", "runs", "win", "dmg", "heal", "block", "taken", "downs", "deaths"], rows, out)
+
+    # regions: runs that drew each objective, how they did, and how often that objective fell
+    rows = []
+    for r, d in sorted(t.get("regions", {}).items(), key=lambda kv: -kv[1].get("wins", 0) / max(1, kv[1].get("runs", 1))):
+        rows.append([A.REGION_NAMES.get(r, r), d.get("runs", 0), _pct(d.get("wins", 0), d.get("runs", 0)), _pct(d.get("cleared", 0), d.get("runs", 0))])
+        wr = d.get("wins", 0) / max(1, d.get("runs", 0))
+        if d.get("runs", 0) >= 20 and abs(wr - base_wr) > 0.1:
+            flags.append(f"Runs that drew {A.REGION_NAMES.get(r, r)} win {100 * wr:.0f}% vs {100 * base_wr:.0f}% overall.")
+    _table("Regions (runs that drew it as an objective: won, and how often its objective was cleared)",
+           ["region", "runs", "won", "cleared"], rows, out)
 
     combos = sorted(((k, d) for k, d in t.get("combos", {}).items() if d["n"] >= 2), key=lambda kv: -kv[1]["won"] / kv[1]["n"])
     if len(combos) >= 4:

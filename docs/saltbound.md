@@ -48,7 +48,8 @@ Keep to these. They came from the owner directly.
 ### The world
 
 - **Hex map, generated per run from a seed** (stored in the save, so a restored run is
-  identical). About 30×22 hexes: three regions around a central peak. About 30 map turns per run.
+  identical). About 30×22 hexes: three regions around a central peak, **drawn per run from eleven**
+  (see "Regions and biomes"). About 30 map turns per run.
 - **Map turns are planned simultaneously.** Each player queues their hero's path, sees the other
   heroes' planned paths as ghost trails, and clicks Ready. When all three are ready, everyone
   moves at once. No timer.
@@ -93,14 +94,23 @@ Keep to these. They came from the owner directly.
   choices), wrecks (loot, the theme's chests), camps (rest), and the three objective dungeons. No
   sailing merchants in v1.
 - **Regions and objectives**: clear all three objectives in any order to unlock the final boss.
-  Towns also offer side quests.
+  Towns also offer side quests. Each run draws its three regions from eleven (owner's request,
+  2026-11-04: each objective its own biome, the three randomised per game):
 
-  | Region | Enemies | Objective (dungeon: 3 fights with two forks; see "Dungeon forks") |
-  |---|---|---|
-  | Coral Shallows | drowned sailors, crabfolk, reef creatures | the Sunken Chapel |
-  | Smugglers' Keys | pirates and a tide cult | the Black Fort |
-  | Stormcrag | storm elementals, harpies, mountain beasts | the Lighthouse |
-  | Central peak | | **The Drowned Crown**, the tide-king raising the sea; fought on the last dry peak |
+  | Region (key) | Land | Enemies | Objective (dungeon: 3 fights with two forks; see "Dungeon forks") and boss |
+  |---|---|---|---|
+  | Coral Shallows (`coral`) | the original islands | drowned sailors, crabfolk, reef creatures | the Sunken Chapel: the Bell-Warden |
+  | Smugglers' Keys (`keys`) | the original islands | pirates and a tide cult | the Black Fort: the Gallows Admiral |
+  | Stormcrag (`storm`) | the original islands | storm elementals, harpies, mountain beasts | the Lighthouse: the Lamp Keeper |
+  | Cinderreach (`ash`) | ash fields and a volcano | imps, magma beasts, obsidian golems, fire cultists | the Caldera Forge: the Slag Tyrant |
+  | the Shifting Sands (`dunes`) | dunes and salt flats | scorpions, raiders, mummies, a sphinx | the Buried Tomb: the Sun-Eaten King |
+  | the Stillwood (`petrified`) | a petrified forest | stone treants, basilisks, gargoyles, sleeping statues | the Heartwood Vault: the Heartwood Gorgon |
+  | the Verdant Deep (`jungle`) | jungle | panthers, dart frogs, strangler vines, witch doctors | the Strangled Ziggurat: the Mother of Vines |
+  | Aetherhold (`heaven`) | golden meadows and marble | seraphs, cherubs, haloed knights, fallen angels | the Celestial Spire: the Radiant Arbiter |
+  | the Prism Wood (`crystal`) | a crystal forest | crystal golems, shardlings, prism spiders | the Heart Geode: the Shard Queen |
+  | the Drowsing Vale (`dream`) | dreamlands | sleepwalkers, dream eaters, jesters, mirror shades | the Sleeping Palace: the Somnarch |
+  | the Frostpeaks (`frost`) | snowy mountains and a frozen sea | frost wolves, ice wraiths, mammoths, a frost giant | the Glacier Throne: the Rime Matriarch |
+  | Central peak | | | **The Drowned Crown**, the tide-king raising the sea; fought on the last dry peak |
 
 ### Combat
 
@@ -495,6 +505,63 @@ the run's seed with a generator of its own, after the islands and places); their
   opportunities, jobs) in a list under them that scrolls when it's long.
 - **The bots** go after a raid they can catch before it arrives, steer clear of occupied towns when
   they need healing, and visit lookouts, found grottos and (once every hero has a skiff) sea places.
+
+### Regions and biomes
+
+Owner's request (2026-11-04): each objective has its own biome, and which three a run gets is random.
+
+- **Drawing them**: `world.generate(seed, pool)` draws three of `A.REGION_POOL` (the eleven keys of
+  `DUNGEONS`) with its own `Rng(seed ^ 0x0B1EC7)`, lays them round the peak in that order and stores
+  them as `world["regions"]`. Everything reads a run's regions through `Wd.regions(w)` /
+  `Game.regions()`; a world from an older save has no list and gets the original three, so old saves
+  play as before (checked: an old-style run plays to the end). The browser reads `world.regions`
+  (`worldRegions()` in `hud.js`). `Game.near_region(t)` is the region a hex belongs to, or for the peak
+  and the small islands the drawn region whose objective is nearest (whose enemies guard a wreck or a
+  lair there); `Game.region_here(t)` is the hex's region only if it was drawn.
+- **Content**: the eight new regions live in `content/biomes.py`, merged into `archipelago.py`'s tables
+  on import (FOES, POOLS, GROUPS, LAIRS, DUNGEONS, BIG, REGION_NAMES, BUFFS, EVENTS; crits into
+  `foes.FOE_CRIT`). Each has six regular enemies, an elite, a roaming big threat (`BIG`, also its
+  Champion's Hall), a boss with a five-move `seq` and a bloodied rule, three lineups per dungeon step,
+  eight roaming groups by tier, two lairs, three events of its own and (the Vale) four dreams.
+- **The land**: a hex keeps its base kind (`bio`: beach, grass, forest, hills, peak), which every rule
+  reads (costs, high ground, lookouts, grottos, map talents); a drawn region only changes how it's
+  painted and named (`SKIN` and `PROPS` in `hexmap.js`, `SKINS` in `biomes.py` for the tooltip names:
+  Ash field, Deep jungle, Glacier...). Each region's map rule is in `biome.py` (a mixin on `Game`); its
+  one-line summary is `RULES` (the objectives tooltip):
+
+  | Region | Map rule | Battleground (`A.GROUNDS`, by the region's terrain) |
+  |---|---|---|
+  | Cinderreach | The volcano (its objective's hex) erupts every `ERUPT_EVERY` (7) turns from turn 5, with a turn's warning (forecast line, toast): `LAVA_FLOWS` (2) flows run downhill up to `LAVA_LEN` (5) hexes and block them (`s["lava"]`) for `LAVA_TURNS` (4) turns. Never on a hero, group, town or place. | **Embers** (ash fields, black sand): both sides start Burning 1. |
+  | the Shifting Sands | `SINKS` (6) quicksand hexes (`world["sink"]`) cost `SINK_COST` (4) moves; sandstorms (sight 1) drift over the dunes; `OASES` (2) heal fully and lift curses, once per hero. | **Sinking sand** (dunes): whoever walked in is Rooted for round 1. |
+  | the Stillwood | Blessings and curses don't run down for a hero standing there (`timeless`); `FOSSILS` (2) beds give a three-pick of better loot and `FOSSIL_XP` (10). | **Stone sleep** (petrified woods, only when the party walks in): the enemies (not bigs or bosses) start asleep. |
+  | the Verdant Deep | Deep jungle (its forest) costs `JUNGLE_COST` (3); walking through cuts a trail (`s["trails"]`) that costs 1 for everyone for `TRAIL_TURNS` (8) turns; inside it you see `JUNGLE_SIGHT` (2). Map talents still make it 1. | **Ambush ground** as in any forest. |
+  | Aetherhold | `GATES` (2) pairs of light-gates: one end there, one near the start town or far off on another region; ending a move on one carries you to its twin (`gate`'s `to`). Resting heals `GRACE_REST` (20%) more; its shrines bless everyone on the hex. | **Hallowed ground** (meadows): both sides heal 3 each round from round 2. |
+  | the Prism Wood | Everyone sees `PRISM_SIGHT` (2) further there, and its enemies notice heroes from `PRISM_HUNT` (5); `GEODES` (2) hold an enchant material each. | **Resonance** (crystal forest): every hit from either side deals +2 (`dmg_bonus` for heroes, might for enemies). |
+  | the Drowsing Vale | Resting anywhere there (not on a place) heals at least `DREAM_REST` (50%, a camp's) and brings a dream (an event with `dream`, never placed). | **Lulling flowers** (lavender): whoever walked in is drowsy: heroes Hexed, enemies Weak. |
+  | the Frostpeaks | Open water within `ICE_REACH` (2) of its land (and nearer it than any other) is frozen (`world["ice"]`): terrain `ice`, 2 moves, no skiff, sea beasts can't enter; blizzards (sight 2) drift over it; ending a turn on its glacier or summit away from a town or camp gives **Frostbite** (−5 max HP, 4 turns; a town or camp thaws it). | **Snowdrift** (snowfields): whoever walked in is half buried: heroes lose a die to the cold, enemies Rooted. |
+
+- **Storms** generalise the squall: each has a `kind` (`A.STORMS`: squall over Stormcrag's water,
+  sandstorm over the Sands' land, blizzard over the Frostpeaks), formed only if its region was drawn,
+  with its own sight (`Game.storm_sight`); the map draws rain, blown sand or snow.
+- **New enemy traits** (in `combat.py`'s round upkeep and death, `bosses.py`, `foes.py`): `regen` N,
+  `armor_round` N, `ember` N (Burns every hero when it dies), `aura_heal` N (the other enemies heal
+  each round), `sleeper` (asleep, intent "Asleep", until a hero hits it). Shown as chips by
+  `foeTraits` in `rules.js`.
+- **Generic bloodied rules** (`Bosses.bloodied_rule`, run each round once bloodied): `summon` (a new
+  enemy each round), `thorns` (`thorns_x`, growing by `grow`), `curse` (a status on all, the
+  healthiest or a random hero every `every` rounds), `fall` (a hero is marked `falling` and takes a
+  blow at the round's end that Armor or a Guard stops, with a status: Falling Magma, the Avalanche),
+  `ward` (half damage while one of `by` stands: the Radiant Arbiter behind her Sentinels), `regen`.
+  The Great Sandworm reuses the Reef Maw's `swallow`.
+- **Balance passes** (fast bots, 60 Normal runs): Cinderreach and the Stillwood started near 50%
+  (the originals near 90%); embers, ember deaths, falling magma, the stone enemies' Armor, the stun
+  gazes and the curses were cut, which brought every region to 80-100% (the originals 100%).
+- **Art**: `tools/saltbound-art/foes2.py` (73 sprites, built into `sprites.js` with the rest),
+  `stage.js` (an open-ground scene and a dungeon interior per region: `ash`...`frost`, `forge`, `tomb`,
+  `heartwood`, `ziggurat`, `spire`, `geode`, `palace`, `glacier`), `hexmap.js` (ground palettes, props,
+  ice, quicksand rings, lava with pulsing cores and trails in `drawBiome`, a landmark per objective),
+  `art.js` (oasis, fossil, geode and gate icons), `skillfx.js` (`LOOK` per enemy, name patterns for
+  fire, frost, sand, spores and light).
 
 ### Events in multiplayer
 
@@ -1190,6 +1257,8 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/content/items.py` | Items (generic), item passives and the actions weapons give. |
 | `app/saltbound/content/archipelago.py` | This map's enemies, pools, elites, dungeons and paths, the final boss, blessings and events. |
 | `app/saltbound/world.py` | Hex geometry (`step_dir` for a hex direction), terrain costs (`COST`, `FAST`), generating a run's map from its seed, and its extras (`add_features`: currents, reefs, whirlpools, places at sea, lookouts, grottos). |
+| `app/saltbound/biome.py` | `Biomes`, mixed into `Game`: the other regions' map rules (lava and eruptions, quicksand, trails, ice, sight, Frostbite, timeless Stillwood, dreams, oases, fossils, geodes, light-gates). |
+| `app/saltbound/content/biomes.py` | The eight other regions' enemies, crits, groups, lairs, dungeons, big threats, names, land names (`SKINS`), rules (`RULES`), blessings and events, merged into `archipelago.py`. |
 | `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
 | `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. The socket and room codes are the shared `app/rooms.py`. |
 | `app/saltbound/save.py` | SQLite saves (`data/saltbound.db`, one connection under a lock), versions and migrations. |
@@ -1286,6 +1355,15 @@ clock anywhere: the run changes only when someone acts.
   bots with `g.item`) and prices with `Game.price`, never `I.ITEMS[key]` or `I.price`, and compare a
   key against the catalogue (`k != key` in a pool of catalogue items, tallies by item) through
   `I.base(key)`. `I.ITEMS` is still right for catalogue-wide lists (`I.GEAR`, rarity pools).
+- **Regions are per world**: never loop over `A.DUNGEONS` or a fixed list for a run's objectives;
+  use `Game.regions()` (`Wd.regions(w)`), and `region_here(t)` for "is this hex in a drawn region".
+  `A.DUNGEONS`, `GROUPS` and the rest hold all eleven. The world's fixed extras (`add_biomes`) are
+  placed only for drawn regions.
+- **A step cost lives in two places**: the other regions' land (`Biomes.land_cost`: deep jungle and
+  trails, quicksand, ice; lava blocks) has its copy in `rules.js` `stepCost`, and `saltbound-check.py`
+  compares them on seeds that between them draw every region, with lava and trails laid down.
+- **A save keeps five runs per browser** (`save.KEEP`): an audit that makes more saves than that before
+  using them loses the oldest.
 - **Hidden places stay hidden everywhere**: a grotto is in `world["places"]` from the start, but the
   view leaves out any place with `hidden` and no `found`, and the forecast doesn't say a hero lands
   on one. Anything new that lists or names places must skip them too, or it gives them away (the

@@ -489,8 +489,8 @@ GROUNDS = {
               "text": "Whoever is caught standing in the trees is Weak for the first round. Strike into the woods; "
                       "don't wait in them."},
     # the other regions' own ground (Game.ground_of picks by region and terrain)
-    "embers": {"name": "Embers", "terrain": "Cinderreach's ash fields and black sand", "burn": 2,
-               "text": "The ground smoulders: everyone on both sides starts the fight Burning 2."},
+    "embers": {"name": "Embers", "terrain": "Cinderreach's ash fields and black sand", "burn": 1,
+               "text": "The ground smoulders: everyone on both sides starts the fight Burning 1."},
     "sinking": {"name": "Sinking sand", "terrain": "the Shifting Sands' dunes",
                 "text": "Whoever walked onto the dune sinks to the knees: they're Rooted for the first round. Let enemies come to you."},
     "statues": {"name": "Stone sleep", "terrain": "the Stillwood's petrified woods",

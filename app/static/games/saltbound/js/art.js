@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=108';
+import { SPRITES } from './sprites.js?v=113';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -130,6 +130,15 @@ export const PLACE_ART = {
     '................', '................', '.....bbb........', '....rrrrr.......', '....bBbBb..ppp..', '....rrrrr.pppp..', '..ss.....ss.ss..', '.ssssssssssssss.'] },
   lookout: { pal: { w: '#8a6a44', W: '#5a4028', r: '#a84a3a', R: '#7a3428', k: '#2a1e1a' }, rows: [
     '......rrr.......', '.....rrrrr......', '....RRRRRRR.....', '.....wkkkw......', '.....wwwww......', '.....w.w.w......', '.....ww.ww......', '....w.w.w.w.....', '....ww...ww.....', '...WWW...WWW....'] },
+  // the other regions' places: an oasis, a fossil bed, a geode, a light-gate
+  oasis: { pal: { g: '#4a8a3c', G: '#6aa84a', t: '#7a5a34', b: '#4aa0c8', B: '#8ad0e8', s: '#e0cc90' }, rows: [
+    '.....gg.gg......', '....gGggGg......', '......tg........', '......t.........', '.....t..........', '..sbbbbbbbs.....', '.sbBBbbBbbbs....', '..sssssssss.....'] },
+  fossil: { pal: { b: '#e8e0c8', B: '#b8b098', d: '#6a5a40', D: '#4a3e2c' }, rows: [
+    '................', '..dddddddddd....', '.ddbbdbdbbdd....', '.dbBbbbbbBbd....', '.ddbdbBbdbdd....', '.dddbbbbbddd....', '..DDDDDDDDDD....'] },
+  geode: { pal: { r: '#7a7066', R: '#5a524a', p: '#9a6ac8', P: '#c8a0e8', w: '#ffffff' }, rows: [
+    '................', '....rrrrrr......', '...rrpppprr.....', '..rrpPwPPprr....', '..rRpPPPpPRr....', '..rRppPPppRr....', '...RRppppRR.....', '....RRRRRR......'] },
+  gate: { pal: { w: '#eceae0', W: '#c8c4b8', y: '#ffe9a0', Y: '#e8d070' }, rows: [
+    '....wwwwww......', '...wyyyyyyw.....', '...wyYYYYyw.....', '...wyY..Yyw.....', '...wyY..Yyw.....', '...wyY..Yyw.....', '...wyYYYYyw.....', '..WWWWWWWWWW....'] },
   grotto: { pal: { r: '#7a7a82', R: '#56565e', d: '#0e0c16', c: '#8fe8ff', g: '#4a7a3c' }, rows: [
     '.....g..g.......', '....rrrrrrr.....', '...rrRRRRRrr....', '..rrRdddddRrr...', '..rRddcdddRrr...', '..rRdddddcdRr...', '.rrRddddddRrrr..', '.RRRddddddRRRR..'] },
 };

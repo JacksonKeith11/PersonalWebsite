@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=108';
-import { spriteCanvas, placeCanvas } from './art.js?v=108';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=113';
+import { spriteCanvas, placeCanvas } from './art.js?v=113';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -43,8 +43,40 @@ const PAL = {
   peak: rgb('#7f7a72'), peakD: rgb('#6a655e'), peakL: rgb('#9a958c'),
   town: rgb('#86955a'), dirt: rgb('#a08a62'),
 };
-function groundPixel(kind, x, y, depth) {
+// The other regions' land: the same five kinds of ground (beach, grass, forest, hills, peak) in each
+// region's own colours, [base, dark, light] (the original three regions keep PAL).
+const SKIN = Object.fromEntries(Object.entries({
+  ash: { beach: ['#4a4448', '#3a3438', '#5e5658'], grass: ['#6a645e', '#5a544e', '#7e766e'], forest: ['#4e4844', '#3e3834'],
+    hills: ['#5a4a44', '#4a3c38', '#6e5a50'], peak: ['#3e3438', '#2e2628', '#5a3a30'] },
+  dunes: { beach: ['#e4d8b4', '#ccc098', '#f0e8cc'], grass: ['#d8b87a', '#c4a266', '#e8cc90'], forest: ['#b8a860', '#a09450'],
+    hills: ['#c89c5e', '#b0864c', '#dcb070'], peak: ['#b07a52', '#966444', '#c8906a'] },
+  petrified: { beach: ['#a8a49a', '#929086', '#bab6ac'], grass: ['#7a8070', '#6a7062', '#8c927e'], forest: ['#6e706a', '#5e605a'],
+    hills: ['#8a867a', '#76726a', '#9e9a8c'], peak: ['#9a968c', '#84807a', '#b0aca2'] },
+  jungle: { beach: ['#7a6a48', '#68583a', '#8c7c58'], grass: ['#3e7a34', '#336a2a', '#4e8c40'], forest: ['#2a5a2a', '#224a22'],
+    hills: ['#4a6a34', '#3e5a2c', '#5a7c40'], peak: ['#5e6a52', '#4e5a44', '#727e64'] },
+  heaven: { beach: ['#e8e6f0', '#d0cedc', '#f6f4fa'], grass: ['#c8b86a', '#b4a45a', '#dccc80'], forest: ['#a8b8a0', '#94a48c'],
+    hills: ['#d8d4c8', '#c4c0b4', '#ecE8dc'], peak: ['#e8e4d8', '#d4d0c4', '#f8f4ea'] },
+  crystal: { beach: ['#d8d0e0', '#c4bcd0', '#e8e0f0'], grass: ['#9a8ab8', '#8a7aa8', '#ae9ec8'], forest: ['#6a5a98', '#5a4a88'],
+    hills: ['#8070a8', '#706098', '#9686bc'], peak: ['#b0a0d8', '#9a8ac4', '#c8bce8'] },
+  dream: { beach: ['#e0d0e0', '#ccbccc', '#eee0ee'], grass: ['#a08ac0', '#9078b0', '#b49cd0'], forest: ['#6a5a8a', '#5a4a7a'],
+    hills: ['#c8b8e0', '#b4a4d0', '#dccef0'], peak: ['#8a80b0', '#787098', '#a49ac8'] },
+  frost: { beach: ['#d4e4ee', '#bcd0de', '#e8f2f8'], grass: ['#e0e8ee', '#ccd8e2', '#f2f6fa'], forest: ['#c8d4dc', '#b0c0cc'],
+    hills: ['#b8d0e4', '#a0bcd4', '#d0e4f2'], peak: ['#eef4f8', '#d8e4ec', '#ffffff'] },
+}).map(([r, kinds]) => [r, Object.fromEntries(Object.entries(kinds).map(([k, cs]) => [k, cs.map(rgb)]))]));
+const ICE = ['#cfe3ee', '#a9c8da', '#eaf4fa'].map(rgb);
+function groundPixel(kind, x, y, depth, skin) {
   const n = hash(x, y), n2 = hash(x >> 2, y >> 2);
+  const sk = skin && skin[kind];
+  if (sk) {
+    const [b, d, l = b] = sk;
+    if (kind === 'grass' || kind === 'forest') return n2 > 0.66 && n > 0.45 ? d : n > 0.965 ? l : b;
+    return n > 0.9 ? d : n > 0.84 ? l : b;
+  }
+  if (kind === 'ice') {
+    // the frozen sea: pale ice with a few long cracks
+    const crack = Math.abs(Math.sin(x * 0.21 + y * 0.13 + hash(x >> 4, y >> 4) * 6)) < 0.04 && n2 > 0.4;
+    return crack ? ICE[1] : n > 0.93 ? ICE[2] : ICE[0];
+  }
   switch (kind) {
     case 'deep': {
       // depth below the sea; tidal shallows under a high tide are -1 and drawn lightest
@@ -84,12 +116,42 @@ const STAMPS = {
   house: { pal: { k: '#2a1e1a', r: '#a84a3a', R: '#7a3428', w: '#e0d4b8', W: '#b8a888', d: '#4a3020', y: '#ffd870' }, rows: [
     '...kkk...', '..krrrk..', '.krrrrrk.', 'kRRRRRRRk', '.kwwwwwk.', '.kwdwywk.', '.kwdwwWk.', '.kkkkkkk.'] },
   dock: { pal: { k: '#2a1e1a', w: '#8a6a44', W: '#6a4e30' }, rows: ['kkkkkkkk', 'wwwwwwww', 'WkWWkWWk', '.k..k..k'] },
+  // the other regions' props
+  cactus: { pal: { k: '#24402a', G: '#5a8a4a', L: '#7aa860' }, rows: [
+    '....kk....', '...kGLk...', '.k.kGGk...', 'kLkkGGk.k.', 'kGGkGGkkLk', '.kkkGGkGGk', '...kGGkkk.', '...kGGk...', '...kGGk...'] },
+  crystal: { pal: { k: '#2a2050', C: '#b8a8e8', L: '#e8e0ff', D: '#7a68b8' }, rows: [
+    '....k.....', '...kLk..k.', '...kLCk.kL', '.k.kLCk.kC', 'kLkkLCDkkC', 'kLCkLCDkLC', 'kLCkLCDkLD', 'kkkkkkkkkk'] },
+  shard: { pal: { k: '#2a2050', C: '#b8a8e8', L: '#e8e0ff' }, rows: ['..k...', '.kLk.k', '.kCkkL', 'kkkkkk'] },
+  pillar: { pal: { k: '#3a3630', S: '#a8a49a', L: '#c8c4ba', D: '#827e76' }, rows: [
+    '.kkkkk.', '.kLSDk.', '..kSDk.', '..kSDk.', '..kLDk.', '..kSDk.', '.kLSDDk', 'kkkkkkk'] },
+  spire: { pal: { k: '#3a3630', S: '#9a968c', L: '#bab6ac', D: '#76726a' }, rows: [
+    '...k....', '..kLk...', '..kSk...', '.kLSDk..', '.kLSDk..', 'kLSSDDk.', 'kLSSDDk.', 'kkkkkkkk'] },
+  flower: { pal: { y: '#f0d870', w: '#fff8e0', g: '#5a7a3a' }, rows: ['.y.w.', 'yyywy', '.g.g.'] },
+  lavender: { pal: { p: '#8a6ac8', P: '#b49ae0', g: '#5a6a4a' }, rows: ['P.p.P', 'p.P.p', 'g.g.g'] },
+  fern: { pal: { g: '#24402a', G: '#3e7a34', L: '#5a9a4a' }, rows: ['G...G...', 'LG.GLG.G', '.LGGLGG.', '..gLLg..', '...gg...'] },
+  vent: { pal: { k: '#1e1a1a', R: '#3a3030', o: '#e8782a', y: '#ffd23f' }, rows: ['..R..R..', '.RRkkRR.', 'RRkoykRR', '.RRkkRR.'] },
+  column: { pal: { k: '#5a5650', W: '#eceae0', w: '#c8c4b8', y: '#d8c070' }, rows: [
+    'kyyyyyk', '.kWWwk.', '.kWWwk.', '.kWWwk.', '.kWWwk.', '.kWWwk.', 'kyyyyyk'] },
+  cloud: { pal: { w: '#f0ecf8', W: '#d8d0ec', k: '#8a80b0' }, rows: ['...wwww....', '.wwwWwwww..', 'wwwWWwwwwww', 'kWWWWWWWWk.'] },
   // a reef at low tide: dark rocks breaking the surface, ringed in foam
   reef: { pal: { k: '#2a2622', R: '#5e5850', L: '#7e776c', f: '#d6eef0' }, rows: [
     '..f.ff....ff..', '.fkkf..fkkkf..', 'fkLRkf.kLRRkf.', 'fkRRkffkRRRkf.', '.fkkf..fkkkf..', '..ff....fff...'] },
 };
-function stamp(img, s, x0, y0) {
-  const { pal, rows } = STAMPS[s];
+// the other regions' props: what grows on each kind of ground, and the palette its trees are painted in
+// (`over`, swapped onto the tree, pine and round stamps)
+const PROPS = {
+  ash: { mound: { h: '#2e2628', H: '#5a4a44', L: '#6e5a50', D: '#4a3c38' }, tree: ['tree', 'pine'], over: { g: '#1e1a1a', G: '#3a3434', L: '#4e4644', D: '#2a2424', t: '#2a2020' }, grass: 'vent', hills: 'rock', grassRate: 0.85 },
+  dunes: { mound: { h: '#96703e', H: '#c89c5e', L: '#dcb070', D: '#b0864c' }, tree: ['palm', 'cactus'], grass: 'cactus', grassRate: 0.9, beach: null },
+  petrified: { mound: { h: '#5e5a52', H: '#8a867a', L: '#9e9a8c', D: '#76726a' }, tree: ['tree', 'round'], over: { g: '#4a4842', G: '#8a867c', L: '#a8a49a', D: '#6e6a62', t: '#5a5650' }, grass: 'pillar', hills: 'spire', grassRate: 0.85 },
+  jungle: { mound: { h: '#24401e', H: '#4a6a34', L: '#5a7c40', D: '#3e5a2c' }, tree: ['round', 'tree', 'palm'], over: { g: '#16301a', G: '#3e8a34', L: '#6ab04a', D: '#2a5a26', t: '#4a3020' }, grass: 'fern', grassRate: 0.55, dense: true },
+  heaven: { mound: { h: '#9a968c', H: '#d8d4c8', L: '#ecE8dc', D: '#c4c0b4' }, tree: ['round', 'tree'], over: { g: '#6a7a6a', G: '#c8d4c0', L: '#e8f0e0', D: '#a8b8a0', t: '#c8a040' }, grass: 'flower', hills: 'column', grassRate: 0.7 },
+  crystal: { mound: { h: '#4a3a78', H: '#8070a8', L: '#9686bc', D: '#706098' }, tree: ['crystal'], grass: 'shard', hills: 'crystal', grassRate: 0.75 },
+  dream: { mound: { h: '#8070a0', H: '#c8b8e0', L: '#dccef0', D: '#b4a4d0' }, tree: ['round'], over: { g: '#3a2a5a', G: '#8a6ac0', L: '#b49ae0', D: '#6a4a9a', t: '#5a4a6a' }, grass: 'lavender', hills: 'cloud', grassRate: 0.6 },
+  frost: { mound: { h: '#6a8aa8', H: '#b8d0e4', L: '#d0e4f2', D: '#a0bcd4' }, tree: ['pine'], over: { g: '#4a5a6a', G: '#e8f0f4', L: '#ffffff', t: '#4a3a30' }, grass: 'snowrock', hills: 'snowrock', grassRate: 0.92 },
+};
+function stamp(img, s, x0, y0, over) {
+  const { rows } = STAMPS[s];
+  const pal = over ? { ...STAMPS[s].pal, ...over } : STAMPS[s].pal;
   for (let y = 0; y < rows.length; y++) for (let x = 0; x < rows[y].length; x++) {
     const ch = rows[y][x];
     if (ch === '.') continue;
@@ -159,6 +221,10 @@ export function paintTerrain(canvas, world, game, surf) {
   const own = owners();
   const kinds = new Array(W * H);
   for (let t = 0; t < W * H; t++) kinds[t] = terrain(world, game, t);
+  // each hex's region skin (only for the regions this world drew)
+  const drawn = new Set(world.regions || []);
+  const skins = new Array(W * H);
+  for (let t = 0; t < W * H; t++) skins[t] = drawn.has(world.reg?.[t]) ? SKIN[world.reg[t]] : null;
   const water = t => t < 0 || kinds[t] === 'deep';
   const at = (x, y) => (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H ? -1 : own[y * MAP_W + x]);
   for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
@@ -180,7 +246,12 @@ export function paintTerrain(canvas, world, game, surf) {
           }
         }
       }
-      c = groundPixel(k, x, y, game.sea - world.elev[t]);
+      c = groundPixel(k, x, y, game.sea - world.elev[t], skins[t]);
+      // quicksand: rings of darker sand
+      if (sea.sink.has(t)) {
+        const [cx, cy] = center(t), r = Math.hypot(x - cx, (y - cy) * 1.3);
+        if (r < 15 && Math.floor(r) % 4 === 0) c = [c[0] * 0.8, c[1] * 0.74, c[2] * 0.66];
+      }
       if (kinds[t] === 'deep') {
         // foam where water meets land
         let near = 99;
@@ -263,6 +334,25 @@ export function paintTerrain(canvas, world, game, surf) {
     const r = hash(t, 7), r2 = hash(t, 13);
     const coast = k !== 'deep' && world.elev[t] <= game.sea + 3;
     const road = onRoad.has(t);
+    const P = drawn.has(world.reg?.[t]) ? PROPS[world.reg[t]] : null;
+    if (P && k !== 'town' && k !== 'deep' && k !== 'ice' && k !== 'shoal') {
+      // the other regions' props
+      const tr = i => P.tree[Math.floor(hash(t, i + 21) * P.tree.length)];
+      if (k === 'forest') {
+        const spots = P.dense ? [[-12, -14], [4, -16], [-4, -4], [10, -4], [-14, 4], [2, 6], [-6, -12], [8, 4]] : [[-12, -14], [4, -16], [-4, -4], [10, -4], [-14, 4], [2, 6]];
+        for (let i = 0; i < spots.length; i++) if (hash(t, i) > (road ? 0.6 : P.dense ? 0.1 : 0.25)) { const s2 = tr(i); stamp(img, s2, cx + spots[i][0] - 5, cy + spots[i][1] - 4, ['tree', 'pine', 'round'].includes(s2) ? P.over : null); }
+      } else if (k === 'hills') {
+        stamp(img, 'mound', cx - 14 + (r * 6 | 0), cy - 10, P.mound);
+        if (P.hills && r2 > 0.35) stamp(img, P.hills, cx - 2 + (r2 * 6 | 0), cy - 6);
+      } else if (k === 'peak') {
+        stamp(img, P.hills === 'spire' || P.hills === 'column' ? P.hills : world.elev[t] >= 17 ? 'snowrock' : 'rock', cx - 12 + (r * 4 | 0), cy - 12);
+        stamp(img, P.hills || 'rock', cx + (r2 * 4 | 0), cy - 2);
+      } else if (k === 'grass' && P.grass && r > P.grassRate && !road) {
+        stamp(img, P.grass, cx - 5 + (r2 * 16 - 8 | 0), cy - 8);
+        if (P.grass === 'flower' || P.grass === 'lavender') stamp(img, P.grass, cx + 4 - (r2 * 10 | 0), cy + 2);
+      }
+      continue;
+    }
     const tree = i => (coast && hash(t, i + 9) > 0.5 ? 'palm' : ['tree', 'tree', 'pine', 'round'][Math.floor(hash(t, i + 21) * 4)]);
     if (k === 'forest') {
       const spots = [[-12, -14], [4, -16], [-4, -4], [10, -4], [-14, 4], [2, 6]];
@@ -297,6 +387,38 @@ const LANDMARK = {
   storm: { pal: { w: '#e8e4dc', r: '#b0302a', k: '#2a2430', y: '#ffe9a0', s: '#6a6a72' }, rows: [
     '.......k........', '......kyk.......', '......yyy.......', '.....kkkkk......', '......www.......', '......rrr.......', '......www.......',
     '.....wrrrw......', '.....wwwww......', '.....rrrrr......', '....wwwwwww.....', '...sssssssss....', '..sssssssssss...'] },
+  // Cinderreach: the smoking volcano with lava down its flanks
+  ash: { pal: { k: '#3a3030', K: '#2a2224', o: '#e8782a', y: '#ffd23f', g: '#8a8078' }, rows: [
+    '....g.g..g......', '.....g.gg.......', '......gg........', '.....kyok.......', '....kkoyokk.....', '....kkkokkk.....',
+    '...kkKkokKkk....', '...kkKkkoKkk....', '..kkKkkkkoKkk...', '..kKkkkkkkokk...', '.kkKkkkkkkoKkk..', 'KKKKKKKKKKKoKKK.'] },
+  // the Shifting Sands: a stepped pyramid with a sun-disc
+  dunes: { pal: { s: '#d8b87a', S: '#b0864c', d: '#3a2a1a', y: '#e8c040' }, rows: [
+    '.......y........', '......yyy.......', '.......s........', '......sSs.......', '.....sssSs......', '.....sSdSs......',
+    '....ssssSss.....', '....sSSSSSs.....', '...sssssSsss....', '..ssSSSSSSSSs...', '..sssssdSssss...', '.SSSSSSdSSSSSS..'] },
+  // the Stillwood: a vast petrified tree
+  petrified: { pal: { s: '#9a968c', S: '#76726a', d: '#3a3630', m: '#7a8a5a' }, rows: [
+    '...ss.s..ss.....', '..sSs.ss.sSs....', '...sssSsss......', '....mssSsm......', '......sS........', '......sS........',
+    '......sS........', '.....ssSs.......', '.....sdSs.......', '....ssSSss......', '...sSs..sSs.....', '..SSS....SSS....'] },
+  // the Verdant Deep: a ziggurat swallowed by vines
+  jungle: { pal: { s: '#8a8a72', S: '#62624e', d: '#1e1a14', g: '#3e7a34', G: '#2a5a2a' }, rows: [
+    '......gGg.......', '.....gsssg......', '.....sSdSs......', '....gsssssg.....', '....sSSSSSs.....', '...gsssdsssg....',
+    '...sSSSdSSSs....', '..gssssdssssg...', '..sSSSSSSSSSs...', '.gsssssssssssg..', '.sSSSSSSSSSSSs..', 'GGGGGGGGGGGGGGG.'] },
+  // Aetherhold: a white spire with a halo
+  heaven: { pal: { w: '#eceae0', W: '#c8c4b8', y: '#e8d070', Y: '#c8a040' }, rows: [
+    '.....yyyyy......', '....y.....y.....', '.....yyyyy......', '.......w........', '......wWw.......', '......wWw.......',
+    '.....wwWww......', '.....wyWyw......', '.....wwWww......', '....wwwWwww.....', '...yyyyyyyyy....', '..WWWWWWWWWWW...'] },
+  // the Prism Wood: a great cluster of crystals
+  crystal: { pal: { c: '#b8a8e8', C: '#7a68b8', l: '#e8e0ff', p: '#ff9ad5' }, rows: [
+    '.......l........', '......lc........', '..l...lcC..c....', '..lc..lcC.lcC...', '..lcC.lpC.lcC...', '.llcC.lcCllcC...',
+    '.lccC.lcClccC...', '.lccCllcCcccC...', 'llcccCcccCccCC..', 'lcccccccccccCC..', 'CCCCCCCCCCCCCC..'] },
+  // the Drowsing Vale: a palace of towers under a crescent moon
+  dream: { pal: { w: '#d8d0ec', W: '#a8a0c8', y: '#e8d070', p: '#8a6ac8', d: '#3a3058' }, rows: [
+    '.........yy.....', '..........yy....', '..p.......yy....', '..w...p..yy.....', '..w...w.........', '.www..w...p.....', '.wdw.www..w.....',
+    '.www.wdw.www....', '.wWwwwwwwwdw....', '.wWwwwdwwwww....', '.wWwwwwwwwWw....', 'WWWWWWWWWWWWW...'] },
+  // the Frostpeaks: an ice throne on a glacier
+  frost: { pal: { i: '#e8f4ff', I: '#a8c8e0', b: '#6a8aa8', w: '#ffffff' }, rows: [
+    '..i.....i.......', '..iI...iI.......', '..iI.i.iI.i.....', '.iiIiIiiIiI.....', '.iIIiIiIIiI.....', '.iIbbbbbbIi.....',
+    '.iIbIIIIbIi.....', '.iIbIIIIbIi.....', '.iIIIIIIIIi.....', 'wwiiiiiiiiiww...', 'wIIIIIIIIIIIIw..', 'IIIIIIIIIIIIIII.'] },
   peak: { pal: { y: '#e0bb62', Y: '#a8842e', r: '#e07060', k: '#6a655e' }, rows: [
     '................', '..y....y....y...', '..yy..yyy..yy...', '..yyyyyyyyyyy...', '..yryyyyyyryy...', '..yyyyyryyyyy...', '..YYYYYYYYYYY...',
     '................', '.....kkkkk......', '...kkkkkkkkk....', '.kkkkkkkkkkkkk..'] },
@@ -360,6 +482,10 @@ export class MapView {
     this.tideTint = scene.add.rectangle(0, 0, MAP_W, MAP_H, 0x0a2a4a, 0).setOrigin(0);
     this.layerSea = scene.add.container();
     this.layerWaves = scene.add.container();
+    // the other regions' changing ground: jungle trails, then lava (its bright cores pulse)
+    this.gBiome = scene.add.graphics();
+    this.gLavaHot = scene.add.graphics();
+    scene.tweens.add({ targets: this.gLavaHot, alpha: { from: 0.35, to: 1 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.gReach = scene.add.graphics();
     this.layerPlaces = scene.add.container();
     this.gPaths = scene.add.graphics();
@@ -451,7 +577,7 @@ export class MapView {
     if (this.centerPending !== undefined) { this.centerOn(this.centerPending, false); this.centerPending = undefined; }
     const tint = game.tide === 'high' ? 0.16 : 0;
     if (this.tideTint.alpha !== tint && this.tintTo !== tint) { this.tintTo = tint; this.scene.tweens.add({ targets: this.tideTint, alpha: tint, duration: 1400 }); }
-    this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog();
+    this.drawBiome(); this.drawReach(); this.drawPlaces(); this.drawPaths(); this.drawForecast(); this.drawUnits(); this.drawFog();
     this.drawWeather(); this.drawRaids(); this.drawLandmarks(); this.drawLabels(); this.drawHover(); this.drawMinimap();
   }
 
@@ -538,31 +664,77 @@ export class MapView {
     L.setVisible(this.zoom <= 1);
   }
 
-  // Squalls: a dark cloud with rain over the hexes inside, and a dashed ring where it drifts next.
+  // The Verdant Deep's cut trails (a beaten path through each, joined to the trails beside it) and
+  // Cinderreach's lava (molten rock with a dark crust; the hot cores pulse).
+  drawBiome() {
+    const g = this.gBiome, hot = this.gLavaHot, st = this.state;
+    g.clear(); hot.clear();
+    const trails = new Set(Object.keys(st.trails || {}).map(Number));
+    for (const t of trails) {
+      const [cx, cy] = center(t);
+      g.fillStyle(0x7a5a32, 0.5); g.fillEllipse(cx, cy + 3, 22, 11);
+      for (const n of neighbors(t)) if (trails.has(n) && n > t) {
+        const [nx, ny] = center(n);
+        g.lineStyle(7, 0x7a5a32, 0.5); g.lineBetween(cx, cy + 3, nx, ny + 3);
+        g.lineStyle(2, 0xa88a5a, 0.6); g.lineBetween(cx, cy + 3, nx, ny + 3);
+      }
+    }
+    for (const [k, left] of Object.entries(st.lava || {})) {
+      const t = +k, [cx, cy] = center(t);
+      const cooling = left <= 1;
+      g.fillStyle(cooling ? 0x5a2a1a : 0xa8381a, 0.92); g.fillPoints(hexPoints(t, 2), true);
+      g.fillStyle(0x2a1a16, 0.85);
+      for (let i = 0; i < 7; i++) g.fillEllipse(cx + (hash(t, i) - 0.5) * 34, cy + (hash(t, i + 9) - 0.5) * 34, 8 + hash(t, i + 3) * 8, 5 + hash(t, i + 5) * 4);
+      if (!cooling) {
+        hot.fillStyle(0xffa63a, 0.9);
+        for (let i = 0; i < 5; i++) hot.fillEllipse(cx + (hash(t, i + 20) - 0.5) * 26, cy + (hash(t, i + 29) - 0.5) * 26, 6, 3);
+        hot.fillStyle(0xffe07a, 0.9); hot.fillEllipse(cx, cy, 5, 3);
+      }
+    }
+  }
+
+  // Storms: a dark cloud over the hexes inside (rain for a squall, blown sand for a sandstorm, snow for
+  // a blizzard), and a dashed ring where it drifts next.
   drawWeather() {
     const g = this.gWeather, L = this.layerWeather, sc = this.scene;
     g.clear();
     const ids = new Set();
     const r = this.opts?.squallR ?? 1;
+    const LOOK = { squall: { shade: 0x0e1620, a: 0.32, cloud: 0x3a4250, drop: 0xa8c4d8 }, sandstorm: { shade: 0x5a3a18, a: 0.34, cloud: 0xa8844e, drop: 0xe0c48a },
+      blizzard: { shade: 0xc8dcea, a: 0.26, cloud: 0xd8e4ee, drop: 0xffffff } };
     for (const q of this.state.squalls || []) {
-      // the hexes under a squall go dark
-      for (let t = 0; t < W * H; t++) if (dist(t, q.tile) <= r) { g.fillStyle(0x0e1620, 0.32); g.fillPoints(hexPoints(t, -0.5), true); }
+      // the hexes under a storm go dark (or white, in a blizzard)
+      const L2 = LOOK[q.kind] || LOOK.squall;
+      for (let t = 0; t < W * H; t++) if (dist(t, q.tile) <= r) { g.fillStyle(L2.shade, L2.a); g.fillPoints(hexPoints(t, -0.5), true); }
     }
     for (const q of this.state.squalls || []) {
       ids.add(q.id);
       let c = L.list.find(o => o.qid === q.id);
       const [cx, cy] = center(q.tile);
       if (!c) {
+        const L2 = LOOK[q.kind] || LOOK.squall;
         c = sc.add.container(cx, cy); c.qid = q.id;
         for (let k = 0; k < 9; k++) {
           const a = k / 9 * Math.PI * 2, d = k ? 26 + hash(k, q.id) * 22 : 0;
-          c.add(sc.add.ellipse(Math.cos(a) * d * r, Math.sin(a) * d * 0.7 * r - 14, 46 + hash(k, 3) * 26, 26 + hash(k, 5) * 12, 0x3a4250, 0.5));
+          c.add(sc.add.ellipse(Math.cos(a) * d * r, Math.sin(a) * d * 0.7 * r - 14, 46 + hash(k, 3) * 26, 26 + hash(k, 5) * 12, L2.cloud, q.kind === 'blizzard' ? 0.42 : 0.5));
         }
         for (let k = 0; k < 22; k++) {
           const x = (hash(k, 11) - 0.5) * 110 * r, y = (hash(k, 12) - 0.5) * 70 * r;
-          const drop = sc.add.rectangle(x, y, 1, 7, 0xa8c4d8, 0.7).setRotation(0.25);
-          c.add(drop);
-          sc.tweens.add({ targets: drop, y: y + 18, x: x + 5, alpha: { from: 0.75, to: 0 }, duration: 520, delay: hash(k, 13) * 520, repeat: -1 });
+          if (q.kind === 'sandstorm') {
+            // blown sand: streaks racing sideways
+            const st2 = sc.add.rectangle(x, y, 9, 1, L2.drop, 0.7);
+            c.add(st2);
+            sc.tweens.add({ targets: st2, x: x + 30, alpha: { from: 0.8, to: 0 }, duration: 600, delay: hash(k, 13) * 600, repeat: -1 });
+          } else if (q.kind === 'blizzard') {
+            // snow: flakes drifting down slowly, swaying
+            const fl = sc.add.rectangle(x, y, 2, 2, L2.drop, 0.9);
+            c.add(fl);
+            sc.tweens.add({ targets: fl, y: y + 22, x: x - 6, alpha: { from: 0.95, to: 0 }, duration: 1400, delay: hash(k, 13) * 1400, repeat: -1 });
+          } else {
+            const drop = sc.add.rectangle(x, y, 1, 7, L2.drop, 0.7).setRotation(0.25);
+            c.add(drop);
+            sc.tweens.add({ targets: drop, y: y + 18, x: x + 5, alpha: { from: 0.75, to: 0 }, duration: 520, delay: hash(k, 13) * 520, repeat: -1 });
+          }
         }
         L.add(c);
         sc.tweens.add({ targets: c.list.slice(0, 9), scaleX: 1.08, scaleY: 1.06, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -655,7 +827,8 @@ export class MapView {
     for (let t = 0; t < W * H; t++) {
       const [cx, cy] = center(t);
       if (st.seen[t] !== '1') continue;  // the fog hides the unexplored here too
-      x.fillStyle = col[terrain(this.world, st, t)] || col.grass;
+      const kind = terrain(this.world, st, t), sk = (this.world.regions || []).includes(this.world.reg[t]) ? SKIN[this.world.reg[t]]?.[kind] : null;
+      x.fillStyle = sk ? `rgb(${sk[0].join(',')})` : col[kind] || col.grass;
       x.globalAlpha = vis.has(t) ? 1 : 0.6;
       x.fillRect((cx - HW / 2) * s, (cy - RS / 2) * s, HW * s + 0.6, RS * s + 0.6);
     }
@@ -1022,7 +1195,7 @@ export class MapView {
   destroy() { this.game.destroy(true); }
 }
 
-const MINI_COL = { deep: '#1d4f6a', shoal: '#bfa877', beach: '#d9c48e', grass: '#5d8c47', forest: '#3e6a34', hills: '#7d8a4e', peak: '#7f7a72', town: '#c9a24a' };
+const MINI_COL = { deep: '#1d4f6a', shoal: '#bfa877', beach: '#d9c48e', grass: '#5d8c47', forest: '#3e6a34', hills: '#7d8a4e', peak: '#7f7a72', town: '#c9a24a', ice: '#cfe3ee' };
 
 function boatCanvas() {
   const c = document.createElement('canvas'); c.width = 28; c.height = 8;

@@ -95,6 +95,39 @@ function lantern(p, x, y) {
   }
 }
 
+function spike(p, x, base, h, w, col, lit, dark) {
+  // a crystal: a tall faceted point, lit on its left face (a negative height hangs down from `base`)
+  const down = h < 0;
+  h = Math.abs(h);
+  for (let y = 0; y < h; y++) {
+    const half = Math.max(0, (w / 2) * (1 - (h - y) / h * 0.15) * Math.min(1, (y + 2) / (h * 0.35)));
+    const yy = down ? base + (h - 1 - y) : base - h + y;
+    for (let i = -half; i <= half; i++) p.set(x + i, yy, i < -half * 0.2 ? lit : i > half * 0.45 ? dark : col);
+  }
+}
+function deadTree(p, x, y, s, col) {
+  for (let i = 0; i < 26 * s; i++) { p.set(x, y - i, col); p.set(x + 1, y - i, col); }
+  for (const [dx, dy, len] of [[1, -0.6, 10], [-1, -0.5, 9], [1, -1.2, 7], [-1, -1.4, 6]]) {
+    const oy = y - 26 * s * (0.45 + Math.abs(dy) * 0.25);
+    for (let i = 0; i < len * s; i++) p.set(x + dx * i, oy + dy * i * 0.6, col);
+  }
+}
+function pineTree(p, x, y, s, col, snow) {
+  for (let k = 0; k < 4; k++) {
+    const top = y - 30 * s + k * 7 * s, w = (5 + k * 3) * s;
+    for (let j = 0; j < 9 * s; j++) for (let i = -w * j / (9 * s); i <= w * j / (9 * s); i++) p.set(x + i, top + j, j < 2 && snow ? snow : col);
+  }
+  p.rect(x - 1, y - 6 * s, 3, 6 * s, '#3a2a20');
+}
+function puff(p, cx, cy, rx, ry, col, seed) {
+  for (let y = -ry; y <= ry; y++) for (let x = -rx; x <= rx; x++) {
+    if (x * x / (rx * rx) + y * y / (ry * ry) < 1 && hash(x >> 1, y >> 1, seed) > 0.08) p.set(cx + x, cy + y, col);
+  }
+}
+function disc(p, cx, cy, r, col, edge) {
+  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) { const d = Math.hypot(x, y); if (d < r) p.set(cx + x, cy + y, edge && d > r - 2 ? edge : col); }
+}
+
 // ------------------------------------------------------------------ the scenes
 const SCENES = {
   // the Coral Shallows in the open: a pale reef beach under a teal dusk
@@ -143,6 +176,148 @@ const SCENES = {
     for (const [x0, w] of [[60, 70], [170, 64], [276, 74]]) {
       for (let x = 0; x < w; x++) { const d = Math.abs(x - w / 2) / (w / 2), top = FLOOR + 16 + Math.round(d * d * 6); for (let y = top; y < FLOOR + 26 - Math.round(d * 3); y++) p.set(x0 + x, y, y === top ? '#a07a4a' : y < top + 3 ? '#7a5a34' : '#5a4024'); }
     }
+  },
+  // Cinderreach: a red sky, the volcano smoking far off, ash underfoot with cracks of lava
+  ash(p) {
+    p.gradient(0, FLOOR, ['#2a1616', '#4a2020', '#6a2e22', '#8a4a2e']);
+    // the volcano, a glow at its mouth and a column of smoke
+    for (let y = 18; y < FLOOR; y++) { const half = (y - 18) * 1.9 + 8; for (let x = -half; x <= half; x++) p.set(260 + x, y, hash(x >> 2, y >> 2, 51) > 0.85 ? '#3a2422' : '#2e1c1c'); }
+    p.rect(252, 16, 17, 4, '#e8782a'); p.rect(256, 14, 9, 2, '#ffd23f');
+    for (let i = 0; i < 9; i++) puff(p, 262 + Math.sin(i) * 8 + i * 3, 10 - i * 2, 12 + i * 2, 6, '#3a2a2a', 50 + i);
+    for (const [x0, x1] of [[248, 226], [270, 300]]) for (let y = 20; y < FLOOR; y++) p.set(x0 + (x1 - x0) * (y - 20) / (FLOOR - 20) + Math.sin(y * 0.3) * 2, y, y % 3 ? '#c84a1a' : '#e8782a');
+    p.ridge(58, 6, '#2a1c1c', 3.1, 0.4, FLOOR);
+    p.floor(['#3e3434', '#4a3e3c', '#544644', '#5c4e4a'], '#2a2222', 41, 0.06);
+    for (let i = 0; i < 6; i++) { let x = hash(i, 42) * SW, y = FLOOR + 8 + hash(i, 43) * 56; for (let k = 0; k < 30; k++) { p.set(x, y, k % 4 ? '#c84a1a' : '#ffa03a'); x += 1; y += hash(k, i, 44) > 0.5 ? 1 : -1; } }
+    for (let i = 0; i < 40; i++) p.set(hash(i, 45) * SW, hash(i, 46) * FLOOR, '#ffa03a');
+  },
+  // the Shifting Sands: a white-hot sky, rolling dunes, a far pyramid
+  dunes(p) {
+    p.gradient(0, FLOOR, ['#a8c4d0', '#c8d0c0', '#e0d0a8', '#e8c890']);
+    disc(p, 80, 22, 11, '#fff4d0', '#f0e0a8');
+    for (let y = 30; y < 58; y++) { const half = (y - 30) * 1.1; for (let x = -half; x <= half; x++) p.set(300 + x, y, x > 0 ? '#b08a5a' : '#c8a070'); }
+    p.ridge(56, 8, '#d0aa70', 1.7, 0.2, FLOOR);
+    p.ridge(64, 6, '#c49a60', 4.3, 0.2, FLOOR);
+    p.floor(['#d8b47a', '#dcbc84', '#e0c48e', '#e4ca96'], '#c4a06a', 47, 0.05);
+    for (let y = FLOOR + 6; y < SH; y += 7) for (let x = 0; x < SW; x++) if (Math.sin(x * 0.05 + y * 0.7) > 0.92) p.set(x, y, '#c49a60');
+    for (const x of [40, 352]) { p.rect(x, FLOOR - 22, 4, 26, '#5a7a40'); p.rect(x - 6, FLOOR - 14, 6, 3, '#5a7a40'); p.rect(x - 6, FLOOR - 20, 3, 8, '#5a7a40'); p.rect(x + 4, FLOOR - 10, 6, 3, '#5a7a40'); p.rect(x + 7, FLOOR - 16, 3, 7, '#5a7a40'); }
+  },
+  // the Stillwood: a pale still sky, grey stone trees, moss underfoot
+  petrified(p) {
+    p.gradient(0, FLOOR, ['#4a4e52', '#5e6266', '#74787a', '#868a88']);
+    for (let i = 0; i < 10; i++) deadTree(p, 20 + i * 40 + hash(i, 61) * 20, FLOOR + 2, 1.6 + hash(i, 62) * 0.9, i % 2 ? '#6a6862' : '#5a5852');
+    for (let i = 0; i < 5; i++) deadTree(p, 40 + i * 80 + hash(i, 63) * 30, FLOOR + 10, 2.4, '#8a867e');
+    p.floor(['#5e6458', '#666c60', '#6e7468', '#767c6e'], '#8a9a6a', 61, 0.05);
+    for (let i = 0; i < 16; i++) { const x = hash(i, 64) * SW, y = FLOOR + 6 + hash(i, 65) * 60; p.rect(x, y, 3 + hash(i, 66) * 5, 2, '#8a867c'); }
+  },
+  // the Verdant Deep: green gloom under the canopy, vines, ferns
+  jungle(p) {
+    p.gradient(0, FLOOR, ['#1a2a1a', '#1e3a22', '#24482a', '#2e5a32']);
+    for (let i = 0; i < 14; i++) puff(p, hash(i, 71) * SW, hash(i, 72) * 30, 30 + hash(i, 73) * 20, 14, i % 2 ? '#2a4a26' : '#22401e', 70 + i);
+    for (let i = 0; i < 9; i++) { const x = 10 + i * 46 + hash(i, 74) * 10; p.rect(x, 0, 6, FLOOR + 4, '#3a2e1e'); p.rect(x + 1, 0, 2, FLOOR + 4, '#4a3a26'); }
+    for (let i = 0; i < 18; i++) { const x = hash(i, 75) * SW; for (let y = 0; y < 20 + hash(i, 76) * 40; y++) p.set(x + Math.sin(y * 0.2 + i) * 3, y, '#3e7a34'); }
+    p.floor(['#2e4a24', '#36562a', '#3e602e', '#466a34'], '#5a8a40', 71, 0.07);
+    for (let i = 0; i < 14; i++) puff(p, hash(i, 77) * SW, FLOOR + 4 + hash(i, 78) * 8, 14, 6, '#2e5a2a', 77 + i);
+  },
+  // Aetherhold: golden light, clouds below, marble columns
+  heaven(p) {
+    p.gradient(0, FLOOR, ['#e8d8a8', '#f0e4c0', '#f4ecd8', '#e8e4ec']);
+    for (let i = 0; i < 12; i++) { const x = hash(i, 81) * SW; for (let y = 0; y < FLOOR; y++) if (hash(x | 0, y, 82) > 0.6) { const [r, g, b] = p.get(x, y); p.set(x, y, [Math.min(255, r + 10), Math.min(255, g + 8), b]); } }
+    for (let i = 0; i < 9; i++) puff(p, 20 + i * 48, FLOOR - 6 + hash(i, 83) * 6, 34, 12, '#f8f4fa', 80 + i);
+    for (const x of [30, 110, 290, 370]) { p.rect(x - 7, 14, 14, 3, '#d8c070'); p.rect(x - 5, 17, 10, FLOOR - 13, '#eceae0'); p.rect(x + 2, 17, 3, FLOOR - 13, '#c8c4b8'); p.rect(x - 7, FLOOR + 2, 14, 3, '#d8c070'); }
+    p.floor(['#948f84', '#9c978c', '#a49f94', '#aaa59a'], '#86817a', 81, 0.0);
+    for (let y = FLOOR; y < SH; y += 10) for (let x = 0; x < SW; x++) p.set(x, y, '#a8a498');
+    for (let y = FLOOR; y < SH; y++) for (let x = (Math.floor((y - FLOOR) / 10) % 2) * 25; x < SW; x += 50) p.set(x, y, '#a8a498');
+  },
+  // the Prism Wood: violet dusk, a forest of crystals catching the light
+  crystal(p) {
+    p.gradient(0, FLOOR, ['#1e1a36', '#2e2850', '#40386a', '#544a80']);
+    for (let i = 0; i < 30; i++) p.set(hash(i, 91) * SW, hash(i, 92) * 40, '#e8e0ff');
+    for (let i = 0; i < 12; i++) spike(p, 10 + i * 34 + hash(i, 93) * 14, FLOOR + 2, 30 + hash(i, 94) * 30, 10 + hash(i, 95) * 8, '#6a5aa8', '#a898d8', '#4a3a80');
+    for (let i = 0; i < 6; i++) spike(p, 30 + i * 70 + hash(i, 96) * 20, FLOOR + 6, 44 + hash(i, 97) * 20, 16, '#8a7ac8', '#d8d0f8', '#5a4a98');
+    p.floor(['#4a4470', '#524c7a', '#5a5484', '#625c8c'], '#a898d8', 91, 0.05);
+    for (let i = 0; i < 10; i++) spike(p, hash(i, 98) * SW, FLOOR + 14 + hash(i, 99) * 50, 6 + hash(i, 90) * 6, 4, '#8a7ac8', '#d8d0f8', '#5a4a98');
+  },
+  // the Drowsing Vale: a lilac night, a huge moon, soft hills of lavender
+  dream(p) {
+    p.gradient(0, FLOOR, ['#1e1a3a', '#2e2a54', '#4a3a6e', '#6a5a8a']);
+    disc(p, 300, 30, 20, '#ece4c8', '#d8d0b0'); disc(p, 308, 26, 16, '#3a3260');
+    for (let i = 0; i < 40; i++) p.set(hash(i, 101) * SW, hash(i, 102) * 50, hash(i, 103) > 0.7 ? '#e8d070' : '#d8d0f0');
+    p.ridge(56, 9, '#5a4a7a', 2.3, 0.15, FLOOR);
+    for (let i = 0; i < 7; i++) puff(p, 30 + i * 60, 50 + hash(i, 104) * 8, 22, 9, '#8a7ab0', 100 + i);
+    p.floor(['#6a5a90', '#725e98', '#7a66a0', '#826ea8'], '#a88ad8', 101, 0.08);
+    for (let i = 0; i < 20; i++) { const x = hash(i, 105) * SW, y = FLOOR + 6 + hash(i, 106) * 60; p.set(x, y, '#c8a8f0'); p.set(x, y - 1, '#c8a8f0'); }
+  },
+  // the Frostpeaks: a pale sky, snowy pines and peaks, snow underfoot
+  frost(p) {
+    p.gradient(0, FLOOR, ['#6a8aa8', '#8aa4bc', '#aac0d0', '#c8d8e4']);
+    p.ridge(40, 16, '#b8c8d8', 6.1, 0.3, FLOOR, 2);
+    for (let x = 0; x < SW; x++) for (let y = 20; y < 46; y++) { const [r, g, b] = p.get(x, y); if (r === 0xb8) p.set(x, y, y < 34 ? '#f0f6fa' : '#b8c8d8'); }
+    for (let i = 0; i < 11; i++) pineTree(p, 14 + i * 38 + hash(i, 111) * 12, FLOOR + 4, 1 + hash(i, 112) * 0.5, '#3a5a5a', '#f0f6fa');
+    p.floor(['#8ea2b2', '#96aab8', '#9eb2c0', '#a6b8c6'], '#c8d8e4', 111, 0.05);
+    for (let i = 0; i < 60; i++) p.set(hash(i, 113) * SW, hash(i, 114) * SH, '#ffffff');
+  },
+  // the dungeons: the Caldera Forge (anvils, a glowing forge mouth, chains)
+  forge(p) {
+    p.gradient(0, FLOOR, ['#1e1414', '#2a1a18', '#34201c']);
+    for (let x = 20; x < SW; x += 80) { p.rect(x, 0, 12, FLOOR, '#2a2020'); p.rect(x + 2, 0, 3, FLOOR, '#3a2c28'); }
+    arch(p, 90, 16, 60, 58, '#3a2a26', '#a84a1a');
+    for (let y = 40; y < FLOOR; y++) for (let x = 66; x < 114; x++) { const [r] = p.get(x, y); if (r === 0xa8) p.set(x, y, hash(x >> 1, y >> 1, 121) > 0.8 ? '#e8782a' : '#a84a1a'); }
+    for (const x of [60, 320]) { for (let y = 0; y < 40; y += 4) p.rect(x, y, 3, 3, '#5a5a66'); }
+    p.floor(['#3a3030', '#443838', '#4c3e3c', '#544644'], '#c84a1a', 121, 0.01);
+  },
+  // the Buried Tomb: sandstone walls, hieroglyph bands, torchlight
+  tomb(p) {
+    p.gradient(0, FLOOR, ['#3a2a1a', '#4a3620', '#5a4228']);
+    for (let y = 10; y < FLOOR; y += 14) for (let x = 0; x < SW; x += 6) if (hash(x >> 3, y, 131) > 0.4) p.rect(x, y, 3, 5, '#7a5a34');
+    for (const x of [30, 120, 280, 370]) { p.rect(x - 8, 0, 16, FLOOR, '#6a5032'); p.rect(x - 6, 0, 3, FLOOR, '#7a603e'); lantern(p, x, 30); }
+    p.floor(['#6a5232', '#745a38', '#7c623e', '#846a44'], '#5a4228', 131, 0.0);
+    for (let y = FLOOR; y < SH; y += 8) for (let x = 0; x < SW; x++) p.set(x, y, '#5a4228');
+  },
+  // the Heartwood Vault: inside a giant stone tree, root-arches, moss light
+  heartwood(p) {
+    p.gradient(0, FLOOR, ['#1e2220', '#262c28', '#2e3630']);
+    for (const cx of [70, 200, 330]) arch(p, cx, 6, 90, 70, '#4a4a44', '#1a1e1c');
+    for (let i = 0; i < 26; i++) { const x = hash(i, 141) * SW; for (let y = 0; y < 30; y++) p.set(x + Math.sin(y * 0.3 + i) * 2, y, '#5a6a44'); }
+    p.floor(['#3a3e36', '#42463c', '#4a4e42', '#525648'], '#7a8a5a', 141, 0.05);
+  },
+  // the Strangled Ziggurat: a stone stair under roots, green light from above
+  ziggurat(p) {
+    p.gradient(0, FLOOR, ['#141e14', '#1c2a1c', '#223422']);
+    for (let k = 0; k < 6; k++) p.rect(60 + k * 22, 10 + k * 9, SW - 120 - k * 44, 9, k % 2 ? '#4a4a3a' : '#54543e');
+    for (let i = 0; i < 20; i++) { let x = hash(i, 151) * SW; for (let y = 0; y < FLOOR; y++) { p.set(x, y, '#3a6a2e'); x += Math.sin(y * 0.15 + i) * 0.8; } }
+    for (const sx of [140, 260]) for (let y = 0; y < FLOOR; y++) for (let x = -8; x <= 8; x++) if ((1 - Math.abs(x) / 8) * 0.4 > BAYER[(y & 3) * 4 + ((sx + x) & 3)]) { const [r, g, b] = p.get(sx + x, y); p.set(sx + x, y, [r + 10, g + 26, b + 8]); }
+    p.floor(['#3a3a2c', '#424232', '#4a4a38', '#52523e'], '#3e7a34', 151, 0.06);
+  },
+  // the Celestial Spire: a hall of light, white pillars to a golden ceiling
+  spire(p) {
+    p.gradient(0, FLOOR, ['#c8a860', '#e0c890', '#ece0c0']);
+    for (const x of [40, 120, 200, 280, 360]) { p.rect(x - 8, 0, 16, FLOOR, '#eceae0'); p.rect(x + 3, 0, 4, FLOOR, '#c8c4b8'); }
+    for (let y = 0; y < FLOOR; y++) for (let x = 180; x < 220; x++) { const w = 1 - Math.abs(x - 200) / 20; if (w * 0.5 > BAYER[(y & 3) * 4 + (x & 3)]) p.set(x, y, '#fff8e0'); }
+    p.floor(['#8e8a80', '#969288', '#9e9a90', '#a6a298'], '#8a7a4a', 161, 0.0);
+    for (let y = FLOOR; y < SH; y += 12) for (let x = 0; x < SW; x++) p.set(x, y, '#8a7a4a');
+  },
+  // the Heart Geode: inside a geode, walls of amethyst points
+  geode(p) {
+    p.gradient(0, FLOOR, ['#1a1430', '#241c40', '#2e2450']);
+    for (let i = 0; i < 26; i++) spike(p, hash(i, 171) * SW, 4 + hash(i, 172) * 20, -(10 + hash(i, 173) * 12), 6, '#7a5ab8', '#b898e8', '#5a3a98');
+    for (let i = 0; i < 18; i++) spike(p, i * 24 + hash(i, 174) * 10, FLOOR + 2, 16 + hash(i, 175) * 22, 8, '#7a5ab8', '#b898e8', '#5a3a98');
+    p.floor(['#3a2e5a', '#423462', '#4a3a6a', '#524072'], '#b898e8', 171, 0.04);
+  },
+  // the Sleeping Palace: velvet curtains, a starry ceiling, a moonlit floor
+  palace(p) {
+    p.gradient(0, FLOOR, ['#140e26', '#1e1636', '#281e46']);
+    for (let i = 0; i < 50; i++) p.set(hash(i, 181) * SW, hash(i, 182) * 30, '#e8d070');
+    for (const x of [0, 340]) for (let y = 0; y < FLOOR + 10; y++) for (let k = 0; k < 60; k++) p.set(x + k, y, Math.sin((x + k) * 0.4) > 0.3 ? '#5a2a5a' : '#4a2250');
+    for (const cx of [140, 260]) arch(p, cx, 14, 60, 60, '#3a3058', '#1a1430');
+    p.floor(['#2a2448', '#322a52', '#3a305a', '#423662'], '#8a7ab0', 181, 0.03);
+    for (let y = FLOOR; y < SH; y++) for (let x = 0; x < SW; x++) if (((x >> 4) + (y >> 3)) % 2 === 0) { const [r, g, b] = p.get(x, y); p.set(x, y, [r + 8, g + 8, b + 12]); }
+  },
+  // the Glacier Throne: blue ice walls, icicles, a frozen floor
+  glacier(p) {
+    p.gradient(0, FLOOR, ['#1e3448', '#2a4a62', '#3a5e78']);
+    for (let i = 0; i < 40; i++) { const x = hash(i, 191) * SW, len = 6 + hash(i, 192) * 18; for (let y = 0; y < len; y++) for (let k = -1; k <= 1; k++) if (Math.abs(k) <= (1 - y / len) * 2) p.set(x + k, y, '#bfe0f4'); }
+    for (let i = 0; i < 9; i++) spike(p, 20 + i * 45, FLOOR + 2, 22 + hash(i, 193) * 16, 12, '#7aa8c8', '#cfe6f4', '#4a7a98');
+    p.floor(['#5e7e94', '#66869c', '#6e8ea4', '#7696aa'], '#a8c8dc', 191, 0.05);
   },
   // the open peak (fights on the way to the Crown)
   peak(p) {
@@ -205,7 +380,8 @@ export function stageKey(f, world) {
   if (f.kind === 'boss') return 'crown';
   if (world?.elev && world.elev[f.tile] <= 1) return 'sea';  // out on the water
   const reg = f.region || world?.reg?.[f.tile] || null;
-  if (f.kind === 'dungeon') return { coral: 'chapel', keys: 'fort', storm: 'lighthouse' }[reg] || 'chapel';
+  if (f.kind === 'dungeon') return { coral: 'chapel', keys: 'fort', storm: 'lighthouse', ash: 'forge', dunes: 'tomb', petrified: 'heartwood',
+    jungle: 'ziggurat', heaven: 'spire', crystal: 'geode', dream: 'palace', frost: 'glacier' }[reg] || 'chapel';
   return SCENES[reg] ? reg : 'peak';
 }
 

@@ -2607,6 +2607,9 @@ def static():
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},
         "grounds": A.GROUNDS, "squall": {"r": A.SQUALL_R, "sight": A.SQUALL_SIGHT}, "lookout_sight": A.LOOKOUT_SIGHT,
         "work": {"cap": A.WORK_CAP, "hone": A.HONE_UP, "cost": A.TEMPER_COST},
+        "biome": {"skins": A._B.SKINS, "rules": A._B.RULES, "storms": A.STORMS, "trail_turns": A.TRAIL_TURNS, "lava_turns": A.LAVA_TURNS,
+                  "erupt_every": A.ERUPT_EVERY, "jungle_sight": A.JUNGLE_SIGHT, "prism_sight": A.PRISM_SIGHT, "grace": round(A.GRACE_REST * 100),
+                  "fossil_xp": A.FOSSIL_XP, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},
         "sea": {"cove_gold": A.COVE_GOLD, "flotsam_gold": A.FLOTSAM_GOLD, "hunt": A.SEA_HUNT, "grotto_gold": A.GROTTO_GOLD,
                 "raid_bounty": A.RAID_BOUNTY, "free_gold": A.FREE_GOLD},
     }

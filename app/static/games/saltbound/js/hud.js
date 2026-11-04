@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=108';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=108';
-import { spriteURL, placeURL } from './art.js?v=108';
-import { itemURL } from './itemart.js?v=108';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=108';
-import { MapView } from './hexmap.js?v=108';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=108';
-import { disconnect } from './main.js?v=108';
-import * as sfx from './audio.js?v=108';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=113';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=113';
+import { spriteURL, placeURL } from './art.js?v=113';
+import { itemURL } from './itemart.js?v=113';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=113';
+import { MapView } from './hexmap.js?v=113';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=113';
+import { disconnect } from './main.js?v=113';
+import * as sfx from './audio.js?v=113';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -108,18 +108,20 @@ function onTileHover(t, x, y) {
     const ter = terrain(S.world, g, t);
     const p = g.places[t];
     const regions = S.static.regions;
-    lines.push(h('b', null, placeTitle(p) || TERRAIN_NAME[ter] || ter));
+    lines.push(h('b', null, placeTitle(p) || terrainName(t, ter)));
     if (p) lines.push(h('div', null, placeText(p)));
-    lines.push(h('div.muted', null, `${TERRAIN_NAME[ter] || ter}${S.world.reg[t] ? ' · ' + regions[S.world.reg[t]] : ''}`));
+    lines.push(h('div.muted', null, `${terrainName(t, ter)}${S.world.reg[t] ? ' · ' + regions[S.world.reg[t]] : ''}`));
     for (const note of seaNotes(t, ter)) lines.push(h('div.sea-note', null, note));
-    if (inSquall(g, t, S.static.squall.r)) lines.push(h('div.sea-note', null, `In a squall: whoever stands here sees only ${S.static.squall.sight} hexes around.`));
+    for (const note of biomeNotes(t, ter)) lines.push(h('div.sea-note', null, note));
+    const storm = (g.squalls || []).find(q => hexDist(t, q.tile) <= S.static.squall.r);
+    if (storm) { const K = S.static.biome.storms[storm.kind || 'squall']; lines.push(h('div.sea-note', null, `In a ${K.name}: whoever stands here sees only ${K.sight === 1 ? 'a hex' : `${K.sight} hexes`} around.`)); }
     const vis = visibleTiles(g);
     const gr = g.groups.find(x => x.tile === t);
     if (gr && (vis.has(t) || gr.lair || gr.raid)) lines.push(h('div', { style: { color: 'var(--danger)' } }, (gr.occupy ? 'Holding the town: ' : gr.raid ? 'Raiders: ' : gr.sea ? 'Sea beasts: ' : gr.lair ? (p?.kind === 'wreck' ? 'Guards: ' : 'Lair: ') : 'Enemies: ') + gr.foes.map((k, i) => foeName(k, gr.aff?.[i])).join(', ')));
     if (gr?.sea) lines.push(h('div.muted', null, `At high tide they hunt skiffs within ${S.static.sea.hunt} hexes, a hex a turn; at low tide they lie still. They can’t reach you on land.`));
     const raid = gr?.raid && (g.raids || []).find(r => r.g === gr.id);
     if (raid && !raid.occupy) lines.push(h('div.prize', null, `From ${S.static.dungeons[raid.reg]}, marching on ${g.places[raid.to]?.name || 'a town'}: ${raid.road.length} turn${raid.road.length === 1 ? '' : 's'} away. Beat them on the road for ${S.static.sea.raid_bounty} gold each, and ${S.static.dungeons[raid.reg]}’s garrison skips its next growth. If they get there with nobody in town, they take it.`));
-    if (gr && vis.has(t) && !gr.sea) { const gt = groundLine(ter); if (gt) lines.push(h('div.ground-note', null, gt)); }
+    if (gr && vis.has(t) && !gr.sea) { const gt = groundLine(ter, t); if (gt) lines.push(h('div.ground-note', null, gt)); }
     if (gr?.prize) lines.push(h('div.prize', null, `Guards a prize: ${S.static.items[gr.prize].name} (rare ${S.static.items[gr.prize].slot}), in the loot when they’re beaten.`));
     if (p?.kind === 'dungeon' && !g.cleared?.includes(p.region) && g.dnext?.[p.region]) {
       const nx = g.dnext[p.region], step = (g.dungeon?.[p.region] || 0) + 1;
@@ -164,9 +166,36 @@ function seaNotes(t, ter) {
   else if (sea.swirl.has(t) && ter === 'deep') out.push('By a whirlpool: a skiff pays 1 more here.');
   return out;
 }
+// A hex's terrain name: the region's own (Black sand, Deep jungle...) where it has one.
+function terrainName(t, ter) {
+  if (ter === 'ice') return 'Frozen sea';
+  const reg = worldRegions().includes(S.world.reg[t]) ? S.world.reg[t] : null;
+  return (reg && S.static.biome.skins[reg]?.[ter]) || TERRAIN_NAME[ter] || ter;
+}
+// What the other regions' land does here (Game's biome rules).
+function biomeNotes(t, ter) {
+  const g = S.game, B = S.static.biome, out = [];
+  const reg = worldRegions().includes(S.world.reg[t]) ? S.world.reg[t] : null;
+  const sea = seaMap(S.world);
+  if (g.lava?.[t] != null) out.push(`Lava: nobody can cross it. It cools in ${g.lava[t]} turn${g.lava[t] === 1 ? '' : 's'}.`);
+  if (sea.sink.has(t)) out.push(`Quicksand: stepping in costs ${B.sink} moves (a whole turn's walk).`);
+  if (ter === 'ice') out.push('The frozen sea: walk across it (2 moves a hex), but no skiff can pass.');
+  if (reg === 'jungle' && ter === 'forest') out.push(g.trails?.[t] != null ? `A trail cut through the jungle: 1 move for anyone, for ${g.trails[t]} more turn${g.trails[t] === 1 ? '' : 's'}.`
+    : `Deep jungle: ${B.jungle} moves to cross (a trail cut by walking through it costs 1 for everyone for ${B.trail_turns} turns). Inside it you see only ${B.jungle_sight} hexes.`);
+  if (reg === 'frost' && (ter === 'hills' || ter === 'peak')) out.push('End a turn up here, away from a town or camp, and you get Frostbite (−5 max HP until you thaw by a fire).');
+  if (reg === 'petrified') out.push('In the Stillwood your blessings and curses don’t run down.');
+  if (reg === 'dream' && !g.places[t]) out.push('Rest here as if at a camp, and dream.');
+  if (reg === 'heaven') out.push(`Resting here heals ${B.grace}% more; shrines bless everyone on their hex.`);
+  if (reg === 'crystal') out.push(`You see ${B.prism_sight} hexes further here, but enemies notice you from further off too.`);
+  return out;
+}
 // A battleground's rule for a fight on this terrain (Game.ground_of), for a hero walking in.
-function groundLine(ter) {
+function groundLine(ter, t) {
   const G = S.static.grounds;
+  const reg = t != null && worldRegions().includes(S.world.reg[t]) ? S.world.reg[t] : null;
+  const own = { ash: ['grass', 'beach', 'embers'], dunes: ['grass', null, 'sinking'], petrified: ['forest', null, 'statues'], heaven: ['grass', null, 'hallowed'],
+    crystal: ['forest', null, 'resonance'], dream: ['grass', null, 'lulled'], frost: ['grass', null, 'snowdrift'] }[reg];
+  if (own && (ter === own[0] || ter === own[1])) return `${G[own[2]].name}: ${G[own[2]].text}`;
   if (ter === 'hills' || ter === 'peak') return `${G.high.name}: walk in and the enemies hold the slope (they start with Armor). Let them come to you and you hold it (6 Armor each).`;
   if (ter === 'forest') return `${G.woods.name}: walk in and they’re caught in the trees (Weak for a round). Let them come to you and you are.`;
   return null;
@@ -175,6 +204,10 @@ function groundLine(ter) {
 function groundSay(gr) {
   if (!gr) return '';
   const G = S.static.grounds[gr.k];
+  if (gr.k !== 'high' && gr.k !== 'woods') {
+    const who = gr.side === 'both' ? 'it hits both sides' : gr.k === 'statues' ? 'they start asleep' : gr.side === 'heroes' ? 'they walked into it' : 'you walk into it';
+    return `${G.name}: ${who}`;
+  }
   const who = gr.k === 'high' ? (gr.side === 'heroes' ? 'you hold the slope' : 'they hold the slope') : (gr.side === 'heroes' ? 'they’re caught in the trees' : 'you’re caught in the trees');
   return `${G.name}: ${who}`;
 }
@@ -187,6 +220,7 @@ function placeTitle(p) {
     shrine: p.dark ? 'Dark shrine' : 'Shrine', camp: 'Camp', event: p.title && !p.done ? p.title : 'Something curious',
     wreck: p.guard && !p.done ? 'Guarded wreck' : 'Wreck', lair: 'Lair', cache: 'Buried cache',
     cove: 'Smugglers’ cove', flotsam: 'Flotsam', lookout: 'Lookout', grotto: p.grotto === 'spring' ? 'Grotto spring' : 'Hidden grotto',
+    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate',
   }[p.kind] + (p.kind === 'shrine' && p.sea ? ' (drowned)' : '') + (p.occupied ? ' · occupied' : '');
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
@@ -220,6 +254,10 @@ function garrisonText(reg) {
 function placeText(p) {
   const g = S.game;
   switch (p.kind) {
+    case 'oasis': return 'Fresh water under the palms: full health and every curse lifted, once for each hero.';
+    case 'fossil': return p.done ? 'Dug out.' : `Old bones in the stone, and older treasure: a pick of better loot and ${S.static.biome.fossil_xp} XP for whoever digs.`;
+    case 'geode': return p.done ? 'Cracked open and emptied.' : 'A geode as big as a cart. Crack it for an enchant material.';
+    case 'gate': return `End your move here and the light carries you to its twin across the sea${p.to != null && g.seen[p.to] === '1' ? '' : ' (somewhere you haven’t seen yet)'}.`;
     case 'town': return p.occupied ? 'Raiders hold it: its shop, inn, board and trade are shut. Walk in to fight them and free it '
       + `(${S.static.sea.free_gold} gold each, and a better-stocked shop).`
       : 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.') + (p.spec ? ` ${S.static.town_specs[p.spec].text}` : '');
@@ -527,8 +565,14 @@ export function renderForecast() {
       icon('flag'), h('b', null, ' Raiders'), h('span', null, text)));
   }
   for (const q of g.squalls || []) {
-    lines.push(h('div.fc-line.opp.squall', { tip: `Inside a squall you see only ${S.static.squall.sight} hexes around you. It drifts a hex a turn (the dashed ring is where it goes next).\nClick to find it on the map.`, onclick: () => map?.centerOn(q.tile) },
-      icon('wave'), h('b', null, ' Squall'), h('span', null, ` over ${S.static.regions[S.world.reg[q.tile]] || 'the sea'}: ${q.left} turn${q.left === 1 ? '' : 's'} left`)));
+    const K = S.static.biome.storms[q.kind || 'squall'];
+    lines.push(h('div.fc-line.opp.squall', { tip: `Inside a ${K.name} you see only ${K.sight === 1 ? 'a hex' : `${K.sight} hexes`} around you. It drifts a hex a turn (the dashed ring is where it goes next).\nClick to find it on the map.`, onclick: () => map?.centerOn(q.tile) },
+      icon('wave'), h('b', null, ` ${cap(K.name)}`), h('span', null, ` over ${S.static.regions[S.world.reg[q.tile]] || 'the sea'}: ${q.left} turn${q.left === 1 ? '' : 's'} left`)));
+  }
+  if (g.erupt != null && g.erupt <= 1) {
+    const crater = (S.world.landmarks || []).find(m => m.region === 'ash');
+    lines.push(h('div.fc-line.opp.raid', { tip: `The volcano on Cinderreach erupts ${g.erupt <= 0 ? 'now' : 'next turn'}: lava runs down its slopes and blocks the hexes it covers for ${S.static.biome.lava_turns} turns. It never covers a hero, a town or a place.\nClick to find it on the map.`, onclick: () => crater && map?.centerOn(crater.tile) },
+      icon('flame'), h('b', null, ' Eruption'), h('span', null, ' next turn on Cinderreach')));
   }
   // chances that won't wait, and debts that will come
   for (const o of g.opps || []) {
@@ -1425,7 +1469,10 @@ export function handleFx(list, before) {
       case 'temper': later.push(() => { const it = item(S.game.heroes[f.h].equip[f.slot]); toast(`${S.game.heroes[f.h].name}’s ${it?.name || 'gear'}: ${f.what === 'hone' ? 'honed' : f.what === 'mark' ? 'marked' : `${cap(f.what)} now`}`); sfx.play('rare'); }); break;
       case 'found': later.push(() => { toast(`${S.game.heroes[f.h].name} finds a hidden grotto`); sfx.play('coin'); }); break;
       case 'lookout': later.push(() => toast(`${S.game.heroes[f.h].name} climbs the lookout: ${f.r} hexes of land on the map`)); break;
-      case 'squall': later.push(() => toast('A squall gathers over Stormcrag’s waters')); break;
+      case 'squall': later.push(() => toast({ squall: 'A squall gathers over Stormcrag’s waters', sandstorm: 'A sandstorm rises over the Shifting Sands', blizzard: 'A blizzard blows in over the Frostpeaks' }[f.kind || 'squall'])); break;
+      case 'rumble': later.push(() => { toast('The volcano rumbles: it erupts next turn', 'big'); sfx.play('rise'); }); break;
+      case 'erupt': later.push(() => { bigBanner('The volcano erupts', `Lava blocks ${f.tiles.length} hexes for ${S.static.biome.lava_turns} turns`, 'tide', 2400); if (mine().length) map?.centerOn(f.tile); sfx.play('rise'); }); break;
+      case 'gate': later.push(() => { toast(`${S.game.heroes[f.h].name} steps through the light-gate`); sfx.play('rare'); if (mine().includes(f.h)) map?.centerOn(f.to); }); break;
       case 'ask': if (!mine().includes(f.h)) { (UI.evOpen ||= {})[`${f.h}:${f.key}:${S.game.turn}`] = true; later.push(() => { toast(`${S.game.heroes[f.h].name} asks the party: ${S.static.events[f.key].title}`, 'big'); sfx.play('rare'); }); } break;
       case 'huddle': if (f.helpers.some(y => mine().includes(y))) later.push(() => sfx.play('rare')); break;
       case 'event':

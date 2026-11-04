@@ -319,6 +319,8 @@ export const STATUS = {
   lock: { name: 'Crusted', icon: 'lock', text: 'Next round your biggest die is crusted over: you can’t use it.', bad: true },
   steal: { name: 'Robbed', icon: 'coin', text: 'Next round your biggest die is missing: a thief has it.', bad: true },
   static: { name: 'Static', icon: 'bolt', text: 'Next round, any of your dice that rolls 1 or 2 shocks you for 3.', bad: true },
+  asleep: { name: 'Asleep', icon: 'clock', text: 'Does nothing until something hits it. Then it wakes, angry.' },
+  falling: { name: 'Marked to fall', icon: 'down', text: 'Something is coming down on you at the end of the round (magma, an avalanche). Armor blocks it; an ally’s Guard takes it for you.', bad: true },
 };
 
 // Enemy dice and traits: what makes each enemy fight differently.
@@ -339,5 +341,10 @@ export function foeTraits(d) {
   if (d.shell_min) out.push(['Brine crust', `Hits of less than ${d.shell_min} do nothing to it. Hit it big.`]);
   if (d.splits) out.push(['Splits', 'The first time it’s hurt, half its health splits off as a second one.']);
   if (d.volatile) out.push([`Volatile ${d.volatile}`, `When it dies it bursts for ${d.volatile} on every front-row hero.`]);
+  if (d.ember) out.push([`Embers ${d.ember}`, `When it dies it goes up in embers: every hero is Burned ${d.ember}.`]);
+  if (d.regen) out.push([`Regrows ${d.regen}`, `Heals ${d.regen} at the start of every round.`]);
+  if (d.armor_round) out.push([`Stony ${d.armor_round}`, `Gains ${d.armor_round} Armor at the start of every round.`]);
+  if (d.aura_heal) out.push([`Choir ${d.aura_heal}`, `While it stands, every other enemy heals ${d.aura_heal} each round.`]);
+  if (d.sleeper) out.push(['Sleeper', 'It starts the fight asleep and does nothing until something hits it.']);
   return out;
 }

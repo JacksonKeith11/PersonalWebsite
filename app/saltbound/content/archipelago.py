@@ -392,11 +392,12 @@ REFORGE_COST = {"uncommon": 30, "rare": 60, "legendary": 100}
 # Tempering (the smithy) and enchanting (materials): each piece of gear takes at most `WORK_CAP` works in
 # all, shown as pips. Hone raises the die's lowest number by `HONE_UP` (no higher than its top number);
 # Mark turns that face into the die's own kind of special face (see Game.temper_face). The first work
-# on an item costs TEMPER_COST[0], the second TEMPER_COST[1]. A worked item sells for `WORK_RESALE`
+# on an item costs TEMPER_COST[rarity][0], the second TEMPER_COST[rarity][1] (rarer gear costs more to work,
+# as it does to reforge). A worked item sells for `WORK_RESALE`
 # more per work.
 WORK_CAP = 2
 HONE_UP = 3
-TEMPER_COST = (20, 40)
+TEMPER_COST = {"common": (15, 30), "uncommon": (20, 40), "rare": (30, 60), "legendary": (45, 90)}
 WORK_RESALE = 10
 FIGHT_MAT_CHANCE = 0.06  # a won fight's loot pool (not a guarded wreck's, which always has one) holds an enchant material
 TEMPLE_REVIVE = 75

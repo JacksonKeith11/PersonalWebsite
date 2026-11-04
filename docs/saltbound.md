@@ -885,7 +885,8 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
   by `HONE_UP` (3), no higher than its top number (numbers stay in order); **Mark** turns the lowest
   number into a special face in the item's own style (`temper_face`): a shield on armor, else more of
   the die's burn, freeze or poison (as strong as its strongest such face), else a wild face. The first
-  work on an item costs 20 gold, the second 40 (`TEMPER_COST`). The smithy tab shows each option's
+  work on an item costs 15/20/30/45 gold for a common/uncommon/rare/legendary, the second twice that
+  (`TEMPER_COST`; owner's request: rarer gear costs more to work, as it does to reforge). The smithy tab shows each option's
   die before you pay.
 - **Enchant materials** (`MATERIALS` in `items.py`: Powder Salt for Exploding, Still Pearl for Steady,
   Seer's Glass for Seer): rare consumables that are never sold or dropped at random. The sea shrine

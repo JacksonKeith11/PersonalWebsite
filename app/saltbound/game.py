@@ -1987,7 +1987,7 @@ class Game(Combat):
         n = self.works(key)
         if not die or n >= A.WORK_CAP:
             return {}
-        cost = A.TEMPER_COST[n]
+        cost = A.TEMPER_COST[it["rarity"]][n]
         nums = [i for i, f in enumerate(die) if isinstance(f, int)]
         out = {}
         if nums:

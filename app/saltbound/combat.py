@@ -100,6 +100,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if not gr:
             return
         G = A.GROUNDS[gr["k"]]
+        if gr["k"] not in ("high", "woods"):
+            self.apply_region_ground(gr, G)
+            return
         if gr["k"] == "high" and gr["side"] == "heroes":
             for h in f["heroes"]:
                 st = self.hs(h)["st"]
@@ -117,6 +120,45 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         who = {("high", "heroes"): "the party holds the slope", ("high", "foes"): "the enemies hold the slope",
                ("woods", "heroes"): "the enemies are caught in the trees", ("woods", "foes"): "the party is caught in the trees"}
         self.say(f"{G['name']}: {who[(gr['k'], gr['side'])]}.")
+
+    def apply_region_ground(self, gr, G):
+        """The other regions' battlegrounds (`A.GROUNDS`): what each does as the fight starts. `side` is
+        who it helps; "both" for the ones that hit everyone alike (Hallowed ground heals each round, in
+        `round_upkeep`; Resonance's +2 is in `dmg_bonus` and the enemies' might)."""
+        f = self.s["fight"]
+        k, side = gr["k"], gr["side"]
+        heroes = [h for h in f["heroes"]]
+        if k == "embers":
+            for h in heroes:
+                self.hero_status(h, "burn", G["burn"])
+            for fo in f["foes"]:
+                fo["st"]["burn"] = fo["st"].get("burn", 0) + G["burn"]
+            text = "the ground smoulders under everyone"
+        elif k == "statues":
+            for fo in f["foes"]:
+                if not A.FOES[fo["k"]].get("boss") and not A.FOES[fo["k"]].get("big"):
+                    fo["asleep"] = True
+                    fo["st"]["asleep"] = 1
+            text = "the enemies stand half turned to stone, asleep"
+        elif k == "resonance":
+            for fo in f["foes"]:
+                fo["might"] += G["might"]
+            text = "the crystals ring: every hit deals 2 more"
+        elif k == "hallowed":
+            text = "grace lies on the meadow: everyone heals each round"
+        else:
+            # whoever walked in suffers it: the heroes when it helps the enemies, else the enemies
+            hurt_heroes = side == "foes"
+            if hurt_heroes:
+                st = {"sinking": "root", "lulled": "hex", "snowdrift": "freeze"}[k]
+                for h in heroes:
+                    self.hero_status(h, st, 0 if st in TICKING else 1)
+            else:
+                st = {"sinking": "root", "lulled": "weak", "snowdrift": "root"}[k]
+                for fo in f["foes"]:
+                    fo["st"][st] = max(fo["st"].get(st, 0), 1)
+            text = f"{'the party' if hurt_heroes else 'the enemies'} walked into it"
+        self.say(f"{G['name']}: {text}.")
 
     def add_foe(self, key, hp=None, grow=0.0, aff=None):
         f = self.s["fight"]
@@ -308,11 +350,35 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if fo.get("aff") == "ironclad":
                 fo["st"]["armor"] = fo["st"].get("armor", 0) + 4
                 self.fx("armor", to=f"f{fo['id']}", n=4)
+            d = A.FOES[fo["k"]]
+            if d.get("armor_round"):
+                fo["st"]["armor"] = fo["st"].get("armor", 0) + d["armor_round"]
+                self.fx("armor", to=f"f{fo['id']}", n=d["armor_round"])
+            heal = d.get("regen", 0) + (A.FOES[fo["k"]]["bloodied"].get("n", 0) if fo.get("bl") and d.get("bloodied", {}).get("rule") == "regen" else 0)
+            if heal and fo["hp"] < fo["max"] and f["round"] > 1:
+                got = min(heal, fo["max"] - fo["hp"])
+                fo["hp"] += got
+                self.fx("heal", to=f"f{fo['id']}", n=got)
+            if d.get("aura_heal") and f["round"] > 1:
+                for o in self.foes():
+                    if o is not fo and o["hp"] < o["max"]:
+                        got = min(d["aura_heal"], o["max"] - o["hp"])
+                        o["hp"] += got
+                        self.fx("heal", to=f"f{o['id']}", n=got)
             if fo.get("aff") == "warlord" and f["round"] > 1:
                 for o in self.foes():
                     if o is not fo:
                         o["might"] += 1
                 self.fx("st", to=f"f{fo['id']}", s="rallies")
+        if (f.get("ground") or {}).get("k") == "hallowed" and f["round"] > 1:
+            n = A.GROUNDS["hallowed"]["heal"]
+            for h in self.actives():
+                self.fight_heal(h, n, None)
+            for fo in self.foes():
+                got = min(n, fo["max"] - fo["hp"])
+                if got > 0:
+                    fo["hp"] += got
+                    self.fx("heal", to=f"f{fo['id']}", n=got)
         thorns = sum(self.mods(h).get("crown_thorns", 0) for h in self.actives())
         for fo in self.foes():
             if thorns:
@@ -858,7 +924,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if others:
                 near = [o for o in others if o["row"] == fo["row"]] or others
                 self.hurt_foe(near[0], n // 2, h, pure=True)
-        thorns = A.FOES[fo["k"]].get("thorns")
+        thorns = A.FOES[fo["k"]].get("thorns", 0) + fo.get("thorns_x", 0)
         if thorns and h is not None and not pure and not bomb and n > 0 and self.active(h):
             self.fx("st", to=f"f{fo['id']}", s="thorns")
             self.hurt_hero(h, thorns, None, pure=True)
@@ -937,6 +1003,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.fx("st", to=f"f{fo['id']}", s="explodes")
             for y in self.actives():
                 self.hurt_hero(y, d["volatile"], None, pure=True)
+        if d.get("ember"):
+            # it goes up in embers: every hero standing is Burned
+            self.fx("st", to=f"f{fo['id']}", s="embers")
+            for y in self.actives():
+                self.hero_status(y, "burn", d["ember"])
         if d.get("boss") and not d.get("final"):
             self.say(f"{d['name']} falls!")
         if fo["k"] == "tide_guard":

@@ -205,6 +205,9 @@ FOES = {
                                 "deluge": {"name": "The Deluge", "k": "all", "use": [0, 1, 2, 3]}}},
 }
 
+from . import biomes as _B  # noqa: E402  (the other regions' content, merged into these tables)
+FOES.update(_B.FOES)
+
 # Move pools: every enemy draws one of these when it appears, on top of its own moves.
 POOLS = {
     "deckhand": {"drag_under": {"name": "Drag Under", "k": "attack", "n": 1, "st": "root", "sn": 1},
@@ -254,6 +257,7 @@ POOLS = {
     "drowned_crown": {"maelstrom": {"name": "Maelstrom", "k": "all", "use": [2], "st": "weak", "sn": 1, "st_min": 6},
                       "undertow": {"name": "Undertow", "k": "attack", "use": [1, 3], "tgt": "strongest", "st": "stun", "sn": 1, "st_min": 8}},
 }
+POOLS.update(_B.POOLS)
 for _k, _v in POOLS.items():
     FOES[_k]["pool"] = _v
 
@@ -278,6 +282,7 @@ GROUPS = {
               ["lightning_totem", "cliff_hermit"], ["harpy", "harpy", "storm_wisp"],
               ["crag_ram", "cliff_hermit", "lightning_totem"], ["crag_ram", "thunder_wyvern"]],
 }
+GROUPS.update(_B.GROUPS)
 GROUPS["peak"] = [["deckhand", "cutthroat"], ["crag_ram", "eel"], ["brine_golem", "harpy"], ["tide_guard"],
                   ["tide_guard", "siren"], ["tide_guard", "storm_wisp", "tide_cultist"]]
 
@@ -286,6 +291,7 @@ LAIRS = {
     "keys": [["brine_golem", "powder_monkey", "tide_cultist"], ["cutthroat", "cutthroat", "corsair_captain"]],
     "storm": [["crag_ram", "cliff_hermit", "thunder_wyvern"], ["lightning_totem", "harpy", "harpy", "storm_wisp"]],
 }
+LAIRS.update(_B.LAIRS)
 
 # Each objective is three fights: an opening fight (drawn from `open`), a fork between two paths
 # (`PATHS`; a passage from `mid`, a champion from `champ`, a vault, or a shrine with no fight), then
@@ -315,6 +321,7 @@ DUNGEONS = {
                         [{"k": "crag_ram", "aff": "hulking"}, "cliff_hermit"]],
               "escort": [["cliff_hermit", "storm_wisp"], ["harpy", "storm_wisp"], ["cliff_hermit", "lightning_totem"]]},
 }
+DUNGEONS.update(_B.DUNGEONS)
 DUNGEON_STEPS = 3
 
 # The paths a fork can offer. `step` is the fight they lead to (1: the middle, 2: the boss).
@@ -349,12 +356,14 @@ ELITES = {
     "spiteful": {"name": "Spiteful", "hp": 1.6, "text": "Gains +1 might whenever a hero buffs, heals or shields."},
     "splitting": {"name": "Splitting", "hp": 1.6, "text": "Hit by two different heroes in one round, it splits in two (once)."},
 }
-BIG = {"coral": "reef_maw", "keys": "iron_bosun", "storm": "storm_roc"}
+BIG = {"coral": "reef_maw", "keys": "iron_bosun", "storm": "storm_roc", **_B.BIG}
 ROAM_ELITES = ["hulking", "frenzied", "ironclad", "venomous", "vampiric", "spiteful", "splitting"]
 
 FINAL = ["tide_guard", "tide_guard", "drowned_crown"]
 
-REGION_NAMES = {"coral": "Coral Shallows", "keys": "Smugglers' Keys", "storm": "Stormcrag", "peak": "the Peak"}
+REGION_NAMES = {"coral": "Coral Shallows", "keys": "Smugglers' Keys", "storm": "Stormcrag", "peak": "the Peak", **_B.REGION_NAMES}
+# Every region a run can draw its three objectives from (Wd.generate picks three per world).
+REGION_POOL = sorted(DUNGEONS)
 
 # Shrine blessings and event curses: (name, what it does, turns it lasts, mods)
 BUFFS = {
@@ -364,6 +373,8 @@ BUFFS = {
     "vigor": {"name": "Salt Vigor", "text": "+6 max HP.", "turns": 8, "mods": {"max_hp": 6}},
     "soggy": {"name": "Soggy Boots", "text": "−1 move.", "turns": 4, "mods": {"move": -1}, "curse": True},
     "jinx": {"name": "Jinxed", "text": "No reroll in fights.", "turns": 4, "mods": {"reroll": -1}, "curse": True},
+    "frostbite": {"name": "Frostbite", "text": "−5 max HP, from a night on the ice. A town or a camp's fire thaws it.", "turns": 4,
+                  "mods": {"max_hp": -5}, "curse": True},
     "frail": {"name": "Seasick", "text": "−4 max HP.", "turns": 6, "mods": {"max_hp": -4}, "curse": True},
     # a dark shrine's: stronger than a shrine's, and never free
     "dark_might": {"name": "Drowned Strength", "text": "+2 damage on every hit.", "turns": 8, "mods": {"might": 2}},
@@ -371,6 +382,7 @@ BUFFS = {
     # the drowned shrine's, out at sea
     "siren_favor": {"name": "Siren's Favour", "text": "+1 damage on every hit and +6 max HP.", "turns": 8, "mods": {"might": 1, "max_hp": 6}},
 }
+BUFFS.update(_B.BUFFS)
 SHRINE_BUFFS = ["swift", "might", "warded", "vigor"]
 
 # ---------------------------------------------------------------- the overworld's choices
@@ -380,7 +392,7 @@ SHRINE_BUFFS = ["swift", "might", "warded", "vigor"]
 WRECK_RARITY = [("common", 3), ("uncommon", 2)]  # an unguarded wreck's loot, shown on the map
 GUARDED_WRECKS = 3  # wrecks with enemies camped on them: beat them for a pool of rare loot
 DARK_SHRINES = 2    # shrines that offer a stronger blessing at a price (the `dark_shrine` event)
-WRECK_GUARDS = {reg: GROUPS[reg][2:6] for reg in ("coral", "keys", "storm")}
+WRECK_GUARDS = {reg: GROUPS[reg][2:6] for reg in DUNGEONS}
 
 TOWN_SPECS = {
     "smith": {"name": "Smithy", "text": "Reforges a piece of your gear into a random one a rarity better, for the same slot, or tempers it to keep: Hone raises its die's lowest number, Mark turns it into a special face. Each piece takes two works at most, tempering and enchanting together."},
@@ -476,7 +488,44 @@ GROUNDS = {
     "woods": {"name": "Ambush ground", "terrain": "forest",
               "text": "Whoever is caught standing in the trees is Weak for the first round. Strike into the woods; "
                       "don't wait in them."},
+    # the other regions' own ground (Game.ground_of picks by region and terrain)
+    "embers": {"name": "Embers", "terrain": "Cinderreach's ash fields and black sand", "burn": 2,
+               "text": "The ground smoulders: everyone on both sides starts the fight Burning 2."},
+    "sinking": {"name": "Sinking sand", "terrain": "the Shifting Sands' dunes",
+                "text": "Whoever walked onto the dune sinks to the knees: they're Rooted for the first round. Let enemies come to you."},
+    "statues": {"name": "Stone sleep", "terrain": "the Stillwood's petrified woods",
+                "text": "Enemies standing among the stone trees have half turned to stone: walk in on them and they start the "
+                        "fight asleep, waking only when hit."},
+    "hallowed": {"name": "Hallowed ground", "terrain": "Aetherhold's golden meadows", "heal": 3,
+                 "text": "Grace lies on the meadow: everyone on both sides heals 3 at the start of each round."},
+    "resonance": {"name": "Resonance", "terrain": "the Prism Wood's crystal forest", "might": 2,
+                  "text": "The crystals ring with every blow: every hit, from both sides, deals 2 more."},
+    "lulled": {"name": "Lulling flowers", "terrain": "the Drowsing Vale's lavender fields",
+               "text": "Whoever walked into the flowers grows drowsy: heroes start Hexed (their best die turns cursed), "
+                       "enemies Weak."},
+    "snowdrift": {"name": "Snowdrift", "terrain": "the Frostpeaks' snowfields",
+                  "text": "Whoever walked into the drifts is half buried: heroes lose a die to the cold in the first round, "
+                          "enemies are Rooted."},
 }
+
+# The other regions' map rules (see Game's biome section and world.add_biomes)
+ERUPT_FROM = 5       # Cinderreach: the volcano first erupts on this turn...
+ERUPT_EVERY = 7      # ...and every this many turns after, with a turn's warning
+LAVA_FLOWS = 2       # each eruption sends this many lava flows down from the crater...
+LAVA_LEN = 5         # ...each up to this many hexes long...
+LAVA_TURNS = 4       # ...which block the way for this many turns before they cool
+TRAIL_TURNS = 8      # the Verdant Deep: a hex cut through the deep jungle stays a trail this long
+JUNGLE_SIGHT = 2     # ...and inside the deep jungle a hero sees only this far
+PRISM_SIGHT = 2      # the Prism Wood: everyone sees this much further there...
+PRISM_HUNT = 5       # ...and its enemies notice heroes this far off (3 elsewhere)
+GRACE_REST = 0.2     # Aetherhold: resting heals this much more of your max HP
+DREAM_REST = 0.5     # the Drowsing Vale: resting anywhere heals at least this much (a camp's), with a dream
+FOSSIL_XP = 10       # the Stillwood: a fossil bed's XP, with a three-pick of better loot
+SANDSTORM_SIGHT = 1  # inside a sandstorm (the Shifting Sands' squalls) a hero sees one hex
+# Storms that drift (squalls generalised): the kind, the region it forms in, over water or land, its sight
+STORMS = {"squall": {"region": "storm", "water": True, "sight": 2, "name": "squall"},
+          "sandstorm": {"region": "dunes", "water": False, "sight": 1, "name": "sandstorm"},
+          "blizzard": {"region": "frost", "water": False, "sight": 2, "name": "blizzard"}}
 
 # Lookouts and grottos
 LOOKOUT_SIGHT = 8   # climbing a lookout shows everything this far around it, hidden grottos too
@@ -777,6 +826,7 @@ EVENTS = [
          {"label": "Leave it be", "ok": {"text": "Some offers are best refused. Probably."}},
      ]},
 ]
+EVENTS += _B.EVENTS
 
 
 def event_risk(ev):

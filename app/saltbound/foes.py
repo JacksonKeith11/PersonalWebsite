@@ -47,7 +47,10 @@ FOE_CRIT = {
     "powder_keg": ("burn", 2), "cannon": ("half", None), "tide_guard": ("vuln", 1), "drowned_crown": ("half", None),
 }
 CRIT_SAY = {"half": "the hit deals half again", "poison": "Poison 2", "weak": "Weak", "mark": "Marked", "burn": "Burn 2",
-            "hex": "Hexed", "root": "Rooted", "shock": "Shocked", "vuln": "Vulnerable", "lock": "a die crusted over"}
+            "hex": "Hexed", "root": "Rooted", "shock": "Shocked", "vuln": "Vulnerable", "lock": "a die crusted over",
+            "freeze": "a die frozen"}
+from .content import biomes as _B  # noqa: E402
+FOE_CRIT.update(_B.CRITS)
 for _k, _d in A.FOES.items():
     _c = FOE_CRIT.get(_k, ("half", None))
     _d["crit"] = list(_c)
@@ -127,6 +130,9 @@ class Foes:
             if d.get("seq"):
                 fo["sq"] = list(d["seq"]) + [extra]
             fo["mv"].append(extra)
+        if d.get("sleeper"):
+            fo["asleep"] = True  # does nothing until something hits it
+            fo["st"]["asleep"] = 1
         if aff and aff in A.ELITES:
             e = A.ELITES[aff]
             fo["aff"] = aff
@@ -147,6 +153,9 @@ class Foes:
         self.fx("st", to=f"f{fo['id']}", s="bloodied")
         self.say(f"{fo['name']} is bloodied: {b['text']}")
         rule = b.get("rule")
+        fo["bl_round"] = self.s["fight"]["round"]
+        if rule == "thorns":
+            fo["thorns_x"] = b["n"]
         if rule == "air":
             fo["air"] = True
         elif rule == "swallow":
@@ -166,6 +175,9 @@ class Foes:
         d = A.FOES[fo["k"]]
         if f["ambush"] and f["round"] == 1:
             fo["intent"] = {"k": "dazed", "name": "Caught off guard", "by_hero": True}
+            return
+        if fo.get("asleep"):
+            fo["intent"] = {"k": "dazed", "name": "Asleep: it wakes when hit"}
             return
         moves = self.foe_moves(fo)
         if fo.get("force") in moves:

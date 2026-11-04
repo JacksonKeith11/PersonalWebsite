@@ -18,10 +18,19 @@ LAND_MIN = 2
 LAND_BANDS = 16  # land gets elevations LAND_MIN .. LAND_MIN + LAND_BANDS - 1
 PROTECTED = LAND_MIN + LAND_BANDS  # 18: objectives and the final peak
 
+# The three objectives' regions of a world from before regions were drawn per run; a world now names
+# its own three (`w["regions"]`, drawn from the content's pool), read through `regions(w)`.
 REGIONS = ["coral", "keys", "storm"]
 
+
+def regions(w):
+    """The world's three objective regions, in the order they were laid out."""
+    return w.get("regions") or REGIONS
+
 # Terrain costs on foot. Shallows and water are handled in `step_cost`.
-COST = {"beach": 1, "grass": 1, "forest": 2, "hills": 2, "peak": 2, "town": 1}
+COST = {"beach": 1, "grass": 1, "forest": 2, "hills": 2, "peak": 2, "town": 1, "ice": 2}
+JUNGLE_COST = 3   # the Verdant Deep's deep jungle (a forest hex there), until someone cuts a trail through it
+SINK_COST = 4     # quicksand: it takes a whole turn's moves to get out of
 # Map talents that make rough ground cost 1: the class's map key -> terrain
 FAST = {"trailbreaker": ["forest", "hills", "peak"], "wildspeak": ["forest"]}
 
@@ -129,9 +138,11 @@ def _noise(rng, scale):
     return at
 
 
-def generate(seed):
-    """Make a run's world: elevations, biomes, regions and the places on the map."""
+def generate(seed, pool=None):
+    """Make a run's world: elevations, biomes, regions and the places on the map. Its three objective
+    regions are drawn from `pool` (every region the content has; the original three without one)."""
     rng = Rng(seed ^ 0x5A17B0D)
+    REGIONS = Rng(seed ^ 0x0B1EC7).sample(sorted(pool), 3) if pool else globals()["REGIONS"]
     cx, cy = W / 2 - 0.25, H * 0.866 / 2
     islands = [(cx, cy, 5.2, 1.0, "peak")]
     a0 = rng.random() * math.tau
@@ -268,8 +279,9 @@ def generate(seed):
             k += 1
 
     world = {"w": W, "h": H, "elev": elev, "bio": bio, "reg": region, "start": start, "peak": peak,
-             "places": {str(i): p for i, p in places.items()}}
+             "places": {str(i): p for i, p in places.items()}, "regions": list(REGIONS)}
     add_features(world, Rng(seed ^ 0x5EA5))
+    add_biomes(world, Rng(seed ^ 0xB10E))
     return world
 
 
@@ -318,6 +330,7 @@ def add_features(w, rng):
 
     # Currents: a few one-way lanes of open water, 6-9 hexes long, preferring ones that join two
     # regions' waters, routed a hex off the land where they can be. Riding one is a free trip.
+    REGIONS = regions(w)
     land_of = {r: [i for i in range(W * H) if reg[i] == r and elev[i] > SEA0] for r in REGIONS}
     sea_ok = lambda i: shore.get(i, 0) >= 1 and not on_edge(i)
     cur, lanes, blocked = {}, [], set()
@@ -399,6 +412,88 @@ def add_features(w, rng):
     w["cur"] = {str(a): b for a, b in cur.items()}
     w["reef"] = sorted(reefs)
     w["pool"] = sorted(pools)
+
+
+# ---------------------------------------------------------------- each region's own land
+
+SINKS = 6          # the Shifting Sands: quicksand hexes
+OASES = 2          # ...and oases (full heal, curses lifted; once per hero)
+FOSSILS = 2        # the Stillwood: fossil beds to dig
+GEODES = 2         # the Prism Wood: geodes holding enchant materials
+GATES = 2          # Aetherhold: pairs of light-gates (one end there, one far off)
+ICE_REACH = 2      # the Frostpeaks: open water this close to its land is frozen
+
+
+def add_biomes(w, rng):
+    """The fixed features of the regions that have them (only for the regions this world drew):
+    quicksand (`sink`) and oases in the Shifting Sands, fossil beds in the Stillwood, geodes in the
+    Prism Wood, light-gates from Aetherhold (each `gate` names its twin in `to`), and the frozen sea
+    round the Frostpeaks (`ice`: water hexes that are walked on, not sailed). Uses only `rng`."""
+    if "ice" in w:
+        return
+    regs = regions(w)
+    elev, bio, reg, places = w["elev"], w["bio"], w["reg"], w["places"]
+    taken = {int(t) for t in places}
+    hazards = set(w.get("reef", [])) | set(w.get("pool", [])) | {int(a) for a in w.get("cur", {})} | set(w.get("cur", {}).values())
+
+    def free(i, gap):
+        return i not in taken and all(dist(i, t) >= gap for t in taken)
+
+    def land(r, kinds=None):
+        return [i for i in range(W * H) if reg[i] == r and LAND_MIN <= elev[i] < PROTECTED - 1 and bio[i] != "town"
+                and (kinds is None or bio[i] in kinds)]
+
+    def put(cands, n, kind, gap=2, **kw):
+        """Up to n new places among cands, kept `gap` hexes off the others (closer if there's no room)."""
+        rng.shuffle(cands)
+        got = []
+        for g in range(gap, 0, -1):
+            for i in cands:
+                if len(got) >= n:
+                    return got
+                if free(i, g):
+                    places[str(i)] = {"kind": kind, **kw}
+                    taken.add(i)
+                    got.append(i)
+        return got
+
+    sink = []
+    if "dunes" in regs:
+        cands = rng.shuffle(land("dunes", ("grass", "hills")))
+        for i in cands:
+            if len(sink) >= SINKS:
+                break
+            if i not in taken and all(dist(i, x) >= 2 for x in sink) and all(dist(i, t) >= 1 for t in taken):
+                sink.append(i)
+        put(land("dunes", ("grass", "beach", "forest")), OASES, "oasis", gap=3)
+    if "petrified" in regs:
+        put(land("petrified", ("forest", "hills", "grass")), FOSSILS, "fossil", gap=3)
+    if "crystal" in regs:
+        put(land("crystal", ("forest", "hills")), GEODES, "geode", gap=3)
+    if "heaven" in regs:
+        here = land("heaven")
+        start = w["start"]
+        others = [i for r in regs if r != "heaven" for i in land(r)]
+        homes = [i for i in range(W * H) if reg[i] == "peak" and LAND_MIN <= elev[i] < PROTECTED - 1 and bio[i] != "town" and 2 <= dist(i, start) <= 4]
+        for far in (homes, sorted(others, key=lambda i: -dist(i, w["peak"]))[:20]):
+            a = put(list(here), 1, "gate", gap=3)
+            b = put(list(far), 1, "gate", gap=3)
+            if a and b:
+                places[str(a[0])]["to"], places[str(b[0])]["to"] = b[0], a[0]
+            else:
+                for x in a + b:
+                    places.pop(str(x), None)
+                    taken.discard(x)
+    ice = []
+    if "frost" in regs:
+        frost = [i for i in range(W * H) if reg[i] == "frost" and elev[i] > SEA0]
+        for i in range(W * H):
+            if elev[i] <= SEA0 and not on_edge(i) and i not in hazards and i not in taken \
+                    and any(dist(i, x) <= ICE_REACH for x in frost) \
+                    and min((dist(i, x) for x in range(W * H) if elev[x] > SEA0), default=99) == min(dist(i, x) for x in frost):
+                ice.append(i)
+    w["sink"] = sorted(sink)
+    w["ice"] = sorted(ice)
 
 
 TOWN_NAMES = ["Saltmarrow", "Gullhaven", "Tarry Cove", "Brinewick", "Lowmoor", "Kelpstead", "Wrackford",

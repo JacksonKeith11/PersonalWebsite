@@ -191,6 +191,8 @@ function placeTitle(p) {
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
 const cap = s => s[0].toUpperCase() + s.slice(1);
+// This run's three objective regions (drawn per world; a world from an older save has the first three).
+const worldRegions = () => S.world?.regions || ['coral', 'keys', 'storm'];
 // A job in words: what to do, and what it pays.
 function jobText(q) {
   const g = S.game;
@@ -256,7 +258,7 @@ function renderTopbar() {
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
         icon('feather'), h('b', null, g.revives)),
-      goalStat(g, `Objectives\n${['coral', 'keys', 'storm'].map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}`)),
+      goalStat(g, `Objectives\n${worldRegions().map(r => `${S.static.dungeons[r]}: ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}`).join('\n')}\nEvery ${S.static.garrison_every} turns the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}`)),
     h('div.right', null,
       h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; saved.logOpen = UI.log; persist(); renderLog(); } }, icon('list')),
       h('button.btn.icon.ghost', { 'aria-label': 'Menu', tip: 'Menu', onclick: () => { UI.menu = !UI.menu; UI.menuFresh = true; renderMenu(); } }, icon('menu')))));
@@ -284,7 +286,7 @@ function regionMiddle(r) {
 function goalTargets(g) {
   const from = g.heroes[sel()]?.tile ?? g.heroes[0].tile;
   const all = Object.entries(g.places).map(([t, p]) => [+t, p]);
-  const left = ['coral', 'keys', 'storm'].filter(r => !g.cleared.includes(r)).map(r => {
+  const left = worldRegions().filter(r => !g.cleared.includes(r)).map(r => {
     const at = all.find(([, p]) => p.kind === 'dungeon' && p.region === r);
     const mark = (S.world.landmarks || []).find(m => m.region === r);
     return { t: at ? at[0] : mark ? mark.tile : regionMiddle(r), name: S.static.dungeons[r], found: !!(at || mark), where: S.static.regions[r] };
@@ -860,7 +862,7 @@ function townDrawer(h0, town, d) {
           : h('button.btn.primary', { disabled: disabled || (!town.voucher && hero.gold < st.temple_revive), onclick: () => send({ t: 'temple', h: h0, what: 'revive' }) }, `+1 revive for the party · ${town.voucher ? 'free' : st.temple_revive}`),
         h('span.muted', null, `The party has ${g.revives} revive${g.revives === 1 ? '' : 's'}.`)));
     } else if (town.spec === 'cartographer') {
-      for (const reg of ['coral', 'keys', 'storm', 'peak']) {
+      for (const reg of [...worldRegions(), 'peak']) {
         body.push(h('div.item', null, h('div.ico', null, icon('eye')), h('div', null, h('div.name', null, st.regions[reg]), h('div.sub', null, reg === 'peak' ? 'The central island' : `Home of ${st.dungeons[reg]}`)),
           h('button.btn.sm', { disabled: disabled || (!town.voucher && hero.gold < st.chart_cost), onclick: () => send({ t: 'chart', h: h0, region: reg }) }, `Chart · ${town.voucher ? 'free' : st.chart_cost}`)));
       }

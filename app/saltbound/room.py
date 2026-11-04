@@ -17,6 +17,7 @@ import secrets
 import time
 
 from ..rooms import Codes, clean, dumps, push
+from . import world as Wd
 from . import bot
 from . import game as G
 from . import save as S
@@ -98,7 +99,8 @@ class Room:
         return {"t": "world", "w": w["w"], "h": w["h"], "elev": w["elev"], "bio": w["bio"], "reg": w["reg"],
                 "peak": w["peak"], "start": w["start"], "seed": self.game.s["seed"],
                 "cur": w.get("cur", {}), "reef": w.get("reef", []), "pool": w.get("pool", []),
-                "landmarks": [{"tile": t, "region": r} for t, r in marks]}
+                "landmarks": [{"tile": t, "region": r} for t, r in marks], "regions": Wd.regions(w),
+                "sink": w.get("sink", []), "ice": w.get("ice", [])}
 
     # ---------------------------------------------------------------- joining and leaving
 

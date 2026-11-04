@@ -80,6 +80,7 @@ class Actions:
         m = self.mods(h)
         f = self.s["fight"]
         n = m.get("might", 0) + self.herald_aura()
+        n += (f.get("ground") or {}).get("might", 0)  # the Prism Wood's Resonance
         n += m.get("momentum", 0) * f["acts"].get(str(h), 0)
         n += m.get("rage", 0) * ((self.maxhp(h) - self.hero(h)["hp"]) // 5)
         x = self.hs(h)
@@ -129,6 +130,8 @@ class Actions:
                 n = int(n * CROWN_WARD)
             elif self.s["fight"].get("phase", 1) >= 3:
                 n = int(n * CROWN_EXPOSED + 0.5)
+        elif fo.get("bl") and self.crown_warded(fo):
+            n = int(n * CROWN_WARD)  # a bloodied boss's ward (the Radiant Arbiter behind her Sentinels)
         return max(0, n)
 
     def targets_for(self, h, a, tgt):

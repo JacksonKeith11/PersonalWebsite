@@ -28,6 +28,7 @@ export function within(i, n) {
 
 export function terrain(world, game, t) {
   const e = world.elev[t], sea = game.sea;
+  if (e <= sea && seaMap(world).ice.has(t)) return 'ice';  // the Frostpeaks' frozen sea
   if (e <= sea) return 'deep';
   if (e === sea + 1) return game.tide === 'high' ? 'deep' : 'shoal';
   return world.bio[t];
@@ -55,7 +56,7 @@ export function seaMap(world) {
   const cur = new Map(Object.entries(world.cur || {}).map(([a, b]) => [+a, b]));
   const pool = new Set(world.pool || []), swirl = new Set();
   for (const t of pool) for (const n of neighbors(t)) if (!pool.has(n)) swirl.add(n);
-  SEA = { cur, reef: new Set(world.reef || []), pool, swirl }; SEA_FOR = world;
+  SEA = { cur, reef: new Set(world.reef || []), pool, swirl, ice: new Set(world.ice || []), sink: new Set(world.sink || []) }; SEA_FOR = world;
   return SEA;
 }
 
@@ -64,6 +65,7 @@ export function stepCost(world, game, static_, h, a, b, afloat) {
   const hero = game.heroes[h];
   if (!neighbors(a).includes(b)) return null;
   if (b === world.peak && game.cleared.length < 3) return null;
+  if (game.lava && game.lava[b] != null) return null;  // Cinderreach's lava, until it cools
   const t = terrain(world, game, b);
   if (t === 'deep') {
     if (!hero.skiff) return null;
@@ -73,8 +75,11 @@ export function stepCost(world, game, static_, h, a, b, afloat) {
     return [c + (sea.swirl.has(b) ? 1 : 0), true];
   }
   if (t === 'shoal') return afloat ? [1, true] : [2, false];
+  // Game.land_cost: the Verdant Deep's deep jungle (unless it's a trail), map talents, then quicksand
   let c = static_.map.cost[t] ?? 1;
-  if ((static_.map.fast[static_.classes[hero.cls].map.key] || []).includes(t)) c = 1;
+  if (t === 'forest' && world.reg[b] === 'jungle' && (world.regions || []).includes('jungle') && !(game.trails && game.trails[b] != null)) c = static_.map.jungle;
+  if (t !== 'ice' && (static_.map.fast[static_.classes[hero.cls].map.key] || []).includes(t)) c = 1;
+  if (seaMap(world).sink.has(b)) c = static_.map.sink;
   return [c + (afloat ? 1 : 0), false];
 }
 

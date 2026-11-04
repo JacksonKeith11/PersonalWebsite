@@ -61,7 +61,8 @@ def _v3(state):
     from .content import archipelago as A
     state.setdefault("fork", None)
     nxt = state.setdefault("dnext", {})
-    for reg, D in A.DUNGEONS.items():
+    for reg in ("coral", "keys", "storm"):  # saves this old only ever had the original three
+        D = A.DUNGEONS[reg]
         if reg in nxt:
             continue
         step = state.get("dungeon", {}).get(reg, 0)

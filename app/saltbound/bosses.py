@@ -4,7 +4,7 @@ powder kegs, the Iron Bosun's crew, thieving Harpies, splitting enemies and the 
 Mixed into `Game` through `Combat`."""
 
 from .content import archipelago as A
-from .tuning import KEG_BLAST, KNELL_EVERY, KNELL_REQUIEM, LAMP_DOUSE, UNDERTOW
+from .tuning import KEG_BLAST, KNELL_EVERY, KNELL_REQUIEM, LAMP_DOUSE, TICKING, UNDERTOW
 
 
 class Bosses:
@@ -32,7 +32,45 @@ class Bosses:
             fo["st"]["steeled"] = 1
 
     def crown_warded(self, fo):
-        return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
+        """The Drowned Crown behind its Tide Guards, or a bloodied boss with a `ward` rule behind its `by`."""
+        d = A.FOES[fo["k"]]
+        if d.get("final"):
+            return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
+        b = d.get("bloodied") or {}
+        return bool(fo.get("bl")) and b.get("rule") == "ward" and any(o is not fo and o["k"] == b["by"] for o in self.foes())
+
+    def bloodied_rule(self, fo):
+        """The generic bloodied rules (see content/biomes.py), each round from the one after it's bloodied:
+        a new enemy (`summon`), sharper thorns (`thorns` with `grow`), a status on heroes every few rounds
+        (`curse`), a blow marked on a hero to land at the round's end (`fall`), the `ward`'s status."""
+        b = A.FOES[fo["k"]].get("bloodied") or {}
+        rule = b.get("rule")
+        f = self.s["fight"]
+        if rule == "summon" and len(self.foes()) < 5:
+            new = self.add_foe(b["f"])
+            new["intent"] = {"k": "dazed", "name": "Just arrived"}
+            self.fx("summon", f=new["id"])
+        elif rule == "thorns" and b.get("grow"):
+            fo["thorns_x"] = min(fo.get("thorns_x", b["n"]) + b["grow"], b["n"] + 6)
+            fo["st"]["thorns"] = fo["thorns_x"]
+        elif rule == "curse" and (f["round"] - fo.get("bl_round", f["round"])) % b.get("every", 1) == 0:
+            heroes = self.actives()
+            if b.get("tgt") == "strongest" and heroes:
+                heroes = [max(heroes, key=lambda y: self.hero(y)["hp"])]
+            elif b.get("tgt") == "random" and heroes:
+                heroes = [self.rng.choice(heroes)]
+            for y in heroes:
+                self.hero_status(y, b["st"], 0 if b["st"] in TICKING else 1)
+        elif rule == "fall" and self.actives():
+            y = self.rng.choice(self.actives())
+            self.hs(y)["st"]["falling"] = max(1, round(b["n"] * f["dmul"]))
+            self.hs(y)["fall_by"] = fo["k"]
+            self.fx("st", to=f"h{y}", s="falling")
+        elif rule == "ward":
+            if self.crown_warded(fo):
+                fo["st"]["warded"] = 1
+            else:
+                fo["st"].pop("warded", None)
 
     def boss_phase(self):
         """The Drowned Crown's phases. 1: warded while a Tide Guard stands. 2 (two thirds health):
@@ -83,6 +121,8 @@ class Bosses:
             if not self.steeled(fo):
                 fo["st"].pop("steeled", None)
             rule = A.FOES[fo["k"]].get("bloodied", {}).get("rule") if fo.get("bl") else None
+            if rule:
+                self.bloodied_rule(fo)
             if rule == "kegs" and len(self.foes()) < 5 and not any(A.FOES[o["k"]].get("keg") for o in self.foes()):
                 new = self.add_foe("powder_keg")
                 self.fx("summon", f=new["id"])
@@ -104,6 +144,11 @@ class Bosses:
         Keeper's lamp, the Reef Maw's gut."""
         f = self.s["fight"]
         d = A.FOES[fo["k"]]
+        if fo.get("asleep") and h is not None:
+            fo.pop("asleep")
+            fo["st"].pop("asleep", None)
+            self.fx("st", to=f"f{fo['id']}", s="wakes")
+            self.say(f"{fo['name']} wakes up!")
         if h is not None and n > 0:
             fo.setdefault("hitr", [])
             if h not in fo["hitr"]:
@@ -173,9 +218,18 @@ class Bosses:
             self.fx("st", to=f"h{y}", s="undertow")
 
     def undertow(self):
-        """At the end of a round: the Undertow lands (Armor blocks it; a Guard takes it)."""
+        """At the end of a round: the Undertow lands (Armor blocks it; a Guard takes it), and so does
+        anything a `fall` rule marked (falling magma, an avalanche), with its status."""
         for h in self.actives():
             n = self.hs(h)["st"].pop("undertow", 0)
             if n:
                 self.fx("st", to=f"h{h}", s="dragged")
                 self.hurt_hero(h, n, None)
+            n = self.hs(h)["st"].pop("falling", 0)
+            if n and self.active(h):
+                b = A.FOES.get(self.hs(h).pop("fall_by", ""), {}).get("bloodied", {})
+                self.fx("st", to=f"h{h}", s="crushed")
+                before = self.hero(h)["hp"]
+                self.hurt_hero(h, n, None)
+                if b.get("st") and self.active(h) and self.hero(h)["hp"] < before:
+                    self.hero_status(h, b["st"], 2 if b["st"] == "burn" else 1)

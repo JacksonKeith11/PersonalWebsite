@@ -111,12 +111,28 @@ def check_steps():
     import subprocess
     from app.saltbound import world as Wd
     out = []
-    for seed in (3, 11):
+    # seeds whose worlds between them draw every region, so each region's step rules are compared
+    seeds, seen = [], set()
+    from app.saltbound.content import archipelago as A
+    for seed in range(1, 200):
+        regs = set(Wd.generate(seed, A.REGION_POOL)["regions"])
+        if regs - seen:
+            seeds.append(seed)
+            seen |= regs
+        if seen >= set(A.REGION_POOL):
+            break
+    for seed in seeds:
         g = game.Game.new(seed, ["ranger", "vanguard", "warden"], "normal")
         w = g.s["world"]
-        world = {k: w[k] for k in ("elev", "bio", "reg", "peak")} | {"cur": w["cur"], "reef": w["reef"], "pool": w["pool"]}
+        world = {k: w[k] for k in ("elev", "bio", "reg", "peak")} | {"cur": w["cur"], "reef": w["reef"], "pool": w["pool"],
+                                                                    "sink": w["sink"], "ice": w["ice"], "regions": w["regions"]}
         near = sorted({n for t in range(Wd.W * Wd.H) if w["elev"][t] <= g.s["sea"] for n in Wd.neighbors(t)} |
-                      {t for t in range(Wd.W * Wd.H) if w["elev"][t] <= g.s["sea"] + 1})
+                      {t for t in range(Wd.W * Wd.H) if w["elev"][t] <= g.s["sea"] + 1} |
+                      {t for t in range(Wd.W * Wd.H) if w["reg"][t] in ("jungle", "dunes", "frost", "ash")})
+        # some lava and some cut trails, as the turn would leave them
+        land = [t for t in range(Wd.W * Wd.H) if w["elev"][t] > g.s["sea"] + 1]
+        g.s["lava"] = {str(t): 9 for t in land[::37]}
+        g.s["trails"] = {str(t): 9 for t in land[::5] if w["reg"][t] == "jungle"}
         games, want = [], []
         for turn in (1, 5):  # low tide, then high
             for skiff in (False, True):

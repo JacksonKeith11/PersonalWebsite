@@ -19,6 +19,7 @@ from . import mods as M
 from . import world as Wd
 from .biome import Biomes
 from .quests import Quests
+from .travel import Travel
 from .combat import Combat, Invalid
 from .content import archipelago as A
 from .content import items as I
@@ -55,7 +56,7 @@ M.check_content([(f"passive {k}", p["mods"]) for k, p in C.PASSIVES.items()]
                 + [(f"blessing {k}", b["mods"]) for k, b in A.BUFFS.items()])
 
 
-class Game(Combat, Biomes, Quests):
+class Game(Combat, Biomes, Quests, Travel):
     def __init__(self, s):
         self.s = s
         self.rng = Rng(s["rng"])
@@ -102,6 +103,7 @@ class Game(Combat, Biomes, Quests):
                 gr["prize"] = g.rng.choice([k for k in g.gear() if g.item(k)["rarity"] == "rare"])
         g.setup_places(g.rng, guards=True)
         g.place_quests(g.rng)
+        g.ensure_travel(g.rng)
         g.town_jobs(w["start"])
         g.reset_plans()
         names = [f"{A.DUNGEONS[r]['name']} in {A.REGION_NAMES[r]}" for r in g.regions()]
@@ -668,7 +670,7 @@ class Game(Combat, Biomes, Quests):
         handler = {
             "path": self.do_path, "ready": self.do_ready, "rest": self.do_rest, "choose": self.do_choose,
             "buy": self.do_buy, "sell": self.do_sell, "inn": self.do_inn, "skiff": self.do_skiff,
-            "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use, "temper": self.do_temper,
+            "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use, "temper": self.do_temper, "beacon": self.do_beacon, "mbuy": self.do_mbuy,
             "give": self.do_give, "drop": self.do_drop,
             "reforge": self.do_reforge, "temple": self.do_temple, "chart": self.do_chart,
             "place": self.do_place, "reroll": self.do_reroll,
@@ -706,13 +708,13 @@ class Game(Combat, Biomes, Quests):
                 raise Invalid("You can't go that way.")
             if cost > self.moves(h):
                 raise Invalid("That's too far for one turn.")
-        p["path"], p["rest"], p["ready"] = path, False, False
+        p["path"], p["rest"], p["ready"], p["warp"] = path, False, False, None
 
     def do_rest(self, h, msg):
         if not self.can_plan(h):
             raise Invalid("Not now.")
         p = self.plan(h)
-        p["rest"], p["path"], p["ready"] = bool(msg.get("on", True)), [], False
+        p["rest"], p["path"], p["ready"], p["warp"] = bool(msg.get("on", True)), [], False, None
 
     def do_ready(self, h, msg):
         if self.s["phase"] != "plan":
@@ -740,6 +742,9 @@ class Game(Combat, Biomes, Quests):
                 self.rest(h)
         # Everyone moves at once, a step at a time; walking into enemies or a dungeon stops you.
         encounters = []  # (tile, who triggered it)
+        for h, p in plans.items():  # beacon journeys happen in one go, before anyone walks
+            if p.get("warp") is not None and self.hero(h)["alive"]:
+                self.warp(h, p["warp"], encounters)
         moved = {h: [self.hero(h)["tile"]] for h in plans}
         steps = max((len(p["path"]) for p in plans.values()), default=0)
         active = {h: list(p["path"]) for h, p in plans.items() if p["path"]}
@@ -1008,6 +1013,8 @@ class Game(Combat, Biomes, Quests):
         self.tick_jobs()
         self.tick_squalls()
         self.tick_biomes()
+        self.ensure_travel(self.rng)
+        self.tick_merchants()
         if s["turn"] >= A.RAID_FROM and (s["turn"] - A.RAID_FROM) % A.RAID_EVERY == 0:
             self.spawn_raid()
         if (s["turn"] - 1) % SPAWN_EVERY == 0:
@@ -1452,6 +1459,8 @@ class Game(Combat, Biomes, Quests):
             return
         if k == "quest":
             self.quest_land(h, t, p)
+        elif k == "beacon":
+            self.beacon_land(h, t, p)
         elif k == "event" and not p.get("done"):
             key = p.get("ev") or self.pick_event(h)["key"]
             self.s.setdefault("events_seen", []).append({"key": key})
@@ -2617,6 +2626,7 @@ class Game(Combat, Biomes, Quests):
             "xp_this": C.XP_FOR[s["level"] - 1], "revives": s["revives"], "cleared": s["cleared"],
             "dungeon": s["dungeon"], "fork": s.get("fork"), "dnext": s.get("dnext", {}), "plans": s["plans"], "pending": s["pending"], "pools": s.get("pools", {}), "fight": self.fight_view(),
             "forecast": self.forecast(),
+            "merchants": self.merchants_view(),
             "quests": [dict(q, left=q["until"] - s["turn"] + 1 if "until" in q else None, goal=self.job_goal(q))
                        for q in s["quests"]], "log": s["log"][-12:], "fx": s["fx"][-60:],
             "stats": s["stats"], "waiting": self.waiting(), "inn": self.inn_cost(),
@@ -2656,6 +2666,7 @@ def static():
         "grounds": A.GROUNDS, "squall": {"r": A.SQUALL_R, "sight": A.SQUALL_SIGHT}, "lookout_sight": A.LOOKOUT_SIGHT,
         "work": {"cap": A.WORK_CAP, "hone": A.HONE_UP, "cost": A.TEMPER_COST},
         "quests": A.QUESTS,
+        "travel": {"beacon_sight": A.BEACON_SIGHT, "markup": A.MERCHANT_MARKUP, "wait": A.MERCHANT_WAIT, "step": A.MERCHANT_STEP},
         "biome": {"skins": A._B.SKINS, "rules": A._B.RULES, "storms": A.STORMS, "trail_turns": A.TRAIL_TURNS, "lava_turns": A.LAVA_TURNS,
                   "erupt_every": A.ERUPT_EVERY, "jungle_sight": A.JUNGLE_SIGHT, "prism_sight": A.PRISM_SIGHT, "grace": round(A.GRACE_REST * 100),
                   "fossil_xp": A.FOSSIL_XP, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},

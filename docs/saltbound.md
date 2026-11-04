@@ -608,6 +608,10 @@ weapons, armor and trinkets.
   only mod keys the engine already reads, written out in `text`. Eight new weapon actions, one per
   region (`gear2.ACTIONS`: Cinder Cleave, Scouring Wind, Stone Gaze, Vine Lash, Smite, Prism Ray, Lull,
   Glacial Strike), and one armor action, Stoneform (the die +2 as Armor).
+- **Using a material** (any enchant or forge material): the bag shows one **Use on gear…** button,
+  which opens a popup of every piece worn (`materialPicker` in `hud.js`): its die now and after (the
+  label, the faces with the new one picked out), or why it can't take it (`materialResult` mirrors
+  `Game.enchant` and `temper_options`; keep them in step).
 - **Materials**: the **Fate Feather** (enchant: a Fate die) joins the random pool (`I.MATERIALS`).
   **Starmetal** (hone) and **Wyrm's Ember** (mark) are forge materials (`forge`, `I.FORGE_MATS`), only
   from quests and events: they do what the smith's Hone or Mark would, free, and **don't count against
@@ -619,6 +623,31 @@ weapons, armor and trinkets.
   when a dungeon is due, if it's within 8); they take the first choice (the fight) when healthy, so in
   the simulator almost every drawn quest is finished: the batch numbers are a party that does them all.
   They put forge materials into the weapon, else the trinket, else the armor.
+
+### Beacon towers and travelling merchants
+
+Owner's request (2026-11-04). Both in `travel.py` (the `Travel` mixin); old saves get them the first turn
+they're played (`ensure_travel`).
+
+- **Beacons** (place kind `beacon`, `BEACONS` 5 on the highest open hills and peaks, `BEACON_GAP` 5
+  apart at least): ending a turn on one lights it for the party (`lit`) and reveals `BEACON_SIGHT` (5)
+  hexes round it. A hero on a lit beacon (not afloat) gets a **Beacon** button: a popup of the other lit
+  beacons (named by their nearest town, with the region and distance); picking one sets the plan's
+  `warp` (`do_beacon`, `{"t": "beacon", "to": t}`; `to: null` takes it back; a path or rest clears it),
+  and `resolve_turn` carries them there before anyone walks (an enemy on the far beacon means a fight).
+  It takes the whole move. The map draws a lit beacon with a fire (`beacon_lit` in `art.js`).
+- **Merchants** (`s["merchants"]`, `MERCHANTS` 2, named from `MERCHANT_NAMES`): caravans going town to
+  town over land and by boat between islands (`merchant_road`, keeping off places, other towns and the
+  peak), `MERCHANT_STEP` (2) hexes a turn, waiting `MERCHANT_WAIT` (2) turns in each town. A caravan
+  with a hero on its hex holds for them, up to `MERCHANT_HOLD` (2) turns. Each sells
+  `MERCHANT_STOCK` (4) pieces of this run's gear (`Game.gear()`), `MERCHANT_LEGENDS` (1) of them
+  legendary and the rest rare, at `MERCHANT_MARKUP` (1.6×) the price (the Herald's 20% off still
+  counts), restocked in every town. No escort, no raids on them: just a shop. A hero on its hex gets a
+  **Merchant** button (a drawer; `{"t": "mbuy", "item": k}`). The view sends merchants on seen hexes,
+  with their marked-up prices; the map draws a wagon, or a sail at sea, with a coin badge; the
+  forecast lists where each is.
+- **Bots** light beacons they can see (they're targets like events) but don't travel by them; they
+  buy from a merchant they happen to share a hex with (the best upgrade, keeping 30 gold).
 
 ### Events in multiplayer
 
@@ -1322,6 +1351,7 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/content/archipelago.py` | This map's enemies, pools, elites, dungeons and paths, the final boss, blessings and events. |
 | `app/saltbound/world.py` | Hex geometry (`step_dir` for a hex direction), terrain costs (`COST`, `FAST`), generating a run's map from its seed, and its extras (`add_features`: currents, reefs, whirlpools, places at sea, lookouts, grottos). |
 | `app/saltbound/biome.py` | `Biomes`, mixed into `Game`: the other regions' map rules (lava and eruptions, quicksand, trails, ice, sight, Frostbite, timeless Stillwood, dreams, oases, fossils, geodes, light-gates). |
+| `app/saltbound/travel.py` | `Travel`, mixed into `Game`: beacon towers (placing, lighting, travelling between lit ones) and travelling merchants (their roads, stock and shop). |
 | `app/saltbound/quests.py` | `Quests`, mixed into `Game`: placing the quest-givers, offering a quest's steps, moving a trail on (`quest_move`), choosing its sites. |
 | `app/saltbound/content/quests.py` | The quests (`QUESTS`, `QUEST_OF`), their events, the boons (`BOONS`), and two more events per region, merged into `archipelago.py`. |
 | `app/saltbound/content/gear2.py` | The regional gear (52 pieces), the relics, the Fate Feather and the forge materials, and their weapon actions, merged into `items.py`. |

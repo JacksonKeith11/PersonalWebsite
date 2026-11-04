@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=117';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=117';
-import { spriteURL, placeURL } from './art.js?v=117';
-import { itemURL } from './itemart.js?v=117';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=117';
-import { MapView } from './hexmap.js?v=117';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=117';
-import { disconnect } from './main.js?v=117';
-import * as sfx from './audio.js?v=117';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=120';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=120';
+import { spriteURL, placeURL } from './art.js?v=120';
+import { itemURL } from './itemart.js?v=120';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=120';
+import { MapView } from './hexmap.js?v=120';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=120';
+import { disconnect } from './main.js?v=120';
+import * as sfx from './audio.js?v=120';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -131,6 +131,8 @@ function onTileHover(t, x, y) {
     if (gr?.crew) lines.push(h('div.prize', null, `Wanted: ${gr.crew}. They run from you, a hex a turn.`));
     for (const q of (g.quests || []).filter(q => !q.done && !q.failed && q.goal === t))
       lines.push(h('div.prize', null, q.kind === 'trail' ? `Quest, ${questLine(q)}: ${jobText(q)}.` : `Job for ${q.src}: ${jobText(q)} (${q.left} turn${q.left === 1 ? '' : 's'} left).`));
+    const mer = (g.merchants || []).find(m => m.tile === t);
+    if (mer) lines.push(h('div.prize', null, `${cap(mer.name)}, a travelling merchant: ${merchantWhere(mer)}. Sells ${mer.stock.length} rare and legendary piece${mer.stock.length === 1 ? '' : 's'}; stop here to buy.`));
     const opp = (g.opps || []).find(o => o.tile === t);
     if (opp) lines.push(h('div.prize', null, `${S.static.opps[opp.kind].name}, for ${opp.left} more turn${opp.left === 1 ? '' : 's'}: ${S.static.opps[opp.kind].text}`));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
@@ -220,12 +222,28 @@ function placeTitle(p) {
     shrine: p.dark ? 'Dark shrine' : 'Shrine', camp: 'Camp', event: p.title && !p.done ? p.title : 'Something curious',
     wreck: p.guard && !p.done ? 'Guarded wreck' : 'Wreck', lair: 'Lair', cache: 'Buried cache',
     cove: 'Smugglers’ cove', flotsam: 'Flotsam', lookout: 'Lookout', grotto: p.grotto === 'spring' ? 'Grotto spring' : 'Hidden grotto',
-    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate', quest: p.name,
+    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate', quest: p.name, beacon: p.lit ? 'Lit beacon' : 'Beacon tower',
   }[p.kind] + (p.kind === 'shrine' && p.sea ? ' (drowned)' : '') + (p.occupied ? ' · occupied' : '');
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
 const cap = s => s[0].toUpperCase() + s.slice(1);
 // This run's three objective regions (drawn per world; a world from an older save has the first three).
+// Beacons the party has lit, and where a travelling merchant is (in a town, or on its way to one).
+const litBeacons = () => Object.entries(S.game.places).filter(([, p]) => p.kind === 'beacon' && p.lit).map(([t]) => +t);
+function merchantWhere(m) {
+  const g = S.game, here = g.places[m.tile], to = g.places[m.to];
+  if (here?.kind === 'town') return `in ${here.name}${m.wait ? `, for ${m.wait} more turn${m.wait === 1 ? '' : 's'}` : ', leaving soon'}`;
+  return to ? `on the road to ${to.name}` : 'on the road';
+}
+// Where a beacon is, in words a player knows: by its nearest town, and its region if this run drew it.
+function beaconName(t) {
+  const towns = Object.entries(S.game.places).filter(([, p]) => p.kind === 'town').map(([u, p]) => [+u, p.name]);
+  const near = towns.sort((a, b) => hexDist(a[0], t) - hexDist(b[0], t))[0];
+  const reg = S.world.reg[t], region = worldRegions().includes(reg) ? S.static.regions[reg] : t === S.world.peak || reg === 'peak' ? 'the central island' : null;
+  return { title: near ? `Near ${near[1]}` : cap(region || 'a far island'), region };
+}
+const merchantHere = h0 => (S.game.merchants || []).find(m => m.tile === S.game.heroes[h0].tile);
+const onLitBeacon = h0 => { const hero = S.game.heroes[h0], p = S.game.places[hero.tile]; return p?.kind === 'beacon' && p.lit && !hero.afloat; };
 const worldRegions = () => S.world?.regions || ['coral', 'keys', 'storm'];
 // A job in words: what to do, and what it pays.
 function jobText(q) {
@@ -258,6 +276,8 @@ function garrisonText(reg) {
 function placeText(p) {
   const g = S.game;
   switch (p.kind) {
+    case 'beacon': return p.lit ? `Lit. Stand on it to travel to any other lit beacon (${litBeacons().length} lit) in one move.`
+      : `Light it by ending a turn here: the land ${S.static.travel.beacon_sight} hexes round is revealed, and lit beacons carry the party between them.`;
     case 'quest': {
       const Q = S.static.quests[p.q], q = (g.quests || []).find(x => x.kind === 'trail' && x.key === p.q);
       return q?.done ? `${Q.name}: done.` : q ? `${Q.name}: under way (next, ${jobText(q)}).`
@@ -484,6 +504,10 @@ function renderActionbar() {
     if (g.phase === 'plan' || canPlan(h0)) {
       if (!p.ready) btns.push(h('button.btn' + (p.rest ? '.primary' : ''), { tip: `Rest\n${restText(h0)}`, onclick: () => send({ t: 'rest', h: h0, on: !p.rest }) }, icon('rest'), p.rest ? 'Resting' : 'Rest'));
       if (town) btns.push(h('button.btn', { onclick: () => openDrawer('town') }, icon('anchor'), town.name));
+      const mer = merchantHere(h0);
+      if (mer) btns.push(h('button.btn', { tip: `${cap(mer.name)}\nRare and legendary gear for sale`, onclick: () => openDrawer('merchant') }, icon('coin'), 'Merchant'));
+      if (onLitBeacon(h0) && litBeacons().length > 1)
+        btns.push(h('button.btn' + (p.warp != null ? '.primary' : ''), { tip: 'Travel to another lit beacon\nIt takes your whole move.', onclick: () => beaconPicker(h0) }, icon('flame'), p.warp != null ? 'Beacon set' : 'Beacon'));
     }
     btns.push(h('button.btn', { onclick: () => openDrawer('hero'), tip: 'Hero sheet\nDice, actions, gear and bag' }, icon('bag'), 'Hero'));
     if (g.phase === 'plan') {
@@ -550,7 +574,8 @@ export function renderForecast() {
       if (others.length) text += ` · with ${others.join(', ')}`;
       if (fight.ground) text += ` · ${groundSay(fight.ground)}`;
       if (fight.raid) text += fight.raid === 'free' ? ' · freeing the town' : ' · stopping the raid';
-    } else if (p.rest) text = 'rests';
+    } else if (p.warp != null) text = `travels by beacon (${beaconName(p.warp).title.replace(/^Near /, 'near ')})`;
+    else if (p.rest) text = 'rests';
     else if (fc.lands[x]) text = LAND[fc.lands[x]] || 'arrives';
     else if (p.path?.length) text = 'moves';
     else text = p.ready ? 'stays put' : 'hasn’t planned yet';
@@ -582,6 +607,10 @@ export function renderForecast() {
     const crater = (S.world.landmarks || []).find(m => m.region === 'ash');
     lines.push(h('div.fc-line.opp.raid', { tip: `The volcano on Cinderreach erupts ${g.erupt <= 0 ? 'now' : 'next turn'}: lava runs down its slopes and blocks the hexes it covers for ${S.static.biome.lava_turns} turns. It never covers a hero, a town or a place.\nClick to find it on the map.`, onclick: () => crater && map?.centerOn(crater.tile) },
       icon('flame'), h('b', null, ' Eruption'), h('span', null, ' next turn on Cinderreach')));
+  }
+  for (const m of g.merchants || []) {
+    lines.push(h('div.fc-line.opp', { tip: `A travelling merchant with rare and legendary gear, dear (×${S.static.travel.markup}). Stand on its hex to buy; it waits for you a turn or two.\nClick to find it on the map.`, onclick: () => map?.centerOn(m.tile) },
+      icon('coin'), h('b', null, ` ${cap(m.name)}`), h('span', null, `: ${merchantWhere(m)}`)));
   }
   // chances that won't wait, and debts that will come
   for (const o of g.opps || []) {
@@ -738,6 +767,12 @@ function drawDrawer() {
   const h0 = d.kind === 'hero' && d.who != null ? d.who : sel(), hero = S.game.heroes[h0];
   if (d.kind === 'hero' && !mine().includes(h0)) { el.replaceChildren(heroDrawer(h0, d, true)); return; }
   if (!mine().includes(h0) || !hero.alive) { el.replaceChildren(); return; }
+  if (d.kind === 'merchant') {
+    const mer = merchantHere(h0);
+    if (!mer) { UI.drawer = null; el.replaceChildren(); return; }
+    el.replaceChildren(merchantDrawer(h0, mer, d));
+    return;
+  }
   if (d.kind === 'town') {
     const town = inTown(h0);
     if (!town) { UI.drawer = null; el.replaceChildren(); return; }
@@ -973,20 +1008,102 @@ function townDrawer(h0, town, d) {
     [['market', 'Market'], ...(spec ? [['trade', spec.name]] : []), ['inn', 'Inn'], ['docks', 'Docks'], ['board', 'Notice board']], d, body);
 }
 
-// An enchant material's buttons: one for each worn piece of gear that can take it.
-function enchantButtons(h0, i, mat, free) {
-  const hero = S.game.heroes[h0], most = S.static.work.cap;
-  return SLOTS.filter(slot => hero.equip[slot]).map(slot => {
-    const it = item(hero.equip[slot]);
-    const done = (it.work || []).filter(w => !w.startsWith('star:')).length;
-    if (mat.forge) {
-      const nums = (it.die || []).filter(f => typeof f === 'number'), can = mat.forge === 'hone' ? nums.length && Math.min(...nums) < Math.max(...nums) : nums.length > 1;
-      const why = !can ? 'Its die can’t take that' : !free ? 'Not in the middle of a fight' : null;
-      return h('button.btn.sm' + (why ? '' : '.primary'), { disabled: !!why, tip: why || `${mat.forge === 'hone' ? 'Hone' : 'Mark'} the ${it.name}’s die, for good (free of its work limit)`, onclick: () => send({ t: 'use', h: h0, bag: i, slot }) }, `Into ${it.name}`);
+// A travelling merchant's wares: rare and legendary gear, marked up (Game.merchant_price).
+function merchantDrawer(h0, m, d) {
+  const g = S.game, hero = g.heroes[h0], disabled = g.fight?.heroes.includes(h0) && g.phase === 'fight';
+  const body = [h('div.section-title', null, h('h3', null, 'For sale'), h('span.chip.brass', null, icon('coin'), hero.gold)),
+    h('p.muted', null, `Rare and legendary gear from all over the islands, at ${S.static.travel.markup}× the usual price. The stock changes in every town it reaches.`),
+    m.stock.length ? null : h('p.muted', null, 'Sold out until the next town.'),
+    ...m.stock.map(k => {
+      const price = Math.floor(m.prices[k] * (g.herald ? 0.8 : 1));
+      return itemRow(k, h('button.btn.sm' + (hero.gold >= price ? '.primary' : ''), { disabled: disabled || hero.gold < price, onclick: () => send({ t: 'mbuy', h: h0, item: k }) }, icon('coin'), price), compareWith(h0, k, true));
+    }),
+    g.herald ? h('p.muted', null, 'The Herald’s silver tongue knocks 20% off.') : null];
+  return drawerShell(cap(m.name), `Travelling merchant · ${merchantWhere(m)}`, null, d, body);
+}
+
+// Where a lit beacon can take a hero: every other lit one, with where it is and how far.
+function beaconPicker(h0) {
+  const g = S.game, hero = g.heroes[h0], p = g.plans[h0];
+  const close = () => box.remove();
+  const go = to => { send({ t: 'beacon', h: h0, to }); close(); };
+  const opts = litBeacons().filter(t => t !== hero.tile).sort((a, b) => hexDist(hero.tile, a) - hexDist(hero.tile, b));
+  const box = modal([
+    h('h2', null, 'Travel by beacon'),
+    h('p.lead', null, 'The lit beacons answer each other across the islands. Pick one to travel to: it takes your whole move, and you arrive before anyone else walks.'),
+    h('div.choices', null, ...opts.map(t => {
+      const near = g.heroes.filter((x, i) => i !== h0 && x.alive && hexDist(x.tile, t) <= 3).map(x => x.name);
+      return h('button.choice' + (p?.warp === t ? '.on' : ''), { onclick: () => go(t), onmouseenter: () => map?.centerOn(t) },
+        h('img.pix', { src: placeURL('beacon_lit'), alt: '', style: { width: '28px' } }),
+        h('span.grow', null, h('b', null, beaconName(t).title),
+          h('small', null, [beaconName(t).region && cap(beaconName(t).region), `${hexDist(hero.tile, t)} hexes away`, near.length && `${near.join(' and ')} nearby`].filter(Boolean).join(' · '))));
+    })),
+    h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+      p?.warp != null ? h('button.btn', { onclick: () => go(null) }, 'Stay here instead') : null,
+      h('button.btn.ghost', { onclick: close }, 'Cancel')),
+  ], { onClose: close });
+  document.body.append(box);
+}
+
+// What a material would do to a worn piece of gear: its die after, or why it can't (mirrors Game.enchant).
+function materialResult(h0, mat, slot) {
+  const hero = S.game.heroes[h0], key = hero.equip[slot], it = item(key), most = S.static.work.cap;
+  const done = (it.work || []).filter(w => !w.startsWith('star:')).length, die = it.die || [];
+  const nums = die.map((f, i) => [f, i]).filter(([f]) => typeof f === 'number');
+  if (mat.forge) {
+    if (!nums.length) return { why: 'Its die has no numbers to work' };
+    const top = Math.max(...nums.map(([f]) => f)), low = nums.reduce((a, b) => (b[0] < a[0] ? b : a));
+    const after = die.slice();
+    if (mat.forge === 'hone') {
+      if (low[0] >= top) return { why: 'Its die is already as high as it goes' };
+      after[low[1]] = Math.min(top, low[0] + S.static.work.hone);
+      const sorted = nums.map(([, i]) => after[i]).sort((a, b) => a - b);
+      nums.forEach(([, i], j) => { after[i] = sorted[j]; });
+    } else {
+      if (nums.length < 2) return { why: 'Its die has no number to spare' };
+      const tagged = die.filter(f => typeof f === 'string' && 'FIP'.includes(f[0]) && /^\d+$/.test(f.slice(1)));
+      after[low[1]] = it.slot === 'armor' ? 'S' : tagged.length ? tagged.reduce((a, b) => (+b.slice(1) > +a.slice(1) ? b : a)) : 'W';
     }
-    const why = (it.dk || []).includes(mat.enchant) ? `Its die is already ${cap(mat.enchant)}` : done >= most ? 'It can’t take any more work' : !free ? 'Not in the middle of a fight' : null;
-    return h('button.btn.sm' + (why ? '' : '.primary'), { disabled: !!why, tip: why || `Make the ${it.name}’s die ${cap(mat.enchant)}, for good (work ${done + 1} of ${most})`, onclick: () => send({ t: 'use', h: h0, bag: i, slot }) }, `Into ${it.name}`);
+    return { die: after, dk: it.dk || [], note: 'Free of the work limit' };
+  }
+  if ((it.dk || []).includes(mat.enchant)) return { why: `Its die is already ${cap(mat.enchant)}` };
+  if (done >= most) return { why: `It has had all the work it can take (${most} of ${most})` };
+  return { die, dk: [...(it.dk || []), mat.enchant], note: `Work ${done + 1} of ${most}` };
+}
+
+// A material's one button: a popup of every worn piece, what the material would make of it, and why not.
+function materialPicker(h0, i, mat) {
+  const hero = S.game.heroes[h0];
+  const close = () => box.remove();
+  const rows = SLOTS.filter(slot => hero.equip[slot]).map(slot => {
+    const k = hero.equip[slot], it = item(k), r = materialResult(h0, mat, slot);
+    const before = { faces: it.die || [], dk: it.dk || [] };
+    return h('button.choice.mat-opt' + (r.why ? '.off' : ''), { disabled: !!r.why, onclick: () => { send({ t: 'use', h: h0, bag: i, slot }); close(); } },
+      h('img.pix', { src: itemURL(k, it.slot), alt: '', style: { width: '32px' } }),
+      h('span.grow', null,
+        h('span', null, h('b', null, it.name), h('small', null, ` · ${cap(slot)}`)),
+        h('div.mat-dice', null, dieLabel(before), r.why ? null : [h('span.arrow', null, ' → '), h('b', null, dieLabel({ faces: r.die, dk: r.dk }))]),
+        h('div.mat-faces', null, faceRowOf(before.faces), r.why ? null : [h('span.arrow', null, '→'), faceRowOf(r.die, before.faces)]),
+        h('small.muted', null, r.why || r.note)));
   });
+  const box = modal([
+    h('h2', null, `Use the ${mat.name}`),
+    h('p.lead', null, mat.text),
+    rows.length ? h('div.choices', null, ...rows) : h('p.muted', null, 'Wear some gear first.'),
+    h('div', { style: { display: 'flex', justifyContent: 'flex-end' } }, h('button.btn.ghost', { onclick: close }, 'Cancel')),
+  ], { onClose: close });
+  document.body.append(box);
+}
+// A die's faces as small chips, the ones that changed (against `was`) picked out.
+// (A face is new if the old die didn't have it, counting repeats: honing re-sorts the numbers.)
+function faceRowOf(faces, was) {
+  const left = {};
+  for (const f of was || []) left[f] = (left[f] || 0) + 1;
+  return h('span.faces', null, ...faces.map(f => {
+    const fresh = was && !(left[f] > 0);
+    if (was && !fresh) left[f]--;
+    return h('span.face' + (fresh ? '.changed' : ''), { tip: faceTip(f) || null }, faceText(f));
+  }));
 }
 
 function heroDrawer(h0, d, readonly = false) {
@@ -1018,7 +1135,7 @@ function heroDrawer(h0, d, readonly = false) {
         return itemRow(k, null, h('div.bag-acts', null,
           it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null,
           it.slot === 'use' && !it.fight && !it.enchant && !it.forge ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
-          ...(it.enchant || it.forge ? enchantButtons(h0, i, it, free) : []),
+          it.enchant || it.forge ? h('button.btn.sm.primary', { disabled: !free, tip: free ? 'See what it would do to each piece you wear' : 'Not in the middle of a fight', onclick: () => materialPicker(h0, i, it) }, icon('spark'), 'Use on gear…') : null,
           mates.length ? h('select.input.give', { 'aria-label': `Give ${it.name} to`, onchange: e => { if (e.target.value !== '') send({ t: 'give', h: h0, to: +e.target.value, bag: i }); } },
             h('option', { value: '' }, 'Give to…'), ...mates.map(m => h('option', { value: m }, g.heroes[m].name))) : null,
           town ? h('button.btn.sm.ghost', { onclick: () => send({ t: 'sell', h: h0, bag: i }) }, 'Sell') : null,
@@ -1504,7 +1621,8 @@ export function handleFx(list, before) {
       case 'squall': later.push(() => toast({ squall: 'A squall gathers over Stormcrag’s waters', sandstorm: 'A sandstorm rises over the Shifting Sands', blizzard: 'A blizzard blows in over the Frostpeaks' }[f.kind || 'squall'])); break;
       case 'rumble': later.push(() => { toast('The volcano rumbles: it erupts next turn', 'big'); sfx.play('rise'); }); break;
       case 'erupt': later.push(() => { bigBanner('The volcano erupts', `Lava blocks ${f.tiles.length} hexes for ${S.static.biome.lava_turns} turns`, 'tide', 2400); if (mine().length) map?.centerOn(f.tile); sfx.play('rise'); }); break;
-      case 'gate': later.push(() => { toast(`${S.game.heroes[f.h].name} steps through the light-gate`); sfx.play('rare'); if (mine().includes(f.h)) map?.centerOn(f.to); }); break;
+      case 'beacon': later.push(() => { toast(`${S.game.heroes[f.h].name} lights a beacon`); sfx.play('rare'); }); break;
+      case 'gate': later.push(() => { toast(f.how === 'beacon' ? `${S.game.heroes[f.h].name} travels by beacon` : `${S.game.heroes[f.h].name} steps through the light-gate`); sfx.play('rare'); if (mine().includes(f.h)) map?.centerOn(f.to); }); break;
       case 'ask': if (!mine().includes(f.h)) { (UI.evOpen ||= {})[`${f.h}:${f.key}:${S.game.turn}`] = true; later.push(() => { toast(`${S.game.heroes[f.h].name} asks the party: ${S.static.events[f.key].title}`, 'big'); sfx.play('rare'); }); } break;
       case 'huddle': if (f.helpers.some(y => mine().includes(y))) later.push(() => sfx.play('rare')); break;
       case 'event':

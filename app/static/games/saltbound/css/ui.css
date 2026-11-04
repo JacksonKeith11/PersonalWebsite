@@ -1610,3 +1610,14 @@ button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis
 @media (max-width: 1100px) { #partyev { width: min(560px, calc(100% - 24px)); top: calc(var(--topbar-h) + 4px); } }
 @media (max-width: 700px) { #partyev { top: calc(var(--topbar-h) + 2px); } .pe-card.open { max-height: 46vh; } }
 @media (prefers-reduced-motion: reduce) { .hud-row.wait span, .pe-card { animation: none; } }
+
+/* using a material (hud.js materialPicker): a row per worn piece, its die now and after */
+.mat-opt { align-items: flex-start; text-align: left; }
+.mat-opt .grow { display: grid; gap: var(--s-1); }
+.mat-dice { font-size: var(--fs-14); color: var(--text-2); }
+.mat-dice b { color: var(--accent); }
+.mat-faces { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.mat-faces .arrow, .mat-dice .arrow { color: var(--muted); }
+.face.changed { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+.choice.on { border-color: var(--accent); background: var(--accent-wash); }
+.choice small { color: var(--muted); font-weight: var(--fw-regular); }

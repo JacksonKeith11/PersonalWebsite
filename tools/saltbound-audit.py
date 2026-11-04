@@ -61,6 +61,8 @@ SCENARIOS = {
     # a region's quest under way: its next step's event waiting, a boon, forge materials (set up in main())
     "quest": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"]
     and any(q["kind"] == "trail" and not q["done"] and q["step"] == 2 for q in g.s["quests"]),
+    # beacons and a travelling merchant: hero 0 on a lit beacon with a caravan on its hex (set up in main())
+    "travel": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
     # an ally's event, for two players (tools/saltbound-mp.js events): set up in main()
     "partyevent": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
@@ -123,6 +125,18 @@ def main():
             g.s["pending"]["0"] = [{"type": "event", "key": A.QUESTS[q["key"]]["steps"][q["step"]]}]
             g.hero(0)["bag"] += ["starmetal", "wyrm_ember", "fate_feather"]
             g.hero(0)["buffs"]["sandstrider"] = 1
+        if name == "travel":
+            hero = g.hero(0)
+            beacons = [int(t) for t, p in g.s["world"]["places"].items() if p["kind"] == "beacon"]
+            for t in beacons:
+                g.place(t)["lit"] = True
+                g.reveal(t, 2)
+            for y in range(3):
+                g.hero(y)["tile"], g.hero(y)["afloat"] = beacons[0], False
+            g.reveal(beacons[0], 4)
+            g.s["merchants"][0]["tile"] = beacons[0]
+            hero["gold"] = 300
+            hero["bag"] += ["starmetal", "powder_salt", "fate_feather"]
         if name == "partyevent":
             # everyone on one hex, and hero 1 (the second player's) at an event with a party check
             for y in (0, 2):

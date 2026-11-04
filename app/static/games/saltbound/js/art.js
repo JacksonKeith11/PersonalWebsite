@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=117';
+import { SPRITES } from './sprites.js?v=120';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -154,6 +154,18 @@ export const PLACE_ART = {
   quest: { pal: { w: '#8a6a44', W: '#5a4028', r: '#b8443a', R: '#7a2a24', y: '#ffd870', s: '#c8bca0' }, rows: [
     '....y...........', '....wrrrrrr.....', '....wrryyrr.....', '....wryrryr.....', '....wrryyrr.....', '....wrrrrR......', '....wRRRR.......',
     '....w...........', '....w...........', '...sWs..........'] },
+  // beacon towers: a stone tower with a cold brazier, then lit (travel.py)
+  beacon: { pal: { s: '#a8a49a', S: '#76726a', d: '#4a4640', w: '#6a5030', k: '#2a2420' }, rows: [
+    '................', '.....kwwwwk.....', '.....kkkkkk.....', '......ssSS......', '......sdSS......', '......ssSS......',
+    '.....sssSSS.....', '.....ssdSSS.....', '.....sssSSS.....', '....ssssSSSS....', '...SSSSSSSSSS...'] },
+  beacon_lit: { pal: { s: '#b8b4a8', S: '#86827a', d: '#4a4640', w: '#6a5030', k: '#2a2420', r: '#e04820', o: '#ff9a2a', y: '#ffe14d' }, rows: [
+    '.......y........', '......yoy.......', '.....roooyr.....', '.....kwwwwk.....', '.....kkkkkk.....', '......ssSS......', '......soSS......',
+    '......ssSS......', '.....sssSSS.....', '.....ssoSSS.....', '.....sssSSS.....', '....ssssSSSS....', '...SSSSSSSSSS...'] },
+  // a travelling merchant: a wagon under a striped canopy, or the same colours on a sail at sea
+  merchant: { pal: { c: '#d8503a', C: '#f0e0b8', w: '#8a5a2a', W: '#5a3a1a', k: '#2a1a10', y: '#e0bb62', g: '#b8b0a0' }, rows: [
+    '................', '...cCcCcCcC.....', '..cCcCcCcCcC....', '..wWwWwWwWwy....', '..wwwwywwwwyy...', '..WWWWWWWWWW.y..', '...kgk...kgk....', '....k.....k.....'] },
+  merchant_sea: { pal: { c: '#d8503a', C: '#f0e0b8', w: '#8a5a2a', W: '#5a3a1a', m: '#5a4028', y: '#e0bb62', b: '#8fd0ff' }, rows: [
+    '.......m........', '......cmC.......', '.....cCmCc......', '....CcCmcCc.....', '...cCcCmCcCc....', '.......m........', '.wwwwwwwwwwwy...', '..WWWWWWWWWW....', '.bb.bbb..bb.bb..'] },
   grotto: { pal: { r: '#7a7a82', R: '#56565e', d: '#0e0c16', c: '#8fe8ff', g: '#4a7a3c' }, rows: [
     '.....g..g.......', '....rrrrrrr.....', '...rrRRRRRrr....', '..rrRdddddRrr...', '..rRddcdddRrr...', '..rRdddddcdRr...', '.rrRddddddRrrr..', '.RRRddddddRRRR..'] },
 };

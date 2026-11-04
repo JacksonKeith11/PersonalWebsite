@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=117';
-import { spriteCanvas, placeCanvas } from './art.js?v=117';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=120';
+import { spriteCanvas, placeCanvas } from './art.js?v=120';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -942,7 +942,7 @@ export class MapView {
     for (const [t, p] of Object.entries(this.state.places)) {
       const [cx, cy] = center(+t);
       // an event shows what it risks in its icon (a seal's colour, a dagger for a fight); once seen, a plain note
-      const kind = p.kind === 'event' && !p.done && (p.risk === 'risky' || p.risk === 'fight') ? `event_${p.risk}` : p.kind;
+      const kind = p.kind === 'event' && !p.done && (p.risk === 'risky' || p.risk === 'fight') ? `event_${p.risk}` : p.kind === 'beacon' && p.lit ? 'beacon_lit' : p.kind;
       const tex = this.texFor('place_' + kind, () => placeCanvas(kind));
       const yoff = p.kind === 'town' ? 14 : 2;
       // places are drawn half again as big as their 16px art, on a soft shadow, so they read at a glance
@@ -977,7 +977,22 @@ export class MapView {
       }
     }
     this.drawOpps(L);
+    this.drawMerchants(L);
     this.drawJobs(L);
+  }
+
+  drawMerchants(L) {
+    // travelling merchants: a wagon on land, a striped sail at sea, with a gold coin badge
+    for (const m of this.state.merchants || []) {
+      const [cx, cy] = center(m.tile);
+      const sea = ['deep', 'shoal'].includes(terrain(this.world, this.state, m.tile));
+      const kind = sea ? 'merchant_sea' : 'merchant';
+      const tex = this.texFor('place_' + kind, () => placeCanvas(kind));
+      L.add(this.scene.add.ellipse(cx - 2, cy + 16, 22, 6, 0x000000, 0.3));
+      L.add(this.scene.add.image(cx - 2, cy + 6, tex).setScale(1.5));
+      L.add(this.scene.add.circle(cx + 13, cy - 2, 5, 0xe0bb62).setStrokeStyle(1.5, 0x5a3a1a));
+      L.add(this.scene.add.text(cx + 13, cy - 2, '$', { fontFamily: 'Inter', fontSize: '8px', fontStyle: 'bold', color: '#5a3a1a', resolution: 4 }).setOrigin(0.5));
+    }
   }
 
   drawJobs(L) {

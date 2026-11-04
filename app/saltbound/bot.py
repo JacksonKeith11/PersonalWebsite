@@ -242,6 +242,12 @@ def plan_move(g, h):
                     k = hero["equip"].get(sl)
                     if k and forge in g.temper_options(k, free=True):
                         return {"t": "use", "bag": i, "slot": sl}
+    # a travelling merchant on this hex: the best upgrade it sells, if there's gold to spare after it
+    mer = g.merchant_at(hero["tile"]) if not g.in_fight(h) else None
+    if mer:
+        buys = [k for k in mer["stock"] if hero["gold"] >= g.merchant_price(h, k) + 30 and better(g, h, k)]
+        if buys:
+            return {"t": "mbuy", "item": max(buys, key=lambda k: loot_gain(g, h, k))}
     if place and place["kind"] == "town":
         if hero["hp"] < mx * 0.7 and hero["gold"] >= g.inn_cost():
             return {"t": "inn"}
@@ -383,8 +389,8 @@ def party_goal(g):
     targets += [int(t) for t, p in places.items() if p["kind"] == "quest" and s["seen"][int(t)] and not p.get("taken")
                 and not g.trail(p["q"]) and not any(d["type"] == "event" for d in s["pending"][str(alive[0])])]
     sailors = all(g.hero(h)["skiff"] for h in alive)
-    targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache", "lookout", "grotto", "cove", "flotsam")
-                and not p.get("done") and not (p["kind"] == "shrine" and int(t) in lead["shrines"])
+    targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache", "lookout", "grotto", "cove", "flotsam", "beacon")
+                and not p.get("done") and not (p["kind"] == "beacon" and p.get("lit")) and not (p["kind"] == "shrine" and int(t) in lead["shrines"])
                 and not (p.get("hidden") and not p.get("found"))
                 and (sailors or not (p.get("sea") or p["kind"] in ("cove", "flotsam")))]
     if targets:

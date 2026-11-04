@@ -844,6 +844,19 @@ def event_risk(ev):
         return "risky"
     return "safe"
 
+# Beacon towers (travel.py): how many, how far apart at least, and how far round one lighting it reveals.
+BEACONS = 5
+BEACON_GAP = 5
+BEACON_SIGHT = 5
+# Travelling merchants (travel.py): caravans selling rare and legendary gear dear, town to town by road.
+MERCHANTS = 2
+MERCHANT_STOCK = 4      # pieces for sale, restocked in each town
+MERCHANT_LEGENDS = 1    # of which legendary
+MERCHANT_MARKUP = 1.6   # times the item's price (a rare 88, a legendary 144)
+MERCHANT_STEP = 2       # hexes a turn on the road
+MERCHANT_WAIT = 2       # turns it stays in each town
+MERCHANT_HOLD = 2       # turns it waits at most for a hero standing on it
+
 QUEST_REWARD = 25  # the gold every hero got for a job before rewards scaled (old saves' jobs keep it)
 
 # Jobs on town notice boards: each board offers two (`JOBS_PER_BOARD`), one can be taken. Every job has a

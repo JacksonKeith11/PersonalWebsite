@@ -361,12 +361,13 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   shows a "+N" on the dungeon, the tooltip and the boss fork say what's added, the top bar's
   objectives say when it next grows. This is the run's real pressure to keep moving (`SURGE` is tiny).
 - **Places with a price**: `GUARDED_WRECKS` (3) wrecks have enemies camped on them (a lair-like group
-  with an elite, from the region's middle groups): beat them and the pool is all rare. `DARK_SHRINES`
+  with an elite, from the region's middle groups): beat them and the pool is all rare, plus an enchant material. `DARK_SHRINES`
   (2) shrines are dark: the `dark_shrine` event offers +2 damage for 8 turns with Seasick, or 8 starting
   Armor for 8 turns for 8 HP, or nothing. Every lair guards a named **rare prize** (`prize` on the
   group, shown in its tooltip), added to its loot pool when it's beaten.
 - **Town trades** (`spec` on each town; `TOWN_SPECS`), dealt round so each appears: a **smithy**
-  reforges an equipped item into a random one of the next rarity for the same slot (30/60/100 gold),
+  reforges an equipped item into a random one of the next rarity for the same slot (30/60/100 gold;
+  any work on it is lost), or **tempers** it (see Worked gear under Items),
   a **temple** lifts curses free and sells the party one revive (75, once per temple), a
   **cartographer** sells a chart of a region (15: every hex of it seen, so its places, wrecks and lairs
   show), a **fence** pays 20 points more when selling (60%, 80% with Haggler). A town's trade has its
@@ -447,7 +448,8 @@ the run's seed with a generator of its own, after the islands and places); their
   `Game.step_cost` and its copy in `rules.js` (`tools/saltbound-check.py` checks they agree).
 - **Places out at sea**, reached only by skiff: two **smugglers' coves** (`COVE_GOLD` and a three-pick of
   uncommon or rare loot), three **flotsam** (`FLOTSAM_GOLD` and a two-pick) and a **drowned shrine**
-  (`sea` on a shrine: Siren's Favour, +1 damage and +6 max HP for 8 turns; never dark).
+  (`sea` on a shrine: Siren's Favour, +1 damage and +6 max HP for 8 turns; never dark; the first hero
+  there also gets an enchant material).
 - **Sea beasts** (`sea` on a group; `SEA_GROUPS`, the Reef Maw now and then from two objectives
   cleared): `SEA_MAX` (3) groups out on the water, one coming back every `SPAWN_EVERY` turns while
   there are fewer. At high tide they hunt skiffs within `SEA_HUNT` hexes, a hex a turn, over open
@@ -465,7 +467,7 @@ the run's seed with a generator of its own, after the islands and places); their
   `LOOKOUT_SIGHT` (8) hexes round it, hidden grottos too. **Grottos** (one per region, `hidden`):
   invisible (the view leaves them out, and so does the forecast) until a hero walks within
   `GROTTO_SPOT` (1) hex (a Farsighted hero 2) or climbs a lookout near one. A **hoard** holds
-  `GROTTO_GOLD` and a three-pick of rare loot; a **spring** heals whoever drinks fully and gives the
+  `GROTTO_GOLD`, a three-pick of rare loot and an enchant material; a **spring** heals whoever drinks fully and gives the
   party a revive.
 - **Raids** (`raid` on a group; `spawn_raid`, `raid_road`, `occupy`, `raids_beaten`): from turn
   `RAID_FROM` (8), every `RAID_EVERY` (8) turns, an objective not yet cleared sends a band (its
@@ -875,6 +877,31 @@ Compass −9, Flintlock and Sharkskin −8; the most positive Frost Locket +9. T
 42% whether they take it or not (other legendaries' 60–65%), so where it's offered, not the item,
 sets that.
 
+**Worked gear** (owner's request, 2026-11-04: a way to invest in a weapon you like rather than gamble
+it on a reforge). Every piece of gear takes at most `WORK_CAP` (2) **works**, shown as diamond pips on
+its row (`workPips` in `hud.js`), tempering and enchanting together:
+
+- **Tempering, at a smithy** (`do_temper`, `temper_options`): **Hone** raises the die's lowest number
+  by `HONE_UP` (3), no higher than its top number (numbers stay in order); **Mark** turns the lowest
+  number into a special face in the item's own style (`temper_face`): a shield on armor, else more of
+  the die's burn, freeze or poison (as strong as its strongest such face), else a wild face. The first
+  work on an item costs 20 gold, the second 40 (`TEMPER_COST`). The smithy tab shows each option's
+  die before you pay.
+- **Enchant materials** (`MATERIALS` in `items.py`: Powder Salt for Exploding, Still Pearl for Steady,
+  Seer's Glass for Seer): rare consumables that are never sold or dropped at random. The sea shrine
+  gives one to the first hero there (`mat_taken`), a grotto's hoard holds one, and a guarded wreck's
+  pool has one beside its rare gear. From the bag, "Into <item>" rubs it into a piece of gear you
+  wear, out of fights (`enchant`, through `do_use` with a `slot`); a die can't take a kind it
+  already has. Enemies that snatch consumables leave materials alone.
+- **Where the work lives**: worked gear gets its own key, `<item>@<n>` (`rework`), with a record in
+  `s["forged"]` (base item, die, kinds, the works done), so the work goes wherever that item goes:
+  the bag, an ally, a sale. `Game.item(key)` resolves any key (use it, never `I.ITEMS[key]`);
+  `I.base(key)` gives the catalogue key. The view sends the records as `forged`, which the browser
+  merges into `static.items` and `static.prices`; item icons use the base key. A worked item sells
+  for `WORK_RESALE` (10) more per work. Selling, dropping or reforging it forgets its record.
+- **Bots** put materials into the weapon, else the trinket, else the armor; at a smithy they reforge
+  only unworked gear, then temper (Mark on weapons and trinkets, Hone on armor) with 25 gold to spare.
+
 **Skill texts** follow one style (owner's request: clearer): "the die" is the number it shows, "On
 5+:" is what a roll meeting the requirement does and "Otherwise:" what a lower one does, "Any row"
 comes first, and enemies' "intents" are called their coming attack or action.
@@ -1227,7 +1254,7 @@ clock anywhere: the run changes only when someone acts.
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
   `boss`, `won`, `lost`, and for the map `tide` (just after a rise that landed enemies), `raid` (a raid on
   the road and a squall), `occupied`, `seafight`, `ground` (round 1 of a fight with a battleground), `opp`, `trade` (standing in a smithy, temple or cartographer
-  town), `garrison` (a boss fork with a garrison), `partyevent` (everyone on one hex, hero 1 at a party-check event, for two players), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
+  town), `garrison` (a boss fork with a garrison), `partyevent` (everyone on one hex, hero 1 at a party-check event, for two players), `smithy` (in a smithy with 160 gold, the weapon honed once, Powder Salt and Seer's Glass in the bag), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
@@ -1249,6 +1276,10 @@ clock anywhere: the run changes only when someone acts.
   animations and sizes `.unit .fig > img`, and the idle bob keeps its low specificity with
   `:where(.fig)` so hit, lunge and kill animations still replace it. A new sprite rule follows the same
   pattern, and anything looking for a fighter's sprite finds it with `[data-uid] img`.
+- **An item key can be worked gear** (`coral_blade@3`): look items up with `Game.item(key)` (the
+  bots with `g.item`) and prices with `Game.price`, never `I.ITEMS[key]` or `I.price`, and compare a
+  key against the catalogue (`k != key` in a pool of catalogue items, tallies by item) through
+  `I.base(key)`. `I.ITEMS` is still right for catalogue-wide lists (`I.GEAR`, rarity pools).
 - **Hidden places stay hidden everywhere**: a grotto is in `world["places"]` from the start, but the
   view leaves out any place with `hidden` and no `found`, and the forecast doesn't say a hero lands
   on one. Anything new that lists or names places must skip them too, or it gives them away (the

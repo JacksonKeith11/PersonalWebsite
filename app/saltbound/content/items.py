@@ -187,6 +187,15 @@ ITEMS = {
                     "fight": True, "text": "In a fight: the party gains 6 Armor."},
     "smelling_salts": {"name": "Smelling Salts", "slot": "use", "rarity": "uncommon", "price": 14, "use": {"lift": 6},
                        "fight": True, "text": "In a fight: pick up a knocked-down ally with 6 HP."},
+
+    # ---- enchant materials: rubbed into a piece of gear you wear (out of fights), they give its die a kind for good.
+    # Found, not sold: the sea shrine, a grotto's hoard and a guarded wreck's pool each hold one.
+    "powder_salt": {"name": "Powder Salt", "slot": "use", "rarity": "rare", "enchant": "exploding",
+                    "text": "Enchant a piece of gear you wear: its die explodes (a top-face roll rolls again and adds)."},
+    "still_pearl": {"name": "Still Pearl", "slot": "use", "rarity": "rare", "enchant": "steady",
+                    "text": "Enchant a piece of gear you wear: its die is Steady (if its action misses, it rerolls once)."},
+    "seer_glass": {"name": "Seer's Glass", "slot": "use", "rarity": "rare", "enchant": "seer",
+                   "text": "Enchant a piece of gear you wear: its die is a Seer die (rolled and shown while you plan)."},
 }
 
 # Passives: gear past the starting kit does something of its own, so a find changes how a hero plays.
@@ -291,10 +300,17 @@ def slots_for(item_slot):
     return [item_slot]
 
 
-CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use"]
+CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use" and not v.get("enchant")]
+MATERIALS = [k for k, v in ITEMS.items() if v.get("enchant")]
 GEAR = [k for k, v in ITEMS.items() if v["slot"] != "use" and not v.get("start")]
 
 
 def price(key):
-    it = ITEMS[key]
+    it = ITEMS[base(key)]
     return it.get("price") or PRICE[it["rarity"]]
+
+
+def base(key):
+    """The catalogue item behind a key: worked gear (tempered or enchanted) has its own key, "rapier@3",
+    so the work stays with that one item wherever it goes (`Game.item` looks it up)."""
+    return key.split("@", 1)[0]

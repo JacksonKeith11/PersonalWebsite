@@ -55,6 +55,8 @@ SCENARIOS = {
     and g.s["world"]["elev"][g.s["fight"]["tile"]] <= g.s["sea"],
     "ground": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and not g.s["pending"]["0"]
     and g.s["fight"].get("ground") and g.s["fight"]["round"] == 1,
+    # worked gear: hero 0 in a smithy with gold and enchant materials (set up in main())
+    "smithy": lambda g: g.s["phase"] == "plan" and not g.s["pending"]["0"] and (g.place(g.hero(0)["tile"]) or {}).get("spec") == "smith",
     # an ally's event, for two players (tools/saltbound-mp.js events): set up in main()
     "partyevent": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
@@ -102,6 +104,16 @@ def main():
         if name == "loot":
             # show off the rarities
             g.s["pending"]["0"][0]["opts"] = ["crownbreaker", "storm_glass", "coral_blade"]
+        if name == "smithy":
+            hero = g.hero(0)
+            hero["gold"] = 160
+            hero["bag"] += ["powder_salt", "seer_glass"]
+            for sl in ("weapon", "armor", "trinket"):  # undo whatever the bots did here, then hone the weapon once
+                if hero["equip"].get(sl) in g.s.get("forged", {}):
+                    hero["equip"][sl] = g.s["forged"][hero["equip"][sl]]["base"]
+            if "hone" in g.temper_options(hero["equip"]["weapon"]):
+                g.act(0, {"t": "temper", "slot": "weapon", "what": "hone"})
+            hero["gold"] = 160
         if name == "partyevent":
             # everyone on one hex, and hero 1 (the second player's) at an event with a party check
             for y in (0, 2):

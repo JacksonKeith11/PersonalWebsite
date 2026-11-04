@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=106';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=106';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=106';
-import { stageURL, stageKey } from './stage.js?v=106';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=106';
-import { render } from './main.js?v=106';
-import { skillCard } from './hud.js?v=106';
-import { SKILL_FX, foeFx } from './skillfx.js?v=106';
-import * as sfx from './audio.js?v=106';
+import { S, send, mine, controllerName } from './store.js?v=108';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=108';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=108';
+import { stageURL, stageKey } from './stage.js?v=108';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=108';
+import { render } from './main.js?v=108';
+import { skillCard } from './hud.js?v=108';
+import { SKILL_FX, foeFx } from './skillfx.js?v=108';
+import * as sfx from './audio.js?v=108';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -794,7 +794,7 @@ function tray(f, x, my) {
   // one button per kind of consumable, using the first of them
   const uses = [];
   hero.bag.forEach((k, i) => {
-    if (S.static.items[k].slot !== 'use') return;
+    if (S.static.items[k].slot !== 'use' || S.static.items[k].enchant) return;
     const u = uses.find(x => x[0] === k);
     if (u) u[2]++; else uses.push([k, i, 1]);
   });

@@ -134,7 +134,7 @@ def choose(g, h, d):
 
 def loot_gain(g, h, k):
     """How much an item improves on what's worn in its slot (consumables by rarity)."""
-    it = I.ITEMS[k]
+    it = g.item(k)
     if it["slot"] == "use":
         return RANK[it["rarity"]] * 1.5
     cur = replaced(g, h, k)[1]
@@ -145,7 +145,7 @@ def replaced(g, h, key):
     """(slot, item) that wearing this would replace: an empty slot first, else the weakest worn one
     of its kind (two trinket slots)."""
     equip = g.hero(h)["equip"]
-    slots = I.slots_for(I.ITEMS[key]["slot"])
+    slots = I.slots_for(g.item(key)["slot"])
     empty = [s for s in slots if not equip.get(s)]
     if empty:
         return empty[0], None
@@ -171,7 +171,7 @@ AVOIDS = [({"camouflage"}, lambda a: any(o["op"] in ("guard", "taunt") for o in 
 def item_score(g, h, key):
     """Roughly what a piece of gear is worth to this hero: its rarity, its die, and its passive
     unless the passive needs actions the hero doesn't have (bomb bonuses on someone with no bombs)."""
-    it = I.ITEMS[key]
+    it = g.item(key)
     acts = [g.action_def(h, k) for k in g.actions_of(h)] + \
         [g.action_def(h, k) for k in it.get("acts", []) if k in I.WEAPON_ACTIONS or k in C.ACTIONS]
     score = RANK[it["rarity"]] * 2.5
@@ -224,9 +224,18 @@ def plan_move(g, h):
     mx = g.maxhp(h)
     # gear from the bag
     for i, key in enumerate(hero["bag"]):
-        it = I.ITEMS[key]
+        it = g.item(key)
         if it["slot"] != "use" and better(g, h, key):
             return {"t": "equip", "bag": i, "into": replaced(g, h, key)[0]}
+    # enchant materials go into the weapon, else the trinket, else the armor (whichever can take it)
+    if not g.in_fight(h):
+        for i, key in enumerate(hero["bag"]):
+            kind = g.item(key).get("enchant")
+            if kind:
+                for sl in ("weapon", "trinket", "armor"):
+                    k = hero["equip"].get(sl)
+                    if k and kind not in g.item(k).get("dk", []) and g.works(k) < A.WORK_CAP:
+                        return {"t": "use", "bag": i, "slot": sl}
     if place and place["kind"] == "town":
         if hero["hp"] < mx * 0.7 and hero["gold"] >= g.inn_cost():
             return {"t": "inn"}
@@ -246,16 +255,26 @@ def plan_move(g, h):
             if not town.get("revive_sold") and s["revives"] < 2 and hero["gold"] >= A.TEMPLE_REVIVE + 10:
                 return {"t": "temple", "what": "revive"}
         if town.get("spec") == "smith":
-            ups = [(g.reforge_cost(k), sl) for sl, k in hero["equip"].items() if k and g.reforge_cost(k)]
+            # reforge gear nobody has worked on (that would throw the work away)...
+            ups = [(g.reforge_cost(k), sl) for sl, k in hero["equip"].items() if k and g.reforge_cost(k) and not g.works(k)]
             ups = [(c, sl) for c, sl in ups if hero["gold"] >= c + 15]
             if ups:
                 return {"t": "reforge", "slot": min(ups)[1]}
+            # ...else temper, weapon first: a Mark that adds a wild or status face, else a Hone
+            for sl in ("weapon", "trinket", "armor"):
+                k = hero["equip"].get(sl)
+                opts = g.temper_options(k) if k else {}
+                if not opts:
+                    continue
+                what = "mark" if "mark" in opts and sl != "armor" else "hone" if "hone" in opts else "mark"
+                if hero["gold"] >= opts[what][1] + 25:
+                    return {"t": "temper", "slot": sl, "what": what}
         stock = list(g.shop(hero["tile"]))
         ship = g.opp_at(hero["tile"])
         if ship and ship["kind"] == "ship":
             stock = ship["stock"] + stock
         for key in stock:
-            it = I.ITEMS[key]
+            it = g.item(key)
             if it["slot"] == "use":
                 continue
             if better(g, h, key) and hero["gold"] >= g.price_for(h, key):
@@ -1200,7 +1219,7 @@ def instant_value(g, h, a, dice):
             return []
         out = g.outcomes(h, dice[0])
         big = sum(p for v, _, p in out if v >= 5)
-        heal = big * I.ITEMS["big_potion"]["use"]["heal"] + (1 - big) * I.ITEMS["potion"]["use"]["heal"]
+        heal = big * g.item("big_potion")["use"]["heal"] + (1 - big) * g.item("potion")["use"]["heal"]
         return [(None, heal * 0.35 * (2 if g.mods(h).get("philosopher") else 1))]
     if key == "encore":
         # Counterpoint: a low roll turns high; worth about a quarter of the die's size
@@ -1255,7 +1274,7 @@ def consumable(g, h, b):
         return {"t": "use", "bag": i}
     i = find("bomb")
     if i is not None:
-        dmg = I.ITEMS["bomb"]["use"]["bomb"] + g.mods(h).get("bomb_bonus", 0)
+        dmg = g.item("bomb")["use"]["bomb"] + g.mods(h).get("bomb_bonus", 0)
         for fo in sorted(g.foes(), key=lambda o: -threat_now(g, b, o)):
             left = fo["hp"] + fo["st"].get("armor", 0) - b.dmg.get(fo["id"], 0)
             if 0 < left <= dmg and threat_now(g, b, fo) >= 5 or A.FOES[fo["k"]].get("boss"):

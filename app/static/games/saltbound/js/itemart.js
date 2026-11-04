@@ -104,6 +104,7 @@ const ICON = {
   rum_flask: ['bottle', 'leather', 'tan'], anchor_pendant: ['anchor', 'iron'],
   potion: ['flask', 'grey', 'red', 'kelp'], big_potion: ['bottle', 'green', 'tan'], bomb: ['keg', 'wood', 'iron', 'ember'], ward_scroll: ['scroll', 'tan', 'blue'],
   smelling_salts: ['jar', 'glass', 'leather', 'white'],
+  powder_salt: ['jar', 'iron', 'ember', 'ember'], still_pearl: ['orb', 'pearl', 'gold'], seer_glass: ['globe', 'glass', 'gold', 'glass'],
 };
 const BY_SLOT = { weapon: ['sword', 'steel'], armor: ['vest', 'leather'], trinket: ['coin', 'gold'], use: ['flask', 'grey', 'red', 'kelp'] };
 
@@ -123,6 +124,7 @@ function canvasFor(rows, pal) {
 }
 
 export function itemURL(key, slot) {
+  key = key.split('@')[0];  // worked gear looks like its catalogue item
   if (urls[key]) return urls[key];
   const [shape, mat, acc, glow] = ICON[key] || BY_SLOT[slot] || BY_SLOT.trinket;
   const m = MAT[mat] || MAT.steel, a = MAT[acc || 'gold'] || MAT.gold, g = MAT[glow || 'glass'] || MAT.glass;

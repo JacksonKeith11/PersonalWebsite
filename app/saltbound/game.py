@@ -97,7 +97,7 @@ class Game(Combat):
         for t, p in w["places"].items():
             if p["kind"] == "lair":
                 gr = g.add_group(int(t), list(g.rng.choice(A.LAIRS[w["reg"][int(t)] if w["reg"][int(t)] in A.LAIRS else "coral"])), lair=True)
-                gr["prize"] = g.rng.choice([k for k in I.GEAR if I.ITEMS[k]["rarity"] == "rare"])
+                gr["prize"] = g.rng.choice([k for k in I.GEAR if g.item(k)["rarity"] == "rare"])
         g.setup_places(g.rng, guards=True)
         g.town_jobs(w["start"])
         g.reset_plans()
@@ -193,9 +193,9 @@ class Game(Combat):
         for slot in SLOTS:
             it = hero["equip"].get(slot)
             if it:
-                add(I.ITEMS[it].get("mods", {}))
-                if I.ITEMS[it].get("cursed_mods"):
-                    add(I.ITEMS[it]["cursed_mods"])
+                add(self.item(it).get("mods", {}))
+                if self.item(it).get("cursed_mods"):
+                    add(self.item(it)["cursed_mods"])
         for b in hero["buffs"]:
             add(A.BUFFS[b]["mods"])
         return out
@@ -236,8 +236,8 @@ class Game(Combat):
         for slot in SLOTS:
             it = hero["equip"].get(slot)
             if it:
-                out.append({"faces": list(I.ITEMS[it]["die"]), "dk": list(I.ITEMS[it].get("dk", [])),
-                            "src": I.ITEMS[it]["slot"]})
+                out.append({"faces": list(self.item(it)["die"]), "dk": list(self.item(it).get("dk", [])),
+                            "src": self.item(it)["slot"]})
         for d in out:
             if "heirloom" in d["dk"]:
                 for _ in range(self.s["level"] - 1):
@@ -253,24 +253,24 @@ class Game(Combat):
         for slot in ("weapon", "trinket"):
             w = hero["equip"].get(slot)
             if w:
-                out += [a for a in I.ITEMS[w].get("acts", []) if a not in out]
+                out += [a for a in self.item(w).get("acts", []) if a not in out]
         out += [g for g in self.mods(h)["grant"] if g not in out]
         armor = hero["equip"].get("armor")
-        guard = I.ITEMS[armor].get("guard") if armor else None
+        guard = self.item(armor).get("guard") if armor else None
         out += [guard if g == "block" and guard else g for g in C.GENERIC]
         return out
 
     def equip_slot(self, h, key, into=None):
         """Where a piece of gear goes on: the slot asked for (`into`, for the two trinket slots), else
         an empty one, else the slot holding the lesser item (by rarity)."""
-        slots = slots_for(I.ITEMS[key]["slot"])
+        slots = slots_for(self.item(key)["slot"])
         if into in slots:
             return into
         equip = self.hero(h)["equip"]
         empty = [s for s in slots if not equip.get(s)]
         if empty:
             return empty[0]
-        return min(slots, key=lambda s: I.RARITIES.index(I.ITEMS[equip[s]]["rarity"]))
+        return min(slots, key=lambda s: I.RARITIES.index(self.item(equip[s])["rarity"]))
 
     def action_def(self, h, key):
         base = key.rstrip("+")
@@ -635,7 +635,7 @@ class Game(Combat):
         handler = {
             "path": self.do_path, "ready": self.do_ready, "rest": self.do_rest, "choose": self.do_choose,
             "buy": self.do_buy, "sell": self.do_sell, "inn": self.do_inn, "skiff": self.do_skiff,
-            "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use,
+            "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use, "temper": self.do_temper,
             "give": self.do_give, "drop": self.do_drop,
             "reforge": self.do_reforge, "temple": self.do_temple, "chart": self.do_chart,
             "place": self.do_place, "reroll": self.do_reroll,
@@ -1043,7 +1043,7 @@ class Game(Combat):
                 o["stock"] = []
                 for _ in range(3):
                     r = self.rarity_for(2)
-                    pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == r and k not in o["stock"]] or I.GEAR
+                    pool = [k for k in I.GEAR if self.item(k)["rarity"] == r and k not in o["stock"]] or I.GEAR
                     o["stock"].append(self.rng.choice(pool))
             s["opps"].append(o)
             self.reveal(t, 1)
@@ -1178,10 +1178,10 @@ class Game(Combat):
             foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
             g = self.add_group(t, foes)
             g["sighted"] = s["turn"] + A.TIDE_SIGHTED - 1
-            g["prize"] = self.rng.choice([x for x in I.GEAR if I.ITEMS[x]["rarity"] == "rare"])
+            g["prize"] = self.rng.choice([x for x in I.GEAR if self.item(x)["rarity"] == "rare"])
         elif k == "leviathan":
             g = self.add_group(t, [A.BIG.get(reg) or self.rng.choice(list(A.BIG.values()))], lair=True)
-            g["prize"] = self.rng.choice([x for x in I.GEAR if I.ITEMS[x]["rarity"] == "rare"])
+            g["prize"] = self.rng.choice([x for x in I.GEAR if self.item(x)["rarity"] == "rare"])
         if g:
             g["tide"] = True
             g["until"] = s["turn"] + A.TIDE_STAY * (2 if k == "leviathan" else 1) - 1
@@ -1301,7 +1301,7 @@ class Game(Combat):
         stock = []
         for _ in range(5):
             rr = self.rarity_for(2)
-            pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == rr and k not in stock] or I.GEAR
+            pool = [k for k in I.GEAR if self.item(k)["rarity"] == rr and k not in stock] or I.GEAR
             stock.append(self.rng.choice(pool))
         self.s["shops"][str(t)] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
 
@@ -1421,6 +1421,7 @@ class Game(Combat):
                 hero["gold"] += A.GROTTO_GOLD
                 self.offer_loot(h, 3, rarity="rare")
                 self.say(f"{hero['name']} finds an old hoard in the grotto (+{A.GROTTO_GOLD} gold).")
+                self.gain_item(h, self.rng.choice(I.MATERIALS))
                 self.fx("coins", h=h, n=A.GROTTO_GOLD)
         elif k == "cache" and not p.get("done"):
             p["done"] = True
@@ -1436,6 +1437,10 @@ class Game(Combat):
                 p["buff"] = self.rng.choice(A.SHRINE_BUFFS)
             hero["shrines"].append(t)
             self.buff(h, p["buff"])
+            if p.get("sea") and not p.get("mat_taken"):
+                # the sea shrine's offering: an enchant material for the first to come
+                p["mat_taken"] = True
+                self.gain_item(h, self.rng.choice(I.MATERIALS))
         elif k == "town":
             self.town_jobs(t)
             for c in [c for c in self.s.get("chains", []) if c["kind"] == "castaway" and c["turn"] <= self.s["turn"]]:
@@ -1750,8 +1755,8 @@ class Game(Combat):
 
     def take_loot(self, h, key, to, equip, into=None):
         if to != h:
-            self.say(f"{self.hero(h)['name']} hands the {I.ITEMS[key]['name']} to {self.hero(to)['name']}.")
-        if equip and I.ITEMS[key]["slot"] != "use":
+            self.say(f"{self.hero(h)['name']} hands the {self.item(key)['name']} to {self.hero(to)['name']}.")
+        if equip and self.item(key)["slot"] != "use":
             self.wear(to, key, into if to == h else None)
         else:
             self.gain_item(to, key)
@@ -1792,7 +1797,7 @@ class Game(Combat):
             if len(opts) >= n:
                 break
             r = rarity or self.rarity_for(tier_bonus)
-            pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == r and k not in opts] or \
+            pool = [k for k in I.GEAR if self.item(k)["rarity"] == r and k not in opts] or \
                 [k for k in I.GEAR if k not in opts]
             if self.rng.chance(0.2):
                 pool = [k for k in I.CONSUMABLES if k not in opts] or pool
@@ -1801,7 +1806,7 @@ class Game(Combat):
 
     def gain_item(self, h, key):
         hero = self.hero(h)
-        it = I.ITEMS[key]
+        it = self.item(key)
         slot = it["slot"]
         free = [s for s in slots_for(slot) if not hero["equip"].get(s)] if slot != "use" else []
         if free:
@@ -1884,13 +1889,13 @@ class Game(Combat):
             stock = []
             for _ in range(5):
                 r = self.rarity_for(1)
-                pool = [k for k in I.GEAR if I.ITEMS[k]["rarity"] == r and k not in stock] or I.GEAR
+                pool = [k for k in I.GEAR if self.item(k)["rarity"] == r and k not in stock] or I.GEAR
                 stock.append(self.rng.choice(pool))
             self.s["shops"][key] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
         return self.s["shops"][key]
 
     def price_for(self, h, key):
-        p = I.price(key)
+        p = self.price(key)
         if self.has_class("herald"):
             p = p * 8 // 10
         return p
@@ -1917,7 +1922,7 @@ class Game(Combat):
 
     def sell_price(self, h, key):
         """What an item sells for: 40% of its price, 60% with Haggler."""
-        return I.price(key) * self.sell_rate(h) // 100
+        return self.price(key) * self.sell_rate(h) // 100
 
     def sell_rate(self, h):
         p = self.place(self.hero(h)["tile"])
@@ -1932,9 +1937,120 @@ class Game(Combat):
             raise Invalid(f"There's no {A.TOWN_SPECS[spec]['name'].lower()} here.")
         return p
 
+    # ------------------------------------------------------------------ worked gear (tempered, enchanted)
+
+    def item(self, key):
+        """An item's data: the catalogue's, or for worked gear ("rapier@3") the catalogue's with the
+        work's die, kinds and the list of works done (`work`)."""
+        rec = self.s.get("forged", {}).get(key)
+        if rec is None:
+            return I.ITEMS[key]
+        return {**I.ITEMS[rec["base"]], "die": rec["die"], "dk": rec["dk"], "work": rec["work"], "base": rec["base"]}
+
+    def price(self, key):
+        return I.price(key) + A.WORK_RESALE * len(self.item(key).get("work", []))
+
+    def works(self, key):
+        return len(self.item(key).get("work", []))
+
+    def rework(self, key, die, dk, what):
+        """Record one more work on a piece of gear; returns its key (a new one the first time)."""
+        forged = self.s.setdefault("forged", {})
+        rec = forged.get(key)
+        if rec is None:
+            n = self.s["forge_n"] = self.s.get("forge_n", 0) + 1
+            rec = {"base": key, "work": []}
+            key = f"{key}@{n}"
+            forged[key] = rec
+        rec.update(die=die, dk=dk)
+        rec["work"].append(what)
+        return key
+
+    def unforge(self, key):
+        """Forget a worked item's record once it's gone (sold, reforged)."""
+        self.s.get("forged", {}).pop(key, None)
+
+    def temper_face(self, it):
+        """The special face Mark puts on a die: a shield on armor; else more of the die's own kind (a
+        burn, freeze or poison face as strong as its strongest); else a wild face."""
+        if it["slot"] == "armor":
+            return "S"
+        tagged = [f for f in it["die"] if isinstance(f, str) and f[0] in "FIP" and f[1:].isdigit()]
+        if tagged:
+            return max(tagged, key=lambda f: int(f[1:]))
+        return "W"
+
+    def temper_options(self, key):
+        """What the smith can do to a piece of gear: {what: (new faces, cost)}, empty at the cap."""
+        it = self.item(key)
+        die = it.get("die")
+        n = self.works(key)
+        if not die or n >= A.WORK_CAP:
+            return {}
+        cost = A.TEMPER_COST[n]
+        nums = [i for i, f in enumerate(die) if isinstance(f, int)]
+        out = {}
+        if nums:
+            top = max(die[i] for i in nums)
+            low = min(nums, key=lambda i: die[i])
+            if die[low] < top:
+                hone = list(die)
+                hone[low] = min(top, die[low] + A.HONE_UP)
+                # numbers stay in order on the die; special faces keep their places
+                for i, v in zip(nums, sorted(hone[i] for i in nums)):
+                    hone[i] = v
+                out["hone"] = (hone, cost)
+            if len(nums) > 1:
+                mark = list(die)
+                mark[low] = self.temper_face(it)
+                out["mark"] = (mark, cost)
+        return out
+
+    def do_temper(self, h, msg):
+        p = self.town_spec(h, "smith")
+        hero = self.hero(h)
+        slot = msg.get("slot")
+        key = hero["equip"].get(slot) if slot in SLOTS else None
+        if not key:
+            raise Invalid("Temper what?")
+        opts = self.temper_options(key)
+        what = msg.get("what")
+        if what not in opts:
+            raise Invalid("The smith can't do that to it." if self.works(key) < A.WORK_CAP else "It can't take any more work.")
+        die, cost = opts[what]
+        if hero["gold"] < cost:
+            raise Invalid("You can't afford that.")
+        hero["gold"] -= cost
+        it = self.item(key)
+        hero["equip"][slot] = new = self.rework(key, die, list(it.get("dk", [])), what)
+        self.fx("coins", h=h, n=-cost)
+        self.fx("temper", h=h, slot=slot, what=what)
+        self.say(f"The smith {'hones' if what == 'hone' else 'marks'} {hero['name']}'s {it['name']} "
+                 f"({self.works(new)} of {A.WORK_CAP} works).")
+
+    def enchant(self, h, i, slot):
+        """Rub the material at bag index `i` into the gear in `slot`: its die gains the material's kind."""
+        hero = self.hero(h)
+        mat = I.ITEMS[hero["bag"][i]]
+        key = hero["equip"].get(slot) if slot in SLOTS else None
+        if not key:
+            raise Invalid("Enchant what? Pick a piece of gear you wear.")
+        it = self.item(key)
+        kind = mat["enchant"]
+        if kind in it.get("dk", []):
+            raise Invalid(f"Its die is already {kind.capitalize()}.")
+        if self.works(key) >= A.WORK_CAP:
+            raise Invalid("It can't take any more work.")
+        hero["bag"].pop(i)
+        hero["equip"][slot] = new = self.rework(key, list(it["die"]), list(it.get("dk", [])) + [kind], kind)
+        hero["hp"] = min(hero["hp"], self.maxhp(h))
+        self.fx("temper", h=h, slot=slot, what=kind)
+        self.say(f"{hero['name']} rubs the {mat['name']} into the {it['name']}: its die is {kind.capitalize()} now "
+                 f"({self.works(new)} of {A.WORK_CAP} works).")
+
     def reforge_cost(self, key):
         """What the smith charges to reforge an item (None if it can't get better)."""
-        r = I.ITEMS[key]["rarity"]
+        r = self.item(key)["rarity"]
         i = I.RARITIES.index(r)
         return A.REFORGE_COST[I.RARITIES[i + 1]] if i + 1 < len(I.RARITIES) else None
 
@@ -1953,18 +2069,19 @@ class Game(Combat):
             cost = 0
         if hero["gold"] < cost:
             raise Invalid("You can't afford that.")
-        up = I.RARITIES[I.RARITIES.index(I.ITEMS[key]["rarity"]) + 1]
-        pool = [k for k in I.GEAR if I.ITEMS[k]["slot"] == I.ITEMS[key]["slot"] and I.ITEMS[k]["rarity"] == up and k != key]
+        up = I.RARITIES[I.RARITIES.index(self.item(key)["rarity"]) + 1]
+        pool = [k for k in I.GEAR if self.item(k)["slot"] == self.item(key)["slot"] and self.item(k)["rarity"] == up and k != I.base(key)]
         if not pool:
             raise Invalid("The smith has nothing better for that slot.")
         hero["gold"] -= cost
         if not cost:
             p["voucher"] -= 1
         new = self.rng.choice(pool)
+        self.unforge(key)
         hero["equip"][slot] = new
         hero["hp"] = min(hero["hp"], self.maxhp(h))
         self.fx("coins", h=h, n=-cost)
-        self.say(f"The smith reforges {hero['name']}'s {I.ITEMS[key]['name']} into {I.ITEMS[new]['name']}.")
+        self.say(f"The smith reforges {hero['name']}'s {self.item(key)['name']} into {self.item(new)['name']}.")
 
     def do_temple(self, h, msg):
         p = self.town_spec(h, "temple")
@@ -2022,7 +2139,8 @@ class Game(Combat):
         key = hero["bag"].pop(i)
         n = self.sell_price(h, key)
         hero["gold"] += n
-        self.say(f"{hero['name']} sells {I.ITEMS[key]['name']} for {n} gold.")
+        self.say(f"{hero['name']} sells {self.item(key)['name']} for {n} gold.")
+        self.unforge(key)
 
     def do_inn(self, h, msg):
         self.town(h)
@@ -2122,7 +2240,7 @@ class Game(Combat):
         kind_r = self.rng.weighted(weights)
         r = {"gold": round(gold * A.JOB_GOLD_CUT[kind_r]), "type": kind_r}
         if kind_r == "item":
-            r["item"] = self.rng.choice([k for k in I.GEAR if I.ITEMS[k]["rarity"] == "rare"])
+            r["item"] = self.rng.choice([k for k in I.GEAR if self.item(k)["rarity"] == "rare"])
         if kind_r == "trade":
             r["spec"] = spec
         job["reward"] = r
@@ -2224,7 +2342,7 @@ class Game(Combat):
             self.offer_loot(h, 2, tier_bonus=1)
         elif typ == "item":
             self.push(h, {"type": "loot", "opts": [r["item"]]})
-            extra = f", and {I.ITEMS[r['item']]['name']}"
+            extra = f", and {self.item(r['item'])['name']}"
         elif typ == "revive":
             self.s["revives"] += 1
             extra = ", and +1 revive"
@@ -2247,7 +2365,7 @@ class Game(Combat):
         if old:
             hero["bag"].append(old)
         hero["hp"] = min(hero["hp"], self.maxhp(h))
-        self.say(f"{hero['name']} puts on the {I.ITEMS[key]['name']}.")
+        self.say(f"{hero['name']} puts on the {self.item(key)['name']}.")
 
     def do_equip(self, h, msg):
         if self.in_fight(h):
@@ -2257,7 +2375,7 @@ class Game(Combat):
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Equip what?")
         key = hero["bag"][i]
-        if I.ITEMS[key]["slot"] == "use":
+        if self.item(key)["slot"] == "use":
             raise Invalid("That's not something you wear.")
         slot = self.equip_slot(h, key, msg.get("into"))
         old = hero["equip"].get(slot)
@@ -2281,7 +2399,7 @@ class Game(Combat):
         i = msg.get("bag")
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Drop what?")
-        hero["bag"].pop(i)
+        self.unforge(hero["bag"].pop(i))
 
     def do_give(self, h, msg):
         if self.in_fight(h):
@@ -2311,9 +2429,14 @@ class Game(Combat):
         if not isinstance(i, int) or not 0 <= i < len(hero["bag"]):
             raise Invalid("Use what?")
         key = hero["bag"][i]
-        it = I.ITEMS[key]
+        it = self.item(key)
         if it["slot"] != "use":
             raise Invalid("You can't use that.")
+        if it.get("enchant"):
+            if self.in_fight(h):
+                raise Invalid("Not in the middle of a fight.")
+            self.enchant(h, i, msg.get("slot"))
+            return
         if self.in_fight(h):
             self.fight_use(h, i, msg.get("tgt"))
             return
@@ -2396,6 +2519,8 @@ class Game(Combat):
             "garrison_next": A.GARRISON_EVERY - (s["turn"] - 1) % A.GARRISON_EVERY,
             "crown_cut": round(A.CROWN_CUT * s.get("crown_cut", 0) * 100),
             "reforge": {k: self.reforge_cost(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
+            "temper": {k: self.temper_options(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
+            "forged": {k: {**self.item(k), "price": self.price(k)} for k in s.get("forged", {})},
             "loans": [{"h": c["h"], "left": c["turn"] - s["turn"]} for c in s.get("chains", []) if c["kind"] == "loan"],
             "raids": raids, "garrison_skip": s.get("garrison_skip", {}),
             "squalls": [{"id": q["id"], "tile": q["tile"], "next": Wd.step_dir(q["tile"], q["dir"]), "left": q["until"] - s["turn"] + 1}
@@ -2415,6 +2540,7 @@ def static():
         "prices": {k: I.price(k) for k in I.ITEMS},
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST},
         "grounds": A.GROUNDS, "squall": {"r": A.SQUALL_R, "sight": A.SQUALL_SIGHT}, "lookout_sight": A.LOOKOUT_SIGHT,
+        "work": {"cap": A.WORK_CAP, "hone": A.HONE_UP, "cost": A.TEMPER_COST},
         "sea": {"cove_gold": A.COVE_GOLD, "flotsam_gold": A.FLOTSAM_GOLD, "hunt": A.SEA_HUNT, "grotto_gold": A.GROTTO_GOLD,
                 "raid_bounty": A.RAID_BOUNTY, "free_gold": A.FREE_GOLD},
     }

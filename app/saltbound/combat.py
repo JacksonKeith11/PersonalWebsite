@@ -642,7 +642,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid("You can't do that now.")
         hero = self.hero(h)
         key = hero["bag"][i]
-        u = I.ITEMS[key]["use"]
+        u = self.item(key)["use"]
         if "heal" in u:
             hid = int(tgt[1:]) if isinstance(tgt, str) and tgt.startswith("h") and tgt[1:].isdigit() else h
             if not self.active(hid):
@@ -666,7 +666,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 raise Invalid("Use it on a knocked-down ally.")
             hero["bag"].pop(i)
             self.lift(hid, u["lift"])
-        self.say(f"{hero['name']} uses {I.ITEMS[key]['name']}.")
+        self.say(f"{hero['name']} uses {self.item(key)['name']}.")
         self.maybe_resolve()
 
     def resolve_action(self, h, a, dice, tgt):
@@ -1217,7 +1217,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         elif self.rng.chance(0.35):
             n = 1
         if wreck:
-            self.offer_pool(winners, rarity=p["rarity"], extra=prizes)
+            # a guarded wreck's pool holds an enchant material besides its rare gear
+            self.offer_pool(winners, rarity=p["rarity"], extra=prizes + [self.rng.choice(I.MATERIALS)])
         elif n or prizes:
             self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0), extra=prizes[:1])
         if path == "vault" and winners:

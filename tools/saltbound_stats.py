@@ -286,9 +286,9 @@ def record_run(stats, g, res, run):
         stats.add("classes", hero["cls"], "runs")
         stats.add("classes", hero["cls"], "wins", won)
         for key in hero["equip"].values():
-            if key:
-                stats.add("gear", key, "runs")
-                stats.add("gear", key, "wins", won)
+            if key:  # worked gear ("rapier@3") counts as its catalogue item
+                stats.add("gear", I.base(key), "runs")
+                stats.add("gear", I.base(key), "wins", won)
     for p in run["picks"]:
         stats.add("picks", p, "won", won)
     for p in run.get("passed", []):

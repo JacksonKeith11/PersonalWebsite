@@ -383,12 +383,21 @@ DARK_SHRINES = 2    # shrines that offer a stronger blessing at a price (the `da
 WRECK_GUARDS = {reg: GROUPS[reg][2:6] for reg in ("coral", "keys", "storm")}
 
 TOWN_SPECS = {
-    "smith": {"name": "Smithy", "text": "Reforges a piece of your gear into a random one a rarity better, for the same slot."},
+    "smith": {"name": "Smithy", "text": "Reforges a piece of your gear into a random one a rarity better, for the same slot, or tempers it to keep: Hone raises its die's lowest number, Mark turns it into a special face. Each piece takes two works at most, tempering and enchanting together."},
     "temple": {"name": "Temple", "text": "Lifts curses for free, and sells the party one revive."},
     "cartographer": {"name": "Cartographer", "text": "Sells charts that show a whole region: its places, lairs and wrecks."},
     "fence": {"name": "Fence", "text": "Pays half again as much for what you sell."},
 }
 REFORGE_COST = {"uncommon": 30, "rare": 60, "legendary": 100}
+# Tempering (the smithy) and enchanting (materials): each piece of gear takes at most `WORK_CAP` works in
+# all, shown as pips. Hone raises the die's lowest number by `HONE_UP` (no higher than its top number);
+# Mark turns that face into the die's own kind of special face (see Game.temper_face). The first work
+# on an item costs TEMPER_COST[0], the second TEMPER_COST[1]. A worked item sells for `WORK_RESALE`
+# more per work.
+WORK_CAP = 2
+HONE_UP = 3
+TEMPER_COST = (20, 40)
+WORK_RESALE = 10
 TEMPLE_REVIVE = 75
 CHART_COST = 15
 FENCE_BONUS = 20  # percentage points on the sell rate (40% -> 60%, 60% -> 80% with Haggler)

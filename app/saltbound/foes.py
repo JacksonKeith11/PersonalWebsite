@@ -191,7 +191,7 @@ class Foes:
         thief_to = None
         if mv["k"] == "thief":
             from .content import items as I
-            marks = [y for y in self.actives() if any(I.ITEMS[it]["slot"] == "use" for it in self.hero(y)["bag"])]
+            marks = [y for y in self.actives() if any(it in I.CONSUMABLES for it in self.hero(y)["bag"])]
             thief_to = self.rng.choice(marks) if marks and not fo.get("loot") else None
         if (mv["k"] == "thief" and thief_to is None) or \
                 (mv["k"] == "merge" and not any(o is not fo and o["k"] == fo["k"] for o in self.foes())):
@@ -593,12 +593,12 @@ class Foes:
             y = int(it["tgt"][1:]) if it.get("tgt") else None
             if y is not None and self.active(y):
                 bag = self.hero(y)["bag"]
-                got = next((i for i, x in enumerate(bag) if I.ITEMS[x]["slot"] == "use"), None)
+                got = next((i for i, x in enumerate(bag) if x in I.CONSUMABLES), None)
                 if got is not None:
                     fo["loot"] = bag.pop(got)
                     fo["flee_in"] = 2
                     self.fx("st", to=f"f{fo['id']}", s="snatched")
-                    self.say(f"{fo['name']} snatches {self.hero(y)['name']}'s {I.ITEMS[fo['loot']]['name']}! Kill it within two rounds to get it back.")
+                    self.say(f"{fo['name']} snatches {self.hero(y)['name']}'s {self.item(fo['loot'])['name']}! Kill it within two rounds to get it back.")
         elif k == "merge":
             other = next((o for o in self.foes() if o is not fo and o["k"] == fo["k"]), None)
             if other:

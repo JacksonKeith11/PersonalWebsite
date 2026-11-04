@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=106';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=106';
-import { spriteURL, placeURL } from './art.js?v=106';
-import { itemURL } from './itemart.js?v=106';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=106';
-import { MapView } from './hexmap.js?v=106';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=106';
-import { disconnect } from './main.js?v=106';
-import * as sfx from './audio.js?v=106';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=108';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=108';
+import { spriteURL, placeURL } from './art.js?v=108';
+import { itemURL } from './itemart.js?v=108';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=108';
+import { MapView } from './hexmap.js?v=108';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=108';
+import { disconnect } from './main.js?v=108';
+import * as sfx from './audio.js?v=108';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -224,18 +224,18 @@ function placeText(p) {
     case 'dungeon': return g.cleared.includes(p.region) ? 'Cleared.' : `An objective: ${3 - (g.dungeon[p.region] || 0)} fights deep, the way forking between them. No retreat.`;
     case 'peak': return g.cleared.length >= 3 ? 'The Drowned Crown waits at the top.' : `Sealed until all three objectives are cleared (${g.cleared.length} of 3).`;
     case 'shrine': return p.dark ? 'A stronger blessing than a shrine’s, at a price. Once for each hero.'
-      : p.sea && p.buff ? `Out at sea, by skiff only. ${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns), once for each hero.`
+      : p.sea && p.buff ? `Out at sea, by skiff only. ${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns), once for each hero.${p.mat_taken ? '' : ' The first to come also finds an enchant material.'}`
       : `${p.buff ? `${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns)` : 'A blessing'}, once for each hero.`;
     case 'camp': return 'Rest here to heal half your HP.';
     case 'event': return p.done ? 'Already seen to.' : `${RISK[p.risk] || 'Step on it to find out.'}${p.needs?.length ? ` ${/^[AEIOU]/.test(S.static.classes[p.needs[0]].name) ? 'An' : 'A'} ${p.needs.map(k => S.static.classes[k].name).join(' or ')} would have another option.` : ''}`;
-    case 'wreck': return p.done ? 'Picked clean.' : p.guard ? 'Enemies are camped on it. Beat them for a pool of rare loot.' : `${cap(p.rarity || 'some')} loot, for whoever gets there first.`;
+    case 'wreck': return p.done ? 'Picked clean.' : p.guard ? 'Enemies are camped on it. Beat them for a pool of rare loot and an enchant material.' : `${cap(p.rarity || 'some')} loot, for whoever gets there first.`;
     case 'cache': return p.done ? 'Dug up.' : 'The X from the torn chart: good loot and gold.';
     case 'lair': return p.done ? 'Cleared.' : 'A nest of tougher enemies, guarding good loot.';
     case 'cove': return p.done ? 'Emptied.' : `Out at sea, by skiff only: a smugglers’ stash (${S.static.sea.cove_gold} gold and a pick of uncommon or rare loot).`;
     case 'flotsam': return p.done ? 'Picked over.' : `Out at sea, by skiff only: ${S.static.sea.flotsam_gold} gold and a little loot.`;
     case 'lookout': return p.done ? 'Climbed: the land around is on your map.' : `Climb it to see everything ${S.static.lookout_sight} hexes around, hidden grottos too.`;
     case 'grotto': return p.done ? 'Already found and taken.' : p.grotto === 'spring' ? 'A clear spring: full health for whoever drinks, and a revive for the party.'
-      : `An old hoard: ${S.static.sea.grotto_gold} gold and a pick of rare loot.`;
+      : `An old hoard: ${S.static.sea.grotto_gold} gold, a pick of rare loot and an enchant material.`;
   }
   return '';
 }
@@ -725,6 +725,8 @@ function itemRow(key, right, extra) {
   const it = item(key);
   const sub = [];
   if (it.slot !== 'use') sub.push(it.slot[0].toUpperCase() + it.slot.slice(1));
+  else if (it.enchant) sub.push(h('span.mat-kind', { tip: KIND_TEXT[it.enchant] }, `Enchant material · ${cap(it.enchant)}`));
+  if (it.die && it.slot !== 'use') sub.push(workPips(it));
   // an armor's own action, which takes Block's place
   if (it.guard) { const ad = S.static.actions[it.guard]; sub.push(h('span.guard-act', { tip: `${ad.name}, in place of Block\n${ad.text}` }, ad.name)); }
   // a long die (8+ faces) gets its own line rather than wrapping after a dangling separator
@@ -777,15 +779,23 @@ function compareWith(h0, key, compact) {
     compact && lost.length ? h('span.cmp-acts', null, `You'd lose ${lost.join(', ')}`) : null,
     !compact && cur.text ? h('span.cmp-pass', null, cur.text) : null);
 }
+// How much work (tempering, enchanting) a piece of gear has taken, out of the most it can: a pip each.
+function workPips(it) {
+  const most = S.static.work.cap, n = (it.work || []).length;
+  const names = { hone: 'Honed', mark: 'Marked', exploding: 'Enchanted: Exploding', steady: 'Enchanted: Steady', seer: 'Enchanted: Seer' };
+  return h('span.pips.work', { tip: `Work ${n} of ${most}${n ? `\n${it.work.map(w => names[w] || w).join('\n')}` : '\nA smithy can temper it, and enchant materials can go into it.'}` },
+    ...Array.from({ length: most }, (_, i) => h('i' + (i < n ? '.on' : ''))));
+}
 function interleave(arr, sep) { return arr.flatMap((x, i) => (i ? [sep, x] : [x])); }
 function itemTip(key) {
   const it = item(key);
-  const lines = [it.name, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`];
+  const lines = [it.name, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.enchant ? 'enchant material' : it.slot === 'use' ? 'consumable' : it.slot}`];
   if (it.die) lines.push(...dieTip({ faces: it.die, dk: it.dk || [] }).split('\n'));
   for (const a of it.acts || []) { const ad = S.static.actions[a]; lines.push(`${ad.name} (${reqText(ad.req)}): ${ad.text}`); }
   if (it.guard) { const ad = S.static.actions[it.guard]; lines.push(`In place of Block, ${ad.name}: ${ad.text}`); }
   if (it.mods) lines.push(modsText(it.mods));
   if (it.text) lines.push(it.text);
+  if (it.work?.length) lines.push(`Work: ${it.work.join(', ')} (${it.work.length} of ${S.static.work.cap})`);
   return lines.filter(Boolean).join('\n');
 }
 function modsText(m) {
@@ -795,6 +805,26 @@ function modsText(m) {
       reroll: `+${v} reroll per fight`, move: `+${v} move`, might: `+${v} damage on every hit`, regen: `Regenerate ${v} HP a round in fights` }[k] || '');
   }
   return out.filter(Boolean).join(', ');
+}
+
+// The smith's tempering for one piece of gear: Hone (the lowest number rises) and Mark (it becomes a
+// special face), each showing the die it would make, and the item's work so far.
+function temperRow(h0, slot, k, disabled) {
+  const g = S.game, hero = g.heroes[h0], it = item(k), opts = g.temper?.[k] || {};
+  const most = S.static.work.cap, n = (it.work || []).length;
+  if (!it.die) return null;
+  if (n >= most) return h('div.temper', null, h('span.muted', null, `Fully worked (${most} of ${most}): it can’t take any more.`));
+  const what = { hone: ['Hone', `The lowest number rises by ${S.static.work.hone} (no higher than the top face)`], mark: ['Mark', 'The lowest number becomes a special face in the die’s own style'] };
+  return h('div.temper', null,
+    h('span.temper-lbl', null, `Temper · work ${n + 1} of ${most}`),
+    ...Object.entries(what).map(([w, [name, text]]) => {
+      const o = opts[w];
+      if (!o) return null;
+      const [die, cost] = o;
+      return h('div.temper-opt', null,
+        h('button.btn.sm' + (hero.gold >= cost ? '.primary' : ''), { disabled: disabled || hero.gold < cost, tip: text, onclick: () => send({ t: 'temper', h: h0, slot, what: w }) }, `${name} · ${cost}`),
+        h('span.temper-arrow', null, '→'), faceRow({ ...it, die }));
+    }));
 }
 
 function townDrawer(h0, town, d) {
@@ -815,8 +845,12 @@ function townDrawer(h0, town, d) {
         if (!k) continue;
         const cost = g.reforge?.[k] && town.voucher ? 0 : g.reforge?.[k];
         const nxt = g.reforge?.[k] ? ['common', 'uncommon', 'rare', 'legendary'][['common', 'uncommon', 'rare', 'legendary'].indexOf(st.items[k].rarity) + 1] : null;
-        body.push(itemRow(k, cost != null ? h('button.btn.sm' + (hero.gold >= cost ? '.primary' : ''), { disabled: disabled || hero.gold < cost, tip: `Becomes a random ${nxt} ${st.items[k].slot}`, onclick: () => send({ t: 'reforge', h: h0, slot }) }, cost ? `Reforge · ${cost}` : 'Reforge · free')
-          : h('span.muted', null, 'As good as it gets')));
+        const worked = (st.items[k].work || []).length;
+        // the reforge and temper options go under the item, so its die and theirs get the card's full width
+        const reforge = cost != null ? h('div.temper-opt', null, h('button.btn.sm' + (hero.gold >= cost ? '.primary' : ''), { disabled: disabled || hero.gold < cost, tip: `Becomes a random ${nxt} ${st.items[k].slot}${worked ? '\nIts tempering and enchantments are lost with it.' : ''}`, onclick: () => send({ t: 'reforge', h: h0, slot }) }, cost ? `Reforge · ${cost}` : 'Reforge · free'),
+          h('span.muted', null, `→ a random ${nxt} ${st.items[k].slot}${worked ? ' (the work is lost)' : ''}`))
+          : h('span.muted', null, 'Can’t be reforged: it’s as rare as gear gets');
+        body.push(itemRow(k, null, h('div', null, temperRow(h0, slot, k, disabled), h('div.temper', null, h('span.temper-lbl', null, 'Reforge'), reforge))));
       }
     } else if (town.spec === 'temple') {
       const curses = Object.keys(hero.buffs).filter(b => st.buffs[b]?.curse);
@@ -874,6 +908,16 @@ function townDrawer(h0, town, d) {
     [['market', 'Market'], ...(spec ? [['trade', spec.name]] : []), ['inn', 'Inn'], ['docks', 'Docks'], ['board', 'Notice board']], d, body);
 }
 
+// An enchant material's buttons: one for each worn piece of gear that can take it.
+function enchantButtons(h0, i, mat, free) {
+  const hero = S.game.heroes[h0], most = S.static.work.cap;
+  return SLOTS.filter(slot => hero.equip[slot]).map(slot => {
+    const it = item(hero.equip[slot]);
+    const why = (it.dk || []).includes(mat.enchant) ? `Its die is already ${cap(mat.enchant)}` : (it.work || []).length >= most ? 'It can’t take any more work' : !free ? 'Not in the middle of a fight' : null;
+    return h('button.btn.sm' + (why ? '' : '.primary'), { disabled: !!why, tip: why || `Make the ${it.name}’s die ${cap(mat.enchant)}, for good (work ${(it.work || []).length + 1} of ${most})`, onclick: () => send({ t: 'use', h: h0, bag: i, slot }) }, `Into ${it.name}`);
+  });
+}
+
 function heroDrawer(h0, d, readonly = false) {
   const g = S.game, hero = g.heroes[h0], c = cls(hero.cls);
   const town = inTown(h0);
@@ -902,7 +946,8 @@ function heroDrawer(h0, d, readonly = false) {
         // the bag's buttons go in one row under the item, not squeezed into the right-hand column
         return itemRow(k, null, h('div.bag-acts', null,
           it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null,
-          it.slot === 'use' && !it.fight ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
+          it.slot === 'use' && !it.fight && !it.enchant ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
+          ...(it.enchant ? enchantButtons(h0, i, it, free) : []),
           mates.length ? h('select.input.give', { 'aria-label': `Give ${it.name} to`, onchange: e => { if (e.target.value !== '') send({ t: 'give', h: h0, to: +e.target.value, bag: i }); } },
             h('option', { value: '' }, 'Give to…'), ...mates.map(m => h('option', { value: m }, g.heroes[m].name))) : null,
           town ? h('button.btn.sm.ghost', { onclick: () => send({ t: 'sell', h: h0, bag: i }) }, 'Sell') : null,
@@ -1239,7 +1284,7 @@ function lootCard(h0, k, i, mates, choose, taken) {
   const it = item(k);
   const cur = it.slot !== 'use' && !freeSlot(hero, it.slot) ? item(hero.equip[swapSlot(hero, it.slot)]) : null;
   const head = [h('span.kbd.pick-key', null, i + 1),
-    h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.slot === 'use' ? 'consumable' : it.slot}`),
+    h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.enchant ? 'enchant material' : it.slot === 'use' ? 'consumable' : it.slot}`),
     h('div.loot-title', null, h('img.pix', { src: itemURL(k, it.slot), alt: '' }), h('h3.rar-' + it.rarity, null, it.name)),
     it.die ? faceRow(it) : null,
     it.dk?.length ? h('p', null, it.dk.map(x => KIND_TEXT[x]).filter(Boolean).join(' ')) : null,
@@ -1375,6 +1420,7 @@ export function handleFx(list, before) {
       case 'occupied': later.push(() => toast(`Raiders take ${S.game.places[f.tile]?.name || 'a town'}: it’s shut until you drive them out`, 'big')); break;
       case 'freed': later.push(() => { toast(`${S.game.places[f.tile]?.name || 'The town'} is free: +${f.gold} gold each`, 'big'); sfx.play('coin'); }); break;
       case 'raidstop': later.push(() => toast(`Raid broken: +${f.gold} gold each, and ${S.static.dungeons[f.reg]}’s garrison skips its next growth`, 'big')); break;
+      case 'temper': later.push(() => { const it = item(S.game.heroes[f.h].equip[f.slot]); toast(`${S.game.heroes[f.h].name}’s ${it?.name || 'gear'}: ${f.what === 'hone' ? 'honed' : f.what === 'mark' ? 'marked' : `${cap(f.what)} now`}`); sfx.play('rare'); }); break;
       case 'found': later.push(() => { toast(`${S.game.heroes[f.h].name} finds a hidden grotto`); sfx.play('coin'); }); break;
       case 'lookout': later.push(() => toast(`${S.game.heroes[f.h].name} climbs the lookout: ${f.r} hexes of land on the map`)); break;
       case 'squall': later.push(() => toast('A squall gathers over Stormcrag’s waters')); break;

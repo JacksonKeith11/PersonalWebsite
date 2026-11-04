@@ -1,11 +1,11 @@
 // Saltbound in the browser: the connection, and choosing which screen to show from the room
 // state the server sends whenever anything changes.
-import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=106';
-import { $, toast } from './ui.js?v=106';
-import { renderTitle, renderLobby, renderEnd } from './screens.js?v=106';
-import { renderGame, handleFx, teardownGame } from './hud.js?v=106';
-import { combatBusy } from './combat.js?v=106';
-import * as sfx from './audio.js?v=106';
+import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=108';
+import { $, toast } from './ui.js?v=108';
+import { renderTitle, renderLobby, renderEnd } from './screens.js?v=108';
+import { renderGame, handleFx, teardownGame } from './hud.js?v=108';
+import { combatBusy } from './combat.js?v=108';
+import * as sfx from './audio.js?v=108';
 import { GameSocket } from '../../shared/net.js?v=1';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
@@ -51,6 +51,8 @@ function receive(m) {
     case 'state': {
       const before = S.game;
       S.room = m.room; S.game = m.game;
+      // worked gear (tempered or enchanted) has its own key: add it to the item list every lookup uses
+      for (const [k, it] of Object.entries(S.game?.forged || {})) { S.static.items[k] = it; S.static.prices[k] = it.price; }
       if (S.game) {
         const fx = S.game.fx.filter(f => f.id > S.lastFx);
         if (S.fresh) { S.fresh = false; S.lastFx = S.game.fx.length ? S.game.fx[S.game.fx.length - 1].id : 0; render(); }

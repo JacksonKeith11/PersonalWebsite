@@ -87,6 +87,7 @@ ITEMS = {
     "lute": {"name": "Lute", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["blessing"], "start": True},
     "sling": {"name": "Sling", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["shoot"], "start": True},
     "gnarled_staff": {"name": "Gnarled Staff", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["zap"], "start": True},
+    "etched_sword": {"name": "Etched Sword", "slot": "weapon", "rarity": "common", "die": D(6), "acts": ["slash"], "start": True},
     "hide_vest": {"name": "Hide Vest", "slot": "armor", "rarity": "common", "die": D(4), "mods": {"max_hp": 3}, "start": True},
     "leather_apron": {"name": "Leather Apron", "slot": "armor", "rarity": "common", "die": D(4), "mods": {"bomb_bonus": 1}, "start": True},
     "padded_coat": {"name": "Padded Coat", "slot": "armor", "rarity": "common", "die": D(4), "mods": {"max_hp": 2},

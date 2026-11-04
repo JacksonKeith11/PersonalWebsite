@@ -1014,6 +1014,10 @@ a:hover { color: var(--accent-hi); }
   background: var(--combo-wash); border: 1px dashed rgba(255, 196, 80, 0.6); white-space: nowrap; }
 .die.tile.combo { box-shadow: 0 0 0 2px var(--combo), 0 0 14px rgba(255, 200, 80, 0.55); }
 .covered-chip.undertow { color: #8fd8ff; }
+.covered-chip.infused { color: #c9a8ff; }
+.covered-chip.infused.frost { color: #9fd8ff; }
+.covered-chip.infused.shock { color: #e8f0ff; }
+.covered-chip.infused.burn { color: #ffb060; }
 
 /* audit fixes: an empty enemy row keeps its place but drops its label; phones give the roll tray room */
 .col.empty .lbl { visibility: hidden; }

@@ -3,7 +3,7 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: built and public.** All ten classes play whole runs, and the game is listed on `/games`.
+**Status: built and public.** All eleven classes play whole runs, and the game is listed on `/games`.
 The first half of this doc is the design the owner signed off on, with the answers they gave while it
 was built; "How it plays now" is the game as it is. When a change alters how the game works, update
 "How it plays now" (not a new section at the end) in the same commit.
@@ -171,7 +171,7 @@ Keep to these. They came from the owner directly.
 
 ### Heroes
 
-- **10 classes, each unique within a party.** Each has one map ability and one combat role, so
+- **11 classes, each unique within a party.** Each has one map ability and one combat role, so
   the choice matters outside fights too.
 - **Classes are generic, not tied to the archipelago**, so they carry over to future maps. A map
   ability only talks to systems every map has, through hooks the map engine calls:
@@ -874,6 +874,21 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Herald | 18 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
 | Alchemist | 21 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
 | Warden | 26 (+3) | **Wildspeak**: forest costs 1 | Summons and control | Grove, Thorns |
+| Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
+
+**The Spellblade** (owner's request, Nov 2026; the design and its reasoning are in
+`docs/saltbound-spellblade.md`). Its melee hits **carve Sigils** into enemies (status `sigil`, up to
+`C.SIGIL_CAP` 5, never wears off, only the Spellblade carves), its spells **Burst** them (a `dmg` op
+with `burst`: the amount's `sigv` is 3 per Sigil, 5 with Quiet Glyph on a 1 or 2, and the target's
+Sigils are spent after the hit), and **infusions** make its next melee hits this round deal more and
+carry an element (Frost: Weak 1, Shock, Burn 2; by the die's number unless the op says: 1-2, 3-4, 5+).
+Infusions add up to `C.INFUSE_CAP` (4) hits, keeping the bigger bonus and the newest element, and
+clear at the end of the round unless Covenant Edge. Ways to infuse: Elemental Infusion (starting),
+Charged Bolt (Shock), Runic Ward (Frost), Sigil Burst's crit, Feedback Loop (a Burst of 3+), Spellstrike
+(every damaging spell). Rules in `actions.py` (`carve`, `infuse`, `infuse_hit`, `burst`, the `sig`,
+`sigv` and `allsig` amount variables, the `sigiled` op target), Runewright in `start_fight` and
+`Game.rest` (`hero["runes"]`), Counter-Glyph's `glyphward` in `hurt_hero`; the bots value Sigils and
+infusions in `bot.sigil_value` and `bot.infuse_value`, and plan carving before a Burst (`Board.sig`).
 
 Each class has two base dice, starting actions, and a pool of actions, passives and capstones that
 level-ups offer 1 of 3 from (leaning toward tags the hero already has). `classes.py` holds them all,
@@ -887,7 +902,7 @@ deals 20 minus the die, so low rolls are good; Undying Fury hits back for 8 when
 
 Hero sprites: the owner picked the Shieldbearer with the Spear-warden's spear (`vanguard1`), the
 Sorceress (`arcanist2`), the Cleric (`mender1`) and the Huntress for the Ranger; the others use option
-1 until picked (`PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
+1 until picked (the Spellblade has one option so far; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
 
 ### Passive mods
 

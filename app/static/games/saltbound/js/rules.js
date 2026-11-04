@@ -325,6 +325,8 @@ export const STATUS = {
   steal: { name: 'Robbed', icon: 'coin', text: 'Next round your biggest die is missing: a thief has it.', bad: true },
   static: { name: 'Static', icon: 'bolt', text: 'Next round, any of your dice that rolls 1 or 2 shocks you for 3.', bad: true },
   asleep: { name: 'Asleep', icon: 'clock', text: 'Does nothing until something hits it. Then it wakes, angry.' },
+  sigil: { name: 'Sigil', icon: 'rune', text: 'Runes carved by a Spellblade (up to 5). A Burst spends them for +3 damage each; they don’t wear off.', bad: true },
+  glyphward: { name: 'Counter-Glyph', icon: 'rune', text: 'Every enemy that hits you this round has this many Sigils carved into it.' },
   falling: { name: 'Marked to fall', icon: 'down', text: 'Something is coming down on you at the end of the round (magma, an avalanche). Armor blocks it; an ally’s Guard takes it for you.', bad: true },
 };
 

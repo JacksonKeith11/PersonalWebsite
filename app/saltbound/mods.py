@@ -8,6 +8,16 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Spellblade's Sigils and infusions (classes.py SIGIL_CAP; actions.py carve, infuse, burst)
+    "whetted": "Rune Cut deals +n per Sigil already on the enemy",
+    "infused_carve": "infused melee hits carve a Sigil",
+    "bladesong": "+n on a melee hit right after one of your spells, or a spell right after a melee hit",
+    "spellstrike": "every damaging spell that hits infuses the next melee hit: +n, element by its die",
+    "rune_face": "the weapon die's lowest face is wild, and the action it's on carves a Sigil",
+    "covenant": "infusions last the whole fight and aren't used up",
+    "feedback_loop": "bursting 3+ Sigils infuses the next two melee hits with the Burst's die",
+    "quiet_glyph": "a Burst on a 1 or 2 counts each Sigil as +5 instead of +3",
+    "open_circuit": "allies' spells and bombs deal +n per Sigil on their target",
     # damage
     "might": "flat damage on every hit",
     "momentum": "+n damage per action already taken this round",

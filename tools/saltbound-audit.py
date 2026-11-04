@@ -65,6 +65,8 @@ SCENARIOS = {
     "travel": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
     # an ally's event, for two players (tools/saltbound-mp.js events): set up in main()
     "partyevent": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
+    # a Spellblade's fight: Sigils on the enemies, an infused blade (built in main(), not played to)
+    "spellblade": None,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -100,6 +102,17 @@ def main():
     names = sys.argv[1:] or list(SCENARIOS)
     for name in names:
         g = None
+        if name == "spellblade":
+            g, seed = game.Game.new(501, ["spellblade", "vanguard", "mender"], "normal"), 501
+            g.hero(0)["skills"] += ["charged_bolt", "arc_rune", "detonate", "counter_glyph", "bladesong"]
+            g.start_fight({"kind": "roam", "tile": g.hero(0)["tile"], "heroes": [0, 1, 2], "foes": ["cutthroat", "crab", "eel"], "by": 0})
+            for fo in g.foes():
+                fo["st"]["sigil"] = 2
+            g.foes()[0]["st"]["sigil"] = 4
+            g.infuse(0, 2, 3, "burn")
+            S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
+            print(f"{name}: saved")
+            continue
         for seed in range(500, 560):
             g = run_until(SCENARIOS[name], seed)
             if g:

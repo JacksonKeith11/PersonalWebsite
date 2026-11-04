@@ -20,6 +20,7 @@ from .content import items as I
 from .dice import Dice, face, num, top_face
 from .foes import Foes
 from .crits import is_crit
+from .actions import element_of
 from .tuning import SWELL, ECHO_FACES
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
@@ -82,6 +83,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["st"]["dodge"] = 1
             if m.get("bark"):
                 self.summon(h, "sapling", 10)
+        for h in f["heroes"]:
+            hero = self.hero(h)
+            if C.CLASSES[hero["cls"]]["map"]["key"] == "runewright":
+                # Runewright: every enemy starts with a Sigil, two after a rest
+                n = 2 if hero.get("runes") else 1
+                hero["runes"] = max(0, hero.get("runes", 0) - 1)
+                for fo in f["foes"]:
+                    fo["st"]["sigil"] = max(fo["st"].get("sigil", 0), n)
         if any(self.mods(h).get("open_weak") for h in f["heroes"]):
             for fo in f["foes"]:
                 fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
@@ -523,6 +532,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 nums = sorted((i for i, f in enumerate(d["faces"]) if isinstance(f, int)), key=lambda i: d["faces"][i])
                 for i, tag in zip(nums[:2], "FP"):
                     d["faces"][i] = f"{tag}{d['faces'][i]}"
+        if m.get("rune_face"):  # Rune-Etched Blade: the weapon die's lowest face is a rune (wild, and it carves)
+            for d in by_src("weapon"):
+                for i in lows(d, 1):
+                    d["faces"][i] = "W"
         if m.get("explosive_weapon"):  # Powder Edge: the weapon die explodes
             for d in by_src("weapon"):
                 if "exploding" not in d["dk"]:
@@ -644,6 +657,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         tgt = self.resolve_target(h, a, msg.get("tgt"))
         if a["req"].get("marked") and not self.foe(int(tgt[1:]))["st"].get("mark"):
             raise Invalid("That enemy needs to be Marked.")
+        if a["req"].get("sigils") and self.foe(int(tgt[1:]))["st"].get("sigil", 0) < a["req"]["sigils"]:
+            raise Invalid(f"That enemy needs {a['req']['sigils']} Sigils on it.")
         if a.get("once") and a.get("instant"):
             x["once"].append(a["key"])
         if a.get("cd") and a.get("instant"):
@@ -771,6 +786,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.fx("st", to=f"h{h}", s="crit")
             self.run_ops(h, a, dice, tgt, ops=a["crit"], hit=hit)
         x.pop("acting", None)
+        if self.s["fight"] is f and hit and isinstance(tgt, str) and tgt.startswith("f"):
+            fo = self.foe(int(tgt[1:]))
+            if fo and m.get("rune_face") and any(d.get("src") == "weapon" and d.get("tag") == "W" for d in dice):
+                self.carve(fo, 1)  # Rune-Etched Blade: the rune face carves
+            if a.get("spell") and m.get("spellstrike") and any(o["op"] == "dmg" for o in ops) and self.active(h):
+                v = num(dice[0]) if dice else 0
+                self.infuse(h, 1, m["spellstrike"], element_of(v))
         if self.s["fight"] is f:
             self.after_action(h, a, tgt)
         self.elements(h, a, dice, tgt)
@@ -800,6 +822,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         x = self.hs(h)
         if a.get("spell"):
             x.setdefault("spells", []).append(a["key"])
+        if a.get("melee") or a.get("spell"):
+            x["lastk"] = "melee" if a.get("melee") else "spell"  # for Bladesong
         if a.get("bomb"):
             x["bombs"] = x.get("bombs", 0) + 1
         if self.mods(h).get("quarry") and a["tgt"] == "foe" and isinstance(tgt, str) and tgt.startswith("f"):
@@ -1094,6 +1118,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if fo is not None and not pure and fo["hp"] > 0:
             if blocked and not n and x["st"].get("riposte"):
                 self.hurt_foe(fo, x["st"]["riposte"], h, pure=True)
+            if x["st"].get("glyphward"):
+                self.carve(fo, x["st"]["glyphward"])  # Counter-Glyph: whoever hits you is carved
             th = self.mods(h).get("thorns", 0) + x["st"].get("thorns", 0)
             if th and fo["hp"] > 0:
                 self.hurt_foe(fo, th, h, pure=True)
@@ -1186,6 +1212,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                     st[s] -= 1
             for s in ROUND_ONLY:
                 st.pop(s, None)
+            if not self.mods(h).get("covenant"):
+                st.pop("infuse", None)  # an infusion lasts the round (Covenant Edge: the fight)
+                x.pop("inf", None)
             st["armor"] = st.get("armor", 0) // 3 if self.mods(h).get("overguard") else 0
             for s in [s for s, v in st.items() if not v]:
                 del st[s]

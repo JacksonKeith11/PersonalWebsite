@@ -55,6 +55,8 @@ def target(g, h, a):
         fo = pool[0]
         if a["req"].get("marked"):
             fo["st"]["mark"] = 1
+        if a["req"].get("sigils"):
+            fo["st"]["sigil"] = max(fo["st"].get("sigil", 0), a["req"]["sigils"])
         return f"f{fo['id']}"
     if kind == "downed":
         downed = [y for y in f["heroes"] if g.hs(y)["down"]]

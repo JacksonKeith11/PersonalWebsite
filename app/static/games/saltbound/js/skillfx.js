@@ -142,6 +142,19 @@ export const SKILL_FX = {
   aura: x => { [0, 160, 320].forEach(ms => x.hit('glyph spin', C.gold, 700, ms, '⚄')); x.hit('aura', C.gold, 900, 200); return 'cast'; },
   transfusion: x => { x.me('drops', C.blood, 700); x.shot('drop', C.blood, ['healglow', null, 900], { stagger: 0 }); x.later(() => x.shot('drop', C.blood, null), 90); return 'cast'; },
 
+  // Spellblade
+  rune_cut: x => { x.hit('slash', null, 420, 120); if (!x.miss) x.hit('glyph', C.arcane, 800, 240, 'ᚱ'); return 'melee'; },
+  sigil_burst: x => { x.shot('orb', C.arcane, ['rune', C.arcane, 900]); if (!x.miss) x.later(() => x.screen('tint', 300, 'rgba(120, 80, 220, 0.25)'), 380); return 'cast'; },
+  elemental_infusion: x => { x.me('aura', C.arcane, 900); x.me('glyph spin', C.fire, 800, 160, '⚔'); return 'cast'; },
+  charged_bolt: x => { x.bolt(x.from, x.t[0]); if (!x.miss) x.hit('zap', null, 500, 120); x.me('glyph', C.storm, 700, 200, 'ϟ'); return 'cast'; },
+  hilt_rune: x => { x.hit('bigslash', null, 480, 140); if (!x.miss) { x.hit('glyph', C.arcane, 800, 260, 'ᚺ'); x.shake(220); } return 'melee'; },
+  sunder_glyph: x => { x.hit('bigslash', C.arcane, 480, 140); x.hit('rune', C.arcane, 900, 300); return 'melee'; },
+  counter_glyph: x => { x.me('shieldfx', null, 700); x.me('rune', C.arcane, 900, 100); return 'brace'; },
+  arc_rune: x => { x.shot('orb', C.arcane, ['zap', null, 500]); x.foes.forEach((u, i) => x.on(u, 'glyph', C.arcane, 700, 300 + i * 70, 'ᚨ')); return 'cast'; },
+  detonate: x => { x.shot('orb', C.arcane, ['fireburst', null, 800]); if (!x.miss) { x.later(() => x.screen('fire', 350), 350); x.shake(380); } return 'cast'; },
+  runic_ward: x => { x.me('shieldfx', null, 700); x.me('rune', C.water, 900, 80); x.me('glyph', C.water, 700, 240, '❄'); return 'cast'; },
+  brand: x => { x.hit('rune', C.dark, 1000); if (!x.miss) { x.hit('glyph', C.dark, 900, 260, 'ᛉ'); x.shake(300); } return 'cast'; },
+
   // Warden
   thornlash: x => { x.shot('thorn', C.nature, ['pop small', C.nature, 400]); if (!x.miss) x.hit('vines', C.nature, 800, 260); return 'act'; },
   sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },

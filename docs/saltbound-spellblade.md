@@ -1,8 +1,21 @@
-# Spellblade: a class proposal (for review, not built)
+# Spellblade: the class's design
 
-A draft eleventh class for Saltbound, for the owner to review before anything is built. Numbers
-are first guesses, sized against the existing classes using the tests in `saltbound-skills.md`.
-They get measured once the class is in.
+**Built (Nov 2026).** The owner's review settled the open questions: Sigils stack to **5**, only the
+Spellblade carves them, Frost stays Weak, Runewright gives no party Armor, and the class gets
+**several ways to infuse** rather than one skill. What was built differs from the draft below in
+those ways, and in these:
+
+- **Elemental Infusion is a starting action** (Rune Cut, Sigil Burst, Elemental Infusion), so carving,
+  bursting and infusing are all there from level 1.
+- **Six ways to infuse**: Elemental Infusion; Charged Bolt (any row: the die +2 and Shock, and the next
+  melee hit +3 and Shocks); Runic Ward (Armor, and the next melee hit +2 with Frost); Sigil Burst's crit
+  (the next two melee hits); Feedback Loop (a Burst of 3+ Sigils); Spellstrike (every damaging spell
+  infuses the next melee hit, +2). Infusions add up to 4 hits, keep the bigger bonus and take the newest
+  element.
+- **Glyph Feedback was dropped** (a flat Armor trickle), and Deep Etching went with the cap of 5.
+
+The live numbers are in `app/saltbound/classes.py` and `docs/saltbound.md` (Classes); the balance
+results are at the end of this file. The draft as reviewed follows.
 
 ## The fantasy and the loop
 

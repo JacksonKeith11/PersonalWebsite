@@ -10,6 +10,7 @@ from itertools import combinations
 
 from . import classes as C
 from . import world as Wd
+from .actions import element_of, sigil_worth
 from .combat import Invalid
 from .crits import crit_floor
 from .dice import amt, check_hit, top_face
@@ -576,6 +577,7 @@ class Board:
         # set-ups already planned: chance a foe will be Vulnerable or Marked before later hits land,
         # and chance a hero's next damaging action gets Crescendo
         self.vuln, self.mark, self.cresc = {}, {}, {}
+        self.sig = {}  # Sigils the plan will have carved (or spent) on each enemy
         if empty:
             return
         f = g.s["fight"]
@@ -585,7 +587,7 @@ class Board:
 
     def copy(self):
         b = Board(None, empty=True)
-        for k in ("dmg", "stop", "cut", "armor", "heal", "summons", "vuln", "mark", "cresc"):
+        for k in ("dmg", "stop", "cut", "armor", "heal", "summons", "vuln", "mark", "cresc", "sig"):
             setattr(b, k, dict(getattr(self, k)))
         b.sanct, b.taunt = self.sanct, self.taunt
         return b
@@ -615,6 +617,8 @@ class Board:
                 tgt[k] = 1 - (1 - tgt.get(k, 0)) * (1 - min(1, v))
         for k, v in eff["cused"].items():
             self.cresc[k] = self.cresc.get(k, 0) * (1 - min(1, v))
+        for k, v in eff["sig"].items():
+            self.sig[k] = self.sig.get(k, 0) + v
         self.sanct += eff["sanct"]
         if eff["taunt"] is not None:
             self.taunt = eff["taunt"]
@@ -717,7 +721,7 @@ def dice_combos(g, h, dice):
 
 def new_eff():
     return {"dmg": {}, "stop": {}, "cut": {}, "armor": {}, "heal": {}, "summons": {}, "sanct": 0.0, "taunt": None,
-            "vuln": {}, "mark": {}, "cresc": {}, "cused": {}}
+            "vuln": {}, "mark": {}, "cresc": {}, "cused": {}, "sig": {}}
 
 
 def bump(d, k, v):
@@ -792,6 +796,9 @@ def evaluate(g, b, h, a, dice, tgt):
                 each = range(len(vals)) if each_op else [None]
                 for t, share, part_env, bonus_t, combo, vfac, madd, left0, w, stopv in per:
                     env = g.target_env_from(de, part_env, t, vals)
+                    if b.sig.get(t["id"]):
+                        env["sig"] = max(0, min(C.SIGIL_CAP, env["sig"] + b.sig[t["id"]]))
+                        env["sigv"] = sigil_worth(env)
                     if cond and not amt(op["if"], env):
                         continue
                     n = 0
@@ -813,6 +820,13 @@ def evaluate(g, b, h, a, dice, tgt):
                             part = 1 / len(hit_by) if kind == "chain" and hit_by else 1
                             spill += sum(min(kn, o["hp"]) * 0.8 * part for o in hit_by)
                     hit_any = True
+                    if op.get("burst") and env["sig"]:
+                        # a Burst spends the Sigils: Detonate's spill, Feedback Loop's infusion
+                        bump(eff["sig"], t["id"], -pr * share * env["sig"])
+                        if op.get("spill"):
+                            spill += sum(min(op["spill"] * env["sig"], o["hp"]) * 0.8 for o in foes if o is not t)
+                        if env["sig"] >= 3 and m.get("feedback_loop"):
+                            val += share * infuse_value(g, h, dice, 2, max(2, vals[0] // 2), element_of(vals[0]))
                     val += share * spill
                     tid = t["id"]
                     left = left0 - dealt.get(tid, 0)
@@ -939,8 +953,19 @@ def evaluate(g, b, h, a, dice, tgt):
                     bump(eff["summons"], h, pr)
             elif k == "gold":
                 val += 3
+            elif k == "carve":
+                for t, share in tg:
+                    if isinstance(t, dict):
+                        cur = t["st"].get("sigil", 0) + b.sig.get(t["id"], 0)
+                        n = cur if op.get("double") else op["n"]
+                        val += share * sigil_value(g, b, h, t, n, cur, eff, pr * share)
+            elif k == "infuse":
+                n_ = amt(op["amt"], de) + plus
+                val += infuse_value(g, h, dice, op["n"], n_, op.get("el") or element_of(vals[0] if vals else 0))
         if hit_any:
             bump(eff["cused"], h, pr)  # this hit spends the hero's Crescendo
+            if a.get("spell") and m.get("spellstrike"):
+                val += infuse_value(g, h, dice, 1, m["spellstrike"], element_of(vals[0] if vals else 0))
         total += pr * val
     return total, eff
 
@@ -985,6 +1010,8 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
         return big.get(y, 0) * 0.9 or 0.5
     if s in ("riposte", "thorns"):
         return n * hits.get(y, 0) * 0.8
+    if s == "glyphward":
+        return n * hits.get(y, 0) * 1.2  # Sigils carved into whoever hits you
     if s == "crescendo":
         # half again on this hero's next damaging action (about 6), if it hasn't already got one
         if g.hs(y)["st"].get("crescendo"):
@@ -1002,6 +1029,45 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
             return 0
         return min(g.maxhp(y) // 2, g.maxhp(y) - left) * 0.6
     return 1
+
+
+BURSTS = ("sigil_burst", "detonate", "brand", "arc_rune")
+
+
+def sigil_value(g, b, h, t, n, cur, eff, pr):
+    """Sigils carved into an enemy: worth what a Burst will add for them later, if the enemy lives that
+    long and a Burst or Arc Rune is coming; Whetted Runes makes the next Rune Cut hit harder too."""
+    k = min(n, C.SIGIL_CAP - cur)
+    if k <= 0:
+        return 0
+    bump(eff["sig"], t["id"], pr * k)
+    m = g.mods(h)
+    left = t["hp"] - b.dmg.get(t["id"], 0)
+    if left <= 0:
+        return 0
+    soon = any(g.action_def(h, a)["key"] in BURSTS and g.cooling(h, g.action_def(h, a)["key"]) <= 1 for a in g.actions_of(h))
+    per = (2.2 if soon else 0.8) * (1.0 if left > 12 else 0.6 if left > 6 else 0.25)
+    if any(g.mods(y).get("open_circuit") for y in g.actives() if y == h) and len(g.actives()) > 1:
+        per += 0.5
+    return k * (per + 0.4 * m.get("whetted", 0))
+
+
+INFUSE_WORTH = {"frost": 1.5, "shock": 1.6, "burn": 2.6}
+
+
+def infuse_value(g, h, dice, n, dmg, el):
+    """An infusion: the extra damage and the element on the melee hits the hero can still make this
+    round (one per die left over), or every hit for the fight with Covenant Edge."""
+    x = g.hs(h)
+    m = g.mods(h)
+    ids = {d["id"] for d in dice}
+    left = sum(1 for d in x["dice"] if not d["used"] and d["id"] not in ids and "guard" not in (d.get("dk") or []))
+    have = x["st"].get("infuse", 0)
+    hits = min(n, max(0, left - have))
+    if m.get("covenant"):
+        hits = max(hits, 2 if not have else 0.5)
+    per = dmg * 0.85 + INFUSE_WORTH.get(el, 1.5) + (1.2 if m.get("infused_carve") else 0)
+    return hits * per
 
 
 def heal_value(g, b, y, n, inc, overflow=False):
@@ -1065,6 +1131,8 @@ def op_targets(g, h, op, base):
         return [(("h", min(others, key=lambda y: g.hero(y)["hp"])), 1)] if others else []
     if to == "aiming":
         return [(fo, 1) for fo in g.foes() if f"h{h}" in g.intent_aims(fo.get("intent") or {})]
+    if to == "sigiled":
+        return [(fo, 1) for fo in g.foes() if fo["st"].get("sigil")]
     return [(t, 1) for t in base]
 
 
@@ -1133,6 +1201,8 @@ def target_options(g, h, a, foes):
         pool = g.front_foes() if a.get("melee") else foes
         if a["req"].get("marked"):
             pool = [o for o in pool if o["st"].get("mark")]
+        if a["req"].get("sigils"):
+            pool = [o for o in pool if o["st"].get("sigil", 0) >= a["req"]["sigils"]]
         return [f"f{o['id']}" for o in pool]
     if kind == "ally":
         return [f"h{y}" for y in g.actives()]

@@ -3,6 +3,7 @@ that set up dice (`instant`), and the shared sums both the fight and the bots us
 (`hit_amount`, `foe_damage_after`, `foe_soak`, `hit_spill`). Mixed into `Game` through `Combat`.
 """
 
+from . import classes as C
 from .content import archipelago as A
 from .dice import amt, face, is_pair, is_straight, num, top_face
 from .foes import die_range
@@ -37,7 +38,9 @@ class Actions:
         return {"v": vals[0] if vals else 0, "sum": sum(vals), "n": len(vals), "armor": x["st"].get("armor", 0),
                 "missing": self.maxhp(h) - self.hero(h)["hp"], "undead": 0, "rooted": 0, "stunned": 0, "poisoned": 0,
                 "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
-                "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0}
+                "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
+                "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()),
+                "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
         """A copy of `dice_env`'s variables with the target enemy's added."""
@@ -49,7 +52,8 @@ class Actions:
             e["outroll"] = int(bool(vals) and bool(known) and len(known) == len(it.get("dice") or []) and vals[0] > max(known))
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
-                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0)
+                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0))
+            e["sigv"] = sigil_worth(e)
         return e
 
     def target_part(self, h, target):
@@ -64,7 +68,8 @@ class Actions:
         top = max(known) if known and len(known) == len(dice) else None
         return top, {"undead": int(bool(A.FOES[target["k"]].get("undead"))), "rooted": int(bool(st.get("root"))),
                      "stunned": int(bool(st.get("stun"))), "poisoned": int(bool(st.get("poison"))),
-                     "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0}
+                     "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0,
+                     "sig": st.get("sigil", 0)}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -73,6 +78,7 @@ class Actions:
             top, add = part
             e["outroll"] = int(bool(vals) and top is not None and vals[0] > top)
             e.update(add)
+            e["sigv"] = sigil_worth(e)
         return e
 
     def dmg_bonus(self, h, a, target):
@@ -89,6 +95,11 @@ class Actions:
         if a.get("spell") and m.get("spellweave") and any(k != a["key"] for k in x.get("spells", [])):
             n += m["spellweave"]
         n += x.get("cued", 0)
+        if a.get("melee") and x["st"].get("infuse"):
+            n += x.get("inf", {}).get("dmg", 0)  # an infused blade (Spellblade)
+        kind = "melee" if a.get("melee") else "spell" if a.get("spell") else None
+        if m.get("bladesong") and kind and x.get("lastk") and x["lastk"] != kind:
+            n += m["bladesong"]
         if m.get("first_strike") and not x.get("struck"):
             n += m["first_strike"]
         if m.get("unseen") and not any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()):
@@ -104,6 +115,12 @@ class Actions:
                 n += m["quarry"] * min(3, q["n"] - 1 if q["r"] == r else q["n"] if q["r"] == r - 1 else 0)
             if target["st"].get("stun") or target["st"].get("root"):
                 n += m.get("opportunist", 0)
+            sig = target["st"].get("sigil", 0)
+            if sig and a["key"] == "rune_cut":
+                n += m.get("whetted", 0) * sig
+            if sig and (a.get("spell") or a.get("bomb")):
+                # Open Circuit: an ally Spellblade's Sigils feed this hero's spells and bombs
+                n += sig * max([self.mods(y).get("open_circuit", 0) for y in self.actives() if y != h] or [0])
             if target["st"].get("burn"):
                 n += m.get("burn_bonus_hit", 0)
             if target["hp"] * 2 < target["max"]:
@@ -184,6 +201,8 @@ class Actions:
         if to == "aiming":
             # every enemy whose coming attack is aimed at the hero
             return [fo for fo in self.foes() if f"h{h}" in self.intent_aims(fo.get("intent") or {})]
+        if to == "sigiled":
+            return [fo for fo in self.foes() if fo["st"].get("sigil")]
         return base
 
     # ------------------------------------------------------------------ one hit's numbers
@@ -295,6 +314,10 @@ class Actions:
                 n = self.hit_finish(h, n, c.dice, vals, i, 1 if c.crescendo else 0)
                 done = self.hurt_foe(t, n, h, pierce=pierce, bomb=a.get("bomb"))
                 c.dealt = True
+                if a.get("melee") and c.x["st"].get("infuse"):
+                    self.infuse_hit(h, t)
+                if op.get("burst"):
+                    self.burst(c, op, t, vals)
                 if a.get("spell") and m.get("spell_burn") and done and t["hp"] > 0:
                     t["st"]["burn"] = t["st"].get("burn", 0) + 1
                     self.fx("st", to=f"f{t['id']}", s="burn")
@@ -323,6 +346,15 @@ class Actions:
                     self.fight_heal(h, done // 3, h)
                 if op.get("onkill") and t["hp"] <= 0:
                     self.fight_heal(h, amt(op["onkill"], env), h)
+
+    def _op_carve(self, c, op, targets):
+        for t in targets:
+            if isinstance(t, dict) and t["hp"] > 0:
+                self.carve(t, t["st"].get("sigil", 0) if op.get("double") else op["n"])
+
+    def _op_infuse(self, c, op, targets):
+        v = num(c.dice[0]) if c.dice else 0
+        self.infuse(c.h, op["n"], self.op_amount(c, op), op.get("el") or element_of(v))
 
     def _op_selfdmg(self, c, op, targets):
         hero = self.hero(c.h)
@@ -538,6 +570,63 @@ class Actions:
 
     # ------------------------------------------------------------------ instant actions
 
+    # ------------------------------------------------------------------ the Spellblade's Sigils and infusions
+
+    def carve(self, fo, n):
+        """Carve Sigils into an enemy (up to SIGIL_CAP)."""
+        if n <= 0 or fo["hp"] <= 0:
+            return
+        was = fo["st"].get("sigil", 0)
+        fo["st"]["sigil"] = min(C.SIGIL_CAP, was + n)
+        if fo["st"]["sigil"] > was:
+            self.fx("st", to=f"f{fo['id']}", s="sigil")
+
+    def infuse(self, h, n, dmg, el):
+        """Infuse a hero's blade: their next `n` melee hits deal +`dmg` and carry `el` (frost, shock,
+        burn). Infusions add up to INFUSE_CAP hits; the bonus is the bigger, the element the newest."""
+        x = self.hs(h)
+        st = x["st"]
+        old = x.get("inf", {}).get("dmg", 0) if st.get("infuse") else 0
+        st["infuse"] = min(C.INFUSE_CAP, st.get("infuse", 0) + n)
+        x["inf"] = {"dmg": max(dmg, old), "el": el}
+        self.fx("st", to=f"h{h}", s="infused_" + el)
+
+    def infuse_hit(self, h, t):
+        """An infused melee hit lands: its element, a Sigil with Infused Steel, one hit used up."""
+        x = self.hs(h)
+        m = self.mods(h)
+        el = x.get("inf", {}).get("el")
+        if t["hp"] > 0 and el:
+            s, n = INFUSE_STATUS[el]
+            if s == "shock":
+                t["st"]["shock"] = 1
+            else:
+                t["st"][s] = t["st"].get(s, 0) + self.status_amount(h, {"plus": False}, s, n)
+            self.fx("st", to=f"f{t['id']}", s=s)
+            self.foe_status_by(t, s, h)
+        if t["hp"] > 0 and m.get("infused_carve"):
+            self.carve(t, 1)
+        if not m.get("covenant"):
+            x["st"]["infuse"] -= 1
+            if x["st"]["infuse"] <= 0:
+                x["st"].pop("infuse", None)
+                x.pop("inf", None)
+
+    def burst(self, c, op, t, vals):
+        """A Burst spends the target's Sigils: Detonate spills them on the others, Feedback Loop
+        infuses the blade."""
+        spent = t["st"].pop("sigil", 0)
+        if not spent:
+            return
+        self.fx("st", to=f"f{t['id']}", s="burst")
+        if op.get("spill"):
+            for o in self.foes():
+                if o is not t:
+                    self.hurt_foe(o, op["spill"] * spent, c.h)
+        if spent >= 3 and c.m.get("feedback_loop") and self.active(c.h):
+            v = vals[0] if vals else 0
+            self.infuse(c.h, 2, max(2, v // 2), element_of(v))
+
     def instant(self, h, a, dice, tgt):
         """Actions that set up dice take effect the moment they're placed: each op kind is an
         `_inst_<kind>` method below. Dice they don't keep in play are used up."""
@@ -701,3 +790,16 @@ class Actions:
                 self.foe_status_by(fo, t, h)
                 if fo["hp"] <= 0:
                     return
+
+
+# An infusion's element by the die's number (Spellblade), and what each does to the enemy hit.
+def element_of(v):
+    return "frost" if v <= 2 else "shock" if v <= 4 else "burn"
+
+
+INFUSE_STATUS = {"frost": ("weak", 1), "shock": ("shock", 1), "burn": ("burn", 2)}
+
+
+def sigil_worth(e):
+    """What the target's Sigils add to a Burst: 3 each, or 5 on a 1 or 2 with Quiet Glyph."""
+    return e.get("sig", 0) * (5 if e.get("qg") else 3)

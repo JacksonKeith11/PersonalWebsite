@@ -97,6 +97,11 @@ OPTIONS = {
         ('Thornspeaker', build({**SKIN2, 'B': '#3a4a2a', 'b': '#2a3a1e', 'T': '#a83030', 'H': '#1a1420', 'h': '#2a3a1e', 'x': '#0e1a0e', 'X': '#c84a3a', 'W': '#d8d0c0', 'w': '#5a3a24', 'k': '#3a2a20'},
                                'robe', None, None, 'hood', 'staff', 'orb')),
     ],
+    # owner's request, Nov 2026: a sword in one hand, a rune-lit orb in the other
+    'spellblade': [
+        ('Spellblade', build({**SK, 'B': '#4a3a6a', 'b': '#2a2440', 'T': '#c8a040', 'H': '#e0dacb', 'h': '#2a2440', 'X': '#b48cff', 'x': '#6a4aa8', 'W': '#dfe6ee', 'w': '#5a3a24', 'k': '#1e1a26', 'L': '#2a2440'},
+                             'coat', 'long', None, 'circlet', 'sword', 'orb')),
+    ],
 }
 
 if __name__ == '__main__':

@@ -26,6 +26,10 @@ CRITS = {
     "jab": ([{"op": "status", "s": "mark", "n": "1"}], "Mark", "Mark it (every hit on it deals +3)"),
     "toss": ([{"op": "status", "s": "burn", "n": "2"}], "Burn 2", "Burn it for 2"),
     "thornlash": ([{"op": "status", "s": "root", "n": "1", "to": "another"}], "Root another enemy", "the vines spread: Root another enemy"),
+    "rune_cut": ([{"op": "carve", "n": 2}], "carve 2 more", "carve 2 more Sigils"),
+
+    # ---- the Spellblade's Burst: a crit infuses the blade
+    "sigil_burst": ([{"op": "infuse", "n": 2, "amt": "v//2"}], "infuse 2 melee hits", "the blade drinks it in: your next two melee hits this round deal +half the die and carry its element"),
 
     # ---- weapon actions
     "hack": ([{"op": "dmg", "amt": "3"}], "hit again for 3", "hit again for 3"),

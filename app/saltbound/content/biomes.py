@@ -75,7 +75,7 @@ FOES = {
                               "molten_bite": {"name": "Molten Bite", "k": "attack", "use": [0, 1], "tgt": "strongest", "st": "burn", "sn": 2}},
                      "bloodied": {"might": 2, "rule": "thorns", "n": 3, "text": "its scales run molten: whoever hits it takes 3 more.",
                                   "moves": {"eruption": {"name": "Eruption", "k": "all", "use": [0, 1, 2], "st": "burn", "sn": 1}}}},
-    "slag_tyrant": {"name": "The Slag Tyrant", "hp": 72, "row": "front", "speed": 3, "boss": True, "xp": 40, "gold": 35,
+    "slag_tyrant": {"name": "The Slag Tyrant", "hp": 64, "row": "front", "speed": 3, "boss": True, "xp": 40, "gold": 35,
                     "dice": [MAGMA, _d(8), _d(6), _d(6)],
                     "seq": ["hammer", "pour", "bellows", "quench", "eruption"],
                     "moves": {"hammer": {"name": "Slag Hammer", "k": "attack", "use": [1, 2], "tgt": "strongest", "pair": {"st": "stun", "sn": 1}},
@@ -188,7 +188,7 @@ FOES = {
                        "bloodied": {"might": 2, "rule": "curse", "st": "stun", "tgt": "strongest", "every": 3,
                                     "text": "its gaze turns to stone whoever stands tallest: every third round, the healthiest hero is Stunned.",
                                     "moves": {"thrash": {"name": "Thrash", "k": "attack", "use": [0, 1, 2], "each": True}}}},
-    "heartwood_gorgon": {"name": "The Heartwood Gorgon", "hp": 76, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 35,
+    "heartwood_gorgon": {"name": "The Heartwood Gorgon", "hp": 70, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 35,
                          "dice": [_d(8, "seer"), _d(8), _d(6), _d(6)],
                          "seq": ["gaze", "coils", "snakes", "stillness", "shatter"],
                          "moves": {"gaze": {"name": "Gorgon's Gaze", "k": "debuff", "use": [0], "st": "stun", "sn": 1, "st_min": 4, "tgt": "strongest"},
@@ -242,7 +242,7 @@ FOES = {
                               "hypnotic": {"name": "Hypnotic Sway", "k": "debuff", "use": [1], "st": "stun", "sn": 1, "st_min": 7}},
                      "bloodied": {"might": 2, "rule": "regen", "n": 5, "text": "it sheds its torn skin: it heals 5 each round.",
                                   "moves": {"thrash": {"name": "Thrash", "k": "attack", "use": [0, 1, 2], "each": True}}}},
-    "vine_mother": {"name": "The Mother of Vines", "hp": 80, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 35,
+    "vine_mother": {"name": "The Mother of Vines", "hp": 72, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 35,
                     "dice": [_d(8), _d(6), _d(6), TOXIC],
                     "seq": ["lash", "bloom", "choke", "spores", "devour"],
                     "moves": {"lash": {"name": "Thorned Lash", "k": "attack", "use": [0, 1], "each": True},
@@ -296,7 +296,7 @@ FOES = {
                       "bloodied": {"might": 2, "rule": "curse", "st": "mark", "tgt": "all", "every": 2,
                                    "text": "every eye opens: every other round, every hero is Marked.",
                                    "moves": {"blaze": {"name": "Blaze of Glory", "k": "all", "use": [0, 1, 2]}}}},
-    "radiant_arbiter": {"name": "The Radiant Arbiter", "hp": 78, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 35,
+    "radiant_arbiter": {"name": "The Radiant Arbiter", "hp": 72, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 35,
                         "dice": [_d(8), _d(8), _d(6), _d(6, "seer")],
                         "seq": ["verdict", "sentinels", "radiance", "weigh", "sentence"],
                         "moves": {"verdict": {"name": "Verdict", "k": "attack", "use": [0, 1], "tgt": "vengeful"},
@@ -348,7 +348,7 @@ FOES = {
                                 "crush": {"name": "Crystal Crush", "k": "attack", "use": [0, 1], "tgt": "strongest", "st": "stun", "sn": 1, "st_min": 8}},
                        "bloodied": {"might": 2, "rule": "thorns", "n": 4, "text": "its facets crack into blades: whoever hits it takes 4 more.",
                                     "moves": {"shatter": {"name": "Shatter", "k": "all", "use": [0, 1, 2]}}}},
-    "shard_queen": {"name": "The Shard Queen", "hp": 76, "row": "back", "speed": 4, "boss": True, "xp": 40, "gold": 35,
+    "shard_queen": {"name": "The Shard Queen", "hp": 68, "row": "back", "speed": 4, "boss": True, "xp": 40, "gold": 35,
                     "dice": [_d(8, "seer"), _d(8), _d(8), _d(6)],
                     "seq": ["shards", "brood", "lance", "facets", "shatterstorm"],
                     "moves": {"shards": {"name": "Shard Volley", "k": "attack", "use": [1, 2], "each": True},
@@ -358,8 +358,8 @@ FOES = {
                               "shatterstorm": {"name": "Shatterstorm", "k": "all", "use": [0, 1, 2], "st": "vuln", "sn": 1, "st_min": 7}},
                     "pool": {"prism_ward": {"name": "Prism Ward", "k": "guard", "use": [2, 3], "all": True},
                              "glare": {"name": "Prism Glare", "k": "debuff", "use": [0], "st": "weak", "sn": 2, "tgt": "strongest"}},
-                    "bloodied": {"might": 2, "rule": "thorns", "n": 1, "grow": 1, "cap": 4,
-                                 "text": "her crown of crystal grows: whoever hits her takes 1, and 1 more each round (up to 4).",
+                    "bloodied": {"might": 2, "rule": "thorns", "n": 2,
+                                 "text": "her crown of crystal bristles: whoever hits her takes 2.",
                                  "moves": {"brood2": {"name": "Grow the Brood", "k": "summon", "f": "shardling"}}}},
 
     # ================================================================ the Drowsing Vale: dreamlands
@@ -458,7 +458,7 @@ FOES = {
                        "bloodied": {"might": 2, "rule": "fall", "n": 4, "st": "root", "label": "Avalanche",
                                     "text": "it brings the mountain down: each round one hero is marked, and the snow lands at the round's end (Armor or a Guard stops it).",
                                     "moves": {"thrash": {"name": "Thrash", "k": "attack", "use": [0, 1, 2], "each": True}}}},
-    "rime_matriarch": {"name": "The Rime Matriarch", "hp": 80, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 40,
+    "rime_matriarch": {"name": "The Rime Matriarch", "hp": 70, "row": "back", "speed": 3, "boss": True, "xp": 40, "gold": 40,
                        "dice": [_f([1, 2, "I3", 4, 5, "I6", 7, 8]), _d(8), _d(6), _d(6)],
                        "seq": ["blizzard", "wolves", "spear", "flash_freeze", "winter"],
                        "moves": {"blizzard": {"name": "Blizzard", "k": "all", "use": [0], "st": "weak", "sn": 1, "st_min": 6},
@@ -468,10 +468,17 @@ FOES = {
                                  "winter": {"name": "Endless Winter", "k": "all", "use": [0, 1, 2]}},
                        "pool": {"glacier_wall": {"name": "Glacier Wall", "k": "guard", "use": [2, 3], "all": True},
                                 "shatter": {"name": "Shatter Ice", "k": "attack", "use": [0, 1], "each": True}},
-                       "bloodied": {"might": 2, "rule": "curse", "st": "freeze", "tgt": "all", "every": 2,
-                                    "text": "winter takes hold: every other round, every hero has a die frozen.",
+                       "bloodied": {"might": 2, "rule": "curse", "st": "freeze", "tgt": "random", "every": 1,
+                                    "text": "winter takes hold: each round, one hero has a die frozen.",
                                     "moves": {"howl": {"name": "Call the Wolves", "k": "summon", "f": "frost_wolf"}}}},
 }
+
+# The new regions' rank and file have this share of their listed health (a tuning pass, 2026-11-04: their
+# dungeons were won less often than the original three's).
+REGULAR_HP = 0.9
+for _v in FOES.values():
+    if not _v.get("boss") and not _v.get("big"):
+        _v["hp"] = max(5, round(_v["hp"] * REGULAR_HP))
 
 # Move pools: every enemy draws one of these when it appears, on top of its own moves.
 POOLS = {

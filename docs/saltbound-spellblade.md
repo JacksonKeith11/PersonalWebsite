@@ -147,3 +147,30 @@ first play. If that's too much, lower what each Sigil adds to Burst (+3 now), no
 2. Should Sigils be the Spellblade's alone, or should allies be able to carve too (a generic item passive, say)?
 3. Does Frost-as-Weak feel right, or should low rolls get a real Freeze at a cost (once per round)?
 4. Should Runewright's party Armor stay, or is the starting Sigil enough?
+
+## Balance results (2026-11-04, 400 Hard runs, seed 5000, a Spellblade in every party)
+
+**Hard 56.2%**, the same as the last batch without the class (56.3%), so a Spellblade party wins
+about as often as any other. The Spellblade deals 34.3 damage a fight round, near the Arcanist
+(35.5), the Duelist (38.5) and the Ranger (38.7). It goes down 1.21 times a run, the party's
+average. Rune Cut takes 38% of its plays (9.7 a use) and Sigil Burst 13% (17.7 a use).
+
+Picks, by "vs passed": win rate against runs offered the same pick at the same moment that took
+something else. About 160 takes each, so a gap under about 10 points is noise.
+
+| Strong | vs passed | Weak | vs passed |
+|---|---|---|---|
+| Covenant Edge (capstone) | **+22** | Detonate | **-14** |
+| Spellstrike | +10 | Hilt Rune | -12 |
+| Rune Cut+ | +10 | Bladesong | -11 |
+| Quiet Glyph | +9 | Counter-Glyph | -10 |
+| Brand | +7 | Whetted Runes | -5 |
+| Open Circuit | +6 | Feedback Loop | -4 |
+
+Near zero: Runestorm +5, Sunder Glyph +2, Arc Rune +1, Infused Steel -1, Charged Bolt -3,
+Runic Ward -3. Upgrades other than Rune Cut+ have too few takes to read.
+
+Two usage signs: **Elemental Infusion**, a starting action, is only 1.2% of plays, so infusing
+mostly comes from elsewhere. And infusion picks lead the strong list (Covenant Edge makes every
+infusion last the fight; Spellstrike infuses off every spell). Not retuned: these are for the
+owner to decide.

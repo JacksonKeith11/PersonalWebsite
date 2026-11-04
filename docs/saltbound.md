@@ -889,6 +889,8 @@ Charged Bolt (Shock), Runic Ward (Frost), Sigil Burst's crit, Feedback Loop (a B
 `sigv` and `allsig` amount variables, the `sigiled` op target), Runewright in `start_fight` and
 `Game.rest` (`hero["runes"]`), Counter-Glyph's `glyphward` in `hurt_hero`; the bots value Sigils and
 infusions in `bot.sigil_value` and `bot.infuse_value`, and plan carving before a Burst (`Board.sig`).
+Measured (2026-11-04, 400 Hard runs with a Spellblade in every party): **Hard 56.2%**, level with the batch before it;
+outlier picks and the numbers are in `docs/saltbound-spellblade.md`.
 
 Each class has two base dice, starting actions, and a pool of actions, passives and capstones that
 level-ups offer 1 of 3 from (leaning toward tags the hero already has). `classes.py` holds them all,

@@ -64,6 +64,10 @@ passes:
   one hit big enough to break Armor, an effect that needs the sum or the dice's numbers together, a
   status that only lands from a combined hit, a verb no other action has. If the answer is "a bit more
   damage", it's a flat number on a card; make it a passive or an upgrade of the basic instead.
+- **An action that loses to another of the class's own.** A condition that unlocks what the class can
+  already do better is no reward: a melee hit that reaches the back row "through" a status is pointless
+  for a class whose spells reach any row and hit harder (the draft Spellblade's Glyph Lunge against its
+  own Sigil Burst). Line each new action up against the class's whole kit, not just the basic.
 - **Requiring a pair (or a straight).** Dice are hidden until the action resolves, so the player can't
   pick two dice that match; a pair requirement is a lottery. Two d6 match 1 time in 6, a d6 and a d8 1
   in 8, a d8 and a d10 1 in 10, and an action that does nothing otherwise mostly sits unused. Pairs and

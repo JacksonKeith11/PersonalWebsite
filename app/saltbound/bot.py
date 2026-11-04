@@ -236,6 +236,12 @@ def plan_move(g, h):
                     k = hero["equip"].get(sl)
                     if k and kind not in g.item(k).get("dk", []) and g.works(k) < A.WORK_CAP:
                         return {"t": "use", "bag": i, "slot": sl}
+            forge = g.item(key).get("forge")
+            if forge:  # Starmetal and Wyrm's Ember: into the weapon, else the trinket, else the armor
+                for sl in ("weapon", "trinket", "armor"):
+                    k = hero["equip"].get(sl)
+                    if k and forge in g.temper_options(k, free=True):
+                        return {"t": "use", "bag": i, "slot": sl}
     if place and place["kind"] == "town":
         if hero["hp"] < mx * 0.7 and hero["gold"] >= g.inn_cost():
             return {"t": "inn"}
@@ -243,7 +249,7 @@ def plan_move(g, h):
             return {"t": "skiff"}
         town = g.place(hero["tile"])
         jobs = town.get("jobs") or []
-        active = [q for q in s["quests"] if not q["done"] and not q.get("failed")]
+        active = [q for q in s["quests"] if not q["done"] and not q.get("failed") and q["kind"] != "trail"]
         if jobs and not town.get("quest_taken") and len(active) < 2:
             # the best-paying job the party could manage (lairs and bounties once it's strong enough)
             ok = [i for i, j in enumerate(jobs) if j["kind"] in ("deliver", "salvage") or s["level"] >= 3]
@@ -351,18 +357,31 @@ def party_goal(g):
     # a job, while there's time to finish it, unless it's time for a dungeon
     ready_for = 2 + 2 * len(s["cleared"])
     due = s["level"] >= ready_for or s["rises"] >= 8
-    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed") and not due]
+    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed") and not due and q["kind"] != "trail"]
     for q in sorted(jobs, key=lambda q: q["until"]):
         goal = g.job_goal(q)
         trip = Wd.dist(goal, at) + (Wd.dist(goal, q["src_tile"]) if q["kind"] == "salvage" and q.get("stage") == "fetch" else 0)
         if goal is not None and trip <= (q["until"] - s["turn"] + 1) * 3 and (q["kind"] not in ("lair", "bounty") or s["level"] >= 3):
             return goal
+    # a quest under way, once the party can take its fights: always if it's near, else unless it's time for a dungeon
+    trails = sorted((q["tile"] for q in s["quests"] if q["kind"] == "trail" and not q["done"]), key=lambda t: Wd.dist(t, at))
+    if trails and s["level"] >= 3 and (not due or Wd.dist(trails[0], at) <= 8):
+        return trails[0]
+    givers = sorted((int(t) for t, p in places.items() if p["kind"] == "quest" and s["seen"][int(t)] and not p.get("taken")
+                     and not g.trail(p["q"])), key=lambda t: Wd.dist(t, at))
+    if givers and Wd.dist(givers[0], at) <= 6 and not any(d["type"] == "event" for d in s["pending"][str(alive[0])]):
+        return givers[0]
     ready_for = 2 + 2 * len(s["cleared"])
     if s["level"] >= ready_for or s["rises"] >= 8:
         dungeons = [int(t) for t, p in places.items() if p["kind"] == "dungeon" and p["region"] not in s["cleared"]]
         if dungeons:
             return min(dungeons, key=lambda t: Wd.dist(t, at))
     targets = [gr["tile"] for gr in s["groups"] if s["seen"][gr["tile"]] and (not gr["lair"] or s["level"] >= 3)]
+    # a region's quest: its giver, then each site once the party can take a big fight
+    if s["level"] >= 3:
+        targets += [q["tile"] for q in s["quests"] if q["kind"] == "trail" and not q["done"]]
+    targets += [int(t) for t, p in places.items() if p["kind"] == "quest" and s["seen"][int(t)] and not p.get("taken")
+                and not g.trail(p["q"]) and not any(d["type"] == "event" for d in s["pending"][str(alive[0])])]
     sailors = all(g.hero(h)["skiff"] for h in alive)
     targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache", "lookout", "grotto", "cove", "flotsam")
                 and not p.get("done") and not (p["kind"] == "shrine" and int(t) in lead["shrines"])

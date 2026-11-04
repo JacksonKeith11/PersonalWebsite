@@ -18,6 +18,11 @@ const MAT = {
   ember: ['#e07030', '#9a3a1a', '#ffc060'], frost: ['#9ad0f0', '#5a8ab0', '#e0f4ff'], abyss: ['#4a3a6a', '#2a1e44', '#7a62a0'],
   shark: ['#7a8a98', '#4e5a68', '#a8b4c0'], cork: ['#b89060', '#86643e', '#d4b080'], whale: ['#8a9ab0', '#5a6a80', '#c0ccd8'],
   blood: ['#b03040', '#701a26', '#e06070'], tan: ['#b8a078', '#8a7452', '#d4bc94'], purple: ['#7a4a8a', '#52305e', '#a070b0'],
+  // the other regions' materials
+  obsidian: ['#3a3048', '#1e1828', '#6a5a88'], magma: ['#d8502a', '#8a2a14', '#ffb050'], sand: ['#d8b878', '#a88a50', '#f0dca8'],
+  stone: ['#8a8478', '#5e594e', '#b0aa9c'], amber: ['#d8902a', '#9a5e14', '#f8c060'], jade: ['#3a9a6a', '#1e6a46', '#7ad0a0'],
+  holy: ['#f0e8d0', '#c8b890', '#ffffff'], crystal: ['#c890e8', '#8a58b0', '#f0d0ff'], dream: ['#8a78c8', '#5a4a90', '#c0b0f0'],
+  ice: ['#c0e8f8', '#80b8d8', '#ffffff'], fur: ['#d8d0c4', '#a49a8c', '#f4f0e8'],
 };
 const WOOD = ['#8a6a44', '#5a4028'];
 
@@ -74,6 +79,20 @@ const SHAPE = {
   keg: ['...nnnnnn...', '..nmmmmmmn..', '.aaaaaaaaaa.', '.nmmmmmmmmn.', '.nmmmmmmmmn.', '.aaaaaaaaaa.', '..nmmmmmmn..', '...nnnnnn...', '.....gg.....', '......g.....'],
   scroll: ['.nnnnnnnnnn.', 'nwmmmmmmmmwn', 'nwmaaaammmwn', 'nwmmmmmmmmwn', 'nwmaaammmmwn', 'nwmmmmmmmmwn', 'nwmaaaaammwn', 'nwmmmmmmmmwn', '.nnnnnnnnnn.'],
   jar: ['...nnnnnn...', '...naaaan...', '....nnnn....', '...nmmmmn...', '..nmlgggmn..', '..nmggggmn..', '..nmggggmn..', '..nmmmmmmn..', '...nnnnnn...'],
+  // the other regions' shapes
+  spear: ['...........l', '..........lm', '.........lmn', '........ww..', '.......wx...', '......wx....', '.....wx.....', '....wx......', '...wx.......', '..wx........', '.wx.........', 'wx..........'],
+  glaive: ['........nnl.', '.......nmmml', '........nmml', '.........wn.', '........wx..', '.......wx...', '......wx....', '.....wx.....', '....wx......', '...wx.......', '..wx........', '.wx.........'],
+  khopesh: ['......nnn...', '.....nmmmn..', '....nm..mln.', '........mln.', '.......mln..', '......mln...', '.....mln....', '...aamn.....', '...wa.......', '..wx........', '.wx.........', 'b...........'],
+  club: ['.......nnn..', '......nmmmn.', '......nmlmn.', '.....nmmmmn.', '.....nmmmn..', '....wnnnn...', '...wx.......', '..wx........', '.wx.........', 'wx..........'],
+  pick: ['....nnnnn...', '...nmmmmmn..', '..nm..w..mn.', '.n....w...n.', '......wx....', '......wx....', '......wx....', '......wx....', '......wx....', '......xx....'],
+  feather: ['.........ll.', '........lmml', '.......lmmmn', '......lmmmn.', '.....lmmmn..', '....lmmmn...', '...lmmmn....', '...mmmn.....', '..nmn.......', '.n..........', 'n...........'],
+  pouch: ['....aaaa....', '.....aa.....', '...nnnnnn...', '..nmmmmmmn..', '.nmmmlmmmmn.', '.nmlmmmmmmn.', '.nmmmmmmmmn.', '.nmmmmmmmmn.', '..nnnnnnnn..'],
+  frog: ['..nn....nn..', '.nlgn..nlgn.', '.nmmnnnnmmn.', 'nmmmmmmmmmmn', 'nmmmmmmmmmmn', '.nmmaaaammn.', '..nmmmmmmn..', '.nmn....nmn.', 'nn........nn'],
+  disc: ['....aaaa....', '..aannnnaa..', '.anmmllmmna.', '.nmlmmmmmmn.', 'anmmmggmmmna', 'anmmmggmmmna', '.nmmmmmmmmn.', '.anmmmmmmna.', '..aannnnaa..', '....aaaa....'],
+  box: ['..nnnnnnnn..', '.nmmmmmmmmn.', 'nnnnnnnnnnnn', 'nmmmmaammmmn', 'nmmmaggammmn', 'nmmmmaammmmn', 'nmmmmmmmmmmn', 'nnnnnnnnnnnn', '.w........w.'],
+  pelt: ['.nn......nn.', 'nmmn....nmmn', 'nmmmnnnnmmmn', '.nmmmmmmmmn.', '..nmmllmmn..', '..nmmmmmmn..', '..nmmmmmmn..', '.nmmmnnmmmn.', 'nmmn....nmmn', '.nn......nn.'],
+  plume: ['......aa....', '.....aggb...', '....aggb....', '...aggb.....', '..aggb......', '..agb.......', '...b........', '..n.........', '.n..........', 'n...........'],
+  ingot: ['............', '............', '...nnnnnnnn.', '..nllllllmn.', '.nmmmmmmmmn.', 'nmmmmmmmmn..', 'nnnnnnnnn...', '............'],
 };
 
 // item key -> [shape, material, accent, glow]
@@ -105,6 +124,39 @@ const ICON = {
   potion: ['flask', 'grey', 'red', 'kelp'], big_potion: ['bottle', 'green', 'tan'], bomb: ['keg', 'wood', 'iron', 'ember'], ward_scroll: ['scroll', 'tan', 'blue'],
   smelling_salts: ['jar', 'glass', 'leather', 'white'],
   powder_salt: ['jar', 'iron', 'ember', 'ember'], still_pearl: ['orb', 'pearl', 'gold'], seer_glass: ['globe', 'glass', 'gold', 'glass'],
+  // Cinderreach
+  obsidian_cleaver: ['axe', 'obsidian', 'magma', 'magma'], magma_maul: ['hammer', 'magma', 'obsidian'], ashen_wand: ['wand', 'grey', 'magma', 'ember'],
+  slagplate: ['plate', 'obsidian', 'magma'], salamander_scale: ['vest', 'magma', 'amber'], cinder_heart: ['heart', 'magma', 'obsidian'],
+  // the Shifting Sands
+  khopesh: ['khopesh', 'bronze', 'gold'], sandstorm_staff: ['staff', 'sand', 'gold', 'sand'], scarab_bow: ['bow', 'sand'],
+  nomad_wraps: ['robe', 'sand', 'blue'], sphinx_mantle: ['cloak', 'gold', 'blue'], scarab_amulet: ['locket', 'gold', 'jade', 'jade'],
+  oasis_flask: ['bottle', 'sand', 'blue'],
+  // the Stillwood
+  petrified_club: ['club', 'stone'], gorgon_glaive: ['glaive', 'stone', 'jade'], amber_rod: ['staff', 'stone', 'amber', 'amber'],
+  bark_of_ages: ['vest', 'stone', 'kelp'], sentinel_plate: ['shield', 'stone', 'amber'], amber_drop: ['gem', 'amber'], fossil_tooth: ['tooth', 'stone'],
+  // the Verdant Deep
+  machete: ['knife', 'steel', 'jade'], dart_blowpipe: ['harpoon', 'jade', 'kelp'], jade_spear: ['spear', 'jade'],
+  vinewoven_mail: ['coat', 'kelp', 'jade'], jaguar_pelt: ['pelt', 'amber', 'black'], jade_frog: ['frog', 'jade', 'gold', 'amber'],
+  // Aetherhold
+  seraph_blade: ['sword', 'holy', 'gold'], sunlance: ['spear', 'gold', 'holy'], hymnal: ['tome', 'holy', 'gold', 'gold'],
+  guardian_mantle: ['cloak', 'holy', 'gold'], vestment_of_light: ['robe', 'holy', 'gold'], angel_feather: ['feather', 'holy'],
+  sun_disc: ['disc', 'gold', 'amber', 'holy'],
+  // the Prism Wood
+  prism_staff: ['staff', 'crystal', 'crystal', 'crystal'], crystal_shiv: ['knife', 'crystal', 'iron'], geode_hammer: ['hammer', 'crystal'],
+  crystal_carapace: ['plate', 'crystal', 'glass'], prismweave_robe: ['robe', 'crystal', 'glass'], tuning_fork: ['fork', 'crystal'],
+  prism_shard: ['gem', 'crystal'],
+  // the Drowsing Vale
+  dreamcatcher: ['staff', 'wood', 'dream', 'dream'], sleepwalker_knife: ['knife', 'dream', 'black'], moonsilk_robe: ['robe', 'dream', 'pearl'],
+  nightmare_mail: ['plate', 'black', 'dream'], sandman_pouch: ['pouch', 'dream', 'gold'], music_box: ['box', 'wood', 'gold', 'dream'],
+  // the Frostpeaks
+  frostbrand: ['sword', 'ice', 'frost'], ice_pick: ['pick', 'ice'], yeti_hide: ['pelt', 'fur', 'frost'], glacier_plate: ['plate', 'ice', 'frost'],
+  rime_amulet: ['locket', 'ice', 'steel', 'frost'], aurora_crystal: ['globe', 'iron', 'ice', 'crystal'],
+  // relics
+  phoenix_plume: ['plume', 'magma', 'magma', 'ember'], sunking_khopesh: ['khopesh', 'gold', 'sand'], stillwood_heart: ['shield', 'amber', 'stone'],
+  jade_fang: ['spear', 'jade', 'gold'], arbiter_wings: ['feather', 'gold', 'holy'], heartprism: ['globe', 'crystal', 'gold', 'crystal'],
+  somnarch_lantern: ['lantern', 'dream', 'gold', 'dream'], rimeheart: ['heart', 'ice'],
+  // materials
+  fate_feather: ['feather', 'dream'], starmetal: ['ingot', 'iron', 'gold'], wyrm_ember: ['orb', 'magma'],
 };
 const BY_SLOT = { weapon: ['sword', 'steel'], armor: ['vest', 'leather'], trinket: ['coin', 'gold'], use: ['flask', 'grey', 'red', 'kelp'] };
 

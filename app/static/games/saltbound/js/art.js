@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=115';
+import { SPRITES } from './sprites.js?v=116';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -139,6 +139,10 @@ export const PLACE_ART = {
     '................', '....rrrrrr......', '...rrpppprr.....', '..rrpPwPPprr....', '..rRpPPPpPRr....', '..rRppPPppRr....', '...RRppppRR.....', '....RRRRRR......'] },
   gate: { pal: { w: '#eceae0', W: '#c8c4b8', y: '#ffe9a0', Y: '#e8d070' }, rows: [
     '....wwwwww......', '...wyyyyyyw.....', '...wyYYYYyw.....', '...wyY..Yyw.....', '...wyY..Yyw.....', '...wyY..Yyw.....', '...wyYYYYyw.....', '..WWWWWWWWWW....'] },
+  // a region's quest-giver: a banner on a pole, gold on the region's deep red
+  quest: { pal: { w: '#8a6a44', W: '#5a4028', r: '#b8443a', R: '#7a2a24', y: '#ffd870', s: '#c8bca0' }, rows: [
+    '....y...........', '....wrrrrrr.....', '....wrryyrr.....', '....wryrryr.....', '....wrryyrr.....', '....wrrrrR......', '....wRRRR.......',
+    '....w...........', '....w...........', '...sWs..........'] },
   grotto: { pal: { r: '#7a7a82', R: '#56565e', d: '#0e0c16', c: '#8fe8ff', g: '#4a7a3c' }, rows: [
     '.....g..g.......', '....rrrrrrr.....', '...rrRRRRRrr....', '..rrRdddddRrr...', '..rRddcdddRrr...', '..rRdddddcdRr...', '.rrRddddddRrrr..', '.RRRddddddRRRR..'] },
 };

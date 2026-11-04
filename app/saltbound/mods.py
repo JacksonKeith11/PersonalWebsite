@@ -131,6 +131,9 @@ MODS = {
     # the map, the bag and gold
     "move": "+n move",
     "wayfinder": "see further along the path",
+    "sandwalk": "quicksand costs no more than the land under it (biome.py land_cost)",
+    "junglewalk": "deep jungle costs 1 (biome.py land_cost)",
+    "frostborn": "no Frostbite; the frozen sea costs 1 (biome.py)",
     "rest_bonus": "resting heals this share of max HP more",
     "distiller": "resting brews two potions",
     "philosopher": "Bottle It makes two potions",

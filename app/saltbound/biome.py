@@ -39,14 +39,25 @@ class Biomes:
     def lava_at(self, t):
         return str(t) in self.s.get("lava", {})
 
+    def boon_mods(self, h):
+        """A hero's boons' mods (the quests' permanent buffs: some bend a map rule, sandwalk, junglewalk,
+        frostborn). Cheaper than `mods` for route-finding, which asks for every step."""
+        out = {}
+        for b in self.hero(h)["buffs"]:
+            if A.BUFFS[b].get("perm"):
+                for k, v in A.BUFFS[b]["mods"].items():
+                    out[k] = out.get(k, 0) + v
+        return out
+
     def land_cost(self, h, t, b, fast):
         """The cost on foot of entering land hex b of terrain t (before the skiff's landing cost)."""
         cost = Wd.COST.get(t, 1)
-        if t == "forest" and self.deep_jungle(b) and str(b) not in self.s.get("trails", {}):
+        m = self.boon_mods(h)
+        if t == "forest" and self.deep_jungle(b) and str(b) not in self.s.get("trails", {}) and not m.get("junglewalk"):
             cost = Wd.JUNGLE_COST
-        if fast and t != "ice":
+        if (fast and t != "ice") or (t == "ice" and m.get("frostborn")):
             cost = 1
-        if b in self.sinks():
+        if b in self.sinks() and not m.get("sandwalk"):
             cost = Wd.SINK_COST
         return cost
 
@@ -115,7 +126,7 @@ class Biomes:
                 t = hero["tile"]
                 p = self.place(t)
                 if self.region_here(t) == "frost" and w["bio"][t] in ("hills", "peak") and not hero["afloat"] \
-                        and not (p and p["kind"] in ("town", "camp")):
+                        and not (p and p["kind"] in ("town", "camp")) and not self.boon_mods(h).get("frostborn"):
                     if "frostbite" not in hero["buffs"]:
                         self.say(f"{hero['name']} spends the night on the ice: Frostbite (−5 max HP until it thaws).")
                     self.buff(h, "frostbite")
@@ -140,7 +151,8 @@ class Biomes:
         if top is None:
             return
         lava = s.setdefault("lava", {})
-        held = {self.hero(h)["tile"] for h in self.living()} | {g["tile"] for g in s["groups"]}
+        held = {self.hero(h)["tile"] for h in self.living()} | {g["tile"] for g in s["groups"]} | \
+            {q["tile"] for q in s["quests"] if q["kind"] == "trail" and not q["done"]}
         new = []
         for _ in range(A.LAVA_FLOWS):
             at, seen = top, {top}

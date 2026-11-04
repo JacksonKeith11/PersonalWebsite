@@ -133,6 +133,8 @@ def check_steps():
         land = [t for t in range(Wd.W * Wd.H) if w["elev"][t] > g.s["sea"] + 1]
         g.s["lava"] = {str(t): 9 for t in land[::37]}
         g.s["trails"] = {str(t): 9 for t in land[::5] if w["reg"][t] == "jungle"}
+        # the second hero has the quests' map boons (no quicksand, jungle or ice costs)
+        g.hero(1)["buffs"].update({"sandstrider": 1, "jungle_born": 1, "frostborn": 1})
         games, want = [], []
         for turn in (1, 5):  # low tide, then high
             for skiff in (False, True):

@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=115';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=115';
-import { spriteURL, placeURL } from './art.js?v=115';
-import { itemURL } from './itemart.js?v=115';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=115';
-import { MapView } from './hexmap.js?v=115';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=115';
-import { disconnect } from './main.js?v=115';
-import * as sfx from './audio.js?v=115';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=116';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=116';
+import { spriteURL, placeURL } from './art.js?v=116';
+import { itemURL } from './itemart.js?v=116';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=116';
+import { MapView } from './hexmap.js?v=116';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=116';
+import { disconnect } from './main.js?v=116';
+import * as sfx from './audio.js?v=116';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -130,7 +130,7 @@ function onTileHover(t, x, y) {
     }
     if (gr?.crew) lines.push(h('div.prize', null, `Wanted: ${gr.crew}. They run from you, a hex a turn.`));
     for (const q of (g.quests || []).filter(q => !q.done && !q.failed && q.goal === t))
-      lines.push(h('div.prize', null, `Job for ${q.src}: ${jobText(q)} (${q.left} turn${q.left === 1 ? '' : 's'} left).`));
+      lines.push(h('div.prize', null, q.kind === 'trail' ? `Quest, ${questLine(q)}: ${jobText(q)}.` : `Job for ${q.src}: ${jobText(q)} (${q.left} turn${q.left === 1 ? '' : 's'} left).`));
     const opp = (g.opps || []).find(o => o.tile === t);
     if (opp) lines.push(h('div.prize', null, `${S.static.opps[opp.kind].name}, for ${opp.left} more turn${opp.left === 1 ? '' : 's'}: ${S.static.opps[opp.kind].text}`));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
@@ -220,7 +220,7 @@ function placeTitle(p) {
     shrine: p.dark ? 'Dark shrine' : 'Shrine', camp: 'Camp', event: p.title && !p.done ? p.title : 'Something curious',
     wreck: p.guard && !p.done ? 'Guarded wreck' : 'Wreck', lair: 'Lair', cache: 'Buried cache',
     cove: 'Smugglers’ cove', flotsam: 'Flotsam', lookout: 'Lookout', grotto: p.grotto === 'spring' ? 'Grotto spring' : 'Hidden grotto',
-    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate',
+    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate', quest: p.name,
   }[p.kind] + (p.kind === 'shrine' && p.sea ? ' (drowned)' : '') + (p.occupied ? ' · occupied' : '');
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
@@ -230,12 +230,16 @@ const worldRegions = () => S.world?.regions || ['coral', 'keys', 'storm'];
 // A job in words: what to do, and what it pays.
 function jobText(q) {
   const g = S.game;
+  if (q.kind === 'trail') return S.static.quests[q.key].goals[Math.min(q.step, 2) - 1];
   if (q.kind === 'deliver') return `deliver a parcel to ${q.name}`;
   if (q.kind === 'lair') return 'clear the lair';
   if (q.kind === 'bounty') return `catch ${q.crew}`;
   if (q.stage === 'return') return `${g.heroes[q.carrier]?.name || 'someone'} brings the cargo back to ${q.src}`;
   return `fetch the cargo from a ${q.guarded ? 'guarded ' : ''}wreck`;
 }
+// A quest's place in the log: its name, the step it's on, what it ends with.
+const questLine = q => `${S.static.quests[q.key].name}${q.done ? '' : ` (step ${q.step + 1} of 3)`}`;
+const questTip = q => `Quest: ${S.static.quests[q.key].name}\nNext: ${jobText(q)}\nIt ends with ${S.static.quests[q.key].reward}. No time limit.`;
 function rewardText(r) {
   if (!r) return '';
   const st = S.static;
@@ -254,6 +258,11 @@ function garrisonText(reg) {
 function placeText(p) {
   const g = S.game;
   switch (p.kind) {
+    case 'quest': {
+      const Q = S.static.quests[p.q], q = (g.quests || []).find(x => x.kind === 'trail' && x.key === p.q);
+      return q?.done ? `${Q.name}: done.` : q ? `${Q.name}: under way (next, ${jobText(q)}).`
+        : `Offers a quest, ${Q.name}: three steps across ${S.static.regions[p.q]}, ending with ${Q.reward}. Stop here to hear it.`;
+    }
     case 'oasis': return 'Fresh water under the palms: full health and every curse lifted, once for each hero.';
     case 'fossil': return p.done ? 'Dug out.' : `Old bones in the stone, and older treasure: a pick of better loot and ${S.static.biome.fossil_xp} XP for whoever digs.`;
     case 'geode': return p.done ? 'Cracked open and emptied.' : 'A geode as big as a cart. Crack it for an enchant material.';
@@ -408,7 +417,7 @@ function renderParty() {
         h('span', { tip: 'Gold' }, icon('coin'), hero.gold),
         h('span', { tip: 'Moves per turn' }, icon('boot'), hero.moves),
         hero.skiff ? h('span', { tip: 'Has a skiff: can cross open water' }, icon('sail'), 'Skiff') : null,
-        Object.keys(hero.buffs).length ? h('span', { tip: Object.keys(hero.buffs).map(b => `${S.static.buffs[b].name}: ${S.static.buffs[b].text} (${hero.buffs[b]} turns)`).join('\n') }, icon('spark'), Object.keys(hero.buffs).length) : null),
+        Object.keys(hero.buffs).length ? h('span', { tip: Object.keys(hero.buffs).map(b => `${S.static.buffs[b].name}: ${S.static.buffs[b].text} (${S.static.buffs[b].perm ? 'for good' : `${hero.buffs[b]} turns`})`).join('\n') }, icon('spark'), Object.keys(hero.buffs).length) : null),
       h('div.mini-dice', null, ...hero.dice.map(d => h('span.mini-die', { tip: dieTip(d) }, dieLabel(d)))),
       host && !isOnline(i) && hero.alive ? h('button.btn.sm', { onclick: e => { e.stopPropagation(); reassign(i); } }, 'Hand to someone') : null);
     return card;
@@ -494,7 +503,7 @@ function renderActionbar() {
 // The server works the turn out from what the party can see (Game.forecast): one line per hero, so
 // everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
 const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'reaches a shrine', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair',
-  cache: 'digs up the cache', cove: 'searches the cove', flotsam: 'hauls in the flotsam', lookout: 'climbs the lookout', grotto: 'enters the grotto', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage' };
+  cache: 'digs up the cache', cove: 'searches the cove', flotsam: 'hauls in the flotsam', lookout: 'climbs the lookout', grotto: 'enters the grotto', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage', quest: 'takes the quest on a step' };
 // An enemy's name, with its elite affix ("Hulking Crabfolk Brute").
 export function foeName(k, aff) {
   const st = S.static;
@@ -581,6 +590,11 @@ export function renderForecast() {
       icon('spark'), h('b', null, ` ${S.static.opps[o.kind].name}`), h('span', null, `${where}: ${o.left} turn${o.left === 1 ? '' : 's'} left`)));
   }
   for (const q of (g.quests || []).filter(q => !q.done && !q.failed)) {
+    if (q.kind === 'trail') {
+      lines.push(h('div.fc-line.opp.job', { tip: `${questTip(q)}\nClick to find it on the map.`, onclick: () => q.goal != null && map?.centerOn(q.goal) },
+        icon('star'), h('b', null, ' Quest'), h('span', null, `: ${jobText(q)}`)));
+      continue;
+    }
     lines.push(h('div.fc-line.opp.job', { tip: `Job for ${q.src}: ${rewardText(q.reward)}\nClick to find it on the map.`, onclick: () => q.goal != null && map?.centerOn(q.goal) },
       icon('scroll'), h('b', null, ' Job'), h('span', null, `: ${jobText(q)}, ${q.left} turn${q.left === 1 ? '' : 's'} left`)));
   }
@@ -772,6 +786,7 @@ function itemRow(key, right, extra) {
   const sub = [];
   if (it.slot !== 'use') sub.push(it.slot[0].toUpperCase() + it.slot.slice(1));
   else if (it.enchant) sub.push(h('span.mat-kind', { tip: KIND_TEXT[it.enchant] }, `Enchant material · ${cap(it.enchant)}`));
+  else if (it.forge) sub.push(h('span.mat-kind', { tip: it.text }, `Forge material · ${it.forge === 'hone' ? 'Hone' : 'Mark'}`));
   if (it.die && it.slot !== 'use') sub.push(workPips(it));
   // an armor's own action, which takes Block's place
   if (it.guard) { const ad = S.static.actions[it.guard]; sub.push(h('span.guard-act', { tip: `${ad.name}, in place of Block\n${ad.text}` }, ad.name)); }
@@ -827,15 +842,16 @@ function compareWith(h0, key, compact) {
 }
 // How much work (tempering, enchanting) a piece of gear has taken, out of the most it can: a pip each.
 function workPips(it) {
-  const most = S.static.work.cap, n = (it.work || []).length;
-  const names = { hone: 'Honed', mark: 'Marked', exploding: 'Enchanted: Exploding', steady: 'Enchanted: Steady', seer: 'Enchanted: Seer' };
-  return h('span.pips.work', { tip: `Work ${n} of ${most}${n ? `\n${it.work.map(w => names[w] || w).join('\n')}` : '\nA smithy can temper it, and enchant materials can go into it.'}` },
-    ...Array.from({ length: most }, (_, i) => h('i' + (i < n ? '.on' : ''))));
+  const most = S.static.work.cap, all = it.work || [], n = all.filter(w => !w.startsWith('star:')).length, star = all.length - n;
+  const names = { hone: 'Honed', mark: 'Marked', exploding: 'Enchanted: Exploding', steady: 'Enchanted: Steady', seer: 'Enchanted: Seer', fate: 'Enchanted: Fate',
+    'star:hone': 'Starmetal: honed (free of the limit)', 'star:mark': 'Wyrm’s Ember: marked (free of the limit)' };
+  return h('span.pips.work', { tip: `Work ${n} of ${most}${all.length ? `\n${all.map(w => names[w] || w).join('\n')}` : '\nA smithy can temper it, and enchant materials can go into it.'}` },
+    ...Array.from({ length: most }, (_, i) => h('i' + (i < n ? '.on' : ''))), ...Array.from({ length: star }, () => h('i.on.star')));
 }
 function interleave(arr, sep) { return arr.flatMap((x, i) => (i ? [sep, x] : [x])); }
 function itemTip(key) {
   const it = item(key);
-  const lines = [it.name, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.enchant ? 'enchant material' : it.slot === 'use' ? 'consumable' : it.slot}`];
+  const lines = [it.name, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.enchant || it.forge ? 'material' : it.slot === 'use' ? 'consumable' : it.slot}`];
   if (it.die) lines.push(...dieTip({ faces: it.die, dk: it.dk || [] }).split('\n'));
   for (const a of it.acts || []) { const ad = S.static.actions[a]; lines.push(`${ad.name} (${reqText(ad.req)}): ${ad.text}`); }
   if (it.guard) { const ad = S.static.actions[it.guard]; lines.push(`In place of Block, ${ad.name}: ${ad.text}`); }
@@ -945,7 +961,10 @@ function townDrawer(h0, town, d) {
           h('button.btn.primary', { disabled, onclick: () => send({ t: 'quest', h: h0, n }) }, 'Take this job'),
           h('button.btn.ghost', { onclick: () => map?.centerOn(j.tile) }, icon('target'), 'Show on map')))),
       g.quests.length ? h('h3', null, 'Your jobs') : null,
-      ...g.quests.slice().reverse().map(q2 => h('div.item', { tip: q2.done || q2.failed ? null : 'Click to find it on the map', onclick: () => q2.goal != null && map?.centerOn(q2.goal) },
+      ...g.quests.slice().reverse().map(q2 => q2.kind === 'trail' ? h('div.item', { tip: q2.done ? null : `${questTip(q2)}\nClick to find it on the map`, onclick: () => !q2.done && q2.goal != null && map?.centerOn(q2.goal) },
+        h('div.ico', null, icon(q2.done ? 'check' : 'star')),
+        h('div', null, h('div.name', null, questLine(q2)), h('div.sub', null, q2.done ? 'Quest complete' : `Quest · next: ${jobText(q2)}`)), h('span'))
+        : h('div.item', { tip: q2.done || q2.failed ? null : 'Click to find it on the map', onclick: () => q2.goal != null && map?.centerOn(q2.goal) },
         h('div.ico', null, icon(q2.done ? 'check' : q2.failed ? 'x' : 'scroll')),
         h('div', null, h('div.name', null, cap(jobText(q2))),
           h('div.sub', null, `For ${q2.src} · ${q2.done ? 'done' : q2.failed ? 'failed' : `${q2.left} turn${q2.left === 1 ? '' : 's'} left · ${rewardText(q2.reward)}`}`)), h('span')))];
@@ -959,8 +978,14 @@ function enchantButtons(h0, i, mat, free) {
   const hero = S.game.heroes[h0], most = S.static.work.cap;
   return SLOTS.filter(slot => hero.equip[slot]).map(slot => {
     const it = item(hero.equip[slot]);
-    const why = (it.dk || []).includes(mat.enchant) ? `Its die is already ${cap(mat.enchant)}` : (it.work || []).length >= most ? 'It can’t take any more work' : !free ? 'Not in the middle of a fight' : null;
-    return h('button.btn.sm' + (why ? '' : '.primary'), { disabled: !!why, tip: why || `Make the ${it.name}’s die ${cap(mat.enchant)}, for good (work ${(it.work || []).length + 1} of ${most})`, onclick: () => send({ t: 'use', h: h0, bag: i, slot }) }, `Into ${it.name}`);
+    const done = (it.work || []).filter(w => !w.startsWith('star:')).length;
+    if (mat.forge) {
+      const nums = (it.die || []).filter(f => typeof f === 'number'), can = mat.forge === 'hone' ? nums.length && Math.min(...nums) < Math.max(...nums) : nums.length > 1;
+      const why = !can ? 'Its die can’t take that' : !free ? 'Not in the middle of a fight' : null;
+      return h('button.btn.sm' + (why ? '' : '.primary'), { disabled: !!why, tip: why || `${mat.forge === 'hone' ? 'Hone' : 'Mark'} the ${it.name}’s die, for good (free of its work limit)`, onclick: () => send({ t: 'use', h: h0, bag: i, slot }) }, `Into ${it.name}`);
+    }
+    const why = (it.dk || []).includes(mat.enchant) ? `Its die is already ${cap(mat.enchant)}` : done >= most ? 'It can’t take any more work' : !free ? 'Not in the middle of a fight' : null;
+    return h('button.btn.sm' + (why ? '' : '.primary'), { disabled: !!why, tip: why || `Make the ${it.name}’s die ${cap(mat.enchant)}, for good (work ${done + 1} of ${most})`, onclick: () => send({ t: 'use', h: h0, bag: i, slot }) }, `Into ${it.name}`);
   });
 }
 
@@ -992,8 +1017,8 @@ function heroDrawer(h0, d, readonly = false) {
         // the bag's buttons go in one row under the item, not squeezed into the right-hand column
         return itemRow(k, null, h('div.bag-acts', null,
           it.slot !== 'use' ? h('button.btn.sm', { disabled: !free, onclick: () => send({ t: 'equip', h: h0, bag: i }) }, 'Equip') : null,
-          it.slot === 'use' && !it.fight && !it.enchant ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
-          ...(it.enchant ? enchantButtons(h0, i, it, free) : []),
+          it.slot === 'use' && !it.fight && !it.enchant && !it.forge ? h('button.btn.sm', { onclick: () => send({ t: 'use', h: h0, bag: i }) }, 'Use') : null,
+          ...(it.enchant || it.forge ? enchantButtons(h0, i, it, free) : []),
           mates.length ? h('select.input.give', { 'aria-label': `Give ${it.name} to`, onchange: e => { if (e.target.value !== '') send({ t: 'give', h: h0, to: +e.target.value, bag: i }); } },
             h('option', { value: '' }, 'Give to…'), ...mates.map(m => h('option', { value: m }, g.heroes[m].name))) : null,
           town ? h('button.btn.sm.ghost', { onclick: () => send({ t: 'sell', h: h0, bag: i }) }, 'Sell') : null,
@@ -1027,7 +1052,7 @@ function heroDrawer(h0, d, readonly = false) {
         h('span.muted', null, '  ' + (i < c.dice.length ? 'class die' : 'from gear'))))),
       h('p.muted', null, '◆ is a shield face: worth 0, but it blocks 3 damage when you use it.'),
       Object.keys(hero.buffs).length ? h('h3', null, 'Blessings and curses') : null,
-      ...Object.entries(hero.buffs).map(([b, n]) => h('div.card.skill', null, h('div.row', null, h('b', null, S.static.buffs[b].name), h('span.chip', null, `${n} turns`)), h('p', null, S.static.buffs[b].text))),
+      ...Object.entries(hero.buffs).map(([b, n]) => h('div.card.skill', null, h('div.row', null, h('b', null, S.static.buffs[b].name), h('span.chip' + (S.static.buffs[b].perm ? '.brass' : ''), null, S.static.buffs[b].perm ? 'Boon, for good' : `${n} turns`)), h('p', null, S.static.buffs[b].text))),
     ];
   }
   return drawerShell(hero.name, `${c.name} · ${controllerName(h0)}${readonly ? ' · ally' : ''}`, [['gear', 'Gear'], ['skills', 'Skills'], ['about', 'About']], d, body);
@@ -1104,7 +1129,12 @@ function outcomeSummary(o) {
   if (o.hp) parts.push(`${o.hp > 0 ? '+' : '−'}${Math.abs(o.hp)} HP`);
   if (o.xp) parts.push(`+${o.xp} XP`);
   if (o.potion) parts.push(`${o.potion} potion${o.potion > 1 ? 's' : ''}`);
-  if (o.buff) parts.push(`${st.buffs[o.buff].name}${st.buffs[o.buff].curse ? ' (a curse)' : ''}`);
+  for (const b of [].concat(o.buff || [])) parts.push(`${st.buffs[b].name}${st.buffs[b].curse ? ' (a curse)' : st.buffs[b].perm ? ' (a boon, for good)' : ''}`);
+  if (o.give) parts.push(`${st.items[o.give].name} (${st.items[o.give].rarity} ${st.items[o.give].slot === 'use' ? 'material' : st.items[o.give].slot})`);
+  if (o.mat) parts.push(o.mat === 'random' ? 'an enchant material' : st.items[o.mat].name);
+  if (o.quest === 'start') parts.push('a quest');
+  else if (o.quest === 'next' && !o.win) parts.push('the quest moves on');
+  if (o.win) parts.push('if you win: ' + outcomeSummary({ ...o.win, all: false }));
   if (o.revive) parts.push('+1 revive');
   if (o.skiff) parts.push('a skiff');
   if (!parts.length) return 'nothing much';
@@ -1330,7 +1360,7 @@ function lootCard(h0, k, i, mates, choose, taken) {
   const it = item(k);
   const cur = it.slot !== 'use' && !freeSlot(hero, it.slot) ? item(hero.equip[swapSlot(hero, it.slot)]) : null;
   const head = [h('span.kbd.pick-key', null, i + 1),
-    h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.enchant ? 'enchant material' : it.slot === 'use' ? 'consumable' : it.slot}`),
+    h('span.kind.rar-' + it.rarity, null, `${it.rarity[0].toUpperCase() + it.rarity.slice(1)} ${it.enchant || it.forge ? 'material' : it.slot === 'use' ? 'consumable' : it.slot}`),
     h('div.loot-title', null, h('img.pix', { src: itemURL(k, it.slot), alt: '' }), h('h3.rar-' + it.rarity, null, it.name)),
     it.die ? faceRow(it) : null,
     it.dk?.length ? h('p', null, it.dk.map(x => KIND_TEXT[x]).filter(Boolean).join(' ')) : null,
@@ -1459,6 +1489,8 @@ export function handleFx(list, before) {
       case 'level': later.push(() => { bigBanner(`Level ${f.lvl}`, 'The party grows stronger', 'gold'); sfx.play('level'); }); break;
       case 'cleared': later.push(() => { bigBanner(`${S.static.dungeons[f.region]} cleared`, `${S.game.cleared.length} of 3 objectives`, 'gold', 2600); sfx.play('fanfare'); }); break;
       case 'buff': if (mine().includes(f.h)) later.push(() => resultNote(f.h, S.static.buffs[f.b].name, () => toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`))); break;
+      case 'quest': later.push(() => { const Q = S.static.quests[f.key], t = f.done ? `Quest complete: ${Q.name}!` : `${Q.name}: the next step is marked on your map.`;
+        mine().includes(f.h) ? resultNote(f.h, t, () => toast(t, 'big')) : toast(t, f.done ? 'big' : undefined); if (f.done) sfx.play('coin'); }); break;
       case 'job': later.push(() => { const t = `Job done for ${f.src}: +${f.gold} gold each${f.extra}`; mine().includes(f.h) ? resultNote(f.h, t, () => toast(t, 'big')) : toast(t, 'big'); sfx.play('coin'); }); break;
       case 'opp': if (list.some(r => r.k === 'rise' && (r.news || []).some(n => n.tile === f.tile))) break; later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
       case 'garrison': later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;

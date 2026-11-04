@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=115';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=115';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=115';
-import { stageURL, stageKey } from './stage.js?v=115';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=115';
-import { render } from './main.js?v=115';
-import { skillCard } from './hud.js?v=115';
-import { SKILL_FX, foeFx } from './skillfx.js?v=115';
-import * as sfx from './audio.js?v=115';
+import { S, send, mine, controllerName } from './store.js?v=116';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=116';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=116';
+import { stageURL, stageKey } from './stage.js?v=116';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=116';
+import { render } from './main.js?v=116';
+import { skillCard } from './hud.js?v=116';
+import { SKILL_FX, foeFx } from './skillfx.js?v=116';
+import * as sfx from './audio.js?v=116';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -794,7 +794,7 @@ function tray(f, x, my) {
   // one button per kind of consumable, using the first of them
   const uses = [];
   hero.bag.forEach((k, i) => {
-    if (S.static.items[k].slot !== 'use' || S.static.items[k].enchant) return;
+    if (S.static.items[k].slot !== 'use' || S.static.items[k].enchant || S.static.items[k].forge) return;
     const u = uses.find(x => x[0] === k);
     if (u) u[2]++; else uses.push([k, i, 1]);
   });

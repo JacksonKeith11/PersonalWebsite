@@ -60,6 +60,9 @@ export function seaMap(world) {
   return SEA;
 }
 
+// Game.perk: a hero's boon (a permanent buff) that bends a map rule.
+export const perk = (static_, hero, k) => Object.keys(hero.buffs || {}).some(b => static_.buffs[b]?.perm && static_.buffs[b].mods?.[k]);
+
 // Keep in step with Game.step_cost.
 export function stepCost(world, game, static_, h, a, b, afloat) {
   const hero = game.heroes[h];
@@ -75,11 +78,13 @@ export function stepCost(world, game, static_, h, a, b, afloat) {
     return [c + (sea.swirl.has(b) ? 1 : 0), true];
   }
   if (t === 'shoal') return afloat ? [1, true] : [2, false];
-  // Game.land_cost: the Verdant Deep's deep jungle (unless it's a trail), map talents, then quicksand
+  // Game.land_cost: the Verdant Deep's deep jungle (unless it's a trail), map talents, then quicksand;
+  // a quest's boon (Game.perk) can lift the jungle, ice or quicksand cost
   let c = static_.map.cost[t] ?? 1;
-  if (t === 'forest' && world.reg[b] === 'jungle' && (world.regions || []).includes('jungle') && !(game.trails && game.trails[b] != null)) c = static_.map.jungle;
-  if (t !== 'ice' && (static_.map.fast[static_.classes[hero.cls].map.key] || []).includes(t)) c = 1;
-  if (seaMap(world).sink.has(b)) c = static_.map.sink;
+  if (t === 'forest' && world.reg[b] === 'jungle' && (world.regions || []).includes('jungle') && !(game.trails && game.trails[b] != null)
+      && !perk(static_, hero, 'junglewalk')) c = static_.map.jungle;
+  if ((t !== 'ice' && (static_.map.fast[static_.classes[hero.cls].map.key] || []).includes(t)) || (t === 'ice' && perk(static_, hero, 'frostborn'))) c = 1;
+  if (seaMap(world).sink.has(b) && !perk(static_, hero, 'sandwalk')) c = static_.map.sink;
   return [c + (afloat ? 1 : 0), false];
 }
 

@@ -42,7 +42,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f = {
             "id": s["fid"], "kind": spec["kind"], "tile": spec["tile"], "heroes": spec["heroes"],
             "groups": spec.get("groups", []), "region": spec.get("region"), "step": spec.get("step", 0),
-            "path": spec.get("path"), "raid": spec.get("raid"),
+            "path": spec.get("path"), "raid": spec.get("raid"), "win": spec.get("win"), "ev": spec.get("ev"),
             "by": spec.get("by"), "round": 0, "foes": [], "hs": {}, "done": [], "guard": {}, "taunt": None,
             "sanct": 0, "aegis": 0, "xp": 0, "gold": 0, "dmul": diff["foe_dmg"] * (1 + 0.1 * tier) * self.surge(),
             "spirit": {}, "nextfoe": 1, "phase": 1, "allies": [], "nextsum": 1, "acts": {}, "pain": {},
@@ -1298,6 +1298,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.say("The vault gives up its gold: +12 each.")
         if f["kind"] == "dungeon":
             self.dungeon_advance(f)
+        if f.get("win") and winners:
+            # an event fight's prize (a quest's next step, a relic): to whoever started it, if they're still up
+            by = f["by"] if f.get("by") in winners else winners[0]
+            self.outcome(by, f["win"], next(e for e in A.EVENTS if e["key"] == f["ev"]), None)
         self.gain_xp(f["xp"])
 
     def dungeon_advance(self, f):

@@ -555,13 +555,67 @@ Owner's request (2026-11-04): each objective has its own biome, and which three 
   The Great Sandworm reuses the Reef Maw's `swallow`.
 - **Balance passes** (fast bots, 60 Normal runs): Cinderreach and the Stillwood started near 50%
   (the originals near 90%); embers, ember deaths, falling magma, the stone enemies' Armor, the stun
-  gazes and the curses were cut, which brought every region to 80-100% (the originals 100%).
+  gazes and the curses were cut, which brought every region to 80-100% (the originals 100%). Then
+  full bots, 300 Hard runs, seed 5000 (baseline 46%): **29.7%** at first (elite escorts stacking in
+  garrisons, bosses too strong) → escorts made regulars, fewer boss dice, slower bloodied rules:
+  **32.3%** → the new regions' regular enemies at 90% health (`REGULAR_HP`), boss health down to
+  64-72, the Rime Matriarch freezing one random hero, the Shard Queen's thorns static: **47.3%**.
+  By region (won, objective cleared): the Drowsing Vale 54%, the Verdant Deep 54%, the Stillwood
+  50%, the Sands 48%, Aetherhold 46%, the Frostpeaks 44%, Cinderreach 41%, the Prism Wood 41%
+  (the originals 43-57%).
 - **Art**: `tools/saltbound-art/foes2.py` (73 sprites, built into `sprites.js` with the rest),
   `stage.js` (an open-ground scene and a dungeon interior per region: `ash`...`frost`, `forge`, `tomb`,
   `heartwood`, `ziggurat`, `spire`, `geode`, `palace`, `glacier`), `hexmap.js` (ground palettes, props,
   ice, quicksand rings, lava with pulsing cores and trails in `drawBiome`, a landmark per objective),
   `art.js` (oasis, fossil, geode and gate icons), `skillfx.js` (`LOOK` per enemy, name patterns for
   fire, frost, sand, spores and light).
+
+### Quests, regional gear and boons
+
+Owner's request (2026-11-04): more events and quests for the new regions, special rewards, and 50 more
+weapons, armor and trinkets.
+
+- **Quests** (`content/quests.py`, run by the `Quests` mixin in `quests.py`): each of the eight newer
+  regions has one (`A.QUESTS`), offered by a **quest-giver** (place kind `quest`, `q` = the region, a
+  banner on the map) that `Game.place_quests` puts near the middle of each drawn region at setup
+  (old saves have none). A quest is three events: the giver's, then two **sites** chosen in the region
+  (`quest_site`, 3-7 hexes on from where the last step was done). A choice moves it with
+  `"quest": "start"` (a `kind: "trail"` entry in `s["quests"]`, beside the town jobs, so the log, the
+  forecast and the map tag show it: a gold ★ tag, no deadline) or `"quest": "next"`. A fight's choice
+  carries **`win`**: an outcome played (`Game.outcome`, from `fight_won`) only if the party wins, so a
+  lost fight or a step turned down leaves the site to come back to; nothing fails a quest. Each last
+  step offers a choice: fight the region's big threat for its **relic**, or a check (or a class
+  option) for a **boon** plus a forge material.
+- **New outcome keys**: `give` (one particular item, offered as a pick: it can be handed on or left),
+  `mat` (a material into the bag, a key or `"random"` for an enchant one), `win`; a `buff` may now be
+  a boon.
+- **Boons** (`BOONS`, merged into `A.BUFFS` with `perm`): buffs that never run out (the turn tick skips
+  them; the UI says "for good"; a temple's cleanse and an oasis only lift curses). Three bend their
+  region's map rule, read by `Biomes.boon_mods` (cheap, for route-finding) and mirrored by `perk` in
+  `rules.js`: **Sandstrider** (`sandwalk`: quicksand costs what the land under it does), **Jungle-Born**
+  (`junglewalk`: deep jungle costs 1), **Frostborn** (`frostborn`: no Frostbite, the frozen sea costs 1).
+  The others are fight mods (Emberheart, Stoneblood, Haloed, Clear-Eyed, Lucid Dreamer).
+- **Relics** (`unique`, in `content/gear2.py`): eight legendaries, one per quest, never in the loot
+  (`I.RELICS`; `I.GEAR` leaves them out): Phoenix Plume, Sun-King's Khopesh, Heart of the Stillwood,
+  Fang of the Jade Serpent, Wings of the Arbiter, the Heartprism, Somnarch's Lantern, Rimeheart.
+- **Regional gear** (`content/gear2.py`, merged into `items.ITEMS` before the guard dice are set): 52
+  pieces (22 weapons, 16 armor, 14 trinkets), six or seven per region, each tagged `region`.
+  **`Game.gear()`** is the run's loot list: the catalogue less the regional pieces of regions it didn't
+  draw (every loot, shop, prize, ship, reforge and job-reward pick goes through it). Their passives use
+  only mod keys the engine already reads, written out in `text`. Eight new weapon actions, one per
+  region (`gear2.ACTIONS`: Cinder Cleave, Scouring Wind, Stone Gaze, Vine Lash, Smite, Prism Ray, Lull,
+  Glacial Strike), and one armor action, Stoneform (the die +2 as Armor).
+- **Materials**: the **Fate Feather** (enchant: a Fate die) joins the random pool (`I.MATERIALS`).
+  **Starmetal** (hone) and **Wyrm's Ember** (mark) are forge materials (`forge`, `I.FORGE_MATS`), only
+  from quests and events: they do what the smith's Hone or Mark would, free, and **don't count against
+  the work limit** (their work is recorded as `star:hone` / `star:mark`; `Game.works` skips it; the
+  pips show it as a round gold pip).
+- **More events**: two more per region (16, `region`), several selling or hiding a particular regional
+  piece (`give`) or a forge material: the Smith in the Caldera, the Starfall Crater, the Ice Forge...
+- **Bots**: go to a quest-giver they can see within 6 hexes, and to a quest site from level 3 (even
+  when a dungeon is due, if it's within 8); they take the first choice (the fight) when healthy, so in
+  the simulator almost every drawn quest is finished: the batch numbers are a party that does them all.
+  They put forge materials into the weapon, else the trinket, else the armor.
 
 ### Events in multiplayer
 
@@ -904,7 +958,7 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 
 ### Items
 
-About 80 items (`ITEMS` in `content/items.py`; 59 that drop; each has a pixel icon, `ICON` in `js/itemart.js`): weapons give a die and actions, armor a guard die and
+About 145 items (`ITEMS` in `content/items.py`, with the regional gear, relics and materials from `content/gear2.py`; 111 that can drop, of which a run sees the original 59 plus its regions' pieces, `Game.gear()`; each has a pixel icon, `ICON` in `js/itemart.js`): weapons give a die and actions, armor a guard die and
 often a passive, trinkets an odd die, a passive or an action. Gear past the starting kit has a passive
 of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
 Shellbreaker Maul ignores Armor, the Oilskin Coat stops Burns, the Diver's Harness a Stun and Freeze,
@@ -984,7 +1038,14 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, after the sea, battlegrounds, raids, lookouts and grottos; 300 Hard runs, seed
+**Latest (Nov 2026, after the quests, regional gear and boons; 300 Hard runs, seed 5000): 56.3%**,
+up from 47.3% with the eleven regions alone. The bots finish almost every drawn quest (a relic or a
+boon each), and runs are much longer (114 turns on average, from 69; 37 rises, from 22) as they
+detour for them; classes 48-65% (Scoundrel 65, Vanguard 48), regions 48-63%. Not retuned yet: it's
+over the ~50% target, for the owner to decide (levers: the quest finales' fights, the relics' and
+boons' strength, or the bots' detours).
+
+**Before that (after the sea, battlegrounds, raids, lookouts and grottos; 300 Hard runs, seed
 5000): 46.0%** (48% before, within noise), classes 40-52% (Herald 52, Mender 40). Runs are longer
 (73 turns on average, from 59) with more roaming fights (6.5 a run, from 4.9): the bots chase raids
 and fight sea beasts. More losses come before the first objective (67 of 162, from 43 of 157),
@@ -1258,6 +1319,9 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/content/archipelago.py` | This map's enemies, pools, elites, dungeons and paths, the final boss, blessings and events. |
 | `app/saltbound/world.py` | Hex geometry (`step_dir` for a hex direction), terrain costs (`COST`, `FAST`), generating a run's map from its seed, and its extras (`add_features`: currents, reefs, whirlpools, places at sea, lookouts, grottos). |
 | `app/saltbound/biome.py` | `Biomes`, mixed into `Game`: the other regions' map rules (lava and eruptions, quicksand, trails, ice, sight, Frostbite, timeless Stillwood, dreams, oases, fossils, geodes, light-gates). |
+| `app/saltbound/quests.py` | `Quests`, mixed into `Game`: placing the quest-givers, offering a quest's steps, moving a trail on (`quest_move`), choosing its sites. |
+| `app/saltbound/content/quests.py` | The quests (`QUESTS`, `QUEST_OF`), their events, the boons (`BOONS`), and two more events per region, merged into `archipelago.py`. |
+| `app/saltbound/content/gear2.py` | The regional gear (52 pieces), the relics, the Fate Feather and the forge materials, and their weapon actions, merged into `items.py`. |
 | `app/saltbound/content/biomes.py` | The eight other regions' enemies, crits, groups, lairs, dungeons, big threats, names, land names (`SKINS`), rules (`RULES`), blessings and events, merged into `archipelago.py`. |
 | `app/saltbound/rng.py` | The seeded RNG (its state is in the save). |
 | `app/saltbound/room.py` | Rooms: joining, the lobby, controllers, autosaving, testing bots. The socket and room codes are the shared `app/rooms.py`. |
@@ -1335,6 +1399,12 @@ clock anywhere: the run changes only when someone acts.
 
 ## Gotchas
 
+- **A trail is a job without a deadline** (`kind: "trail"` in `s["quests"]`): code that walks the jobs
+  must skip or handle it (it has no `until`, `reward` or `left`; the bots' job sort would crash on it).
+  An event's fight carries its `win` and `ev` into the fight dict, so `fight_won` can play the prize.
+- **Boons are buffs with `perm`**: anything that counts turns down or lists buffs with their turns
+  must check it. A map boon has to be mirrored in `rules.js` (`perk`); `saltbound-check.py`'s step
+  check gives the second hero all three.
 - **The bots' scoring works out once per target what doesn't depend on the roll** (`evaluate`'s
   `prep`): `target_part`/`target_env_from` split `target_env`, `combo_parts`/`combo_sum` split
   `combo_peek` (in `combos.py`, beside it), and `die_sig` is cached while a bot thinks (`frozen`). A

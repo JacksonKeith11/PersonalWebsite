@@ -205,7 +205,8 @@ FOES = {
                                 "deluge": {"name": "The Deluge", "k": "all", "use": [0, 1, 2, 3]}}},
 }
 
-from . import biomes as _B  # noqa: E402  (the other regions' content, merged into these tables)
+from . import biomes as _B
+from . import quests as _Q  # noqa: E402  (the other regions' content, merged into these tables)
 FOES.update(_B.FOES)
 
 # Move pools: every enemy draws one of these when it appears, on top of its own moves.
@@ -383,6 +384,7 @@ BUFFS = {
     "siren_favor": {"name": "Siren's Favour", "text": "+1 damage on every hit and +6 max HP.", "turns": 8, "mods": {"might": 1, "max_hp": 6}},
 }
 BUFFS.update(_B.BUFFS)
+BUFFS.update(_Q.BUFFS)  # the quests' boons: permanent (`perm`)
 SHRINE_BUFFS = ["swift", "might", "warded", "vigor"]
 
 # ---------------------------------------------------------------- the overworld's choices
@@ -827,6 +829,9 @@ EVENTS = [
      ]},
 ]
 EVENTS += _B.EVENTS
+EVENTS += _Q.EVENTS
+QUESTS = _Q.QUESTS      # each newer region's quest (quests.py)
+QUEST_OF = _Q.QUEST_OF  # event key -> its quest
 
 
 def event_risk(ev):

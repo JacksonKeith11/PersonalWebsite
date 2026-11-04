@@ -261,6 +261,11 @@ for _k, (_m, _t) in PASSIVES.items():
     ITEMS[_k]["mods"] = {**ITEMS[_k].get("mods", {}), **_m}
     ITEMS[_k]["text"] = (ITEMS[_k].get("text", "") + " " + _t).strip()
 
+# The other regions' gear, relics and materials (gear2.py: their passives and guard actions come with them).
+from . import gear2 as _G  # noqa: E402
+WEAPON_ACTIONS.update(_G.ACTIONS)
+ITEMS.update(_G.ITEMS)
+
 GUARD_ACT = {'hide_vest': 'hunker',
              'padded_coat': 'hunker',
              'wool_robe': 'hunker',
@@ -300,9 +305,12 @@ def slots_for(item_slot):
     return [item_slot]
 
 
-CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use" and not v.get("enchant")]
-MATERIALS = [k for k, v in ITEMS.items() if v.get("enchant")]
-GEAR = [k for k, v in ITEMS.items() if v["slot"] != "use" and not v.get("start")]
+CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use" and not v.get("enchant") and not v.get("forge")]
+MATERIALS = [k for k, v in ITEMS.items() if v.get("enchant")]  # found at random (shrines, grottos, wrecks, fights)
+FORGE_MATS = list(_G.FORGE_MATS)  # Starmetal and Wyrm's Ember: only quests and events hand them out
+RELICS = list(_G.RELICS)          # each region's quest reward, never in the loot
+# loot: every piece of gear but the starting kit and the relics (Game.gear drops the regions a run didn't draw)
+GEAR = [k for k, v in ITEMS.items() if v["slot"] != "use" and not v.get("start") and not v.get("unique")]
 
 
 def price(key):

@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=115';
-import { spriteCanvas, placeCanvas } from './art.js?v=115';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=116';
+import { spriteCanvas, placeCanvas } from './art.js?v=116';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -954,7 +954,7 @@ export class MapView {
         // a town's name under it, so it's still findable with heroes standing on its houses
         L.add(this.scene.add.text(cx, cy + 25, p.name, { fontFamily: 'Inter', fontSize: '8px', fontStyle: 'bold', color: '#f3ead2', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5, 0.5));
       }
-      if (p.done || (p.kind === 'dungeon' && this.state.cleared.includes(p.region))) img.setAlpha(0.45);
+      if (p.done || p.taken || (p.kind === 'dungeon' && this.state.cleared.includes(p.region))) img.setAlpha(0.45);
       if (p.kind === 'peak' && this.state.cleared.length < 3) img.setTint(0x8a8a8a);
       if (p.kind === 'shrine' && p.dark) img.setTint(0xb48ae0);
       if (p.kind === 'shrine' && p.sea) img.setTint(0x7ad8d0);
@@ -982,8 +982,10 @@ export class MapView {
     for (const q of this.state.quests || []) {
       if (q.done || q.failed || q.goal == null) continue;
       const [cx, cy] = center(q.goal);
-      L.add(this.scene.add.rectangle(cx + 15, cy - 14, 15, 15, 0xe8dcc0).setStrokeStyle(2, 0x6a5232).setAngle(45));
-      L.add(this.scene.add.text(cx + 15, cy - 14, String(q.left), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#2a2430', resolution: 4 }).setOrigin(0.5));
+      // a quest's site: a gold tag with a star (no deadline); a job's: parchment with the turns left
+      const quest = q.kind === 'trail';
+      L.add(this.scene.add.rectangle(cx + 15, cy - 14, 15, 15, quest ? 0xe8c060 : 0xe8dcc0).setStrokeStyle(2, quest ? 0x7a5420 : 0x6a5232).setAngle(45));
+      L.add(this.scene.add.text(cx + 15, cy - 14, quest ? '★' : String(q.left), { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#2a2430', resolution: 4 }).setOrigin(0.5));
     }
   }
 

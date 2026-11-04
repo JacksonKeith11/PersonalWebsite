@@ -18,6 +18,7 @@ from . import classes as C
 from . import mods as M
 from . import world as Wd
 from .biome import Biomes
+from .quests import Quests
 from .combat import Combat, Invalid
 from .content import archipelago as A
 from .content import items as I
@@ -54,7 +55,7 @@ M.check_content([(f"passive {k}", p["mods"]) for k, p in C.PASSIVES.items()]
                 + [(f"blessing {k}", b["mods"]) for k, b in A.BUFFS.items()])
 
 
-class Game(Combat, Biomes):
+class Game(Combat, Biomes, Quests):
     def __init__(self, s):
         self.s = s
         self.rng = Rng(s["rng"])
@@ -98,8 +99,9 @@ class Game(Combat, Biomes):
         for t, p in w["places"].items():
             if p["kind"] == "lair":
                 gr = g.add_group(int(t), list(g.rng.choice(A.LAIRS[g.near_region(int(t))])), lair=True)
-                gr["prize"] = g.rng.choice([k for k in I.GEAR if g.item(k)["rarity"] == "rare"])
+                gr["prize"] = g.rng.choice([k for k in g.gear() if g.item(k)["rarity"] == "rare"])
         g.setup_places(g.rng, guards=True)
+        g.place_quests(g.rng)
         g.town_jobs(w["start"])
         g.reset_plans()
         names = [f"{A.DUNGEONS[r]['name']} in {A.REGION_NAMES[r]}" for r in g.regions()]
@@ -1020,6 +1022,8 @@ class Game(Combat, Biomes):
             if hero["alive"] and self.timeless(h):
                 continue  # the Stillwood: nothing runs down there
             for b in list(hero["buffs"]):
+                if A.BUFFS[b].get("perm"):
+                    continue  # a boon is for good
                 hero["buffs"][b] -= 1
                 if hero["buffs"][b] <= 0:
                     del hero["buffs"][b]
@@ -1096,7 +1100,7 @@ class Game(Combat, Biomes):
                 o["stock"] = []
                 for _ in range(3):
                     r = self.rarity_for(2)
-                    pool = [k for k in I.GEAR if self.item(k)["rarity"] == r and k not in o["stock"]] or I.GEAR
+                    pool = [k for k in self.gear() if self.item(k)["rarity"] == r and k not in o["stock"]] or self.gear()
                     o["stock"].append(self.rng.choice(pool))
             s["opps"].append(o)
             self.reveal(t, 1)
@@ -1231,10 +1235,10 @@ class Game(Combat, Biomes):
             foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
             g = self.add_group(t, foes)
             g["sighted"] = s["turn"] + A.TIDE_SIGHTED - 1
-            g["prize"] = self.rng.choice([x for x in I.GEAR if self.item(x)["rarity"] == "rare"])
+            g["prize"] = self.rng.choice([x for x in self.gear() if self.item(x)["rarity"] == "rare"])
         elif k == "leviathan":
             g = self.add_group(t, [self.big_for(reg)], lair=True)
-            g["prize"] = self.rng.choice([x for x in I.GEAR if self.item(x)["rarity"] == "rare"])
+            g["prize"] = self.rng.choice([x for x in self.gear() if self.item(x)["rarity"] == "rare"])
         if g:
             g["tide"] = True
             g["until"] = s["turn"] + A.TIDE_STAY * (2 if k == "leviathan" else 1) - 1
@@ -1354,7 +1358,7 @@ class Game(Combat, Biomes):
         stock = []
         for _ in range(5):
             rr = self.rarity_for(2)
-            pool = [k for k in I.GEAR if self.item(k)["rarity"] == rr and k not in stock] or I.GEAR
+            pool = [k for k in self.gear() if self.item(k)["rarity"] == rr and k not in stock] or self.gear()
             stock.append(self.rng.choice(pool))
         self.s["shops"][str(t)] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
 
@@ -1446,7 +1450,9 @@ class Game(Combat, Biomes):
         k = p["kind"]
         if self.biome_land(h, t, p):
             return
-        if k == "event" and not p.get("done"):
+        if k == "quest":
+            self.quest_land(h, t, p)
+        elif k == "event" and not p.get("done"):
             key = p.get("ev") or self.pick_event(h)["key"]
             self.s.setdefault("events_seen", []).append({"key": key})
             p["done"] = True
@@ -1781,14 +1787,25 @@ class Game(Combat, Biomes):
             bits.append(f"+{out['xp']} XP")
         if out.get("item"):
             self.offer_loot(h, 2, rarity=out["item"])
+        if out.get("give"):
+            # one particular piece, offered as a pick (so it can be handed to an ally, or left)
+            self.push(h, {"type": "loot", "opts": [out["give"]]})
+            bits.append(self.item(out["give"])["name"])
+        if out.get("mat"):
+            mat = self.rng.choice(I.MATERIALS) if out["mat"] == "random" else out["mat"]
+            self.gain_item(h, mat)
+            bits.append(self.item(mat)["name"])
         self.fx("event", h=h, key=ev["key"], text=out.get("text", ""), roll=roll, bits=bits)
         self.say(f"{hero['name']} — {ev['title']}: {out.get('text', '')}" + (f" ({', '.join(bits)})" if bits else ""))
+        if out.get("quest"):
+            self.quest_move(h, ev["key"], out["quest"])
         if out.get("fight"):
             # anyone on or next to the hex (and not already in a fight) joins in
             busy = {y for fs in self.s["fights"] for y in fs["heroes"]} | set((self.s["fight"] or {}).get("heroes", []))
             heroes = [h] + [y for y in self.living() if y != h and y not in busy
                             and Wd.dist(self.hero(y)["tile"], hero["tile"]) <= 1]
-            self.s["fights"].append({"kind": "event", "tile": hero["tile"], "heroes": heroes, "foes": list(out["fight"]), "by": h})
+            self.s["fights"].append({"kind": "event", "tile": hero["tile"], "heroes": heroes, "foes": list(out["fight"]), "by": h,
+                                     "win": out.get("win"), "ev": ev["key"]})
             if self.s["phase"] == "plan":
                 self.s["after"] = "plan"
                 self.next_step()
@@ -1862,8 +1879,8 @@ class Game(Combat, Biomes):
             if len(opts) >= n:
                 break
             r = rarity or self.rarity_for(tier_bonus)
-            pool = [k for k in I.GEAR if self.item(k)["rarity"] == r and k not in opts] or \
-                [k for k in I.GEAR if k not in opts]
+            pool = [k for k in self.gear() if self.item(k)["rarity"] == r and k not in opts] or \
+                [k for k in self.gear() if k not in opts]
             if self.rng.chance(0.2):
                 pool = [k for k in I.CONSUMABLES if k not in opts] or pool
             opts.append(self.rng.choice(pool))
@@ -1954,7 +1971,7 @@ class Game(Combat, Biomes):
             stock = []
             for _ in range(5):
                 r = self.rarity_for(1)
-                pool = [k for k in I.GEAR if self.item(k)["rarity"] == r and k not in stock] or I.GEAR
+                pool = [k for k in self.gear() if self.item(k)["rarity"] == r and k not in stock] or self.gear()
                 stock.append(self.rng.choice(pool))
             self.s["shops"][key] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
         return self.s["shops"][key]
@@ -2012,11 +2029,21 @@ class Game(Combat, Biomes):
             return I.ITEMS[key]
         return {**I.ITEMS[rec["base"]], "die": rec["die"], "dk": rec["dk"], "work": rec["work"], "base": rec["base"]}
 
+    def gear(self):
+        """The loot this run can turn up: every piece in the catalogue, less the regional pieces of
+        regions it didn't draw (the original three regions' gear has no region and is always in)."""
+        regs = tuple(self.regions())
+        c = getattr(self, "_gear", None)
+        if c is None or c[0] != regs:
+            self._gear = c = (regs, [k for k in I.GEAR if I.ITEMS[k].get("region") in (None,) + regs])
+        return c[1]
+
     def price(self, key):
         return I.price(key) + A.WORK_RESALE * len(self.item(key).get("work", []))
 
     def works(self, key):
-        return len(self.item(key).get("work", []))
+        """The work done on a piece of gear that counts against its limit (Starmetal and Wyrm's Ember don't)."""
+        return sum(1 for w in self.item(key).get("work", []) if not w.startswith("star:"))
 
     def rework(self, key, die, dk, what):
         """Record one more work on a piece of gear; returns its key (a new one the first time)."""
@@ -2045,14 +2072,15 @@ class Game(Combat, Biomes):
             return max(tagged, key=lambda f: int(f[1:]))
         return "W"
 
-    def temper_options(self, key):
-        """What the smith can do to a piece of gear: {what: (new faces, cost)}, empty at the cap."""
+    def temper_options(self, key, free=False):
+        """What the smith can do to a piece of gear: {what: (new faces, cost)}, empty at the cap
+        (`free`: what a forge material can do, whatever the cap, for nothing)."""
         it = self.item(key)
         die = it.get("die")
         n = self.works(key)
-        if not die or n >= A.WORK_CAP:
+        if not die or (n >= A.WORK_CAP and not free):
             return {}
-        cost = A.TEMPER_COST[it["rarity"]][n]
+        cost = 0 if free else A.TEMPER_COST[it["rarity"]][n]
         nums = [i for i, f in enumerate(die) if isinstance(f, int)]
         out = {}
         if nums:
@@ -2101,6 +2129,18 @@ class Game(Combat, Biomes):
         if not key:
             raise Invalid("Enchant what? Pick a piece of gear you wear.")
         it = self.item(key)
+        if mat.get("forge"):
+            # Starmetal hones, Wyrm's Ember marks: like the smith, but free and past the work limit
+            what = mat["forge"]
+            opts = self.temper_options(key, free=True)
+            if what not in opts:
+                raise Invalid("Its die can't take that.")
+            hero["bag"].pop(i)
+            hero["equip"][slot] = self.rework(key, opts[what][0], list(it.get("dk", [])), "star:" + what)
+            self.fx("temper", h=h, slot=slot, what=what)
+            self.say(f"{hero['name']} works the {mat['name']} into the {it['name']}: its die "
+                     f"{'is honed' if what == 'hone' else 'gains a special face'} (free of its work limit).")
+            return
         kind = mat["enchant"]
         if kind in it.get("dk", []):
             raise Invalid(f"Its die is already {kind.capitalize()}.")
@@ -2135,7 +2175,7 @@ class Game(Combat, Biomes):
         if hero["gold"] < cost:
             raise Invalid("You can't afford that.")
         up = I.RARITIES[I.RARITIES.index(self.item(key)["rarity"]) + 1]
-        pool = [k for k in I.GEAR if self.item(k)["slot"] == self.item(key)["slot"] and self.item(k)["rarity"] == up and k != I.base(key)]
+        pool = [k for k in self.gear() if self.item(k)["slot"] == self.item(key)["slot"] and self.item(k)["rarity"] == up and k != I.base(key)]
         if not pool:
             raise Invalid("The smith has nothing better for that slot.")
         hero["gold"] -= cost
@@ -2305,7 +2345,7 @@ class Game(Combat, Biomes):
         kind_r = self.rng.weighted(weights)
         r = {"gold": round(gold * A.JOB_GOLD_CUT[kind_r]), "type": kind_r}
         if kind_r == "item":
-            r["item"] = self.rng.choice([k for k in I.GEAR if self.item(k)["rarity"] == "rare"])
+            r["item"] = self.rng.choice([k for k in self.gear() if self.item(k)["rarity"] == "rare"])
         if kind_r == "trade":
             r["spec"] = spec
         job["reward"] = r
@@ -2342,6 +2382,8 @@ class Game(Combat, Biomes):
         self.say(f"{self.hero(h)['name']} takes a job in {p['name']}: {self.job_line(q)} ({q['turns']} turns).")
 
     def job_line(self, q):
+        if q["kind"] == "trail":
+            return f"the quest {A.QUESTS[q['key']]['name']}"
         if q["kind"] == "deliver":
             return f"a parcel for {q['name']}"
         if q["kind"] == "lair":
@@ -2368,7 +2410,9 @@ class Game(Combat, Biomes):
         for q in self.s["quests"]:
             if q["done"] or q.get("failed"):
                 continue
-            if q["kind"] == "deliver" and q["to"] == t:
+            if q["kind"] == "trail":
+                self.trail_land(h, q, t)
+            elif q["kind"] == "deliver" and q["to"] == t:
                 self.complete_quest(q, h)
             elif q["kind"] == "salvage" and q.get("stage") == "fetch" and q["tile"] == t and not self.group_at(t):
                 q["stage"], q["carrier"] = "return", h
@@ -2381,6 +2425,8 @@ class Game(Combat, Biomes):
         for q in self.s["quests"]:
             if q["done"] or q.get("failed"):
                 continue
+            if q["kind"] == "trail" and q["tile"] == t and not self.group_at(t):
+                return "quest"
             if (q["kind"] == "deliver" and q["to"] == t) or \
                     (q["kind"] == "salvage" and q.get("stage") == "return" and q["carrier"] == h and q["src_tile"] == t):
                 return "job"
@@ -2497,7 +2543,7 @@ class Game(Combat, Biomes):
         it = self.item(key)
         if it["slot"] != "use":
             raise Invalid("You can't use that.")
-        if it.get("enchant"):
+        if it.get("enchant") or it.get("forge"):
             if self.in_fight(h):
                 raise Invalid("Not in the middle of a fight.")
             self.enchant(h, i, msg.get("slot"))
@@ -2609,6 +2655,7 @@ def static():
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},
         "grounds": A.GROUNDS, "squall": {"r": A.SQUALL_R, "sight": A.SQUALL_SIGHT}, "lookout_sight": A.LOOKOUT_SIGHT,
         "work": {"cap": A.WORK_CAP, "hone": A.HONE_UP, "cost": A.TEMPER_COST},
+        "quests": A.QUESTS,
         "biome": {"skins": A._B.SKINS, "rules": A._B.RULES, "storms": A.STORMS, "trail_turns": A.TRAIL_TURNS, "lava_turns": A.LAVA_TURNS,
                   "erupt_every": A.ERUPT_EVERY, "jungle_sight": A.JUNGLE_SIGHT, "prism_sight": A.PRISM_SIGHT, "grace": round(A.GRACE_REST * 100),
                   "fossil_xp": A.FOSSIL_XP, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},

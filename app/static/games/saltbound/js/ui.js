@@ -42,6 +42,7 @@ const P = {
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
   feather: '<path d="M20 4c-8 0-13 5-13 12v4M7 16h7M10 12h7c2-2 3-5 3-8"/>',
   flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',

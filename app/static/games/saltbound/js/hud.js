@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=103';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=103';
-import { spriteURL, placeURL } from './art.js?v=103';
-import { itemURL } from './itemart.js?v=103';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=103';
-import { MapView } from './hexmap.js?v=103';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=103';
-import { disconnect } from './main.js?v=103';
-import * as sfx from './audio.js?v=103';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=106';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=106';
+import { spriteURL, placeURL } from './art.js?v=106';
+import { itemURL } from './itemart.js?v=106';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=106';
+import { MapView } from './hexmap.js?v=106';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=106';
+import { disconnect } from './main.js?v=106';
+import * as sfx from './audio.js?v=106';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -44,7 +44,7 @@ export function renderGame() {
     teardownGame();
     root = h('div.game', null,
       h('div.map#map'),
-      h('div#topbar'), h('div#party.party'), h('div#forecast'), h('div#actionbar'), h('div#log'), h('div#hint'),
+      h('div#topbar'), h('div#party.party'), h('div#forecast'), h('div#partyev'), h('div#actionbar'), h('div#log'), h('div#hint'),
       h('div.zoom', null,
         h('button.btn.icon', { 'aria-label': 'Zoom in', tip: 'Zoom in\nOr use the mouse wheel', onclick: () => map?.zoomBy(1) }, icon('plus')),
         h('button.btn.icon', { 'aria-label': 'Zoom out', tip: 'Zoom out', onclick: () => map?.zoomBy(-1) }, h('span', { style: { fontSize: '20px', lineHeight: 1 } }, '−')),
@@ -62,6 +62,7 @@ export function renderGame() {
   renderParty();
   renderActionbar();
   renderForecast();
+  renderPartyEvents();
   renderLog();
   renderDrawer();
   renderDialogs();
@@ -547,6 +548,58 @@ export function renderForecast() {
     ...(UI.fc ? [...heroLines, lines.length ? h('div.fc-news', null, ...lines) : null, h('div.fc-foot', null, 'Hidden enemies can still ambush you.')] : [])));
 }
 
+// An ally's event, live on everyone else's screen: what it is, each choice with its odds and what's at
+// stake for the party (a fight pulls in anyone within a hex; a shared outcome reaches everyone on the
+// hex; a party check takes your die too, if you chip in), and a button to suggest a choice. Opens by
+// itself when the ally asks the party; otherwise it's a one-line strip that opens on a click.
+function renderPartyEvents() {
+  const el = $('partyev');
+  if (!el) return;
+  const g = S.game, me = mine();
+  const cards = [];
+  g.heroes.forEach((hero, x) => {
+    const d = (g.pending[x] || [])[0];
+    if (me.includes(x) || !hero.alive || !d || d.type !== 'event' || combatOpen()) return;
+    const ev = S.static.events[d.key];
+    const myHero = me.find(y => g.heroes[y].alive);
+    const near = myHero != null && hexDist(g.heroes[myHero].tile, hero.tile) <= 1;
+    const here = myHero != null && g.heroes[myHero].tile === hero.tile;
+    const okey = `${x}:${d.key}:${g.turn}`, open = UI.evOpen?.[okey] ?? !!d.asked;
+    const mySugg = myHero != null ? d.sugg?.[myHero] : undefined;
+    const flags = new Set();
+    for (const ch of ev.choices) for (const o of [ch.ok, ch.bad, ch.great]) {
+      if (o?.fight) flags.add('fight');
+      if (o?.all) flags.add('all');
+    }
+    if (ev.choices.some(ch => ch.check?.die === 'party')) flags.add('party');
+    const flagText = { fight: near ? 'Could start a fight: you’re within a hex, so you’d be pulled in.' : 'Could start a fight (anyone within a hex is pulled in).',
+      all: here ? 'Good outcomes reach you too: you’re on the hex.' : 'Good outcomes reach everyone on the hex.',
+      party: here ? 'Has a party check: you can chip in your die.' : 'Has a party check (allies on the hex can chip in).' };
+    const head = h('button.pe-head', { onclick: () => { (UI.evOpen ||= {})[okey] = !open; renderPartyEvents(); }, 'aria-expanded': String(open) },
+      h('i.dot', { style: { '--seat': seat(x) } }), h('b', null, hero.name), h('span', null, d.huddle ? ' is rolling a party check: ' : d.asked ? ' asks the party: ' : ' is at: '),
+      h('span.pe-title', null, ev.title), icon(open ? 'chevron-up' : 'chevron-down'));
+    const body = !open ? null : [
+      h('p.pe-text', null, ev.text),
+      flags.size ? h('div.pe-flags', null, ...[...flags].map(f => h('span.chip' + (f === 'fight' && near ? '.warn' : ''), null, flagText[f]))) : null,
+      h('div.pe-choices', null, ...ev.choices.map((ch, n) => {
+        const ck = ch.check ? eventOdds(x, ch.check) : null;
+        const fans = Object.entries(d.sugg || {}).filter(([, v]) => v === n).map(([y]) => g.heroes[y].name);
+        const missing = ch.need && !g.heroes.some(y => y.alive && y.cls === ch.need);
+        return h('div.pe-choice' + (mySugg === n ? '.mine' : '') + (missing ? '.off' : ''), null,
+          h('div.pe-label', null, h('b', null, ch.label), ck ? h('span.pe-odds', null, ` ${Math.round(ck.p * 100)}%${ck.pAll != null ? ` (${Math.round(ck.pAll * 100)}% with help)` : ''}`) : null,
+            ch.need ? h('span.muted', null, ` · ${cls(ch.need).name}${missing ? ' needed' : ''}`) : null, ch.cost ? h('span.muted', null, ` · ${ch.cost} gold`) : null),
+          h('div.pe-stakes', null, ch.check ? `${ck.vs ? 'Win' : ck.need + '+'}: ${outcomeSummary(ch.ok)} · Else: ${outcomeSummary(ch.bad)}` : outcomeSummary(ch.ok)),
+          fans.length ? h('div.pe-fans', null, icon('chat'), `${fans.join(' and ')} suggest${fans.length === 1 ? 's' : ''} this`) : null,
+          myHero != null && !d.huddle && !missing ? h('button.btn.sm' + (mySugg === n ? '.primary' : '.ghost'), {
+            onclick: () => send({ t: 'suggest', h: myHero, to: x, n: mySugg === n ? null : n }),
+          }, mySugg === n ? 'Suggested' : 'Suggest') : null);
+      })),
+    ];
+    cards.push(h('div.pe-card' + (open ? '.open' : '') + (d.asked ? '.asked' : ''), { style: { '--seat': seat(x) } }, head, ...(body || [])));
+  });
+  el.replaceChildren(...cards);
+}
+
 function restText(h0) {
   const g = S.game, hero = g.heroes[h0];
   const p = g.places[hero.tile];
@@ -935,22 +988,21 @@ function faceVal(f, faces) {
 function eventOdds(x, spec) {
   if (typeof spec === 'number') spec = { n: spec };
   const g = S.game;
-  let roller = x, which = spec.die || 'best';
-  if (which === 'party') {
-    const here = g.heroes.map((y, i) => i).filter(i => g.heroes[i].alive && g.heroes[i].tile === g.heroes[x].tile);
-    const top = i => Math.max(...eventDie(i, 'best').faces.map(f => faceVal(f, eventDie(i, 'best').faces)));
-    roller = here.reduce((a, b) => (top(b) > top(a) ? b : a), x);
-    which = 'best';
-  }
-  const d = eventDie(roller, which);
-  const bonus = g.heroes[roller].skills.includes('silver_voice') ? 1 : 0;
-  const vals = d.faces.map(f => faceVal(f, d.faces) + bonus);
-  const p = spec.vs ? vals.reduce((a, v) => a + Math.max(0, Math.min(v - 1, spec.vs)) / spec.vs, 0) / vals.length
-    : vals.filter(v => v >= (spec.n ?? 4)).length / vals.length;
-  const whose = roller === x ? 'your' : `${g.heroes[roller].name}’s`;
-  const label = d.bare ? `a bare d4 (no ${which})` : `${whose} ${SLOT_NAME[which] || 'best'} die (${dieLabel(d)})`;
-  const text = spec.vs ? ` Roll ${label}, beat a d${spec.vs}:` : ` Roll ${label}, ${spec.n ?? 4}+${(spec.die === 'party') ? ' · anyone on your hex can roll it' : ''}:`;
-  return { p, text, need: spec.n ?? 4, vs: spec.vs, greatAt: spec.great };
+  const party = spec.die === 'party', which = party ? 'best' : spec.die || 'best';
+  // the chance one hero's die makes it
+  const pOf = y => {
+    const d = eventDie(y, which), bonus = g.heroes[y].skills.includes('silver_voice') ? 1 : 0;
+    const vals = d.faces.map(f => faceVal(f, d.faces) + bonus);
+    return spec.vs ? vals.reduce((a, v) => a + Math.max(0, Math.min(v - 1, spec.vs)) / spec.vs, 0) / vals.length
+      : vals.filter(v => v >= (spec.n ?? 4)).length / vals.length;
+  };
+  const d = eventDie(x, which);
+  // a party check: allies on the hex can chip in their best die too; the best roll counts
+  const mates = party ? g.heroes.map((y, i) => i).filter(i => i !== x && g.heroes[i].alive && g.heroes[i].tile === g.heroes[x].tile) : [];
+  const p = pOf(x), pAll = 1 - mates.reduce((a, y) => a * (1 - pOf(y)), 1 - p);
+  const label = d.bare ? `a bare d4 (no ${which})` : `your ${SLOT_NAME[which] || 'best'} die (${dieLabel(d)})`;
+  const text = spec.vs ? ` Roll ${label}, beat a d${spec.vs}:` : ` Roll ${label}, ${spec.n ?? 4}+:`;
+  return { p, pAll: mates.length ? pAll : null, mates, party, pOf, text, need: spec.n ?? 4, vs: spec.vs, greatAt: spec.great };
 }
 function outcomeSummary(o) {
   if (!o) return '';
@@ -972,7 +1024,9 @@ function eventRollView(r) {
   return h('div.ev-roll' + (r.ok ? '.ok' : '.bad'), null,
     h('div.big-die', null, h('span', null, r.v)),
     r.vs ? [h('span.vs', null, 'vs'), h('div.big-die.foe', null, h('span', null, r.opp))] : null,
-    h('div.ev-need', null, r.vs ? `Beat a d${r.vs}` : `Needed ${r.need}+`, r.by != null && r.by !== undefined ? h('small', null, `${S.game.heroes[r.by].name} rolled ${dieLabel({ faces: r.faces, dk: [] })}`) : null),
+    h('div.ev-need', null, r.vs ? `Beat a d${r.vs}` : `Needed ${r.need}+`,
+      r.rolls ? h('small', null, r.rolls.map(x => `${S.game.heroes[x.by].name} ${x.v}`).join(' · ') + ` (best counts)`)
+        : r.by != null ? h('small', null, `${S.game.heroes[r.by].name} rolled ${dieLabel({ faces: r.faces, dk: [] })}`) : null),
     h('div.rt-verdict.' + (r.ok ? 'hit' : 'miss'), null, verdict));
 }
 
@@ -1029,17 +1083,60 @@ function renderDialogs() {
   const seenPools = new Set();
   let first = true, wide = false, lootKey = null;
   // a level-up's one pick comes before the spoils (the new skill can change what gear you want)
-  const RANK = { event: 0, level: 1, loot: 2, pool: 2 };
+  const RANK = { event: 0, help: 0, level: 1, loot: 2, pool: 2 };
   const order = q.map((d, i) => i).sort((a, b) => RANK[q[a].type] - RANK[q[b].type] || a - b);
   order.forEach(i => {
     const d = q[i];
     if (blocked && i > 0) return;
     let sec = null;
-    if (d.type === 'event') {
+    if (d.type === 'event' && d.huddle) {
+      // a party check waiting on allies: who's chipped in so far, roll now, or take it back
+      const ev = S.static.events[d.key], ch = ev.choices[d.huddle.n];
+      const ck = eventOdds(h0, ch.check);
+      const inNow = d.huddle.helpers.filter(y => d.huddle.offers[y]);
+      const pNow = 1 - inNow.reduce((a, y) => a * (1 - ck.pOf(y)), 1 - ck.p);
+      sec = [
+        h('h3', null, ev.title),
+        h('p.lead', null, `${ch.label}: a party check. Everyone on your hex who chips in rolls their best die too, and the best roll counts. If it fails, they share the bad outcome.`),
+        h('div.huddle', null, ...d.huddle.helpers.map(y => {
+          const st = d.huddle.offers[y];
+          return h('div.hud-row' + (st === true ? '.in' : st === false ? '.out' : '.wait'), { style: { '--seat': seat(y) } },
+            h('i.dot'), h('b', null, g.heroes[y].name),
+            h('span', null, st === true ? ` chips in (${dieLabel(eventDie(y, 'best'))})` : st === false ? ' stays out' : ' deciding…'));
+        })),
+        h('p.muted', null, `Chance now: ${Math.round(pNow * 100)}%${ck.pAll != null ? ` (${Math.round(ck.pAll * 100)}% if everyone chips in)` : ''}.`),
+        h('div.huddle-btns', null,
+          h('button.btn.primary', { onclick: () => choose(i) }, icon('dice'), inNow.length ? `Roll now with ${inNow.map(y => g.heroes[y].name).join(' and ')}` : 'Roll now, alone'),
+          h('button.btn.ghost', { onclick: () => choose(i, null, { cancel: true }) }, 'Choose something else')),
+      ];
+    } else if (d.type === 'help') {
+      // an ally's party check: chip in or not
+      const ev = S.static.events[d.key], ch = ev.choices[d.n], who = g.heroes[d.h];
+      const ck = eventOdds(d.h, ch.check);
+      const mine1 = eventDie(h0, 'best');
+      const pWith = 1 - (1 - ck.p) * (1 - ck.pOf(h0));
+      sec = [
+        h('h3', null, `${who.name} asks you to chip in`),
+        h('p.lead', null, `${ev.title}: ${ch.label}. They need ${ck.vs ? `to beat a d${ck.vs}` : `${ck.need}+`}. Chip in and you roll your best die (${dieLabel(mine1)}) too: the best roll counts.`),
+        h('div.stakes-box', null,
+          h('div', null, h('b', null, 'If it works: '), outcomeSummary(ch.ok)),
+          h('div', null, h('b', null, 'If it fails: '), outcomeSummary(ch.bad), ' — and you share it if you chipped in.')),
+        h('p.muted', null, `Their chance alone: ${Math.round(ck.p * 100)}%. With you: ${Math.round(pWith * 100)}%.`),
+        h('div.huddle-btns', null,
+          h('button.btn.primary', { onclick: () => choose(i, 1) }, icon('dice'), 'Chip in'),
+          h('button.btn.ghost', { onclick: () => choose(i, 0) }, 'Not this time')),
+      ];
+    } else if (d.type === 'event') {
       const ev = S.static.events[d.key];
+      const others = g.heroes.map((y, j) => j).filter(j => j !== h0 && g.heroes[j].alive && !mine().includes(j));
+      const sugg = d.sugg || {};
       sec = [
         h('h3', null, ev.title),
         h('p.lead', null, ev.text),
+        others.length ? h('div.ask-row', null,
+          h('button.btn.sm' + (d.asked ? '.ghost' : ''), { onclick: () => send({ t: 'ask', h: h0 }), tip: 'Show this event on everyone’s screen and ask what they’d do. Their suggestions appear on the choices.' },
+            icon('chat'), d.asked ? 'Asked the party' : 'Ask the party'),
+          Object.keys(sugg).length ? h('span.muted', null, `${Object.keys(sugg).length} suggestion${Object.keys(sugg).length === 1 ? '' : 's'}`) : null) : null,
         h('div.choices', null, ...ev.choices.map((ch, n) => {
           const missing = ch.need && !g.heroes.some(x => x.alive && x.cls === ch.need);
           const broke = (ch.cost || 0) > hero.gold;
@@ -1050,11 +1147,14 @@ function renderDialogs() {
           const stakes = ch.check
             ? [ch.great ? `${ck.greatAt}+: ${outcomeSummary(ch.great)}` : null, `${ck.vs ? 'Win' : ck.need + '+'}: ${outcomeSummary(ch.ok)}`, `${ck.vs ? 'Lose' : 'Else'}: ${outcomeSummary(ch.bad)}`].filter(Boolean).join(' · ')
             : outcomeSummary(ch.ok);
-          return h('button.choice', { disabled: missing || broke, onclick: () => choose(i, n) },
+          const fans = Object.entries(sugg).filter(([, v]) => v === n).map(([y]) => g.heroes[y].name);
+          return h('button.choice' + (fans.length ? '.suggested' : ''), { disabled: missing || broke, onclick: () => choose(i, n) },
             h('span.n', null, n + 1),
             h('span.grow', null, h('span.label', null, ch.label),
-              ck ? h('span.roll', null, icon('dice'), ck.text, h('b.odds' + (ck.p >= 0.6 ? '.good' : ck.p >= 0.35 ? '.mid' : '.bad'), null, ` ${Math.round(ck.p * 100)}%`)) : null,
-              stakes ? h('span.stakes', null, stakes) : null),
+              ck ? h('span.roll', null, icon('dice'), ck.text, h('b.odds' + (ck.p >= 0.6 ? '.good' : ck.p >= 0.35 ? '.mid' : '.bad'), null, ` ${Math.round(ck.p * 100)}%`),
+                ck.pAll != null ? h('span.party-odds', null, ` · ${Math.round(ck.pAll * 100)}% if ${ck.mates.map(y => g.heroes[y].name).join(' and ')} chip in`) : null) : null,
+              stakes ? h('span.stakes', null, stakes) : null,
+              fans.length ? h('span.sugg', null, icon('chat'), `${fans.join(' and ')} suggest${fans.length === 1 ? 's' : ''} this`) : null),
             tags.length ? h('span.tag', null, tags.join(' · ')) : null);
         })),
       ];
@@ -1278,7 +1378,12 @@ export function handleFx(list, before) {
       case 'found': later.push(() => { toast(`${S.game.heroes[f.h].name} finds a hidden grotto`); sfx.play('coin'); }); break;
       case 'lookout': later.push(() => toast(`${S.game.heroes[f.h].name} climbs the lookout: ${f.r} hexes of land on the map`)); break;
       case 'squall': later.push(() => toast('A squall gathers over Stormcrag’s waters')); break;
+      case 'ask': if (!mine().includes(f.h)) { (UI.evOpen ||= {})[`${f.h}:${f.key}:${S.game.turn}`] = true; later.push(() => { toast(`${S.game.heroes[f.h].name} asks the party: ${S.static.events[f.key].title}`, 'big'); sfx.play('rare'); }); } break;
+      case 'huddle': if (f.helpers.some(y => mine().includes(y))) later.push(() => sfx.play('rare')); break;
       case 'event':
+        if (!mine().includes(f.h)) {
+          later.push(() => toast(`${S.game.heroes[f.h].name} — ${S.static.events[f.key].title}: ${f.text}${f.bits?.length ? ` (${f.bits.join(', ')})` : ''}${f.roll ? ` · rolled ${f.roll.v}` : ''}`));
+        }
         if (mine().includes(f.h)) {
           later.push(() => {
             resOf(f.h).outcomes.push({ title: S.static.events[f.key].title, text: f.text, roll: f.roll, bits: f.bits });

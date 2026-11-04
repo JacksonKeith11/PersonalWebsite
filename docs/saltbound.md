@@ -494,6 +494,32 @@ the run's seed with a generator of its own, after the islands and places); their
 - **The bots** go after a raid they can catch before it arrives, steer clear of occupied towns when
   they need healing, and visit lookouts, found grottos and (once every hero has a skiff) sea places.
 
+### Events in multiplayer
+
+The owner asked for events to be shared between the three players (Nov 2026: item 7 of a review of
+three-player multiplayer). Rules in `game.py` (`do_choose`, `resolve_event`, `share_bad`,
+`do_suggest`, `do_ask`); the browser's side is `renderPartyEvents` and the event, huddle and help
+sections of the results screen in `hud.js`.
+
+- **Everyone sees an ally's event as it happens.** While a hero is at an event, the other players get
+  a strip under the top bar ("Bob is at: The Stranded Skiff") that opens into the story, each choice
+  with its odds and stakes, and what it means for them: it could start a fight (anyone within a hex is
+  pulled in; flagged red when they are), good outcomes reach everyone on the hex, or it has a party
+  check they could chip in to. When it's settled, everyone gets a toast of the outcome.
+- **Ask the party, and suggest.** The hero at the event can ask the party (`ask`): the strip opens on
+  everyone's screen with a toast and a sound. Anyone can suggest a choice (`suggest`, stored as `sugg`
+  on the event's dialog); suggestions show on the chooser's buttons ("Alice suggests this"). They're
+  only advice.
+- **Party checks are chipped in to.** Choosing a party check (`check.die == "party"`) with allies on the
+  hex opens a huddle (`huddle` on the event's dialog) and gives each of them a `help` dialog: chip in
+  (roll your best die too; the best roll counts) or not. If the check fails, everyone who chipped in
+  shares its harm: its HP loss, gold loss and curses (`share_bad`); a fight pulls in everyone nearby
+  anyway. The check rolls once every ally has answered, or when the chooser rolls early; the chooser
+  can also take it back and pick something else. Both sides see the odds alone and with help. Before,
+  a party check simply used the best die of anyone on the hex.
+- **The bots** chip in while they have half their health or more, and a bot at an event waits for its
+  huddle to be answered.
+
 ### Animation and feedback
 
 The owner asked for every idea of a review of the UI's graphics and animation (Nov 2026). Everything
@@ -1201,7 +1227,7 @@ clock anywhere: the run changes only when someone acts.
   `tools/saltbound-audit.py` plays bots to one (`start`, `loot`, `level`, `event`, `fight`, `fork`,
   `boss`, `won`, `lost`, and for the map `tide` (just after a rise that landed enemies), `raid` (a raid on
   the road and a squall), `occupied`, `seafight`, `ground` (round 1 of a fight with a battleground), `opp`, `trade` (standing in a smithy, temple or cartographer
-  town), `garrison` (a boss fork with a garrison), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
+  town), `garrison` (a boss fork with a garrison), `partyevent` (everyone on one hex, hero 1 at a party-check event, for two players), `board` (in a town with two jobs up), `job` (a bounty or salvage job under way), `results` (a hero with two kinds of choice waiting, e.g. a level-up and spoils)...) and saves it for the token "audit"; the browser resumes it and screenshots.
   Set `SALTBOUND_DB` the same for the server and the tool on a scratch database. `node
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 

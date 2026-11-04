@@ -640,6 +640,7 @@ class Game(Combat):
             "reforge": self.do_reforge, "temple": self.do_temple, "chart": self.do_chart,
             "place": self.do_place, "reroll": self.do_reroll,
             "fready": self.do_fready, "spirit": self.do_spirit, "fork": self.do_fork,
+            "suggest": self.do_suggest, "ask": self.do_ask,
         }.get(t)
         if handler is None:
             raise Invalid("Unknown action.")
@@ -1472,7 +1473,14 @@ class Game(Combat):
             raise Invalid("That choice isn't open.")
         d = q[i]
         n = msg.get("n")
-        if d["type"] == "event":
+        if d["type"] == "event" and d.get("huddle"):
+            # a party check waiting on allies: roll now with whoever has chipped in, or take it back
+            if msg.get("cancel"):
+                self.end_huddle(h, d)
+                d.pop("huddle")
+            else:
+                self.resolve_event(h, d, d["huddle"]["n"])
+        elif d["type"] == "event":
             ev = next(e for e in A.EVENTS if e["key"] == d["key"])
             if not isinstance(n, int) or not 0 <= n < len(ev["choices"]):
                 raise Invalid("Pick one of the choices.")
@@ -1482,17 +1490,25 @@ class Game(Combat):
                 raise Invalid("Nobody in the party can do that.")
             if ch.get("cost", 0) > hero["gold"]:
                 raise Invalid("You can't afford that.")
-            hero["gold"] -= ch.get("cost", 0)
+            helpers = self.helpers_for(h) if isinstance(ch.get("check"), dict) and ch["check"].get("die") == "party" else []
+            if helpers:
+                # a party check with allies on the hex: ask each of them to chip in first
+                d["huddle"] = {"n": n, "helpers": helpers, "offers": {}}
+                for y in helpers:
+                    self.push(y, {"type": "help", "h": h, "key": d["key"], "n": n})
+                self.fx("huddle", h=h, key=d["key"], n=n, helpers=helpers)
+            else:
+                self.resolve_event(h, d, n)
+        elif d["type"] == "help":
+            # an ally's party check: chip in (roll your best die too, and share a bad outcome) or not
+            owner = d["h"]
+            od = next((x for x in self.s["pending"][str(owner)] if x["type"] == "event" and x.get("huddle")), None)
             q.pop(i)
-            out = ch["ok"]
-            roll = None
-            if ch.get("check"):
-                roll = self.event_roll(h, ch["check"])
-                if not roll["ok"]:
-                    out = ch["bad"]
-                elif ch.get("great") and roll.get("great"):
-                    out = ch["great"]
-            self.outcome(h, out, ev, roll)
+            if od:
+                od["huddle"]["offers"][str(h)] = bool(n)
+                self.say(f"{self.hero(h)['name']} {'chips in' if n else 'stays out of it'}.")
+                if all(str(y) in od["huddle"]["offers"] for y in od["huddle"]["helpers"]):
+                    self.resolve_event(owner, od, od["huddle"]["n"])
         elif d["type"] == "loot":
             if n is None or n == -1:
                 q.pop(i)
@@ -1528,6 +1544,84 @@ class Game(Combat):
         elif self.s["phase"] == "plan" and self.all_ready():
             self.resolve_turn()
 
+    def helpers_for(self, h):
+        """Allies who could chip in on a hero's party check: everyone alive on the same hex."""
+        return [y for y in self.living() if y != h and self.hero(y)["tile"] == self.hero(h)["tile"]]
+
+    def end_huddle(self, h, d):
+        """Take back the chip-in asks for a hero's party check."""
+        for y in d["huddle"]["helpers"]:
+            self.s["pending"][str(y)] = [x for x in self.s["pending"][str(y)] if not (x["type"] == "help" and x["h"] == h)]
+
+    def resolve_event(self, h, d, n):
+        """An event's choice happens: pay its cost, roll its check (with any allies who chipped in),
+        and play the outcome. A failed party check's bad outcome reaches everyone who chipped in."""
+        ev = next(e for e in A.EVENTS if e["key"] == d["key"])
+        ch = ev["choices"][n]
+        hero = self.hero(h)
+        helpers = []
+        if d.get("huddle"):
+            helpers = [y for y in d["huddle"]["helpers"] if d["huddle"]["offers"].get(str(y)) and self.hero(y)["alive"]]
+            self.end_huddle(h, d)
+        q = self.s["pending"][str(h)]
+        if d in q:
+            q.remove(d)
+        hero["gold"] -= min(hero["gold"], ch.get("cost", 0))
+        out = ch["ok"]
+        roll = None
+        if ch.get("check"):
+            roll = self.event_roll(h, ch["check"], helpers)
+            if not roll["ok"]:
+                out = ch["bad"]
+            elif ch.get("great") and roll.get("great"):
+                out = ch["great"]
+        self.outcome(h, out, ev, roll)
+        if roll and not roll["ok"] and helpers:
+            self.share_bad(helpers, out, ev)
+
+    def share_bad(self, helpers, out, ev):
+        """Allies who chipped in on a failed party check take its harm too: lost HP, lost gold, curses."""
+        for y in helpers:
+            hy, bits = self.hero(y), []
+            if out.get("hp", 0) < 0:
+                hy["hp"] = max(1, hy["hp"] + out["hp"])
+                bits.append(f"{out['hp']} HP")
+            if out.get("gold", 0) < 0:
+                hy["gold"] = max(0, hy["gold"] + out["gold"])
+                bits.append(f"{out['gold']:+d} gold")
+            for b in self.buffs_of(out):
+                if A.BUFFS[b].get("curse"):
+                    self.buff(y, b)
+                    bits.append(A.BUFFS[b]["name"])
+            if bits:
+                self.fx("event", h=y, key=ev["key"], text="You chipped in, and you share the bad luck.", roll=None, bits=bits)
+                self.say(f"{hy['name']} shares the bad luck ({', '.join(bits)}).")
+
+    def do_suggest(self, h, msg):
+        """A hero suggests one of an ally's event choices (or takes the suggestion back with n None)."""
+        to, n = msg.get("to"), msg.get("n")
+        if not isinstance(to, int) or not 0 <= to < 3 or to == h:
+            raise Invalid("Suggest to whom?")
+        q = self.s["pending"][str(to)]
+        if not q or q[0]["type"] != "event":
+            raise Invalid("They aren't choosing anything now.")
+        ev = next(e for e in A.EVENTS if e["key"] == q[0]["key"])
+        sugg = q[0].setdefault("sugg", {})
+        if n is None:
+            sugg.pop(str(h), None)
+        elif isinstance(n, int) and 0 <= n < len(ev["choices"]):
+            sugg[str(h)] = n
+        else:
+            raise Invalid("Suggest one of the choices.")
+
+    def do_ask(self, h, msg):
+        """A hero asks the party what to do about their event: everyone else's screen shows it."""
+        q = self.s["pending"][str(h)]
+        if not q or q[0]["type"] != "event":
+            raise Invalid("Nothing to ask about.")
+        q[0]["asked"] = True
+        self.fx("ask", h=h, key=q[0]["key"])
+
     def event_die(self, h, which):
         """The die an event check rolls: a slot's item die (a bare d4 with nothing there), or the
         hero's best die."""
@@ -1538,23 +1632,29 @@ class Game(Combat):
             return d["faces"] if d else [1, 2, 3, 4]
         return max((d["faces"] for d in dice), key=top_face)
 
-    def event_roll(self, h, spec):
+    def event_roll(self, h, spec, helpers=()):
         """Roll an event check. `spec` is a number (best die, that much or more) or {die: weapon,
-        armor, trinket, best or party (the best die of anyone on your hex), n: the target, vs: an
-        opponent's die size to beat instead, great: a roll for the best outcome}."""
+        armor, trinket, best or party (a party check: you and every ally on your hex who chips in each
+        roll your best die, and the best roll counts), n: the target, vs: an opponent's die size to
+        beat instead, great: a roll for the best outcome}."""
         from .dice import face, top_face
         if isinstance(spec, int):
             spec = {"n": spec}
         which = spec.get("die", "best")
-        roller = h
-        if which == "party":
-            here = [x for x in self.living() if self.hero(x)["tile"] == self.hero(h)["tile"]]
-            roller = max(here, key=lambda x: top_face(self.event_die(x, "best")))
+        party = which == "party"
+        if party:
             which = "best"
-        faces = self.event_die(roller, which)
-        v, t = face(self.roll_face(faces))
-        v = (top_face(faces) if t == "W" else v) + self.mods(roller).get("silver_voice", 0)
+        rolls = []
+        for roller in [h] + (list(helpers) if party else []):
+            faces = self.event_die(roller, which)
+            v, t = face(self.roll_face(faces))
+            v = (top_face(faces) if t == "W" else v) + self.mods(roller).get("silver_voice", 0)
+            rolls.append({"by": roller, "v": v, "faces": faces})
+        best = max(rolls, key=lambda r: r["v"])
+        v, faces, roller = best["v"], best["faces"], best["by"]
         out = {"v": v, "die": which, "faces": faces, "by": roller}
+        if len(rolls) > 1:
+            out["rolls"] = rolls
         if spec.get("vs"):
             opp = self.rng.randint(1, spec["vs"])
             out.update(opp=opp, vs=spec["vs"], ok=v > opp)

@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=103';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=103';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=103';
-import { stageURL, stageKey } from './stage.js?v=103';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=103';
-import { render } from './main.js?v=103';
-import { skillCard } from './hud.js?v=103';
-import { SKILL_FX, foeFx } from './skillfx.js?v=103';
-import * as sfx from './audio.js?v=103';
+import { S, send, mine, controllerName } from './store.js?v=106';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=106';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=106';
+import { stageURL, stageKey } from './stage.js?v=106';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=106';
+import { render } from './main.js?v=106';
+import { skillCard } from './hud.js?v=106';
+import { SKILL_FX, foeFx } from './skillfx.js?v=106';
+import * as sfx from './audio.js?v=106';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };

@@ -55,6 +55,8 @@ SCENARIOS = {
     and g.s["world"]["elev"][g.s["fight"]["tile"]] <= g.s["sea"],
     "ground": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and not g.s["pending"]["0"]
     and g.s["fight"].get("ground") and g.s["fight"]["round"] == 1,
+    # an ally's event, for two players (tools/saltbound-mp.js events): set up in main()
+    "partyevent": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -100,6 +102,12 @@ def main():
         if name == "loot":
             # show off the rarities
             g.s["pending"]["0"][0]["opts"] = ["crownbreaker", "storm_glass", "coral_blade"]
+        if name == "partyevent":
+            # everyone on one hex, and hero 1 (the second player's) at an event with a party check
+            for y in (0, 2):
+                g.hero(y)["tile"], g.hero(y)["afloat"] = g.hero(1)["tile"], g.hero(1)["afloat"]
+            g.s["pending"]["1"] = [{"type": "event", "key": "stuck_skiff"}]
+            g.s["plans"] = {str(y): {"path": [], "ready": False, "rest": False} for y in range(3)}
         S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
         print(f"{name}: saved (seed {seed}, turn {g.s['turn']}, phase {g.s['phase']})")
 

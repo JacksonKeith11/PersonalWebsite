@@ -101,6 +101,8 @@ def order(g, heroes):
 
 def choose(g, h, d):
     hero = g.hero(h)
+    if d["type"] == "event" and d.get("huddle"):
+        return None  # waiting for allies to chip in on its party check
     if d["type"] == "event":
         ev = next(e for e in A.EVENTS if e["key"] == d["key"])
         ok = [i for i, ch in enumerate(ev["choices"])
@@ -110,6 +112,9 @@ def choose(g, h, d):
             safe = [i for i in ok if not ("fight" in ev["choices"][i]["ok"] and hero["hp"] < g.maxhp(h) * 0.6)]
             best = (safe or ok or [0])[0]
         return {"t": "choose", "n": best}
+    if d["type"] == "help":
+        # chip in on an ally's party check while healthy enough to share a bad outcome
+        return {"t": "choose", "i": g.s["pending"][str(h)].index(d), "n": 1 if hero["hp"] >= g.maxhp(h) * 0.5 else 0}
     if d["type"] == "loot":
         # the pick that most improves on what's worn in its slot (consumables by rarity)
         opts = d["opts"]

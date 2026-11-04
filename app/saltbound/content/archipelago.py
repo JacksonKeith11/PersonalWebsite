@@ -501,7 +501,8 @@ CACHE_RANGE = (5, 12)
 
 # Events. A choice may need a class (`need`), cost gold (`cost`) or roll a die (`check`): a number
 # (your best die must roll at least that), or {die: weapon, armor, trinket (a bare d4 if that slot is
-# empty), best, or party (the best die of anyone on your hex: bring friends), n: the target, vs: an
+# empty), best, or party (a party check: allies on your hex may chip in, each rolling their best die
+# too, the best roll counting; if it fails they share its harm; `Game.resolve_event`), n: the target, vs: an
 # opponent's die to beat instead, great: a roll that earns the `great` outcome}. Outcomes: text,
 # gold (can be negative), hp, xp, item (a rarity), potion, buff (curses too; a list for several),
 # revive, skiff, fight (enemy keys), all (healing and buffs reach everyone on your hex too), chain (a
@@ -652,7 +653,7 @@ EVENTS = [
     {"key": "stuck_skiff", "title": "The Stranded Skiff", "text": "An abandoned skiff is wedged on a sandbar, oars and all. It would take "
      "a strong back, or several, to shift it.",
      "choices": [
-         {"label": "Heave it free (anyone on your hex helps)", "check": {"die": "party", "n": 5},
+         {"label": "Heave it free (allies on your hex can chip in)", "check": {"die": "party", "n": 5},
           "ok": {"text": "It scrapes, groans and floats. It's yours now.", "skiff": True},
           "bad": {"text": "It doesn't budge. Your back has opinions about this.", "hp": -3}},
          {"label": "Lift it like a crate", "need": "vanguard", "ok": {"text": "You simply pick it up and put it in the water. Nobody says anything.", "skiff": True}},

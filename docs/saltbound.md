@@ -901,6 +901,10 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
   for `WORK_RESALE` (10) more per work. Selling, dropping or reforging it forgets its record.
 - **Bots** put materials into the weapon, else the trinket, else the armor; at a smithy they reforge
   only unworked gear, then temper (Mark on weapons and trinkets, Hone on armor) with 25 gold to spare.
+- **Measured** (2026-11-04, 300 Hard runs, seed 5000): **Hard 45.3%** against 46.0% before, inside
+  the noise, with about 2 works a run (646 temper and enchant effects). Gold already goes on inns,
+  reforges and gear, so the bots work little; players who save for it will get more out of it. Not
+  re-tuned: the owner reviews balance.
 
 **Skill texts** follow one style (owner's request: clearer): "the die" is the number it shows, "On
 5+:" is what a roll meeting the requirement does and "Otherwise:" what a lower one does, "Any row"

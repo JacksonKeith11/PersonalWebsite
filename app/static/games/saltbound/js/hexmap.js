@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=116';
-import { spriteCanvas, placeCanvas } from './art.js?v=116';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=117';
+import { spriteCanvas, placeCanvas } from './art.js?v=117';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -941,7 +941,8 @@ export class MapView {
     L.removeAll(true);
     for (const [t, p] of Object.entries(this.state.places)) {
       const [cx, cy] = center(+t);
-      const kind = p.kind === 'dungeon' && this.state.cleared.includes(p.region) ? 'dungeon' : p.kind;
+      // an event shows what it risks in its icon (a seal's colour, a dagger for a fight); once seen, a plain note
+      const kind = p.kind === 'event' && !p.done && (p.risk === 'risky' || p.risk === 'fight') ? `event_${p.risk}` : p.kind;
       const tex = this.texFor('place_' + kind, () => placeCanvas(kind));
       const yoff = p.kind === 'town' ? 14 : 2;
       // places are drawn half again as big as their 16px art, on a soft shadow, so they read at a glance
@@ -962,7 +963,9 @@ export class MapView {
       // what's there, before anyone arrives: a wreck's loot, an event's risk, a garrison's size
       const dot = (x, y, col) => L.add(this.scene.add.circle(cx + x, cy + y, 3.5, col).setStrokeStyle(1, 0x0b1017));
       if (p.kind === 'wreck' && !p.done) dot(13, 10, RARITY_COL[p.rarity] || 0xb8b0a0);
-      if (p.kind === 'event' && !p.done && p.risk && p.risk !== 'safe') dot(13, 10, p.risk === 'fight' ? 0xd0624f : 0xe0a050);
+      // an event with an option for a class someone in the party has: a gold spark by it
+      if (p.kind === 'event' && !p.done && p.needs?.some(k => this.state.heroes.some(x => x.alive && x.cls === k)))
+        L.add(this.scene.add.text(cx - 13, cy - 13, '✦', { fontFamily: 'Inter', fontSize: '11px', color: '#ffd870', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5));
       if (p.kind === 'cove' && !p.done) dot(13, 10, RARITY_COL.rare);
       const gs = p.kind === 'dungeon' && !this.state.cleared.includes(p.region) ? this.state.garrison?.[p.region] : null;
       if (gs?.n) L.add(this.scene.add.text(cx + 12, cy - 16, '+' + gs.n, { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffb3a0', stroke: '#0b1017', strokeThickness: 3, resolution: 4 }).setOrigin(0.5));

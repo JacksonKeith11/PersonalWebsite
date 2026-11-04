@@ -354,8 +354,11 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
 
 - **What a place offers shows before you go** (`Game.setup_places`, run once at the start of a run and
   by the v8 save migration): each event hex has its own event from the start (`ev`), and the map shows
-  its title, a risk (`event_risk`: safe, a roll could go badly, could turn into a fight; red or amber
-  dot) and which classes would have another option. Wrecks show their loot's rarity (a coloured dot).
+  its title, a risk (`event_risk`: safe, a roll could go badly, could turn into a fight) and which
+  classes would have another option. The risk is in its icon (`event`, `event_risky`, `event_fight` in
+  `art.js`: a sealed note whose wax seal is green, amber or red, the fight's with a dagger through it;
+  a seen event is a plain note), and a gold ✦ beside it means someone in the party has a class with
+  an option there. Wrecks show their loot's rarity (a coloured dot).
   Shrines show their blessing. Towns show their trade.
 - **Opportunities** (`tick_opps`, `spawn_opp`, `opp_land`; `OPPS`): from turn 3, every `OPP_EVERY` (5)
   turns, while fewer than two are about, one turns up 3-14 hexes from the nearest hero and lasts a few

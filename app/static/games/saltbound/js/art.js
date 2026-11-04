@@ -1,6 +1,6 @@
 // Sprites (generated into sprites.js by tools/saltbound-art) and the map's place icons.
 // flat32() gives each sprite its outline and matte shading, the same finish as Roguelike Tactics.
-import { SPRITES } from './sprites.js?v=116';
+import { SPRITES } from './sprites.js?v=117';
 
 const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -98,6 +98,8 @@ export const hasSprite = name => !!SPRITES[name];
 
 // ------------------------------------------------------------------ place icons, 16x16, drawn as-is with an outline
 const K = '#1b1226';
+// an event's note: rolled paper, ink, a ribbon, and for a fight a dagger (steel, gold guard, dark grip)
+const NOTE = { r: '#cdb88c', R: '#8a7452', k: '#5a4630', p: '#f1e6c8', P: '#cbb990', q: '#3a2a34', w: '#f6e6c6', y: '#f0c860', Y: '#a8822c', b: '#8a3a2a', l: '#e6ecf2', L: '#ffffff', m: '#7e8898', h: '#5a3a24' };
 export const PLACE_ART = {
   town: { pal: { r: '#a84a3a', R: '#7a3428', w: '#e0d4b8', W: '#b8a888', d: '#4a3020', y: '#ffd870' }, rows: [
     '................', '......rr........', '.....rrrr.......', '....rrrrrr..rr..', '...RRRRRRRRrrrr.', '....wwwwww.RRRR.',
@@ -111,8 +113,17 @@ export const PLACE_ART = {
     '................', '...ssssssss.....', '...SSSSSSSS.....', '...ss....ss.....', '...ss.cc.ss.....', '...ss.cc.ss.....', '...ss....ss.....', '..SSSS..SSSS....'] },
   camp: { pal: { t: '#c8b080', T: '#9a8058', r: '#e04820', o: '#ff9a2a', y: '#ffe14d', k: '#5a3a24' }, rows: [
     '................', '....t...........', '...ttt..........', '..ttTtt....r....', '.tttTttt..ror...', 'ttttTtttt.oyo...', '..........kkk...'] },
-  event: { pal: { p: '#e8dcc0', P: '#b8a888', k: '#6a5232', q: '#2a2430' }, rows: [
-    '................', '..kppppppk......', '...pppqqpp......', '...ppqppqp......', '...pppppqp......', '...ppppqpp......', '...ppppqpp......', '...pppppPp......', '...ppppqpp......', '..kppppppk......'] },
+  // events, by what they risk (the server's event_risk): a sealed note, its seal green when nothing can go
+  // wrong, amber when a roll can, and red with a dagger through it when it can turn into a fight
+  event: { pal: { ...NOTE, G: '#5aa264', H: '#2f6a3a' }, rows: [
+    '................', '.krRRRRRRRRRRrk.', '..RPPPPPPPPPPR..', '...pppqqqpppP...', '...ppqpppqppP...', '...ppppppqppP...', '...pppppqpppP...',
+    '...ppppqppppP...', '...ppppppppGG...', '...ppppqppGwGH..', '...pppppppGGGH..', '..RPPPPPPPPHHR..', '.krRRRRRRRRbRbk.', '...........b..b.'] },
+  event_risky: { pal: { ...NOTE, A: '#e8a440', B: '#a4641c' }, rows: [
+    '................', '.krRRRRRRRRRRrk.', '..RPPPPPPPPPPR..', '...pppqqqpppP...', '...ppqpppqppP...', '...ppppppqppP...', '...pppppqpppP...',
+    '...ppppqppppP...', '...ppppppppAA...', '...ppppqppAwAB..', '...pppppppAyAB..', '..RPPPPPPPPBBR..', '.krRRRRRRRRbRbk.', '...........b..b.'] },
+  event_fight: { pal: { ...NOTE, S: '#d04a3e', T: '#84261e' }, rows: [
+    '...............L', '.krRRRRRRRRRRrLm', '..RPPPPPPPPPPlm.', '...pppqqqppplm..', '...ppqpppqplm...', '...pppyppqlmP...', '...ppppyqlmpP...',
+    '...ppppqymppP...', '...pppphpypSS...', '...ppphqppywST..', '...ppYppppSyST..', '..RPPPPPPPPTTR..', '.krRRRRRRRRbRbk.', '...........b..b.'] },
   wreck: { pal: { w: '#7a5a3a', W: '#5a4028', s: '#e0d4b8' }, rows: [
     '................', '........s.......', '........ss......', '........sss.....', '.....w..s.......', 'ww...w..........', '.wwwwwwwwww.....', '..WWWWWWWW.w....'] },
   lair: { pal: { r: '#6a6a72', R: '#4a4a52', d: '#14101a', b: '#d8d0c0' }, rows: [

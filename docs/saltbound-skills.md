@@ -110,7 +110,8 @@ and a bonus that repeats one the class already has (Backstab on top of Stab).
 3. **Nothing erases it.** Check its timing against `end_round` and `deal_dice` (Armor clears, `inspire`
    resets, statuses tick).
 4. **Overlap.** Search `classes.py`, `COMBOS` and the item passives in `content/items.py` for the same
-   effect. Pincer already rewards matching numbers; Stab already rewards enemies aiming elsewhere.
+   effect. Heroes have no rows (only enemies do), so nothing may move, place or protect allies by row.
+   Pincer already rewards matching numbers; Stab already rewards enemies aiming elsewhere.
 5. **Build it so the bots see it.** Damage rules go in `dmg_bonus` or `hit_base` in `actions.py` (the
    shared hit sums), never inline in `_op_dmg`. A face rule goes in `face_rules` (`dice.py`), `ROLL_MODS`
    (`tuning.py`) and `faceRules` (`js/rules.js`). An instant needs a value in `bot.instant_value`, and a

@@ -310,7 +310,7 @@ export const STATUS = {
   steeled: { name: 'Steeled', icon: 'shield', text: 'This boss lost an action last round, so this round it can’t be Stunned or lose its turn. No boss can be shut down two rounds running.' },
   armor: { name: 'Armor', icon: 'shield', text: 'Blocks this much damage. A hero’s clears at the end of the round; an enemy’s lasts until the enemies’ next turn.' },
   mark: { name: 'Mark', icon: 'target', text: 'Takes +3 damage from every hit.', bad: true },
-  root: { name: 'Root', icon: 'root', text: "Can't change rows or flee.", bad: true },
+  root: { name: 'Root', icon: 'root', text: "Can't flee. An enemy can't be dragged to another row.", bad: true },
   doom: { name: 'Doom', icon: 'clock', text: 'Takes this much damage at the end of next round.', bad: true },
   lifeline: { name: 'Lifeline', icon: 'heart', text: 'Heals half their max HP at the end of the round.' },
   dodge: { name: 'Dodge', icon: 'boot', text: 'The next hit misses.' },

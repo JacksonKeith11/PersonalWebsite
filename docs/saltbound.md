@@ -160,7 +160,7 @@ Keep to these. They came from the owner directly.
   | Stun | skips its next action |
   | Armor | blocks N damage; a hero's clears at end of round unless a skill says otherwise, an enemy's when the enemies' next turn starts |
   | Mark | takes +3 damage from every hit |
-  | Root | can't change rows or flee |
+  | Root | can't flee; an enemy can't be dragged to another row |
 
 - **Death**: a hero at 0 HP is **knocked down**. An ally can pick them up mid-fight. If they're
   still down when the fight ends, one revive from the **shared pool of 3** (Story 4, Hard 2; a rare
@@ -176,7 +176,8 @@ Keep to these. They came from the owner directly.
 - **Classes are generic, not tied to the archipelago**, so they carry over to future maps. A map
   ability only talks to systems every map has, through hooks the map engine calls:
   `on_move_cost`, `on_reveal`, `on_loot`, `on_rest`, `on_shop`, `on_event`, `on_combat_start`.
-  Nothing in a class may mention water, tides or skiffs.
+  Nothing in a class may mention water, tides or skiffs. Heroes have no rows (see Rows above): no
+  skill or class idea may move allies between rows or give them a front and back.
 - **Levelling**: XP is shared, so the party levels together. Cap at level 8. Every level gives max
   HP automatically, and levels 3 and 6 upgrade one base die a size (d6 to d8). Every level-up also
   offers a **choice of 1 of 3** from the class's skill pool: new actions, passives, upgrades to

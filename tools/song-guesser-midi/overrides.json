@@ -518,5 +518,233 @@
   "midi": "clean_midi/The Beatles/Help!.2.mid",
   "BAR": 16,
   "MEL": 1
+ },
+ "As Long as You Love Me": {
+  "midi": "clean_midi/Backstreet Boys/As Long as You Love Me.3.mid",
+  "BAR": 25,
+  "MEL": 5
+ },
+ "Message in a Bottle": {
+  "midi": "clean_midi/The Police/Message in a Bottle.mid",
+  "BAR": 22,
+  "MEL": 0
+ },
+ "Firework": {
+  "midi": "bitmidi 65484 (katy_perry-firework.mid)",
+  "BAR": 28,
+  "MEL": 6
+ },
+ "Down Under": {
+  "midi": "clean_midi/Men at Work/Down Under.1.mid",
+  "BAR": 35,
+  "MEL": 2
+ },
+ "Lovefool": {
+  "midi": "clean_midi/The Cardigans/Love Fool.mid",
+  "BAR": 19
+ },
+ "Purple Rain": {
+  "midi": "clean_midi/Prince/Purple Rain.2.mid",
+  "BAR": 14,
+  "MEL": 2
+ },
+ "Learn to Fly": {
+  "midi": "clean_midi/Foo Fighters/Learn to Fly.mid",
+  "BAR": 32,
+  "MEL": 2
+ },
+ "Heart of Glass": {
+  "midi": "clean_midi/Blondie/Heart of Glass.5.mid",
+  "BAR": 15,
+  "MEL": 5
+ },
+ "I Will Always Love You": {
+  "midi": "clean_midi/Whitney Houston/I Will Always Love You.3.mid",
+  "BAR": 16,
+  "MEL": 3
+ },
+ "Summer of '69": {
+  "midi": "clean_midi/Bryan Adams/Summer of '69.5.mid",
+  "BAR": 77,
+  "MEL": 0
+ },
+ "Come On Eileen": {
+  "midi": "clean_midi/Dexys Midnight Runners/Come On Eileen.mid",
+  "BAR": 29,
+  "MEL": 3
+ },
+ "Take a Chance on Me": {
+  "midi": "clean_midi/ABBA/Take a Chance on Me.5.mid",
+  "BAR": 74,
+  "MEL": 3
+ },
+ "Like a Virgin": {
+  "midi": "clean_midi/Madonna/Like A Virgin.3.mid",
+  "BAR": 67,
+  "MEL": 0
+ },
+ "Like a Prayer": {
+  "midi": "clean_midi/Madonna/Like a Prayer.2.mid",
+  "BAR": 117
+ },
+ "Champagne Supernova": {
+  "midi": "clean_midi/Oasis/Champagne Supernova.1.mid",
+  "BAR": 128,
+  "MEL": 18
+ },
+ "Tubthumping": {
+  "midi": "clean_midi/Chumbawamba/Tubthumping.1.mid",
+  "BAR": 64,
+  "MEL": 4
+ },
+ "White Wedding": {
+  "midi": "clean_midi/Billy Idol/White Wedding.2.mid",
+  "BAR": 46,
+  "MEL": 3
+ },
+ "We Built This City": {
+  "midi": "clean_midi/Starship/We Built This City.1.mid",
+  "BAR": 45,
+  "MEL": 0
+ },
+ "I Will Survive": {
+  "midi": "clean_midi/Gloria Gaynor/I Will Survive.4.mid",
+  "BAR": 29,
+  "MEL": 0
+ },
+ "Sweet Home Alabama": {
+  "midi": "clean_midi/Lynyrd Skynyrd/Sweet Home Alabama.1.mid",
+  "BAR": 30,
+  "MEL": 2
+ },
+ "Barbie Girl": {
+  "midi": "clean_midi/Aqua/Barbie Girl.5.mid",
+  "BAR": 14,
+  "MEL": 3
+ },
+ "Can't Buy Me Love": {
+  "midi": "clean_midi/The Beatles/Can't Buy Me Love.1.mid",
+  "BAR": 83,
+  "MEL": 4
+ },
+ "The Joker": {
+  "midi": "clean_midi/Steve Miller Band/The Joker.2.mid",
+  "BAR": 29,
+  "MEL": 3
+ },
+ "Dancing in the Dark": {
+  "midi": "clean_midi/Bruce Springsteen/Dancing in the Dark.4.mid",
+  "BAR": 29,
+  "MEL": 2
+ },
+ "Self Esteem": {
+  "midi": "clean_midi/The Offspring/Self Esteem.1.mid",
+  "BAR": 22,
+  "MEL": 2
+ },
+ "Take Me Home, Country Roads": {
+  "midi": "clean_midi/John Denver/Take Me Home Country Roads.mid",
+  "BAR": 27,
+  "MEL": 4
+ },
+ "Proud Mary": {
+  "midi": "clean_midi/Creedence Clearwater Revival/Proud Mary.5.mid",
+  "BAR": 21,
+  "MEL": 14
+ },
+ "In the Air Tonight": {
+  "midi": "clean_midi/Phil Collins/In The Air Tonight.1.mid",
+  "BAR": 17,
+  "MEL": 2
+ },
+ "Footloose": {
+  "midi": "clean_midi/Kenny Loggins/Footloose.2.mid",
+  "BAR": 25,
+  "MEL": 2
+ },
+ "Born in the U.S.A.": {
+  "midi": "clean_midi/Bruce Springsteen/Born in the U.S.A..3.mid",
+  "BAR": 34,
+  "MEL": 2
+ },
+ "Brown Eyed Girl": {
+  "midi": "clean_midi/Van Morrison/Brown Eyed Girl.4.mid",
+  "BAR": 38,
+  "MEL": 5
+ },
+ "How Deep Is Your Love": {
+  "midi": "clean_midi/Bee Gees/How Deep Is Your Love.6.mid",
+  "BAR": 23,
+  "MEL": 3
+ },
+ "El Scorcho": {
+  "midi": "clean_midi/Weezer/El Scorcho.mid",
+  "BAR": 30,
+  "MEL": 0
+ },
+ "In the Garage": {
+  "midi": "clean_midi/Weezer/In the Garage.mid",
+  "BAR": 22,
+  "MEL": 6
+ },
+ "Only in Dreams": {
+  "midi": "clean_midi/Weezer/Only in Dreams.mid",
+  "BAR": 56,
+  "MEL": 5
+ },
+ "Tonight, Tonight": {
+  "midi": "clean_midi/The Smashing Pumpkins/Tonight, Tonight.2.mid",
+  "BAR": 51,
+  "MEL": 3
+ },
+ "Bitter Sweet Symphony": {
+  "midi": "clean_midi/The Verve/Bittersweet Symphony.mid",
+  "BAR": 37,
+  "MEL": 3
+ },
+ "Live Forever": {
+  "midi": "clean_midi/Oasis/Live Forever.mid",
+  "BAR": 26,
+  "MEL": 6
+ },
+ "Start Me Up": {
+  "midi": "clean_midi/The Rolling Stones/Start Me Up.5.mid",
+  "BAR": 46,
+  "MEL": 0
+ },
+ "Psycho Killer": {
+  "midi": "clean_midi/Talking Heads/Psycho Killer.mid",
+  "BAR": 18,
+  "MEL": 0
+ },
+ "Shout": {
+  "midi": "clean_midi/Tears for Fears/Shout.3.mid",
+  "BAR": 50,
+  "MEL": 6
+ },
+ "When Doves Cry": {
+  "midi": "clean_midi/Prince/When Doves Cry.mid",
+  "BAR": 33,
+  "MEL": 1
+ },
+ "Rosanna": {
+  "midi": "clean_midi/Toto/Rosanna.mid",
+  "BAR": 27,
+  "MEL": 0
+ },
+ "Yesterday": {
+  "midi": "clean_midi/The Beatles/Yesterday.7.mid",
+  "BAR": 23,
+  "MEL": 0
+ },
+ "What Is Love": {
+  "midi": "clean_midi/Haddaway/What Is Love.mid",
+  "BAR": 60,
+  "MEL": 0
+ },
+ "Everybody Wants to Rule the World": {
+  "midi": "clean_midi/Tears for Fears/Everybody Wants To Rule The World.1.mid",
+  "BAR": 42,
+  "MEL": 15
  }
 }

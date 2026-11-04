@@ -38,5 +38,8 @@ Python with `pretty_midi` and `librosa`, plus Node.
    out of `EXTRA`). Then run `node tools/song-guesser-check.js`.
 
 `overrides.json` holds the picks made by hand for every song (for the later ones, the Lakh file too).
-Songs with no usable vocal track in their MIDI (Don't Stop Believin') or no MIDI at all keep their
-hand-written arrangements, without a vocal line.
+Songs with no usable vocal track in their MIDI (Don't Stop Believin') or no MIDI at all aren't in
+the game; they stay in the guess list only.
+
+**Python versions:** on Python 3.13 with numba 0.68, `librosa.pyin` segfaults. A Python 3.11 venv
+with `librosa==0.10.2.post1 numba==0.60.0 "numpy<2.1" pretty_midi` works.

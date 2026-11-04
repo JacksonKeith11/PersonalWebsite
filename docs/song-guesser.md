@@ -56,10 +56,14 @@ as an ES module.
   is the point. Don't add audio files or a server side.
 - **Biased toward indie rock.** `tier: 'indie'` songs are picked 4× as often as `'other'`; `'alt'`
   and `'pop'` (the big pop hits the owner asked for) 2×. The owner named Weezer, Neutral Milk Hotel and Interpol; keep them well represented.
+  Since every song must now have a transcribed vocal, Neutral Milk Hotel and Interpol are only in
+  the guess list: no usable MIDI was found for them (the Lakh set has little indie). Add them back
+  if a transcription with a vocal track turns up.
 - **The clip is the chorus.** The owner asked for every clip to be the chorus, the part people
-  know. Songs without one (In the Aeroplane Over the Sea, Every Breath You Take, Ain't No Sunshine,
-  Hey Jude's na-na-na coda) use their main refrain and say `section: 'Refrain'`; the check script
-  rejects anything else. New Slang has no chorus or refrain hook, so it's only in the guess list.
+  know. Songs without one (Every Breath You Take, Ain't No Sunshine, Yesterday, Everybody Wants to
+  Rule the World, Hey Jude's na-na-na coda) use their main refrain and say `section: 'Refrain'`;
+  the check script rejects anything else. New Slang has no chorus or refrain hook, so it's only in
+  the guess list.
 - **Hardest instrument first.** The default order is drums, bass, chords, riff, melody. When a
   song's identity lives in one part (the Seven Nation Army or Billie Jean bass, the Clocks piano),
   set `order` so that part comes last. A chorus whose drums are only hi-hats or shakers (My Heart
@@ -71,29 +75,29 @@ as an ES module.
   mirror). Tabs for Weezer and The Killers are written a half step up from how they sound, so
   subtract a semitone. Don't scrape Hooktheory's data API.
 - **Real transcriptions where they exist** (the owner asked for MIDI transcriptions compared with
-  the real chorus). 108 songs, marked `source: 'midi'`, were pulled from MIDI files (Lakh MIDI
+  the real chorus). All 154 songs, marked `source: 'midi'`, were pulled from MIDI files (Lakh MIDI
   dataset, BitMidi) by `tools/song-guesser-midi/`, which also compares each with a 30-second preview
   of the record (iTunes or Deezer) to fix the key and tempo; its README has the steps. YouTube can't
   be used: it refuses downloads from cloud machines. The chorus and the vocal track were picked by
-  hand for every song (`overrides.json`). The first 39 replaced hand-written arrangements; the other
+  hand for every song (`overrides.json`). The first 39 replaced hand-written arrangements; the next
   69 are widely known songs added when the owner asked for songs that could be copied accurately,
   chosen because their MIDI has a clear vocal track: preferably karaoke lyrics locked to one track,
   so the chorus is found by its words; otherwise a track named for the vocal and a chorus melody
   recognisable from the notes. Songs were left out when the vocal track was really another
   instrument, the chorus couldn't be placed with confidence, the bars didn't line up (tempo or
-  metre changes, triplet feel), or no studio recording could be found to check against. The 46
-  hand-written songs' keys and tempos were checked against previews too and mostly agree.
-- **No vocal melody unless it was transcribed.** The hand-written songs' melodies were written from
-  memory and the owner found them too far off; they couldn't be checked against the records (the
-  previews are full mixes), so they were removed. Those songs play 3–4 instruments. The check script
-  rejects a melody on a song without `source: 'midi'`.
+  metre changes, triplet feel), or no studio recording could be found to check against. The last
+  46 replaced every remaining hand-written song (the owner asked for the ones without vocals to go,
+  as likely inaccurate): very popular songs picked the same way, from Lakh plus one BitMidi karaoke
+  file (Firework). All 154 songs are now transcribed; the removed titles stay in `EXTRA`.
+- **Only transcribed songs.** Hand-written melodies from memory were too far off, and then the
+  hand-written songs without a melody were dropped altogether. Add new songs through the MIDI
+  pipeline; the check script still rejects a melody on a song without `source: 'midi'`.
 
 ## Adding a song
 
-1. If a MIDI transcription exists, use `tools/song-guesser-midi/` (see its README). Otherwise add it
-   to `SONGS` in `js/songs.js` by hand: write its chorus (no vocal melody), 2–8 bars, that loops to fill the clip.
-   Every part loops on its own length, so keep each a whole number of bars and a multiple or
-   divisor of the chord loop.
+1. Find a MIDI transcription with a vocal track and use `tools/song-guesser-midi/` (see its
+   README). Songs without one aren't added (the owner wants every song to have its vocal line).
+   Every part loops on its own length, so keep each a whole number of bars.
 2. If it was in `EXTRA`, take it out there (the check flags duplicates).
 3. Run `node tools/song-guesser-check.js`. It arranges every song, checks bar lengths and the guess
    list, and lists notes outside the key the chords imply (often typos).

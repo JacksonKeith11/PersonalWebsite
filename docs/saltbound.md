@@ -890,7 +890,8 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
 - **Enchant materials** (`MATERIALS` in `items.py`: Powder Salt for Exploding, Still Pearl for Steady,
   Seer's Glass for Seer): rare consumables that are never sold or dropped at random. The sea shrine
   gives one to the first hero there (`mat_taken`), a grotto's hoard holds one, and a guarded wreck's
-  pool has one beside its rare gear. From the bag, "Into <item>" rubs it into a piece of gear you
+  pool has one beside its rare gear. Any other won fight's loot pool holds one `FIGHT_MAT_CHANCE` (6%)
+  of the time (owner's request: rarely from fights too), about 0.6 a run on Normal from ~11 pools. From the bag, "Into <item>" rubs it into a piece of gear you
   wear, out of fights (`enchant`, through `do_use` with a `slot`); a die can't take a kind it
   already has. Enemies that snatch consumables leave materials alone.
 - **Where the work lives**: worked gear gets its own key, `<item>@<n>` (`rework`), with a record in

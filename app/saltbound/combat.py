@@ -1220,7 +1220,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             # a guarded wreck's pool holds an enchant material besides its rare gear
             self.offer_pool(winners, rarity=p["rarity"], extra=prizes + [self.rng.choice(I.MATERIALS)])
         elif n or prizes:
-            self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0), extra=prizes[:1])
+            # now and then a fight's pool holds an enchant material too
+            mat = [self.rng.choice(I.MATERIALS)] if self.rng.chance(A.FIGHT_MAT_CHANCE) else []
+            self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0), extra=prizes[:1] + mat)
         if path == "vault" and winners:
             self.say("The vault gives up its gold: +12 each.")
         if f["kind"] == "dungeon":

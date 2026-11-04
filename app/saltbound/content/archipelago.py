@@ -398,6 +398,7 @@ WORK_CAP = 2
 HONE_UP = 3
 TEMPER_COST = (20, 40)
 WORK_RESALE = 10
+FIGHT_MAT_CHANCE = 0.06  # a won fight's loot pool (not a guarded wreck's, which always has one) holds an enchant material
 TEMPLE_REVIVE = 75
 CHART_COST = 15
 FENCE_BONUS = 20  # percentage points on the sell rate (40% -> 60%, 60% -> 80% with Haggler)

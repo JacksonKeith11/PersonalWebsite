@@ -46,12 +46,12 @@ class Bosses:
         b = A.FOES[fo["k"]].get("bloodied") or {}
         rule = b.get("rule")
         f = self.s["fight"]
-        if rule == "summon" and len(self.foes()) < 5:
+        if rule == "summon" and len(self.foes()) < 5 and (f["round"] - fo.get("bl_round", f["round"])) % b.get("every", 1) == 0:
             new = self.add_foe(b["f"])
             new["intent"] = {"k": "dazed", "name": "Just arrived"}
             self.fx("summon", f=new["id"])
         elif rule == "thorns" and b.get("grow"):
-            fo["thorns_x"] = min(fo.get("thorns_x", b["n"]) + b["grow"], b["n"] + 6)
+            fo["thorns_x"] = min(fo.get("thorns_x", b["n"]) + b["grow"], b.get("cap", b["n"] + 6))
             fo["st"]["thorns"] = fo["thorns_x"]
         elif rule == "curse" and (f["round"] - fo.get("bl_round", f["round"])) % b.get("every", 1) == 0:
             heroes = self.actives()

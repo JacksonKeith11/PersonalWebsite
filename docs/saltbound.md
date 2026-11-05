@@ -918,7 +918,7 @@ deals 20 minus the die, so low rolls are good; Undying Fury hits back for 8 when
 
 Hero sprites: the owner picked the Shieldbearer with the Spear-warden's spear (`vanguard1`), the
 Sorceress (`arcanist2`), the Cleric (`mender1`) and the Huntress for the Ranger; the others use option
-1 until picked (the Spellblade has one option so far; the Emberknight five, the last four knights in orange-to-red plate; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
+1 until picked (the Spellblade has one option so far; the Emberknight five, and the owner picked the Flame Paladin, option 3; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
 
 ### Passive mods
 

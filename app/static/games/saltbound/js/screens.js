@@ -1,14 +1,14 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=125';
-import { $, h, icon, toast } from './ui.js?v=125';
-import { spriteURL, hasSprite } from './art.js?v=125';
+import { S, saved, persist, send } from './store.js?v=126';
+import { $, h, icon, toast } from './ui.js?v=126';
+import { spriteURL, hasSprite } from './art.js?v=126';
 
 // the ten classes, for the title screen's roster (it shows before the server has sent any class data)
 const ROSTER = ['vanguard', 'duelist', 'berserker', 'ranger', 'arcanist', 'mender', 'scoundrel', 'herald', 'alchemist', 'warden', 'spellblade', 'emberknight'];
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=125';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=125';
-import { connect, disconnect, debug } from './main.js?v=125';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=126';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=126';
+import { connect, disconnect, debug } from './main.js?v=126';
 
 const app = () => $('app');
 

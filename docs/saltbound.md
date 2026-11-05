@@ -3,7 +3,7 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: built and public.** All twelve classes play whole runs, and the game is listed on `/games`.
+**Status: built and public.** All thirteen classes play whole runs, and the game is listed on `/games`.
 The first half of this doc is the design the owner signed off on, with the answers they gave while it
 was built; "How it plays now" is the game as it is. When a change alters how the game works, update
 "How it plays now" (not a new section at the end) in the same commit.
@@ -171,7 +171,7 @@ Keep to these. They came from the owner directly.
 
 ### Heroes
 
-- **12 classes, each unique within a party.** Each has one map ability and one combat role, so
+- **13 classes, each unique within a party.** Each has one map ability and one combat role, so
   the choice matters outside fights too.
 - **Classes are generic, not tied to the archipelago**, so they carry over to future maps. A map
   ability only talks to systems every map has, through hooks the map engine calls:
@@ -874,8 +874,21 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Herald | 18 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
 | Alchemist | 21 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
 | Warden | 26 (+3) | **Wildspeak**: forest costs 1 | Summons and control | Grove, Thorns |
+| Dragonborn | 34 (+4) | **Dragon's Rest**: resting grows a Scale (2 at a camp or in a town) | Bruiser with breath | Wrath, Hide |
 | Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
+
+**The Dragonborn** (owner's request, Nov 2026; design and results in `docs/saltbound-dragonborn.md`).
+Every enemy hit that lands on it (even one Armor stops; not Burn or Poison) grows a **Scale**
+(`hero["scales"]`, on the hero, so they **carry between fights**, up to `C.SCALE_CAP` 5; knocked down
+keeps half, rounded down). Each Scale is 1 Armor at the start of every round (`new_round`, with Brood
+Bond's `brood` and Draconic Ascension's Armor). Breath sheds them all (the `shed` op; `scales` in
+amounts) for the die +2 per Scale to every enemy. They carry over because fights are short (about 3
+rounds outside bosses), so a stack built inside one fight would never matter. Half the picks don't
+touch Scales. Rules in `actions.py` (`grow_scales`, `_op_shed`, `_op_gaze`, `_op_brood`, `foe_burn`),
+Scale growth, Ancient Blood and Ascension in `hurt_hero`, Dragon's Rest in `Game.rest`; the bots
+charge 2 a Scale shed (`bot.evaluate`). Measured (2026-11-05, 400 Hard runs, after the tuning pass):
+**Hard 55.2%**, level with the batches before it.
 
 **The Emberknight** (owner's request, Nov 2026; design and results in `docs/saltbound-emberknight.md`).
 Every die it plays adds its number to its **Heat** (`x["heat"]`, after the action resolves; Quench and
@@ -918,7 +931,7 @@ deals 20 minus the die, so low rolls are good; Undying Fury hits back for 8 when
 
 Hero sprites: the owner picked the Shieldbearer with the Spear-warden's spear (`vanguard1`), the
 Sorceress (`arcanist2`), the Cleric (`mender1`) and the Huntress for the Ranger; the others use option
-1 until picked (the owner picked the Spellblade's Runeknight, option 2; the Emberknight five, and the owner picked the Flame Paladin, option 3; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
+1 until picked (the owner picked the Spellblade's Runeknight, option 2; the Emberknight five, and the owner picked the Flame Paladin, option 3; the Dragonborn's Dragon Knight, option 3 of four; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
 
 ### Passive mods
 

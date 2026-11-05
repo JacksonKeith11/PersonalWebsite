@@ -1,9 +1,12 @@
-# Dragonborn: a class proposal (for review, not built)
+# Dragonborn: the class's design
 
-A draft class for the owner to review before anything is built. It's built around **Scales**, which
-carry over between fights, but only about half of its picks touch Scales. The rest are plain dragon:
-claws, wings, a tail, a roar, a hoard. Numbers are first guesses, sized with the tests in
-`saltbound-skills.md`, and get measured once it's in, as the Spellblade's and Emberknight's were.
+**Built (Nov 2026)**, with the owner's Dragon Knight look. The owner's review: knocked down loses half
+the Scales, Breath cools in 2, Dragon's Rest replaces Hoarded Fury, and Searing Breath and Wyrmfire
+Claws Burn more. The tuning pass after the first batch changed: Draconic Ascension +2 and 3 Armor
+(was +3 and 4), Hoard's Gleam per 80 gold (was 60), Draconic Roar's 2 rounds on 6+ (was 5+), Dread
+Gaze also gains the die as Armor, Rending Bite Poison 3 (was 2), Brood Bond 2 Armor a round costing
+no Scales, Tail Sweep die +2 (was +1). The balance results are at the end; the live numbers are in
+`app/saltbound/classes.py` and `docs/saltbound.md` (Classes). The draft as reviewed follows.
 
 ## Why Scales carry over
 
@@ -164,3 +167,16 @@ until the class is built (`REVIEW` in `build.py`):
 - Searing Breath and Wyrmfire Claws are stronger than drafted (Burn 1 per Scale; Burn 1 on every Claw).
 
 Still open: which look.
+
+## Balance results
+
+**First batch** (2026-11-05, 400 Hard runs, seed 5000, a Dragonborn in every party): **Hard 60.0%**,
+a few points above the batches before. Damage 35.5 a round, Armor blocked 3.4 (second to the
+Vanguard), taken 3.1. Picks vs passed: Draconic Ascension +14, Hoard's Gleam +11, Draconic Roar +10,
+Searing Breath +9; Dragon's Wrath -9, Dread Gaze, Rending Bite and Brood Bond -8, Tail Sweep -7.
+
+**After the tuning pass** (same 400 runs): **Hard 55.2%**, level with the batches before the class.
+Breath is 11% of its plays at 27 damage a use. One change overshot: making Dragon's Wrath's Breath
+ready every round took it to **+22**, so that part was taken back out (it's the first batch's
+version again). Wyrmfire Claws read -12, from -2 in the first batch with nothing changed, which is
+the noise between batches; nothing else is past 10 points.

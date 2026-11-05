@@ -8,6 +8,12 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Vanguard's Impact (classes.py IMPACT_CAP; Combat.add_impact)
+    "recoil": "at full Impact, blocked damage hits the attacker",
+    "unmoved": "+n to Armor you gain while holding 6+ Impact",
+    "stored_force": "Impact left after a fight becomes Armor at the next",
+    "impact_cap": "Impact holds n more",
+    "payback_heal": "Payback heals half the Impact it spends",
     # the Scoundrel's Pickings (classes.py TRINKET_CAP, TRINKETS; Combat.lift, do_trinket)
     "quick_fingers": "the first Poison on each enemy lifts a trinket",
     "fences_eye": "killing blows lift two trinkets",

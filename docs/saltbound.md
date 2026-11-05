@@ -921,6 +921,28 @@ Wayfinder left the pool. Measured with a Scoundrel in every party (400 Hard runs
 Pickings and the first cuts, 66.8% with fewer trinkets (cap 3 to 2, crits once a round), **59.2%**
 after the second cuts, level with the 59.5% all-class batch. Still high: Loaded Bones +14, Smoke Bomb +11.
 
+**Vanguard, Impact** (owner's request, Nov 2026): every `C.IMPACT_PER` (1) points of damage the
+Vanguard's Armor blocks store 1 Impact (`x["impact"]`, up to `C.IMPACT_CAP` 10; `Combat.add_impact`,
+called from `hurt_hero` where `blocked` is worked out, so hits Guard and Taunt pull onto it count).
+It lasts the fight. **Payback** (starting kit, in place of Retaliate: the die plus Impact, spending
+it all) is the payoff; the `impact` op adds or spends it and `impact` is an amount variable. Picks:
+Brace for Impact (die +2 Armor; Impact gained this round doubled, `x["imp2"]`), Shockwave (front row:
+die +2 plus half the Impact, not spent; it replaced the Avalanche capstone), Share the Load (an ally
+gets die + Impact as Armor), Linebreaker (any row: die +2 and Vulnerable; no Impact, for variety),
+Recoil (at the cap, blocked damage hits the attacker), Unmoved (Armor gained +2 while holding
+`C.IMPACT_HOLD` 6), Stored Force (Impact left becomes the next fight's starting Armor,
+`hero["stored"]`), and the capstone Immovable (cap 20, Payback heals half what it spends). Shield
+Weight's Strike adds a third of the Impact (was a third of the Armor). Save v11 (`save._v10`) gives old
+Vanguards Payback for Retaliate and Shockwave for Avalanche. The bots value hits a Guard or Taunt
+pulls at 0.35 per Impact of room and charge 0.3 per Impact spent (`bot.evaluate`). The card shows a
+blue gauge (`combat.js` `impactGauge`); the `vanguard` audit save is a fight with 7 Impact, braced.
+The owner's fallback if it ran strong was 1 Impact per 2 blocked; it didn't need it. Measured
+(2026-11-05, 400 Hard runs with a Vanguard in every party): **51.0%** (its share of earlier batches was
+41-59%, mostly mid-40s), deaths 0.58 a run (was about 0.65). Payback is 6% of its plays at 15 a use,
+spending 9 Impact on average. Shockwave read -16 vs passed (the bots empty the meter with Payback
+first), so it now spends nothing and gained +2 (not measured again). Still high: Shield Bash +18,
+Payback+ +19 vs class.
+
 **Herald, Harmonies** (owner's request, Nov 2026): a fight with a Herald has three Harmonies
 (`f["harm"]`, 0 to `C.HARMONY_CAP` 3, shown on the fight banner): Valor (+1 on every ally hit per
 level, in `dmg_bonus`), Aegis (each ally starts the round with 1 Armor per level, in `new_round`) and

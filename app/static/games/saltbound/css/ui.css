@@ -1029,6 +1029,8 @@ a:hover { color: var(--accent-hi); }
 .chip.harm .pips { display: inline-flex; gap: 2px; } .chip.harm .pips i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid currentColor; }
 .chip.harm .pips i.on { background: currentColor; }
 .covered-chip.berserk { color: #ff6a5a; }
+.heat-gauge.impact i { background: linear-gradient(90deg, #4a5a78, #b8d0ff); }
+.heat-gauge.impact.hot i { box-shadow: 0 0 8px #b8d0ff; }
 .heat-gauge.grace i { background: linear-gradient(90deg, #a88a30, #ffe9a0); }
 .heat-gauge.grace.hot i { box-shadow: 0 0 8px #ffe9a0; }
 .scale-pips { display: flex; align-items: center; gap: 3px; margin: 2px 0; font-size: 10px; font-weight: 800; color: #9ad89a; }

@@ -26,7 +26,7 @@ from .content import items as I
 from .rng import Rng
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 
-VERSION = 10
+VERSION = 11
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.3},

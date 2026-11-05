@@ -165,8 +165,23 @@ def _v9(state):
     return state
 
 
+def _v10(state):
+    """v11 gives the Vanguard Impact: Payback takes Retaliate's place in its kit (an upgraded
+    Retaliate becomes an upgraded Payback), and the Avalanche capstone (Retaliate on the front row)
+    becomes Shockwave."""
+    swap = {"retaliate": "payback", "retaliate+": "payback+", "avalanche": "shockwave"}
+    for hero in state.get("heroes", []):
+        if hero.get("cls") == "vanguard":
+            sk = [swap.get(k, k) for k in hero.get("skills", [])]
+            if "payback" not in sk and "payback+" not in sk:
+                sk.append("payback")
+            hero["skills"] = list(dict.fromkeys(sk))
+    state["v"] = 11
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10}
 
 
 class TooOld(Exception):

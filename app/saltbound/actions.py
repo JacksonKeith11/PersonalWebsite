@@ -39,7 +39,7 @@ class Actions:
                 "missing": self.maxhp(h) - self.hero(h)["hp"], "undead": 0, "rooted": 0, "stunned": 0, "poisoned": 0,
                 "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
-                "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
+                "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0), "impact": x.get("impact", 0),
                 "scales": self.hero(h).get("scales", 0), "back": 0, "hi": max(vals) if vals else 0,
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
@@ -514,8 +514,27 @@ class Actions:
         for t in targets:
             if isinstance(t, tuple):
                 st = self.hs(t[1])["st"]
-                st["armor"] = st.get("armor", 0) + n
-                self.fx("armor", to=f"h{t[1]}", n=n)
+                k = n
+                if k > 0 and t[1] == c.h and c.m.get("unmoved") and c.x.get("impact", 0) >= C.IMPACT_HOLD:
+                    k += c.m["unmoved"]  # Unmoved
+                st["armor"] = st.get("armor", 0) + k
+                self.fx("armor", to=f"h{t[1]}", n=k)
+
+    def _op_impact(self, c, op, targets):
+        n = amt(op["amt"], self.env(c.h, c.a, c.dice))
+        x = c.x
+        if "impact" not in x or not n:
+            return
+        if n < 0:
+            spent = min(-n, x["impact"])
+            x["impact"] -= spent
+            if spent and c.m.get("payback_heal") and c.a["key"] == "payback":
+                self.fight_heal(c.h, spent // 2, c.h)  # Immovable
+        else:
+            x["impact"] = min(self.impact_cap(c.h), x["impact"] + n)
+
+    def _op_impact_brace(self, c, op, targets):
+        c.x["imp2"] = 1  # Brace for Impact: the Impact gained this round is doubled
 
     def _op_heal(self, c, op, targets):
         n = self.op_amount(c, op) + c.m.get("heal_bonus", 0)
@@ -847,6 +866,25 @@ class Actions:
             self.foe_status_by(fo, "burn", h)
 
     # ------------------------------------------------------------------ the Emberknight's Heat
+
+    def impact_cap(self, h):
+        return C.IMPACT_CAP + self.mods(h).get("impact_cap", 0)
+
+    def add_impact(self, h, blocked, fo=None):
+        """The Vanguard's Armor soaked `blocked`: 1 Impact per IMPACT_PER points (twice that after Brace
+        for Impact), up to the cap. At the cap, Recoil sends the blocked points back at the attacker."""
+        x, m = self.hs(h), self.mods(h)
+        cap = self.impact_cap(h)
+        if x["impact"] >= cap:
+            if m.get("recoil") and fo is not None and fo["hp"] > 0:
+                self.hurt_foe(fo, blocked, h, pure=True)  # Recoil
+            return
+        pts = x.get("imp_part", 0) + blocked * (2 if x.get("imp2") else 1)
+        n, x["imp_part"] = divmod(pts, C.IMPACT_PER)
+        x["impact"] = min(cap, x["impact"] + n)
+        if x["impact"] >= cap:
+            x["imp_part"] = 0
+            self.fx("st", to=f"h{h}", s="impact_full")
 
     def add_heat(self, h, n):
         """Add Heat (or spend it, n < 0). At HEAT_MAX it overheats: OVERHEAT_HP damage and Heat drops to

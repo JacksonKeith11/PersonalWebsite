@@ -1093,6 +1093,49 @@ PASSIVES.update({
 CLASSES["scoundrel"]["pool"] = [k for k in CLASSES["scoundrel"]["pool"] if k != "wayfinder"] + [
     "rob_blind", "ransack", "quick_fingers", "fences_eye", "stash", "deep_sleeves", "pay_it_forward", "master_thief"]
 
+# ---- Vanguard, Impact (owner's request, Nov 2026): every IMPACT_PER points of damage the Vanguard's
+# Armor soaks (hits it draws with Guard and Taunt too) store 1 Impact (`x["impact"]`, up to IMPACT_CAP),
+# which lasts the fight. Payback (the starting kit, in place of Retaliate) spends it all as damage. The
+# `impact` op adds (or, negative, spends) Impact; `impact` in an amount is the hero's. Rules in Combat
+# (`add_impact`, in `hurt_hero`).
+IMPACT_CAP = 10
+IMPACT_PER = 1  # blocked points per Impact (the owner's fallback if it runs strong: 2)
+IMPACT_HOLD = 6  # Unmoved: Armor you gain is +2 while you hold this much
+ACTIONS.update({
+    "payback": {"name": "Payback", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["juggernaut"],
+                "ops": [{"op": "dmg", "amt": "v+impact"}, {"op": "impact", "amt": "-impact"}],
+                "text": "Deal the die plus your Impact, then spend all of it."},
+    "brace_impact": {"name": "Brace for Impact", "req": {"n": 1}, "tgt": "self", "tags": ["bulwark"],
+                     "ops": [{"op": "armor", "amt": "v+2"}, {"op": "impact_brace"}],
+                     "text": "Gain the die +2 as Armor. The Impact you gain this round is doubled."},
+    "shockwave": {"cd": 3, "name": "Shockwave", "req": {"n": 1}, "tgt": "front", "melee": True, "tags": ["juggernaut"],
+                  "ops": [{"op": "dmg", "amt": "v+2+impact//2"}],
+                  "text": "Every front-row enemy takes the die +2 plus half your Impact (not spent)."},
+    "share_load": {"name": "Share the Load", "req": {"n": 1}, "tgt": "other", "tags": ["bulwark"],
+                   "ops": [{"op": "armor", "amt": "v+impact"}, {"op": "impact", "amt": "-impact"}],
+                   "text": "An ally gains the die plus your Impact as Armor. Spend all of it."},
+    "linebreaker": {"name": "Linebreaker", "req": {"n": 1}, "tgt": "foe", "tags": ["juggernaut"],
+                    "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "vuln", "n": 1}],
+                    "text": "Any row: deal the die +2, and the enemy is Vulnerable this round."},
+})
+PASSIVES.update({
+    "recoil": {"name": "Recoil", "mods": {"recoil": 1}, "tags": ["juggernaut"],
+               "text": "At full Impact, each point your Armor blocks hits the attacker for 1 instead."},
+    "unmoved": {"name": "Unmoved", "mods": {"unmoved": 2}, "tags": ["bulwark"],
+                "text": f"While you hold {IMPACT_HOLD}+ Impact, Armor you gain is +2."},
+    "stored_force": {"name": "Stored Force", "mods": {"stored_force": 1}, "tags": ["bulwark"],
+                     "text": "Impact left when a fight ends becomes your Armor at the start of the next."},
+    "immovable": {"name": "Immovable", "cap": True, "mods": {"impact_cap": 10, "payback_heal": 1}, "tags": ["bulwark"],
+                  "text": "Impact holds up to 20, and Payback heals you for half the Impact it spends."},
+})
+PASSIVES["shield_weight"].update(
+    mods={"override": {"strike": {"ops": [{"op": "dmg", "amt": "v+2+impact//3"}],
+                                  "text": "Deal the die +2, plus a third of your Impact (not spent)."}}},
+    text="Strike also deals a third of your Impact, without spending it.")
+CLASSES["vanguard"]["start"] = ["strike", "guard", "payback", "overguard"]
+CLASSES["vanguard"]["pool"] = [k for k in CLASSES["vanguard"]["pool"] if k not in ("retaliate", "avalanche")] + [
+    "brace_impact", "shockwave", "share_load", "linebreaker", "recoil", "unmoved", "stored_force", "immovable"]
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1311,6 +1354,11 @@ SHORT.update({
     "meteor_fist": ("sword", "die +4 · Heat bonus ×2 (5+)", "½ die"), "cinder_lance": ("flame", "die + up to 10 Heat · spend", None),
     "quench": ("shield", "cool 2× die · as Armor", None), "ember_ward": ("shield", "die +1 Armor · attackers Burn", None),
     "pass_the_flame": ("flame", "ally: next 2 hits +4 +½ die · Burn 2", None), "backdraft": ("flame", "½ Heat + die · its attack −¼ Heat", None),
+})
+SHORT.update({
+    "payback": ("sword", "die + Impact · spend all", None), "brace_impact": ("shield", "die +2 Armor · Impact ×2", None),
+    "shockwave": ("sword", "front row: die +2 + ½ Impact", None), "share_load": ("shield", "ally: die + Impact Armor", None),
+    "linebreaker": ("sword", "any row: die +2 · Vulnerable", None),
 })
 SHORT.update({
     "rune_cut": ("sword", "die +1 · carve 1", None), "sigil_burst": ("spark", "die +3 per Sigil · spend", None),

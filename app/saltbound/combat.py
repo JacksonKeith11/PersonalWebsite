@@ -95,6 +95,12 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             f["hs"][str(h)]["grace"] = hero.get("grace", 0)
             if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
                 self.grow_scales(h, 1)  # Thick Hide
+            if C.CLASSES[hero["cls"]]["map"]["key"] == "trailbreaker":
+                f["hs"][str(h)]["impact"] = 0  # the Vanguard's Impact (Stored Force: last fight's, as Armor)
+                kept = hero.pop("stored", 0)
+                if kept and m.get("stored_force"):
+                    st_ = f["hs"][str(h)]["st"]
+                    st_["armor"] = st_.get("armor", 0) + kept
             if C.CLASSES[hero["cls"]]["map"]["key"] == "banked_coals":
                 # Banked Coals: Heat from the road, twice the turns since the last fight (up to 10)
                 f["hs"][str(h)]["heat"] = min(10, 2 * max(0, self.s["turn"] - hero.get("fought", self.s["turn"])))
@@ -1365,6 +1371,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         blocked = min(arm, n)
         if blocked:
             x["st"]["armor"] = arm - blocked
+            if "impact" in x and not pure:
+                self.add_impact(h, blocked, fo)  # the Vanguard's Armor stores what it soaks
         n -= blocked
         hero = self.hero(h)
         hero["hp"] -= n
@@ -1523,6 +1531,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x.pop("redline", None)
             x.pop("cold_used", None)
             x.pop("crit_lift", None)
+            x.pop("imp2", None)  # Brace for Impact lasts the round
             x.pop("feinted", None)
             if not self.mods(h).get("relentless"):
                 x.pop("combo", None)  # a combo lasts the round (Relentless: into the next)
@@ -1562,6 +1571,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         for h in f["heroes"]:
             if self.hs(h)["down"]:
                 self.revive_or_fall(h)
+            if self.mods(h).get("stored_force") and self.hs(h).get("impact"):
+                self.hero(h)["stored"] = self.hs(h)["impact"]  # Stored Force: Armor at the next fight's start
             if self.mods(h).get("stash") and self.hs(h).get("trinkets"):
                 self.hero(h)["stash"] = [self.hs(h)["trinkets"][0]]  # Stash: one trinket kept for the next fight
         s["fight"] = None

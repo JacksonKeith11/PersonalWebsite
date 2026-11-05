@@ -36,6 +36,11 @@ export const SKILL_FX = {
   strike: x => { x.hit('slash', null, 420, 150); if (!x.miss) x.hit('pop small', C.steel, 400, 260); return 'melee'; },
   brace: x => { x.me('slam', C.shield, 520); x.me('shieldfx', null, 700, 120); return 'brace'; },
   shield_bash: x => { x.hit('slam', C.shield, 480, 150); if (!x.miss) { x.hit('star', null, 520, 260); x.shake(200); } return 'charge'; },
+  payback: x => { x.me('shieldfx', null, 400); x.hit('bigslash', null, 520, 180); if (!x.miss) { x.hit('star', null, 520, 300); x.shake(320); } return 'melee'; },
+  brace_impact: x => { x.me('shieldfx', null, 800); return 'brace'; },
+  shockwave: x => { x.me('shieldfx', null, 400); x.hit('slam', C.steel, 500, 200); if (!x.miss) x.shake(360); return 'melee'; },
+  share_load: x => { x.me('shieldfx', null, 500); return 'brace'; },
+  linebreaker: x => { x.hit('slam', C.steel, 480, 160); return 'charge'; },
   retaliate: x => { x.me('shieldfx', null, 500); x.hit('bigslash', null, 520, 200); if (!x.miss) x.shake(260); return 'melee'; },
   shield_throw: x => {
     x.shot('disc', C.shield, ['slam', C.shield, 420], { spin: true });

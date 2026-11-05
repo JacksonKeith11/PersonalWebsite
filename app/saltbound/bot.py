@@ -757,7 +757,7 @@ def dice_combos(g, h, dice):
     # everything dice_env reads goes in the key (Heat, Scales, the enemies' Sigils, Quiet Glyph), or a
     # cached outcome from another fight, or another run in the same process, is used by mistake
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
-           x.get("heat", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
+           x.get("heat", 0), x.get("impact", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
            bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
@@ -799,6 +799,12 @@ def evaluate(g, b, h, a, dice, tgt):
             pulled = sum(n for y, n in inc.items() if y != h)
         elif o["op"] == "guard" and base and isinstance(base[0], tuple) and base[0][1] != h:
             pulled = big.get(base[0][1], 0)
+    # the Vanguard's Impact: the hits it pulls (twice over after Brace for Impact) are stored for Payback
+    imp = g.hs(h).get("impact")
+    if imp is not None:
+        room = max(0, g.impact_cap(h) - imp)
+        soak = pulled + (inc.get(h, 0) + pulled if any(o["op"] == "impact_brace" for o in a["ops"]) else 0)
+        total += min(room, soak / C.IMPACT_PER) * 0.35
     # What doesn't change from one way the dice could roll to the next is worked out once here: each
     # op's targets, and for a damage op what it needs to know about each target. The sums below are
     # in the same order as ever, so this only saves time (the run fingerprints must not change).
@@ -1041,6 +1047,8 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple) and g.active(t[1]):
                         left = sum(1 for d in g.hs(t[1])["dice"] if not d["used"] and "guard" not in (d.get("dk") or []))
                         val += share * min(op["n"], left) * (n_ * 0.85 + 2.5)
+            elif k == "impact":
+                val -= min(imp or 0, -amt(op["amt"], de)) * 0.3  # Impact spent isn't there for the next Payback
             elif k == "infuse":
                 n_ = amt(op["amt"], de) + plus
                 val += infuse_value(g, h, dice, op["n"], n_, op.get("el") or element_of(vals[0] if vals else 0))

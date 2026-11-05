@@ -908,6 +908,19 @@ then -20); only `--with=<class>` batches can settle the picks. A first tuning pa
 hit (was +3, ending the combo), Unstable Compound the die +6 at cd 2 (was +4 at cd 3), Martyr the
 party's damage by half (was the Mender's own), Frost Flask without its Weak.
 
+**Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
+random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
+each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit
+on someone misses), Caltrops (the front row's attacks -2), Flash Powder (Weak), Vial of Venom (Poison
+3), Loaded Coin (a die +2), Stolen Purse (+6 gold, the next die +2). The method is `pilfer` and the op
+`pilfer`: `lift` was already the revive. The owner asked that the rest of the class be cut so it
+didn't end up stronger, and it needed it: it had been the strongest class (71.7% of its runs in the
+all-class batch). Cuts: 18 HP (was 22), Evasive and Smoke Bomb halve the next hit (status `halfhit`)
+instead of dodging it, Toxic Cloud Poisons 2 (was 3), Stab +2 (was +3), Slip on 5+ (was 4+), and
+Wayfinder left the pool. Measured with a Scoundrel in every party (400 Hard runs each): 67.8% with
+Pickings and the first cuts, 66.8% with fewer trinkets (cap 3 to 2, crits once a round), **59.2%**
+after the second cuts, level with the 59.5% all-class batch. Still high: Loaded Bones +14, Smoke Bomb +11.
+
 **Herald, Harmonies** (owner's request, Nov 2026): a fight with a Herald has three Harmonies
 (`f["harm"]`, 0 to `C.HARMONY_CAP` 3, shown on the fight banner): Valor (+1 on every ally hit per
 level, in `dmg_bonus`), Aegis (each ally starts the round with 1 Armor per level, in `new_round`) and

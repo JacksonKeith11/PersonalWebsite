@@ -517,11 +517,53 @@ def _fight_move(g, h, x):
     left = sum(fo["hp"] for fo in g.foes())
     hold = x.get("swell", 0) < 2 and left > 14 and g.hero(h)["hp"] > g.maxhp(h) * 0.35
     free = [d for d in free if not (hold and d.get("src") == "swell")]
+    if free and x.get("focus", 0) > 0:
+        nudge = focus_move(g, h, b, free, x)
+        if nudge:
+            return nudge
     if free:
         val, msg = plan_hand(g, h, b, free, DEPTH)
         if msg and val > 0.3:
             return msg
     return {"t": "fready"}
+
+
+def focus_move(g, h, b, free, x):
+    """Focus (the Psion's, or Hive Mind's): nudge a shown die by 1 when that makes the best plan for the
+    hand clearly better (a pair, a straight, an exact 6), else, by Mind Link, reveal an ally's biggest
+    hidden die so they can plan around it."""
+    m = g.mods(h)
+    need = 1.2 + (2.0 if m.get("overclock") and x["focus"] > x.get("focus_free", 0) else 0)  # Overclock's Focus costs 1 HP
+    base = plan_hand(g, h, b, free, 2)[0]
+    best = (need, None)
+    for d in free:
+        if d.get("v") is None or d.get("tag") in ("S", "X", "W"):
+            continue
+        nums = [face_of(f)[0] for f in d["faces"] if face_of(f)[0] is not None]
+        lo, top = min(nums), top_face(d["faces"])
+        for by in (1, -1):
+            if not lo <= d["v"] + by <= max(top, d["v"]):
+                continue
+            d["v"] += by
+            if _SIGS is not None:
+                _SIGS.pop(id(d), None)
+            val = plan_hand(g, h, b, free, 2)[0] - base
+            d["v"] -= by
+            if _SIGS is not None:
+                _SIGS.pop(id(d), None)
+            if val > best[0]:
+                best = (val, {"t": "nudge", "die": d["id"], "by": by})
+    if best[1]:
+        return best[1]
+    if "mind_link" in g.hero(h)["skills"] and (x["focus"] > 1 or m.get("empathic")):
+        for y in g.actives():
+            if y == h or g.hs(y)["ready"]:
+                continue
+            hid = [d for d in g.hs(y)["dice"] if not d["used"] and d.get("v") is None and "guard" not in (d.get("dk") or [])]
+            if hid and not any(d.get("v") is not None and not d["used"] and d.get("src") != "spirit" for d in g.hs(y)["dice"]):
+                big = max(hid, key=lambda d: top_face(d["faces"]))
+                return {"t": "nudge", "of": y, "die": big["id"], "by": 0}
+    return None
 
 
 # ---- what the enemies will do
@@ -970,6 +1012,12 @@ def evaluate(g, b, h, a, dice, tgt):
                     val += sum(min(n_ * (n_ + 1) / 2, fo["hp"]) * 0.8 for fo in foes)
             elif k == "brood":
                 val += op["n"] * 2.0  # Armor on an ally now and each round of the fight
+            elif k == "turn":
+                for t, share in tg:
+                    it = t.get("intent") if isinstance(t, dict) else None
+                    if it and it.get("k") in ("attack", "all") and not g.steeled(t):
+                        val += share * (now[t["id"]] + it.get("v", 0) * 0.8)
+                        bump(eff["stop"], t["id"], pr * share)
             elif k == "gaze":
                 for t, share in tg:
                     if isinstance(t, dict):
@@ -1183,6 +1231,9 @@ def op_targets(g, h, op, base):
         return [(fo, 1) for fo in g.foes() if f"h{h}" in g.intent_aims(fo.get("intent") or {})]
     if to == "sigiled":
         return [(fo, 1) for fo in g.foes() if fo["st"].get("sigil")]
+    if to == "biggest":
+        aimed = [fo for fo in g.foes() if (fo.get("intent") or {}).get("k") in ("attack", "all")]
+        return [(max(aimed, key=lambda fo: fo["intent"].get("v", 0)), 1)] if aimed else []
     return [(t, 1) for t in base]
 
 
@@ -1219,6 +1270,8 @@ def candidates(g, h, b, free):
         if a.get("per_rest") and a["key"] in g.hero(h).get("spent", []):
             continue
         if a.get("cd") and g.cooling(h, a["key"]):
+            continue
+        if a.get("focus") and x.get("focus", 0) < a["focus"]:
             continue
         n = a["req"].get("n", 1)
         sizes = range(1, n + 1) if a["req"].get("upto") else [n]

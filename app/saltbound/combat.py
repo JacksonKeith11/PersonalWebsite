@@ -17,7 +17,7 @@ from .bosses import Bosses
 from .combos import Combos
 from .content import archipelago as A
 from .content import items as I
-from .dice import Dice, face, num, top_face
+from .dice import Dice, face, is_pair, num, top_face
 from .foes import Foes
 from .crits import is_crit
 from .actions import element_of
@@ -108,6 +108,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.say(f"Fight! {names}.")
         self.fx("fight", fk=f["kind"], tile=f["tile"])
         self.new_round()
+        if self.s["fight"] is f and any(C.CLASSES[self.hero(y)["cls"]]["map"]["key"] == "precognition" for y in f["heroes"]):
+            self._op_foresee(None, {}, self.foes())  # Precognition: the first attacks rolled in the open
 
     def apply_ground(self, gr):
         """A battleground's rule (`A.GROUNDS`, chosen by `Game.ground_of`) at the start of a fight."""
@@ -318,6 +320,12 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             return
         f["hymn"] = 0
         anthem = [h for h in self.actives() if self.mods(h).get("anthem")]
+        hive = any(self.mods(y).get("hive_mind") for y in self.actives())
+        for h in f["heroes"]:
+            x = self.hs(h)
+            base = (C.FOCUS_BASE + sum(1 for lv in C.FOCUS_LEVELS if self.s["level"] >= lv)
+                    if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "precognition" else (1 if hive else 0))
+            x["focus"], x["focus_free"] = base + self.mods(h).get("overclock", 0), base  # the Psion's Focus (Hive Mind's)
         for h in f["heroes"]:
             self.deal_dice(h, anthem, pain)
         # the swallow can knock the last hero down; and with nobody else left to fight, the Maw spits its prey out
@@ -508,6 +516,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                     d["dk"] = list(d["dk"]) + ["exploding"]
         if m.get("all_explode"):
             dice = [dict(d, dk=list(d["dk"]) + (["exploding"] if "exploding" not in d["dk"] else [])) for d in dice]
+        if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "precognition":
+            for d in dice:  # the Psion sees all its dice
+                if "seer" not in d["dk"]:
+                    d["dk"] = list(d["dk"]) + ["seer"]
+        elif dice and any(self.mods(y).get("shared_vision") for y in self.actives() if y != h):
+            big = max(dice, key=lambda d: top_face(d["faces"]))  # Shared Vision
+            if "seer" not in big["dk"]:
+                big["dk"] = list(big["dk"]) + ["seer"]
         if m.get("deadeye") and dice:
             big = max(dice, key=lambda d: top_face(d["faces"]))
             big["dk"] = list(big["dk"]) + ["seer", "top"]
@@ -658,6 +674,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid(f"{a['name']} is cooling down: ready again {'in ' + str(left) + ' rounds' if left > 1 else 'next round'}.")
         if a.get("per_round") and a["key"] in x["round_once"]:
             raise Invalid("Once a round.")
+        if a.get("focus") and x.get("focus", 0) < a["focus"]:
+            raise Invalid("Not enough Focus.")
         if a["key"] == "flee" and f["kind"] in ("dungeon", "boss"):
             raise Invalid("There's no running from this one.")
         if a["key"] == "flee" and x["st"].get("root"):
@@ -684,6 +702,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["cds"][a["key"]] = a["cd"]
         if a.get("per_round"):
             x["round_once"].append(a["key"])
+        if a.get("focus"):
+            self.spend_focus(h, a["focus"])
         if a.get("instant"):
             self.instant(h, a, dice, tgt)
             self.echo_out(h, dice)
@@ -700,6 +720,67 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         goes on without them."""
         if self.s["phase"] == "fight" and self.s["fight"] and not self.check_end() and not self.fight_waiting():
             self.resolve_round()
+
+    def spend_focus(self, h, n):
+        """Spend Focus; Overclock's extra Focus costs 1 HP each."""
+        x = self.hs(h)
+        for _ in range(n):
+            over = x["focus"] > x.get("focus_free", 0) and self.mods(h).get("overclock")
+            x["focus"] -= 1
+            if over:
+                self.hurt_hero(h, 1, None, pure=True)
+
+    def do_nudge(self, h, msg):
+        """The Psion's Focus: nudge a shown die up or down by 1 ("by"), or, by Mind Link, reveal an ally's
+        hidden die ("of": the ally, "by": 0) and then nudge it. Perfect Foresight sets one ("set")."""
+        if not self.in_fight(h) or not self.active(h):
+            raise Invalid("You're not fighting.")
+        x = self.hs(h)
+        if x["ready"]:
+            raise Invalid("You've readied up; unready to act again.")
+        y = msg.get("of", h)
+        if y != h and ("mind_link" not in self.hero(h)["skills"] or not isinstance(y, int) or not self.active(y)):
+            raise Invalid("Only a Psion can reach an ally's dice.")
+        d = next((d for d in self.hs(y)["dice"] if d["id"] == msg.get("die") and not d["used"]), None)
+        if not d:
+            raise Invalid("Pick an unused die.")
+        nums = [face(f2)[0] for f2 in d["faces"] if face(f2)[0] is not None]
+        lo, top = min(nums), top_face(d["faces"])
+        if msg.get("set") is not None:
+            v = msg["set"]
+            if not self.mods(h).get("foresight") or x.get("foresaw") or y != h or d.get("v") is None:
+                raise Invalid("You can't set that die.")
+            if not isinstance(v, int) or v not in nums or d.get("tag") in ("S", "X", "W"):
+                raise Invalid("Pick one of its numbers.")
+            x["foresaw"] = True
+            d["v"] = v
+            self.fx("st", to=f"h{y}", s="foreseen_die")
+            return
+        by = msg.get("by", 0)
+        if by not in (-1, 0, 1):
+            raise Invalid("Nudge by one.")
+        reveal = d.get("v") is None
+        cost = (0 if reveal and y != h and self.mods(h).get("empathic") else int(reveal)) + abs(by)
+        if not cost and not reveal:
+            raise Invalid("Nudge it up or down.")
+        if x.get("focus", 0) < cost:
+            raise Invalid("Not enough Focus.")
+        if by and not reveal and (d.get("tag") in ("S", "X", "W") or not lo <= d["v"] + by <= max(top, d["v"])):
+            raise Invalid("That die can't go that way.")
+        self.spend_focus(h, cost)
+        if reveal:
+            if "sv" in d:
+                v, t = d.pop("sv"), d.pop("stag", None)
+            elif d.get("fc"):
+                v, t = self.rng.choice(d["fc"]), None
+            else:
+                v, t = self.raw_roll(y, d)
+            self.show_die(d, v, t)
+            d.pop("fc", None)
+            self.fx("st", to=f"h{y}", s="revealed")
+        if by and d.get("tag") not in ("S", "X", "W") and lo <= d["v"] + by <= max(top, d["v"]):
+            d["v"] += by
+            self.fx("st", to=f"h{y}", s="nudged")
 
     def do_reroll(self, h, msg):
         if not self.in_fight(h) or not self.active(h):
@@ -816,6 +897,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if a.get("spell") and m.get("spellstrike") and any(o["op"] == "dmg" for o in ops) and self.active(h):
                 v = num(dice[0]) if dice else 0
                 self.infuse(h, 1, m["spellstrike"], element_of(v))
+        if self.s["fight"] is f and m.get("resonant_pair") and len(dice) >= 2 and is_pair([num(d) for d in dice], [d.get("tag") for d in dice]):
+            x["focus"] = x.get("focus", 0) + m["resonant_pair"]  # Resonant Pair
+            self.fx("st", to=f"h{h}", s="focus")
         if self.s["fight"] is f and "heat" in x and self.active(h):
             self.add_heat(h, self.dice_heat(h, a, dice))  # the Emberknight: every die stokes the fire
         if self.s["fight"] is f:
@@ -1139,6 +1223,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         hero = self.hero(h)
         hero["hp"] -= n
         self.s["stats"][h]["taken"] += n
+        if fo is not None:
+            x["lasthit"] = fo["id"]
         if fo is not None and not pure and C.CLASSES[hero["cls"]]["map"]["key"] == "dragons_rest":
             self.grow_scales(h, 2 if x["st"].get("wingguard") else 1)  # every hit that lands grows a Scale
         m = self.mods(h)
@@ -1252,6 +1338,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for s in TICKING:
                 if st.get(s):
                     st[s] -= 1
+            m = self.mods(h)
+            if st.get("kshield") and m.get("kinetic_rebound") and st.get("armor") and x.get("lasthit") is not None:
+                fo = self.foe(x["lasthit"])
+                if fo and fo["hp"] > 0:
+                    self.hurt_foe(fo, st["armor"], h, pure=True)  # Kinetic Rebound
+            if m.get("calm_mind") and x.get("focus", 0) > 0 and self.active(h):
+                self.fight_heal(h, m["calm_mind"] * x["focus"], h)  # Calm Mind
             for s in ROUND_ONLY:
                 st.pop(s, None)
             if not self.mods(h).get("covenant"):

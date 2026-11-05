@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=128';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=128';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=128';
-import { stageURL, stageKey } from './stage.js?v=128';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=128';
-import { render } from './main.js?v=128';
-import { skillCard } from './hud.js?v=128';
-import { SKILL_FX, foeFx } from './skillfx.js?v=128';
-import * as sfx from './audio.js?v=128';
+import { S, send, mine, controllerName } from './store.js?v=129';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=129';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=129';
+import { stageURL, stageKey } from './stage.js?v=129';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=129';
+import { render } from './main.js?v=129';
+import { skillCard } from './hud.js?v=129';
+import { SKILL_FX, foeFx } from './skillfx.js?v=129';
+import * as sfx from './audio.js?v=129';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -130,7 +130,7 @@ export function renderCombat(el) {
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, mine().includes(x) ? null : h('span.ctl-name', null, ` · ${controllerName(x)}`),
         f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
       !mine().includes(x) && hs?.dice?.length ? h('div.ally-dice', { tip: `${hero.name}'s dice this round\nFaded ones are spent; a number shows once it's rolled.` },
-        ...hs.dice.map(dd => h('span.die-mini' + (dd.used ? '.used' : ''), { tip: `${dieLabel(dd)}\n${dieTip(dd)}` }, dd.v != null ? String(dd.v) : `d${topOf(dd)}`))) : null,
+        ...hs.dice.map(dd => allyDie(x, dd))) : null,
       hs?.swallowed ? h('div.covered-chip.undertow', { tip: 'Swallowed: no dice, and you take damage each round until the Reef Maw spits you out.' }, 'Swallowed!') : null,
       hs?.static ? h('div.covered-chip.undertow', { tip: 'Static: any of your dice that rolls 1 or 2 shocks you for 3 this round.' }, 'Static: 1–2 shocks you') : null,
       hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
@@ -480,6 +480,20 @@ function heatGauge(hs) {
 }
 // The Spellblade's infused blade: its next melee hits deal more and carry an element.
 const ELEMENT = { frost: ['Frost', 'makes the enemy Weak'], shock: ['Shock', 'Shocks the enemy'], burn: ['Flame', 'Burns the enemy for 2'] };
+// An ally's die on their card; with Mind Link, a hidden one can be revealed (1 Focus) and a shown one nudged.
+function allyDie(x, dd) {
+  const me = C.tab, f = S.game.fight, mh = f?.hs?.[me];
+  const link = me != null && me !== x && (S.game.heroes[me]?.skills || []).includes('mind_link') && mh && !mh.ready && !dd.used;
+  const free = link && (S.game.heroes[me].skills || []).includes('empathic_link');
+  const label = dd.v != null ? String(dd.v) : `d${topOf(dd)}`;
+  if (!link) return h('span.die-mini' + (dd.used ? '.used' : ''), { tip: `${dieLabel(dd)}\n${dieTip(dd)}` }, label);
+  if (dd.v == null) {
+    return h('button.die-mini.link', { disabled: !free && !mh.focus, tip: `Mind Link: ${free ? 'free' : '1 Focus'} to reveal this die`, onclick: () => send({ t: 'nudge', h: me, of: x, die: dd.id, by: 0 }) }, label);
+  }
+  return h('span.die-mini.linked', { tip: `${dieLabel(dd)}\nMind Link: 1 Focus nudges it` },
+    h('button', { disabled: !mh.focus, onclick: () => send({ t: 'nudge', h: me, of: x, die: dd.id, by: -1 }) }, '−'), label,
+    h('button', { disabled: !mh.focus, onclick: () => send({ t: 'nudge', h: me, of: x, die: dd.id, by: 1 }) }, '+'));
+}
 function infusedChip(hs) {
   const inf = hs.inf || {}, [name, does] = ELEMENT[inf.el] || ['Arcane', ''];
   const n = hs.st.infuse;
@@ -830,6 +844,7 @@ function tray(f, x, my) {
       h('div.tray-tools', null,
         h('span.chip', { tip: 'Automatic rerolls\nWhen one of your actions misses, a die rolls again, as long as you have one left this fight.' }, icon('refresh'), `${hs.rr} reroll${hs.rr === 1 ? '' : 's'}`),
         f.hymn ? h('span.chip.brass', { tip: 'Hymn of Valor\nEvery die the party rolls this round is this much higher.' }, `+${f.hymn} hymn`) : null,
+        ...focusTools(x, hs, dice, ready),
         hs.inspire ? h('span.chip.brass', { tip: 'Inspired\nYour next die rolls this much higher.' }, `+${hs.inspire} next die`) : null,
         ...uses.map(([k, i, n]) => h('button.btn.sm.ghost', { disabled: ready, tip: `${S.static.items[k].name}\n${S.static.items[k].text}\nUsed at once; no die needed.`, onclick: () => useItem(x, k, i) }, icon('drop'), S.static.items[k].name + (n > 1 ? ` ×${n}` : ''))))),
     h('div.actions', null, ...acts.map((k, i) => actionCard(f, x, k, i, selDice, ready))),
@@ -838,6 +853,29 @@ function tray(f, x, my) {
       h('p.muted', { style: { fontSize: '14px' } }, C.playing && !hs.ready ? 'Keep playing: your actions queue up' : hs.ready ? (waiting.length ? `Waiting for ${waiting.join(', ')}` : 'Enemies are acting…') : waiting.length ? `${waiting.join(', ')} still acting` : 'Everyone else is ready'),
       hs.ready ? h('button.btn.lg', { onclick: () => send({ t: 'fready', h: x, on: false }) }, 'Unready')
         : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { readyUp(x); render(); } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
+}
+
+// The Psion's Focus (and Hive Mind's): select one shown die, then nudge it up or down by 1; Perfect
+// Foresight sets it once a fight.
+function focusTools(x, hs, dice, ready) {
+  const hero = S.game.heroes[x];
+  if (!hs.focus && !(hero.skills || []).includes('mind_link')) return [];
+  const out = [h('span.chip.focus', { tip: 'Focus\nSpend 1 to nudge one of your shown dice up or down by 1. With Mind Link, 1 reveals one of an ally’s hidden dice (click it on their card), and more nudges it. Unspent Focus is lost at the end of the round.' },
+    icon('eye'), `${hs.focus || 0} Focus`)];
+  const sel = [...C.sel].map(id => dice.find(d => d.id === id)).filter(d => d && !d.used);
+  const d = sel.length === 1 ? sel[0] : null;
+  if (!d || d.v == null || ['S', 'X', 'W'].includes(d.tag) || ready) return out;
+  const nums = d.faces.map(f => typeof f === 'number' ? f : parseInt(String(f).slice(1))).filter(n => !isNaN(n));
+  const lo = Math.min(...nums), top = Math.max(...nums);
+  if (hs.focus) {
+    out.push(h('button.btn.sm.ghost', { disabled: d.v <= lo, tip: 'Spend 1 Focus: this die goes down by 1', onclick: () => send({ t: 'nudge', h: x, die: d.id, by: -1 }) }, '▼ −1'));
+    out.push(h('button.btn.sm.ghost', { disabled: d.v >= Math.max(top, d.v), tip: 'Spend 1 Focus: this die goes up by 1', onclick: () => send({ t: 'nudge', h: x, die: d.id, by: 1 }) }, '▲ +1'));
+  }
+  if ((hero.skills || []).includes('perfect_foresight') && !hs.foresaw) {
+    out.push(h('select.sm', { tip: 'Perfect Foresight: once a fight, set this die to any of its numbers', onchange: e => e.target.value && send({ t: 'nudge', h: x, die: d.id, set: parseInt(e.target.value) }) },
+      h('option', { value: '' }, 'Set to…'), ...[...new Set(nums)].sort((a, b) => a - b).map(n => h('option', { value: String(n) }, String(n)))));
+  }
+  return out;
 }
 
 // A die in the tray: face-down (its kind and size) until it rolls, unless it's a Seer die (shown),
@@ -1618,7 +1656,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

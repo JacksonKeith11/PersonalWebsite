@@ -69,6 +69,7 @@ SCENARIOS = {
     "spellblade": None,
     "emberknight": None,
     "dragonborn": None,
+    "psion": None,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -104,6 +105,13 @@ def main():
     names = sys.argv[1:] or list(SCENARIOS)
     for name in names:
         g = None
+        if name == "psion":
+            g, seed = game.Game.new(501, ["psion", "vanguard", "mender"], "normal"), 501
+            g.hero(0)["skills"] += ["mind_crush", "psionic_storm", "puppet_strings", "perfect_foresight"]
+            g.start_fight({"kind": "roam", "tile": g.hero(0)["tile"], "heroes": [0, 1, 2], "foes": ["cutthroat", "crab", "eel"], "by": 0})
+            S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
+            print(f"{name}: saved")
+            continue
         if name == "dragonborn":
             g, seed = game.Game.new(501, ["dragonborn", "vanguard", "mender"], "normal"), 501
             g.hero(0)["skills"] += ["tail_sweep", "focused_breath", "wing_guard", "draconic_roar"]

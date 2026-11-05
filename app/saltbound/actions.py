@@ -40,7 +40,7 @@ class Actions:
                 "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
                 "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
-                "scales": self.hero(h).get("scales", 0), "back": 0,
+                "scales": self.hero(h).get("scales", 0), "back": 0, "hi": max(vals) if vals else 0,
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
@@ -210,6 +210,10 @@ class Actions:
         if to == "aiming":
             # every enemy whose coming attack is aimed at the hero
             return [fo for fo in self.foes() if f"h{h}" in self.intent_aims(fo.get("intent") or {})]
+        if to == "biggest":
+            # the enemy with the biggest attack this round
+            aimed = [fo for fo in self.foes() if (fo.get("intent") or {}).get("k") in ("attack", "all")]
+            return [max(aimed, key=lambda fo: fo["intent"].get("v", 0))] if aimed else []
         if to == "sigiled":
             return [fo for fo in self.foes() if fo["st"].get("sigil")]
         return base
@@ -404,6 +408,19 @@ class Actions:
             if c.m.get("ancestral_fury") and n >= 5:
                 c.x["redline"] = True  # Ancestral Fury: the next hit deals double
 
+    def _op_turn(self, c, op, targets):
+        """Puppet Strings: the enemy's attack lands on another enemy, now, and is spent."""
+        for t in targets:
+            it = t.get("intent") if isinstance(t, dict) else None
+            if not it or it.get("k") not in ("attack", "all") or t["hp"] <= 0 or self.resist(t):
+                continue
+            n = it.get("v", 0)
+            others = [o for o in self.foes() if o is not t]
+            t["intent"] = {"k": "dazed", "name": "Turned on its own", "by_hero": True}
+            self.fx("st", to=f"f{t['id']}", s="puppeted")
+            if others and n:
+                self.hurt_foe(max(others, key=lambda o: o["hp"]), n, c.h)
+
     def _op_gaze(self, c, op, targets):
         """Dread Gaze: the enemy's attack turns on the Dragonborn."""
         me = f"h{c.h}"
@@ -543,7 +560,7 @@ class Actions:
 
     def _op_drag(self, c, op, targets):
         for t in targets:
-            if not isinstance(t, tuple) and t["hp"] > 0 and not t["st"].get("root"):
+            if not isinstance(t, tuple) and t["hp"] > 0 and not t["st"].get("root") and self.op_gate(c, op, t):
                 t["row"] = "front"
                 self.fx("drag", to=f"f{t['id']}")
 

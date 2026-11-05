@@ -181,6 +181,18 @@ export const SKILL_FX = {
   molt: x => { x.me('healglow', null, 900); return 'cast'; },
   brood_bond: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); return 'cast'; },
 
+  // Psion
+  mind_spike: x => { x.bolt(x.from, x.t[0]); x.hit('zap', C.water, 500, 120); return 'cast'; },
+  kinetic_shield: x => { x.me('shieldfx', null, 700); x.me('hoop', C.water, 600, 80); return 'brace'; },
+  mind_crush: x => { x.hit('squeeze', C.water, 800); if (!x.miss) { x.hit('slam', C.water, 520, 300); x.shake(320); } return 'cast'; },
+  psionic_storm: x => { x.foes.forEach((u, i) => x.on(u, 'zap', null, 600, 100 + i * 70)); if (!x.miss) x.later(() => x.screen('bolt', 250), 150); return 'cast'; },
+  telekinetic_hurl: x => { x.hit('slam', C.water, 520, 200); x.shake(240); return 'cast'; },
+  gravity_well: x => { x.foes.forEach((u, i) => x.on(u, 'hoop', C.water, 700, 100 + i * 60)); return 'cast'; },
+  read_intent: x => { x.hit('glyph', C.water, 800, 0, '👁'); return 'cast'; },
+  psychic_scream: x => { x.me('shout', C.water, 800); x.foes.forEach((u, i) => x.on(u, 'glyph', C.water, 700, 200 + i * 60, '↓')); return 'cast'; },
+  mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); return 'cast'; },
+  puppet_strings: x => { x.hit('glyph spin', C.water, 900, 0, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
+
   // Warden
   thornlash: x => { x.shot('thorn', C.nature, ['pop small', C.nature, 400]); if (!x.miss) x.hit('vines', C.nature, 800, 260); return 'act'; },
   sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },

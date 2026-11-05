@@ -819,6 +819,81 @@ CLASSES["dragonborn"] = {
     "blurb": "Scales harden with every blow it takes. When the stack is full, it breathes.",
 }
 
+# ---- Psion (owner's request, Nov 2026; docs/saltbound-psion.md): all its dice are Seer dice (rolled and
+# shown while it plans), and it has Focus each round (FOCUS_BASE, +1 at FOCUS_LEVELS): 1 Focus nudges a
+# shown die up or down by 1 (the `nudge` message), or, by Mind Link, reveals an ally's hidden die. So
+# its actions can ask for exact numbers, pairs and straights: the one class the skills doc allows to.
+FOCUS_BASE = 2
+FOCUS_LEVELS = (3, 6)
+ACTIONS.update({
+    "mind_spike": {"name": "Mind Spike", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": [],
+                   "ops": [{"op": "dmg", "amt": "v+6*(v==6)"}],
+                   "text": "Any row: deal the die. On exactly 6, deal 12 instead."},
+    "kinetic_shield": {"name": "Kinetic Shield", "req": {"n": 1}, "tgt": "self", "tags": [],
+                       "ops": [{"op": "armor", "amt": "8 if v==1 else v+2"}, {"op": "status", "s": "kshield", "n": 1}],
+                       "text": "Gain the die +2 as Armor. On exactly 1, gain 8 instead."},
+    "mind_crush": {"name": "Mind Crush", "req": {"n": 2, "pair": True}, "tgt": "foe", "spell": True, "tags": ["telekinesis"],
+                   "ops": [{"op": "dmg", "amt": "3*v"}], "miss": [],
+                   "text": "Two dice, a pair: any row, the enemy takes three times the pair's number. Otherwise: nothing."},
+    "psionic_storm": {"cd": 3, "name": "Psionic Storm", "req": {"n": 3, "straight": True}, "tgt": "foes", "spell": True,
+                      "tags": ["telekinesis"], "ops": [{"op": "dmg", "amt": "hi+4"}], "miss": [],
+                      "text": "Three dice in a row (a straight): every enemy takes the highest die +4. Otherwise: nothing."},
+    "telekinetic_hurl": {"name": "Telekinetic Hurl", "req": {"n": 1}, "tgt": "foe", "tags": ["telekinesis"],
+                         "ops": [{"op": "dmg", "amt": "v"}, {"op": "drag"}, {"op": "dmg", "amt": "6", "if": "v==1"},
+                                 {"op": "dmg", "amt": "6", "to": "another", "if": "v==1"}],
+                         "text": "Any row: deal the die and drag the enemy to the front row. On exactly 1, it's thrown into "
+                                 "another enemy: 6 more to it, and 6 to the other."},
+    "gravity_well": {"name": "Gravity Well", "req": {"n": 1}, "tgt": "foes", "tags": ["telekinesis"],
+                     "ops": [{"op": "dmg", "amt": "max(1,v//2)", "if": "back"}, {"op": "drag", "if": "back"}],
+                     "text": "Every back-row enemy takes half the die (at least 1) and is dragged to the front row."},
+    "read_intent": {"name": "Read Intent", "req": {"n": 0}, "tgt": "foe", "focus": 1, "tags": ["telepathy"],
+                    "ops": [{"op": "foresee"}],
+                    "text": "No die, 1 Focus: the enemy rolls its attack now, so the party sees the exact numbers."},
+    "psychic_scream": {"cd": 3, "name": "Psychic Scream", "req": {"n": 1}, "tgt": "foes", "spell": True, "tags": ["telepathy"],
+                       "ops": [{"op": "status", "s": "weak", "n": 1}, {"op": "status", "s": "vuln", "n": 1, "to": "biggest", "if": "v>=5"}],
+                       "text": "Every enemy is Weak this round. On 5+, the one with the biggest attack is Vulnerable too."},
+    "mind_fog": {"name": "Mind Fog", "req": {"n": 1}, "tgt": "foe", "tags": ["telepathy"],
+                 "ops": [{"op": "weaken", "amt": "v+1"}],
+                 "text": "Any row: the enemy's attack this round deals the die +1 less."},
+    "puppet_strings": {"cd": 3, "name": "Puppet Strings", "req": {"n": 2, "exact": 6}, "tgt": "foe", "spell": True,
+                       "tags": ["telepathy"], "ops": [{"op": "turn"}], "miss": [{"op": "dmg", "amt": "sum//2"}],
+                       "text": "Two dice, both 6: the enemy turns its attack this round on another enemy (that one takes it now, "
+                               "and the attack is spent). Otherwise: deal half the sum."},
+})
+PASSIVES.update({
+    "mind_link": {"name": "Mind Link", "mods": {}, "tags": [],
+                  "text": "Spend 1 Focus to reveal one of an ally's hidden dice (it's rolled now and shown); each further Focus "
+                          "nudges it up or down by 1."},
+    "overclock": {"name": "Overclock", "mods": {"overclock": 1}, "tags": ["telekinesis"],
+                  "text": "+1 Focus each round, but spending it costs 1 HP."},
+    "resonant_pair": {"name": "Resonant Pair", "mods": {"resonant_pair": 1}, "tags": ["telekinesis"],
+                      "text": "Playing a pair on any action gives 1 Focus back."},
+    "kinetic_rebound": {"name": "Kinetic Rebound", "mods": {"kinetic_rebound": 1}, "tags": ["telekinesis"],
+                        "text": "After you play Kinetic Shield, the Armor you have left at the end of the round hits the last enemy that hit you."},
+    "perfect_foresight": {"name": "Perfect Foresight", "cap": True, "mods": {"foresight": 1}, "tags": ["telekinesis"],
+                          "text": "Once per fight, set one of your shown dice to any number it has."},
+    "empathic_link": {"name": "Empathic Link", "mods": {"empathic": 1}, "tags": ["telepathy"],
+                      "text": "Revealing an ally's die with Mind Link costs no Focus."},
+    "shared_vision": {"name": "Shared Vision", "mods": {"shared_vision": 1}, "tags": ["telepathy"],
+                      "text": "Each ally's biggest die is a Seer die: rolled and shown while they plan."},
+    "calm_mind": {"name": "Calm Mind", "mods": {"calm_mind": 2}, "tags": ["telepathy"],
+                  "text": "At the end of the round, heal 2 for each Focus you didn't spend."},
+    "hive_mind": {"name": "Hive Mind", "cap": True, "mods": {"hive_mind": 1}, "tags": ["telepathy"],
+                  "text": "Every ally gets 1 Focus of their own each round, to nudge their own dice."},
+})
+CLASS_DICE["psion"] = [{"faces": D(6), "dk": []}, {"faces": D(6), "dk": []}]
+CLASSES["psion"] = {
+    "name": "Psion", "hp": 22, "hp_lvl": 3, "role": "Precise damage and party support",
+    "dice": [D(6), D(6)], "tags": ["telekinesis", "telepathy"],
+    "map": {"key": "precognition", "name": "Precognition",
+            "text": "In a fight you're in, every enemy's first attack is rolled in the open: the party sees the exact numbers."},
+    "start": ["mind_spike", "kinetic_shield", "mind_link"], "weapon": "focus_crystal", "armor": "wool_robe",
+    "pool": ["mind_crush", "psionic_storm", "telekinetic_hurl", "gravity_well", "read_intent", "psychic_scream", "mind_fog",
+             "puppet_strings", "overclock", "resonant_pair", "kinetic_rebound", "empathic_link", "shared_vision", "calm_mind",
+             "perfect_foresight", "hive_mind"],
+    "blurb": "Sees every roll before it lands, and bends the close ones.",
+}
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -898,7 +973,7 @@ def is_defensive(a):
 # count on every round), Block, Flee and Lift (plus weapon actions, in
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "rune_cut", "searing_strike", "claw", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
+FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
         "block", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3, "mend": 3}
 
@@ -997,6 +1072,13 @@ SHORT = {
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
+SHORT.update({
+    "mind_spike": ("bolt", "die · exactly 6: 12", None), "kinetic_shield": ("shield", "die +2 Armor · exactly 1: 8", None),
+    "mind_crush": ("bolt", "pair: 3× its number", "nothing"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),
+    "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: ½ die · drag", None),
+    "read_intent": ("eye", "1 Focus: its roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
+    "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
+})
 SHORT.update({
     "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),
     "tail_sweep": ("sword", "front row: die +2", None), "sky_dive": ("sword", "any row: die +3 · back row Weak", None),

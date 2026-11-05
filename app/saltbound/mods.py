@@ -8,6 +8,15 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Psion's Focus (classes.py FOCUS_*; Combat.do_nudge)
+    "overclock": "+n Focus a round, each spent costing 1 HP",
+    "resonant_pair": "playing a pair gives n Focus back",
+    "kinetic_rebound": "after Kinetic Shield, Armor left at round end hits the last enemy that hit you",
+    "foresight": "once a fight, set a shown die to any of its numbers",
+    "empathic": "revealing an ally's die with Mind Link is free",
+    "shared_vision": "each ally's biggest die is a Seer die",
+    "calm_mind": "heal n per Focus left unspent at round end",
+    "hive_mind": "every ally gets n Focus of their own each round",
     # the Dragonborn's Scales and dragon picks (classes.py SCALE_CAP; actions.py grow_scales, shed)
     "searing_breath": "Breath Burns every enemy 1 per Scale shed",
     "wyrmfire": "every Claw Burns 1; a crit Burns 2 more",

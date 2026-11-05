@@ -202,6 +202,48 @@ def dragonborn4():  # Wyrm Guard: gold and teal scale mail, a winged crest helm,
     g.text(5, 0, ['MM          MM', ' MMM      MMM ', '  MMMM  MMMM  '])  # crest wings
     return g
 
+
+# Psion looks for the owner's review (Nov 2026): a robed mystic, an armoured mind-knight, and two
+# stranger ones (floating, glowing eyes). Kept out of sprites.js until the class is built.
+PSI = {**SKIN, 'e': E, 'V': '#7fe3ff', 'v': '#3a9ab8', 'G': '#e8fbff', 'n': '#14101a', 'k': '#2a2430', 'Y': '#d0a840', 'L': '#3a3448'}
+
+def psion1():  # Robed Mystic: deep blue robe, shaved head with a glowing third-eye mark, a crystal floating over the palm
+    g = G(dict(PSI, B='#2a3a6a', b='#1e2a4e', T='#7fe3ff', H='#2a1e18'))
+    body(g, 'robe'); arms(g)
+    face(g, 10, 6, 8, 6); g.rect(12, 10, 15, 10, 'S'); g.rect(11, 5, 16, 5, 's'); g.px(13, 6, 'V'); g.px(14, 6, 'V')
+    g.text(20, 11, [' G ', 'GVG', ' V ']); g.px(19, 15, 'v'); g.px(23, 14, 'v')  # floating crystal
+    return g
+
+def psion2():  # Mind-Knight: silver-blue plate, a smooth helm with a glowing visor band, a crystal blade
+    g = G(dict(PSI, A='#8a9ab8', a='#5a6a88', D='#b8c8e0', h='#3a3448'))
+    legs(g, 'a'); torso(g, 'A'); g.rect(12, 14, 15, 22, 'a'); g.rect(9, 20, 18, 20, 'h'); g.ell(13.5, 16.5, 1.5, 1.5, 'V')
+    g.rect(6, 12, 9, 15, 'D'); g.rect(18, 12, 21, 15, 'D'); g.rect(6, 16, 8, 19, 'A'); g.rect(19, 15, 21, 18, 'A')
+    g.rect(21, 17, 25, 17, 'Y'); g.line(23, 16, 29, 10, 'V', 2); g.line(23, 15, 29, 9, 'G')
+    g.rows(9, 3, [(1, 8), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (1, 8)], 'D')
+    g.rect(9, 7, 18, 8, 'V'); g.rect(10, 7, 17, 7, 'G'); g.rect(9, 11, 18, 11, 'a')
+    return g
+
+def psion3():  # Floating Seer: hooded, hovering above the ground with no feet showing, glowing eyes, orbiting stones
+    g = G(dict(PSI, B='#4a2a6a', b='#2e1a44', T='#7fe3ff'))
+    g.rows(9, 10, ROBE[:13], 'B'); g.rect(13, 11, 14, 22, 'b'); g.rect(8, 17, 19, 17, 'T')
+    g.rows(8, 23, [(1, 11), (3, 9), (5, 7)], 'b')  # robe trailing to a point, off the ground
+    g.rows(6, 12, [(1, 3), (0, 3), (0, 3)], 'B'); g.rows(19, 11, [(0, 2), (0, 3), (1, 3)], 'B')
+    g.rows(8, 1, [(2, 8), (1, 9), (0, 10), (0, 10), (0, 10), (0, 10), (0, 10), (1, 9)], 'B'); g.rect(10, 4, 17, 8, 'n')
+    g.px(11, 6, 'V'); g.px(12, 6, 'G'); g.px(15, 6, 'G'); g.px(16, 6, 'V')
+    for x, y in ((3, 14), (24, 9), (25, 20), (4, 24)):
+        g.rect(x, y, x + 1, y + 1, 'v'); g.px(x, y, 'V')
+    g.text(9, 29, ['  vVVVv  '])  # the glow beneath
+    return g
+
+def psion4():  # Void Monk: bare-armed, a blindfold, a halo of floating shards, wrapped hands crackling with light
+    g = G(dict(PSI, B='#e0dacb', b='#a89a88', T='#3a9ab8', H='#1a1420', X='#7fe3ff'))
+    legs(g, 'L'); torso(g, 'B'); g.rect(9, 20, 18, 21, 'T'); arms_bare(g)
+    g.rect(6, 17, 8, 19, 'b'); g.rect(20, 17, 22, 19, 'b'); g.px(5, 18, 'V'); g.px(23, 18, 'V'); g.px(4, 17, 'G'); g.px(24, 19, 'G')
+    face(g, 10, 6, 8, 6, eyes=False); g.rect(9, 7, 18, 8, 'T'); g.rect(12, 10, 15, 10, 'S'); g.rect(10, 4, 17, 5, 'H')
+    for x, y in ((8, 1), (12, 0), (16, 0), (20, 2), (6, 4)):
+        g.px(x, y, 'V'); g.px(x + 1, y, 'G')
+    return g
+
 SK = SKIN
 OPTIONS = {
     'duelist': [
@@ -282,6 +324,9 @@ OPTIONS = {
     ],
     # owner's request, Nov 2026: a knight running hot, with a glowing mace (option 1); then knights in
     # orange-to-red plate
+    'psion': [
+        ('Robed Mystic', psion1), ('Mind-Knight', psion2), ('Floating Seer', psion3), ('Void Monk', psion4),
+    ],
     'dragonborn': [
         ('Red Wyrmkin', dragonborn1), ('Bronze Drake', dragonborn2), ('Dragon Knight', dragonborn3), ('Wyrm Guard', dragonborn4),
     ],

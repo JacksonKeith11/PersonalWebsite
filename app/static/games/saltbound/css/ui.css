@@ -1018,6 +1018,10 @@ a:hover { color: var(--accent-hi); }
 .heat-gauge { position: relative; width: 100%; min-width: 120px; height: 14px; margin: 2px 0; border-radius: 7px; background: var(--panel-2, rgba(255, 255, 255, 0.06)); overflow: hidden; }
 .heat-gauge i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #a8401a, #ffa030); border-radius: 7px; }
 .heat-gauge.hot i { background: linear-gradient(90deg, #d0501a, #ffd36b); box-shadow: 0 0 8px #ffa030; }
+.scale-pips { display: flex; align-items: center; gap: 3px; margin: 2px 0; font-size: 10px; font-weight: 800; color: #9ad89a; }
+.scale-pips i { width: 10px; height: 10px; border-radius: 2px 2px 6px 6px; border: 1px solid #5a8a5a; background: transparent; }
+.scale-pips i.on { background: linear-gradient(180deg, #8ad88a, #3a6a4a); border-color: #b8e8b8; }
+.scale-pips span { margin-left: 4px; }
 .heat-gauge span { position: relative; display: block; text-align: center; font-size: 10px; font-weight: 800; line-height: 14px; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7); }
 .covered-chip.infused.frost { color: #9fd8ff; }
 .covered-chip.infused.shock { color: #e8f0ff; }

@@ -960,6 +960,22 @@ def evaluate(g, b, h, a, dice, tgt):
                         cur = t["st"].get("sigil", 0) + b.sig.get(t["id"], 0)
                         n = cur if op.get("double") else op["n"]
                         val += share * sigil_value(g, b, h, t, n, cur, eff, pr * share)
+            elif k == "shed":
+                have = g.hero(h).get("scales", 0)
+                n_ = have if op.get("all") else min(have, op["n"])
+                if a["key"] == "breath" and m.get("dragons_wrath"):
+                    n_ = have // 2
+                val -= n_ * 2.0  # a Scale is Armor every round, in this fight and the next
+                if a["key"] == "breath" and m.get("searing_breath"):
+                    val += sum(min(n_ * (n_ + 1) / 2, fo["hp"]) * 0.8 for fo in foes)
+            elif k == "brood":
+                n_ = min(g.hero(h).get("scales", 0), op["n"])
+                val += n_ * 0.8  # Armor on an ally each round, for a Scale of your own each
+            elif k == "gaze":
+                for t, share in tg:
+                    if isinstance(t, dict):
+                        sturdy = g.hero(h)["hp"] + g.hs(h)["st"].get("armor", 0) > inc.get(h, 0) + now[t["id"]] * 1.5
+                        val += share * now[t["id"]] * (0.4 if sturdy else -0.3)
             elif k == "kindle":
                 n_ = amt(op["amt"], de) + plus
                 for t, share in tg:

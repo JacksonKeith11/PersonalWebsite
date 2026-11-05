@@ -85,6 +85,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.summon(h, "sapling", 10)
         for h in f["heroes"]:
             hero = self.hero(h)
+            m = self.mods(h)
+            if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
+                self.grow_scales(h, 1)  # Thick Hide
             if C.CLASSES[hero["cls"]]["map"]["key"] == "banked_coals":
                 # Banked Coals: Heat from the road, twice the turns since the last fight (up to 10)
                 f["hs"][str(h)]["heat"] = min(10, 2 * max(0, self.s["turn"] - hero.get("fought", self.s["turn"])))
@@ -327,6 +330,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         # Spirit dice for heroes who are dead
         f["spirit"] = {str(h): {"v": self.rng.randint(1, 6), "used": False}
                        for h in range(3) if not self.hero(h)["alive"]}
+        for h in self.actives():
+            # the Dragonborn's Scales (and Scales given by Brood Bond, and Draconic Ascension): Armor each round
+            x = self.hs(h)
+            n = (self.hero(h).get("scales", 0) if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "dragons_rest" else 0) \
+                + x.get("brood", 0) + (4 if x.get("ascend") else 0)
+            if n:
+                x["st"]["armor"] = x["st"].get("armor", 0) + n
+                self.fx("armor", to=f"h{h}", n=n)
         self.crown_round()
         self.foe_round()
         for fo in self.foes():
@@ -793,6 +804,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             # a die on its top face: the action's crit lands too
             self.fx("st", to=f"h{h}", s="crit")
             self.run_ops(h, a, dice, tgt, ops=a["crit"], hit=hit)
+            if a["key"] == "claw" and m.get("wyrmfire") and isinstance(tgt, str) and tgt.startswith("f"):
+                fo = self.foe(int(tgt[1:]))
+                if fo:
+                    self.foe_burn(fo, 2, h)  # Wyrmfire Claws: a crit Burns 3 in all
         x.pop("acting", None)
         if self.s["fight"] is f and hit and isinstance(tgt, str) and tgt.startswith("f"):
             fo = self.foe(int(tgt[1:]))
@@ -1124,6 +1139,16 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         hero = self.hero(h)
         hero["hp"] -= n
         self.s["stats"][h]["taken"] += n
+        if fo is not None and not pure and C.CLASSES[hero["cls"]]["map"]["key"] == "dragons_rest":
+            self.grow_scales(h, 2 if x["st"].get("wingguard") else 1)  # every hit that lands grows a Scale
+        m = self.mods(h)
+        if 0 < hero["hp"] < self.maxhp(h) / 2:
+            if m.get("ancient_blood") and not x.get("ablood"):
+                x["ablood"] = True  # Ancient Blood
+                self.fight_heal(h, m["ancient_blood"], h)
+            if m.get("ascension") and not x.get("ascend"):
+                x["ascend"] = True  # Draconic Ascension
+                self.fx("st", to=f"h{h}", s="ascended")
         self.fx("dmg", to=f"h{h}", n=n, block=blocked)
         if n > 0 and not pure and self.mods(h).get("pain_engine"):
             f["pain"][str(h)] = f["pain"].get(str(h), 0) + 1
@@ -1165,6 +1190,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 hero["hp"] = 0
                 x["down"] = True
                 x["st"] = {}
+                if hero.get("scales"):
+                    hero["scales"] //= 2  # knocked down: half the Scales go (rounded up)
                 self.fx("down", to=f"h{h}")
                 self.say(f"{hero['name']} is knocked down!")
                 fury = self.mods(h).get("undying", 0)

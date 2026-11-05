@@ -1440,6 +1440,9 @@ class Game(Combat, Biomes, Quests, Travel):
         if key == "brewer":
             for _ in range(2 if self.mods(h).get("distiller") else 1):
                 hero["bag"].append("potion")
+        if key == "dragons_rest":
+            # Dragon's Rest: a Scale, two at a camp or in a town
+            hero["scales"] = min(C.SCALE_CAP, hero.get("scales", 0) + (2 if p and p["kind"] in ("camp", "town") else 1))
         if key == "runewright":
             # Runewright: the next fight's enemies start with 2 Sigils (the next two after a town)
             hero["runes"] = max(hero.get("runes", 0), 2 if p and p["kind"] == "town" else 1)

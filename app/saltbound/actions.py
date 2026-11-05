@@ -40,6 +40,7 @@ class Actions:
                 "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
                 "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
+                "scales": self.hero(h).get("scales", 0), "back": 0,
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
@@ -52,7 +53,7 @@ class Actions:
             e["outroll"] = int(bool(vals) and bool(known) and len(known) == len(it.get("dice") or []) and vals[0] > max(known))
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
-                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0))
+                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"))
             e["sigv"] = sigil_worth(e)
         return e
 
@@ -69,7 +70,7 @@ class Actions:
         return top, {"undead": int(bool(A.FOES[target["k"]].get("undead"))), "rooted": int(bool(st.get("root"))),
                      "stunned": int(bool(st.get("stun"))), "poisoned": int(bool(st.get("poison"))),
                      "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0,
-                     "sig": st.get("sigil", 0)}
+                     "sig": st.get("sigil", 0), "back": int(target["row"] == "back")}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -101,6 +102,10 @@ class Actions:
             n += x["heat"] // C.HEAT_STEP + x.get("white", 0)  # the Emberknight's Heat (and Heart of the Forge)
         if x["st"].get("kindled"):
             n += x.get("kdmg", 0)  # an ally's Pass the Flame
+        if m.get("hoard_gleam"):
+            n += min(3, self.hero(h)["gold"] // m["hoard_gleam"])  # Hoard's Gleam
+        if x.get("ascend"):
+            n += m.get("ascension", 0)  # Draconic Ascension
         kind = "melee" if a.get("melee") else "spell" if a.get("spell") else None
         if m.get("bladesong") and kind and x.get("lastk") and x["lastk"] != kind:
             n += m["bladesong"]
@@ -330,6 +335,8 @@ class Actions:
                     self.foe_status_by(t, "burn", h)
                 if c.x["st"].get("kindled") and done:
                     c.x["st"]["kindled"] -= 1
+                if a["key"] == "claw" and m.get("wyrmfire") and done and t["hp"] > 0:
+                    self.foe_burn(t, 1, h)  # Wyrmfire Claws
                 if op.get("burst"):
                     self.burst(c, op, t, vals)
                 if a.get("spell") and m.get("spell_burn") and done and t["hp"] > 0:
@@ -379,6 +386,47 @@ class Actions:
                     fo["st"]["burn"] = fo["st"].get("burn", 0) + min(3, x["heat"] // 5)
                     self.fx("st", to=f"f{fo['id']}", s="burn")
         self.add_heat(c.h, n)
+
+    def _op_shed(self, c, op, targets):
+        hero = self.hero(c.h)
+        have = hero.get("scales", 0)
+        n = have if op.get("all") else min(have, op["n"])
+        if c.a["key"] == "breath" and c.m.get("dragons_wrath"):
+            n = have // 2  # Dragon's Wrath: half shed, all of them hit
+        if n <= 0:
+            return
+        hero["scales"] = have - n
+        self.fx("st", to=f"h{c.h}", s="shed")
+        if c.a["key"] == "breath":
+            if c.m.get("searing_breath"):
+                for fo in self.foes():
+                    self.foe_burn(fo, n, c.h)  # Searing Breath
+            if c.m.get("ancestral_fury") and n >= 5:
+                c.x["redline"] = True  # Ancestral Fury: the next hit deals double
+
+    def _op_gaze(self, c, op, targets):
+        """Dread Gaze: the enemy's attack turns on the Dragonborn."""
+        me = f"h{c.h}"
+        for t in targets:
+            it = t.get("intent") if isinstance(t, dict) else None
+            if it and it.get("k") in ("attack", "debuff") and (it.get("tgt") or it.get("tgts")):
+                if it.get("tgt"):
+                    it["tgt"] = me
+                else:
+                    it["tgts"] = [me for _ in it["tgts"]]
+                self.fx("retarget", f=t["id"], to=me)
+
+    def _op_brood(self, c, op, targets):
+        """Brood Bond: Scales given to an ally for the fight, as Armor now and each round."""
+        hero = self.hero(c.h)
+        n = min(hero.get("scales", 0), op["n"])
+        for t in targets:
+            if isinstance(t, tuple) and self.active(t[1]) and n:
+                hero["scales"] -= n
+                y = self.hs(t[1])
+                y["brood"] = y.get("brood", 0) + n
+                y["st"]["armor"] = y["st"].get("armor", 0) + n
+                self.fx("armor", to=f"h{t[1]}", n=n)
 
     def _op_kindle(self, c, op, targets):
         n = self.op_amount(c, op)
@@ -602,6 +650,21 @@ class Actions:
         self.summon(c.h, op["k"], hp)
 
     # ------------------------------------------------------------------ instant actions
+
+    # ------------------------------------------------------------------ the Dragonborn's Scales
+
+    def grow_scales(self, h, n):
+        hero = self.hero(h)
+        was = hero.get("scales", 0)
+        hero["scales"] = min(C.SCALE_CAP, was + n)
+        if hero["scales"] > was:
+            self.fx("st", to=f"h{h}", s="scale")
+
+    def foe_burn(self, fo, n, h):
+        if n > 0 and fo["hp"] > 0:
+            fo["st"]["burn"] = fo["st"].get("burn", 0) + self.status_amount(h, {"plus": False}, "burn", n)
+            self.fx("st", to=f"f{fo['id']}", s="burn")
+            self.foe_status_by(fo, "burn", h)
 
     # ------------------------------------------------------------------ the Emberknight's Heat
 

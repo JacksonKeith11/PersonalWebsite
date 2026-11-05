@@ -8,6 +8,15 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Dragonborn's Scales and dragon picks (classes.py SCALE_CAP; actions.py grow_scales, shed)
+    "searing_breath": "Breath Burns every enemy 1 per Scale shed",
+    "wyrmfire": "every Claw Burns 1; a crit Burns 2 more",
+    "hoard_gleam": "+1 damage per n gold carried (up to +3)",
+    "ancestral_fury": "Breath shedding 5 Scales doubles the next hit this round",
+    "dragons_wrath": "Breath sheds only half the Scales and still hits for all of them",
+    "thick_scales": "at fight start, grow a Scale if fewer than n",
+    "ancient_blood": "once a fight, dropping below half HP heals n",
+    "ascension": "once a fight below half HP: +n on every hit and 4 Armor a round for the rest of it",
     # the Emberknight's Heat (classes.py HEAT_*; actions.py add_heat)
     "molten_edge": "at 15+ Heat, hits also Burn 1",
     "fan_flames": "each kill adds n Heat",

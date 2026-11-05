@@ -167,6 +167,20 @@ export const SKILL_FX = {
   pass_the_flame: x => { x.shot('fireorb', null, ['aura', C.fire, 900]); return 'cast'; },
   backdraft: x => { x.shot('fireorb', null, ['fireburst', null, 800]); if (!x.miss) x.shake(300); return 'cast'; },
 
+  // Dragonborn
+  claw: x => { x.hit('claw', null, 420, 120); return 'melee'; },
+  breath: x => { x.me('aura', C.fire, 500); x.foes.forEach((u, i) => x.on(u, 'fireburst', null, 800, 150 + i * 70)); x.later(() => x.screen('fire', 450), 150); return 'cast'; },
+  tail_sweep: x => { x.t.forEach((u, i) => x.on(u, 'bigslash', null, 480, 120 + i * 60)); x.shake(240); return 'spin'; },
+  sky_dive: x => { x.hit('slam', null, 520, 220); x.shake(260); return 'charge'; },
+  rending_bite: x => { x.hit('bite', C.blood, 520, 120); x.hit('drops', C.poison, 700, 260); return 'melee'; },
+  focused_breath: x => { x.shot('fireorb', null, ['fireburst', null, 900]); x.shake(300); return 'cast'; },
+  draconic_roar: x => { x.me('shout', C.fire, 800); x.foes.forEach((u, i) => x.on(u, 'glyph', C.fire, 700, 200 + i * 60, '↓')); x.shake(200); return 'cast'; },
+  dread_gaze: x => { x.hit('crosshair', C.fire, 800); return 'cast'; },
+  wing_buffet: x => { x.t.forEach((u, i) => x.on(u, 'smoke', C.smoke, 700, 100 + i * 60)); return 'act'; },
+  wing_guard: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); x.me('shieldfx', null, 700); return 'brace'; },
+  molt: x => { x.me('healglow', null, 900); return 'cast'; },
+  brood_bond: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); return 'cast'; },
+
   // Warden
   thornlash: x => { x.shot('thorn', C.nature, ['pop small', C.nature, 400]); if (!x.miss) x.hit('vines', C.nature, 800, 260); return 'act'; },
   sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },

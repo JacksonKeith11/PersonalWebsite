@@ -747,6 +747,78 @@ CLASSES["emberknight"] = {
     "blurb": "Every swing stokes the fire. Push it to the edge, then let it out.",
 }
 
+# ---- Dragonborn (owner's request, Nov 2026; docs/saltbound-dragonborn.md): every enemy hit that lands
+# grows a Scale (`hero["scales"]`, up to SCALE_CAP, kept between fights; knocked down loses half, rounded
+# up); each Scale is 1 Armor at the start of every round; Breath sheds them all for area damage. The
+# `shed` op sheds Scales (`n`, or all); `scales` in an amount is the hero's Scales. Rules in Combat
+# (`grow_scales`, `shed`). Half the picks don't touch Scales.
+SCALE_CAP = 5
+ACTIONS.update({
+    "claw": {"name": "Claw", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
+             "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Deal the die +2."},
+    "breath": {"name": "Breath", "req": {"n": 1}, "tgt": "foes", "tags": [],
+               "ops": [{"op": "dmg", "amt": "v+2*scales"}, {"op": "shed", "all": True}],
+               "text": "Any row: shed all your Scales; every enemy takes the die +2 per Scale."},
+    "tail_sweep": {"name": "Tail Sweep", "req": {"n": 1}, "tgt": "front", "melee": True, "tags": ["wrath"],
+                   "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Hit every front-row enemy for the die +1."},
+    "sky_dive": {"name": "Sky Dive", "req": {"n": 1}, "tgt": "foe", "tags": ["wrath"],
+                 "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "status", "s": "weak", "n": 1, "if": "back"}],
+                 "text": "Any row: deal the die +3. If the enemy is in the back row, it's Weak this round."},
+    "rending_bite": {"name": "Rending Bite", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["wrath"],
+                     "ops": [{"op": "dmg", "amt": "v+2", "onkill": "v"}, {"op": "status", "s": "poison", "n": 2}],
+                     "text": "Deal the die +2 and Poison 2. If it kills, heal the die."},
+    "focused_breath": {"name": "Focused Breath", "req": {"n": 1}, "tgt": "foe", "tags": ["wrath"],
+                       "ops": [{"op": "dmg", "amt": "v+4*min(3,scales)"}, {"op": "shed", "n": 3}],
+                       "text": "Any row: shed up to 3 Scales; the enemy takes the die +4 per Scale shed."},
+    "draconic_roar": {"cd": 3, "name": "Draconic Roar", "req": {"n": 1}, "tgt": "foes", "tags": ["hide"],
+                      "ops": [{"op": "status", "s": "weak", "n": "1+(v>=5)"}],
+                      "text": "Every enemy is Weak; on 5+, for 2 rounds."},
+    "dread_gaze": {"name": "Dread Gaze", "req": {"n": 1}, "tgt": "foe", "tags": ["hide"],
+                   "ops": [{"op": "gaze"}, {"op": "weaken", "amt": "v"}],
+                   "text": "Any row: the enemy's attack this round turns on you instead, and deals the die less."},
+    "wing_buffet": {"name": "Wing Buffet", "req": {"n": 1}, "tgt": "front", "tags": ["hide"],
+                    "ops": [{"op": "weaken", "amt": "max(1,v//2)"}],
+                    "text": "Every front-row enemy's attack this round deals half the die less (at least 1)."},
+    "wing_guard": {"name": "Wing Guard", "req": {"n": 1}, "tgt": "other", "tags": ["hide"],
+                   "ops": [{"op": "guard"}, {"op": "armor", "amt": "v", "to": "self"}, {"op": "status", "s": "wingguard", "n": 1, "to": "self"}],
+                   "text": "Gain the die as Armor, and take the next attack aimed at an ally. Hits on you this round grow 2 Scales, not 1."},
+    "molt": {"name": "Molt", "req": {"n": 1}, "tgt": "self", "tags": ["hide"],
+             "ops": [{"op": "heal", "amt": "(v+3)*min(1,scales)"}, {"op": "shed", "n": 1}],
+             "text": "Shed a Scale to heal the die +3 (nothing without a Scale)."},
+    "brood_bond": {"name": "Brood Bond", "req": {"n": 1}, "tgt": "other", "tags": ["hide"],
+                   "ops": [{"op": "brood", "n": 2}],
+                   "text": "Give an ally 2 of your Scales for the fight: they gain 1 Armor per Scale now and at the start of each round."},
+})
+PASSIVES.update({
+    "searing_breath": {"name": "Searing Breath", "mods": {"searing_breath": 1}, "tags": ["wrath"],
+                       "text": "Breath also Burns every enemy for 1 per Scale shed."},
+    "wyrmfire_claws": {"name": "Wyrmfire Claws", "mods": {"wyrmfire": 1}, "tags": ["wrath"],
+                       "text": "Every Claw Burns 1; a crit Burns 3."},
+    "hoards_gleam": {"name": "Hoard's Gleam", "mods": {"hoard_gleam": 60}, "tags": ["wrath"],
+                     "text": "+1 damage on every hit per 60 gold you carry (up to +3)."},
+    "ancestral_fury": {"name": "Ancestral Fury", "mods": {"ancestral_fury": 1}, "tags": ["wrath"],
+                       "text": "When Breath sheds 5 Scales, your next hit this round deals double."},
+    "dragons_wrath": {"name": "Dragon's Wrath", "cap": True, "mods": {"dragons_wrath": 1}, "tags": ["wrath"],
+                      "text": "Breath sheds only half your Scales (rounded down), and every enemy takes the full amount anyway."},
+    "thick_scales": {"name": "Thick Hide", "mods": {"thick_scales": 3}, "tags": ["hide"],
+                     "text": "At the start of each fight, grow a Scale if you have fewer than 3."},
+    "ancient_blood": {"name": "Ancient Blood", "mods": {"ancient_blood": 6}, "tags": ["hide"],
+                      "text": "Once per fight, the first time you drop below half HP, heal 6."},
+    "draconic_ascension": {"name": "Draconic Ascension", "cap": True, "mods": {"ascension": 3}, "tags": ["hide"],
+                           "text": "Once per fight, below half HP, unfurl for the rest of the fight: +3 on every hit and 4 Armor each round."},
+})
+CLASS_DICE["dragonborn"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
+CLASSES["dragonborn"] = {
+    "name": "Dragonborn", "hp": 34, "hp_lvl": 4, "role": "Bruiser with breath",
+    "dice": [D(8), D(6)], "tags": ["wrath", "hide"],
+    "map": {"key": "dragons_rest", "name": "Dragon's Rest", "text": "Resting grows a Scale (2 at a camp or in a town)."},
+    "start": ["claw", "breath"], "weapon": "talon_gauntlets", "armor": "hide_vest",
+    "pool": ["tail_sweep", "sky_dive", "rending_bite", "focused_breath", "draconic_roar", "dread_gaze", "wing_buffet",
+             "wing_guard", "molt", "brood_bond", "searing_breath", "wyrmfire_claws", "hoards_gleam", "ancestral_fury",
+             "thick_scales", "ancient_blood", "dragons_wrath", "draconic_ascension"],
+    "blurb": "Scales harden with every blow it takes. When the stack is full, it breathes.",
+}
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -826,7 +898,7 @@ def is_defensive(a):
 # count on every round), Block, Flee and Lift (plus weapon actions, in
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "rune_cut", "searing_strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
+FREE = {"strike", "rune_cut", "searing_strike", "claw", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
         "block", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3, "mend": 3}
 
@@ -925,6 +997,14 @@ SHORT = {
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
+SHORT.update({
+    "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),
+    "tail_sweep": ("sword", "front row: die +1", None), "sky_dive": ("sword", "any row: die +3 · back row Weak", None),
+    "rending_bite": ("sword", "die +2 · Poison 2 · kill: heal die", None), "focused_breath": ("flame", "die +4 per Scale (3) · shed", None),
+    "draconic_roar": ("down", "all Weak (5+: 2 rounds)", None), "dread_gaze": ("target", "its attack → you, −die", None),
+    "wing_buffet": ("shield", "front row attacks −½ die", None), "wing_guard": ("shield", "guard · die Armor · hits grow 2", None),
+    "molt": ("plus", "shed 1: heal die +3", None), "brood_bond": ("shield", "ally: 2 Scales for the fight", None),
+})
 SHORT.update({
     "searing_strike": ("sword", "die +1", None), "flashover": ("flame", "all: ½ Heat + die · spend all", None),
     "stoke": ("flame", "die · Heat ×3", None), "inferno_cleave": ("sword", "front row: die each", None),

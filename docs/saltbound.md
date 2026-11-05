@@ -908,6 +908,18 @@ then -20); only `--with=<class>` batches can settle the picks. A first tuning pa
 hit (was +3, ending the combo), Unstable Compound the die +6 at cd 2 (was +4 at cd 3), Martyr the
 party's damage by half (was the Mender's own), Frost Flask without its Weak.
 
+**Arcanist, Attunement and Flux** (owner's request, Nov 2026): the Arcanist is attuned to Fire, Frost
+or Storm (`x["attune"]`, Fire at a fight's start). Its damaging spells add the attunement's rider
+(`C.ATTUNE`: Burn 1; the target's attack -2; an arc for 2 to another enemy). A spell of another element
+(`element` on the action: Fireball, Flame Wave, Ignite Fire; Frost Lance, Glacial Spike, Ice Ward Frost;
+Chain Lightning, Thunderclap, Static Field Storm) moves the attunement and gives 1 Flux (`x["flux"]`);
+at `C.FLUX_MAX` (3) the next spell Converges: +50% (`hit_finish`) and all three riders, doubled. Spells
+without an element (Bolt, Channel, Siphon...) take the current one. Rules in `actions.py`
+(`attune_cast`, called from `resolve_action`); the bots value a switch at a third of a Convergence
+(`bot.attune_value`). Measured (2026-11-05, 400 Hard runs with an Arcanist in every party): **52.2%**,
+a few points under the 59.5% all-class batch the same day; no new pick past 15 points vs passed
+(Ignite -14, so it now deals three times the Burn, not twice).
+
 **The Psion** (owner's request, Nov 2026; design and results in `docs/saltbound-psion.md`). All its
 dice are Seer dice (`round_dice`), and it has **Focus** each round (`x["focus"]`: `C.FOCUS_BASE` 2, +1
 at each of `C.FOCUS_LEVELS` 3 and 6, refilled in `new_round`). The `nudge` message (`Combat.do_nudge`)

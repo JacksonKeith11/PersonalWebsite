@@ -971,8 +971,8 @@ ACTIONS.update({
     "flame_wave": {"name": "Flame Wave", "req": {"n": 1}, "tgt": "front", "spell": True, "element": "fire", "tags": ["elementalist"],
                    "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Fire. Every front-row enemy takes the die +1."},
     "ignite": {"name": "Ignite", "req": {"n": 1}, "tgt": "foe", "spell": True, "element": "fire", "tags": ["elementalist"],
-               "ops": [{"op": "dmg", "amt": "v+2*burn"}, {"op": "douse"}],
-               "text": "Fire, any row: deal the die + twice the enemy's Burn, and its Burn is spent."},
+               "ops": [{"op": "dmg", "amt": "v+3*burn"}, {"op": "douse"}],
+               "text": "Fire, any row: deal the die + three times the enemy's Burn, and its Burn is spent."},
     "glacial_spike": {"name": "Glacial Spike", "req": {"n": 1}, "tgt": "foe", "spell": True, "element": "frost", "tags": ["elementalist"],
                       "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "weak", "n": 1}],
                       "text": "Frost, any row: deal the die +2, and the enemy is Weak this round."},
@@ -1180,7 +1180,7 @@ SHORT = {
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
 SHORT.update({
-    "flame_wave": ("flame", "Fire · front row: die +1", None), "ignite": ("flame", "Fire · die + 2× its Burn · spent", None),
+    "flame_wave": ("flame", "Fire · front row: die +1", None), "ignite": ("flame", "Fire · die + 3× its Burn · spent", None),
     "glacial_spike": ("snow", "Frost · die +2 · Weak", None), "ice_ward": ("shield", "Frost · you and an ally: die Armor", None),
     "thunderclap": ("bolt", "Storm · all: ½ die · Shock", None), "static_field": ("bolt", "Storm · die · next spell arcs ×2", None),
 })

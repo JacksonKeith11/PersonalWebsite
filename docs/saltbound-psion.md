@@ -1,8 +1,20 @@
-# Psion: a class proposal (for review, not built)
+# Psion: the class's design
 
-A draft class built on information: it sees its own dice and nudges them. For the owner to review
-before anything is built. Numbers are first guesses, sized with the tests in `saltbound-skills.md`,
-and get measured once it's in, as the Spellblade's, Emberknight's and Dragonborn's were.
+**Built (Nov 2026)**, with the owner's Floating Seer look. The owner's review: Focus starts at 2 and
+grows (3 at level 3, 4 at level 6), Mind Link is in the starting kit, Puppet Strings needs double 6s
+(three if that's still too strong; it now needs three, see the results). Changes from the draft:
+
+- **Precognition is new**: in a fight the Psion is in, every enemy's first attack is rolled in the
+  open. The draft's "events show their odds" was already true for everyone.
+- **Kinetic Rebound** hits the last enemy that hit you (the draft said the one that hit hardest).
+- **Mind Fog** blunts by the die +1 and drops "can't crit" (no such rule for enemies yet).
+- **Puppet Strings**: the turned attack lands now, on the enemy with the most HP, and is spent.
+- **Overclock** never takes the Psion's last HP: at 1 HP it stalled rounds in the first batch.
+- **Tuning pass**: Hive Mind's Focus for allies comes out of the Psion's own (one per ally);
+  Gravity Well deals the full die (was half).
+
+The live numbers are in `app/saltbound/classes.py` and `docs/saltbound.md` (Classes). The draft as
+reviewed follows.
 
 ## The mechanic
 
@@ -143,3 +155,18 @@ of `sprites.js` until the class is built (`REVIEW` in `build.py`):
 2. **Mind-Knight**: silver-blue plate, a smooth helm with a glowing visor band, a crystal blade.
 3. **Floating Seer**: hooded in purple, hovering with no feet showing, glowing eyes, stones orbiting.
 4. **Void Monk**: blindfolded, bare-armed with glowing wrapped hands, a halo of floating shards.
+
+## Balance results
+
+**First batch** (2026-11-05, 400 Hard runs, seed 5000, a Psion in every party): **Psion parties
+54.8%**, level; 9 runs stalled on Overclock (fixed). Mind Spike is 35% of its plays at 11.3 a use
+(the nudged 6s), Psionic Storm 44 a use. Hive Mind **+30** vs passed, Gravity Well -10, Overclock -12.
+
+**After the tuning pass** (same runs): **53.8%**. Hive Mind +21, Puppet Strings +14, hitting 98% of
+the time with double 6s (two d6 and a couple of nudges make 6-6 almost every time).
+
+**Puppet Strings at three 6s** (same runs): **49.0%**. Puppet Strings dropped to 72 uses (it hits 92%
+when tried, but three 6s rarely line up) and reads +1; Hive Mind +10; Gravity Well -10 and Mind Fog -9,
+both inside the noise between batches (unchanged picks have moved 15 points from one batch to the
+next). The 5-point drop is mostly that noise plus losing a strong pick. If the owner wants the class
+nearer 55%, double 6s with a cooldown of 4 is the middle ground.

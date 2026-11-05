@@ -25,6 +25,64 @@ def build(pal, b, hair=None, beard=None, hat_=None, wpn=None, off=None, bare=Fal
         return g
     return fn
 
+
+# Emberknight alternatives (owner's request, Nov 2026): knights in orange-to-red plate.
+EMBER = {'A': '#d8642a', 'a': '#a8401e', 'D': '#f08c3a', 'R': '#8a2418', 'r': '#5e1810', 'G': '#ffd36b', 'g': '#ffa030',
+         'n': '#1e1210', 'k': '#2a1a18', 'h': '#4a3428', 'L': '#8a2418', 'W': '#ffb048', 'Y': '#e0b048'}
+
+def plate(g, body='A', shade='a', belt='h'):
+    legs(g, 'r')
+    g.rect(10, 26, 12, 27, shade); g.rect(15, 26, 17, 27, shade)  # greaves
+    torso(g, body)
+    g.rect(12, 14, 15, 22, shade); g.rect(9, 20, 18, 20, belt); g.rect(13, 20, 14, 20, 'Y')
+    g.rect(6, 12, 9, 15, 'D'); g.rect(18, 12, 21, 15, 'D')  # pauldrons
+    g.rect(6, 16, 8, 19, shade); g.rect(19, 15, 21, 18, shade)  # arms
+
+def ember_mace(g, y=2):
+    g.rect(20, 15, 22, 18, 'a'); g.rect(22, y + 4, 23, 19, 'h'); g.rect(19, y, 26, y + 4, 'g'); g.rect(20, y + 1, 25, y + 3, 'G')
+    g.px(18, y + 2, 'g'); g.px(27, y + 2, 'g'); g.px(22, y - 1, 'G')
+
+def ember1():  # Ember Knight: great helm with a glowing visor slit, orange plate, glowing mace
+    g = G(dict(EMBER))
+    plate(g)
+    ember_mace(g)
+    g.rows(9, 3, [(1, 8), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (1, 8)], 'A')
+    g.rect(10, 7, 17, 7, 'G'); g.rect(13, 3, 14, 11, 'a'); g.rect(13, 7, 14, 7, 'g'); g.px(11, 9, 'n'); g.px(16, 9, 'n')
+    return g
+
+def ember2():  # Flame Paladin: crested helm, red plate with orange pauldrons, kite shield with a flame
+    g = G(dict(EMBER, A='#b8341e', a='#7e2216'))
+    plate(g)
+    ember_mace(g, 4)
+    g.rows(1, 13, [(1, 7), (0, 8), (0, 8), (0, 8), (0, 8), (0, 8), (1, 7), (1, 7), (2, 6), (3, 5), (4, 4)], 'D')
+    g.rows(1, 14, [(2, 6), (1, 7), (1, 7), (1, 7), (1, 7), (2, 6), (2, 6), (3, 5), (4, 4)], 'R')
+    g.text(3, 15, [' G ', 'GgG', 'GgG', ' g '])
+    g.rows(9, 3, [(1, 8), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (1, 8)], 'A')
+    g.rect(10, 7, 17, 8, 'n'); g.px(12, 7, 'G'); g.px(15, 7, 'G'); g.rect(13, 9, 14, 11, 'a')
+    g.text(11, 0, ['  g  ', ' gGg ', 'gGGGg'])  # flame crest
+    return g
+
+def ember3():  # Cinder Sentinel: dark red heavy plate, horned helm, burning eyes, flaming greatsword
+    g = G(dict(EMBER, A='#7a2418', a='#541810', D='#c8502a', B='#e8c8a0'))
+    plate(g, belt='g')
+    g.rect(20, 15, 22, 18, 'a'); g.rect(21, 17, 25, 18, 'Y'); g.line(23, 16, 29, 4, 'D', 3); g.line(23, 15, 29, 5, 'G')
+    g.px(28, 2, 'g'); g.px(30, 4, 'g')
+    g.rows(9, 3, [(1, 8), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (1, 8)], 'A')
+    g.rect(10, 7, 17, 8, 'n'); g.px(11, 7, 'G'); g.px(12, 7, 'g'); g.px(15, 7, 'g'); g.px(16, 7, 'G'); g.rect(13, 9, 14, 11, 'a')
+    g.text(6, 0, ['B         B', 'BB       BB', ' BB     BB '])
+    return g
+
+def ember4():  # Pyre Knight: bucket helm under a crown of fire, orange plate cracked with molten seams
+    g = G(dict(EMBER))
+    plate(g)
+    for x, y in ((10, 15), (11, 17), (16, 16), (17, 18), (12, 22), (15, 23), (7, 17), (20, 16)):
+        g.px(x, y, 'G')
+    g.rect(20, 15, 22, 18, 'a'); g.rect(21, 13, 22, 21, 'h'); g.line(22, 12, 25, 8, 'D'); g.ell(26, 7, 2.2, 2.2, 'g'); g.px(26, 7, 'G')
+    g.rows(9, 3, [(0, 9)] * 9, 'D')
+    g.rect(9, 7, 18, 7, 'n'); g.px(11, 7, 'G'); g.px(16, 7, 'G'); g.rect(9, 3, 18, 3, 'a'); g.rect(9, 11, 18, 11, 'a')
+    g.text(9, 0, [' g   g  g ', 'gGg gGggGg', 'GGGGGGGGGG'])
+    return g
+
 SK = SKIN
 OPTIONS = {
     'duelist': [
@@ -102,10 +160,12 @@ OPTIONS = {
         ('Spellblade', build({**SK, 'B': '#4a3a6a', 'b': '#2a2440', 'T': '#c8a040', 'H': '#e0dacb', 'h': '#2a2440', 'X': '#b48cff', 'x': '#6a4aa8', 'W': '#dfe6ee', 'w': '#5a3a24', 'k': '#1e1a26', 'L': '#2a2440'},
                              'coat', 'long', None, 'circlet', 'sword', 'orb')),
     ],
-    # owner's request, Nov 2026: a knight running hot, with a glowing mace
+    # owner's request, Nov 2026: a knight running hot, with a glowing mace (option 1); then knights in
+    # orange-to-red plate
     'emberknight': [
         ('Emberknight', build({**SK, 'B': '#7a2a1e', 'b': '#3a2a2a', 'T': '#e0a040', 'H': '#2a1e18', 'h': '#5a5e6a', 'X': '#ffa030', 'x': '#c0501a', 'W': '#ffb048', 'w': '#4a3a30', 'k': '#1e1a1a', 'L': '#3a2a2a'},
                               'tunic', 'short', 'full', 'skullcap', 'maul', None)),
+        ('Ember Knight', ember1), ('Flame Paladin', ember2), ('Cinder Sentinel', ember3), ('Pyre Knight', ember4),
     ],
 }
 

@@ -193,6 +193,13 @@ export const SKILL_FX = {
   mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); return 'cast'; },
   puppet_strings: x => { x.hit('glyph spin', C.water, 900, 0, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
 
+  // the original classes' new picks
+  coup_de_grace: x => { x.hit('bigslash', C.steel, 480, 120); if (!x.miss) x.shake(260); return 'melee'; },
+  savage_blow: x => { x.hit('bigslash', C.blood, 520, 140); x.shake(240); return 'melee'; },
+  benediction: x => { x.shot('orb', C.holy, ['healglow', null, 900]); return 'cast'; },
+  frost_flask: x => { x.shot('flask', C.water, ['iceburst', null, 700], { arc: 70, spin: true }); return 'act'; },
+  unstable_compound: x => { x.foes.forEach((u, i) => x.on(u, 'fireburst', null, 700, 120 + i * 70)); x.later(() => x.screen('fire', 300), 150); return 'act'; },
+
   // Warden
   thornlash: x => { x.shot('thorn', C.nature, ['pop small', C.nature, 400]); if (!x.miss) x.hit('vines', C.nature, 800, 260); return 'act'; },
   sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },

@@ -8,6 +8,18 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the original classes' signature mechanics (classes.py COMBO_STEP, BERSERK_AT, GRACE_MAX, REACTIONS)
+    "feint_step": "once a round, a different target keeps the Duelist's combo",
+    "relentless": "the combo lasts into the next round if the first hit is on the same enemy",
+    "riposte_chain": "strike-backs get the combo bonus and count as combo hits",
+    "hair_trigger": "berserk after losing a quarter of max HP",
+    "red_haze": "while berserk, every hit landed heals n",
+    "cold_fury": "while berserk, one defensive action a round is allowed",
+    "overflowing_grace": "overhealing fills Grace twice over",
+    "martyr": "damage taken fills Grace",
+    "blessed_rest": "Grace carries over between fights",
+    "volatile_agents": "Burn counts as fire and Poison as acid for reactions",
+    "potent_reactions": "reactions also deal n to the enemy they happen on",
     # the Psion's Focus (classes.py FOCUS_*; Combat.do_nudge)
     "overclock": "+n Focus a round, each spent costing 1 HP",
     "resonant_pair": "playing a pair gives n Focus back",

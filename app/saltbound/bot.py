@@ -754,6 +754,7 @@ def dice_combos(g, h, dice):
     # cached outcome from another fight, or another run in the same process, is used by mistake
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            x.get("heat", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
+           bool(x.get("berserk")),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:
@@ -828,6 +829,7 @@ def evaluate(g, b, h, a, dice, tgt):
     crit_ops = hit_ops + prep(a["crit"]) if a.get("crit") else None
     tops = [crit_floor(d["faces"]) for d in dice]
     heat = g.hs(h).get("heat")
+    react_t = base[0] if a.get("residue") and base and isinstance(base[0], dict) else None
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         if hit and crit_ops and any(t == "W" or (t not in ("S", "X") and v is not None and v >= tp) for v, t, tp in zip(vals, tags, tops)):
@@ -1026,6 +1028,8 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, dict):
                         sturdy = g.hero(h)["hp"] + g.hs(h)["st"].get("armor", 0) > inc.get(h, 0) + now[t["id"]] * 1.5
                         val += share * now[t["id"]] * (0.4 if sturdy else -0.3)
+            elif k == "grace":
+                val += amt(op["amt"], de) * 0.4  # toward Radiance
             elif k == "kindle":
                 n_ = amt(op["amt"], de) + plus
                 for t, share in tg:
@@ -1037,6 +1041,8 @@ def evaluate(g, b, h, a, dice, tgt):
                 val += infuse_value(g, h, dice, op["n"], n_, op.get("el") or element_of(vals[0] if vals else 0))
         if heat is not None:
             val += heat_value(g, h, a, dice, vals, de, hit, heat, inc)
+        if hit and react_t is not None:
+            val += reaction_value(g, h, a, react_t, now)
         if hit_any:
             bump(eff["cused"], h, pr)  # this hit spends the hero's Crescendo
             if a.get("spell") and m.get("spellstrike"):
@@ -1106,6 +1112,26 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
             return 0
         return min(g.maxhp(y) // 2, g.maxhp(y) - left) * 0.6
     return 1
+
+
+def reaction_value(g, h, a, t, now):
+    """What an Alchemist's bomb sets off on this enemy's residue (0 if it only leaves its own)."""
+    if C.CLASSES[g.hero(h)["cls"]]["map"]["key"] != "brewer" or t["hp"] <= 0:
+        return 0
+    m = g.mods(h)
+    old = t.get("res") or (("fire" if t["st"].get("burn") else "acid" if t["st"].get("poison") else None)
+                           if m.get("volatile_agents") else None)
+    kind = C.REACTIONS.get(frozenset((old, a["residue"]))) if old and old != a["residue"] else None
+    if not kind:
+        return 0.8  # a residue for the next bomb
+    val = m.get("potent_reactions", 0) * 0.9
+    if kind == "caustic":
+        val += sum(min(6, o["hp"]) * 0.8 for o in g.foes() if o["row"] == t["row"])
+    elif kind == "steam":
+        val += now.get(t["id"], 0) * 0.5
+    else:
+        val += 4.0
+    return val
 
 
 def heat_value(g, h, a, dice, vals, de, hit, heat, inc):
@@ -1276,6 +1302,8 @@ def candidates(g, h, b, free):
             continue
         if a.get("focus") and x.get("focus", 0) < a["focus"]:
             continue
+        if x.get("berserk") and a["def"] and (not g.mods(h).get("cold_fury") or x.get("cold_used")):
+            continue  # berserk: no defending
         n = a["req"].get("n", 1)
         sizes = range(1, n + 1) if a["req"].get("upto") else [n]
         for size in sizes:

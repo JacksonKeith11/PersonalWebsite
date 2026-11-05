@@ -86,6 +86,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         for h in f["heroes"]:
             hero = self.hero(h)
             m = self.mods(h)
+            if not m.get("blessed_rest"):
+                hero["grace"] = 0  # Grace starts over each fight (Blessed Rest: it carries)
+            f["hs"][str(h)]["grace"] = hero.get("grace", 0)
             if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
                 self.grow_scales(h, 1)  # Thick Hide
             if C.CLASSES[hero["cls"]]["map"]["key"] == "banked_coals":
@@ -513,6 +516,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             dice.append({"faces": [1, 2, 3, 4], "dk": [], "src": "anthem"})
         if x.get("hoard"):
             dice.append(x.pop("hoard"))
+        if x.get("berserk"):  # berserk: every die explodes
+            for d in dice:
+                if "exploding" not in d["dk"]:
+                    d["dk"] = list(d["dk"]) + ["exploding"]
         if m.get("bellows") and x.get("heat", 0) >= 10:  # Bellows: the weapon die explodes while hot
             for d in dice:
                 if d.get("src") == "weapon" and "exploding" not in d["dk"]:
@@ -679,6 +686,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid("Once a round.")
         if a.get("focus") and x.get("focus", 0) < a["focus"]:
             raise Invalid("Not enough Focus.")
+        if x.get("berserk") and a["def"]:
+            if not self.mods(h).get("cold_fury") or x.get("cold_used"):
+                raise Invalid("You're berserk: no defending now.")
+            x["cold_used"] = True  # Cold Fury: one a round
         if a["key"] == "flee" and f["kind"] in ("dungeon", "boss"):
             raise Invalid("There's no running from this one.")
         if a["key"] == "flee" and x["st"].get("root"):
@@ -898,6 +909,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         x.pop("acting", None)
         if self.s["fight"] is f and hit and isinstance(tgt, str) and tgt.startswith("f"):
             fo = self.foe(int(tgt[1:]))
+            if fo and a.get("bomb"):
+                self.react(h, a, fo)  # the Alchemist's residues and reactions
             if fo and m.get("rune_face") and any(d.get("src") == "weapon" and d.get("tag") == "W" for d in dice):
                 self.carve(fo, 1)  # Rune-Etched Blade: the rune face carves
             if a.get("spell") and m.get("spellstrike") and any(o["op"] == "dmg" for o in ops) and self.active(h):
@@ -939,6 +952,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x.setdefault("spells", []).append(a["key"])
         if a.get("melee") or a.get("spell"):
             x["lastk"] = "melee" if a.get("melee") else "spell"  # for Bladesong
+        if x.pop("combo_end", None):
+            pass
+        elif C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "ambush" and isinstance(tgt, str) and tgt.startswith("f") \
+                and any(o["op"] == "dmg" for o in a["ops"]):
+            self.combo_hit(h, int(tgt[1:]))
         if a.get("bomb"):
             x["bombs"] = x.get("bombs", 0) + 1
         if self.mods(h).get("quarry") and a["tgt"] == "foe" and isinstance(tgt, str) and tgt.startswith("f"):
@@ -954,6 +972,18 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for y in self.actives():
                 if y != h:
                     self.hs(y)["cued"] = cue
+
+    def combo_hit(self, h, fid):
+        """A Duelist's hit: the combo on that enemy grows, or a new one starts (Feint Step carries it once a round)."""
+        x = self.hs(h)
+        c = x.get("combo")
+        if c and c["id"] == fid:
+            c["n"] += 1
+        elif c and self.mods(h).get("feint_step") and not x.get("feinted"):
+            x["feinted"] = True
+            x["combo"] = {"id": fid, "n": c["n"] + 1}
+        else:
+            x["combo"] = {"id": fid, "n": 1}
 
     def act_outcome(self, since):
         """What an action did, from the effects it set off (fx after id `since`): damage dealt to
@@ -1167,6 +1197,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if ha and got > 0 and self.active(h):
                 self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + ha
             over = n - got
+            if str(by) in self.s["fight"]["hs"]:
+                self.add_grace(by, got + (2 * max(0, over) if self.mods(by).get("overflowing_grace") else 0))
             if over > 0 and self.mods(by).get("overflow"):
                 self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + over
             bill = self.mods(by).get("clean_bill", 0)
@@ -1231,6 +1263,18 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.s["stats"][h]["taken"] += n
         if fo is not None:
             x["lasthit"] = fo["id"]
+        if n > 0:
+            x["lost"] = x.get("lost", 0) + n
+            m = self.mods(h)
+            if m.get("martyr"):
+                self.add_grace(h, n)  # Martyr
+            if not x.get("berserk") and C.CLASSES[hero["cls"]]["map"]["key"] == "forage" and \
+                    x["lost"] >= self.maxhp(h) * (0.25 if m.get("hair_trigger") else C.BERSERK_AT):
+                x["berserk"] = True  # the Berserker goes berserk: the rest of its dice explode
+                self.fx("st", to=f"h{h}", s="berserk")
+                for d in x["dice"]:
+                    if not d["used"] and "exploding" not in d["dk"]:
+                        d["dk"] = list(d["dk"]) + ["exploding"]
         if fo is not None and not pure and C.CLASSES[hero["cls"]]["map"]["key"] == "dragons_rest":
             self.grow_scales(h, 2 if x["st"].get("wingguard") else 1)  # every hit that lands grows a Scale
         m = self.mods(h)
@@ -1246,7 +1290,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             f["pain"][str(h)] = f["pain"].get(str(h), 0) + 1
         if fo is not None and not pure and fo["hp"] > 0:
             if blocked and not n and x["st"].get("riposte"):
-                self.hurt_foe(fo, x["st"]["riposte"], h, pure=True)
+                chain = self.mods(h).get("riposte_chain")
+                self.hurt_foe(fo, x["st"]["riposte"] + (self.combo_on(h, fo) * C.COMBO_STEP if chain else 0), h, pure=True)
+                if chain:
+                    self.combo_hit(h, fo["id"])  # Riposte Chain
             if x["st"].get("glyphward"):
                 self.carve(fo, x["st"]["glyphward"])  # Counter-Glyph: whoever hits you is carved
             if x["st"].get("emberward"):
@@ -1358,6 +1405,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x.pop("inf", None)
             x.pop("white", None)
             x.pop("redline", None)
+            x.pop("cold_used", None)
+            x.pop("feinted", None)
+            if not self.mods(h).get("relentless"):
+                x.pop("combo", None)  # a combo lasts the round (Relentless: into the next)
             if "heat" in x:
                 m = self.mods(h)
                 if m.get("hearthfire") and x["heat"] >= 10:

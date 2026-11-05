@@ -41,6 +41,7 @@ class Actions:
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
                 "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
                 "scales": self.hero(h).get("scales", 0), "back": 0, "hi": max(vals) if vals else 0,
+                "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0,
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
@@ -53,7 +54,8 @@ class Actions:
             e["outroll"] = int(bool(vals) and bool(known) and len(known) == len(it.get("dice") or []) and vals[0] > max(known))
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
-                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"))
+                     aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"),
+                     combo=self.combo_on(h, target), res=int(bool(target.get("res"))))
             e["sigv"] = sigil_worth(e)
         return e
 
@@ -70,7 +72,8 @@ class Actions:
         return top, {"undead": int(bool(A.FOES[target["k"]].get("undead"))), "rooted": int(bool(st.get("root"))),
                      "stunned": int(bool(st.get("stun"))), "poisoned": int(bool(st.get("poison"))),
                      "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0,
-                     "sig": st.get("sigil", 0), "back": int(target["row"] == "back")}
+                     "sig": st.get("sigil", 0), "back": int(target["row"] == "back"),
+                     "combo": self.combo_on(h, target), "res": int(bool(target.get("res")))}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -114,6 +117,7 @@ class Actions:
         if m.get("unseen") and not any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()):
             n += m["unseen"]
         if isinstance(target, dict):
+            n += self.combo_on(h, target) * C.COMBO_STEP  # the Duelist's combo
             if m.get("engage") and target["hp"] >= target["max"]:
                 n += m["engage"]
             if a.get("spell") and m.get("wither"):
@@ -339,6 +343,8 @@ class Actions:
                     self.foe_status_by(t, "burn", h)
                 if c.x["st"].get("kindled") and done:
                     c.x["st"]["kindled"] -= 1
+                if m.get("red_haze") and c.x.get("berserk") and done:
+                    self.fight_heal(h, m["red_haze"], h)  # Red Haze
                 if a["key"] == "claw" and m.get("wyrmfire") and done and t["hp"] > 0:
                     self.foe_burn(t, 1, h)  # Wyrmfire Claws
                 if op.get("burst"):
@@ -408,6 +414,18 @@ class Actions:
             if c.m.get("ancestral_fury") and n >= 5:
                 c.x["redline"] = True  # Ancestral Fury: the next hit deals double
 
+    def _op_combo_end(self, c, op, targets):
+        c.x.pop("combo", None)
+        c.x["combo_end"] = True  # so this hit doesn't start a new one
+
+    def _op_grace(self, c, op, targets):
+        self.add_grace(c.h, self.op_amount(c, op))
+
+    def _op_clear_res(self, c, op, targets):
+        for t in targets:
+            if isinstance(t, dict):
+                t.pop("res", None)
+
     def _op_turn(self, c, op, targets):
         """Puppet Strings: the enemy's attack lands on another enemy, now, and is spent."""
         for t in targets:
@@ -469,6 +487,16 @@ class Actions:
 
     def _op_heal(self, c, op, targets):
         n = self.op_amount(c, op) + c.m.get("heal_bonus", 0)
+        if c.x.pop("radiant", None):
+            # the Mender's Radiance: this heal lands on the whole party, and cleanses them
+            c.x["grace"] = 0
+            self.hero(c.h)["grace"] = 0
+            self.fx("st", to=f"h{c.h}", s="radiance")
+            targets = [("h", y) for y in self.actives()]
+            for t in targets:
+                st = self.hs(t[1])["st"]
+                for s_ in ("burn", "poison", "weak", "vuln", "mark", "root", "hex"):
+                    st.pop(s_, None)
         for t in targets:
             if isinstance(t, tuple):
                 self.fight_heal(t[1], n, c.h)
@@ -665,6 +693,56 @@ class Actions:
         self.summon(c.h, op["k"], hp)
 
     # ------------------------------------------------------------------ instant actions
+
+    # ------------------------------------------------------------------ the original classes' signature mechanics
+
+    def combo_on(self, h, target):
+        """The Duelist's combo: hits already landed on this enemy (0 for anyone else, or another enemy)."""
+        if not isinstance(target, dict):
+            return 0
+        c = self.hs(h).get("combo")
+        return c["n"] if c and c["id"] == target["id"] else 0
+
+    def add_grace(self, h, n):
+        """The Mender's Grace; at GRACE_MAX the next heal is Radiance."""
+        x = self.hs(h)
+        if n <= 0 or C.CLASSES[self.hero(h)["cls"]]["map"]["key"] != "field_medic":
+            return
+        hero = self.hero(h)
+        hero["grace"] = min(C.GRACE_MAX, hero.get("grace", 0) + n)
+        x["grace"] = hero["grace"]
+        if hero["grace"] >= C.GRACE_MAX and not x.get("radiant"):
+            x["radiant"] = True
+            self.fx("st", to=f"h{h}", s="radiant")
+
+    def react(self, h, a, fo):
+        """The Alchemist's reactions: a bomb on a different residue reacts; otherwise it leaves its own."""
+        new = a.get("residue")
+        if not new or fo["hp"] <= 0 or C.CLASSES[self.hero(h)["cls"]]["map"]["key"] != "brewer":
+            return
+        m = self.mods(h)
+        old = fo.get("res")
+        if not old and m.get("volatile_agents"):
+            old = "fire" if fo["st"].get("burn") else "acid" if fo["st"].get("poison") else None
+        kind = C.REACTIONS.get(frozenset((old, new))) if old and old != new else None
+        if not kind:
+            fo["res"] = new
+            return
+        fo.pop("res", None)
+        self.fx("st", to=f"f{fo['id']}", s=kind)
+        if m.get("potent_reactions"):
+            self.hurt_foe(fo, m["potent_reactions"], h, pure=True)
+        if kind == "caustic":
+            for o in [o for o in self.foes() if o["row"] == fo["row"]]:
+                self.hurt_foe(o, 6, h, pure=True)
+        elif kind == "steam" and fo["hp"] > 0:
+            it = fo.get("intent") or {}
+            if it.get("dice") and it.get("k") in ("attack", "all"):
+                it["bonus"] = it.get("bonus", 0) - (it.get("v", 0) + 1) // 2
+                self.intent_numbers(it)
+        elif kind == "brittle" and fo["hp"] > 0:
+            fo["st"]["vuln"] = max(fo["st"].get("vuln", 0), 2)
+            self.foe_status_by(fo, "vuln", h)
 
     # ------------------------------------------------------------------ the Dragonborn's Scales
 

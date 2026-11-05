@@ -894,6 +894,69 @@ CLASSES["psion"] = {
     "blurb": "Sees every roll before it lands, and bends the close ones.",
 }
 
+# ---- Signature mechanics for four original classes (owner's request, Nov 2026; docs/saltbound-skills.md):
+# - Duelist, Combo: each hit on the enemy it hit last this round deals +COMBO_STEP per hit before it
+#   (`x["combo"]`); hitting another enemy starts over. `combo` in an amount is that count.
+# - Berserker, Berserk: once it has lost BERSERK_AT of its max HP in a fight, it's berserk for the rest:
+#   its dice explode and it can't use defensive actions (`x["berserk"]`; `berserk` in amounts).
+# - Mender, Grace: healing it does fills Grace (`x["grace"]`); at GRACE_MAX its next heal is Radiance:
+#   the whole party heals that much and is cleansed, and Grace starts over.
+# - Alchemist, Reactions: its bombs leave a residue (`residue` on the action: fire, acid, frost) on the
+#   enemy hit (`fo["res"]`); a different bomb on a residue reacts (REACTIONS) and uses it up.
+COMBO_STEP = 1
+BERSERK_AT = 1 / 3
+GRACE_MAX = 20
+REACTIONS = {frozenset(("fire", "acid")): "caustic", frozenset(("fire", "frost")): "steam", frozenset(("acid", "frost")): "brittle"}
+REACTION_TEXT = {"caustic": "Caustic burst: 6 to every enemy in its row", "steam": "Steam: its attack this round deals half",
+                 "brittle": "Brittle: Vulnerable for 2 rounds"}
+for _k, _r in (("toss", "fire"), ("firebomb", "fire"), ("acid_flask", "acid")):
+    ACTIONS[_k]["residue"] = _r
+ACTIONS.update({
+    "coup_de_grace": {"name": "Coup de Grâce", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["flurry"],
+                      "ops": [{"op": "dmg", "amt": "v+3*combo"}, {"op": "combo_end"}],
+                      "text": "Deal the die +3 for each hit you've landed on this enemy this round, and end the combo."},
+    "savage_blow": {"name": "Savage Blow", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["rampage"],
+                    "ops": [{"op": "dmg", "amt": "v+2+v*berserk"}],
+                    "text": "Deal the die +2. While you're berserk, deal twice the die +2."},
+    "benediction": {"name": "Benediction", "req": {"n": 1}, "tgt": "ally", "tags": ["restoration"],
+                    "ops": [{"op": "heal", "amt": "v+1"}, {"op": "grace", "amt": "5"}],
+                    "text": "Heal an ally by the die +1, and gain 5 Grace."},
+    "frost_flask": {"name": "Frost Flask", "req": {"n": 1}, "tgt": "foe", "bomb": True, "residue": "frost", "tags": ["bombs"],
+                    "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": 1, "if": "v>=5"}],
+                    "text": "A bomb, any row: deal the die and leave frost on the enemy. On 5+, it's Weak too."},
+    "unstable_compound": {"cd": 3, "name": "Unstable Compound", "req": {"n": 1}, "tgt": "foes", "tags": ["bombs"],
+                          "ops": [{"op": "dmg", "amt": "v+4", "if": "res"}, {"op": "clear_res"}],
+                          "text": "Every enemy with a residue on it takes the die +4, and the residues are used up."},
+})
+PASSIVES.update({
+    "feint_step": {"name": "Feint Step", "mods": {"feint_step": 1}, "tags": ["flurry"],
+                   "text": "Once a round, hitting a different enemy carries your combo over instead of starting again."},
+    "relentless": {"name": "Relentless", "mods": {"relentless": 1}, "tags": ["precision"],
+                   "text": "Your combo lasts into the next round, as long as your first hit then is on the same enemy."},
+    "riposte_chain": {"name": "Riposte Chain", "mods": {"riposte_chain": 1}, "tags": ["precision"],
+                      "text": "Your strike-backs get your combo bonus and count as combo hits."},
+    "hair_trigger": {"name": "Hair Trigger", "mods": {"hair_trigger": 1}, "tags": ["bloodlust"],
+                     "text": "You go berserk after losing a quarter of your max HP, not a third."},
+    "red_haze": {"name": "Red Haze", "mods": {"red_haze": 2}, "tags": ["bloodlust"],
+                 "text": "While you're berserk, every hit you land heals you 2."},
+    "cold_fury": {"name": "Cold Fury", "mods": {"cold_fury": 1}, "tags": ["rampage"],
+                  "text": "While you're berserk, you can still use one defensive action a round."},
+    "overflowing_grace": {"name": "Overflowing Grace", "mods": {"overflowing_grace": 1}, "tags": ["restoration"],
+                          "text": "Healing beyond max HP fills Grace twice over."},
+    "martyr": {"name": "Martyr", "mods": {"martyr": 1}, "tags": ["warding"],
+               "text": "Damage you take fills Grace too."},
+    "blessed_rest": {"name": "Blessed Rest", "mods": {"blessed_rest": 1}, "tags": ["warding"],
+                     "text": "Your Grace carries over from one fight to the next."},
+    "volatile_agents": {"name": "Volatile Agents", "mods": {"volatile_agents": 1}, "tags": ["bombs"],
+                        "text": "Burn on an enemy counts as fire for your reactions, and Poison as acid, so allies' statuses react too."},
+    "potent_reactions": {"name": "Potent Reactions", "mods": {"potent_reactions": 6}, "tags": ["bombs"],
+                         "text": "Your reactions also deal 6 to the enemy they happen on."},
+})
+CLASSES["duelist"]["pool"] += ["coup_de_grace", "feint_step", "relentless", "riposte_chain"]
+CLASSES["berserker"]["pool"] += ["savage_blow", "hair_trigger", "red_haze", "cold_fury"]
+CLASSES["mender"]["pool"] += ["benediction", "overflowing_grace", "martyr", "blessed_rest"]
+CLASSES["alchemist"]["pool"] += ["frost_flask", "unstable_compound", "volatile_agents", "potent_reactions"]
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1072,6 +1135,11 @@ SHORT = {
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
+SHORT.update({
+    "coup_de_grace": ("sword", "die +3 per combo hit · ends it", None), "savage_blow": ("sword", "die +2 · berserk: 2× die +2", None),
+    "benediction": ("plus", "heal die +1 · +5 Grace", None), "frost_flask": ("snow", "die · frost · 5+: Weak", None),
+    "unstable_compound": ("flame", "every residue: die +4 · used up", None),
+})
 SHORT.update({
     "mind_spike": ("bolt", "die · exactly 6: 12", None), "kinetic_shield": ("shield", "die +2 Armor · exactly 1: 8", None),
     "mind_crush": ("bolt", "pair: 3× its number", "nothing"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),

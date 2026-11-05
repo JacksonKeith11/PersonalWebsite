@@ -417,12 +417,10 @@ class Actions:
                 self.fx("retarget", f=t["id"], to=me)
 
     def _op_brood(self, c, op, targets):
-        """Brood Bond: Scales given to an ally for the fight, as Armor now and each round."""
-        hero = self.hero(c.h)
-        n = min(hero.get("scales", 0), op["n"])
+        """Brood Bond: an ally gains Armor now and at the start of each round of the fight."""
+        n = op["n"]
         for t in targets:
-            if isinstance(t, tuple) and self.active(t[1]) and n:
-                hero["scales"] -= n
+            if isinstance(t, tuple) and self.active(t[1]):
                 y = self.hs(t[1])
                 y["brood"] = y.get("brood", 0) + n
                 y["st"]["armor"] = y["st"].get("armor", 0) + n

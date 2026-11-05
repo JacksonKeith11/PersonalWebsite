@@ -969,8 +969,7 @@ def evaluate(g, b, h, a, dice, tgt):
                 if a["key"] == "breath" and m.get("searing_breath"):
                     val += sum(min(n_ * (n_ + 1) / 2, fo["hp"]) * 0.8 for fo in foes)
             elif k == "brood":
-                n_ = min(g.hero(h).get("scales", 0), op["n"])
-                val += n_ * 0.8  # Armor on an ally each round, for a Scale of your own each
+                val += op["n"] * 2.0  # Armor on an ally now and each round of the fight
             elif k == "gaze":
                 for t, share in tg:
                     if isinstance(t, dict):

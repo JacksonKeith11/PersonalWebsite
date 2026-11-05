@@ -334,7 +334,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             # the Dragonborn's Scales (and Scales given by Brood Bond, and Draconic Ascension): Armor each round
             x = self.hs(h)
             n = (self.hero(h).get("scales", 0) if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "dragons_rest" else 0) \
-                + x.get("brood", 0) + (4 if x.get("ascend") else 0)
+                + x.get("brood", 0) + (3 if x.get("ascend") else 0)
             if n:
                 x["st"]["armor"] = x["st"].get("armor", 0) + n
                 self.fx("armor", to=f"h{h}", n=n)

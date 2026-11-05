@@ -16,7 +16,7 @@ MODS = {
     "dragons_wrath": "Breath sheds only half the Scales and still hits for all of them",
     "thick_scales": "at fight start, grow a Scale if fewer than n",
     "ancient_blood": "once a fight, dropping below half HP heals n",
-    "ascension": "once a fight below half HP: +n on every hit and 4 Armor a round for the rest of it",
+    "ascension": "once a fight below half HP: +n on every hit and 3 Armor a round for the rest of it",
     # the Emberknight's Heat (classes.py HEAT_*; actions.py add_heat)
     "molten_edge": "at 15+ Heat, hits also Burn 1",
     "fan_flames": "each kill adds n Heat",

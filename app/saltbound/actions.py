@@ -40,7 +40,7 @@ class Actions:
                 "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
                 "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0), "impact": x.get("impact", 0),
-                "scales": self.hero(h).get("scales", 0), "back": 0, "hi": max(vals) if vals else 0,
+                "scales": self.hero(h).get("scales", 0), "back": 0, "hunted": 0, "hi": max(vals) if vals else 0,
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
@@ -56,6 +56,7 @@ class Actions:
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
                      aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"),
+                     hunted=int(self.hs(h).get("hawk") == f"f{target['id']}"),
                      combo=self.combo_on(h, target), res=int(bool(target.get("res"))), burn=st.get("burn", 0))
             e["sigv"] = sigil_worth(e)
         return e
@@ -74,6 +75,7 @@ class Actions:
                      "stunned": int(bool(st.get("stun"))), "poisoned": int(bool(st.get("poison"))),
                      "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0,
                      "sig": st.get("sigil", 0), "back": int(target["row"] == "back"),
+                     "hunted": int(self.hs(h).get("hawk") == f"f{target['id']}"),
                      "combo": self.combo_on(h, target), "res": int(bool(target.get("res"))), "burn": st.get("burn", 0)}
 
     def target_env_from(self, e, part, target, vals):
@@ -99,7 +101,7 @@ class Actions:
             n += m.get("bomb_bonus", 0) + m.get("reagents", 0) * min(5, x.get("bombs", 0))
         if a.get("spell") and m.get("spellweave") and any(k != a["key"] for k in x.get("spells", [])):
             n += m["spellweave"]
-        n += x.get("cued", 0)
+        n += x.get("cued", 0) + x.get("apex_n", 0)
         if a.get("melee") and x["st"].get("infuse"):
             n += x.get("inf", {}).get("dmg", 0)  # an infused blade (Spellblade)
         if x.get("berserk"):
@@ -122,6 +124,10 @@ class Actions:
             n += m["unseen"]
         if isinstance(target, dict):
             n += self.combo_on(h, target) * C.COMBO_STEP  # the Duelist's combo
+            if x.get("hawk") == f"f{target['id']}":
+                n += C.HAWK_HUNT  # the Ranger's hawk is hunting it
+            if m.get("longshot") and target["row"] == "back" and not a.get("melee"):
+                n += m["longshot"]
             if m.get("engage") and target["hp"] >= target["max"]:
                 n += m["engage"]
             if a.get("spell") and m.get("wither"):
@@ -174,7 +180,7 @@ class Actions:
             fo = self.foe(int(tgt[1:]))
             if not fo or fo["hp"] <= 0:
                 # it died before this resolved: the weakest enemy in reach takes it instead
-                pool = self.front_foes() if a.get("melee") else self.foes()
+                pool = [o for o in self.foes() if self.in_reach(o)] if a.get("melee") else self.foes()
                 fo = min(pool, key=lambda o: o["hp"]) if pool else None
             return [fo] if fo else []
         if kind == "foes":
@@ -532,6 +538,13 @@ class Actions:
                 self.fight_heal(c.h, spent // 2, c.h)  # Immovable
         else:
             x["impact"] = min(self.impact_cap(c.h), x["impact"] + n)
+
+    def _op_hawk_to(self, c, op, targets):
+        t = targets[0] if targets else None
+        if isinstance(t, dict) and t["hp"] > 0 and "hawk" in c.x:
+            self.send_hawk(c.h, f"f{t['id']}")  # Sic 'Em: it stays on its prey
+        elif isinstance(t, tuple) and "hawk" in c.x:
+            self.send_hawk(c.h, f"h{t[1]}")  # Swoop
 
     def _op_impact_brace(self, c, op, targets):
         c.x["imp2"] = 1  # Brace for Impact: the Impact gained this round is doubled

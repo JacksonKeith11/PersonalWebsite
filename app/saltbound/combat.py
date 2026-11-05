@@ -95,6 +95,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             f["hs"][str(h)]["grace"] = hero.get("grace", 0)
             if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
                 self.grow_scales(h, 1)  # Thick Hide
+            if C.CLASSES[hero["cls"]]["map"]["key"] == "tracker":
+                f["hs"][str(h)]["hawk"] = f"h{h}"  # the Ranger's hawk starts each fight watching it
             if C.CLASSES[hero["cls"]]["map"]["key"] == "trailbreaker":
                 f["hs"][str(h)]["impact"] = 0  # the Vanguard's Impact (Stored Force: last fight's, as Armor)
                 kept = hero.pop("stored", 0)
@@ -300,6 +302,61 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
     def foes(self):
         return [fo for fo in self.s["fight"]["foes"] if fo["hp"] > 0]
 
+    def in_reach(self, fo):
+        """Whether melee reaches this enemy: the front row, or the Ranger's hawk's (Pinned Prey)."""
+        return fo in self.front_foes() or any(self.hawk_foe(y) is fo and self.mods(y).get("pinned_prey") for y in self.actives())
+
+    def hawk_foe(self, h):
+        """The enemy this hero's hawk is hunting, or None."""
+        u = self.hs(h).get("hawk") if self.in_fight(h) else None
+        fo = self.foe(int(u[1:])) if u and u[0] == "f" else None
+        return fo if fo and fo["hp"] > 0 else None
+
+    def send_hawk(self, h, uid):
+        """The Ranger's hawk goes to `uid` ("f<id>" to hunt, "h<n>" to watch)."""
+        x, m = self.hs(h), self.mods(h)
+        x["hawk"] = uid
+        self.fx("st", to=uid, s="hawk_hunt" if uid[0] == "f" else "hawk_watch")
+        if uid[0] == "h" and int(uid[1:]) != h and m.get("mantle"):
+            st = self.hs(int(uid[1:]))["st"]
+            st["armor"] = st.get("armor", 0) + m["mantle"]  # Mantle
+            self.fx("armor", to=uid, n=m["mantle"])
+        if uid[0] == "f" and m.get("eyes_sky"):
+            self.foresee_foe(self.foe(int(uid[1:])))  # Eyes in the Sky
+
+    def foresee_foe(self, fo):
+        it = fo.get("intent") or {}
+        if not it.get("dice") or all(d.get("v") is not None for d in it["dice"]):
+            return
+        for d in it["dice"]:
+            if d.get("v") is None:
+                d.pop("fc", None)
+                d["v"], d["tag"] = self.foe_roll_face(d["faces"])
+        self.intent_numbers(it)
+        self.fx("st", to=f"f{fo['id']}", s="foreseen")
+
+    def do_hawk(self, h, msg):
+        """Send the Ranger's hawk to an enemy or a hero: once a round, while planning, no die."""
+        if not self.in_fight(h) or not self.active(h) or "hawk" not in self.hs(h):
+            raise Invalid("You have no hawk here.")
+        x, f = self.hs(h), self.s["fight"]
+        if x["ready"]:
+            raise Invalid("You've readied up; unready to act again.")
+        if x.get("hawk_r") == f["round"]:
+            raise Invalid("Your hawk has already moved this round.")
+        tgt = msg.get("tgt")
+        if not isinstance(tgt, str) or len(tgt) < 2 or not tgt[1:].isdigit() or tgt[0] not in "fh":
+            raise Invalid("Send it to whom?")
+        if tgt[0] == "f" and not (self.foe(int(tgt[1:])) or {}).get("hp", 0) > 0:
+            raise Invalid("Pick an enemy.")
+        if tgt[0] == "h" and (int(tgt[1:]) not in f["heroes"] or not self.active(int(tgt[1:]))):
+            raise Invalid("Pick someone standing.")
+        if tgt == x["hawk"]:
+            raise Invalid("It's already there.")
+        x["hawk_r"] = f["round"]
+        self.send_hawk(h, tgt)
+        self.maybe_resolve()
+
     def front_foes(self):
         fr = [fo for fo in self.foes() if fo["row"] == "front"]
         return fr or self.foes()
@@ -369,6 +426,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.foe_round()
         for fo in self.foes():
             self.choose_intent(fo)
+        for h in self.actives():
+            fo = self.hawk_foe(h)
+            if fo and self.mods(h).get("eyes_sky"):
+                self.foresee_foe(fo)  # Eyes in the Sky
         self.fx("round", n=f["round"])
 
     def round_reset(self):
@@ -524,7 +585,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if m.get("echo_die"):
             dice.append({"faces": list(range(1, ECHO_FACES + 1)), "dk": ["echo"], "src": "echo"})
         if m.get("pet"):
-            dice.append({"faces": list(range(1, (8 if m.get("pet_strike") else min(8, m["pet"])) + 1)), "dk": [], "src": "pet"})
+            dice.append({"faces": list(range(1, min(8, m["pet"]) + 1)), "dk": [], "src": "pet"})
         if any(y != h for y in anthem):
             dice.append({"faces": [1, 2, 3, 4], "dk": [], "src": "anthem"})
         if x.get("hoard"):
@@ -657,7 +718,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             fo = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
             if not fo or fo["hp"] <= 0:
                 raise Invalid("Pick an enemy.")
-            if a.get("melee") and fo not in self.front_foes():
+            if a.get("melee") and not self.in_reach(fo):
                 raise Invalid("Melee can only reach the front row.")
             return tgt
         if kind in ("ally", "other", "downed"):
@@ -985,6 +1046,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["quarry"] = {"id": fid, "r": r, "n": q["n"] + 1}
             elif not (q and q["id"] == fid and q["r"] == r):
                 x["quarry"] = {"id": fid, "r": r, "n": 1}
+        if x.get("apex_n") and any(o["op"] == "dmg" for o in a["ops"]):
+            x.pop("apex_n")  # Apex Predator's +5 is spent on this hit
         if x.get("cued") and any(o["op"] == "dmg" for o in a["ops"]):
             x.pop("cued")
         cue = self.mods(h).get("cue")
@@ -1120,10 +1183,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 fo = min(self.front_foes(), key=lambda o: o["hp"])
                 self.hurt_foe(fo, a["atk"], a["owner"])
         for h in self.actives():
-            if self.mods(h).get("pet_strike") and self.foes():
-                fo = min(self.foes(), key=lambda o: o["hp"])
+            fo = self.hawk_foe(h)
+            if fo:
                 self.fx("act", h=h, a="sic_em", tgt=f"f{fo['id']}")
-                self.hurt_foe(fo, 3, h)
+                self.hurt_foe(fo, C.HAWK_PECK * self.mods(h).get("alpha_hawk", 1), h)  # the hawk pecks its prey
         if self.check_end():
             return
         # Enemies act, fastest first. Their Armor lasts from one enemy turn to the next, so what a
@@ -1222,6 +1285,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f["xp"] += d["xp"] * (2 if fo.get("aff") else 1)
         f["gold"] += d["gold"] * (2 if fo.get("aff") else 1)
         self.fx("die", to=f"f{fo['id']}")
+        for y in self.actives():
+            if self.hs(y).get("hawk") == f"f{fo['id']}":
+                left = [o for o in self.foes() if o["hp"] > 0]
+                if self.mods(y).get("apex") and left:
+                    self.send_hawk(y, f"f{min(left, key=lambda o: o['hp'])['id']}")  # Apex Predator
+                    self.hs(y)["apex_n"] = self.mods(y)["apex"]
+                else:
+                    self.hs(y)["hawk"] = f"h{y}"  # its prey is down: the hawk comes back
         if h is not None and self.hero(h)["alive"]:
             self.s["stats"][h]["kills"] += 1
             m = self.mods(h)
@@ -1361,6 +1432,15 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 n -= (f.get("harm") or {}).get("discord", 0)  # the Herald's Dissonance
             if fo is not None and fo["row"] == "back":
                 n -= self.mods(h).get("footwork", 0)
+            if fo is not None:
+                for y in self.actives():
+                    hy = self.hs(y)
+                    if hy.get("hawk") == f"h{h}" and not x.get("hawk_soak"):
+                        x["hawk_soak"] = 1  # the Ranger's hawk watches this hero: the first hit each round
+                        n -= C.HAWK_WATCH * self.mods(y).get("alpha_hawk", 1)
+                        self.fx("st", to=f"h{h}", s="hawk_soak")
+                    if hy.get("hawk") == f"f{fo['id']}":
+                        n -= self.mods(y).get("harrier", 0)  # Harrier
             if x["st"].get("vuln"):
                 n = int(n * 1.25 + 0.5)
             if x["st"].get("mark"):
@@ -1532,6 +1612,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x.pop("cold_used", None)
             x.pop("crit_lift", None)
             x.pop("imp2", None)  # Brace for Impact lasts the round
+            x.pop("hawk_soak", None)
             x.pop("feinted", None)
             if not self.mods(h).get("relentless"):
                 x.pop("combo", None)  # a combo lasts the round (Relentless: into the next)

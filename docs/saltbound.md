@@ -850,8 +850,8 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   **a new summon draws one attack** (the first enemy to act with a single-target attack on a hero, one
   aimed at its Warden first; not while a Taunt holds), and **a replacement takes over the attacks aimed
   at the summon it replaced** (they used to fall back on a random target, often a hero). The bots count
-  the drawn hit when valuing a summon (`bot.evaluate`). **The Ranger's hawk** is a die, not a unit (Companion a d6; Alpha a d8 and
-  it strikes the weakest enemy for 3 each round).
+  the drawn hit when valuing a summon (`bot.evaluate`). **The Ranger's hawk** is not a unit: it's a marker on whoever it's with
+  (`x["hawk"]`, see "Ranger, the Hawk" below), and Companion and Alpha give it a die (a d6; a d8).
 - **Fleeing**: a die on Flee takes the hero back to the hex they came from; not from dungeons or
   bosses.
 - **Spirit dice** (`f["spirit"]`, `do_spirit`): each round every fallen hero gets a d6, rolled in the
@@ -942,6 +942,30 @@ The owner's fallback if it ran strong was 1 Impact per 2 blocked; it didn't need
 spending 9 Impact on average. Shockwave read -16 vs passed (the bots empty the meter with Payback
 first), so it now spends nothing and gained +2 (not measured again). Still high: Shield Bash +18,
 Payback+ +19 vs class.
+
+**Ranger, the Hawk** (owner's request, Nov 2026): every Ranger's hawk is with someone in a fight
+(`x["hawk"]`: `"f<id>"` hunting an enemy, `"h<n>"` watching a hero; the Ranger itself at the start).
+Once a round, while planning, the `hawk` message (`Combat.do_hawk`, `x["hawk_r"]` the round it moved)
+sends it elsewhere, with no die. Hunting: the Ranger's hits on it deal +`C.HAWK_HUNT` 1 (`dmg_bonus`)
+and the hawk pecks it for `C.HAWK_PECK` 2 after the heroes act (where Alpha's strike was). Watching: the
+first enemy hit on that hero each round deals `C.HAWK_WATCH` 3 less (`hurt_hero`, `x["hawk_soak"]`). When
+its prey dies it comes back to the Ranger. `hunted` is an amount variable. Picks: Sic 'Em also sends it
+to the enemy and Swoop (an ally: die +2 Armor) to the ally, without using the move (op `hawk_to`); Pack
+Tactics +7 on the hunted enemy; Pinned Prey (melee reaches the hunted enemy in the back row,
+`Combat.in_reach`, also used by the bots' and client's targeting); Harrier (its hits -2); Eyes in the Sky
+(its attack rolled in the open, `foresee_foe`, at each round start too); Mantle (3 Armor to an ally it's
+sent to); Apex Predator (capstone: when its prey dies it moves to the weakest enemy left and the next
+hit deals +5, `x["apex_n"]`); Alpha now doubles the peck and the softened hit (`alpha_hawk`), no longer
+striking the weakest enemy; Longshot (non-melee hits +3 on the back row) doesn't touch the hawk. The
+bots (`bot.hawk_move`, from `consumable`) watch whoever takes the biggest hit when that saves more than
+hunting gains, otherwise hunt the weakest enemy (a back-row one for melee allies, with Pinned Prey);
+over four runs they hunted 233 times and watched an ally 13. On the stage a wing shape circles whoever
+it's with (`combat.js` `hawkPerch`: gold hunting, blue watching); the card says who, and the tray has a
+Send hawk button (the trinkets' pick-a-target flow). The `ranger` audit save has it hunting the Reef Eel.
+Measured (2026-11-05, 400 Hard runs with a Ranger in every party): **64.5%** with hunting at +2 (its
+damage 43.0 a round, was 38.7), too strong, so hunting is +1: **57.2%** (damage 38.6), level with the
+other classes' batches (51-59%). No hawk pick past 15 points vs passed (Apex Predator +13, Swoop +11,
+Sic 'Em -13, Eyes in the Sky -10).
 
 **Herald, Harmonies** (owner's request, Nov 2026): a fight with a Herald has three Harmonies
 (`f["harm"]`, 0 to `C.HARMONY_CAP` 3, shown on the fight banner): Valor (+1 on every ally hit per

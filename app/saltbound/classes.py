@@ -1136,6 +1136,42 @@ CLASSES["vanguard"]["start"] = ["strike", "guard", "payback", "overguard"]
 CLASSES["vanguard"]["pool"] = [k for k in CLASSES["vanguard"]["pool"] if k not in ("retaliate", "avalanche")] + [
     "brace_impact", "shockwave", "share_load", "linebreaker", "recoil", "unmoved", "stored_force", "immovable"]
 
+# ---- Ranger, the Hawk (owner's request, Nov 2026): every Ranger's hawk is with someone in a fight
+# (`x["hawk"]`: "f<id>" hunting an enemy, "h<n>" watching a hero; the Ranger itself at the start). Once a
+# round, while planning, the `hawk` message sends it elsewhere (no die). Hunting: the Ranger's hits on
+# that enemy deal +HAWK_HUNT and the hawk pecks it for HAWK_PECK after the heroes act. Watching: the first
+# hit on that hero each round deals HAWK_WATCH less. Alpha doubles both. Rules in Combat (`do_hawk`,
+# `hawk_on`) and Actions (`dmg_bonus`); `hunted` in an amount is 1 on the hawk's enemy.
+HAWK_HUNT = 1  # was 2: Ranger parties won 64.5% (400 Hard runs)
+HAWK_PECK = 2
+HAWK_WATCH = 3
+ACTIONS["sic_em"].update(text="Your hawk dives at any row: deal the die and make the enemy Weak. The hawk stays to hunt it (this doesn't use its move).")
+ACTIONS["sic_em"]["ops"] = [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": 1}, {"op": "hawk_to"}]
+ACTIONS["pack_tactics"]["ops"] = [{"op": "dmg", "amt": "v+5+2*hunted"}]
+ACTIONS["pack_tactics"]["text"] = "Any row. On 4+: you and your hawk strike together for the die +5 (+7 on the enemy it's hunting). Otherwise: deal half the die."
+PASSIVES["alpha"].update(mods={"pet": 8, "alpha_hawk": 2},
+                         text="Your hawk's die is a d8, and its peck and the hit it softens are doubled.")
+ACTIONS.update({
+    "swoop": {"name": "Swoop", "req": {"n": 1}, "tgt": "other", "tags": ["beastmaster"],
+              "ops": [{"op": "armor", "amt": "v+2"}, {"op": "hawk_to"}],
+              "text": "Your hawk swoops to an ally (this doesn't use its move): they gain the die +2 as Armor, and it watches them."},
+})
+PASSIVES.update({
+    "pinned_prey": {"name": "Pinned Prey", "mods": {"pinned_prey": 1}, "tags": ["beastmaster"],
+                    "text": "Your allies' melee can reach the enemy your hawk is hunting, even in the back row."},
+    "harrier": {"name": "Harrier", "mods": {"harrier": 2}, "tags": ["beastmaster"],
+                "text": "The enemy your hawk is hunting deals 2 less with each hit."},
+    "eyes_in_sky": {"name": "Eyes in the Sky", "mods": {"eyes_sky": 1}, "tags": ["beastmaster"],
+                    "text": "The enemy your hawk is hunting rolls its attack in the open, as Spotter shows it."},
+    "mantle": {"name": "Mantle", "mods": {"mantle": 3}, "tags": ["beastmaster"],
+               "text": "Sending your hawk to an ally gives them 3 Armor."},
+    "apex_predator": {"name": "Apex Predator", "cap": True, "mods": {"apex": 5}, "tags": ["beastmaster"],
+                      "text": "When the enemy your hawk is hunting dies, it moves on to the weakest enemy left, and your next hit deals +5."},
+    "longshot": {"name": "Longshot", "mods": {"longshot": 3}, "tags": ["marksman"],
+                 "text": "Your hits that aren't melee deal +3 to back-row enemies."},
+})
+CLASSES["ranger"]["pool"] += ["swoop", "pinned_prey", "harrier", "eyes_in_sky", "mantle", "apex_predator", "longshot"]
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1274,7 +1310,7 @@ SHORT = {
     "reckless_swing": ("sword", "die +12 · take 2", "½ die · take 2"), "howl": ("down", "all enemies Weak", None),
     "shoot_r": ("sword", "die +1", None), "hunters_mark": ("target", "Mark · ⅓ die", None),
     "aimed_shot": ("target", "2× die +1", "½ die"), "called_shot": ("target", "sum +8 · pair +6 · pierce", None),
-    "sic_em": ("sword", "die · Weak", None), "pack_tactics": ("sword", "die +5", "½ die"),
+    "sic_em": ("sword", "die · Weak · hawk hunts it", None), "pack_tactics": ("sword", "die +5 (+7 hunted)", "½ die"),
     "spotter": ("eye", "reveal all enemy dice · ½ die Armor", None), "volley": ("sword", "all: ½ each die +1", None),
     "covering_fire": ("down", "its attack −die · ½ die", None),
     "stab": ("sword", "die, +2 if not aimed at you", None), "slip": ("boot", "5+: dodge next hit", "nothing"),
@@ -1354,6 +1390,9 @@ SHORT.update({
     "meteor_fist": ("sword", "die +4 · Heat bonus ×2 (5+)", "½ die"), "cinder_lance": ("flame", "die + up to 10 Heat · spend", None),
     "quench": ("shield", "cool 2× die · as Armor", None), "ember_ward": ("shield", "die +1 Armor · attackers Burn", None),
     "pass_the_flame": ("flame", "ally: next 2 hits +4 +½ die · Burn 2", None), "backdraft": ("flame", "½ Heat + die · its attack −¼ Heat", None),
+})
+SHORT.update({
+    "swoop": ("shield", "ally: die +2 Armor · hawk watches", None),
 })
 SHORT.update({
     "payback": ("sword", "die + Impact · spend all", None), "brace_impact": ("shield", "die +2 Armor · Impact ×2", None),

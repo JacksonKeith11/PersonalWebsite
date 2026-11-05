@@ -8,6 +8,14 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Ranger's hawk (classes.py HAWK_*; Combat.do_hawk, hawk_on)
+    "alpha_hawk": "the hawk's peck and the hit it softens are n times as much",
+    "pinned_prey": "allies' melee reaches the hawk's enemy in the back row",
+    "harrier": "the hawk's enemy deals n less with each hit",
+    "eyes_sky": "the hawk's enemy rolls its attack in the open",
+    "mantle": "sending the hawk to an ally gives them n Armor",
+    "apex": "when the hawk's enemy dies it moves on, and the next hit deals +n",
+    "longshot": "non-melee hits deal +n to the back row",
     # the Vanguard's Impact (classes.py IMPACT_CAP; Combat.add_impact)
     "recoil": "at full Impact, blocked damage hits the attacker",
     "unmoved": "+n to Armor you gain while holding 6+ Impact",
@@ -157,7 +165,6 @@ MODS = {
     "anthem": "every ally rolls an extra d4 each round",
     "second_verse": "dice given or boosted get +n",
     "pet": "a pet adds a die this big each round",
-    "pet_strike": "the pet's die is a d8 and it hits the weakest enemy for 3 each round",
     # defence and healing
     "max_hp": "+n max HP",
     "start_armor": "n Armor at the start of each fight",

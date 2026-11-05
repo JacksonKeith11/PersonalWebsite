@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=136';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=136';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=136';
-import { stageURL, stageKey } from './stage.js?v=136';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=136';
-import { render } from './main.js?v=136';
-import { skillCard } from './hud.js?v=136';
-import { SKILL_FX, foeFx } from './skillfx.js?v=136';
-import * as sfx from './audio.js?v=136';
+import { S, send, mine, controllerName } from './store.js?v=139';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=139';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=139';
+import { stageURL, stageKey } from './stage.js?v=139';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=139';
+import { render } from './main.js?v=139';
+import { skillCard } from './hud.js?v=139';
+import { SKILL_FX, foeFx } from './skillfx.js?v=139';
+import * as sfx from './audio.js?v=139';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -139,6 +139,7 @@ export function renderCombat(el) {
       hs?.st?.infuse ? infusedChip(hs) : null,
       hs && hs.heat != null ? heatGauge(hs) : null,
       hs && hs.impact != null ? impactGauge(hs, hero) : null,
+      hs?.hawk ? hawkChip(f, hs) : null,
       hero.cls === 'dragonborn' ? scalePips(hero.scales || 0) : null,
       hero.cls === 'mender' && hs ? graceBar(hs.grace || 0, hs.radiant) : null,
       hs?.attune ? attuneChip(hs) : null,
@@ -438,7 +439,14 @@ function poseImg(k, uid, out, st, hs) {
   warmPoses(k);
   const pose = out ? 'fallen' : POSE_OF[C.anim[uid]] || null;
   return h('span.fig', null, h('img.pix' + (pose ? '.pose-' + pose : ''), { src: poseURL(k, pose), alt: '' }),
-    out ? null : attuneAura(hs), out ? null : statusAura(st));
+    out ? null : attuneAura(hs), out ? null : statusAura(st), out ? null : hawkPerch(uid));
+}
+// The Ranger's hawk over whoever it's with: gold while it hunts an enemy, sky blue while it watches a hero.
+function hawkPerch(uid) {
+  const f = S.game?.fight;
+  if (!f || !f.heroes.some(y => f.hs[y]?.hawk === uid)) return null;
+  return h('span.aura.hawk-perch.' + (uid[0] === 'f' ? 'hunt' : 'watch'), { 'aria-hidden': 'true' },
+    h('i', { style: { animationDelay: `-${Math.round(performance.now() % 1800)}ms` } }));
 }
 // The Arcanist's attunement on the sprite itself: flames lick up from it (Fire), snowflakes circle it
 // (Frost) or arcs crackle round it (Storm), with a glow in that colour; ready to Converge, a ring of all
@@ -511,6 +519,13 @@ function graceBar(n, ready) {
 export function scalePips(n) {
   return h('div.scale-pips', { tip: `Scales ${n} / 5\nEvery enemy hit that lands grows one. Each gives 1 Armor at the start of every round. Breath sheds them for damage to every enemy. They stay between fights; knocked down loses half.` },
     ...[0, 1, 2, 3, 4].map(i => h('i' + (i < n ? '.on' : ''))), h('span', null, `Scales ${n}`));
+}
+// The Ranger's hawk: who it's with, and what that does.
+function hawkChip(f, hs) {
+  const u = hs.hawk, fo = u[0] === 'f' ? f.foes.find(o => 'f' + o.id === u) : null;
+  const who = fo ? fo.name : S.game.heroes[+u.slice(1)]?.name;
+  return h('div.covered-chip.hawk', { tip: fo ? `Your hawk is hunting ${who}\nYour hits on it deal +1, and the hawk pecks it for 2 after the party acts.` : `Your hawk is watching ${who}\nThe first enemy hit on them each round deals 3 less.` },
+    fo ? `Hawk: hunting ${who}` : `Hawk: watching ${who}`);
 }
 // The Vanguard's Impact: damage its Armor soaks is stored (to 10, 20 with Immovable) for Payback.
 function impactGauge(hs, hero) {
@@ -892,6 +907,7 @@ function tray(f, x, my) {
         f.hymn ? h('span.chip.brass', { tip: 'Hymn of Valor\nEvery die the party rolls this round is this much higher.' }, `+${f.hymn} hymn`) : null,
         ...focusTools(x, hs, dice, ready),
         ...trinketButtons(x, hs, ready),
+        hawkButton(x, hs, ready),
         hs.inspire ? h('span.chip.brass', { tip: 'Inspired\nYour next die rolls this much higher.' }, `+${hs.inspire} next die`) : null,
         ...uses.map(([k, i, n]) => h('button.btn.sm.ghost', { disabled: ready, tip: `${S.static.items[k].name}\n${S.static.items[k].text}\nUsed at once; no die needed.`, onclick: () => useItem(x, k, i) }, icon('drop'), S.static.items[k].name + (n > 1 ? ` ×${n}` : ''))))),
     h('div.actions', null, ...acts.map((k, i) => actionCard(f, x, k, i, selDice, ready))),
@@ -906,6 +922,16 @@ function tray(f, x, my) {
 const TRINKET = { smoke: ['Smoke Pellet', '💨', 'hero', 'The next hit on you or an ally misses.'], caltrops: ['Caltrops', '✴', null, 'Every front-row enemy’s attack this round deals 2 less.'],
   flash: ['Flash Powder', '✨', 'foe', 'An enemy is Weak this round.'], venom: ['Vial of Venom', '🧪', 'foe', 'Poison an enemy for 3.'],
   coin: ['Loaded Coin', '🪙', 'hero', 'One of your dice, or an ally’s, rolls 2 higher.'], purse: ['Stolen Purse', '👛', null, '+6 gold, and your next die rolls 2 higher.'] };
+// The Ranger's hawk: once a round, no die, send it to an enemy (to hunt) or a hero (to watch).
+function hawkButton(x, hs, ready) {
+  if (!hs.hawk) return null;
+  const f = S.game.fight, moved = hs.hawk_r === f.round;
+  return h('button.btn.sm.ghost.trinket', { disabled: ready || moved, tip: `Send your hawk${moved ? ' (it has moved this round)' : ''}\nOnce a round, no die needed. On an enemy it hunts: your hits on it deal +1 and it pecks it for 2. On a hero it watches: the first hit on them each round deals 3 less.`, onclick: () => {
+    const opts = [...f.foes.filter(fo => fo.hp > 0).map(fo => 'f' + fo.id), ...f.heroes.filter(y => heroActive(f, y)).map(y => 'h' + y)].filter(u => u !== hs.hawk);
+    if (!opts.length) return;
+    C.pending = { msg: { t: 'hawk', h: x }, opts, item: true }; render();
+  } }, '🪶 Send hawk');
+}
 function trinketButtons(x, hs, ready) {
   const f = S.game.fight;
   return (hs.trinkets || []).map((t, i) => {
@@ -1138,7 +1164,12 @@ function targetsFor(f, x, a, dice = []) {
   const alive = f.foes.filter(fo => fo.hp > 0);
   if (a.tgt === 'foe') {
     let pool = alive;
-    if (a.melee) { const fr = alive.filter(fo => fo.row === 'front'); if (fr.length) pool = fr; }
+    if (a.melee) {
+      const fr = alive.filter(fo => fo.row === 'front');
+      // Pinned Prey: the Ranger's hawk holds its enemy within melee reach
+      const pinned = alive.filter(fo => f.heroes.some(y => f.hs[y]?.hawk === 'f' + fo.id && (S.game.heroes[y].skills || []).includes('pinned_prey')));
+      if (fr.length) pool = [...fr, ...pinned.filter(fo => !fr.includes(fo))];
+    }
     if (a.req.marked) pool = pool.filter(fo => fo.st.mark);
     return pool.map(fo => 'f' + fo.id);
   }
@@ -1719,7 +1750,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

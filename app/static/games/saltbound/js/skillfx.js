@@ -96,6 +96,7 @@ export const SKILL_FX = {
   // Ranger
   shoot_r: x => { x.shot('ranged', null, ['pierce', null, 420]); return 'act'; },
   hunters_mark: x => { x.hit('crosshair', C.blood, 600); x.later(() => x.shot('ranged', null, ['pierce', null, 420]), 300); return 'act'; },
+  swoop: x => { x.shot('hawk', C.gold, ['claw', C.gold, 300], { arc: -60 }); x.me('shieldfx', null, 500); return 'act'; },
   sic_em: x => { x.shot('hawk', C.gold, ['claw', C.gold, 460], { arc: -70 }); return 'act'; },
   pack_tactics: x => {
     x.shot('hawk', C.gold, ['claw', C.gold, 460], { arc: -70 });

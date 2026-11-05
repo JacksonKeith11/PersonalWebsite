@@ -1385,7 +1385,7 @@ def candidates(g, h, b, free):
 def target_options(g, h, a, foes):
     kind = a["tgt"]
     if kind == "foe":
-        pool = g.front_foes() if a.get("melee") else foes
+        pool = [o for o in foes if g.in_reach(o)] if a.get("melee") else foes
         if a["req"].get("marked"):
             pool = [o for o in pool if o["st"].get("mark")]
         if a["req"].get("sigils"):
@@ -1567,6 +1567,35 @@ def trinket_move(g, h, b, inc):
     return None
 
 
+def hawk_move(g, h, b):
+    """The Ranger's hawk: watch whoever takes the biggest hit if that saves more than hunting gains,
+    otherwise hunt the weakest enemy (a back-row one for melee allies, with Pinned Prey)."""
+    x = g.hs(h)
+    if "hawk" not in x or x.get("hawk_r") == g.s["fight"]["round"]:
+        return None
+    foes = g.foes()
+    if not foes:
+        return None
+    m = g.mods(h)
+    al = m.get("alpha_hawk", 1)
+    hits = [(n, int(u[1:])) for fo in foes for u, n in foe_hits(g, b, fo) if u.startswith("h")]
+    watch, wy = 0, None
+    if hits:
+        n, y = max(hits)
+        hp = g.hero(y)["hp"] + g.hs(y)["st"].get("armor", 0) - n
+        watch = min(n, C.HAWK_WATCH * al) + (m.get("mantle", 0) if y != h else 0) + (3 if hp < g.maxhp(y) * 0.3 else 0)
+        wy = y
+    pool = foes
+    if m.get("pinned_prey") and any(g.hero(y)["cls"] in ("vanguard", "duelist", "berserker", "spellblade", "emberknight", "dragonborn")
+                                    for y in g.actives() if y != h):
+        back = [o for o in foes if o not in g.front_foes()]
+        pool = back or foes
+    prey = min(pool, key=lambda o: o["hp"])
+    hunt = 2 * C.HAWK_HUNT + C.HAWK_PECK * al + m.get("harrier", 0) + (2 if m.get("eyes_sky") else 0)
+    want = f"h{wy}" if wy is not None and watch > hunt else f"f{prey['id']}"
+    return None if want == x["hawk"] else {"t": "hawk", "tgt": want}
+
+
 def consumable(g, h, b):
     """Potions when someone would otherwise drop, salts for the downed, kegs for a kill that matters."""
     hero = g.hero(h)
@@ -1590,7 +1619,7 @@ def consumable(g, h, b):
     i = find("ward_scroll")
     if i is not None and sum(inc.values()) >= 14:
         return {"t": "use", "bag": i}
-    tr = trinket_move(g, h, b, inc)
+    tr = trinket_move(g, h, b, inc) or hawk_move(g, h, b)
     if tr:
         return tr
     i = find("bomb")

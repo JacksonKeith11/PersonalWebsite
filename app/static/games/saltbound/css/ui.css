@@ -1414,6 +1414,13 @@ button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis
 .fx.shot.drop { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
 .fx.shot.note::before { content: "♪"; color: var(--c); font: 700 26px/1 serif; text-shadow: 0 0 8px var(--c); }
 .fx.shot.hawk { width: 30px; height: 12px; }
+.aura.hawk-perch i { position: absolute; left: 22%; top: 12%; width: 30px; height: 12px; margin-left: -15px; --c: #f0c060; animation: hawk-circle 1.8s ease-in-out infinite; }
+.aura.hawk-perch.watch i { --c: #9ad0ff; }
+.aura.hawk-perch i::before, .aura.hawk-perch i::after { content: ""; position: absolute; top: 0; width: 50%; height: 100%; border-top: 4px solid var(--c); filter: drop-shadow(0 0 2px var(--c)); }
+.aura.hawk-perch i::before { left: 0; border-radius: 100% 0 0 0; }
+.aura.hawk-perch i::after { right: 0; border-radius: 0 100% 0 0; }
+@keyframes hawk-circle { 0%, 100% { transform: translate(-10px, 0) scaleY(1); } 25% { transform: translate(0, -4px) scaleY(0.5); } 50% { transform: translate(10px, 0) scaleY(1); } 75% { transform: translate(0, 3px) scaleY(0.5); } }
+@media (prefers-reduced-motion: reduce) { .aura.hawk-perch i { animation: none; } }
 .fx.shot.hawk::before, .fx.shot.hawk::after { content: ""; position: absolute; top: 0; width: 50%; height: 100%; border-top: 4px solid var(--c); filter: drop-shadow(0 0 3px var(--c)); }
 .fx.shot.hawk::before { left: 0; border-radius: 100% 0 0 0; }
 .fx.shot.hawk::after { right: 0; border-radius: 0 100% 0 0; }

@@ -74,6 +74,8 @@ SCENARIOS = {
     "herald": None,
     # the Vanguard's Impact: a fight with Impact stored and Brace for Impact on (built in main())
     "vanguard": None,
+    # the Ranger's hawk: hunting an enemy, with Pinned Prey and Swoop (built in main())
+    "ranger": None,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -109,6 +111,14 @@ def main():
     names = sys.argv[1:] or list(SCENARIOS)
     for name in names:
         g = None
+        if name == "ranger":
+            g, seed = game.Game.new(501, ["ranger", "vanguard", "mender"], "normal"), 501
+            g.hero(0)["skills"] += ["swoop", "pinned_prey", "pack_tactics"]
+            g.start_fight({"kind": "roam", "tile": g.hero(0)["tile"], "heroes": [0, 1, 2], "foes": ["cutthroat", "crab", "eel"], "by": 0})
+            g.hs(0)["hawk"] = f"f{g.s['fight']['foes'][-1]['id']}"
+            S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
+            print(f"{name}: saved")
+            continue
         if name == "vanguard":
             g, seed = game.Game.new(501, ["vanguard", "arcanist", "mender"], "normal"), 501
             g.hero(0)["skills"] += ["shockwave", "share_load", "brace_impact"]

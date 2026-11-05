@@ -855,9 +855,9 @@ ACTIONS.update({
     "mind_fog": {"name": "Mind Fog", "req": {"n": 1}, "tgt": "foe", "tags": ["telepathy"],
                  "ops": [{"op": "weaken", "amt": "v+1"}],
                  "text": "Any row: the enemy's attack this round deals the die +1 less."},
-    "puppet_strings": {"cd": 3, "name": "Puppet Strings", "req": {"n": 2, "exact": 6}, "tgt": "foe", "spell": True,
+    "puppet_strings": {"cd": 3, "name": "Puppet Strings", "req": {"n": 3, "exact": 6}, "tgt": "foe", "spell": True,
                        "tags": ["telepathy"], "ops": [{"op": "turn"}], "miss": [{"op": "dmg", "amt": "sum//2"}],
-                       "text": "Two dice, both 6: the enemy turns its attack this round on another enemy (that one takes it now, "
+                       "text": "Three dice, all 6: the enemy turns its attack this round on another enemy (that one takes it now, "
                                "and the attack is spent). Otherwise: deal half the sum."},
 })
 PASSIVES.update({
@@ -1077,7 +1077,7 @@ SHORT.update({
     "mind_crush": ("bolt", "pair: 3× its number", "nothing"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),
     "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: die · drag", None),
     "read_intent": ("eye", "1 Focus: its roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
-    "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
+    "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "three 6s: its attack hits another", "½ sum"),
 })
 SHORT.update({
     "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),

@@ -1172,6 +1172,38 @@ PASSIVES.update({
 })
 CLASSES["ranger"]["pool"] += ["swoop", "pinned_prey", "harrier", "eyes_in_sky", "mantle", "apex_predator", "longshot"]
 
+# ---- Warden, the Rootweb (owner's request, Nov 2026): while a Warden fights, every Rooted enemy is
+# Entwined. When a hero (or their summon) hits an Entwined enemy, every other Entwined enemy takes
+# WEB_SPLASH (a splash doesn't splash again); an Entwined enemy alone takes WEB_LONE more instead.
+# Rules in Combat (`web_splash`, from `hurt_foe`).
+WEB_SPLASH = 2
+WEB_LONE = 1
+ACTIONS.update({
+    "tangleroot": {"name": "Tangleroot", "req": {"n": 1}, "tgt": "foe", "tags": ["thorns"],
+                   "ops": [{"op": "status", "s": "root", "n": 1}, {"op": "dmg", "amt": "v//2"}, {"op": "tangle", "amt": "v//2"}],
+                   "text": "Root an enemy and another one beside it, and deal half the die to each."},
+    "choking_vines": {"cd": 3, "name": "Choking Vines", "req": {"n": 1}, "tgt": "foes", "tags": ["thorns"],
+                      "ops": [{"op": "choke", "amt": "v"}],
+                      "text": "Every Entwined (Rooted) enemy takes the die and is Weak this round."},
+})
+PASSIVES.update({
+    "thicket": {"name": "Thicket", "mods": {"thicket": 1}, "tags": ["thorns"],
+                "text": "The Rootweb carries 3 instead of 2."},
+    "strangler_fig": {"name": "Strangler Fig", "mods": {"strangler_fig": 1}, "tags": ["grove"],
+                      "text": "Your summons' hits Root the enemy they hit, so they weave the web too."},
+    "snare_line": {"name": "Snare Line", "mods": {"snare_line": 1}, "tags": ["thorns"],
+                   "text": "Each Entwined enemy deals 1 less with each hit for every other Entwined enemy."},
+    "sapping_vines": {"name": "Sapping Vines", "mods": {"sapping_vines": 1}, "tags": ["grove"],
+                      "text": "Whenever the Rootweb carries damage, your most wounded ally heals 1."},
+    "thorned_tendrils": {"name": "Thorned Tendrils", "mods": {"thorned_tendrils": 2}, "tags": ["thorns"],
+                         "text": "Entwined enemies that attack take 2."},
+    "heart_of_wild": {"name": "Heart of the Wild", "cap": True, "mods": {"heart_wild": 1}, "tags": ["thorns"],
+                      "text": "The Rootweb carries a third of each hit (at least 2, or 3 with Thicket)."},
+})
+ACTIONS["thornlash"]["text"] = "Any row: deal the die +1, and Root (Entwine) the enemy on 5+."
+CLASSES["warden"]["start"] = ["thornlash", "sprout", "tangleroot"]
+CLASSES["warden"]["pool"] += ["choking_vines", "thicket", "strangler_fig", "snare_line", "sapping_vines", "thorned_tendrils", "heart_of_wild"]
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1390,6 +1422,9 @@ SHORT.update({
     "meteor_fist": ("sword", "die +4 · Heat bonus ×2 (5+)", "½ die"), "cinder_lance": ("flame", "die + up to 10 Heat · spend", None),
     "quench": ("shield", "cool 2× die · as Armor", None), "ember_ward": ("shield", "die +1 Armor · attackers Burn", None),
     "pass_the_flame": ("flame", "ally: next 2 hits +4 +½ die · Burn 2", None), "backdraft": ("flame", "½ Heat + die · its attack −¼ Heat", None),
+})
+SHORT.update({
+    "tangleroot": ("root", "Root 2 · ½ die each", None), "choking_vines": ("root", "Entwined: die · Weak", None),
 })
 SHORT.update({
     "swoop": ("shield", "ally: die +2 Armor · hawk watches", None),

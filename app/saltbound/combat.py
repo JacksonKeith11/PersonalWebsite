@@ -1182,6 +1182,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             else:
                 fo = min(self.front_foes(), key=lambda o: o["hp"])
                 self.hurt_foe(fo, a["atk"], a["owner"])
+                if fo["hp"] > 0 and self.mods(a["owner"]).get("strangler_fig"):
+                    fo["st"]["root"] = max(fo["st"].get("root", 0), 2)  # Strangler Fig: into the next round too
+                    self.fx("st", to=f"f{fo['id']}", s="root")
         for h in self.actives():
             fo = self.hawk_foe(h)
             if fo:
@@ -1252,6 +1255,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if n > 0 and str(h) in self.s["fight"]["hs"]:
                 self.hs(h)["struck"] = True
         self.fx("dmg", to=f"f{fo['id']}", n=n, block=blocked)
+        if not pure and h is not None and n > 0 and fo["st"].get("root"):
+            self.web_splash(fo, n, h)  # the Warden's Rootweb
         if not pure and fo["st"].pop("shock", 0) and n > 0:
             others = [o for o in self.foes() if o is not fo]
             if others:
@@ -1272,6 +1277,34 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.foe_hit_hooks(fo, n, h, pure)
             self.foe_bloodied(fo)
         return n
+
+    def wardens(self):
+        """The Wardens standing in this fight: while one is, every Rooted enemy is Entwined."""
+        f = self.s["fight"]
+        return [y for y in f["heroes"] if self.active(y) and C.CLASSES[self.hero(y)["cls"]]["map"]["key"] == "wildspeak"]
+
+    def web_splash(self, fo, n, h):
+        """A hit on an Entwined enemy: every other Entwined enemy takes WEB_SPLASH (Thicket +1, Heart of
+        the Wild a third of the hit if more); alone, it takes WEB_LONE more. Splashes don't splash."""
+        ws = self.wardens()
+        if not ws:
+            return
+        mods = [self.mods(y) for y in ws]
+        base = C.WEB_SPLASH + (1 if any(m.get("thicket") for m in mods) else 0)
+        amt = max(base, n // 3) if any(m.get("heart_wild") for m in mods) else base
+        others = [o for o in self.foes() if o is not fo and o["st"].get("root")]
+        if not others:
+            if fo["hp"] > 0:
+                self.hurt_foe(fo, C.WEB_LONE, h, pure=True)
+            return
+        for o in others:
+            self.fx("st", to=f"f{o['id']}", s="web")
+            self.hurt_foe(o, amt, h, pure=True)
+        for y, m in zip(ws, mods):
+            if m.get("sapping_vines"):
+                hurt = [z for z in self.actives() if self.hero(z)["hp"] < self.maxhp(z)]
+                if hurt:
+                    self.fight_heal(min(hurt, key=lambda z: self.hero(z)["hp"] / self.maxhp(z)), 1, y)  # Sapping Vines
 
     def foe_dies(self, fo, h, bomb=False):
         f = self.s["fight"]
@@ -1441,6 +1474,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                         self.fx("st", to=f"h{h}", s="hawk_soak")
                     if hy.get("hawk") == f"f{fo['id']}":
                         n -= self.mods(y).get("harrier", 0)  # Harrier
+                if fo["st"].get("root") and any(self.mods(y).get("snare_line") for y in self.wardens()):
+                    n -= sum(1 for o in self.foes() if o is not fo and o["st"].get("root"))  # Snare Line
             if x["st"].get("vuln"):
                 n = int(n * 1.25 + 0.5)
             if x["st"].get("mark"):
@@ -1496,6 +1531,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if x["st"].get("emberward"):
                 fo["st"]["burn"] = fo["st"].get("burn", 0) + x["st"]["emberward"]  # Ember Ward
                 self.fx("st", to=f"f{fo['id']}", s="burn")
+            if fo["st"].get("root"):
+                tt = max([self.mods(y).get("thorned_tendrils", 0) for y in self.wardens()] or [0])
+                if tt and fo["hp"] > 0:
+                    self.hurt_foe(fo, tt, self.wardens()[0], pure=True)  # Thorned Tendrils
             th = self.mods(h).get("thorns", 0) + x["st"].get("thorns", 0)
             if th and fo["hp"] > 0:
                 self.hurt_foe(fo, th, h, pure=True)

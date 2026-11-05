@@ -366,6 +366,8 @@ a:hover { color: var(--accent-hi); }
 .intent .icon-svg { width: 16px; height: 16px; }
 .stage svg.arrows { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: visible; }
 .stage svg.arrows .arrow { fill: none; stroke-width: 2; opacity: 0.75; }
+.stage svg.arrows .vine { fill: none; stroke: #5fa047; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 14 4 3 4; opacity: 0.85; filter: drop-shadow(0 0 3px #3d7a2a); }
+.stage svg.arrows .vine.thin { stroke: #8fd06a; stroke-width: 2; stroke-dasharray: 4 6; opacity: 0.7; }
 .stage .side-units { position: relative; z-index: 2; }
 .preview { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; min-height: 22px; }
 .pv { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 6px; border-radius: var(--r-pill); font-size: var(--fs-14); font-weight: var(--fw-bold); background: rgba(11, 16, 23, 0.85); border: var(--bw) solid currentColor; }

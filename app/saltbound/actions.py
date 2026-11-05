@@ -539,6 +539,29 @@ class Actions:
         else:
             x["impact"] = min(self.impact_cap(c.h), x["impact"] + n)
 
+    def _op_tangle(self, c, op, targets):
+        """Tangleroot: Root another enemy (beside the target: the same row first, the toughest) and hit it."""
+        t = targets[0] if targets and isinstance(targets[0], dict) else None
+        rest = [o for o in self.foes() if o is not t]
+        if not rest:
+            return
+        free = [o for o in rest if not o["st"].get("root")] or rest
+        o = max(free, key=lambda o: (t is not None and o["row"] == t["row"], o["hp"]))
+        o["st"]["root"] = o["st"].get("root", 0) + self.status_amount(c.h, c.a, "root", 1)
+        self.fx("st", to=f"f{o['id']}", s="root")
+        self.foe_status_by(o, "root", c.h)
+        n = amt(op["amt"], self.env(c.h, c.a, c.dice, o)) + c.plus
+        if n > 0:
+            self.hurt_foe(o, n + self.dmg_bonus(c.h, c.a, o), c.h)
+
+    def _op_choke(self, c, op, targets):
+        """Choking Vines: every Entwined (Rooted) enemy takes the die and is Weak this round."""
+        for o in [o for o in self.foes() if o["st"].get("root")]:
+            o["st"]["weak"] = max(o["st"].get("weak", 0), 1)
+            self.fx("st", to=f"f{o['id']}", s="weak")
+            n = amt(op["amt"], self.env(c.h, c.a, c.dice, o)) + c.plus
+            self.hurt_foe(o, n + self.dmg_bonus(c.h, c.a, o), c.h)
+
     def _op_hawk_to(self, c, op, targets):
         t = targets[0] if targets else None
         if isinstance(t, dict) and t["hp"] > 0 and "hawk" in c.x:

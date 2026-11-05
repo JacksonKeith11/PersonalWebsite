@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=139';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=139';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=139';
-import { stageURL, stageKey } from './stage.js?v=139';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=139';
-import { render } from './main.js?v=139';
-import { skillCard } from './hud.js?v=139';
-import { SKILL_FX, foeFx } from './skillfx.js?v=139';
-import * as sfx from './audio.js?v=139';
+import { S, send, mine, controllerName } from './store.js?v=140';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=140';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=140';
+import { stageURL, stageKey } from './stage.js?v=140';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=140';
+import { render } from './main.js?v=140';
+import { skillCard } from './hud.js?v=140';
+import { SKILL_FX, foeFx } from './skillfx.js?v=140';
+import * as sfx from './audio.js?v=140';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -382,7 +382,26 @@ function drawArrows(box, f) {
       svg.append(path);
     }
   }
+  drawVines(stage, sr, svg, f);
   stage.prepend(svg);
+}
+// The Warden's Rootweb: green vines between the Entwined (Rooted) enemies while a Warden fights.
+function drawVines(stage, sr, svg, f) {
+  if (!f.heroes.some(y => heroActive(f, y) && S.game.heroes[y].cls === 'warden')) return;
+  const pts = f.foes.filter(fo => fo.hp > 0 && fo.st.root).map(fo => stage.querySelector(`[data-uid="f${fo.id}"] img`)).filter(Boolean).map(el => {
+    const r = el.getBoundingClientRect();
+    return [r.left - sr.left + r.width / 2, r.bottom - sr.top - r.height * 0.12];
+  });
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+    const mx = (x0 + x1) / 2, my = Math.max(y0, y1) + 26;
+    for (const [cls, dy] of [['vine', 0], ['vine thin', -8]]) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${x0},${y0} Q${mx},${my + dy} ${x1},${y1}`);
+      path.setAttribute('class', cls);
+      svg.append(path);
+    }
+  }
 }
 
 // What the acting hero could score on this enemy from what allies have already done this round:
@@ -402,6 +421,10 @@ function foeState(fo, f) {
   if (S.static.foes[fo.k]?.keg) chips.push(h('span.combo-hint', { tip: 'Powder Keg\nIt blows up on the whole party after its fuse burns down. Break it first and it blows up among the enemies instead.' }, 'Break it: it blows on them'));
   if (fo.k === 'lamp_keeper') chips.push(fo.lit === false ? h('span.st', { tip: 'The lamp is out: full damage until the end of next round.' }, 'Dark: full damage')
     : h('span.combo-hint', { tip: `Lit\nTakes half damage. Hit it with ${Math.min(3, live)} different heroes in one round to put the lamp out: in the dark it takes full damage this round and next, and its next attack is Weak.` }, `Lit: ½ damage · ${(fo.hitr || []).length}/${Math.min(3, live)} heroes`));
+  if (fo.st?.root && f.heroes.some(y => heroActive(f, y) && S.game.heroes[y].cls === 'warden')) {
+    const n = f.foes.filter(o => o.hp > 0 && o.st?.root && o !== fo).length;
+    chips.push(h('span.combo-hint', { tip: 'Entwined (the Warden’s Rootweb)\nEvery hit on it sends 2 damage along the vines to each other Entwined (Rooted) enemy. With no other, it takes 1 more from each hit instead.' }, n ? `Entwined: hits splash ${n === 1 ? 'the other' : 'all ' + n}` : 'Entwined: hits +1'));
+  }
   if (fo.air) chips.push(h('span.st.bad', { tip: 'Airborne: melee attacks can’t reach it. Use ranged attacks and spells.' }, 'Airborne: no melee'));
   if (fo.loot) chips.push(h('span.st.bad', { tip: 'It has your potion. Kill it before it flies off to get it back.' }, `Has ${S.static.items[fo.loot]?.name || 'loot'} · flees in ${fo.flee_in}`));
   if (fo.merged) chips.push(h('span.st', { tip: 'Merged: every attack rolls an extra die for each merge.' }, `Merged ×${fo.merged + 1}`));
@@ -1750,7 +1773,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', web: 'Rootweb!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

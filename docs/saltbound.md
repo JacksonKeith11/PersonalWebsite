@@ -967,6 +967,26 @@ damage 43.0 a round, was 38.7), too strong, so hunting is +1: **57.2%** (damage 
 other classes' batches (51-59%). No hawk pick past 15 points vs passed (Apex Predator +13, Swoop +11,
 Sic 'Em -13, Eyes in the Sky -10).
 
+**Warden, the Rootweb** (owner's request, Nov 2026): while a Warden fights (`Combat.wardens`), every
+Rooted enemy is Entwined, whoever Rooted it. When a hero or their summon hits an Entwined enemy (a hit
+that gets through, not a `pure` one), every other Entwined enemy takes `C.WEB_SPLASH` 2
+(`Combat.web_splash`, from `hurt_foe`; splashes are `pure`, so they don't splash again). An Entwined enemy
+alone takes `C.WEB_LONE` 1 more instead, so a solo boss isn't a dead end. Roots last the round they're
+put on, so the order matters: Root first, then hit. Tangleroot (starting kit: Root the target and
+another enemy, the same row first, and deal half the die to each; op `tangle`) starts a web in one
+action; Thornlash's Root on 5+ and Entangle feed it. Picks: Choking Vines (every Entwined enemy takes
+the die and is Weak; op `choke`), Thicket (3), Strangler Fig (summons' hits Root for 2 rounds), Snare
+Line (an Entwined enemy hits 1 softer per other Entwined enemy), Sapping Vines (each splash heals the
+most wounded ally 1), Thorned Tendrils (Entwined attackers take 2), and the capstone Heart of the Wild
+(a third of the hit, if more). The bots value a Root at the splash times the party's dice still to
+play, at half (`bot.web_value`); over four runs the web carried about 2,450 damage (690 splashes, 540
+lone). On the stage, green vines join the Entwined enemies (`combat.js` `drawVines`, in the arrows
+layer) and each says "Entwined" with what its hits do. The `warden` audit save has two Rooted.
+Measured (2026-11-05, 400 Hard runs with a Warden in every party): **59.2%**, within the other classes'
+batches (51-59%; the Warden's own share of earlier batches was 47-68%), so it shipped untuned. Its damage
+is 23.8 a round (was about 21). No new pick past 15 points vs passed (Choking Vines -8, Sapping Vines +6,
+Strangler Fig +5); Call Bear reads -19 and Briar Wall -12, both older picks.
+
 **Herald, Harmonies** (owner's request, Nov 2026): a fight with a Herald has three Harmonies
 (`f["harm"]`, 0 to `C.HARMONY_CAP` 3, shown on the fight banner): Valor (+1 on every ally hit per
 level, in `dmg_bonus`), Aegis (each ally starts the round with 1 Armor per level, in `new_round`) and

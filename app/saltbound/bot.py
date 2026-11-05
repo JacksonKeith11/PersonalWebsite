@@ -1047,6 +1047,15 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple) and g.active(t[1]):
                         left = sum(1 for d in g.hs(t[1])["dice"] if not d["used"] and "guard" not in (d.get("dk") or []))
                         val += share * min(op["n"], left) * (n_ * 0.85 + 2.5)
+            elif k == "tangle":
+                rest = [o for o in g.foes() if not (base and o is base[0])]
+                if rest:
+                    free = [o for o in rest if not o["st"].get("root")] or rest
+                    o = max(free, key=lambda o: o["hp"])
+                    val += amt(op["amt"], de) + plus + 0.5 + web_value(g, o) * 1.5
+            elif k == "choke":
+                rooted = [o for o in g.foes() if o["st"].get("root")]
+                val += len(rooted) * (amt(op["amt"], de) + plus) * 0.9 + sum(0.25 * now[o["id"]] for o in rooted)
             elif k == "impact":
                 val -= min(imp or 0, -amt(op["amt"], de)) * 0.3  # Impact spent isn't there for the next Payback
             elif k == "infuse":
@@ -1098,7 +1107,20 @@ def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
         return min(n, left) * w * 0.8
     if s == "shock":
         return 1.5
+    if s == "root":
+        return 0.5 + web_value(g, t)
     return 0.5
+
+
+def web_value(g, t):
+    """What Rooting (Entwining) this enemy is worth through the Warden's Rootweb: the splash on every
+    other Entwined enemy (or 1 alone) for each hit the party still has this round, at half."""
+    if t["st"].get("root") or not g.wardens():
+        return 0
+    others = sum(1 for o in g.foes() if o is not t and o["st"].get("root"))
+    left = sum(1 for y in g.actives() for d in g.hs(y)["dice"] if not d["used"])
+    per = (C.WEB_SPLASH + (1 if any(g.mods(y).get("thicket") for y in g.wardens()) else 0)) * others or C.WEB_LONE
+    return per * max(0, left - 1) * 0.5
 
 
 def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):

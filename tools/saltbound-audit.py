@@ -76,6 +76,8 @@ SCENARIOS = {
     "vanguard": None,
     # the Ranger's hawk: hunting an enemy, with Pinned Prey and Swoop (built in main())
     "ranger": None,
+    # the Warden's Rootweb: two enemies Rooted (Entwined), vines between them (built in main())
+    "warden": None,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -111,6 +113,15 @@ def main():
     names = sys.argv[1:] or list(SCENARIOS)
     for name in names:
         g = None
+        if name == "warden":
+            g, seed = game.Game.new(501, ["warden", "vanguard", "mender"], "normal"), 501
+            g.hero(0)["skills"] += ["choking_vines", "thicket"]
+            g.start_fight({"kind": "roam", "tile": g.hero(0)["tile"], "heroes": [0, 1, 2], "foes": ["cutthroat", "crab", "eel"], "by": 0})
+            for fo in g.s["fight"]["foes"][:2]:
+                fo["st"]["root"] = 1
+            S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
+            print(f"{name}: saved")
+            continue
         if name == "ranger":
             g, seed = game.Game.new(501, ["ranger", "vanguard", "mender"], "normal"), 501
             g.hero(0)["skills"] += ["swoop", "pinned_prey", "pack_tactics"]

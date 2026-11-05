@@ -8,6 +8,13 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Warden's Rootweb (classes.py WEB_*; Combat.web_splash)
+    "thicket": "the Rootweb carries 1 more",
+    "strangler_fig": "summons' hits Root",
+    "snare_line": "Entwined enemies deal 1 less per other Entwined enemy",
+    "sapping_vines": "the Rootweb's splashes heal the most wounded ally 1",
+    "thorned_tendrils": "Entwined enemies that attack take n",
+    "heart_wild": "the Rootweb carries a third of each hit",
     # the Ranger's hawk (classes.py HAWK_*; Combat.do_hawk, hawk_on)
     "alpha_hawk": "the hawk's peck and the hit it softens are n times as much",
     "pinned_prey": "allies' melee reaches the hawk's enemy in the back row",

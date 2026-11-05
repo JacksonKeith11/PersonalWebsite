@@ -83,6 +83,59 @@ def ember4():  # Pyre Knight: bucket helm under a crown of fire, orange plate cr
     g.text(9, 0, [' g   g  g ', 'gGg gGggGg', 'GGGGGGGGGG'])
     return g
 
+
+# Spellblade alternatives (owner's request, Nov 2026): a blade lit with runes, steel and violet.
+RUNE = {**SKIN, 'e': E, 'A': '#a8b0bc', 'a': '#7a8494', 'V': '#b48cff', 'v': '#6a4aa8', 'G': '#e8dcff', 'n': '#1e1a26',
+        'k': '#2a2430', 'h': '#4a3a5a', 'Y': '#d0a840', 'P': '#3a2a5a', 'p': '#2a2040', 'H': '#2a1e18', 'L': '#3a3448'}
+
+def rune_sword(g, x=22, y=16, length=7):
+    g.rect(x - 1, y + 1, x + 1, y + 1, 'Y'); g.line(x, y, x + length - 1, y - length + 1, 'V', 2); g.line(x, y - 1, x + length - 1, y - length, 'G')
+    g.px(x + length, y - length, 'V')
+
+def spellblade1():  # Runeknight: steel plate with violet trim, open helm, a rune-lit sword
+    g = G(dict(RUNE))
+    legs(g, 'a'); torso(g, 'A')
+    g.rows(10, 14, [(0, 7)] * 8, 'P'); g.rect(13, 14, 14, 21, 'V'); g.rect(9, 21, 18, 21, 'h')
+    g.rect(6, 12, 9, 15, 'a'); g.rect(18, 12, 21, 15, 'a'); g.rect(6, 16, 8, 19, 'A'); g.rect(19, 15, 21, 17, 'A'); g.rect(20, 17, 22, 19, 's')
+    rune_sword(g, 22, 16, 8)
+    face(g, 10, 6, 8, 6); g.rect(12, 10, 15, 10, 'S')
+    g.rows(9, 2, [(1, 8), (0, 9), (0, 9), (0, 9)], 'A'); g.rect(9, 6, 9, 11, 'A'); g.rect(18, 6, 18, 11, 'A'); g.rect(9, 5, 18, 5, 'a')
+    g.px(13, 3, 'V'); g.px(14, 3, 'V')
+    return g
+
+def spellblade2():  # Arcane Duelist: hooded long coat, sword in hand, a rune glyph floating by the other
+    g = G(dict(RUNE, B='#3a2a5a', b='#2a2040'))
+    legs(g, 'L')
+    g.rows(8, 13, [(1, 10), (0, 11), (0, 11), (0, 11), (0, 11), (0, 11), (-1, 12), (-1, 12), (-1, 12), (-2, 13), (-2, 13), (-2, 13)], 'B')
+    g.rect(12, 13, 15, 24, 'b'); g.rect(9, 19, 18, 19, 'V')
+    g.rows(6, 15, [(1, 3), (0, 3), (0, 3), (0, 3)], 'B'); g.rect(6, 19, 8, 20, 's'); g.rows(19, 14, [(0, 2), (0, 3), (1, 3)], 'B'); g.rect(20, 17, 22, 19, 's')
+    rune_sword(g, 22, 16, 8)
+    g.text(1, 18, [' V ', 'VGV', ' V ']); g.px(2, 15, 'v'); g.px(4, 22, 'v')
+    face(g, 10, 6, 8, 6); g.rect(12, 10, 15, 10, 'S')
+    g.rows(8, 2, [(2, 8), (1, 9), (0, 10), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)], 'B'); g.rows(17, 5, [(0, 1)] * 6, 'B')
+    g.rect(10, 5, 17, 5, 'b'); g.px(11, 7, 'V'); g.px(16, 7, 'V')
+    return g
+
+def spellblade3():  # Battlemage: plated robe, circlet, sword raised, lightning crackling in the off hand
+    g = G(dict(RUNE, B='#4a3a7a', b='#2e2450', T='#d0a840', H='#e0dacb'))
+    g.rows(9, 13, [(0, 9), (0, 9), (0, 9), (-1, 10), (-1, 10), (-1, 10), (-1, 10), (-2, 11), (-2, 11), (-2, 11), (-2, 12), (-3, 12), (-3, 12), (-3, 13), (-3, 13), (-3, 13)], 'B')
+    g.rect(13, 14, 14, 28, 'b'); g.rect(8, 20, 19, 20, 'T'); g.rect(9, 29, 12, 30, 'k'); g.rect(15, 29, 18, 30, 'k')
+    g.rect(6, 12, 9, 15, 'A'); g.rect(18, 12, 21, 15, 'A'); g.rect(6, 16, 8, 19, 'B'); g.rect(6, 19, 8, 20, 's'); g.rect(19, 15, 21, 17, 'B'); g.rect(20, 17, 22, 19, 's')
+    g.rect(21, 4, 22, 17, 'V'); g.rect(21, 3, 22, 3, 'G'); g.rect(20, 17, 23, 17, 'Y'); g.rect(21, 18, 22, 20, 'h')
+    g.text(1, 18, ['  G ', ' GV ', 'GVV ', ' VG ', ' G  '])
+    head(g, 'long', None); g.rect(9, 3, 18, 3, 'Y'); g.px(13, 3, 'V'); g.px(14, 3, 'V')
+    return g
+
+def spellblade4():  # Hexblade: dark plate, a cape, a masked helm with violet eyes, a sword wreathed in violet flame
+    g = G(dict(RUNE, A='#4a4a5e', a='#34344a', C='#5a2a6a', c='#3a1a4a'))
+    g.rows(5, 12, [(1, 16), (0, 17), (0, 17)] + [(0, 17)] * 10 + [(1, 16)] * 3, 'c')
+    legs(g, 'a'); torso(g, 'A'); g.rect(12, 14, 15, 22, 'a'); g.rect(9, 20, 18, 20, 'C')
+    g.rect(6, 12, 9, 15, 'a'); g.rect(18, 12, 21, 15, 'a'); g.rect(6, 16, 8, 19, 'A'); g.rect(19, 15, 21, 18, 'A')
+    rune_sword(g, 22, 16, 8); g.px(25, 10, 'v'); g.px(28, 8, 'v'); g.px(27, 6, 'G')
+    g.rows(9, 3, [(1, 8), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (1, 8)], 'A')
+    g.rect(10, 7, 17, 8, 'n'); g.px(11, 7, 'V'); g.px(16, 7, 'V'); g.rect(13, 9, 14, 11, 'a'); g.rect(9, 3, 18, 3, 'a')
+    return g
+
 SK = SKIN
 OPTIONS = {
     'duelist': [
@@ -159,6 +212,7 @@ OPTIONS = {
     'spellblade': [
         ('Spellblade', build({**SK, 'B': '#4a3a6a', 'b': '#2a2440', 'T': '#c8a040', 'H': '#e0dacb', 'h': '#2a2440', 'X': '#b48cff', 'x': '#6a4aa8', 'W': '#dfe6ee', 'w': '#5a3a24', 'k': '#1e1a26', 'L': '#2a2440'},
                              'coat', 'long', None, 'circlet', 'sword', 'orb')),
+        ('Runeknight', spellblade1), ('Arcane Duelist', spellblade2), ('Battlemage', spellblade3), ('Hexblade', spellblade4),
     ],
     # owner's request, Nov 2026: a knight running hot, with a glowing mace (option 1); then knights in
     # orange-to-red plate

@@ -908,6 +908,19 @@ then -20); only `--with=<class>` batches can settle the picks. A first tuning pa
 hit (was +3, ending the combo), Unstable Compound the die +6 at cd 2 (was +4 at cd 3), Martyr the
 party's damage by half (was the Mender's own), Frost Flask without its Weak.
 
+**Herald, Harmonies** (owner's request, Nov 2026): a fight with a Herald has three Harmonies
+(`f["harm"]`, 0 to `C.HARMONY_CAP` 3, shown on the fight banner): Valor (+1 on every ally hit per
+level, in `dmg_bonus`), Aegis (each ally starts the round with 1 Armor per level, in `new_round`) and
+Dissonance (enemy hits on the party deal 1 less per level, in `hurt_hero`). The Herald's songs each
+raise one (`harmony` on the action; `Combat.raise_harmony`, from `after_action`, so instants count);
+every Harmony falls by 1 in `end_round` (Sustain: every other round; Symphony: not while all three
+are 2+). The bots value a level by the hits still to come (`bot.harmony_value`). Expected to need a
+heavy nerf, it didn't: 400 Hard runs with a Herald in every party, **56.8%**, then **57.0%** after
+small buffs to the songs that only feed them (Song of Blades also Armor for the party, Resonant Chord
+one die, Crescendo of Light 3 a level, Jarring Note the die +2), against 59.5% for the all-class batch
+the same day. The Harmony picks still read a little low (Song of Blades -12, Crescendo of Light -16,
+Symphony -18; Overture +11), within the noise between batches.
+
 **Arcanist, Attunement and Flux** (owner's request, Nov 2026): the Arcanist is attuned to Fire, Frost
 or Storm (`x["attune"]`, Fire at a fight's start). Its damaging spells add the attunement's rider
 (`C.ATTUNE`: Burn 1; the target's attack -2; an arc for 2 to another enemy). A spell of another element

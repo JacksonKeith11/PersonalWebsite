@@ -1045,7 +1045,7 @@ CLASSES["herald"]["pool"] += ["song_of_blades", "shield_hymn", "jarring_note", "
 # ---- Scoundrel, Pickings (owner's request, Nov 2026): its crits and killing blows lift a random trinket
 # (`x["trinkets"]`, up to TRINKET_CAP, gone when the fight ends), each used once without a die (the
 # `trinket` message). Rules in Combat (`lift`, `do_trinket`). To keep the class from getting stronger
-# with it (it was the strongest: 71.7% on Hard), its old strengths were cut at the same time: 20 HP
+# with it (it was the strongest: 71.7% on Hard), its old strengths were cut at the same time: 18 HP
 # (was 22), Evasive halves the first hit (it missed), Smoke Bomb halves the next hit (it missed),
 # Toxic Cloud Poisons 2 (was 3).
 TRINKET_CAP = 2  # was 3; crits also lift only once a round (the first batch: Scoundrel parties 67.8%)
@@ -1057,7 +1057,12 @@ TRINKETS = {
     "coin": ("Loaded Coin", "hero", "One of your dice, or an ally's, rolls 2 higher."),
     "purse": ("Stolen Purse", None, "+6 gold, and your next die rolls 2 higher."),
 }
-CLASSES["scoundrel"]["hp"] = 20
+CLASSES["scoundrel"]["hp"] = 18
+# the second pass (Scoundrel parties still 66.8%): Stab +2 (was +3) on an enemy aiming elsewhere, Slip on 5+ (was 4+)
+ACTIONS["stab"]["ops"] = [{"op": "dmg", "amt": "v+2*(1-aimed)"}]
+ACTIONS["stab"]["text"] = "Deal the die, +2 if the enemy is aiming at someone else."
+ACTIONS["slip"]["req"] = {"n": 1, "min": 5}
+ACTIONS["slip"]["text"] = "On 5+: the next hit on you misses. Otherwise: nothing."
 PASSIVES["evasive"].update(mods={"evasive": 1}, text="The first hit on you each fight deals half.")
 ACTIONS["smoke_bomb"].update(text="Two dice: if they're a pair, the next hit on each of you deals half. Otherwise: nothing.")
 ACTIONS["smoke_bomb"]["ops"] = [{"op": "status", "s": "halfhit", "n": 1, "to": "party"}]
@@ -1229,7 +1234,7 @@ SHORT = {
     "sic_em": ("sword", "die · Weak", None), "pack_tactics": ("sword", "die +5", "½ die"),
     "spotter": ("eye", "reveal all enemy dice · ½ die Armor", None), "volley": ("sword", "all: ½ each die +1", None),
     "covering_fire": ("down", "its attack −die · ½ die", None),
-    "stab": ("sword", "die, +3 if not aimed at you", None), "slip": ("boot", "dodge next hit", "nothing"),
+    "stab": ("sword", "die, +2 if not aimed at you", None), "slip": ("boot", "5+: dodge next hit", "nothing"),
     "envenom": ("drop", "Poison ½ die +1 · ½ die", None), "garrote": ("sword", "die +2 · Stun if Poisoned", "½ die"),
     "toxic_cloud": ("drop", "all: Poison 3", "nothing"), "pickpocket": ("hand", "steal its biggest die · 4 gold", "its attack −½ die"),
     "loaded_dice": ("link", "link two dice", None), "smoke_bomb": ("boot", "party dodges next hit", "nothing"),

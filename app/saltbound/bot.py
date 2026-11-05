@@ -750,7 +750,10 @@ def dice_combos(g, h, dice):
     same dice are scored on many actions and targets."""
     x = g.hs(h)
     m = g.mods(h)
+    # everything dice_env reads goes in the key (Heat, Scales, the enemies' Sigils, Quiet Glyph), or a
+    # cached outcome from another fight, or another run in the same process, is used by mistake
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
+           x.get("heat", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:

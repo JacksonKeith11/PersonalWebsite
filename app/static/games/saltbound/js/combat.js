@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=130';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=130';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=130';
-import { stageURL, stageKey } from './stage.js?v=130';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=130';
-import { render } from './main.js?v=130';
-import { skillCard } from './hud.js?v=130';
-import { SKILL_FX, foeFx } from './skillfx.js?v=130';
-import * as sfx from './audio.js?v=130';
+import { S, send, mine, controllerName } from './store.js?v=131';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=131';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=131';
+import { stageURL, stageKey } from './stage.js?v=131';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=131';
+import { render } from './main.js?v=131';
+import { skillCard } from './hud.js?v=131';
+import { SKILL_FX, foeFx } from './skillfx.js?v=131';
+import * as sfx from './audio.js?v=131';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -139,7 +139,7 @@ export function renderCombat(el) {
       hs && hs.heat != null ? heatGauge(hs) : null,
       hero.cls === 'dragonborn' ? scalePips(hero.scales || 0) : null,
       hero.cls === 'mender' && hs ? graceBar(hs.grace || 0, hs.radiant) : null,
-      hs?.berserk ? h('div.covered-chip.berserk', { tip: 'Berserk\nYou lost a third of your HP this fight: every die explodes, but you can’t use defensive actions.' }, 'Berserk!') : null,
+      hs?.berserk ? h('div.covered-chip.berserk', { tip: 'Berserk\nYou lost a third of your HP this fight: every die explodes and your hits deal +2, but you can’t use defensive actions.' }, 'Berserk!') : null,
       hs?.combo && f.foes.find(o => o.id === hs.combo.id && o.hp > 0) ? h('div.covered-chip', { tip: `Combo\nEach hit on ${f.foes.find(o => o.id === hs.combo.id).name} this round deals +1 per hit before it. Hitting another enemy starts over.` },
         `Combo ×${hs.combo.n} on ${f.foes.find(o => o.id === hs.combo.id).name}`) : null,
       hpBar(hpOf(x), max, false, 'h' + x),

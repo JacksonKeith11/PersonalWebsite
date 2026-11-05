@@ -459,6 +459,10 @@ def route(g, h, goal):
         spent += st[0]
         out.append(t)
         at, af = t, st[1]
+    # a light-gate carries whoever ends a move on it to its twin: the route doesn't plan for that, so
+    # never stop on one on the way somewhere else (a party once bounced between two gates for 3000 turns)
+    while len(out) > 1 and out[-1] != goal and (g.place(out[-1]) or {}).get("kind") == "gate":
+        out.pop()
     return out
 
 

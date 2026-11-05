@@ -101,6 +101,8 @@ class Actions:
         n += x.get("cued", 0)
         if a.get("melee") and x["st"].get("infuse"):
             n += x.get("inf", {}).get("dmg", 0)  # an infused blade (Spellblade)
+        if x.get("berserk"):
+            n += C.BERSERK_MIGHT  # berserk
         if "heat" in x:
             n += x["heat"] // C.HEAT_STEP + x.get("white", 0)  # the Emberknight's Heat (and Heart of the Forge)
         if x["st"].get("kindled"):

@@ -1266,8 +1266,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if n > 0:
             x["lost"] = x.get("lost", 0) + n
             m = self.mods(h)
-            if m.get("martyr"):
-                self.add_grace(h, n)  # Martyr
+            for y in self.actives():
+                if self.mods(y).get("martyr"):
+                    self.add_grace(y, n // 2)  # Martyr: the party's wounds fill the Mender's Grace
             if not x.get("berserk") and C.CLASSES[hero["cls"]]["map"]["key"] == "forage" and \
                     x["lost"] >= self.maxhp(h) * (0.25 if m.get("hair_trigger") else C.BERSERK_AT):
                 x["berserk"] = True  # the Berserker goes berserk: the rest of its dice explode

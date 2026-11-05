@@ -16,7 +16,7 @@ MODS = {
     "red_haze": "while berserk, every hit landed heals n",
     "cold_fury": "while berserk, one defensive action a round is allowed",
     "overflowing_grace": "overhealing fills Grace twice over",
-    "martyr": "damage taken fills Grace",
+    "martyr": "damage the party takes fills Grace by half",
     "blessed_rest": "Grace carries over between fights",
     "volatile_agents": "Burn counts as fire and Poison as acid for reactions",
     "potent_reactions": "reactions also deal n to the enemy they happen on",

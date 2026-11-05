@@ -898,13 +898,14 @@ CLASSES["psion"] = {
 # - Duelist, Combo: each hit on the enemy it hit last this round deals +COMBO_STEP per hit before it
 #   (`x["combo"]`); hitting another enemy starts over. `combo` in an amount is that count.
 # - Berserker, Berserk: once it has lost BERSERK_AT of its max HP in a fight, it's berserk for the rest:
-#   its dice explode and it can't use defensive actions (`x["berserk"]`; `berserk` in amounts).
+#   its dice explode, its hits deal +BERSERK_MIGHT, and it can't use defensive actions (`x["berserk"]`).
 # - Mender, Grace: healing it does fills Grace (`x["grace"]`); at GRACE_MAX its next heal is Radiance:
 #   the whole party heals that much and is cleansed, and Grace starts over.
 # - Alchemist, Reactions: its bombs leave a residue (`residue` on the action: fire, acid, frost) on the
 #   enemy hit (`fo["res"]`); a different bomb on a residue reacts (REACTIONS) and uses it up.
 COMBO_STEP = 1
 BERSERK_AT = 1 / 3
+BERSERK_MIGHT = 2  # added after the first batch: the Berserker was the weakest class (48.8% on Hard)
 GRACE_MAX = 20
 REACTIONS = {frozenset(("fire", "acid")): "caustic", frozenset(("fire", "frost")): "steam", frozenset(("acid", "frost")): "brittle"}
 REACTION_TEXT = {"caustic": "Caustic burst: 6 to every enemy in its row", "steam": "Steam: its attack this round deals half",
@@ -913,8 +914,8 @@ for _k, _r in (("toss", "fire"), ("firebomb", "fire"), ("acid_flask", "acid")):
     ACTIONS[_k]["residue"] = _r
 ACTIONS.update({
     "coup_de_grace": {"name": "Coup de Grâce", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["flurry"],
-                      "ops": [{"op": "dmg", "amt": "v+3*combo"}, {"op": "combo_end"}],
-                      "text": "Deal the die +3 for each hit you've landed on this enemy this round, and end the combo."},
+                      "ops": [{"op": "dmg", "amt": "v+4*combo"}],
+                      "text": "Deal the die +4 for each hit you've landed on this enemy this round."},
     "savage_blow": {"name": "Savage Blow", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["rampage"],
                     "ops": [{"op": "dmg", "amt": "v+2+v*berserk"}],
                     "text": "Deal the die +2. While you're berserk, deal twice the die +2."},
@@ -922,11 +923,11 @@ ACTIONS.update({
                     "ops": [{"op": "heal", "amt": "v+1"}, {"op": "grace", "amt": "5"}],
                     "text": "Heal an ally by the die +1, and gain 5 Grace."},
     "frost_flask": {"name": "Frost Flask", "req": {"n": 1}, "tgt": "foe", "bomb": True, "residue": "frost", "tags": ["bombs"],
-                    "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": 1, "if": "v>=5"}],
-                    "text": "A bomb, any row: deal the die and leave frost on the enemy. On 5+, it's Weak too."},
-    "unstable_compound": {"cd": 3, "name": "Unstable Compound", "req": {"n": 1}, "tgt": "foes", "tags": ["bombs"],
-                          "ops": [{"op": "dmg", "amt": "v+4", "if": "res"}, {"op": "clear_res"}],
-                          "text": "Every enemy with a residue on it takes the die +4, and the residues are used up."},
+                    "ops": [{"op": "dmg", "amt": "v"}],
+                    "text": "A bomb, any row: deal the die and leave frost on the enemy."},
+    "unstable_compound": {"name": "Unstable Compound", "req": {"n": 1}, "tgt": "foes", "tags": ["bombs"],
+                          "ops": [{"op": "dmg", "amt": "v+6", "if": "res"}, {"op": "clear_res"}],
+                          "text": "Every enemy with a residue on it takes the die +6, and the residues are used up."},
 })
 PASSIVES.update({
     "feint_step": {"name": "Feint Step", "mods": {"feint_step": 1}, "tags": ["flurry"],
@@ -944,7 +945,7 @@ PASSIVES.update({
     "overflowing_grace": {"name": "Overflowing Grace", "mods": {"overflowing_grace": 1}, "tags": ["restoration"],
                           "text": "Healing beyond max HP fills Grace twice over."},
     "martyr": {"name": "Martyr", "mods": {"martyr": 1}, "tags": ["warding"],
-               "text": "Damage you take fills Grace too."},
+               "text": "Damage the party takes fills your Grace by half."},
     "blessed_rest": {"name": "Blessed Rest", "mods": {"blessed_rest": 1}, "tags": ["warding"],
                      "text": "Your Grace carries over from one fight to the next."},
     "volatile_agents": {"name": "Volatile Agents", "mods": {"volatile_agents": 1}, "tags": ["bombs"],
@@ -1136,9 +1137,9 @@ SHORT = {
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
 SHORT.update({
-    "coup_de_grace": ("sword", "die +3 per combo hit · ends it", None), "savage_blow": ("sword", "die +2 · berserk: 2× die +2", None),
-    "benediction": ("plus", "heal die +1 · +5 Grace", None), "frost_flask": ("snow", "die · frost · 5+: Weak", None),
-    "unstable_compound": ("flame", "every residue: die +4 · used up", None),
+    "coup_de_grace": ("sword", "die +4 per combo hit", None), "savage_blow": ("sword", "die +2 · berserk: 2× die +2", None),
+    "benediction": ("plus", "heal die +1 · +5 Grace", None), "frost_flask": ("snow", "die · leaves frost", None),
+    "unstable_compound": ("flame", "every residue: die +6 · used up", None),
 })
 SHORT.update({
     "mind_spike": ("bolt", "die · exactly 6: 12", None), "kinetic_shield": ("shield", "die +2 Armor · exactly 1: 8", None),

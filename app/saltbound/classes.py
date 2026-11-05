@@ -1014,17 +1014,17 @@ for _k, _hm in (("inspire", "valor"), ("hymn_of_valor", "valor"), ("rousing_chor
 ACTIONS.update({
     "ward_song": {"name": "Ward Song", "req": {"n": 1}, "tgt": "self", "harmony": "aegis", "tags": ["anthem"],
                   "ops": [{"op": "armor", "amt": "v"}], "text": "Gain the die as Armor. Raises Aegis."},
-    "song_of_blades": {"name": "Song of Blades", "req": {"n": 1}, "tgt": "self", "harmony": "valor", "harmony_n": 2, "tags": ["anthem"],
-                       "ops": [], "text": "Raises Valor twice."},
+    "song_of_blades": {"name": "Song of Blades", "req": {"n": 1}, "tgt": "party", "harmony": "valor", "harmony_n": 2, "tags": ["anthem"],
+                       "ops": [{"op": "armor", "amt": "max(1,v//2)"}], "text": "Every ally gains half the die as Armor (at least 1). Raises Valor twice."},
     "shield_hymn": {"name": "Shield Hymn", "req": {"n": 1}, "tgt": "other", "harmony": "aegis", "tags": ["anthem"],
                     "ops": [{"op": "armor", "amt": "v"}], "text": "An ally gains the die as Armor. Raises Aegis."},
     "jarring_note": {"name": "Jarring Note", "req": {"n": 1}, "tgt": "foe", "harmony": "discord", "tags": ["discord"],
-                     "ops": [{"op": "dmg", "amt": "v"}], "text": "Any row: deal the die. Raises Dissonance."},
-    "resonant_chord": {"name": "Resonant Chord", "req": {"n": 2}, "tgt": "self", "harmony": "chord", "tags": ["anthem"],
-                       "ops": [], "text": "Two dice: raises your two lowest Harmonies."},
+                     "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Any row: deal the die +2. Raises Dissonance."},
+    "resonant_chord": {"name": "Resonant Chord", "req": {"n": 1}, "tgt": "self", "harmony": "chord", "tags": ["anthem"],
+                       "ops": [], "text": "Raises your two lowest Harmonies."},
     "crescendo_of_light": {"cd": 3, "name": "Crescendo of Light", "req": {"n": 1}, "tgt": "party", "tags": ["anthem"],
-                           "ops": [{"op": "heal", "amt": "2*harm"}, {"op": "harm_spend"}],
-                           "text": "Spend every Harmony: each ally heals 2 per level spent."},
+                           "ops": [{"op": "heal", "amt": "3*harm"}, {"op": "harm_spend"}],
+                           "text": "Spend every Harmony: each ally heals 3 per level spent."},
 })
 PASSIVES.update({
     "sustain": {"name": "Sustain", "mods": {"sustain": 1}, "tags": ["anthem"],
@@ -1221,9 +1221,9 @@ SHORT = {
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
 SHORT.update({
-    "ward_song": ("shield", "die Armor · Aegis +1", None), "song_of_blades": ("up", "Valor +2", None),
-    "shield_hymn": ("shield", "ally: die Armor · Aegis +1", None), "jarring_note": ("bolt", "die · Dissonance +1", None),
-    "resonant_chord": ("up", "two lowest Harmonies +1", None), "crescendo_of_light": ("plus", "spend Harmonies: party heals 2 each", None),
+    "ward_song": ("shield", "die Armor · Aegis +1", None), "song_of_blades": ("up", "party ½ die Armor · Valor +2", None),
+    "shield_hymn": ("shield", "ally: die Armor · Aegis +1", None), "jarring_note": ("bolt", "die +2 · Dissonance +1", None),
+    "resonant_chord": ("up", "two lowest Harmonies +1", None), "crescendo_of_light": ("plus", "spend Harmonies: party heals 3 each", None),
 })
 SHORT.update({
     "flame_wave": ("flame", "Fire · front row: die +1", None), "ignite": ("flame", "Fire · die + 3× its Burn · spent", None),

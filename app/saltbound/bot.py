@@ -1098,6 +1098,8 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
         return 0
     if s == "dodge":
         return big.get(y, 0) * 0.9 or 0.5
+    if s == "halfhit":
+        return big.get(y, 0) * 0.45 or 0.3
     if s in ("riposte", "thorns"):
         return n * hits.get(y, 0) * 0.8
     if s == "emberward":
@@ -1521,6 +1523,42 @@ def instant_value(g, h, a, dice):
     return []
 
 
+def trinket_move(g, h, b, inc):
+    """The Scoundrel's trinkets: a Smoke Pellet on whoever takes the biggest hit, Caltrops on a heavy
+    front row, Flash Powder on the biggest attacker, Venom on the toughest enemy, Coins and Purses
+    while dice are still to roll."""
+    x = g.hs(h)
+    tr = x.get("trinkets")
+    if not tr:
+        return None
+    foes = g.foes()
+    if not foes:
+        return None
+    hits = [(n, int(u[1:])) for fo in foes for u, n in foe_hits(g, b, fo) if u.startswith("h")]
+    for i, t in enumerate(tr):
+        k = t["k"]
+        if k == "smoke" and hits:
+            n, y = max(hits)
+            if n >= 7 and not g.hs(y)["st"].get("dodge"):
+                return {"t": "trinket", "i": i, "tgt": f"h{y}"}
+        elif k == "caltrops":
+            front = sum((fo.get("intent") or {}).get("v", 0) for fo in g.front_foes() if (fo.get("intent") or {}).get("k") in ("attack", "all"))
+            if front >= 8:
+                return {"t": "trinket", "i": i}
+        elif k == "flash":
+            big = max(foes, key=lambda o: threat_now(g, b, o))
+            if threat_now(g, b, big) >= 6 and not big["st"].get("weak"):
+                return {"t": "trinket", "i": i, "tgt": f"f{big['id']}"}
+        elif k == "venom":
+            tough = max(foes, key=lambda o: o["hp"])
+            if tough["hp"] >= 12:
+                return {"t": "trinket", "i": i, "tgt": f"f{tough['id']}"}
+        elif k in ("coin", "purse"):
+            if any(not d["used"] and not d.get("rolled") for d in x["dice"]):
+                return {"t": "trinket", "i": i, "tgt": f"h{h}"}
+    return None
+
+
 def consumable(g, h, b):
     """Potions when someone would otherwise drop, salts for the downed, kegs for a kill that matters."""
     hero = g.hero(h)
@@ -1544,6 +1582,9 @@ def consumable(g, h, b):
     i = find("ward_scroll")
     if i is not None and sum(inc.values()) >= 14:
         return {"t": "use", "bag": i}
+    tr = trinket_move(g, h, b, inc)
+    if tr:
+        return tr
     i = find("bomb")
     if i is not None:
         dmg = g.item("bomb")["use"]["bomb"] + g.mods(h).get("bomb_bonus", 0)

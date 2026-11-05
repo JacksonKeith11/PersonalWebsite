@@ -193,6 +193,10 @@ export const SKILL_FX = {
   mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); return 'cast'; },
   puppet_strings: x => { x.hit('glyph spin', C.water, 900, 0, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
 
+  // Scoundrel Pickings
+  rob_blind: x => { x.hit('stabfx', C.steel, 420, 100); x.me('glyph', C.gold, 700, 200, '✋'); return 'melee'; },
+  ransack: x => { x.hit('bigslash', C.steel, 480, 120); x.shake(220); return 'melee'; },
+
   // Herald Harmonies
   ward_song: x => { x.me('shieldfx', null, 700); x.me('notes', null, 900, 100); return 'cast'; },
   song_of_blades: x => { x.party.forEach((u, i) => x.on(u, 'notes', null, 900, i * 80)); return 'cast'; },

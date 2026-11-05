@@ -8,6 +8,13 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Scoundrel's Pickings (classes.py TRINKET_CAP, TRINKETS; Combat.lift, do_trinket)
+    "quick_fingers": "the first Poison on each enemy lifts a trinket",
+    "fences_eye": "killing blows lift two trinkets",
+    "stash": "keep one trinket between fights",
+    "deep_sleeves": "hold n more trinkets",
+    "pay_forward": "trinkets on allies are stronger",
+    "master_thief": "each trinket is used twice",
     # the Herald's Harmonies (classes.py HARMONY_CAP; Combat.raise_harmony)
     "sustain": "Harmonies fall only every other round",
     "overture": "fights start with Valor and Aegis at 1",

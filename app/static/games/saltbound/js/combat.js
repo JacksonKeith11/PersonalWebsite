@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=134';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=134';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=134';
-import { stageURL, stageKey } from './stage.js?v=134';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=134';
-import { render } from './main.js?v=134';
-import { skillCard } from './hud.js?v=134';
-import { SKILL_FX, foeFx } from './skillfx.js?v=134';
-import * as sfx from './audio.js?v=134';
+import { S, send, mine, controllerName } from './store.js?v=135';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=135';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=135';
+import { stageURL, stageKey } from './stage.js?v=135';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=135';
+import { render } from './main.js?v=135';
+import { skillCard } from './hud.js?v=135';
+import { SKILL_FX, foeFx } from './skillfx.js?v=135';
+import * as sfx from './audio.js?v=135';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -884,6 +884,7 @@ function tray(f, x, my) {
         h('span.chip', { tip: 'Automatic rerolls\nWhen one of your actions misses, a die rolls again, as long as you have one left this fight.' }, icon('refresh'), `${hs.rr} reroll${hs.rr === 1 ? '' : 's'}`),
         f.hymn ? h('span.chip.brass', { tip: 'Hymn of Valor\nEvery die the party rolls this round is this much higher.' }, `+${f.hymn} hymn`) : null,
         ...focusTools(x, hs, dice, ready),
+        ...trinketButtons(x, hs, ready),
         hs.inspire ? h('span.chip.brass', { tip: 'Inspired\nYour next die rolls this much higher.' }, `+${hs.inspire} next die`) : null,
         ...uses.map(([k, i, n]) => h('button.btn.sm.ghost', { disabled: ready, tip: `${S.static.items[k].name}\n${S.static.items[k].text}\nUsed at once; no die needed.`, onclick: () => useItem(x, k, i) }, icon('drop'), S.static.items[k].name + (n > 1 ? ` ×${n}` : ''))))),
     h('div.actions', null, ...acts.map((k, i) => actionCard(f, x, k, i, selDice, ready))),
@@ -894,6 +895,22 @@ function tray(f, x, my) {
         : h('button.btn.primary.lg' + (hs.dice.length && hs.dice.every(d => d.used) ? '.nudge' : ''), { onclick: () => { readyUp(x); render(); } }, icon('check'), 'Ready', h('span.kbd', null, 'Space'))));
 }
 
+// The Scoundrel's trinkets, lifted on crits and kills: each used once, without a die.
+const TRINKET = { smoke: ['Smoke Pellet', '💨', 'hero', 'The next hit on you or an ally misses.'], caltrops: ['Caltrops', '✴', null, 'Every front-row enemy’s attack this round deals 2 less.'],
+  flash: ['Flash Powder', '✨', 'foe', 'An enemy is Weak this round.'], venom: ['Vial of Venom', '🧪', 'foe', 'Poison an enemy for 3.'],
+  coin: ['Loaded Coin', '🪙', 'hero', 'One of your dice, or an ally’s, rolls 2 higher.'], purse: ['Stolen Purse', '👛', null, '+6 gold, and your next die rolls 2 higher.'] };
+function trinketButtons(x, hs, ready) {
+  const f = S.game.fight;
+  return (hs.trinkets || []).map((t, i) => {
+    const [name, ic, want, text] = TRINKET[t.k] || ['Trinket', '?', null, ''];
+    return h('button.btn.sm.ghost.trinket', { disabled: ready, tip: `${name}${t.uses > 1 ? ` (×${t.uses})` : ''}\n${text}\nLifted from an enemy; used at once, no die needed.`, onclick: () => {
+      const msg = { t: 'trinket', h: x, i };
+      const opts = want === 'foe' ? f.foes.filter(fo => fo.hp > 0).map(fo => 'f' + fo.id) : want === 'hero' ? f.heroes.filter(y => heroActive(f, y)).map(y => 'h' + y) : null;
+      if (opts && opts.length > 1) { C.pending = { msg, opts, item: true }; render(); return; }
+      send({ ...msg, tgt: opts ? opts[0] : null });
+    } }, ic + ' ' + name);
+  });
+}
 // The Psion's Focus (and Hive Mind's): select one shown die, then nudge it up or down by 1; Perfect
 // Foresight sets it once a fight.
 function focusTools(x, hs, dice, ready) {
@@ -1695,7 +1712,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

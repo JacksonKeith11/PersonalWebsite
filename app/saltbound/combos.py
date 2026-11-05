@@ -81,6 +81,10 @@ class Combos:
         """Who put a status on an enemy, and Wildfire when Burn meets an ally's Poison."""
         if fo["hp"] <= 0 or h is None:
             return
+        if s == "poison" and not fo.get("qf") and str(h) in self.s["fight"]["hs"] and "trinkets" in self.hs(h) \
+                and self.mods(h).get("quick_fingers"):
+            fo["qf"] = True
+            self.pilfer(h)  # Quick Fingers: the first Poison on each enemy lifts a trinket
         by = fo.setdefault("st_by", {})
         other = {"burn": "poison", "poison": "burn"}.get(s)
         if other and fo["st"].get(other) and by.get(other) not in (None, h) and not fo.get("wildfire"):

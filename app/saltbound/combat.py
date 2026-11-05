@@ -80,7 +80,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if m.get("start_armor"):
                 x["st"]["armor"] = m["start_armor"]
             if m.get("evasive"):
-                x["st"]["dodge"] = 1
+                x["st"]["halfhit"] = 1  # Evasive: the first hit deals half
+            if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "light_fingers":
+                x["trinkets"] = list(self.hero(h).pop("stash", []))[:1] if m.get("stash") else []
             if m.get("bark"):
                 self.summon(h, "sapling", 10)
         for h in f["heroes"]:
@@ -907,6 +909,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             # a die on its top face: the action's crit lands too
             self.fx("st", to=f"h{h}", s="crit")
             self.run_ops(h, a, dice, tgt, ops=a["crit"], hit=hit)
+            if "trinkets" in x:
+                self.pilfer(h)  # the Scoundrel's Pickings: a crit lifts a trinket
             if a["key"] == "claw" and m.get("wyrmfire") and isinstance(tgt, str) and tgt.startswith("f"):
                 fo = self.foe(int(tgt[1:]))
                 if fo:
@@ -992,6 +996,76 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             harm[k] = min(cap, harm[k] + n)
             self.fx("st", to="party", s="harm_" + k)
         self.hs(h)["lastharm"] = keys[-1]
+
+    def pilfer(self, h, n=1):
+        """The Scoundrel lifts trinkets from an enemy's pockets (up to its cap)."""
+        x = self.hs(h)
+        cap = C.TRINKET_CAP + self.mods(h).get("deep_sleeves", 0)
+        for _ in range(n):
+            if len(x["trinkets"]) >= cap:
+                break
+            k = self.rng.choice(sorted(C.TRINKETS))
+            x["trinkets"].append({"k": k, "uses": 2 if self.mods(h).get("master_thief") else 1})
+            self.fx("st", to=f"h{h}", s="lifted_" + k)
+
+    def do_trinket(self, h, msg):
+        """Use a trinket: no die, at any time while planning."""
+        if not self.in_fight(h) or not self.active(h):
+            raise Invalid("You're not fighting.")
+        x = self.hs(h)
+        if x["ready"]:
+            raise Invalid("You've readied up; unready to act again.")
+        i = msg.get("i")
+        tr = x.get("trinkets") or []
+        if not isinstance(i, int) or not 0 <= i < len(tr):
+            raise Invalid("Use which trinket?")
+        k = tr[i]["k"]
+        want = C.TRINKETS[k][1]
+        tgt = msg.get("tgt")
+        m = self.mods(h)
+        if want == "foe":
+            fo = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
+            if not fo or fo["hp"] <= 0:
+                raise Invalid("Pick an enemy.")
+        elif want == "hero":
+            y = int(tgt[1:]) if isinstance(tgt, str) and tgt.startswith("h") and tgt[1:].isdigit() else h
+            if not self.active(y):
+                raise Invalid("Pick someone standing.")
+        tr[i]["uses"] -= 1
+        if tr[i]["uses"] <= 0:
+            tr.pop(i)
+        if k == "smoke":
+            self.hs(y)["st"]["dodge"] = 1
+            self.fx("st", to=f"h{y}", s="smoke")
+            if y != h and m.get("pay_forward"):
+                self.hs(y)["st"]["armor"] = self.hs(y)["st"].get("armor", 0) + 3
+                self.fx("armor", to=f"h{y}", n=3)
+        elif k == "caltrops":
+            for fo in self.front_foes():
+                it = fo.get("intent") or {}
+                if it.get("dice") and it.get("k") in ("attack", "all"):
+                    it["bonus"] = it.get("bonus", 0) - 2
+                    self.intent_numbers(it)
+                    self.fx("st", to=f"f{fo['id']}", s="weakened")
+        elif k == "flash":
+            fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
+            self.fx("st", to=f"f{fo['id']}", s="weak")
+        elif k == "venom":
+            fo["st"]["poison"] = fo["st"].get("poison", 0) + 3
+            self.fx("st", to=f"f{fo['id']}", s="poison")
+            self.foe_status_by(fo, "poison", h)
+        elif k == "coin":
+            left = [d for d in self.hs(y)["dice"] if not d["used"] and not d.get("rolled")]
+            if left:
+                d = max(left, key=lambda d: top_face(d["faces"]))
+                d["bonus"] = d.get("bonus", 0) + (4 if y != h and m.get("pay_forward") else 2)
+                self.fx("st", to=f"h{y}", s="inspired")
+        elif k == "purse":
+            self.hero(h)["gold"] += 6
+            x["inspire"] = x.get("inspire", 0) + 2
+            self.fx("coins", h=h, n=6)
+        self.say(f"{self.hero(h)['name']} uses a {C.TRINKETS[k][0]}.")
+        self.maybe_resolve()
 
     def combo_hit(self, h, fid):
         """A Duelist's hit: the combo on that enemy grows, or a new one starts (Feint Step carries it once a round)."""
@@ -1152,6 +1226,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["kdie"] = True
                 x["dice"].append(self.new_die(h, list(range(1, m["kill_die"] + 1)), "bloodlust"))
                 self.fx("st", to=f"h{h}", s="bloodlust")
+            if x and "trinkets" in x and self.active(h):
+                self.pilfer(h, 2 if m.get("fences_eye") else 1)  # Pickings: a killing blow lifts a trinket
             if f.get("harm") is not None and not f.get("echoed"):
                 for y in self.actives():
                     if y != h and self.mods(y).get("harmonic_echo") and self.hs(y).get("lastharm"):
@@ -1266,6 +1342,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if x["st"].pop("dodge", 0):
                 self.fx("st", to=f"h{h}", s="dodged")
                 return 0
+            if x["st"].pop("halfhit", 0):
+                n //= 2  # Evasive, Smoke Bomb: half
+                self.fx("st", to=f"h{h}", s="glanced")
             soak = self.mods(h).get("first_hit_soak", 0)
             if soak and not x.get("soaked"):
                 x["soaked"] = True
@@ -1481,6 +1560,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         for h in f["heroes"]:
             if self.hs(h)["down"]:
                 self.revive_or_fall(h)
+            if self.mods(h).get("stash") and self.hs(h).get("trinkets"):
+                self.hero(h)["stash"] = [self.hs(h)["trinkets"][0]]  # Stash: one trinket kept for the next fight
         s["fight"] = None
         self.fx("fightend", result=result, **({"xp": f["xp"], "gold": f["gold"]} if result == "won" and f["kind"] != "boss" else {}))
         if not self.living():

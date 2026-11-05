@@ -1042,6 +1042,52 @@ CLASSES["herald"]["start"] = ["inspire", "jab", "ward_song"]
 CLASSES["herald"]["pool"] += ["song_of_blades", "shield_hymn", "jarring_note", "resonant_chord", "crescendo_of_light",
                               "sustain", "overture", "perfect_pitch", "harmonic_echo", "symphony"]
 
+# ---- Scoundrel, Pickings (owner's request, Nov 2026): its crits and killing blows lift a random trinket
+# (`x["trinkets"]`, up to TRINKET_CAP, gone when the fight ends), each used once without a die (the
+# `trinket` message). Rules in Combat (`lift`, `do_trinket`). To keep the class from getting stronger
+# with it (it was the strongest: 71.7% on Hard), its old strengths were cut at the same time: 20 HP
+# (was 22), Evasive halves the first hit (it missed), Smoke Bomb halves the next hit (it missed),
+# Toxic Cloud Poisons 2 (was 3).
+TRINKET_CAP = 3
+TRINKETS = {
+    "smoke": ("Smoke Pellet", "hero", "The next hit on you or an ally misses."),
+    "caltrops": ("Caltrops", None, "Every front-row enemy's attack this round deals 2 less."),
+    "flash": ("Flash Powder", "foe", "An enemy is Weak this round."),
+    "venom": ("Vial of Venom", "foe", "Poison an enemy for 3."),
+    "coin": ("Loaded Coin", "hero", "One of your dice, or an ally's, rolls 2 higher."),
+    "purse": ("Stolen Purse", None, "+6 gold, and your next die rolls 2 higher."),
+}
+CLASSES["scoundrel"]["hp"] = 20
+PASSIVES["evasive"].update(mods={"evasive": 1}, text="The first hit on you each fight deals half.")
+ACTIONS["smoke_bomb"].update(text="Two dice: if they're a pair, the next hit on each of you deals half. Otherwise: nothing.")
+ACTIONS["smoke_bomb"]["ops"] = [{"op": "status", "s": "halfhit", "n": 1, "to": "party"}]
+ACTIONS["toxic_cloud"]["ops"] = [{"op": "status", "s": "poison", "n": 2}]
+ACTIONS["toxic_cloud"]["text"] = "Two dice summing to 9+: Poison every enemy for 2. Otherwise: nothing."
+ACTIONS.update({
+    "rob_blind": {"name": "Rob Blind", "req": {"n": 1}, "tgt": "foe", "tags": ["tricks"],
+                  "ops": [{"op": "dmg", "amt": "v"}, {"op": "pilfer", "n": 1, "if": "v>=4"}],
+                  "text": "Deal the die. On 4+, lift a trinket."},
+    "ransack": {"cd": 3, "name": "Ransack", "req": {"n": 2}, "tgt": "foe", "melee": True, "tags": ["tricks"],
+                "ops": [{"op": "dmg", "amt": "sum"}, {"op": "pilfer", "n": 2, "dead": True}],
+                "text": "Two dice: deal their sum. If it kills, lift two trinkets."},
+})
+PASSIVES.update({
+    "quick_fingers": {"name": "Quick Fingers", "mods": {"quick_fingers": 1}, "tags": ["poisons"],
+                      "text": "The first time you Poison each enemy, lift a trinket."},
+    "fences_eye": {"name": "Fence's Eye", "mods": {"fences_eye": 1}, "tags": ["tricks"],
+                   "text": "Your killing blows lift two trinkets."},
+    "stash": {"name": "Stash", "mods": {"stash": 1}, "tags": ["tricks"],
+              "text": "Keep one trinket from one fight to the next."},
+    "deep_sleeves": {"name": "Deep Sleeves", "mods": {"deep_sleeves": 2}, "tags": ["tricks"],
+                     "text": "Hold up to 5 trinkets."},
+    "pay_it_forward": {"name": "Pay It Forward", "mods": {"pay_forward": 1}, "tags": ["poisons"],
+                       "text": "A Loaded Coin on an ally rolls 4 higher, and a Smoke Pellet on an ally gives them 3 Armor too."},
+    "master_thief": {"name": "Master Thief", "cap": True, "mods": {"master_thief": 1}, "tags": ["tricks"],
+                     "text": "Each trinket can be used twice before it's gone."},
+})
+CLASSES["scoundrel"]["pool"] = [k for k in CLASSES["scoundrel"]["pool"] if k != "wayfinder"] + [
+    "rob_blind", "ransack", "quick_fingers", "fences_eye", "stash", "deep_sleeves", "pay_it_forward", "master_thief"]
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1220,6 +1266,10 @@ SHORT = {
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
+SHORT.update({
+    "rob_blind": ("hand", "die · 4+: lift a trinket", None), "ransack": ("hand", "sum · kill: lift two", None),
+    "smoke_bomb": ("boot", "pair: everyone's next hit halved", "nothing"), "toxic_cloud": ("drop", "Σ9+: all Poison 2", "nothing"),
+})
 SHORT.update({
     "ward_song": ("shield", "die Armor · Aegis +1", None), "song_of_blades": ("up", "party ½ die Armor · Valor +2", None),
     "shield_hymn": ("shield", "ally: die Armor · Aegis +1", None), "jarring_note": ("bolt", "die +2 · Dissonance +1", None),

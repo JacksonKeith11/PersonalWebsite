@@ -421,6 +421,17 @@ class Actions:
             if c.m.get("ancestral_fury") and n >= 5:
                 c.x["redline"] = True  # Ancestral Fury: the next hit deals double
 
+    def _op_pilfer(self, c, op, targets):
+        """Rob Blind and Ransack lift trinkets (Ransack only on a kill)."""
+        if "trinkets" not in c.x:
+            return
+        t = next((t for t in c.base if isinstance(t, dict)), None)
+        if op.get("dead") and (t is None or t["hp"] > 0):
+            return
+        if not op.get("dead") and not self.op_gate(c, op, t):
+            return
+        self.pilfer(c.h, op["n"])
+
     def _op_harm_spend(self, c, op, targets):
         f = self.s["fight"]
         if f.get("harm"):

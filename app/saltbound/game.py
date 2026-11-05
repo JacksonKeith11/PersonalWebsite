@@ -673,7 +673,7 @@ class Game(Combat, Biomes, Quests, Travel):
             "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use, "temper": self.do_temper, "beacon": self.do_beacon, "mbuy": self.do_mbuy,
             "give": self.do_give, "drop": self.do_drop,
             "reforge": self.do_reforge, "temple": self.do_temple, "chart": self.do_chart,
-            "place": self.do_place, "reroll": self.do_reroll, "nudge": self.do_nudge,
+            "place": self.do_place, "reroll": self.do_reroll, "nudge": self.do_nudge, "trinket": self.do_trinket,
             "fready": self.do_fready, "spirit": self.do_spirit, "fork": self.do_fork,
             "suggest": self.do_suggest, "ask": self.do_ask,
         }.get(t)

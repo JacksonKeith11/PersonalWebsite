@@ -916,7 +916,9 @@ Chain Lightning, Thunderclap, Static Field Storm) moves the attunement and gives
 at `C.FLUX_MAX` (3) the next spell Converges: +50% (`hit_finish`) and all three riders, doubled. Spells
 without an element (Bolt, Channel, Siphon...) take the current one. Rules in `actions.py`
 (`attune_cast`, called from `resolve_action`); the bots value a switch at a third of a Convergence
-(`bot.attune_value`). Measured (2026-11-05, 400 Hard runs with an Arcanist in every party): **52.2%**,
+(`bot.attune_value`). On the stage its sprite shows the attunement (`combat.js` `attuneAura`, the `.unit.att-*`
+rules in `ui.css`): an orange glow and flames licking up for Fire, a blue glow and circling snowflakes for Frost,
+a violet glow and crackling arcs for Storm, and a turning ring of all three when it's ready to Converge. Measured (2026-11-05, 400 Hard runs with an Arcanist in every party): **52.2%**,
 a few points under the 59.5% all-class batch the same day; no new pick past 15 points vs passed
 (Ignite -14, so it now deals three times the Burn, not twice).
 

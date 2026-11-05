@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=132';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=132';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=132';
-import { stageURL, stageKey } from './stage.js?v=132';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=132';
-import { render } from './main.js?v=132';
-import { skillCard } from './hud.js?v=132';
-import { SKILL_FX, foeFx } from './skillfx.js?v=132';
-import * as sfx from './audio.js?v=132';
+import { S, send, mine, controllerName } from './store.js?v=133';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=133';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=133';
+import { stageURL, stageKey } from './stage.js?v=133';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=133';
+import { render } from './main.js?v=133';
+import { skillCard } from './hud.js?v=133';
+import { SKILL_FX, foeFx } from './skillfx.js?v=133';
+import * as sfx from './audio.js?v=133';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -119,13 +119,14 @@ export function renderCombat(el) {
     if (hs?.down) cl.push('down');
     if (hs?.fled) cl.push('fled');
     if (!hs?.down) cl.push(...statusCls(st));
+    if (hs?.attune && !hs.down) cl.push('att-' + hs.attune, ...(hs.converge ? ['att-converge'] : []));
     if (C.anim['h' + x]) cl.push(C.anim['h' + x]);
     if (x === active) cl.push('mine-sel');
     if (isTarget('h' + x, f)) cl.push('target');
     const ready = hs?.ready && !C.playing;
     return h('div.' + cl.join('.'), { 'data-uid': 'h' + x, style: { '--seat': `var(--hero-${x})` }, tip: mine().includes(x) ? null : heroTip(x, hs) },
       h('div.intent' + (ready ? '' : '.none'), { style: { '--c': 'var(--ok)' } }, icon('check'), 'Ready'),
-      poseImg(hero.cls, 'h' + x, hs?.down, st),
+      poseImg(hero.cls, 'h' + x, hs?.down, st, hs),
       // another player's hero: who plays it (by the name), and the dice they hold this round (for combos)
       h('div.uname', { style: { color: `var(--hero-${x})` } }, hero.name, mine().includes(x) ? null : h('span.ctl-name', null, ` · ${controllerName(x)}`),
         f.taunt === x ? ' · taunting' : '', Object.values(f.guard || {}).includes(x) ? ' · guarding' : ''),
@@ -431,10 +432,22 @@ export function hpClass(hp, max, foe) {
 const POSE_OF = { act: 'attack', melee: 'attack', charge: 'attack', spin: 'attack', 'f-lunge': 'attack', 'f-pounce': 'attack', 'f-slam': 'attack', 'f-charge': 'attack',
   cast: 'cast', brace: 'cast', retreat: 'cast', 'f-cast': 'cast', 'f-brace': 'cast', healbig: 'cast', revive: 'cast', victory: 'cast',
   hit: 'hurt', bighit: 'hurt', stunned: 'hurt', kill: 'fallen' };
-function poseImg(k, uid, out, st) {
+function poseImg(k, uid, out, st, hs) {
   warmPoses(k);
   const pose = out ? 'fallen' : POSE_OF[C.anim[uid]] || null;
-  return h('span.fig', null, h('img.pix' + (pose ? '.pose-' + pose : ''), { src: poseURL(k, pose), alt: '' }), out ? null : statusAura(st));
+  return h('span.fig', null, h('img.pix' + (pose ? '.pose-' + pose : ''), { src: poseURL(k, pose), alt: '' }),
+    out ? null : attuneAura(hs), out ? null : statusAura(st));
+}
+// The Arcanist's attunement on the sprite itself: flames lick up from it (Fire), snowflakes circle it
+// (Frost) or arcs crackle round it (Storm), with a glow in that colour; ready to Converge, a ring of all
+// three turns behind it. Phases are kept across redraws, as for statusAura.
+const ATT = { fire: ['flame', 5, 1300], frost: ['flake', 4, 3600], storm: ['arc', 3, 900] };
+function attuneAura(hs) {
+  if (!hs?.attune || !ATT[hs.attune]) return null;
+  const [cls, n, ms] = ATT[hs.attune], now = performance.now();
+  return h('span.aura.attune', { 'aria-hidden': 'true' },
+    hs.converge ? h('i.prism', { style: { animationDelay: `-${Math.round(now % 2400)}ms` } }) : null,
+    ...Array.from({ length: n }, (_, i) => h('i.' + cls, { style: { '--i': i, animationDelay: `-${Math.round((now + i * ms / n) % ms)}ms` } })));
 }
 // What a fighter's statuses look like on the fighter itself, over the sprite: Poison drips, Burn
 // throws up embers, Shock sparks, Mark is a crosshair, a Stun circles stars, Root grows vines at the

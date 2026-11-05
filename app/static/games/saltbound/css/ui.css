@@ -1559,6 +1559,27 @@ button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis
 .unit.st-freeze .fig > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)) saturate(0.4) brightness(1.15) hue-rotate(160deg); }
 .unit.st-weak .fig > img { scale: 1 0.93; transform-origin: 50% 100%; filter: drop-shadow(0 5px 3px var(--stage-shadow)) saturate(0.6) brightness(0.9); }
 .unit.st-stun .fig > img { rotate: -4deg; transform-origin: 50% 100%; }
+/* the Arcanist's attunement (combat.js attuneAura): a glow on the sprite and a loop in its element */
+.unit.att-fire .fig > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)) drop-shadow(0 0 6px rgba(255, 122, 26, 0.75)); }
+.unit.att-frost .fig > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)) drop-shadow(0 0 6px rgba(143, 216, 255, 0.8)); }
+.unit.att-storm .fig > img { filter: drop-shadow(0 5px 3px var(--stage-shadow)) drop-shadow(0 0 6px rgba(200, 180, 255, 0.85)); }
+.unit.att-converge .fig > img { animation: idle 2.8s var(--idle-at, 0s) ease-in-out infinite, prism-glow 2.4s linear infinite; }
+@keyframes prism-glow { 0% { filter: drop-shadow(0 0 7px #ff7a1a); } 33% { filter: drop-shadow(0 0 7px #8fd8ff); } 66% { filter: drop-shadow(0 0 7px #c8b4ff); } 100% { filter: drop-shadow(0 0 7px #ff7a1a); } }
+.aura .flame { left: calc(22% + var(--i) * 13%); bottom: 10%; width: 8px; height: 13px; border-radius: 50% 50% 40% 40% / 70% 70% 30% 30%;
+  background: radial-gradient(circle at 50% 75%, #fff2c0 0 18%, #ffb040 40%, rgba(255, 90, 20, 0.85) 70%, transparent 72%);
+  filter: blur(0.3px); animation-name: att-flame; animation-duration: 1300ms; animation-timing-function: ease-out; }
+@keyframes att-flame { 0% { transform: translate(0, 0) scale(0.7); opacity: 0; } 20% { opacity: 0.95; } 100% { transform: translate(calc((var(--i) - 2) * 3px), -46px) scale(0.25); opacity: 0; } }
+.aura .flake { left: 50%; top: 42%; width: 7px; height: 7px; background: #e8fbff; box-shadow: 0 0 6px #8fd8ff;
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); animation-name: att-flake; animation-duration: 3600ms; }
+@keyframes att-flake { 0% { transform: translate(-50%, -50%) rotate(calc(var(--i) * 90deg)) translateX(30px) rotate(0deg); opacity: 0.4; }
+  50% { opacity: 1; } 100% { transform: translate(-50%, -50%) rotate(calc(var(--i) * 90deg + 360deg)) translateX(30px) rotate(-360deg); opacity: 0.4; } }
+.aura .arc { left: calc(20% + var(--i) * 24%); top: calc(18% + var(--i) * 16%); width: 16px; height: 10px; background: #f4f0ff; box-shadow: 0 0 8px #b48cff;
+  clip-path: polygon(0 40%, 30% 0, 45% 45%, 70% 10%, 100% 60%, 70% 35%, 50% 100%, 35% 55%); animation-name: att-arc; animation-duration: 900ms; animation-timing-function: steps(3, end); }
+@keyframes att-arc { 0%, 55% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) scale(0.6); } 65% { opacity: 1; transform: rotate(calc(var(--i) * 60deg + 20deg)) scale(1); } 100% { opacity: 0; } }
+.aura .prism { left: 50%; top: 50%; width: 78%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; z-index: -1;
+  background: conic-gradient(from 0deg, rgba(255, 122, 26, 0.55), rgba(143, 216, 255, 0.55), rgba(200, 180, 255, 0.55), rgba(255, 122, 26, 0.55));
+  mask: radial-gradient(circle, transparent 52%, #000 56%, #000 68%, transparent 72%); animation: prism-spin 2400ms linear infinite; }
+@keyframes prism-spin { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .aura i { animation: none !important; } }
 /* ambush ground: leaves drifting down over the stage */
 .stage .leaves { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }

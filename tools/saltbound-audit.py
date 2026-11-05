@@ -70,6 +70,7 @@ SCENARIOS = {
     "emberknight": None,
     "dragonborn": None,
     "psion": None,
+    "arcanist": None,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -105,6 +106,16 @@ def main():
     names = sys.argv[1:] or list(SCENARIOS)
     for name in names:
         g = None
+        if name == "arcanist":
+            # three Arcanists can't share a party, so one at a time: ?arcanist=fire|frost|storm|converge on the audit save
+            g, seed = game.Game.new(501, ["arcanist", "vanguard", "mender"], "normal"), 501
+            g.start_fight({"kind": "roam", "tile": g.hero(0)["tile"], "heroes": [0, 1, 2], "foes": ["cutthroat", "crab", "eel"], "by": 0})
+            g.hs(0)["attune"] = sys.argv[2] if len(sys.argv) > 2 else "fire"
+            if g.hs(0)["attune"] == "converge":
+                g.hs(0).update(attune="storm", converge=True, flux=3)
+            S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
+            print(f"{name}: saved ({g.hs(0)['attune']})")
+            return
         if name == "psion":
             g, seed = game.Game.new(501, ["psion", "vanguard", "mender"], "normal"), 501
             g.hero(0)["skills"] += ["mind_crush", "psionic_storm", "puppet_strings", "perfect_foresight"]

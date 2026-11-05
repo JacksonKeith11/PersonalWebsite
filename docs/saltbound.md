@@ -3,7 +3,7 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: built and public.** All eleven classes play whole runs, and the game is listed on `/games`.
+**Status: built and public.** All twelve classes play whole runs, and the game is listed on `/games`.
 The first half of this doc is the design the owner signed off on, with the answers they gave while it
 was built; "How it plays now" is the game as it is. When a change alters how the game works, update
 "How it plays now" (not a new section at the end) in the same commit.
@@ -171,7 +171,7 @@ Keep to these. They came from the owner directly.
 
 ### Heroes
 
-- **11 classes, each unique within a party.** Each has one map ability and one combat role, so
+- **12 classes, each unique within a party.** Each has one map ability and one combat role, so
   the choice matters outside fights too.
 - **Classes are generic, not tied to the archipelago**, so they carry over to future maps. A map
   ability only talks to systems every map has, through hooks the map engine calls:
@@ -874,7 +874,21 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Herald | 18 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
 | Alchemist | 21 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
 | Warden | 26 (+3) | **Wildspeak**: forest costs 1 | Summons and control | Grove, Thorns |
+| Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
+
+**The Emberknight** (owner's request, Nov 2026; design and results in `docs/saltbound-emberknight.md`).
+Every die it plays adds its number to its **Heat** (`x["heat"]`, after the action resolves; Quench and
+Pass the Flame are `cool`, their dice add none), its hits deal +1 per `C.HEAT_STEP` (5) Heat in
+`dmg_bonus`, and at `C.HEAT_MAX` (25) it overheats: `C.OVERHEAT_HP` (5) damage and Heat to
+`C.HEAT_AFTER` (10). Heat cools by half in `end_round`. The `heat` op adds or spends (`heat` in amounts
+is the hero's Heat), `kindle` is Pass the Flame (an ally's next two hits +4 and half the die, Burn 2;
+hero status `kindled`), Ember Ward's `emberward` Burns attackers in `hurt_hero`. Rules in `actions.py`
+(`add_heat`, `dice_heat`), Banked Coals in `start_fight` (`hero["fought"]`); the bots weigh Heat and
+overheating in `bot.heat_value`. The overheat point was 20 at first: the bots overheated about twice
+a fight and the class took the most damage of any but the Vanguard; at 25 it's about once a fight.
+Measured (2026-11-05, 400 Hard runs with an Emberknight in every party, after the tuning pass): **Hard
+56.2%**, the class dealing the most damage (42.4 a round), no pick beyond 10 points vs passed.
 
 **The Spellblade** (owner's request, Nov 2026; the design and its reasoning are in
 `docs/saltbound-spellblade.md`). Its melee hits **carve Sigils** into enemies (status `sigil`, up to

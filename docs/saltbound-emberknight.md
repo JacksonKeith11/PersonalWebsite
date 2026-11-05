@@ -1,8 +1,18 @@
-# Emberknight: a class proposal (for review, not built)
+# Emberknight: the class's design
 
-A draft class built around one gauge, **Heat**, for the owner to review before anything is built.
-Numbers are first guesses, sized with the tests in `saltbound-skills.md`. They get measured once the
-class is in, as the Spellblade's were (`saltbound-spellblade.md`).
+**Built (Nov 2026).** The owner's review: +1 per 5 Heat, cooling by half, a flat 5 HP to overheat, and
+Pass the Flame only empowering (made stronger than one +3 hit). The balance results are at the end;
+the live numbers are in `app/saltbound/classes.py` and `docs/saltbound.md` (Classes). What was
+built differs from the draft below in these ways:
+
+- **Overheat at 25, not 20** (see the results): the gauge, Heart of the Forge and the tooltips say 25.
+- **Pass the Flame**: give an ally 5 of your Heat; their next **two** hits this round deal **+4 and half
+  the die**, and each Burns 2. Its die adds no Heat (nor does Quench's).
+- **Tuning pass**: Stoke deals the full die (was half); Backdraft cools in 2 rounds (was 3) and blunts
+  the attack by a quarter of the Heat (was a sixth); Wildfire Core Burns a fifth of the Heat spent, at
+  most 3 (was a quarter); Heart of the Forge is +5 (was +6).
+
+The draft as reviewed follows.
 
 ## The mechanic
 
@@ -137,3 +147,17 @@ map arrives at the next fight at +2.
 3. Should Pass the Flame give allies real Heat (a gauge of their own for the round), or just the one
    empowered hit as drafted?
 4. Should overheating cost 5 HP flat, or scale with level so it still matters late?
+
+## Balance results
+
+**First batch** (2026-11-05, 400 Hard runs, seed 5000, an Emberknight in every party, overheat at 20):
+**Hard 52.0%**, about 4 points under the batches before it. The class dealt the most damage of any
+(41.8 a round) but took 4.2 a round, more than anyone but the Vanguard: a scratch count found the bots
+overheating about **twice a fight** (10 HP). Picks vs passed: Wildfire Core +14, Heart of the Forge
++10; Backdraft -11; nothing else past 10.
+
+**After the tuning pass** (same 400 runs; overheat at 25, about once a fight, and the changes above):
+**Hard 56.2%**, level with the batches before the class. Damage 42.4 a round (still the most), taken
+3.8. Flashover is its big play (13% of plays, 30 damage a use). No pick is past 10 points vs passed:
+Quench +10, Redline +8, Heart of the Forge +6; Wildfire Core -9, Ember Ward -8, Stoke -7. Earlier
+batches showed unchanged picks moving up to 15 points between runs, so these are within the noise.

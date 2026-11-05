@@ -2197,11 +2197,12 @@ class Game(Combat, Biomes, Quests, Travel):
         if not cost:
             p["voucher"] -= 1
         new = self.rng.choice(pool)
+        old = self.item(key)["name"]  # before unforge drops a worked piece's record
         self.unforge(key)
         hero["equip"][slot] = new
         hero["hp"] = min(hero["hp"], self.maxhp(h))
         self.fx("coins", h=h, n=-cost)
-        self.say(f"The smith reforges {hero['name']}'s {self.item(key)['name']} into {self.item(new)['name']}.")
+        self.say(f"The smith reforges {hero['name']}'s {old} into {self.item(new)['name']}.")
 
     def do_temple(self, h, msg):
         p = self.town_spec(h, "temple")

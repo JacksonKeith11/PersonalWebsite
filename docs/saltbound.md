@@ -879,6 +879,35 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
 
+**Signature mechanics for the original classes** (owner's request, Nov 2026; numbers in `classes.py`
+next to `COMBO_STEP`, rules in `actions.py` (`combo_on`, `add_grace`, `react`) and `combat.py`):
+
+- **Duelist, Combo** (`x["combo"]`): each hit on the enemy it hit last this round deals +1 per hit
+  before it; another enemy starts over (`combo_hit`, in `after_action`); it clears at the round's end.
+  Picks: Coup de Grâce (+4 per combo hit), Feint Step (one switch a round keeps it), Relentless (it
+  lasts into the next round), Riposte Chain (strike-backs count and get the bonus).
+- **Berserker, Berserk** (`x["berserk"]`): after losing `BERSERK_AT` (a third) of its max HP in a fight
+  (`x["lost"]`, in `hurt_hero`), its dice explode and its hits deal +2 for the rest of the fight, and it
+  can't use defensive actions (`do_place`). Picks: Savage Blow (twice the die +2 while berserk), Hair
+  Trigger (at a quarter), Red Haze (hits heal 2), Cold Fury (one defensive action a round).
+- **Mender, Grace** (`hero["grace"]`, mirrored on the fight state): healing it does fills Grace
+  (`fight_heal`); at `GRACE_MAX` (20) its next heal is Radiance: it lands on the whole party and
+  cleanses them (`_op_heal`). Picks: Benediction (+5 Grace), Overflowing Grace (overhealing counts
+  double), Martyr (the party's damage fills it by half), Blessed Rest (it carries between fights).
+- **Alchemist, Reactions** (`fo["res"]`): its bombs leave a residue (`residue` on the action: Toss and
+  Firebomb fire, Acid Flask acid, Frost Flask frost); a different bomb on a residue reacts
+  (`C.REACTIONS`): fire and acid, a caustic burst (6 to the row); fire and frost, steam (its attack
+  deals half); acid and frost, brittle (Vulnerable 2). Picks: Frost Flask, Unstable Compound (every
+  residue: the die +6), Volatile Agents (allies' Burn and Poison count), Potent Reactions (+6).
+
+Measured (2026-11-05, 400 Hard runs, all classes, seed 5000): **Hard 59.5%** (the batches before were
+about 55%), Duelist parties 64.7%, Mender 67.8%, Alchemist 51.8%, Berserker 48.8% (51.2% after berserk
+gained +2). With 14 classes each is in about 85 runs and each new pick is taken 20 to 35 times, so a
+pick's "vs passed" moves 20 points or more between batches (Frost Flask +28 then -20, Hair Trigger -11
+then -20); only `--with=<class>` batches can settle the picks. A first tuning pass: Coup de Grâce +4 a
+hit (was +3, ending the combo), Unstable Compound the die +6 at cd 2 (was +4 at cd 3), Martyr the
+party's damage by half (was the Mender's own), Frost Flask without its Weak.
+
 **The Psion** (owner's request, Nov 2026; design and results in `docs/saltbound-psion.md`). All its
 dice are Seer dice (`round_dice`), and it has **Focus** each round (`x["focus"]`: `C.FOCUS_BASE` 2, +1
 at each of `C.FOCUS_LEVELS` 3 and 6, refilled in `new_round`). The `nudge` message (`Combat.do_nudge`)

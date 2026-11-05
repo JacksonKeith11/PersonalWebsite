@@ -1024,6 +1024,10 @@ a:hover { color: var(--accent-hi); }
 .die-mini.linked button { all: unset; cursor: pointer; padding: 0 2px; color: #7fe3ff; font-weight: 800; }
 .die-mini.linked button:disabled { opacity: 0.35; cursor: default; }
 .covered-chip.attune.fire { color: #ffa030; } .covered-chip.attune.frost { color: #9fd8ff; } .covered-chip.attune.storm { color: #e8f0ff; }
+.harmonies { display: inline-flex; gap: 6px; }
+.chip.harm { gap: 5px; } .chip.harm.valor { color: #ffb070; } .chip.harm.aegis { color: #8cc8ff; } .chip.harm.discord { color: #e08ad8; }
+.chip.harm .pips { display: inline-flex; gap: 2px; } .chip.harm .pips i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid currentColor; }
+.chip.harm .pips i.on { background: currentColor; }
 .covered-chip.berserk { color: #ff6a5a; }
 .heat-gauge.grace i { background: linear-gradient(90deg, #a88a30, #ffe9a0); }
 .heat-gauge.grace.hot i { box-shadow: 0 0 8px #ffe9a0; }

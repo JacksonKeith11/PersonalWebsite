@@ -193,6 +193,14 @@ export const SKILL_FX = {
   mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); return 'cast'; },
   puppet_strings: x => { x.hit('glyph spin', C.water, 900, 0, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
 
+  // Herald Harmonies
+  ward_song: x => { x.me('shieldfx', null, 700); x.me('notes', null, 900, 100); return 'cast'; },
+  song_of_blades: x => { x.party.forEach((u, i) => x.on(u, 'notes', null, 900, i * 80)); return 'cast'; },
+  shield_hymn: x => { x.shot('note', C.song, ['shieldfx', null, 700]); return 'cast'; },
+  jarring_note: x => { x.shot('note', C.song, ['zap', null, 500]); return 'cast'; },
+  resonant_chord: x => { x.me('hoop', C.song, 700); x.me('notes', null, 900, 100); return 'cast'; },
+  crescendo_of_light: x => { x.party.forEach((u, i) => x.on(u, 'healglow', null, 900, i * 90)); x.screen('white', 250); return 'cast'; },
+
   // Arcanist elements
   flame_wave: x => { x.t.forEach((u, i) => x.on(u, 'fireburst', null, 700, 80 + i * 60)); return 'cast'; },
   ignite: x => { x.shot('fireorb', null, ['fireburst', null, 900]); x.shake(260); return 'cast'; },

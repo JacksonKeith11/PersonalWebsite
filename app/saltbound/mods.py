@@ -8,6 +8,12 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Herald's Harmonies (classes.py HARMONY_CAP; Combat.raise_harmony)
+    "sustain": "Harmonies fall only every other round",
+    "overture": "fights start with Valor and Aegis at 1",
+    "perfect_pitch": "a Harmony can climb to 4",
+    "harmonic_echo": "an ally's kill raises the last Harmony again, once a round",
+    "symphony": "while all three Harmonies are 2+, they don't fall",
     # the Arcanist's Attunement and Flux (classes.py FLUX_MAX, ATTUNE; actions.py attune_cast)
     "mastery": "the same element twice in a row doubles its attunement bonus",
     "prismatic": "Converge at 2 Flux",

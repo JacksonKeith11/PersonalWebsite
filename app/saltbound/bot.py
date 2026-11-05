@@ -758,7 +758,7 @@ def dice_combos(g, h, dice):
     # cached outcome from another fight, or another run in the same process, is used by mistake
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            x.get("heat", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
-           bool(x.get("berserk")),
+           bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:
@@ -1055,6 +1055,8 @@ def evaluate(g, b, h, a, dice, tgt):
             if a.get("spell") and m.get("spellstrike"):
                 val += infuse_value(g, h, dice, 1, m["spellstrike"], element_of(vals[0] if vals else 0))
         total += pr * val
+    if a.get("harmony"):
+        total += harmony_value(g, h, a, inc, hits)
     return total, eff
 
 
@@ -1119,6 +1121,26 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
             return 0
         return min(g.maxhp(y) // 2, g.maxhp(y) - left) * 0.6
     return 1
+
+
+def harmony_value(g, h, a, inc, hits):
+    """A Herald's song raising a Harmony: Valor is worth the party's hits still to come, Aegis Armor on
+    everyone next round, Dissonance the enemy hits landing this round (and the next, as it fades)."""
+    harm = g.s["fight"].get("harm")
+    if harm is None:
+        return 0
+    cap = C.HARMONY_CAP + (1 if any(g.mods(y).get("perfect_pitch") for y in g.s["fight"]["heroes"]) else 0)
+    keys = sorted(harm, key=lambda k: harm[k])[:2] if a["harmony"] == "chord" else [a["harmony"]]
+    n = a.get("harmony_n", 1)
+    left = sum(1 for y in g.actives() for d in g.hs(y)["dice"] if not d["used"])
+    val = 0.0
+    for k in keys:
+        gain = min(n, cap - harm[k])
+        if gain <= 0:
+            continue
+        per = {"valor": 0.7 * left + 1.5, "aegis": 0.9 * len(g.actives()), "discord": 0.9 * sum(hits.values()) + 1.0}[k]
+        val += gain * per
+    return val
 
 
 def attune_value(g, h, a, attune, dealt):
@@ -1341,7 +1363,8 @@ def candidates(g, h, b, free):
                 msg = {"t": "place", "a": a["key"], "dice": [d["id"] for d in dice]}
                 if a.get("instant"):
                     for tgt, val in instant_value(g, h, a, dice):
-                        out.append((val, dict(msg, tgt=tgt), new_eff(), msg["dice"]))
+                        out.append((val + (harmony_value(g, h, a, *b.view(g)[0][::2]) if a.get("harmony") else 0),
+                                    dict(msg, tgt=tgt), new_eff(), msg["dice"]))
                     continue
                 for tgt in target_options(g, h, a, foes):
                     val, eff = evaluate(g, b, h, a, dice, tgt)

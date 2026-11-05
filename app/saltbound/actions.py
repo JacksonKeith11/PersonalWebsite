@@ -42,6 +42,7 @@ class Actions:
                 "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
                 "scales": self.hero(h).get("scales", 0), "back": 0, "hi": max(vals) if vals else 0,
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
+                "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
@@ -103,6 +104,7 @@ class Actions:
             n += x.get("inf", {}).get("dmg", 0)  # an infused blade (Spellblade)
         if x.get("berserk"):
             n += C.BERSERK_MIGHT  # berserk
+        n += (f.get("harm") or {}).get("valor", 0)  # the Herald's Valor
         if "heat" in x:
             n += x["heat"] // C.HEAT_STEP + x.get("white", 0)  # the Emberknight's Heat (and Heart of the Forge)
         if x["st"].get("kindled"):
@@ -418,6 +420,12 @@ class Actions:
                     self.foe_burn(fo, n, c.h)  # Searing Breath
             if c.m.get("ancestral_fury") and n >= 5:
                 c.x["redline"] = True  # Ancestral Fury: the next hit deals double
+
+    def _op_harm_spend(self, c, op, targets):
+        f = self.s["fight"]
+        if f.get("harm"):
+            f["harm"] = {k: 0 for k in f["harm"]}
+            self.fx("st", to="party", s="harm_spent")
 
     def _op_douse(self, c, op, targets):
         for t in targets:

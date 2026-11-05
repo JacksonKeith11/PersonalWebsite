@@ -103,6 +103,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 hero["runes"] = max(0, hero.get("runes", 0) - 1)
                 for fo in f["foes"]:
                     fo["st"]["sigil"] = max(fo["st"].get("sigil", 0), n)
+        if any(C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "silver_tongue" for h in f["heroes"]):
+            ov = 1 if any(self.mods(h).get("overture") for h in f["heroes"]) else 0
+            f["harm"] = {"valor": ov, "aegis": ov, "discord": 0}  # the Herald's Harmonies (Overture: 1 each)
         if any(self.mods(h).get("open_weak") for h in f["heroes"]):
             for fo in f["foes"]:
                 fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
@@ -350,7 +353,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             # the Dragonborn's Scales (and Scales given by Brood Bond, and Draconic Ascension): Armor each round
             x = self.hs(h)
             n = (self.hero(h).get("scales", 0) if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "dragons_rest" else 0) \
-                + x.get("brood", 0) + (3 if x.get("ascend") else 0)
+                + x.get("brood", 0) + (3 if x.get("ascend") else 0) + (f.get("harm") or {}).get("aegis", 0)
             if n:
                 x["st"]["armor"] = x["st"].get("armor", 0) + n
                 self.fx("armor", to=f"h{h}", n=n)
@@ -956,6 +959,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x.setdefault("spells", []).append(a["key"])
         if a.get("melee") or a.get("spell"):
             x["lastk"] = "melee" if a.get("melee") else "spell"  # for Bladesong
+        if a.get("harmony") and f.get("harm") is not None:
+            self.raise_harmony(h, a["harmony"], a.get("harmony_n", 1))
         if x.pop("combo_end", None):
             pass
         elif C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "ambush" and isinstance(tgt, str) and tgt.startswith("f") \
@@ -976,6 +981,17 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for y in self.actives():
                 if y != h:
                     self.hs(y)["cued"] = cue
+
+    def raise_harmony(self, h, which, n=1):
+        """The Herald's songs raise a Harmony (Resonant Chord: the two lowest)."""
+        f = self.s["fight"]
+        harm = f["harm"]
+        cap = C.HARMONY_CAP + (1 if any(self.mods(y).get("perfect_pitch") for y in f["heroes"]) else 0)
+        keys = sorted(harm, key=lambda k: harm[k])[:2] if which == "chord" else [which]
+        for k in keys:
+            harm[k] = min(cap, harm[k] + n)
+            self.fx("st", to="party", s="harm_" + k)
+        self.hs(h)["lastharm"] = keys[-1]
 
     def combo_hit(self, h, fid):
         """A Duelist's hit: the combo on that enemy grows, or a new one starts (Feint Step carries it once a round)."""
@@ -1136,6 +1152,12 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["kdie"] = True
                 x["dice"].append(self.new_die(h, list(range(1, m["kill_die"] + 1)), "bloodlust"))
                 self.fx("st", to=f"h{h}", s="bloodlust")
+            if f.get("harm") is not None and not f.get("echoed"):
+                for y in self.actives():
+                    if y != h and self.mods(y).get("harmonic_echo") and self.hs(y).get("lastharm"):
+                        f["echoed"] = True  # Harmonic Echo, once a round
+                        self.raise_harmony(y, self.hs(y)["lastharm"])
+                        break
             if m.get("fan_flames") and x and "heat" in x and self.active(h):
                 self.add_heat(h, m["fan_flames"])  # Fan the Flames
             if m.get("kill_armor") and self.active(h):
@@ -1249,6 +1271,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["soaked"] = True
                 n -= soak
             n -= f["sanct"] + f["aegis"]
+            if fo is not None:
+                n -= (f.get("harm") or {}).get("discord", 0)  # the Herald's Dissonance
             if fo is not None and fo["row"] == "back":
                 n -= self.mods(h).get("footwork", 0)
             if x["st"].get("vuln"):
@@ -1358,6 +1382,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
 
     def end_round(self):
         self.undertow()
+        f = self.s["fight"]
+        if f.get("harm"):
+            f.pop("echoed", None)
+            hold = any(self.mods(y).get("symphony") for y in f["heroes"]) and all(v >= 2 for v in f["harm"].values())
+            slow = any(self.mods(y).get("sustain") for y in f["heroes"]) and f["round"] % 2
+            if not hold and not slow:
+                f["harm"] = {k: max(0, v - 1) for k, v in f["harm"].items()}  # Harmonies fade
         for h in self.actives():
             if not self.mods(h).get("triage"):
                 continue
@@ -1597,6 +1628,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         out["hymn"] = f.get("hymn", 0)
         out["last"] = f.get("last", [])
         out["ground"] = f.get("ground")
+        out["harm"] = f.get("harm")
         out["raid"] = f.get("raid")
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]],
                              rollmods={m: v for m, v in self.mods(int(k)).items() if m in ROLL_MODS and v})

@@ -1048,7 +1048,7 @@ CLASSES["herald"]["pool"] += ["song_of_blades", "shield_hymn", "jarring_note", "
 # with it (it was the strongest: 71.7% on Hard), its old strengths were cut at the same time: 20 HP
 # (was 22), Evasive halves the first hit (it missed), Smoke Bomb halves the next hit (it missed),
 # Toxic Cloud Poisons 2 (was 3).
-TRINKET_CAP = 3
+TRINKET_CAP = 2  # was 3; crits also lift only once a round (the first batch: Scoundrel parties 67.8%)
 TRINKETS = {
     "smoke": ("Smoke Pellet", "hero", "The next hit on you or an ally misses."),
     "caltrops": ("Caltrops", None, "Every front-row enemy's attack this round deals 2 less."),
@@ -1079,7 +1079,7 @@ PASSIVES.update({
     "stash": {"name": "Stash", "mods": {"stash": 1}, "tags": ["tricks"],
               "text": "Keep one trinket from one fight to the next."},
     "deep_sleeves": {"name": "Deep Sleeves", "mods": {"deep_sleeves": 2}, "tags": ["tricks"],
-                     "text": "Hold up to 5 trinkets."},
+                     "text": "Hold up to 4 trinkets."},
     "pay_it_forward": {"name": "Pay It Forward", "mods": {"pay_forward": 1}, "tags": ["poisons"],
                        "text": "A Loaded Coin on an ally rolls 4 higher, and a Smoke Pellet on an ally gives them 3 Armor too."},
     "master_thief": {"name": "Master Thief", "cap": True, "mods": {"master_thief": 1}, "tags": ["tricks"],

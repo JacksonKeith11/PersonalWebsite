@@ -909,8 +909,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             # a die on its top face: the action's crit lands too
             self.fx("st", to=f"h{h}", s="crit")
             self.run_ops(h, a, dice, tgt, ops=a["crit"], hit=hit)
-            if "trinkets" in x:
-                self.pilfer(h)  # the Scoundrel's Pickings: a crit lifts a trinket
+            if "trinkets" in x and not x.get("crit_lift"):
+                x["crit_lift"] = True  # the Scoundrel's Pickings: a crit lifts a trinket, once a round
+                self.pilfer(h)
             if a["key"] == "claw" and m.get("wyrmfire") and isinstance(tgt, str) and tgt.startswith("f"):
                 fo = self.foe(int(tgt[1:]))
                 if fo:
@@ -1521,6 +1522,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x.pop("white", None)
             x.pop("redline", None)
             x.pop("cold_used", None)
+            x.pop("crit_lift", None)
             x.pop("feinted", None)
             if not self.mods(h).get("relentless"):
                 x.pop("combo", None)  # a combo lasts the round (Relentless: into the next)

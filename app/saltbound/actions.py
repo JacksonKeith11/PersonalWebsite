@@ -39,7 +39,7 @@ class Actions:
                 "missing": self.maxhp(h) - self.hero(h)["hp"], "undead": 0, "rooted": 0, "stunned": 0, "poisoned": 0,
                 "marked": 0, "aimed": 0, "d": vals[0] if vals else 0, "matched": 0,
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
-                "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()),
+                "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
@@ -97,6 +97,10 @@ class Actions:
         n += x.get("cued", 0)
         if a.get("melee") and x["st"].get("infuse"):
             n += x.get("inf", {}).get("dmg", 0)  # an infused blade (Spellblade)
+        if "heat" in x:
+            n += x["heat"] // C.HEAT_STEP + x.get("white", 0)  # the Emberknight's Heat (and Heart of the Forge)
+        if x["st"].get("kindled"):
+            n += x.get("kdmg", 0)  # an ally's Pass the Flame
         kind = "melee" if a.get("melee") else "spell" if a.get("spell") else None
         if m.get("bladesong") and kind and x.get("lastk") and x["lastk"] != kind:
             n += m["bladesong"]
@@ -312,10 +316,20 @@ class Actions:
                 n, env = self.hit_base(h, a, op, t, c.dice, vals, tags, i, c.half)
                 n += self.combo_bonus(h, a, c.dice, t, c.used)
                 n = self.hit_finish(h, n, c.dice, vals, i, 1 if c.crescendo else 0)
+                if c.x.pop("redline", None):
+                    n *= 2  # Redline: the hit after an overheat
                 done = self.hurt_foe(t, n, h, pierce=pierce, bomb=a.get("bomb"))
                 c.dealt = True
                 if a.get("melee") and c.x["st"].get("infuse"):
                     self.infuse_hit(h, t)
+                if done and t["hp"] > 0 and (c.x["st"].get("kindled") or (m.get("molten_edge") and c.x.get("heat", 0) >= 15)):
+                    # Pass the Flame's Burn 2 (one hit used), Molten Edge's Burn 1
+                    k = 2 if c.x["st"].get("kindled") else 1
+                    t["st"]["burn"] = t["st"].get("burn", 0) + self.status_amount(h, {"plus": False}, "burn", k)
+                    self.fx("st", to=f"f{t['id']}", s="burn")
+                    self.foe_status_by(t, "burn", h)
+                if c.x["st"].get("kindled") and done:
+                    c.x["st"]["kindled"] -= 1
                 if op.get("burst"):
                     self.burst(c, op, t, vals)
                 if a.get("spell") and m.get("spell_burn") and done and t["hp"] > 0:
@@ -355,6 +369,25 @@ class Actions:
     def _op_infuse(self, c, op, targets):
         v = num(c.dice[0]) if c.dice else 0
         self.infuse(c.h, op["n"], self.op_amount(c, op), op.get("el") or element_of(v))
+
+    def _op_heat(self, c, op, targets):
+        n = amt(op["amt"], self.env(c.h, c.a, c.dice))
+        x = c.x
+        if n < 0 and c.a["key"] == "flashover" and c.m.get("wildfire_core"):
+            for fo in self.foes():  # Wildfire Core: the vent sets them alight
+                if x.get("heat", 0) // 4:
+                    fo["st"]["burn"] = fo["st"].get("burn", 0) + x["heat"] // 4
+                    self.fx("st", to=f"f{fo['id']}", s="burn")
+        self.add_heat(c.h, n)
+
+    def _op_kindle(self, c, op, targets):
+        n = self.op_amount(c, op)
+        for t in targets:
+            if isinstance(t, tuple) and self.active(t[1]):
+                y = self.hs(t[1])
+                y["st"]["kindled"] = max(y["st"].get("kindled", 0), op["n"])
+                y["kdmg"] = max(n, y.get("kdmg", 0) if y["st"]["kindled"] > op["n"] else 0)
+                self.fx("st", to=f"h{t[1]}", s="kindled")
 
     def _op_selfdmg(self, c, op, targets):
         hero = self.hero(c.h)
@@ -569,6 +602,42 @@ class Actions:
         self.summon(c.h, op["k"], hp)
 
     # ------------------------------------------------------------------ instant actions
+
+    # ------------------------------------------------------------------ the Emberknight's Heat
+
+    def add_heat(self, h, n):
+        """Add Heat (or spend it, n < 0). At HEAT_MAX it overheats: OVERHEAT_HP damage and Heat drops to
+        HEAT_AFTER (Pilot Light: 2 and 15), or, with Heart of the Forge, white heat for the round."""
+        x = self.hs(h)
+        if "heat" not in x or not n:
+            return
+        x["heat"] = max(0, x["heat"] + n)
+        if x["heat"] < C.HEAT_MAX:
+            return
+        m = self.mods(h)
+        if m.get("white_heat"):
+            x["heat"], x["white"] = 0, m["white_heat"]
+            self.fx("st", to=f"h{h}", s="white_heat")
+            return
+        pilot = m.get("pilot_light")
+        x["heat"] = 15 if pilot else C.HEAT_AFTER
+        self.fx("st", to=f"h{h}", s="overheat")
+        if m.get("redline"):
+            x["redline"] = True
+        for y in self.actives():
+            if y != h and m.get("heat_sink"):
+                st = self.hs(y)["st"]
+                st["armor"] = st.get("armor", 0) + m["heat_sink"]
+                self.fx("armor", to=f"h{y}", n=m["heat_sink"])
+        self.hurt_hero(h, 2 if pilot else C.OVERHEAT_HP, None, pure=True)
+
+    def dice_heat(self, h, a, dice):
+        """The Heat an action's dice add: their numbers (Spark Gap: a 1 or 2 adds 5); none for Quench."""
+        if a.get("cool"):
+            return 0
+        gap = self.mods(h).get("spark_gap", 0)
+        vals = [num(d) for d in dice]
+        return sum(gap if gap and 0 < v <= 2 else v for v in vals)
 
     # ------------------------------------------------------------------ the Spellblade's Sigils and infusions
 

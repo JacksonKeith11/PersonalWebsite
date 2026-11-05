@@ -669,6 +669,84 @@ CLASSES["spellblade"] = {
     "blurb": "Cuts runes into the enemy, then sets them off with a word.",
 }
 
+# ---- Emberknight (owner's request, Nov 2026; docs/saltbound-emberknight.md): every die it plays adds its
+# number to its Heat (`x["heat"]`); its hits deal +1 per HEAT_STEP Heat; at HEAT_MAX it overheats
+# (OVERHEAT_HP damage, Heat to HEAT_AFTER); Heat cools by half at the end of each round. The `heat` op
+# adds (or, negative, spends) Heat; `heat` in an amount is the hero's Heat. Rules in Combat (`add_heat`).
+HEAT_STEP = 5
+HEAT_MAX = 20
+HEAT_AFTER = 10
+OVERHEAT_HP = 5
+ACTIONS.update({
+    "searing_strike": {"name": "Searing Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
+                       "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Deal the die +1."},
+    "flashover": {"name": "Flashover", "req": {"n": 1}, "tgt": "foes", "tags": [],
+                  "ops": [{"op": "dmg", "amt": "heat//2+v"}, {"op": "heat", "amt": "-heat"}],
+                  "text": "Any row: spend all your Heat; every enemy takes half of it, plus the die."},
+    "stoke": {"name": "Stoke", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["blaze"],
+              "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "heat", "amt": "2*v"}],
+              "text": "Deal half the die. This die heats you three times over."},
+    "inferno_cleave": {"name": "Inferno Cleave", "req": {"n": 1}, "tgt": "front", "melee": True, "tags": ["blaze"],
+                       "ops": [{"op": "dmg", "amt": "v"}],
+                       "text": "Hit every front-row enemy for the die. The Heat bonus counts on each hit."},
+    "meteor_fist": {"name": "Meteor Fist", "req": {"n": 1, "min": 5}, "tgt": "foe", "melee": True, "tags": ["blaze"],
+                    "ops": [{"op": "dmg", "amt": "v+4+heat//5"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                    "text": "On 5+: deal the die +4, and the Heat bonus counts twice. Otherwise: deal half the die."},
+    "cinder_lance": {"name": "Cinder Lance", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["blaze"],
+                     "ops": [{"op": "dmg", "amt": "v+min(10,heat)"}, {"op": "heat", "amt": "-min(10,heat)"}],
+                     "text": "Any row: spend up to 10 Heat, and deal the die plus the Heat spent."},
+    "quench": {"name": "Quench", "req": {"n": 1}, "tgt": "self", "cool": True, "tags": ["temper"],
+               "ops": [{"op": "armor", "amt": "min(heat,2*v)"}, {"op": "heat", "amt": "-2*v"}],
+               "text": "Lose Heat equal to twice the die, and gain that much Armor (no more than the Heat lost). Its die adds no Heat."},
+    "ember_ward": {"name": "Ember Ward", "req": {"n": 1}, "tgt": "self", "tags": ["temper"],
+                   "ops": [{"op": "armor", "amt": "v+1"}, {"op": "status", "s": "emberward", "n": "max(1,heat//5)"}],
+                   "text": "Gain the die +1 as Armor. Enemies that hit you this round Burn for 1 per 5 Heat you have (at least 1)."},
+    "pass_the_flame": {"name": "Pass the Flame", "req": {"n": 1}, "tgt": "other", "cool": True, "tags": ["temper"],
+                       "ops": [{"op": "kindle", "n": 2, "amt": "4+v//2"}, {"op": "heat", "amt": "-5"}],
+                       "text": "Give an ally 5 of your Heat: their next two hits this round deal +4 and half the die, and Burn 2. "
+                               "Its die adds no Heat."},
+    "backdraft": {"cd": 3, "name": "Backdraft", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["temper"],
+                  "ops": [{"op": "dmg", "amt": "v+heat//2"}, {"op": "weaken", "amt": "heat//6"}, {"op": "heat", "amt": "-(heat//2)"}],
+                  "text": "Any row: spend half your Heat. The enemy takes it plus the die, and its attack this round deals a third of it less."},
+})
+PASSIVES.update({
+    "molten_edge": {"name": "Molten Edge", "mods": {"molten_edge": 1}, "tags": ["blaze"],
+                    "text": "At 15 or more Heat, your hits also Burn 1."},
+    "fan_the_flames": {"name": "Fan the Flames", "mods": {"fan_flames": 5}, "tags": ["blaze"],
+                       "text": "Each kill adds 5 Heat."},
+    "spark_gap": {"name": "Spark Gap", "mods": {"spark_gap": 5}, "tags": ["blaze"],
+                  "text": "A die that rolls 1 or 2 adds 5 Heat instead of its number."},
+    "redline": {"name": "Redline", "mods": {"redline": 1}, "tags": ["blaze"],
+                "text": "Overheating still costs 5 HP, but your next hit this round deals double."},
+    "bellows": {"name": "Bellows", "mods": {"bellows": 1}, "tags": ["blaze"],
+                "text": "Your weapon die explodes while your Heat is 10 or more at the start of the round."},
+    "wildfire_core": {"name": "Wildfire Core", "cap": True, "mods": {"wildfire_core": 1}, "tags": ["blaze"],
+                      "text": "Flashover also Burns every enemy for a quarter of the Heat spent."},
+    "bank_the_coals": {"name": "Bank the Coals", "mods": {"bank_coals": 1}, "tags": ["temper"],
+                       "text": "Your Heat cools by a quarter at the end of the round, not half."},
+    "pilot_light": {"name": "Pilot Light", "mods": {"pilot_light": 1}, "tags": ["temper"],
+                    "text": "Overheating costs you 2 HP, not 5, and your Heat drops to 15, not 10."},
+    "heat_sink": {"name": "Heat Sink", "mods": {"heat_sink": 5}, "tags": ["temper"],
+                  "text": "When you overheat, every ally gains 5 Armor."},
+    "hearthfire": {"name": "Hearthfire", "mods": {"hearthfire": 3}, "tags": ["temper"],
+                   "text": "At the end of the round, if your Heat is 10 or more, your most wounded ally heals 3."},
+    "heart_of_the_forge": {"name": "Heart of the Forge", "cap": True, "mods": {"white_heat": 6}, "tags": ["temper"],
+                           "text": "At 20 Heat you don't overheat: you burn white for the rest of the round (+6 on every hit), "
+                                   "and your Heat drops to 0."},
+})
+CLASS_DICE["emberknight"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
+CLASSES["emberknight"] = {
+    "name": "Emberknight", "hp": 28, "hp_lvl": 4, "role": "Damage that runs hot",
+    "dice": [D(8), D(6)], "tags": ["blaze", "temper"],
+    "map": {"key": "banked_coals", "name": "Banked Coals",
+            "text": "Each fight starts with Heat equal to twice the map turns since your last fight (up to 10)."},
+    "start": ["searing_strike", "flashover"], "weapon": "ember_mace", "armor": "padded_coat",
+    "pool": ["stoke", "inferno_cleave", "meteor_fist", "cinder_lance", "quench", "ember_ward", "pass_the_flame", "backdraft",
+             "molten_edge", "fan_the_flames", "spark_gap", "redline", "bellows", "bank_the_coals", "pilot_light",
+             "heat_sink", "hearthfire", "wildfire_core", "heart_of_the_forge"],
+    "blurb": "Every swing stokes the fire. Push it to the edge, then let it out.",
+}
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -748,7 +826,7 @@ def is_defensive(a):
 # count on every round), Block, Flee and Lift (plus weapon actions, in
 # items.py) can be used every round. Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "rune_cut", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
+FREE = {"strike", "rune_cut", "searing_strike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
         "block", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3, "mend": 3}
 
@@ -847,6 +925,13 @@ SHORT = {
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
+SHORT.update({
+    "searing_strike": ("sword", "die +1", None), "flashover": ("flame", "all: ½ Heat + die · spend all", None),
+    "stoke": ("flame", "½ die · Heat ×3", None), "inferno_cleave": ("sword", "front row: die each", None),
+    "meteor_fist": ("sword", "die +4 · Heat bonus ×2 (5+)", "½ die"), "cinder_lance": ("flame", "die + up to 10 Heat · spend", None),
+    "quench": ("shield", "cool 2× die · as Armor", None), "ember_ward": ("shield", "die +1 Armor · attackers Burn", None),
+    "pass_the_flame": ("flame", "ally: next 2 hits +4 +½ die · Burn 2", None), "backdraft": ("flame", "½ Heat + die · its attack −⅓", None),
+})
 SHORT.update({
     "rune_cut": ("sword", "die +1 · carve 1", None), "sigil_burst": ("spark", "die +3 per Sigil · spend", None),
     "elemental_infusion": ("flame", "next 3 melee: +½ die · element", None),

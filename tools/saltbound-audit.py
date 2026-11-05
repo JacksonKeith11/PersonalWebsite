@@ -67,6 +67,7 @@ SCENARIOS = {
     "partyevent": lambda g: g.s["phase"] == "plan" and g.s["turn"] >= 3 and not any(g.s["pending"].values()),
     # a Spellblade's fight: Sigils on the enemies, an infused blade (built in main(), not played to)
     "spellblade": None,
+    "emberknight": None,
     "won": lambda g: g.s["phase"] == "end" and g.s["result"] == "won",
     "lost": lambda g: g.s["phase"] == "end" and g.s["result"] == "lost",
 }
@@ -102,6 +103,14 @@ def main():
     names = sys.argv[1:] or list(SCENARIOS)
     for name in names:
         g = None
+        if name == "emberknight":
+            g, seed = game.Game.new(501, ["emberknight", "vanguard", "mender"], "normal"), 501
+            g.hero(0)["skills"] += ["stoke", "cinder_lance", "pass_the_flame", "quench"]
+            g.start_fight({"kind": "roam", "tile": g.hero(0)["tile"], "heroes": [0, 1, 2], "foes": ["cutthroat", "crab", "eel"], "by": 0})
+            g.hs(0)["heat"] = 16
+            S.save(f"audit-{name}", ["audit"], g, f"audit: {name}")
+            print(f"{name}: saved")
+            continue
         if name == "spellblade":
             g, seed = game.Game.new(501, ["spellblade", "vanguard", "mender"], "normal"), 501
             g.hero(0)["skills"] += ["charged_bolt", "arc_rune", "detonate", "counter_glyph", "bladesong"]

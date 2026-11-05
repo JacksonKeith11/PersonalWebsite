@@ -155,6 +155,18 @@ export const SKILL_FX = {
   runic_ward: x => { x.me('shieldfx', null, 700); x.me('rune', C.water, 900, 80); x.me('glyph', C.water, 700, 240, '❄'); return 'cast'; },
   brand: x => { x.hit('rune', C.dark, 1000); if (!x.miss) { x.hit('glyph', C.dark, 900, 260, 'ᛉ'); x.shake(300); } return 'cast'; },
 
+  // Emberknight
+  searing_strike: x => { x.hit('slash', C.fire, 420, 120); if (!x.miss) x.hit('pop small', C.fire, 400, 240); return 'melee'; },
+  flashover: x => { x.me('fireburst', null, 700); x.foes.forEach((u, i) => x.on(u, 'fireburst', null, 700, 200 + i * 60)); x.later(() => x.screen('fire', 400), 200); return 'cast'; },
+  stoke: x => { x.hit('slash', C.fire, 380, 100); x.me('glyph', C.fire, 800, 160, '▲'); return 'melee'; },
+  inferno_cleave: x => { x.t.forEach((u, i) => x.on(u, 'bigslash', C.fire, 480, 120 + i * 60)); x.shake(260); return 'spin'; },
+  meteor_fist: x => { x.hit('slam', C.fire, 520, 150); if (!x.miss) { x.hit('fireburst', null, 800, 260); x.shake(260); } return 'charge'; },
+  cinder_lance: x => { x.shot('fireorb', null, ['fireburst', null, 700]); return 'cast'; },
+  quench: x => { x.me('smoke', C.smoke, 900); x.me('shieldfx', null, 700, 120); return 'brace'; },
+  ember_ward: x => { x.me('shieldfx', null, 700); x.me('aura', C.fire, 900, 100); return 'brace'; },
+  pass_the_flame: x => { x.shot('fireorb', null, ['aura', C.fire, 900]); return 'cast'; },
+  backdraft: x => { x.shot('fireorb', null, ['fireburst', null, 800]); if (!x.miss) x.shake(300); return 'cast'; },
+
   // Warden
   thornlash: x => { x.shot('thorn', C.nature, ['pop small', C.nature, 400]); if (!x.miss) x.hit('vines', C.nature, 800, 260); return 'act'; },
   sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },

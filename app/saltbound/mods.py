@@ -8,6 +8,18 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Emberknight's Heat (classes.py HEAT_*; actions.py add_heat)
+    "molten_edge": "at 15+ Heat, hits also Burn 1",
+    "fan_flames": "each kill adds n Heat",
+    "spark_gap": "a die that rolls 1 or 2 adds n Heat instead of its number",
+    "redline": "overheating doubles the next hit this round",
+    "bellows": "the weapon die explodes while Heat is 10+ at the start of the round",
+    "wildfire_core": "Flashover Burns every enemy for a quarter of the Heat spent",
+    "bank_coals": "Heat cools by a quarter at round end, not half",
+    "pilot_light": "overheating costs 2 HP, not 5, and Heat drops to 15",
+    "heat_sink": "overheating gives every ally n Armor",
+    "hearthfire": "at round end with 10+ Heat, the most wounded ally heals n",
+    "white_heat": "at 20 Heat: +n on every hit for the round, and Heat drops to 0, instead of overheating",
     # the Spellblade's Sigils and infusions (classes.py SIGIL_CAP; actions.py carve, infuse, burst)
     "whetted": "Rune Cut deals +n per Sigil already on the enemy",
     "infused_carve": "infused melee hits carve a Sigil",

@@ -85,6 +85,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.summon(h, "sapling", 10)
         for h in f["heroes"]:
             hero = self.hero(h)
+            if C.CLASSES[hero["cls"]]["map"]["key"] == "banked_coals":
+                # Banked Coals: Heat from the road, twice the turns since the last fight (up to 10)
+                f["hs"][str(h)]["heat"] = min(10, 2 * max(0, self.s["turn"] - hero.get("fought", self.s["turn"])))
+                hero["fought"] = self.s["turn"]
             if C.CLASSES[hero["cls"]]["map"]["key"] == "runewright":
                 # Runewright: every enemy starts with a Sigil, two after a rest
                 n = 2 if hero.get("runes") else 1
@@ -487,6 +491,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             dice.append({"faces": [1, 2, 3, 4], "dk": [], "src": "anthem"})
         if x.get("hoard"):
             dice.append(x.pop("hoard"))
+        if m.get("bellows") and x.get("heat", 0) >= 10:  # Bellows: the weapon die explodes while hot
+            for d in dice:
+                if d.get("src") == "weapon" and "exploding" not in d["dk"]:
+                    d["dk"] = list(d["dk"]) + ["exploding"]
         if m.get("all_explode"):
             dice = [dict(d, dk=list(d["dk"]) + (["exploding"] if "exploding" not in d["dk"] else [])) for d in dice]
         if m.get("deadeye") and dice:
@@ -793,6 +801,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if a.get("spell") and m.get("spellstrike") and any(o["op"] == "dmg" for o in ops) and self.active(h):
                 v = num(dice[0]) if dice else 0
                 self.infuse(h, 1, m["spellstrike"], element_of(v))
+        if self.s["fight"] is f and "heat" in x and self.active(h):
+            self.add_heat(h, self.dice_heat(h, a, dice))  # the Emberknight: every die stokes the fire
         if self.s["fight"] is f:
             self.after_action(h, a, tgt)
         self.elements(h, a, dice, tgt)
@@ -987,6 +997,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["kdie"] = True
                 x["dice"].append(self.new_die(h, list(range(1, m["kill_die"] + 1)), "bloodlust"))
                 self.fx("st", to=f"h{h}", s="bloodlust")
+            if m.get("fan_flames") and x and "heat" in x and self.active(h):
+                self.add_heat(h, m["fan_flames"])  # Fan the Flames
             if m.get("kill_armor") and self.active(h):
                 st = self.hs(h)["st"]
                 st["armor"] = st.get("armor", 0) + m["kill_armor"]
@@ -1120,6 +1132,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.hurt_foe(fo, x["st"]["riposte"], h, pure=True)
             if x["st"].get("glyphward"):
                 self.carve(fo, x["st"]["glyphward"])  # Counter-Glyph: whoever hits you is carved
+            if x["st"].get("emberward"):
+                fo["st"]["burn"] = fo["st"].get("burn", 0) + x["st"]["emberward"]  # Ember Ward
+                self.fx("st", to=f"f{fo['id']}", s="burn")
             th = self.mods(h).get("thorns", 0) + x["st"].get("thorns", 0)
             if th and fo["hp"] > 0:
                 self.hurt_foe(fo, th, h, pure=True)
@@ -1215,6 +1230,15 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if not self.mods(h).get("covenant"):
                 st.pop("infuse", None)  # an infusion lasts the round (Covenant Edge: the fight)
                 x.pop("inf", None)
+            x.pop("white", None)
+            x.pop("redline", None)
+            if "heat" in x:
+                m = self.mods(h)
+                if m.get("hearthfire") and x["heat"] >= 10:
+                    hurt = [y for y in self.actives() if self.hero(y)["hp"] < self.maxhp(y)]
+                    if hurt:
+                        self.fight_heal(min(hurt, key=lambda y: self.hero(y)["hp"] / self.maxhp(y)), m["hearthfire"], h)
+                x["heat"] -= x["heat"] // 4 if m.get("bank_coals") else x["heat"] // 2  # it cools
             st["armor"] = st.get("armor", 0) // 3 if self.mods(h).get("overguard") else 0
             for s in [s for s, v in st.items() if not v]:
                 del st[s]

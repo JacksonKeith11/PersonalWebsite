@@ -1015,6 +1015,10 @@ a:hover { color: var(--accent-hi); }
 .die.tile.combo { box-shadow: 0 0 0 2px var(--combo), 0 0 14px rgba(255, 200, 80, 0.55); }
 .covered-chip.undertow { color: #8fd8ff; }
 .covered-chip.infused { color: #c9a8ff; }
+.heat-gauge { position: relative; width: 100%; min-width: 120px; height: 14px; margin: 2px 0; border-radius: 7px; background: var(--panel-2, rgba(255, 255, 255, 0.06)); overflow: hidden; }
+.heat-gauge i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #a8401a, #ffa030); border-radius: 7px; }
+.heat-gauge.hot i { background: linear-gradient(90deg, #d0501a, #ffd36b); box-shadow: 0 0 8px #ffa030; }
+.heat-gauge span { position: relative; display: block; text-align: center; font-size: 10px; font-weight: 800; line-height: 14px; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7); }
 .covered-chip.infused.frost { color: #9fd8ff; }
 .covered-chip.infused.shock { color: #e8f0ff; }
 .covered-chip.infused.burn { color: #ffb060; }

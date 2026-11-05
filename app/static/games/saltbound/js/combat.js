@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=122';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=122';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=122';
-import { stageURL, stageKey } from './stage.js?v=122';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=122';
-import { render } from './main.js?v=122';
-import { skillCard } from './hud.js?v=122';
-import { SKILL_FX, foeFx } from './skillfx.js?v=122';
-import * as sfx from './audio.js?v=122';
+import { S, send, mine, controllerName } from './store.js?v=124';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=124';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=124';
+import { stageURL, stageKey } from './stage.js?v=124';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=124';
+import { render } from './main.js?v=124';
+import { skillCard } from './hud.js?v=124';
+import { SKILL_FX, foeFx } from './skillfx.js?v=124';
+import * as sfx from './audio.js?v=124';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -136,6 +136,7 @@ export function renderCombat(el) {
       hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
       (f.covered || []).includes(x) ? h('div.covered-chip', { tip: `Covered\n${S.static.combos.covered.text}` }, `Covered: next hit +3`) : null,
       hs?.st?.infuse ? infusedChip(hs) : null,
+      hs && hs.heat != null ? heatGauge(hs) : null,
       hpBar(hpOf(x), max, false, 'h' + x),
       previewRow('h' + x, prev),
       statusRow(st, hs?.down ? ['Knocked down'] : []),
@@ -465,6 +466,12 @@ function noteLag(uid, hp, max) {
   setTimeout(render, LAG_MS + 20);
 }
 
+// The Emberknight's Heat: a gauge to 20 with its bonus (+1 per 5); at 20 it overheats.
+function heatGauge(hs) {
+  const n = hs.heat, bonus = Math.floor(n / 5) + (hs.white || 0);
+  return h('div.heat-gauge' + (n >= 15 ? '.hot' : ''), { tip: `Heat ${n} / 20\nYour hits deal +1 per 5 Heat (+${bonus} now). Every die you play adds its number; at 20 you overheat (5 damage, back to 10). It cools by half at the end of the round.` },
+    h('i', { style: { width: Math.min(100, n * 5) + '%' } }), h('span', null, hs.white ? `White heat · +${bonus}` : `Heat ${n} · +${bonus}`));
+}
 // The Spellblade's infused blade: its next melee hits deal more and carry an element.
 const ELEMENT = { frost: ['Frost', 'makes the enemy Weak'], shock: ['Shock', 'Shocks the enemy'], burn: ['Flame', 'Burns the enemy for 2'] };
 function infusedChip(hs) {
@@ -1605,7 +1612,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

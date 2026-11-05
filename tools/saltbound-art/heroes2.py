@@ -102,6 +102,11 @@ OPTIONS = {
         ('Spellblade', build({**SK, 'B': '#4a3a6a', 'b': '#2a2440', 'T': '#c8a040', 'H': '#e0dacb', 'h': '#2a2440', 'X': '#b48cff', 'x': '#6a4aa8', 'W': '#dfe6ee', 'w': '#5a3a24', 'k': '#1e1a26', 'L': '#2a2440'},
                              'coat', 'long', None, 'circlet', 'sword', 'orb')),
     ],
+    # owner's request, Nov 2026: a knight running hot, with a glowing mace
+    'emberknight': [
+        ('Emberknight', build({**SK, 'B': '#7a2a1e', 'b': '#3a2a2a', 'T': '#e0a040', 'H': '#2a1e18', 'h': '#5a5e6a', 'X': '#ffa030', 'x': '#c0501a', 'W': '#ffb048', 'w': '#4a3a30', 'k': '#1e1a1a', 'L': '#3a2a2a'},
+                              'tunic', 'short', 'full', 'skullcap', 'maul', None)),
+    ],
 }
 
 if __name__ == '__main__':

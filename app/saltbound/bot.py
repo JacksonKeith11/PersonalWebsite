@@ -782,6 +782,7 @@ def evaluate(g, b, h, a, dice, tgt):
     # a crit (a die on its top face) adds the action's crit ops to that outcome
     crit_ops = hit_ops + prep(a["crit"]) if a.get("crit") else None
     tops = [crit_floor(d["faces"]) for d in dice]
+    heat = g.hs(h).get("heat")
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         if hit and crit_ops and any(t == "W" or (t not in ("S", "X") and v is not None and v >= tp) for v, t, tp in zip(vals, tags, tops)):
@@ -959,9 +960,17 @@ def evaluate(g, b, h, a, dice, tgt):
                         cur = t["st"].get("sigil", 0) + b.sig.get(t["id"], 0)
                         n = cur if op.get("double") else op["n"]
                         val += share * sigil_value(g, b, h, t, n, cur, eff, pr * share)
+            elif k == "kindle":
+                n_ = amt(op["amt"], de) + plus
+                for t, share in tg:
+                    if isinstance(t, tuple) and g.active(t[1]):
+                        left = sum(1 for d in g.hs(t[1])["dice"] if not d["used"] and "guard" not in (d.get("dk") or []))
+                        val += share * min(op["n"], left) * (n_ * 0.85 + 2.5)
             elif k == "infuse":
                 n_ = amt(op["amt"], de) + plus
                 val += infuse_value(g, h, dice, op["n"], n_, op.get("el") or element_of(vals[0] if vals else 0))
+        if heat is not None:
+            val += heat_value(g, h, a, dice, vals, de, hit, heat, inc)
         if hit_any:
             bump(eff["cused"], h, pr)  # this hit spends the hero's Crescendo
             if a.get("spell") and m.get("spellstrike"):
@@ -1010,6 +1019,8 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
         return big.get(y, 0) * 0.9 or 0.5
     if s in ("riposte", "thorns"):
         return n * hits.get(y, 0) * 0.8
+    if s == "emberward":
+        return n * hits.get(y, 0) * 1.5  # attackers Burn
     if s == "glyphward":
         return n * hits.get(y, 0) * 1.2  # Sigils carved into whoever hits you
     if s == "crescendo":
@@ -1029,6 +1040,29 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
             return 0
         return min(g.maxhp(y) // 2, g.maxhp(y) - left) * 0.6
     return 1
+
+
+def heat_value(g, h, a, dice, vals, de, hit, heat, inc):
+    """What an Emberknight's placement does to its Heat: the bonus it gains or loses on the dice it
+    still has to play this round, and the cost of overheating (or the payoff, with Heart of the Forge)."""
+    m = g.mods(h)
+    ops = a["ops"] if hit else a.get("miss", [])
+    new = max(0, heat + sum(amt(o["amt"], de) for o in ops if o["op"] == "heat"))
+    if not a.get("cool"):
+        gap = m.get("spark_gap", 0)
+        new += sum(gap if gap and v and v <= 2 else (v or 0) for v in vals)
+    ids = {d["id"] for d in dice}
+    left = sum(1 for d in g.hs(h)["dice"] if not d["used"] and d["id"] not in ids and "guard" not in (d.get("dk") or []))
+    val = 0.0
+    if new >= C.HEAT_MAX:
+        if m.get("white_heat"):
+            return m["white_heat"] * left * 0.8 - (heat // C.HEAT_STEP) * left * 0.9
+        cost = 2 if m.get("pilot_light") else C.OVERHEAT_HP
+        hp = g.hero(h)["hp"] - inc.get(h, 0)
+        val -= cost * 1.5 + (30 if hp <= cost else 0)
+        val += m.get("heat_sink", 0) * 0.5 * (len(g.actives()) - 1) + (5 if m.get("redline") and left else 0)
+        new = 15 if m.get("pilot_light") else C.HEAT_AFTER
+    return val + (new // C.HEAT_STEP - heat // C.HEAT_STEP) * (left * 0.9 + 0.4)
 
 
 BURSTS = ("sigil_burst", "detonate", "brand", "arc_rune")

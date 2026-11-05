@@ -1066,6 +1066,7 @@ def infuse_value(g, h, dice, n, dmg, el):
     hits = min(n, max(0, left - have))
     if m.get("covenant"):
         hits = max(hits, 2 if not have else 0.5)
+        dmg = min(C.COVENANT_CAP, dmg)
     per = dmg * 0.85 + INFUSE_WORTH.get(el, 1.5) + (1.2 if m.get("infused_carve") else 0)
     return hits * per
 

@@ -589,6 +589,8 @@ class Actions:
         old = x.get("inf", {}).get("dmg", 0) if st.get("infuse") else 0
         st["infuse"] = min(C.INFUSE_CAP, st.get("infuse", 0) + n)
         x["inf"] = {"dmg": max(dmg, old), "el": el}
+        if self.mods(h).get("covenant"):
+            x["inf"]["dmg"] = min(C.COVENANT_CAP, x["inf"]["dmg"])  # Covenant Edge: it lasts, but smaller
         self.fx("st", to=f"h{h}", s="infused_" + el)
 
     def infuse_hit(self, h, t):

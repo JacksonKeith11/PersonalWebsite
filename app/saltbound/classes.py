@@ -587,6 +587,7 @@ CLASSES.update({
 # Burn, picked by the die's number unless `el` says. Numbers in Combat (`carve`, `infuse_hit`).
 SIGIL_CAP = 5
 INFUSE_CAP = 4  # melee hits an infusion can hold
+COVENANT_CAP = 3  # an infusion's bonus with Covenant Edge (it lasts the fight)
 ACTIONS.update({
     "rune_cut": {"name": "Rune Cut", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
                  "ops": [{"op": "dmg", "amt": "v+1"}, {"op": "carve", "n": 1}],
@@ -595,27 +596,27 @@ ACTIONS.update({
                     "ops": [{"op": "dmg", "amt": "v+sigv", "burst": True}],
                     "text": "Any row: deal the die +3 per Sigil on the enemy, and spend them."},
     "elemental_infusion": {"name": "Elemental Infusion", "req": {"n": 1}, "tgt": "self", "spell": True, "tags": ["edge"],
-                           "ops": [{"op": "infuse", "n": 2, "amt": "max(2,v//2)"}],
-                           "text": "Infuse your blade: your next two melee hits this round deal +half the die (at least 2) and carry "
+                           "ops": [{"op": "infuse", "n": 3, "amt": "max(2,v//2)"}],
+                           "text": "Infuse your blade: your next three melee hits this round deal +half the die (at least 2) and carry "
                                    "an element by the number: 1-2 Frost (Weak), 3-4 Shock, 5+ Burn 2."},
     "charged_bolt": {"name": "Charged Bolt", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["edge"],
                      "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "shock", "n": 1},
                              {"op": "infuse", "n": 1, "amt": "3", "el": "shock"}],
                      "text": "Any row: deal the die +2 and Shock the enemy. Your next melee hit this round deals +3 and Shocks."},
-    "hilt_rune": {"name": "Hilt Rune", "req": {"n": 1, "min": 5}, "tgt": "foe", "melee": True, "tags": ["edge"],
+    "hilt_rune": {"name": "Hilt Rune", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True, "tags": ["edge"],
                   "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "carve", "n": 2}],
                   "miss": [{"op": "dmg", "amt": "v//2"}, {"op": "carve", "n": 1}],
-                  "text": "On 5+: deal the die +3 and carve 2 Sigils. Otherwise: deal half the die and carve 1."},
+                  "text": "On 4+: deal the die +3 and carve 2 Sigils. Otherwise: deal half the die and carve 1."},
     "sunder_glyph": {"name": "Sunder Glyph", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["edge"],
                      "ops": [{"op": "dmg", "amt": "v"}, {"op": "carve", "double": True}],
                      "text": "Deal the die and double the Sigils on the enemy (up to 5)."},
     "counter_glyph": {"name": "Counter-Glyph", "req": {"n": 1}, "tgt": "self", "tags": ["edge"],
-                      "ops": [{"op": "armor", "amt": "v+1"}, {"op": "status", "s": "glyphward", "n": 2}],
-                      "text": "Gain the die +1 as Armor. Every enemy that hits you this round has 2 Sigils carved into it."},
+                      "ops": [{"op": "armor", "amt": "v+1"}, {"op": "status", "s": "glyphward", "n": 3}],
+                      "text": "Gain the die +1 as Armor. Every enemy that hits you this round has 3 Sigils carved into it."},
     "arc_rune": {"name": "Arc Rune", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["sigil"],
                  "ops": [{"op": "dmg", "amt": "v"}, {"op": "dmg", "amt": "2*sig", "to": "sigiled"}],
                  "text": "Any row: deal the die, then every enemy takes 2 per Sigil on it. The Sigils stay."},
-    "detonate": {"cd": 3, "name": "Detonate", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["sigil"],
+    "detonate": {"cd": 2, "name": "Detonate", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["sigil"],
                  "ops": [{"op": "dmg", "amt": "v+sigv", "burst": True, "spill": 2}],
                  "text": "Any row: deal the die +3 per Sigil on the enemy and spend them; every other enemy takes 2 per Sigil spent."},
     "runic_ward": {"name": "Runic Ward", "req": {"n": 1}, "tgt": "self", "spell": True, "tags": ["sigil"],
@@ -633,15 +634,15 @@ PASSIVES.update({
                       "text": "Rune Cut deals +1 per Sigil already on the enemy."},
     "infused_steel": {"name": "Infused Steel", "mods": {"infused_carve": 1}, "tags": ["edge"],
                       "text": "Your infused melee hits carve a Sigil too."},
-    "bladesong": {"name": "Bladesong", "mods": {"bladesong": 2}, "tags": ["edge"],
-                  "text": "A melee hit right after one of your spells, or a spell right after one of your melee hits, deals +2."},
+    "bladesong": {"name": "Bladesong", "mods": {"bladesong": 3}, "tags": ["edge"],
+                  "text": "A melee hit right after one of your spells, or a spell right after one of your melee hits, deals +3."},
     "spellstrike": {"name": "Spellstrike", "mods": {"spellstrike": 2}, "tags": ["edge"],
                     "text": "Every spell of yours that hits infuses your next melee hit this round: +2, and the element by the spell's die."},
     "rune_etched_blade": {"name": "Rune-Etched Blade", "mods": {"rune_face": 1}, "tags": ["edge"],
                           "text": "Your weapon die's lowest face is a rune: it counts as the die's top face and passes any "
                                   "condition, and the action it's on carves a Sigil."},
     "covenant_edge": {"name": "Covenant Edge", "cap": True, "mods": {"covenant": 1}, "tags": ["edge"],
-                      "text": "Your infusions last the whole fight and aren't used up. A new one replaces the element, keeping the bigger bonus."},
+                      "text": "Your infusions last the whole fight and aren't used up, but their bonus is at most +3. A new one replaces the element, keeping the bigger bonus."},
     "feedback_loop": {"name": "Feedback Loop", "mods": {"feedback_loop": 1}, "tags": ["sigil"],
                       "text": "Bursting 3 or more Sigils infuses your next two melee hits this round with the Burst's die "
                               "(+half of it, and its element)."},
@@ -848,10 +849,10 @@ SHORT = {
 }
 SHORT.update({
     "rune_cut": ("sword", "die +1 · carve 1", None), "sigil_burst": ("spark", "die +3 per Sigil · spend", None),
-    "elemental_infusion": ("flame", "next 2 melee: +½ die · element", None),
+    "elemental_infusion": ("flame", "next 3 melee: +½ die · element", None),
     "charged_bolt": ("bolt", "die +2 · Shock · next melee +3", None),
-    "hilt_rune": ("sword", "die +3 · carve 2 (5+)", "½ die · carve 1"),
-    "sunder_glyph": ("sword", "die · double Sigils", None), "counter_glyph": ("shield", "die +1 Armor · attackers carved 2", None),
+    "hilt_rune": ("sword", "die +3 · carve 2 (4+)", "½ die · carve 1"),
+    "sunder_glyph": ("sword", "die · double Sigils", None), "counter_glyph": ("shield", "die +1 Armor · attackers carved 3", None),
     "arc_rune": ("bolt", "die · all: 2 per Sigil", None), "detonate": ("flame", "die +3 per Sigil · others 2 each", None),
     "runic_ward": ("shield", "die +1 +Sigils Armor · next melee Frost", None),
     "brand": ("down", "Burst · Weak + Vulnerable 2 (6+)", "nothing"),

@@ -844,8 +844,8 @@ ACTIONS.update({
                          "text": "Any row: deal the die and drag the enemy to the front row. On exactly 1, it's thrown into "
                                  "another enemy: 6 more to it, and 6 to the other."},
     "gravity_well": {"name": "Gravity Well", "req": {"n": 1}, "tgt": "foes", "tags": ["telekinesis"],
-                     "ops": [{"op": "dmg", "amt": "max(1,v//2)", "if": "back"}, {"op": "drag", "if": "back"}],
-                     "text": "Every back-row enemy takes half the die (at least 1) and is dragged to the front row."},
+                     "ops": [{"op": "dmg", "amt": "v", "if": "back"}, {"op": "drag", "if": "back"}],
+                     "text": "Every back-row enemy takes the die and is dragged to the front row."},
     "read_intent": {"name": "Read Intent", "req": {"n": 0}, "tgt": "foe", "focus": 1, "tags": ["telepathy"],
                     "ops": [{"op": "foresee"}],
                     "text": "No die, 1 Focus: the enemy rolls its attack now, so the party sees the exact numbers."},
@@ -879,7 +879,7 @@ PASSIVES.update({
     "calm_mind": {"name": "Calm Mind", "mods": {"calm_mind": 2}, "tags": ["telepathy"],
                   "text": "At the end of the round, heal 2 for each Focus you didn't spend."},
     "hive_mind": {"name": "Hive Mind", "cap": True, "mods": {"hive_mind": 1}, "tags": ["telepathy"],
-                  "text": "Every ally gets 1 Focus of their own each round, to nudge their own dice."},
+                  "text": "At the start of each round, each ally takes 1 of your Focus, to nudge their own dice."},
 })
 CLASS_DICE["psion"] = [{"faces": D(6), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["psion"] = {
@@ -1075,7 +1075,7 @@ SHORT = {
 SHORT.update({
     "mind_spike": ("bolt", "die · exactly 6: 12", None), "kinetic_shield": ("shield", "die +2 Armor · exactly 1: 8", None),
     "mind_crush": ("bolt", "pair: 3× its number", "nothing"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),
-    "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: ½ die · drag", None),
+    "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: die · drag", None),
     "read_intent": ("eye", "1 Focus: its roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
     "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
 })

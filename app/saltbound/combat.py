@@ -323,8 +323,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         hive = any(self.mods(y).get("hive_mind") for y in self.actives())
         for h in f["heroes"]:
             x = self.hs(h)
+            psion = C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "precognition"
             base = (C.FOCUS_BASE + sum(1 for lv in C.FOCUS_LEVELS if self.s["level"] >= lv)
-                    if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "precognition" else (1 if hive else 0))
+                    if psion else (1 if hive else 0))
+            if psion and self.mods(h).get("hive_mind"):
+                base = max(0, base - (len(self.actives()) - 1))  # Hive Mind: each ally takes one of yours
             x["focus"], x["focus_free"] = base + self.mods(h).get("overclock", 0), base  # the Psion's Focus (Hive Mind's)
         for h in f["heroes"]:
             self.deal_dice(h, anthem, pain)
@@ -722,13 +725,16 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.resolve_round()
 
     def spend_focus(self, h, n):
-        """Spend Focus; Overclock's extra Focus costs 1 HP each."""
+        """Spend Focus; Overclock's extra Focus costs 1 HP each (never the last)."""
         x = self.hs(h)
         for _ in range(n):
             over = x["focus"] > x.get("focus_free", 0) and self.mods(h).get("overclock")
             x["focus"] -= 1
-            if over:
-                self.hurt_hero(h, 1, None, pure=True)
+            hero = self.hero(h)
+            if over and hero["hp"] > 1:  # it never knocks the Psion down (that would stall the round)
+                hero["hp"] -= 1
+                self.s["stats"][h]["taken"] += 1
+                self.fx("dmg", to=f"h{h}", n=1, block=0)
 
     def do_nudge(self, h, msg):
         """The Psion's Focus: nudge a shown die up or down by 1 ("by"), or, by Mind Link, reveal an ally's

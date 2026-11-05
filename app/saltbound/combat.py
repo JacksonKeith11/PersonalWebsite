@@ -86,6 +86,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         for h in f["heroes"]:
             hero = self.hero(h)
             m = self.mods(h)
+            if C.CLASSES[hero["cls"]]["map"]["key"] == "farsight":
+                f["hs"][str(h)].update(attune="fire", flux=0)  # the Arcanist starts each fight attuned to Fire
             if not m.get("blessed_rest"):
                 hero["grace"] = 0  # Grace starts over each fight (Blessed Rest: it carries)
             f["hs"][str(h)]["grace"] = hero.get("grace", 0)
@@ -916,6 +918,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if a.get("spell") and m.get("spellstrike") and any(o["op"] == "dmg" for o in ops) and self.active(h):
                 v = num(dice[0]) if dice else 0
                 self.infuse(h, 1, m["spellstrike"], element_of(v))
+        if self.s["fight"] is f and a.get("spell") and "attune" in x:
+            self.attune_cast(h, a, tgt, dice, hit)  # the Arcanist's Attunement and Flux
         if self.s["fight"] is f and m.get("resonant_pair") and len(dice) >= 2 and is_pair([num(d) for d in dice], [d.get("tag") for d in dice]):
             x["focus"] = x.get("focus", 0) + m["resonant_pair"]  # Resonant Pair
             self.fx("st", to=f"h{h}", s="focus")

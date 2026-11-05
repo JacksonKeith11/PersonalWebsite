@@ -41,7 +41,7 @@ class Actions:
                 "pair": int(is_pair(vals, tags)), "straight": int(is_straight(vals, tags)), "outroll": 0,
                 "sig": 0, "sigv": 0, "allsig": sum(fo["st"].get("sigil", 0) for fo in self.foes()), "heat": x.get("heat", 0),
                 "scales": self.hero(h).get("scales", 0), "back": 0, "hi": max(vals) if vals else 0,
-                "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0,
+                "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
 
     def target_env(self, e, h, target, vals):
@@ -55,7 +55,7 @@ class Actions:
             e.update(undead=int(bool(A.FOES[target["k"]].get("undead"))), rooted=int(bool(st.get("root"))),
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
                      aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"),
-                     combo=self.combo_on(h, target), res=int(bool(target.get("res"))))
+                     combo=self.combo_on(h, target), res=int(bool(target.get("res"))), burn=st.get("burn", 0))
             e["sigv"] = sigil_worth(e)
         return e
 
@@ -73,7 +73,7 @@ class Actions:
                      "stunned": int(bool(st.get("stun"))), "poisoned": int(bool(st.get("poison"))),
                      "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0,
                      "sig": st.get("sigil", 0), "back": int(target["row"] == "back"),
-                     "combo": self.combo_on(h, target), "res": int(bool(target.get("res")))}
+                     "combo": self.combo_on(h, target), "res": int(bool(target.get("res"))), "burn": st.get("burn", 0)}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -241,9 +241,12 @@ class Actions:
         n = amt(op["amt"], env) + (2 if a["plus"] else 0)
         return (n // 2 if half else n) + (self.dmg_bonus(h, a, t) if bonus is None else bonus), env
 
-    def hit_finish(self, h, n, dice, vals, i=None, cresc=0):
+    def hit_finish(self, h, n, dice, vals, i=None, cresc=0, spell=False):
         """A hit's amount after combos: Crescendo (half again; the bots pass the chance they'll
-        have it) and Eagle Eye (half again when a die shows its top face)."""
+        have it), Eagle Eye (half again when a die shows its top face) and an Arcanist's Convergence
+        (half again on a spell)."""
+        if spell and self.hs(h).get("converge"):
+            n = n * 3 // 2
         if cresc >= 1:
             n = n * 3 // 2
         elif cresc > 0:
@@ -330,7 +333,7 @@ class Actions:
                     continue
                 n, env = self.hit_base(h, a, op, t, c.dice, vals, tags, i, c.half)
                 n += self.combo_bonus(h, a, c.dice, t, c.used)
-                n = self.hit_finish(h, n, c.dice, vals, i, 1 if c.crescendo else 0)
+                n = self.hit_finish(h, n, c.dice, vals, i, 1 if c.crescendo else 0, spell=bool(a.get("spell")))
                 if c.x.pop("redline", None):
                     n *= 2  # Redline: the hit after an overheat
                 done = self.hurt_foe(t, n, h, pierce=pierce, bomb=a.get("bomb"))
@@ -415,6 +418,14 @@ class Actions:
                     self.foe_burn(fo, n, c.h)  # Searing Breath
             if c.m.get("ancestral_fury") and n >= 5:
                 c.x["redline"] = True  # Ancestral Fury: the next hit deals double
+
+    def _op_douse(self, c, op, targets):
+        for t in targets:
+            if isinstance(t, dict):
+                t["st"].pop("burn", None)  # Ignite spends the Burn
+
+    def _op_static_field(self, c, op, targets):
+        c.x["static_arc"] = 2
 
     def _op_combo_end(self, c, op, targets):
         c.x.pop("combo", None)
@@ -697,6 +708,61 @@ class Actions:
     # ------------------------------------------------------------------ instant actions
 
     # ------------------------------------------------------------------ the original classes' signature mechanics
+
+    def attune_cast(self, h, a, tgt, dice, hit):
+        """An Arcanist's spell has been cast: its attunement rider on the enemies it hit (all three when
+        it Converges), residue with Elemental Resonance, then the attunement moves and Flux builds."""
+        x = self.hs(h)
+        m = self.mods(h)
+        if "attune" not in x or not a.get("spell"):
+            return
+        elem = a.get("element") or x["attune"]
+        converging = bool(x.get("converge"))
+        streak = x.get("streak", 0) + 1 if elem == x.get("last_elem") else 1
+        x["last_elem"], x["streak"] = elem, streak
+        mult = 2 if m.get("mastery") and streak >= 2 else 1
+        hits = [t for t in (self.foes() if a["tgt"] in ("foes", "front") else
+                            [self.foe(int(tgt[1:]))] if isinstance(tgt, str) and tgt.startswith("f") else []) if t and t["hp"] > 0]
+        if a["tgt"] == "front":
+            hits = [t for t in hits if t in self.front_foes()]
+        if hit and hits and any(o["op"] == "dmg" for o in a["ops"]):
+            for el in (("fire", "frost", "storm") if converging else (elem,)):
+                n = (2 if converging else 1) * mult
+                if el == "fire":
+                    for t in hits:
+                        self.foe_burn(t, n, h)
+                elif el == "frost":
+                    for t in hits:
+                        it = t.get("intent") or {}
+                        if it.get("dice") and it.get("k") in ("attack", "all") and t["hp"] > 0:
+                            it["bonus"] = it.get("bonus", 0) - 2 * n
+                            self.intent_numbers(it)
+                            self.fx("st", to=f"f{t['id']}", s="chilled")
+                else:
+                    for _ in range(x.pop("static_arc", 1)):
+                        others = [o for o in self.foes() if o not in hits] or self.foes()
+                        if others:
+                            o = self.rng.choice(others)
+                            self.fx("st", to=f"f{o['id']}", s="arced")
+                            self.hurt_foe(o, 2 * n, h, pure=True)
+            if m.get("resonance") and elem in ("fire", "frost"):
+                for t in hits:
+                    t.setdefault("res", elem) if t["hp"] > 0 else None
+        if converging:
+            x.pop("converge", None)
+            if m.get("avatar") and not x.get("avatared"):
+                x["avatared"] = True
+                x["converge"] = True  # Avatar of the Storm: the next spell Converges too
+            else:
+                x["flux"] = 0
+            self.fx("st", to=f"h{h}", s="converged")
+        gain = int(elem != x["attune"]) + (sum(1 for d in dice if (d.get("v") or 0) > top_face(d["faces"])) if m.get("wild_flux") else 0)
+        x["attune"] = elem
+        if gain and not x.get("converge"):
+            x["flux"] = min(C.FLUX_MAX, x.get("flux", 0) + gain)
+            if x["flux"] >= (2 if m.get("prismatic") else C.FLUX_MAX):
+                x["converge"] = True
+                self.fx("st", to=f"h{h}", s="converge_ready")
 
     def combo_on(self, h, target):
         """The Duelist's combo: hits already landed on this enemy (0 for anyone else, or another enemy)."""

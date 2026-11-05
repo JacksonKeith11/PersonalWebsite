@@ -1023,6 +1023,7 @@ a:hover { color: var(--accent-hi); }
 .die-mini.linked { display: inline-flex; align-items: center; gap: 2px; border-color: #7fe3ff; }
 .die-mini.linked button { all: unset; cursor: pointer; padding: 0 2px; color: #7fe3ff; font-weight: 800; }
 .die-mini.linked button:disabled { opacity: 0.35; cursor: default; }
+.covered-chip.attune.fire { color: #ffa030; } .covered-chip.attune.frost { color: #9fd8ff; } .covered-chip.attune.storm { color: #e8f0ff; }
 .covered-chip.berserk { color: #ff6a5a; }
 .heat-gauge.grace i { background: linear-gradient(90deg, #a88a30, #ffe9a0); }
 .heat-gauge.grace.hot i { box-shadow: 0 0 8px #ffe9a0; }

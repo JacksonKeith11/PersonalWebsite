@@ -834,6 +834,7 @@ def evaluate(g, b, h, a, dice, tgt):
     tops = [crit_floor(d["faces"]) for d in dice]
     heat = g.hs(h).get("heat")
     react_t = base[0] if a.get("residue") and base and isinstance(base[0], dict) else None
+    attune = g.hs(h).get("attune")
     for vals, tags, pr, de in dice_combos(g, h, dice):
         hit = check_hit(a["req"], vals, tags)
         if hit and crit_ops and any(t == "W" or (t not in ("S", "X") and v is not None and v >= tp) for v, t, tp in zip(vals, tags, tops)):
@@ -859,7 +860,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         raw, _ = g.hit_base(h, a, op, t, dice, vals, tags, i, env=env, bonus=bonus_t)
                         if j == 0:
                             raw += g.combo_sum(combo, vals)  # Pincer, Covered, Shatter, the bell (as combo_peek)
-                        raw = g.hit_finish(h, raw, dice, vals, i, cres)
+                        raw = g.hit_finish(h, raw, dice, vals, i, cres, spell=bool(a.get("spell")))
                         got = g.foe_damage_after(t, int(raw), h)
                         # Vulnerable and Mark that earlier placements will have put on it
                         if vfac is not None:
@@ -1047,6 +1048,8 @@ def evaluate(g, b, h, a, dice, tgt):
             val += heat_value(g, h, a, dice, vals, de, hit, heat, inc)
         if hit and react_t is not None:
             val += reaction_value(g, h, a, react_t, now)
+        if hit and attune is not None and a.get("spell"):
+            val += attune_value(g, h, a, attune, hit_any)
         if hit_any:
             bump(eff["cused"], h, pr)  # this hit spends the hero's Crescendo
             if a.get("spell") and m.get("spellstrike"):
@@ -1116,6 +1119,19 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
             return 0
         return min(g.maxhp(y) // 2, g.maxhp(y) - left) * 0.6
     return 1
+
+
+def attune_value(g, h, a, attune, dealt):
+    """An Arcanist's spell: its attunement rider (about 1.5), and Flux toward a Convergence when it
+    switches element (about a third of one, worth some 6)."""
+    x = g.hs(h)
+    elem = a.get("element") or attune
+    val = 1.5 if dealt else 0
+    if elem != attune and not x.get("converge"):
+        val += 6.0 / (2 if g.mods(h).get("prismatic") else C.FLUX_MAX)
+    if x.get("converge") and dealt:
+        val += 3.0  # the other two riders
+    return val
 
 
 def reaction_value(g, h, a, t, now):

@@ -193,6 +193,14 @@ export const SKILL_FX = {
   mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); return 'cast'; },
   puppet_strings: x => { x.hit('glyph spin', C.water, 900, 0, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
 
+  // Arcanist elements
+  flame_wave: x => { x.t.forEach((u, i) => x.on(u, 'fireburst', null, 700, 80 + i * 60)); return 'cast'; },
+  ignite: x => { x.shot('fireorb', null, ['fireburst', null, 900]); x.shake(260); return 'cast'; },
+  glacial_spike: x => { x.shot('ice', null, ['iceburst', null, 700]); return 'cast'; },
+  ice_ward: x => { x.me('shieldfx', null, 700); x.shot('shieldorb', null, ['shieldfx', null, 700]); return 'cast'; },
+  thunderclap: x => { x.foes.forEach((u, i) => x.on(u, 'zap', null, 500, 100 + i * 60)); x.later(() => x.screen('bolt', 220), 120); return 'cast'; },
+  static_field: x => { x.bolt(x.from, x.t[0]); x.hit('zap', null, 500, 120); return 'cast'; },
+
   // the original classes' new picks
   coup_de_grace: x => { x.hit('bigslash', C.steel, 480, 120); if (!x.miss) x.shake(260); return 'melee'; },
   savage_blow: x => { x.hit('bigslash', C.blood, 520, 140); x.shake(240); return 'melee'; },

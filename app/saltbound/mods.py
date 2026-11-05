@@ -8,6 +8,12 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Arcanist's Attunement and Flux (classes.py FLUX_MAX, ATTUNE; actions.py attune_cast)
+    "mastery": "the same element twice in a row doubles its attunement bonus",
+    "prismatic": "Converge at 2 Flux",
+    "wild_flux": "an exploding die gives 1 Flux",
+    "resonance": "Fire and Frost spells leave residue for an Alchemist",
+    "avatar": "the first Convergence each fight keeps the Flux",
     # the original classes' signature mechanics (classes.py COMBO_STEP, BERSERK_AT, GRACE_MAX, REACTIONS)
     "feint_step": "once a round, a different target keeps the Duelist's combo",
     "relentless": "the combo lasts into the next round if the first hit is on the same enemy",

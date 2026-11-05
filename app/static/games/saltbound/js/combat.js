@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=131';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=131';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=131';
-import { stageURL, stageKey } from './stage.js?v=131';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=131';
-import { render } from './main.js?v=131';
-import { skillCard } from './hud.js?v=131';
-import { SKILL_FX, foeFx } from './skillfx.js?v=131';
-import * as sfx from './audio.js?v=131';
+import { S, send, mine, controllerName } from './store.js?v=132';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=132';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=132';
+import { stageURL, stageKey } from './stage.js?v=132';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=132';
+import { render } from './main.js?v=132';
+import { skillCard } from './hud.js?v=132';
+import { SKILL_FX, foeFx } from './skillfx.js?v=132';
+import * as sfx from './audio.js?v=132';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -139,6 +139,7 @@ export function renderCombat(el) {
       hs && hs.heat != null ? heatGauge(hs) : null,
       hero.cls === 'dragonborn' ? scalePips(hero.scales || 0) : null,
       hero.cls === 'mender' && hs ? graceBar(hs.grace || 0, hs.radiant) : null,
+      hs?.attune ? attuneChip(hs) : null,
       hs?.berserk ? h('div.covered-chip.berserk', { tip: 'Berserk\nYou lost a third of your HP this fight: every die explodes and your hits deal +2, but you can’t use defensive actions.' }, 'Berserk!') : null,
       hs?.combo && f.foes.find(o => o.id === hs.combo.id && o.hp > 0) ? h('div.covered-chip', { tip: `Combo\nEach hit on ${f.foes.find(o => o.id === hs.combo.id).name} this round deals +1 per hit before it. Hitting another enemy starts over.` },
         `Combo ×${hs.combo.n} on ${f.foes.find(o => o.id === hs.combo.id).name}`) : null,
@@ -471,6 +472,13 @@ function noteLag(uid, hp, max) {
   setTimeout(render, LAG_MS + 20);
 }
 
+// The Arcanist's Attunement and Flux: its element (and what its spells add), and Flux toward a Convergence.
+const ELEMENTS = { fire: ['🔥', 'Fire', 'Burn 1'], frost: ['❄', 'Frost', 'its attack −2'], storm: ['⚡', 'Storm', 'arcs for 2'] };
+function attuneChip(hs) {
+  const [ic, name, does] = ELEMENTS[hs.attune] || ELEMENTS.fire, flux = hs.flux || 0;
+  return h('div.covered-chip.attune.' + hs.attune, { tip: `Attuned to ${name}\nYour damaging spells also: ${does}. A spell of another element moves your attunement and gives 1 Flux; at 3 Flux your next spell Converges: +50%, and all three elements.` },
+    `${ic} ${name}`, h('span.flux', null, hs.converge ? ' · Converge!' : ' · ' + '●'.repeat(flux) + '○'.repeat(Math.max(0, 3 - flux))));
+}
 // The Mender's Grace: healing fills it; at 20 the next heal is Radiance (the whole party, cleansed).
 function graceBar(n, ready) {
   return h('div.heat-gauge.grace' + (ready ? '.hot' : ''), { tip: `Grace ${n} / 20\nHealing you do fills it. At 20, your next heal is Radiance: it lands on the whole party and cleanses them.` },
@@ -1665,7 +1673,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

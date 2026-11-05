@@ -958,6 +958,49 @@ CLASSES["berserker"]["pool"] += ["savage_blow", "hair_trigger", "red_haze", "col
 CLASSES["mender"]["pool"] += ["benediction", "overflowing_grace", "martyr", "blessed_rest"]
 CLASSES["alchemist"]["pool"] += ["frost_flask", "unstable_compound", "volatile_agents", "potent_reactions"]
 
+# ---- Arcanist, Attunement and Flux (owner's request, Nov 2026): the Arcanist is attuned to Fire, Frost or
+# Storm (`x["attune"]`, Fire at the start of a fight); its damaging spells add the attunement's rider
+# (ATTUNE). A spell of another element (`element` on the action) moves the attunement and gives 1 Flux;
+# at FLUX_MAX the next spell Converges: +50% and all three riders. Spells without an element take the
+# current one. Rules in actions.py (`attune_cast`).
+FLUX_MAX = 3
+ATTUNE = {"fire": "Burn 1", "frost": "its attack this round −2", "storm": "arcs to another enemy for 2"}
+for _k, _e in (("fireball", "fire"), ("frost_lance", "frost"), ("chain_lightning", "storm")):
+    ACTIONS[_k]["element"] = _e
+ACTIONS.update({
+    "flame_wave": {"name": "Flame Wave", "req": {"n": 1}, "tgt": "front", "spell": True, "element": "fire", "tags": ["elementalist"],
+                   "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Fire. Every front-row enemy takes the die +1."},
+    "ignite": {"name": "Ignite", "req": {"n": 1}, "tgt": "foe", "spell": True, "element": "fire", "tags": ["elementalist"],
+               "ops": [{"op": "dmg", "amt": "v+2*burn"}, {"op": "douse"}],
+               "text": "Fire, any row: deal the die + twice the enemy's Burn, and its Burn is spent."},
+    "glacial_spike": {"name": "Glacial Spike", "req": {"n": 1}, "tgt": "foe", "spell": True, "element": "frost", "tags": ["elementalist"],
+                      "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "weak", "n": 1}],
+                      "text": "Frost, any row: deal the die +2, and the enemy is Weak this round."},
+    "ice_ward": {"name": "Ice Ward", "req": {"n": 1}, "tgt": "ally", "spell": True, "element": "frost", "tags": ["hexer"],
+                 "ops": [{"op": "armor", "amt": "v"}, {"op": "armor", "amt": "v", "to": "self"}],
+                 "text": "Frost: you and an ally each gain the die as Armor."},
+    "thunderclap": {"name": "Thunderclap", "req": {"n": 1}, "tgt": "foes", "spell": True, "element": "storm", "tags": ["elementalist"],
+                    "ops": [{"op": "dmg", "amt": "max(1,v//2)"}, {"op": "status", "s": "shock", "n": 1}],
+                    "text": "Storm: every enemy takes half the die (at least 1) and is Shocked."},
+    "static_field": {"name": "Static Field", "req": {"n": 1}, "tgt": "foe", "spell": True, "element": "storm", "tags": ["hexer"],
+                     "ops": [{"op": "dmg", "amt": "v"}, {"op": "static_field"}],
+                     "text": "Storm, any row: deal the die. Your next spell this round arcs twice."},
+})
+PASSIVES.update({
+    "elemental_mastery": {"name": "Elemental Mastery", "mods": {"mastery": 1}, "tags": ["elementalist"],
+                          "text": "Casting the same element twice in a row doubles its attunement bonus."},
+    "prismatic_mind": {"name": "Prismatic Mind", "mods": {"prismatic": 1}, "tags": ["elementalist"],
+                       "text": "You Converge at 2 Flux, not 3."},
+    "wild_flux": {"name": "Wild Flux", "mods": {"wild_flux": 1}, "tags": ["hexer"],
+                  "text": "When one of your dice explodes, gain 1 Flux."},
+    "elemental_resonance": {"name": "Elemental Resonance", "mods": {"resonance": 1}, "tags": ["hexer"],
+                            "text": "Your Fire and Frost spells leave fire and frost on the enemy, for an Alchemist's reactions."},
+    "avatar_of_the_storm": {"name": "Avatar of the Storm", "cap": True, "mods": {"avatar": 1}, "tags": ["elementalist"],
+                            "text": "Your first Convergence each fight keeps your Flux, so the next spell Converges too."},
+})
+CLASSES["arcanist"]["pool"] += ["flame_wave", "ignite", "glacial_spike", "ice_ward", "thunderclap", "static_field",
+                                "elemental_mastery", "prismatic_mind", "wild_flux", "elemental_resonance", "avatar_of_the_storm"]
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1136,6 +1179,11 @@ SHORT = {
     "bramble_skin": ("spark", "merge two dice", None), "aura": ("refresh", "ally's die: best of three", None),
     "transfusion": ("plus", "heal die +2 · ally's next die +2", None),
 }
+SHORT.update({
+    "flame_wave": ("flame", "Fire · front row: die +1", None), "ignite": ("flame", "Fire · die + 2× its Burn · spent", None),
+    "glacial_spike": ("snow", "Frost · die +2 · Weak", None), "ice_ward": ("shield", "Frost · you and an ally: die Armor", None),
+    "thunderclap": ("bolt", "Storm · all: ½ die · Shock", None), "static_field": ("bolt", "Storm · die · next spell arcs ×2", None),
+})
 SHORT.update({
     "coup_de_grace": ("sword", "die +4 per combo hit", None), "savage_blow": ("sword", "die +2 · berserk: 2× die +2", None),
     "benediction": ("plus", "heal die +1 · +5 Grace", None), "frost_flask": ("snow", "die · leaves frost", None),

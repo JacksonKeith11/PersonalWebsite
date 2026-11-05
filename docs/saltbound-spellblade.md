@@ -174,3 +174,25 @@ Two usage signs: **Elemental Infusion**, a starting action, is only 1.2% of play
 mostly comes from elsewhere. And infusion picks lead the strong list (Covenant Edge makes every
 infusion last the fight; Spellstrike infuses off every spell). Not retuned: these are for the
 owner to decide.
+
+### After the tuning pass (2026-11-05, the same 400 Hard runs, seed 5000)
+
+The owner's changes: Hilt Rune 4+ (was 5+), Detonate cooldown 2 (was 3), Covenant Edge's lasting
+bonus capped at +3 (`C.COVENANT_CAP`), Elemental Infusion 3 hits (was 2), Bladesong +3 (was +2),
+Counter-Glyph carves 3 (was 2).
+
+**Hard 54.5%** (was 56.2%: within the noise of 400 runs, about ±2.5 points).
+
+| Pick | vs passed before | after |
+|---|---|---|
+| Covenant Edge | +22 | **+7** |
+| Bladesong | -11 | **+4** |
+| Detonate | -14 | **-6** |
+| Hilt Rune | -12 | -12 (hits 88%, was 82%) |
+| Counter-Glyph | -10 | -13 |
+
+Elemental Infusion's share of plays went from 1.2% to 2.9%. Picks nobody changed moved by as much as
+15 points between the two batches (Charged Bolt -3 to -16, Feedback Loop -4 to +14, Runestorm +5 to
+-12), so a single 400-run batch only settles gaps bigger than that. Hilt Rune and Counter-Glyph are
+low in both. Counter-Glyph's +3 Armor and Sigils on attackers compete with the armor's own action
+for the same die, which may be why the bots get little out of it.

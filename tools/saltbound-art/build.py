@@ -3,11 +3,13 @@
 import json, os
 import heroes, heroes2, foes, foes2
 # owner's picks among heroes2.OPTIONS (0-based); unpicked classes use option 1
+# looks drawn for review, for classes not built yet: not written to sprites.js
+REVIEW = {'dragonborn'}
 STEP2_PICKS = {'ranger': 2, 'emberknight': 2, 'spellblade': 1}
 PICKS = {
     'vanguard': heroes.vanguard1, 'arcanist': heroes.arcanist2, 'mender': heroes.mender1,  # the owner's picks
     # build step 2's classes (see heroes2.OPTIONS)
-    **{cls: opts[STEP2_PICKS.get(cls, 0)][1] for cls, opts in heroes2.OPTIONS.items()},
+    **{cls: opts[STEP2_PICKS.get(cls, 0)][1] for cls, opts in heroes2.OPTIONS.items() if cls not in REVIEW},
     **{f.__name__: f for f in foes.ALL},
     **{f.__name__: f for f in foes2.ALL},
     **{f.__name__: f for f in foes.SUMMONS},

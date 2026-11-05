@@ -19,13 +19,14 @@ Scales. Breathe on this roaming pack, or save them for the dungeon?"
 
 > Every hit that lands on the Dragonborn grows a **Scale** (up to 5). At the start of each round it
 > gains **1 Armor per Scale**. **Breath** sheds every Scale: every enemy takes the die +2 per Scale.
-> Scales stay between fights; only shedding them (Breath and the picks that say so) or being knocked
-> down clears them.
+> Scales stay between fights; only shedding them (Breath and the picks that say so) clears them, and
+> being knocked down loses half (rounded up).
 
 - **Shown as**: five scale pips on the hero card, in fights and on the map.
 - **A hit that lands**: any enemy hit that reaches the Dragonborn, even if Armor stops all of it. Burn,
   Poison and other ticks don't count.
-- **Knocked down**: loses every Scale, so a stack is never "free" protection.
+- **Knocked down**: loses half the stack (rounded up: 5 becomes 2), so a stack is never "free"
+  protection, without wiping out several fights' building.
 
 Why it fits the game:
 
@@ -49,17 +50,17 @@ Why it fits the game:
 | Start | Claw, Breath |
 | Weapon | **Talon Gauntlets** (new common, d6): Slash (deal the die +1) |
 | Armor | Hide Vest (existing) |
-| Map ability | **Hoarded Fury** (below) |
+| Map ability | **Dragon's Rest** (below) |
 
 Claw is the free basic, so it can take every die a round. Everything else waits at least a round,
-as for every class, except Breath (see below).
+as for every class.
 
 ## Starting kit
 
 | Action | Dice | Text | Notes |
 |---|---|---|---|
 | **Claw** (basic) | 1 | Deal the die +2. Crit: Poison 1 (the wound festers). | Strike's numbers; the crit is the class's flavour. |
-| **Breath** | 1 | Any row: shed all your Scales; every enemy takes the die +2 per Scale. | **No cooldown**: a second Breath in a fight only has that fight's new Scales. A full stack with a d6: 13.5 to every enemy. |
+| **Breath** | 1 | Any row: shed all your Scales; every enemy takes the die +2 per Scale. | cd 2. A full stack with a d6: 13.5 to every enemy. |
 
 ## Level-up pool
 
@@ -73,8 +74,8 @@ Scale picks are marked **S**. Eight of the eighteen.
 | **Sky Dive** | 1 die, cd 2 | Any row: deal the die +3. If the enemy is in the back row, it's Weak this round. | | A melee class reaching the back row by wing, not by spell. |
 | **Rending Bite** | melee, 1 die, cd 2 | Deal the die +2 and Poison 2. If it kills, heal the die. | | Damage over time and sustain, for a class without a healer's dice. |
 | **Focused Breath** | 1 die, cd 2 | Any row: shed up to 3 Scales; one enemy takes the die +4 per Scale. | S | The single-target vent, for when Breath's spread is wasted. |
-| **Searing Breath** | passive | Breath also Burns every enemy for 1 per 2 Scales shed. | S | Makes a full stack linger. |
-| **Wyrmfire Claws** | passive | Claw crits Burn 2 as well as Poisoning. | | A basic upgrade (the doc's strongest kind of pick), kept to crits. |
+| **Searing Breath** | passive | Breath also Burns every enemy for 1 per Scale shed. | S | Makes a full stack linger: Burn 5 on everything is about 15 more damage to each over the rounds after. |
+| **Wyrmfire Claws** | passive | Every Claw Burns 1; a crit Burns 3 as well as Poisoning. | | A basic upgrade (the doc's strongest kind of pick): fire on every swing. |
 | **Hoard's Gleam** | passive | +1 damage on every hit per 60 gold you carry (up to +3). | | The dragon's hoard: a reason to keep gold, not spend it. |
 | **Ancestral Fury** | passive | When Breath sheds 5 Scales, your next hit this round deals double. | S | The payoff for waiting for a full stack. |
 | **Dragon's Wrath** | capstone | Breath sheds only half your Scales (rounded down), and every enemy takes the full amount anyway. | S | Breathe every fight without starting over. |
@@ -98,13 +99,14 @@ Scale picks are marked **S**. Eight of the eighteen.
 Learning an action twice upgrades it as usual (+2 to every amount): Breath+ is the die +2 more,
 then +2 per Scale; Focused Breath+ +4 per Scale and +2.
 
-## Map ability: Hoarded Fury
+## Map ability: Dragon's Rest
 
-> A fight you start while holding 5 Scales gives the party a free first round.
+> Resting grows a Scale (2 at a camp or in a town).
 
-It works through `on_combat_start` (the Duelist's Ambush already gives a free round, so the rule
-exists), stays generic, and rewards saving the stack for the right fight. It only triggers on a fight
-the Dragonborn starts by walking in, so the party chooses when.
+It works through `on_rest`, stays generic, and fits the carry-over: a Dragonborn that rests before a
+dungeon walks in with a bigger stack, and one that breathed in the last fight can rebuild without
+taking hits. (It replaced the draft's Hoarded Fury, a free first round with a full stack, at the
+owner's request.)
 
 ## Checks against the skills doc
 
@@ -129,11 +131,11 @@ the Dragonborn starts by walking in, so the party chooses when.
   variable `scales`; a `shove`-free design, so no new targeting.
 - **Mods** in `mods.py`: `searing_breath`, `wyrmfire`, `hoard_gleam`, `ancestral_fury`, `dragons_wrath`,
   `thick_hide_s`, `ancient_blood`, `ascension`.
-- **Map key** `hoarded_fury` in `start_fight`, next to Ambush.
+- **Map key** `dragons_rest` in `Game.rest`.
 - **Bots**: Scales' worth in `bot.evaluate`: a full stack is worth keeping in a small fight and
   spending in a big one (enemy HP left against the Breath's total), and on the map, no change.
-- **Client**: the scale pips on the hero card and map tooltip, SHORT lines, skill effects, a sprite
-  (a scaled dragon-folk warrior, four options to pick from), and Talon Gauntlets art.
+- **Client**: the scale pips on the hero card and map tooltip, SHORT lines, skill effects, the sprite
+  the owner picks (below), and Talon Gauntlets art.
 
 ## Risks
 
@@ -144,11 +146,21 @@ the Dragonborn starts by walking in, so the party chooses when.
   than in play.
 - **Brood Bond** lasts the fight on an ally, so it's worth more in long fights (bosses) than short ones.
 
-## Open questions for the owner
+## Looks
 
-1. Should knocked down cost every Scale, or only half?
-2. Should Breath have no cooldown (as drafted), or the usual 2?
-3. Is a free first round right for Hoarded Fury, or should it be something smaller (enemies start
-   Weak)?
-4. Should the Dragonborn's look lean scaled humanoid (horns, snout, tail), or armoured warrior with
-   dragon motifs?
+Four options in `tools/saltbound-art/heroes2.py` (`OPTIONS["dragonborn"]`), kept out of `sprites.js`
+until the class is built (`REVIEW` in `build.py`):
+
+1. **Red Wyrmkin** (scaled): red scales, swept-back horns, a pale belly, a leather harness, bare claws, a tail.
+2. **Bronze Drake** (scaled): bronze scales and a frill, a green travelling cloak, a long spear, a tail.
+3. **Dragon Knight** (armoured): dark green plate, a helm shaped like a dragon's head with horns, wing pauldrons, a sword.
+4. **Wyrm Guard** (armoured): gold and teal scale mail, a helm crested with wings, a red shield with a dragon on it.
+
+## Decided
+
+- Knocked down loses half the Scales (rounded up), not all.
+- Breath has the usual cooldown of 2.
+- Hoarded Fury is replaced by Dragon's Rest.
+- Searing Breath and Wyrmfire Claws are stronger than drafted (Burn 1 per Scale; Burn 1 on every Claw).
+
+Still open: which look.

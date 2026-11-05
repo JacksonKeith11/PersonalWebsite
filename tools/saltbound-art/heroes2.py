@@ -136,6 +136,72 @@ def spellblade4():  # Hexblade: dark plate, a cape, a masked helm with violet ey
     g.rect(10, 7, 17, 8, 'n'); g.px(11, 7, 'V'); g.px(16, 7, 'V'); g.rect(13, 9, 14, 11, 'a'); g.rect(9, 3, 18, 3, 'a')
     return g
 
+
+# Dragonborn looks for the owner's review (Nov 2026): two scaled dragon-folk, two armoured warriors
+# with dragon motifs. Not built into the game until the class is.
+def drake_head(g, sc='Q', dk='q', horn='B', eye='G'):
+    g.rows(9, 3, [(1, 7), (0, 8), (0, 8), (0, 9), (0, 10), (0, 11), (0, 11), (1, 10), (2, 8)], sc)  # head and snout
+    g.rect(14, 9, 20, 9, dk); g.px(20, 7, dk); g.px(19, 7, dk)  # jaw line, nostril
+    g.px(14, 6, eye); g.px(15, 6, 'n')
+    g.text(7, 0, ['BB      ', ' BBB    ', '  BBB   '])  # swept-back horns
+    g.rect(9, 12, 16, 12, dk)
+
+def tail(g, c='Q'):
+    g.line(9, 23, 4, 26, c, 2); g.line(4, 26, 1, 24, c, 2); g.px(1, 23, c)
+
+def dragonborn1():  # Red Wyrmkin: red scales, swept horns, a leather harness, bare claws
+    pal = {'Q': '#b8402a', 'q': '#7a2a1e', 'B': '#e8dcc0', 'G': '#ffd36b', 'n': '#1e1210', 'T': '#5a3a24', 'Y': '#d0a840',
+           'k': '#2a1a18', 'L': '#7a2a1e', 'W': '#e8dcc0', 'P': '#e8a070'}
+    g = G(pal)
+    tail(g)
+    legs(g, 'Q'); torso(g, 'Q'); g.rect(12, 15, 15, 22, 'P')  # pale belly scales
+    g.line(9, 13, 17, 21, 'T'); g.rect(9, 21, 18, 22, 'T'); g.rect(13, 21, 14, 21, 'Y')
+    g.rect(6, 13, 8, 19, 'Q'); g.rect(19, 14, 21, 18, 'Q'); g.text(19, 19, ['W W', ' W ']); g.text(5, 20, ['W W'])
+    drake_head(g)
+    return g
+
+def dragonborn2():  # Bronze Drake: bronze scales, a frill, a travelling cloak, a long spear
+    pal = {'Q': '#b8863a', 'q': '#7a5624', 'B': '#3a2a20', 'G': '#7fe3ff', 'n': '#1e1210', 'C': '#3a5a4a', 'c': '#2a4038',
+           'k': '#2a1a18', 'L': '#7a5624', 'W': '#dfe6ee', 'h': '#5a3a24', 'P': '#e0c080'}
+    g = G(pal)
+    g.rows(6, 12, [(1, 14), (0, 15)] + [(0, 15)] * 12, 'c')  # cloak
+    tail(g)
+    legs(g, 'Q'); torso(g, 'C'); g.rect(12, 14, 15, 22, 'P')
+    g.rect(6, 13, 8, 19, 'C'); g.rect(19, 14, 21, 18, 'C'); g.rect(20, 17, 22, 19, 'Q')
+    g.rect(22, 2, 22, 30, 'h'); g.text(21, 0, [' W ', 'WWW', 'WWW', ' W '])
+    drake_head(g)
+    g.text(6, 4, ['q ', 'qq', 'qq', 'q '])  # frill
+    return g
+
+def dragonborn3():  # Dragon Knight: dark green plate, a dragon-head helm with horns, wing pauldrons, a sword
+    pal = {'A': '#3a6a4a', 'a': '#264a34', 'D': '#5a8a5a', 'G': '#ffd36b', 'n': '#101a12', 'B': '#e8dcc0', 'Y': '#d0a840',
+           'k': '#1a201a', 'L': '#264a34', 'W': '#dfe6ee', 'T': '#c8a040', 'h': '#3a2a20'}
+    g = G(pal)
+    legs(g, 'a'); torso(g, 'A'); g.rect(12, 14, 15, 22, 'a'); g.rect(9, 20, 18, 20, 'h'); g.rect(13, 20, 14, 20, 'Y')
+    g.text(3, 10, ['DD    ', 'DDDD  ', ' DDDDD', '  DDDD'])  # wing pauldron, left
+    g.text(18, 11, ['  DD', 'DDDD', 'DDD '])
+    g.rect(6, 15, 8, 19, 'A'); g.rect(19, 15, 21, 17, 'A'); g.rect(20, 17, 22, 19, 'a')
+    g.rect(21, 17, 25, 17, 'T'); g.line(23, 16, 29, 10, 'W', 2)
+    g.rows(9, 3, [(1, 7), (0, 8), (0, 9), (0, 10), (0, 11), (0, 11), (0, 10), (1, 8)], 'A')  # helm with a snout visor
+    g.rect(13, 6, 19, 6, 'n'); g.px(14, 6, 'G'); g.rect(13, 8, 20, 8, 'a')
+    g.text(7, 0, ['BB      ', ' BBB    ', '  BBB   '])
+    return g
+
+def dragonborn4():  # Wyrm Guard: gold and teal scale mail, a winged crest helm, a round shield with a dragon
+    pal = {'A': '#c8a040', 'a': '#8a6a24', 'M': '#3a7a7a', 'm': '#2a5a5a', 'G': '#7fe3ff', 'n': '#14101a', 'R': '#8a2a2a',
+           'k': '#2a2018', 'L': '#2a5a5a', 'W': '#dfe6ee', 'h': '#5a3a24', 'S': '#e8e2d4'}
+    g = G(pal)
+    legs(g, 'm'); torso(g, 'M')
+    for y in range(14, 22, 2):
+        for x in range(9 + (y // 2) % 2, 19, 2): g.px(x, y, 'm')  # scale mail
+    g.rect(9, 21, 18, 21, 'A'); g.rect(6, 12, 9, 14, 'A'); g.rect(18, 12, 21, 14, 'A')
+    g.rect(19, 15, 21, 17, 'M'); g.rect(20, 17, 22, 19, 'A'); g.rect(21, 18, 23, 18, 'a'); g.line(23, 17, 29, 11, 'W', 2)
+    g.ell(6, 19, 5, 5.5, 'A'); g.ell(6, 19, 4, 4.5, 'R'); g.text(4, 16, [' SS ', 'SSS ', ' SSS', '  S ', ' S  '])  # dragon emblem
+    g.rows(9, 3, [(1, 8), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (0, 9), (1, 8)], 'A')
+    g.rect(10, 7, 17, 8, 'n'); g.px(12, 7, 'G'); g.px(15, 7, 'G'); g.rect(13, 9, 14, 11, 'a')
+    g.text(5, 0, ['MM          MM', ' MMM      MMM ', '  MMMM  MMMM  '])  # crest wings
+    return g
+
 SK = SKIN
 OPTIONS = {
     'duelist': [
@@ -216,6 +282,9 @@ OPTIONS = {
     ],
     # owner's request, Nov 2026: a knight running hot, with a glowing mace (option 1); then knights in
     # orange-to-red plate
+    'dragonborn': [
+        ('Red Wyrmkin', dragonborn1), ('Bronze Drake', dragonborn2), ('Dragon Knight', dragonborn3), ('Wyrm Guard', dragonborn4),
+    ],
     'emberknight': [
         ('Emberknight', build({**SK, 'B': '#7a2a1e', 'b': '#3a2a2a', 'T': '#e0a040', 'H': '#2a1e18', 'h': '#5a5e6a', 'X': '#ffa030', 'x': '#c0501a', 'W': '#ffb048', 'w': '#4a3a30', 'k': '#1e1a1a', 'L': '#3a2a2a'},
                               'tunic', 'short', 'full', 'skullcap', 'maul', None)),

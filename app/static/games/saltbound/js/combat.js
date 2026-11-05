@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=124';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=124';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=124';
-import { stageURL, stageKey } from './stage.js?v=124';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=124';
-import { render } from './main.js?v=124';
-import { skillCard } from './hud.js?v=124';
-import { SKILL_FX, foeFx } from './skillfx.js?v=124';
-import * as sfx from './audio.js?v=124';
+import { S, send, mine, controllerName } from './store.js?v=125';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=125';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=125';
+import { stageURL, stageKey } from './stage.js?v=125';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=125';
+import { render } from './main.js?v=125';
+import { skillCard } from './hud.js?v=125';
+import { SKILL_FX, foeFx } from './skillfx.js?v=125';
+import * as sfx from './audio.js?v=125';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -466,11 +466,11 @@ function noteLag(uid, hp, max) {
   setTimeout(render, LAG_MS + 20);
 }
 
-// The Emberknight's Heat: a gauge to 20 with its bonus (+1 per 5); at 20 it overheats.
+// The Emberknight's Heat: a gauge to 25 with its bonus (+1 per 5); at 25 it overheats.
 function heatGauge(hs) {
   const n = hs.heat, bonus = Math.floor(n / 5) + (hs.white || 0);
-  return h('div.heat-gauge' + (n >= 15 ? '.hot' : ''), { tip: `Heat ${n} / 20\nYour hits deal +1 per 5 Heat (+${bonus} now). Every die you play adds its number; at 20 you overheat (5 damage, back to 10). It cools by half at the end of the round.` },
-    h('i', { style: { width: Math.min(100, n * 5) + '%' } }), h('span', null, hs.white ? `White heat · +${bonus}` : `Heat ${n} · +${bonus}`));
+  return h('div.heat-gauge' + (n >= 20 ? '.hot' : ''), { tip: `Heat ${n} / 25\nYour hits deal +1 per 5 Heat (+${bonus} now). Every die you play adds its number; at 25 you overheat (5 damage, back to 10). It cools by half at the end of the round.` },
+    h('i', { style: { width: Math.min(100, n * 4) + '%' } }), h('span', null, hs.white ? `White heat · +${bonus}` : `Heat ${n} · +${bonus}`));
 }
 // The Spellblade's infused blade: its next melee hits deal more and carry an element.
 const ELEMENT = { frost: ['Frost', 'makes the enemy Weak'], shock: ['Shock', 'Shocks the enemy'], burn: ['Flame', 'Burns the enemy for 2'] };

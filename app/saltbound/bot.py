@@ -1059,7 +1059,7 @@ def heat_value(g, h, a, dice, vals, de, hit, heat, inc):
             return m["white_heat"] * left * 0.8 - (heat // C.HEAT_STEP) * left * 0.9
         cost = 2 if m.get("pilot_light") else C.OVERHEAT_HP
         hp = g.hero(h)["hp"] - inc.get(h, 0)
-        val -= cost * 1.5 + (30 if hp <= cost else 0)
+        val -= cost * 2.5 + (30 if hp <= cost else 0)
         val += m.get("heat_sink", 0) * 0.5 * (len(g.actives()) - 1) + (5 if m.get("redline") and left else 0)
         new = 15 if m.get("pilot_light") else C.HEAT_AFTER
     return val + (new // C.HEAT_STEP - heat // C.HEAT_STEP) * (left * 0.9 + 0.4)

@@ -375,8 +375,8 @@ class Actions:
         x = c.x
         if n < 0 and c.a["key"] == "flashover" and c.m.get("wildfire_core"):
             for fo in self.foes():  # Wildfire Core: the vent sets them alight
-                if x.get("heat", 0) // 4:
-                    fo["st"]["burn"] = fo["st"].get("burn", 0) + x["heat"] // 4
+                if x.get("heat", 0) // 5:
+                    fo["st"]["burn"] = fo["st"].get("burn", 0) + min(3, x["heat"] // 5)
                     self.fx("st", to=f"f{fo['id']}", s="burn")
         self.add_heat(c.h, n)
 

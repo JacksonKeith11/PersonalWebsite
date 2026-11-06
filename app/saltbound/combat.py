@@ -358,6 +358,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.send_hawk(h, tgt)
         self.maybe_resolve()
 
+    def mummy_hold(self):
+        """Mummify: an enemy wrapped up can't heal past what it had, nor keep any Armor."""
+        for fo in self.foes():
+            if fo["st"].get("mummy"):
+                fo["hp"] = min(fo["hp"], fo.get("mcap", fo["hp"]))
+                fo["mcap"] = fo["hp"]
+                fo["st"].pop("armor", None)
+
     def front_foes(self):
         fr = [fo for fo in self.foes() if fo["row"] == "front"]
         return fr or self.foes()
@@ -390,6 +398,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f = self.s["fight"]
         pain = self.round_reset()
         self.round_upkeep()
+        self.mummy_hold()
         if self.check_end():
             return
         f["hymn"] = 0
@@ -1211,6 +1220,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if fo["hp"] <= 0:
                 continue
             self.foe_act(fo)
+            self.mummy_hold()
             if self.check_end():
                 return
         f["rec"] = "end"
@@ -1258,6 +1268,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if blocked:
             fo["st"]["armor"] -= blocked
         fo["hp"] -= n
+        if fo["st"].get("mummy"):
+            fo["mcap"] = min(fo.get("mcap", fo["hp"]), fo["hp"])
+        if fo["st"].get("sleep") and h is not None and n > 0:
+            fo["st"].pop("sleep")  # Sleep Thread: a hit wakes it, and it attacks after all
+            if fo.get("slept"):
+                fo["intent"] = fo.pop("slept")
+            self.fx("st", to=f"f{fo['id']}", s="wakes")
         if h is not None:
             self.s["stats"][h]["dmg"] += n
             fo.setdefault("hurt_by", {})[str(h)] = fo.get("hurt_by", {}).get(str(h), 0) + n
@@ -1459,6 +1476,26 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if g is not None and g != h and self.active(g):
                 h = g
             x = self.hs(h)
+            if fo is not None:
+                if fo["st"].get("snare") and fo["hp"] > 0:
+                    # Thorn Snare: sprung as it attacks
+                    self.hurt_foe(fo, fo["st"].pop("snare"), fo.pop("snare_by", None), pure=True)
+                    if fo["hp"] > 0:
+                        fo["st"]["root"] = max(fo["st"].get("root", 0), 1)
+                        self.fx("st", to=f"f{fo['id']}", s="root")
+                if x["st"].get("counter") and fo["hp"] > 0:
+                    self.hurt_foe(fo, x["st"].pop("counter"), h, pure=True)  # Set the Pike: it runs onto the point
+                if fo["hp"] <= 0:
+                    return 0  # it fell before its blow landed
+                n += fo.pop("owed", 0)  # Sleep Dart: the put-off attack rides on this one
+                tt = f.get("tether")
+                if tt and h in tt:
+                    # Tether: the first hit on either hero is split between them
+                    f.pop("tether")
+                    other = tt[1] if tt[0] == h else tt[0]
+                    if self.active(other) and n > 1:
+                        self.hurt_hero(other, n // 2, None, pure=True)
+                        n -= n // 2
             if x["st"].pop("dodge", 0):
                 self.fx("st", to=f"h{h}", s="dodged")
                 return 0
@@ -1503,6 +1540,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.s["stats"][h]["taken"] += n
         if fo is not None:
             x["lasthit"] = fo["id"]
+            if n > 0 and h not in fo.setdefault("hitters", []):
+                fo["hitters"].append(h)  # Judgment counts the heroes it has hurt
         if n > 0:
             x["lost"] = x.get("lost", 0) + n
             m = self.mods(h)
@@ -1547,6 +1586,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             th = self.mods(h).get("thorns", 0) + x["st"].get("thorns", 0)
             if th and fo["hp"] > 0:
                 self.hurt_foe(fo, th, h, pure=True)
+            if x["st"].pop("chill", 0) and fo["hp"] > 0:
+                fo["st"]["freeze"] = 1  # Rime Guard: whoever hits you is Frozen
+                self.fx("st", to=f"f{fo['id']}", s="freeze")
             if self.mods(h).get("mark_attacker") and fo["hp"] > 0 and not fo["st"].get("mark"):
                 fo["st"]["mark"] = 1
                 self.fx("st", to=f"f{fo['id']}", s="mark")
@@ -1599,6 +1641,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
     def end_round(self):
         self.undertow()
         f = self.s["fight"]
+        f.pop("tether", None)  # Tether lasts the round
+        for fo in self.foes():
+            if fo["st"].pop("sleep", 0):
+                fo.pop("slept", None)  # Sleep Thread: it slept through the round
         if f.get("harm"):
             f.pop("echoed", None)
             hold = any(self.mods(y).get("symphony") for y in f["heroes"]) and all(v >= 2 for v in f["harm"].values())

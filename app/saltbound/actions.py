@@ -44,7 +44,7 @@ class Actions:
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2),
-                "aim": x.get("aim", 0), "shocked": 0, "psn": 0, "frozen": 0, "low": 0,
+                "aim": x.get("aim", 0), "shocked": 0, "psn": 0, "frozen": 0, "low": 0, "grudge": 0,
                 "targeted": int(any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()))}
 
     def target_env(self, e, h, target, vals):
@@ -61,7 +61,7 @@ class Actions:
                      hunted=int(self.hs(h).get("hawk") == f"f{target['id']}"),
                      combo=self.combo_on(h, target), res=int(bool(target.get("res"))), burn=st.get("burn", 0),
                      shocked=int(bool(st.get("shock"))), psn=st.get("poison", 0), frozen=int(bool(st.get("freeze"))),
-                     low=int(target["hp"] * 2 < target["max"]))
+                     low=int(target["hp"] * 2 < target["max"]), grudge=len(target.get("hitters", [])))
             e["sigv"] = sigil_worth(e)
         return e
 
@@ -82,7 +82,7 @@ class Actions:
                      "hunted": int(self.hs(h).get("hawk") == f"f{target['id']}"),
                      "combo": self.combo_on(h, target), "res": int(bool(target.get("res"))), "burn": st.get("burn", 0),
                      "shocked": int(bool(st.get("shock"))), "psn": st.get("poison", 0), "frozen": int(bool(st.get("freeze"))),
-                     "low": int(target["hp"] * 2 < target["max"])}
+                     "low": int(target["hp"] * 2 < target["max"]), "grudge": len(target.get("hitters", []))}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -171,6 +171,8 @@ class Actions:
             n = int(n * 1.25 + 0.5)
         if st.get("mark"):
             n += 3
+        if st.get("wound") and h is not None:
+            n += st["wound"]  # Open Wound
         if fo["k"] == "lamp_keeper" and fo.get("lit", True):
             n = int(n * 0.5)
         if A.FOES[fo["k"]].get("final"):
@@ -240,6 +242,15 @@ class Actions:
             return [fo for fo in self.foes() if fo["st"].get("sigil")]
         if to == "foes":
             return self.foes()  # every enemy (Thunderhead's Shock)
+        if to == "behind":
+            # Skewer: the enemy behind the target, in the other row
+            first = next((t for t in base if isinstance(t, dict)), None)
+            behind = [fo for fo in self.foes() if first and fo["row"] != first["row"]]
+            return behind[:1]
+        if to == "frozen":
+            # Icefall: every other Frozen enemy
+            first = next((t for t in base if isinstance(t, dict)), None)
+            return [fo for fo in self.foes() if fo is not first and fo["st"].get("freeze")]
         return base
 
     # ------------------------------------------------------------------ one hit's numbers
@@ -397,6 +408,11 @@ class Actions:
                     else:
                         for o in self.spill_targets(kind, t):
                             self.hurt_foe(o, k_n, h)
+                if op.get("bind") and done:
+                    # Lifebinding Arrow: the ally with the lowest HP heals half of what it dealt
+                    others = [y for y in self.actives() if y != h]
+                    if others:
+                        self.fight_heal(min(others, key=lambda y: self.hero(y)["hp"]), done // 2, h)
                 if op.get("leech") and done:
                     self.fight_heal(h, int(done * op["leech"]), h)
                 if m.get("red_mist") and done and self.hero(h)["hp"] < self.maxhp(h) / 2:
@@ -645,7 +661,7 @@ class Actions:
             n = self.status_amount(c.h, c.a, s, amt(op["n"], self.env(c.h, c.a, c.dice, foe)))
             if foe is None:
                 st = self.hs(t[1])["st"]
-                st[s] = max(st.get(s, 0), n) if s in ("riposte", "thorns", "dodge", "crescendo") else st.get(s, 0) + n
+                st[s] = max(st.get(s, 0), n) if s in ("riposte", "thorns", "dodge", "crescendo", "counter", "chill") else st.get(s, 0) + n
                 self.fx("st", to=f"h{t[1]}", s=s)
             elif t["hp"] > 0:
                 if s == "doom":
@@ -655,6 +671,15 @@ class Actions:
                     continue
                 elif s in ONE_SHOT:
                     t["st"][s] = 1
+                elif s == "wound":
+                    t["st"]["wound"] = min(3, t["st"].get("wound", 0) + n)  # Open Wound: +1 a hit, to +3
+                elif s == "mummy":
+                    t["st"]["mummy"] = 1  # Mummify: no healing or Armor for the rest of the fight
+                    t["mcap"] = min(t.get("mcap", t["hp"]), t["hp"])
+                    t["st"].pop("armor", None)
+                elif s == "snare":
+                    t["st"]["snare"] = max(t["st"].get("snare", 0), n)  # Thorn Snare: sprung when it attacks
+                    t["snare_by"] = c.h
                 else:
                     t["st"][s] = t["st"].get(s, 0) + n
                 self.fx("st", to=f"f{t['id']}", s=s)
@@ -816,6 +841,80 @@ class Actions:
                 if y != c.h:
                     self.hs(y)["cued"] = self.hs(y).get("cued", 0) + n
                     self.fx("st", to=f"h{y}", s="rallied")
+
+    def _op_snag(self, c, op, targets):
+        """Snag: the enemy's Armor becomes the hero's."""
+        for t in targets:
+            if isinstance(t, dict) and t["st"].get("armor"):
+                n = t["st"].pop("armor")
+                c.x["st"]["armor"] = c.x["st"].get("armor", 0) + n
+                self.fx("armor", to=f"h{c.h}", n=n)
+
+    def _op_tether(self, c, op, targets):
+        """Tether: the first hit on either hero this round is split between them (Combat.hurt_hero)."""
+        for t in targets:
+            if isinstance(t, tuple) and t[1] != c.h:
+                self.s["fight"]["tether"] = [c.h, t[1]]
+                self.fx("st", to=f"h{t[1]}", s="tethered")
+
+    def _op_refresh(self, c, op, targets):
+        """Borrowed Time: the hero's other skill with the longest cooldown left is ready."""
+        cds = {k: n for k, n in c.x["cds"].items() if k != c.a["key"]}
+        if cds:
+            k = max(cds, key=lambda k: (cds[k], k))
+            del c.x["cds"][k]
+            self.fx("st", to=f"h{c.h}", s="refreshed")
+
+    def _op_delay(self, c, op, targets):
+        """Sleep Dart: this round's attack is lost, and half of it rides on the enemy's next hit."""
+        for t in targets:
+            it = t.get("intent") if isinstance(t, dict) else None
+            if not it or it.get("k") not in ("attack", "all") or t["hp"] <= 0 or self.resist(t):
+                continue
+            t["owed"] = t.get("owed", 0) + it.get("v", 0) // 2
+            t["intent"] = {"k": "dazed", "name": "Drowsy", "by_hero": True}
+            self.fx("st", to=f"f{t['id']}", s="drowsy")
+
+    def _op_sleep(self, c, op, targets):
+        """Sleep Thread: the enemy sleeps through its attack unless someone hits it (Combat.hurt_foe)."""
+        for t in targets:
+            it = t.get("intent") if isinstance(t, dict) else None
+            if not it or it.get("k") in (None, "dazed") or t["hp"] <= 0 or self.resist(t):
+                continue
+            t["slept"] = it
+            t["st"]["sleep"] = 1
+            t["intent"] = {"k": "dazed", "name": "Asleep", "by_hero": True}
+            self.fx("st", to=f"f{t['id']}", s="asleep")
+
+    MIRROR_OPS = ("dmg", "heal", "armor", "status", "weaken", "strip", "drag")
+
+    def mirror_source(self, h):
+        """Mirror: (action, target) of the last attack or heal another hero played this round, or None."""
+        for d in reversed(self.s["fight"]["done"]):
+            y = d.get("h")
+            if y is None or y == h or d.get("a") in (None, "mirror") or not d.get("hit"):
+                continue
+            try:
+                ad = self.action_def(y, d["a"] + ("+" if d.get("plus") else ""))
+            except KeyError:
+                continue
+            if ad.get("instant") or not any(o["op"] in ("dmg", "heal") for o in ad["ops"]):
+                continue
+            ops = [o for o in ad["ops"] if o["op"] in self.MIRROR_OPS]
+            tgt = d.get("tgt")
+            if ad["tgt"] in ("ally", "other", "downed") and isinstance(tgt, str) and tgt == f"h{h}":
+                tgt = f"h{y}"  # it helped me: the copy helps them back
+            return dict(ad, ops=ops, plus=False, key=ad["key"]), tgt
+        return None
+
+    def _op_mirror(self, c, op, targets):
+        src = self.mirror_source(c.h)
+        if not src:
+            self.fx("st", to=f"h{c.h}", s="nothing to mirror")
+            return
+        ad, tgt = src
+        self.fx("st", to=f"h{c.h}", s="mirrored")
+        self.run_ops(c.h, ad, c.dice, tgt)
 
     def _op_cue_self(self, c, op, targets):
         c.x["cued"] = c.x.get("cued", 0) + op["n"]  # an upgraded defence: your next hit this round

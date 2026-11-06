@@ -349,7 +349,7 @@ from . import gear2 as _G  # noqa: E402
 WEAPON_ACTIONS.update(_G.ACTIONS)
 ITEMS.update(_G.ITEMS)
 for _k, _a in WEAPON_ACTIONS.items():
-    if _k not in ARMOR_ACTIONS and _k not in _G.GUARD_ACTIONS and not _a.get("instant"):
+    if _k not in ARMOR_ACTIONS and _k not in _G.GUARD_ACTIONS and not _a.get("instant") and not _a.get("once"):
         _a["cd"] = max(_a.get("cd", WEAPON_CD), WEAPON_CD)
 
 GUARD_ACT = {'hide_vest': 'hunker',

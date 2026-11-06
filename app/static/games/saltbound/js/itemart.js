@@ -149,6 +149,13 @@ const ICON = {
   dreamcatcher: ['staff', 'wood', 'dream', 'dream'], sleepwalker_knife: ['knife', 'dream', 'black'], moonsilk_robe: ['robe', 'dream', 'pearl'],
   nightmare_mail: ['plate', 'black', 'dream'], sandman_pouch: ['pouch', 'dream', 'gold'], music_box: ['box', 'wood', 'gold', 'dream'],
   // the Frostpeaks
+  tideforged_trident: ['fork', 'blue', 'frost'], grappling_hook: ['harpoon', 'iron', 'leather'], bonesaw: ['knife', 'bone', 'blood'],
+  blunderbuss: ['gun', 'bronze', 'wood'], gamblers_cutlass: ['sword', 'gold', 'red'], corsair_pistol: ['gun', 'iron', 'gold'],
+  rope_dart: ['daggers', 'steel', 'tan'], lodestone_mace: ['hammer', 'stone', 'iron'], fossil_pike: ['spear', 'bone', 'stone'],
+  hourglass_blade: ['khopesh', 'bronze', 'sand'], scarab_flail: ['club', 'bronze', 'jade'], tranq_pipe: ['wand', 'wood', 'jade'],
+  thornvine_whip: ['sling', 'green', 'kelp'], judgment_halberd: ['glaive', 'gold', 'holy'], cherub_bow: ['bow', 'holy', 'gold'],
+  geode_sling: ['sling', 'leather', 'crystal'], mirror_blade: ['sword', 'glass', 'crystal'], dream_needle: ['rapier', 'dream', 'pearl'],
+  icebreaker_axe: ['axe', 'ice', 'wood'], glacier_lance: ['spear', 'ice', 'frost'],
   frostbrand: ['sword', 'ice', 'frost'], ice_pick: ['pick', 'ice'], yeti_hide: ['pelt', 'fur', 'frost'], glacier_plate: ['plate', 'ice', 'frost'],
   rime_amulet: ['locket', 'ice', 'steel', 'frost'], aurora_crystal: ['globe', 'iron', 'ice', 'crystal'],
   // relics

@@ -1328,9 +1328,42 @@ saves load). 41 skills across 60 weapons now, most on one or two:
 | Prism Staff | `prism_shield` | Prism Shield | an ally: the die as Armor, thorns 3 |
 | Dreamcatcher | `nightmare` | Nightmare (cd 3) | 5+: its attack lands on its own (`turn`, like Puppet Strings); else ½ die |
 
+**The armory** (owner's request, Nov 2026): twenty more weapons (80 in all, 61 skills), at the end
+of `content/gear2.py` with their actions in `gear2.ACTIONS`. Seven are base-sea finds (no `region`), the
+rest regional. Passives use existing mod keys.
+
+| Weapon | Region | Key | Skill | Effect | Engine |
+|---|---|---|---|---|---|
+| Tideforged Trident | sea | `skewer` | Skewer | die +1; ½ die to the enemy behind it | `to: "behind"` |
+| Grappling Hook | sea | `snag` | Snag | take its Armor, then the die | `snag` op |
+| Bonesaw | sea | `open_wound` | Open Wound | die; +1 per hit on it for the fight (to +3) | `wound` status, in `foe_damage_after` |
+| Blunderbuss | sea | `point_blank` | Point Blank | 2× die (melee), you take 3 | |
+| Gambler's Cutlass | sea | `turnabout` | Turnabout | the die or 9 minus it, higher, +2 (its die is a d8) | |
+| Corsair's Pistol | sea | `last_shot` | Last Shot | once a fight: 3× die | `once`, no cooldown |
+| Bosun's Rope Dart | sea | `tether` | Tether | both ½ die Armor; the first hit on either is split | `f["tether"]`, in `hurt_hero` |
+| Lodestone Mace | Stillwood | `magnetize` | Magnetize | die; every enemy to the front row | `drag` to `foes` |
+| Fossil Pike | Stillwood | `set_pike` | Set the Pike | the first attacker takes 2× die before its hit | `counter` hero status |
+| Hourglass Blade | Sands | `borrowed_time` | Borrowed Time | ½ die; your longest other cooldown ends | `refresh` op |
+| Scarab Flail | Sands | `mummify` | Mummify | die; no healing or Armor for the fight | `mummy` status, `mcap`, `Combat.mummy_hold` |
+| Tranquilizer Pipe | Verdant | `sleep_dart` | Sleep Dart (cd 3) | 1; its attack is lost, half rides on its next hit | `delay` op, `owed` |
+| Thornvine Whip | Verdant | `thorn_snare` | Thorn Snare | when it next attacks: die +3 and Root first | `snare` status, `snare_by` |
+| Halberd of Judgment | Aetherhold | `judgment` | Judgment | die +2, +2 per hero it has hit (to +6) | `hitters`, `grudge` |
+| Cherub's Bow | Aetherhold | `lifebinding` | Lifebinding Arrow | die; the weakest ally heals half of it | `bind` on the dmg op |
+| Geode Sling | Crystal | `splinter` | Splinter | die +1; on 1-2 every enemy takes 4 instead | |
+| Mirror Blade | Crystal | `mirror` | Mirror | repeat an ally's last attack or heal this round with this die | `mirror` op, `Actions.mirror_source` (the bots score the copy) |
+| Dreamweaver's Needle | Drowsing Vale | `sleep_thread` | Sleep Thread (cd 3) | skips its attack unless anyone hits it | `sleep` op/status, `slept` |
+| Icebreaker Axe | Frostpeaks | `icefall` | Icefall | die, and every other Frozen enemy takes the die | `to: "frozen"` |
+| Glacier Lance | Frostpeaks | `rime_guard` | Rime Guard | you and an ally: die Armor; the next attacker is Frozen | `chill` hero status |
+
+When an enemy attacks a hero (`hurt_hero`), first a Snare springs and a set Pike strikes (if either kills
+it, the hit doesn't land), then Sleep Dart's `owed` rides on, then a Tether splits the hit; after the hit,
+Rime freezes the attacker. `counter` and `chill` clear at the round's end (`ROUND_ONLY`); `wound`,
+`mummy` and `snare` last the fight; `sleep` and `tether` end with the round. Sleep and Sleep Dart are
+resisted by Steeled bosses. Mirror copies only damage, healing, Armor, statuses, weaken, strip and drag.
+
 New amount variables: `aim` (`dice_env`, from `x["aim"]`: raised in `deal_dice` when Aim and Loose
 wasn't cooling last round, zeroed in `after_action`; it's in the bots' `dice_combos` cache key),
-`shocked`, `psn`, `frozen` and `low` (`target_env` and `target_part`), `targeted` (`dice_env`: any enemy aims at the hero; in the bots' cache key). Slash's `carry` op flag runs
+`shocked`, `psn`, `frozen`, `low` and `grudge` (`target_env` and `target_part`), `targeted` (`dice_env`: any enemy aims at the hero; in the bots' cache key). Slash's `carry` op flag runs
 `Actions.carry_over` (the overkill hits another enemy in reach, same row first, as a plain hit); the
 bots value it in `bot.evaluate`. Every weapon action has a crit and a `SHORT` card line (the regional
 ones had neither). With its Lantern Rod's Flare on a cooldown the **Mender** got a class basic,

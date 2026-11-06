@@ -4,7 +4,7 @@ explains them. Mostly tuning knobs; change them with the simulator (tools/saltbo
 SHIELD_BLOCK = 3
 DEBUFFS = ("burn", "poison", "weak", "vuln", "mark", "root", "hex")
 TICKING = ("weak", "vuln", "mark", "root")
-ROUND_ONLY = ("riposte", "thorns", "glyphward", "emberward", "kindled", "wingguard", "kshield")  # hero statuses that clear at the end of the round
+ROUND_ONLY = ("riposte", "thorns", "glyphward", "emberward", "kindled", "wingguard", "kshield", "counter", "chill")  # hero statuses that clear at the end of the round
 ONE_SHOT = ("stun", "freeze", "shock", "hex", "lock", "steal", "static")
 UNSTOPPABLE = ("cleave", "earthshaker")
 ENRAGE_FROM = 10

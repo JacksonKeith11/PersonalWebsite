@@ -788,6 +788,12 @@ def bump(d, k, v):
 def evaluate(g, b, h, a, dice, tgt):
     """(value, expected effects) of an action with these dice on this target."""
     (inc, big, hits), foes, tb, top, now = b.view(g)
+    if a["key"] == "mirror":
+        # Mirror is worth what the play it copies would be, with these dice
+        src = g.mirror_source(h)
+        if not src:
+            return 0.0, new_eff()
+        a, tgt = src
     base = bot_targets_for(g, h, a, tgt)
     m = g.mods(h)
     plus = 2 if a["plus"] else 0
@@ -838,7 +844,7 @@ def evaluate(g, b, h, a, dice, tgt):
                                 None if st.get("vuln") else 1 + 0.25 * b.vuln.get(tid, 0),
                                 None if st.get("mark") else 3 * b.mark.get(tid, 0),
                                 t["hp"] - b.dmg.get(tid, 0), 0.75 + 0.5 * tb[tid] / top, now[tid] + 2 + 0.5 * tb[tid]))
-                info = (per, op.get("each"), g.hit_pierces(h, a, op), "if" in op, bool(op.get("leech") or op.get("onkill")))
+                info = (per, op.get("each"), g.hit_pierces(h, a, op), "if" in op, bool(op.get("leech") or op.get("onkill") or op.get("bind")))
             out.append((op, k, tg, info))
         return out
     hit_ops, miss_ops = prep(a["ops"]), prep(a.get("miss", []))
@@ -905,6 +911,8 @@ def evaluate(g, b, h, a, dice, tgt):
                         val += share * 0.05 * n
                         continue
                     val += share * min(n, left) * w
+                    if n > 0 and t["st"].get("sleep") and t.get("slept"):
+                        val -= share * (t["slept"].get("v", 0) or 3)  # it wakes up and attacks after all
                     if n >= left:
                         val += share * stopv
                         bump(eff["stop"], tid, pr * share)
@@ -1015,6 +1023,26 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, dict):
                         val += share * min(n, t["st"].get("armor", 0)) * 0.8
+            elif k == "snag":
+                for t, share in tg:
+                    if isinstance(t, dict):
+                        arm = t["st"].get("armor", 0)
+                        need = max(0, inc.get(h, 0) - g.hs(h)["st"].get("armor", 0) - b.armor.get(h, 0))
+                        val += share * (min(arm, need) + arm * 0.8)
+            elif k == "tether":
+                for t, share in tg:
+                    if isinstance(t, tuple) and t[1] != h:
+                        val += share * 0.35 * max(big.get(t[1], 0), big.get(h, 0))
+            elif k == "refresh":
+                cds = [n_ for q, n_ in g.hs(h)["cds"].items() if q != a["key"]]
+                if cds:
+                    val += 3 + 1.5 * max(cds)
+            elif k in ("delay", "sleep"):
+                for t, share in tg:
+                    it = t.get("intent") if isinstance(t, dict) else None
+                    if it and it.get("k") in ("attack", "all") and not g.steeled(t):
+                        val += share * now[t["id"]] * (0.5 if k == "delay" else 0.65)
+                        bump(eff["stop"], t["id"], pr * share)
             elif k == "spellcue":
                 # Kindle: worth it when another spell can still go out this round
                 n_ = amt(op["amt"], de) + plus
@@ -1181,6 +1209,13 @@ def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
         return min(n, left) * w * 0.8
     if s == "shock":
         return 1.5
+    if s == "wound":
+        return 0 if t["st"].get("wound", 0) >= 3 else 2.5  # +1 on every later hit this fight
+    if s == "mummy":
+        return 0 if t["st"].get("mummy") else 2.0 + t["st"].get("armor", 0) * 0.8
+    if s == "snare":
+        it = t.get("intent") or {}
+        return min(n, left) * (0.8 if it.get("k") in ("attack", "all") else 0.4)
     if s == "root":
         return 0.5 + web_value(g, t)
     return 0.5
@@ -1226,6 +1261,10 @@ def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
         return big.get(y, 0) * 0.45 or 0.3
     if s in ("riposte", "thorns"):
         return n * hits.get(y, 0) * 0.8
+    if s == "counter":
+        return n * 0.8 if hits.get(y, 0) else 0.3  # the first attacker takes it
+    if s == "chill":
+        return 2.5 if hits.get(y, 0) else 0.3  # the first attacker is Frozen
     if s == "emberward":
         return n * hits.get(y, 0) * 1.5  # attackers Burn
     if s == "glyphward":
@@ -1430,6 +1469,12 @@ def op_targets(g, h, op, base):
         return [(fo, 1) for fo in g.foes() if fo["st"].get("sigil")]
     if to == "foes":
         return [(fo, 1) for fo in g.foes()]
+    if to == "behind":
+        first = next((t for t in base if isinstance(t, dict)), None)
+        return [(fo, 1) for fo in g.foes() if first and fo["row"] != first["row"]][:1]
+    if to == "frozen":
+        first = next((t for t in base if isinstance(t, dict)), None)
+        return [(fo, 1) for fo in g.foes() if fo is not first and fo["st"].get("freeze")]
     if to == "biggest":
         aimed = [fo for fo in g.foes() if (fo.get("intent") or {}).get("k") in ("attack", "all")]
         return [(max(aimed, key=lambda fo: fo["intent"].get("v", 0)), 1)] if aimed else []

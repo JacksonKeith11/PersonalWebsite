@@ -1464,7 +1464,15 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, eight armor skills, trinket buff actions, 10 trinkets and 6 armor more; 300 Hard
+**Latest (Nov 2026, legendary powers; 300 Hard runs, seed 5000): 61.3%**, from 50.3%, over the ~50%
+target: every class rose (Arcanist 67.2 to Berserker 49.2; Herald 50.8). Runs that took a loot legendary
+won 62-87% (Sentinel Plate 86.7, Aurora Crystal 85.7, Tidelord's Aegis 78.3), though against the runs
+that passed it at the same moment they're still about level (−0.3 points, take-weighted), so much of
+the rise is likely the relics: the bots finish almost every quest, so a run gets two or three relic
+powers for certain. Not retuned yet: for the owner (levers: trim the relics' powers, keep loot
+legendaries' power, or make Hard's enemies hit harder).
+
+**Before that (eight armor skills, trinket buff actions, 10 trinkets and 6 armor more; 300 Hard
 runs, seed 5000): 50.3%**. Classes 41-63%: Scoundrel 62.7, Mender 57.6, Alchemist and Dragonborn 55.4,
 Ranger 53.1, Psion 52.4, Warden 52.3, Arcanist 48.4, Vanguard 47.8, Spellblade 46.0, Duelist 45.6,
 Berserker 43.1, Emberknight 42.4, Herald 41.3. The armor skills are played a lot (Fade 4760, Shell Up

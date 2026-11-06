@@ -81,39 +81,39 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["st"]["armor"] = m["start_armor"]
             if m.get("evasive"):
                 x["st"]["halfhit"] = 1  # Evasive: the first hit deals half
-            if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "light_fingers":
+            if C.map_key(self.hero(h)) == "light_fingers":
                 x["trinkets"] = list(self.hero(h).pop("stash", []))[:1] if m.get("stash") else []
             if m.get("bark"):
                 self.summon(h, "sapling", 10)
         for h in f["heroes"]:
             hero = self.hero(h)
             m = self.mods(h)
-            if C.CLASSES[hero["cls"]]["map"]["key"] == "farsight":
+            if C.map_key(hero) == "farsight":
                 f["hs"][str(h)].update(attune="fire", flux=0)  # the Arcanist starts each fight attuned to Fire
             if not m.get("blessed_rest"):
                 hero["grace"] = 0  # Grace starts over each fight (Blessed Rest: it carries)
             f["hs"][str(h)]["grace"] = hero.get("grace", 0)
             if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
                 self.grow_scales(h, 1)  # Thick Hide
-            if C.CLASSES[hero["cls"]]["map"]["key"] == "tracker":
+            if C.map_key(hero) == "tracker":
                 f["hs"][str(h)]["hawk"] = f"h{h}"  # the Ranger's hawk starts each fight watching it
-            if C.CLASSES[hero["cls"]]["map"]["key"] == "trailbreaker":
+            if C.map_key(hero) == "trailbreaker":
                 f["hs"][str(h)]["impact"] = 0  # the Vanguard's Impact (Stored Force: last fight's, as Armor)
                 kept = hero.pop("stored", 0)
                 if kept and m.get("stored_force"):
                     st_ = f["hs"][str(h)]["st"]
                     st_["armor"] = st_.get("armor", 0) + kept
-            if C.CLASSES[hero["cls"]]["map"]["key"] == "banked_coals":
+            if C.map_key(hero) == "banked_coals":
                 # Banked Coals: Heat from the road, twice the turns since the last fight (up to 10)
                 f["hs"][str(h)]["heat"] = min(10, 2 * max(0, self.s["turn"] - hero.get("fought", self.s["turn"])))
                 hero["fought"] = self.s["turn"]
-            if C.CLASSES[hero["cls"]]["map"]["key"] == "runewright":
+            if C.map_key(hero) == "runewright":
                 # Runewright: every enemy starts with a Sigil, two after a rest
                 n = 2 if hero.get("runes") else 1
                 hero["runes"] = max(0, hero.get("runes", 0) - 1)
                 for fo in f["foes"]:
                     fo["st"]["sigil"] = max(fo["st"].get("sigil", 0), n)
-        if any(C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "silver_tongue" for h in f["heroes"]):
+        if any(C.map_key(self.hero(h)) == "silver_tongue" for h in f["heroes"]):
             ov = 1 if any(self.mods(h).get("overture") for h in f["heroes"]) else 0
             f["harm"] = {"valor": ov, "aegis": ov, "discord": 0}  # the Herald's Harmonies (Overture: 1 each)
         if any(self.mods(h).get("open_weak") for h in f["heroes"]):
@@ -121,12 +121,12 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 fo["st"]["weak"] = max(fo["st"].get("weak", 0), 1)
         self.apply_ground(spec.get("ground"))
         f["ambush"] = bool(spec.get("ambush_foes")) or (spec.get("by") in f["heroes"] and
-                                                        C.CLASSES[self.hero(spec["by"])["cls"]]["map"]["key"] == "ambush")
+                                                        C.map_key(self.hero(spec["by"])) == "ambush")
         names = ", ".join(fo["name"] for fo in f["foes"])
         self.say(f"Fight! {names}.")
         self.fx("fight", fk=f["kind"], tile=f["tile"])
         self.new_round()
-        if self.s["fight"] is f and any(C.CLASSES[self.hero(y)["cls"]]["map"]["key"] == "precognition" for y in f["heroes"]):
+        if self.s["fight"] is f and any(C.map_key(self.hero(y)) == "precognition" for y in f["heroes"]):
             self._op_foresee(None, {}, self.foes())  # Precognition: the first attacks rolled in the open
 
     def apply_ground(self, gr):
@@ -324,9 +324,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if uid[0] == "f" and m.get("eyes_sky"):
             self.foresee_foe(self.foe(int(uid[1:])))  # Eyes in the Sky
 
-    def foresee_foe(self, fo):
+    def foresee_foe(self, fo, always_fx=False):
+        """Roll an enemy's intent dice now, in the open (Spotter, Read Intent, Eyes in the Sky)."""
         it = fo.get("intent") or {}
-        if not it.get("dice") or all(d.get("v") is not None for d in it["dice"]):
+        if not it.get("dice") or (not always_fx and all(d.get("v") is not None for d in it["dice"])):
             return
         for d in it["dice"]:
             if d.get("v") is None:
@@ -396,7 +397,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         hive = any(self.mods(y).get("hive_mind") for y in self.actives())
         for h in f["heroes"]:
             x = self.hs(h)
-            psion = C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "precognition"
+            psion = C.map_key(self.hero(h)) == "precognition"
             base = (C.FOCUS_BASE + sum(1 for lv in C.FOCUS_LEVELS if self.s["level"] >= lv)
                     if psion else (1 if hive else 0))
             if psion and self.mods(h).get("hive_mind"):
@@ -417,7 +418,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         for h in self.actives():
             # the Dragonborn's Scales (and Scales given by Brood Bond, and Draconic Ascension): Armor each round
             x = self.hs(h)
-            n = (self.hero(h).get("scales", 0) if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "dragons_rest" else 0) \
+            n = (self.hero(h).get("scales", 0) if C.map_key(self.hero(h)) == "dragons_rest" else 0) \
                 + x.get("brood", 0) + (3 if x.get("ascend") else 0) + (f.get("harm") or {}).get("aegis", 0)
             if n:
                 x["st"]["armor"] = x["st"].get("armor", 0) + n
@@ -600,7 +601,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                     d["dk"] = list(d["dk"]) + ["exploding"]
         if m.get("all_explode"):
             dice = [dict(d, dk=list(d["dk"]) + (["exploding"] if "exploding" not in d["dk"] else [])) for d in dice]
-        if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "precognition":
+        if C.map_key(self.hero(h)) == "precognition":
             for d in dice:  # the Psion sees all its dice
                 if "seer" not in d["dk"]:
                     d["dk"] = list(d["dk"]) + ["seer"]
@@ -1035,7 +1036,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.raise_harmony(h, a["harmony"], a.get("harmony_n", 1))
         if x.pop("combo_end", None):
             pass
-        elif C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "ambush" and isinstance(tgt, str) and tgt.startswith("f") \
+        elif C.map_key(self.hero(h)) == "ambush" and isinstance(tgt, str) and tgt.startswith("f") \
                 and any(o["op"] == "dmg" for o in a["ops"]):
             self.combo_hit(h, int(tgt[1:]))
         if a.get("bomb"):
@@ -1281,7 +1282,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
     def wardens(self):
         """The Wardens standing in this fight: while one is, every Rooted enemy is Entwined."""
         f = self.s["fight"]
-        return [y for y in f["heroes"] if self.active(y) and C.CLASSES[self.hero(y)["cls"]]["map"]["key"] == "wildspeak"]
+        return [y for y in f["heroes"] if self.active(y) and C.map_key(self.hero(y)) == "wildspeak"]
 
     def web_splash(self, fo, n, h):
         """A hit on an Entwined enemy: every other Entwined enemy takes WEB_SPLASH (Thicket +1, Heart of
@@ -1500,14 +1501,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for y in self.actives():
                 if self.mods(y).get("martyr"):
                     self.add_grace(y, n // 2)  # Martyr: the party's wounds fill the Mender's Grace
-            if not x.get("berserk") and C.CLASSES[hero["cls"]]["map"]["key"] == "forage" and \
+            if not x.get("berserk") and C.map_key(hero) == "forage" and \
                     x["lost"] >= self.maxhp(h) * (0.25 if m.get("hair_trigger") else C.BERSERK_AT):
                 x["berserk"] = True  # the Berserker goes berserk: the rest of its dice explode
                 self.fx("st", to=f"h{h}", s="berserk")
                 for d in x["dice"]:
                     if not d["used"] and "exploding" not in d["dk"]:
                         d["dk"] = list(d["dk"]) + ["exploding"]
-        if fo is not None and not pure and C.CLASSES[hero["cls"]]["map"]["key"] == "dragons_rest":
+        if fo is not None and not pure and C.map_key(hero) == "dragons_rest":
             self.grow_scales(h, 2 if x["st"].get("wingguard") else 1)  # every hit that lands grows a Scale
         m = self.mods(h)
         if 0 < hero["hp"] < self.maxhp(h) / 2:

@@ -931,6 +931,17 @@ where parties rarely fall; classes 74–91%, Duelist 90.6% on top, Psion 74.1% a
 5000: **Normal 82.0%** (was 83.3%; classes 76–90%), **Hard 44.5%** (was 48.5%; classes 35–53%, Mender
 53.3% on top, Psion 35.3% and Herald 38.1% at the bottom), a few points under the 50% target.
 
+**The Nov 2026 audit** (owner's request, 2026-11-06): no action failed to do what its text says (a static
+check of every number in skill text against the rules, and per-action stats over 14 runs), and the bots'
+fallback for rejected moves never fired in 10 runs. Fixed: crashed moves roll back (see Gotchas); the
+map-phase bot caches mods (a run about 35% faster per turn); `foresee_foe` serves Spotter, Read Intent and
+Eyes in the Sky; one `meter` for the hero card's gauges. Bots now play more like players: a Root is a
+set-up when a Warden fights (it goes before the party's hits) and a hit on an Entwined enemy counts its
+splash; Crescendo of Light counts the Harmonies it spends, Unstable Compound the residues, Ignite the
+Burn; Static Field values its double arc, Rob Blind and Ransack their trinkets, Sic 'Em and Swoop the
+hawk move; the hawk watches whoever is about to take a hit of 8+; and upgrades to a class's free basic
+rank above other picks at level-up (3.2, was 2.0 like every upgrade). AUDIT_RESULTS
+
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
 each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit
@@ -1648,6 +1659,17 @@ clock anywhere: the run changes only when someone acts.
 
 ## Gotchas
 
+- **A move that crashes is rolled back** (`Room.guarded`, Nov 2026 audit): every player and bot move runs
+  against a JSON snapshot of `g.s`; an exception that isn't `Invalid` is logged, the game is rebuilt from
+  the snapshot (`G.Game(state)`, as the sim's `--saves` round trip does) and the player is told it was
+  undone. A failing bot step is logged and that bot readies, so bots never stall. Before, a `ValueError`
+  in a move dropped the player's socket silently (`rooms.serve` treats it as a disconnect) and left the
+  move half applied. Lobby errors are logged and answered too.
+- **The bots cache while they think** (`bot.frozen`): every hero's mods and max HP, die signatures, and the
+  Rootweb's numbers (`_WEB`), for fights, map plans and dialogs alike. Anything a bot changes while
+  thinking (a die's value, for the Psion's nudges) has to clear its cache entry.
+- **Classes are recognised by their map key**: `C.map_key(hero)` (`"tracker"` is the Ranger,
+  `"wildspeak"` the Warden...).
 - **A trail is a job without a deadline** (`kind: "trail"` in `s["quests"]`): code that walks the jobs
   must skip or handle it (it has no `until`, `reward` or `left`; the bots' job sort would crash on it).
   An event's fight carries its `win` and `ev` into the fight dict, so `fight_won` can play the prize.

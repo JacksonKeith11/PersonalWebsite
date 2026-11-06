@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=141';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=141';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=141';
-import { stageURL, stageKey } from './stage.js?v=141';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=141';
-import { render } from './main.js?v=141';
-import { skillCard } from './hud.js?v=141';
-import { SKILL_FX, foeFx } from './skillfx.js?v=141';
-import * as sfx from './audio.js?v=141';
+import { S, send, mine, controllerName } from './store.js?v=142';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=142';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=142';
+import { stageURL, stageKey } from './stage.js?v=142';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=142';
+import { render } from './main.js?v=142';
+import { skillCard } from './hud.js?v=142';
+import { SKILL_FX, foeFx } from './skillfx.js?v=142';
+import * as sfx from './audio.js?v=142';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -535,8 +535,13 @@ function attuneChip(hs) {
 }
 // The Mender's Grace: healing fills it; at 25 the next heal is Radiance (the whole party, cleansed).
 function graceBar(n, ready) {
-  return h('div.heat-gauge.grace' + (ready ? '.hot' : ''), { tip: `Grace ${n} / 25\nHealing you do fills it. At 25, your next heal is Radiance: it lands on the whole party and cleanses them.` },
-    h('i', { style: { width: Math.min(100, n * 4) + '%' } }), h('span', null, ready ? 'Radiance ready' : `Grace ${n} / 25`));
+  return meter('grace', n / 25, ready, ready ? 'Radiance ready' : `Grace ${n} / 25`,
+    `Grace ${n} / 25\nHealing you do fills it. At 25, your next heal is Radiance: it lands on the whole party and cleanses them.`);
+}
+// A class's gauge on its hero card (Heat, Grace, Impact): a bar that fills to its cap, glowing when hot.
+function meter(kind, frac, hot, label, tip) {
+  return h('div.heat-gauge' + (kind ? '.' + kind : '') + (hot ? '.hot' : ''), { tip },
+    h('i', { style: { width: Math.max(0, Math.min(100, frac * 100)) + '%' } }), h('span', null, label));
 }
 // The Dragonborn's Scales: up to 5, 1 Armor each at the start of every round, kept between fights.
 export function scalePips(n) {
@@ -553,14 +558,14 @@ function hawkChip(f, hs) {
 // The Vanguard's Impact: damage its Armor soaks is stored (to 10, 20 with Immovable) for Payback.
 function impactGauge(hs, hero) {
   const n = hs.impact, cap = (hero.skills || []).some(k => k.replace('+', '') === 'immovable') ? 20 : 10;
-  return h('div.heat-gauge.impact' + (n >= cap ? '.hot' : ''), { tip: `Impact ${n} / ${cap}\nDamage your Armor blocks is stored as Impact (hits you take for allies with Guard and Taunt too). Payback deals the die plus all of it. It lasts the fight.${hs.imp2 ? '\nBraced: Impact gained this round is doubled.' : ''}` },
-    h('i', { style: { width: Math.min(100, n * 100 / cap) + '%' } }), h('span', null, `Impact ${n}${hs.imp2 ? ' · ×2' : ''}`));
+  return meter('impact', n / cap, n >= cap, `Impact ${n}${hs.imp2 ? ' · ×2' : ''}`,
+    `Impact ${n} / ${cap}\nDamage your Armor blocks is stored as Impact (hits you take for allies with Guard and Taunt too). Payback deals the die plus all of it. It lasts the fight.${hs.imp2 ? '\nBraced: Impact gained this round is doubled.' : ''}`);
 }
 // The Emberknight's Heat: a gauge to 25 with its bonus (+1 per 5); at 25 it overheats.
 function heatGauge(hs) {
   const n = hs.heat, bonus = Math.floor(n / 5) + (hs.white || 0);
-  return h('div.heat-gauge' + (n >= 20 ? '.hot' : ''), { tip: `Heat ${n} / 25\nYour hits deal +1 per 5 Heat (+${bonus} now). Every die you play adds its number; at 25 you overheat (5 damage, back to 10). It cools by half at the end of the round.` },
-    h('i', { style: { width: Math.min(100, n * 4) + '%' } }), h('span', null, hs.white ? `White heat · +${bonus}` : `Heat ${n} · +${bonus}`));
+  return meter(null, n / 25, n >= 20, hs.white ? `White heat · +${bonus}` : `Heat ${n} · +${bonus}`,
+    `Heat ${n} / 25\nYour hits deal +1 per 5 Heat (+${bonus} now). Every die you play adds its number; at 25 you overheat (5 damage, back to 10). It cools by half at the end of the round.`);
 }
 // The Spellblade's infused blade: its next melee hits deal more and carry an element.
 const ELEMENT = { frost: ['Frost', 'makes the enemy Weak'], shock: ['Shock', 'Shocks the enemy'], burn: ['Flame', 'Burns the enemy for 2'] };

@@ -736,15 +736,8 @@ class Actions:
     def _op_foresee(self, c, op, targets):
         # the enemy's dice roll now, in the open: its intent shows exactly what it will do
         for t in targets:
-            it = t.get("intent") if isinstance(t, dict) else None
-            if not it or not it.get("dice"):
-                continue
-            for d in it["dice"]:
-                if d.get("v") is None:
-                    d.pop("fc", None)
-                    d["v"], d["tag"] = self.foe_roll_face(d["faces"])
-            self.intent_numbers(it)
-            self.fx("st", to=f"f{t['id']}", s="foreseen")
+            if isinstance(t, dict):
+                self.foresee_foe(t, always_fx=True)
 
     def _op_steal(self, c, op, targets):
         for t in targets:

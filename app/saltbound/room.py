@@ -12,6 +12,7 @@ in, broadcasts the new state, and autosaves when a map turn or combat round has 
 """
 
 import asyncio
+import json
 import logging
 import secrets
 import time
@@ -160,11 +161,30 @@ class Room:
             elif self.game is None:
                 self.lobby(p, t, msg)
             else:
-                self.play(p, t, msg)
+                self.guarded(lambda: self.play(p, t, msg), f"{t} from {p.name}")
         except Invalid as e:
             self.send(p, {"t": "err", "msg": str(e)})
             return
+        except Exception:
+            # outside a game move (the lobby, saves): log it rather than let the socket drop the player
+            log.exception("saltbound: %s from %s failed", t, p.name)
+            self.send(p, {"t": "err", "msg": "Something went wrong. Try again."})
+            return
         self.after()
+
+    def guarded(self, fn, what):
+        """Run a change to the game; if it fails unexpectedly (a bug, not a rule), log it, put the game
+        back as it was before the change (a half-applied move would corrupt the run) and say so."""
+        g = self.game
+        snap = json.dumps(g.s)
+        try:
+            return fn()
+        except Invalid:
+            raise
+        except Exception:
+            log.exception("saltbound: %s failed in run %s; rolled back", what, self.run_id)
+            self.game = G.Game(json.loads(snap))
+            raise Invalid("Something went wrong with that move, so it was undone. Try something else.")
 
     def host_only(self, p):
         if p.id != self.host:
@@ -338,9 +358,29 @@ class Room:
 
     def bot_step(self):
         self.bot_task = None
-        g = self.game
-        if not g:
+        if not self.game:
             return
+        try:
+            acted = self._bot_step()
+        except Exception:
+            # never leave the bots stalled: log it, and the next kick tries again (the failing bot readies)
+            log.exception("saltbound: a bot step failed in run %s", self.run_id)
+            acted = self._bot_fallback()
+        if acted:
+            self.after()
+
+    def _bot_fallback(self):
+        g = self.game
+        for h in [h for h in g.waiting() if self.ctl[h] == BOT]:
+            try:
+                self.guarded(lambda: g.act(h, {"t": "fready"} if g.s["phase"] == "fight" else {"t": "ready"}), f"bot {h} readying")
+                return True
+            except Invalid:
+                continue
+        return False
+
+    def _bot_step(self):
+        g = self.game
         hs = [h for h in g.waiting() if self.ctl[h] == BOT]
         # spirit dice go first, while the heroes fighting can still use them
         give = [int(h) for h, sp in g.s["fight"]["spirit"].items() if self.ctl[int(h)] == BOT and not sp["used"]] \
@@ -351,16 +391,16 @@ class Room:
             if msg is None:
                 continue
             try:
-                g.act(h, msg)
+                self.guarded(lambda: g.act(h, msg), f"bot {h} {msg.get('t')}")
             except Invalid:
+                g = self.game  # rolled back, perhaps
                 try:
-                    g.act(h, {"t": "fready"} if g.s["phase"] == "fight" else {"t": "ready"})
+                    self.guarded(lambda: g.act(h, {"t": "fready"} if g.s["phase"] == "fight" else {"t": "ready"}), f"bot {h} readying")
                 except Invalid:
                     continue
             acted = True
             break
-        if acted:
-            self.after()
+        return acted
 
 
 STATIC = G.static()

@@ -46,7 +46,8 @@ def decide(g, h):
         return None
     q = s["pending"][str(h)]
     if q:
-        return choose(g, h, q[0])
+        with frozen(g):
+            return choose(g, h, q[0])
     if not hero["alive"]:
         return support(g, h)
     if s["phase"] == "fork" and s.get("fork") and str(h) not in s["fork"]["votes"]:
@@ -54,7 +55,8 @@ def decide(g, h):
     if s["phase"] == "fight" and g.in_fight(h):
         return fight_move(g, h)
     if s["phase"] == "plan":
-        return plan_move(g, h)
+        with frozen(g):  # gear and level-up scoring read every hero's mods thousands of times
+            return plan_move(g, h)
     return None
 
 
@@ -94,7 +96,10 @@ def order(g, heroes):
                 continue
             if any(o["op"] in SETUP_OPS or (o["op"] == "status" and o["s"] in SETUP_STATUS) for o in a["ops"]):
                 return 0
+            if web and any(o["op"] == "tangle" or (o["op"] == "status" and o["s"] == "root") for o in a["ops"]):
+                return 0  # the Rootweb: Root first, so the party's hits that round splash
         return 1
+    web = bool(g.wardens())
     return sorted(heroes, key=setup)
 
 
@@ -202,7 +207,8 @@ def level_score(g, h, lvl, key):
     base = key.rstrip("+")
     actions = [k for k in hero["skills"] if k.rstrip("+") in C.ACTIONS and k not in C.GENERIC]
     if key.endswith("+"):
-        score = 2.0
+        # an upgrade to the free basic pays every round (+2 on the action played most): players take it
+        score = 3.2 if base in C.FREE else 2.0
     elif base in C.PASSIVES:
         score = 3.5 if C.PASSIVES[base].get("cap") else 2.5
     else:
@@ -500,12 +506,12 @@ class frozen:
         g.mods = lambda y: mods[y] if y in mods else mods.setdefault(y, cm(g, y))
         g.maxhp = lambda y: maxhp[y] if y in maxhp else maxhp.setdefault(y, cx(g, y))
         g.herald_aura = lambda: aura[0] if aura else (aura.append(ca(g)) or aura[0])
-        global _SIGS
-        _SIGS = {}
+        global _SIGS, _WEB
+        _SIGS, _WEB = {}, {}
 
     def __exit__(self, *exc):
-        global _SIGS
-        _SIGS = None
+        global _SIGS, _WEB
+        _SIGS, _WEB = None, None
         for k in ("mods", "maxhp", "herald_aura"):
             self.g.__dict__.pop(k, None)
 
@@ -839,6 +845,7 @@ def evaluate(g, b, h, a, dice, tgt):
     crit_ops = hit_ops + prep(a["crit"]) if a.get("crit") else None
     tops = [crit_floor(d["faces"]) for d in dice]
     heat = g.hs(h).get("heat")
+    web = web_splash(g)
     react_t = base[0] if a.get("residue") and base and isinstance(base[0], dict) else None
     attune = g.hs(h).get("attune")
     for vals, tags, pr, de in dice_combos(g, h, dice):
@@ -887,6 +894,10 @@ def evaluate(g, b, h, a, dice, tgt):
                         if env["sig"] >= 3 and m.get("feedback_loop"):
                             val += share * infuse_value(g, h, dice, 2, max(2, vals[0] // 2), element_of(vals[0]))
                     val += share * spill
+                    if web and n > 0 and t["st"].get("root"):
+                        # the Warden's Rootweb: each hit on an Entwined enemy splashes the others
+                        others = [o for o in foes if o is not t and o["st"].get("root") and o["hp"] > b.dmg.get(o["id"], 0)]
+                        val += share * len(each) * (web * len(others) * 0.8 if others else C.WEB_LONE * 0.8)
                     tid = t["id"]
                     left = left0 - dealt.get(tid, 0)
                     if left <= 0:
@@ -1047,6 +1058,41 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple) and g.active(t[1]):
                         left = sum(1 for d in g.hs(t[1])["dice"] if not d["used"] and "guard" not in (d.get("dk") or []))
                         val += share * min(op["n"], left) * (n_ * 0.85 + 2.5)
+            elif k == "harm_spend":
+                # Crescendo of Light spends every Harmony: what they'd still have done for the party
+                val -= sum((g.s["fight"].get("harm") or {}).values()) * 2.5
+            elif k == "clear_res":
+                # Unstable Compound uses up the residues: the reactions they'd have set off later
+                val -= sum(1 for o in foes if o.get("res")) * 2.0
+            elif k == "douse":
+                # Ignite spends the Burn: the ticks it would still have dealt
+                for t, share in tg:
+                    if isinstance(t, dict):
+                        bn = t["st"].get("burn", 0)
+                        val -= share * min(bn * (bn + 1) / 2, max(0, t["hp"] - b.dmg.get(t["id"], 0))) * 0.8
+            elif k == "static_field":
+                # the next spell this round arcs twice: worth it if a spell and a die are still to come
+                left = sum(1 for d in g.hs(h)["dice"] if not d["used"]) - len(dice)
+                if left > 0 and any(g.action_def(h, kk).get("spell") for kk in g.actions_of(h) if kk.rstrip("+") != a["key"]):
+                    val += 3.0
+            elif k == "pilfer":
+                # a lifted trinket (Rob Blind on 4+, Ransack on a kill), if there's room for it
+                x_ = g.hs(h)
+                room_ = C.TRINKET_CAP + m.get("deep_sleeves", 0) - len(x_.get("trinkets") or [])
+                if room_ > 0 and (not op.get("if") or amt(op["if"], de)):
+                    gets = min(room_, op.get("n", 1))
+                    if op.get("dead"):
+                        t0 = base[0] if base and isinstance(base[0], dict) else None
+                        gets *= 1 if t0 and dealt.get(t0["id"], 0) >= t0["hp"] - b.dmg.get(t0["id"], 0) else 0
+                    val += gets * 3.0
+            elif k == "hawk_to":
+                # Sic 'Em and Swoop move the hawk without its move: hunting the enemy, or watching the ally
+                t0 = tg[0][0] if tg else None
+                hk = g.hs(h).get("hawk")
+                if isinstance(t0, dict) and hk != f"f{t0['id']}":
+                    val += C.HAWK_HUNT * 2 + C.HAWK_PECK * m.get("alpha_hawk", 1)
+                elif isinstance(t0, tuple) and hk != f"h{t0[1]}":
+                    val += min(big.get(t0[1], 0), C.HAWK_WATCH * m.get("alpha_hawk", 1))
             elif k == "tangle":
                 rest = [o for o in g.foes() if not (base and o is base[0])]
                 if rest:
@@ -1112,9 +1158,29 @@ def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
     return 0.5
 
 
+def web_splash(g):
+    """What the Rootweb carries per hit this fight (0 with no Warden standing)."""
+    if _WEB is not None and "splash" in _WEB:
+        return _WEB["splash"]
+    ws = g.wardens() if g.s["fight"] else []
+    v = (C.WEB_SPLASH + (1 if any(g.mods(y).get("thicket") for y in ws) else 0)) if ws else 0
+    if _WEB is not None:
+        _WEB["splash"] = v
+    return v
+
+
 def web_value(g, t):
     """What Rooting (Entwining) this enemy is worth through the Warden's Rootweb: the splash on every
     other Entwined enemy (or 1 alone) for each hit the party still has this round, at half."""
+    if _WEB is not None and t["id"] in _WEB:
+        return _WEB[t["id"]]
+    v = _web_value(g, t)
+    if _WEB is not None:
+        _WEB[t["id"]] = v
+    return v
+
+
+def _web_value(g, t):
     if t["st"].get("root") or not g.wardens():
         return 0
     others = sum(1 for o in g.foes() if o is not t and o["st"].get("root"))
@@ -1342,6 +1408,7 @@ def op_targets(g, h, op, base):
 
 # ---- planning the hand
 
+_WEB = None  # the Rootweb's worth per enemy while a bot thinks (`frozen`): id -> value
 _SIGS = None  # die signatures while a bot thinks (`frozen`): id -> (the die, its signature)
 
 
@@ -1605,7 +1672,8 @@ def hawk_move(g, h, b):
     if hits:
         n, y = max(hits)
         hp = g.hero(y)["hp"] + g.hs(y)["st"].get("armor", 0) - n
-        watch = min(n, C.HAWK_WATCH * al) + (m.get("mantle", 0) if y != h else 0) + (3 if hp < g.maxhp(y) * 0.3 else 0)
+        # a big hit is worth softening even on a healthy hero: players put the hawk on whoever's about to eat one
+        watch = min(n, C.HAWK_WATCH * al) * (1.5 if n >= 8 else 1.0) + (m.get("mantle", 0) if y != h else 0) + (3 if hp < g.maxhp(y) * 0.3 else 0)
         wy = y
     pool = foes
     if m.get("pinned_prey") and any(g.hero(y)["cls"] in ("vanguard", "duelist", "berserker", "spellblade", "emberknight", "dragonborn")

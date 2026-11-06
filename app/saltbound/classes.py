@@ -1299,6 +1299,11 @@ DIE_UP_LEVELS = (3, 6)
 DIE_LADDER = [4, 6, 8, 10, 12]
 
 
+def map_key(hero):
+    """A hero's class, by its map ability's key (how the rules recognise a class)."""
+    return CLASSES[hero["cls"]]["map"]["key"]
+
+
 def level_for(xp):
     lvl = 1
     for i, need in enumerate(XP_FOR):

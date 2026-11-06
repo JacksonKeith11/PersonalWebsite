@@ -314,7 +314,7 @@ class Game(Combat, Biomes, Quests, Travel):
 
     def moves(self, h):
         hero = self.hero(h)
-        tracker = C.CLASSES[hero["cls"]]["map"]["key"] == "tracker" and not hero["afloat"]
+        tracker = C.map_key(hero) == "tracker" and not hero["afloat"]
         return max(1, MOVES + self.mods(h).get("move", 0) + (1 if tracker else 0))
 
 
@@ -362,7 +362,7 @@ class Game(Combat, Biomes, Quests, Travel):
             return cost + (1 if b in swirl else 0), True
         if t == "shoal":
             return (1, True) if afloat else (2, False)
-        cost = self.land_cost(h, t, b, t in Wd.FAST.get(C.CLASSES[hero["cls"]]["map"]["key"], ()))
+        cost = self.land_cost(h, t, b, t in Wd.FAST.get(C.map_key(hero), ()))
         return cost + (1 if afloat else 0), False
 
     def sea_map(self):
@@ -403,7 +403,7 @@ class Game(Combat, Biomes, Quests, Travel):
         storm = self.storm_sight(self.hero(h)["tile"])
         if storm is not None:
             return storm
-        key = C.CLASSES[self.hero(h)["cls"]]["map"]["key"]
+        key = C.map_key(self.hero(h))
         return self.biome_sight(h, VISION + (1 if key == "farsight" else 0) + (1 if self.mods(h).get("wayfinder") else 0))
 
     def enemy_sight(self, h):
@@ -411,7 +411,7 @@ class Game(Combat, Biomes, Quests, Travel):
         storm = self.storm_sight(self.hero(h)["tile"])
         if storm is not None:
             return storm
-        return self.vision(h) + (2 if C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "tracker" else 0)
+        return self.vision(h) + (2 if C.map_key(self.hero(h)) == "tracker" else 0)
 
     def in_squall(self, t):
         return self.storm_sight(t) is not None
@@ -525,7 +525,7 @@ class Game(Combat, Biomes, Quests, Travel):
             return None  # sea beasts lie still at low tide
         beasts = all(A.FOES[f["k"]].get("beast") for f in g["foes"])
         near = [h for h, (t, af) in heroes.items() if af == sea and Wd.dist(at, t) <= (A.SEA_HUNT if sea else self.hunt_range(g)) and
-                not (beasts and C.CLASSES[self.hero(h)["cls"]]["map"]["key"] == "wildspeak")]
+                not (beasts and C.map_key(self.hero(h)) == "wildspeak")]
         if not near:
             return None
         h = min(near, key=lambda h: Wd.dist(at, heroes[h][0]))
@@ -1407,7 +1407,7 @@ class Game(Combat, Biomes, Quests, Travel):
         """Hidden grottos near a hero are found (a hex off, or two for a Farsighted hero; `r` for a lookout)."""
         hero = self.hero(h)
         if r is None:
-            r = A.GROTTO_SPOT + (1 if C.CLASSES[hero["cls"]]["map"]["key"] == "farsight" else 0)
+            r = A.GROTTO_SPOT + (1 if C.map_key(hero) == "farsight" else 0)
         for t, p in self.s["world"]["places"].items():
             if p["kind"] == "grotto" and p.get("hidden") and not p.get("found") and Wd.dist(int(t), hero["tile"]) <= r:
                 p["found"] = True
@@ -1424,9 +1424,9 @@ class Game(Combat, Biomes, Quests, Travel):
         hero = self.hero(h)
         hero["spent"] = []  # once-per-rest actions (Lift) come back
         p = self.place(hero["tile"])
-        medic = any(C.CLASSES[self.hero(x)["cls"]]["map"]["key"] == "field_medic" and self.hero(x)["tile"] == hero["tile"]
+        medic = any(C.map_key(self.hero(x)) == "field_medic" and self.hero(x)["tile"] == hero["tile"]
                     for x in self.living())
-        key = C.CLASSES[hero["cls"]]["map"]["key"]
+        key = C.map_key(hero)
         frac = 0.5 if p and p["kind"] == "camp" else 0.2
         if key == "forage" and p and p["kind"] == "camp":
             frac = 1
@@ -1474,7 +1474,7 @@ class Game(Combat, Biomes, Quests, Travel):
             self.push(h, {"type": "event", "key": key})
         elif k == "wreck" and not p.get("done"):
             p["done"] = True
-            n = 2 + (1 if C.CLASSES[hero["cls"]]["map"]["key"] == "light_fingers" else 0)
+            n = 2 + (1 if C.map_key(hero) == "light_fingers" else 0)
             self.offer_loot(h, n, tier_bonus=0, rarity=p.get("rarity"))
             self.say(f"{hero['name']} picks through a wreck.")
         elif k == "cove" and not p.get("done"):

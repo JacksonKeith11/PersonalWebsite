@@ -922,6 +922,11 @@ Ranger 56.3%, Herald 53.6%, Alchemist 52.9%, Warden 51.2%, Vanguard 49.4%, Drago
 84.3%** (classes 75–92%, Mender 92.2% and Berserker 91.5% on top, Warden 75.0% and Herald 76.2% at the
 bottom; Normal hadn't been measured since before the signature mechanics).
 
+**Second pass** (owner's request, 2026-11-06): Normal `foe_dmg` 2.45 → 2.6; the Mender's Lift revives
+with the die ×1.5 (was ×2), Quick Lift with 4 HP (was 6). 400 runs each, seed 5000: **Hard 48.5%**
+(Mender 61.1%, the rest 41–58%), **Normal 83.3%** (was 84.3%: more enemy damage barely moves Normal,
+where parties rarely fall; classes 74–91%, Duelist 90.6% on top, Psion 74.1% at the bottom).
+
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
 each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit

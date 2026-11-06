@@ -33,7 +33,7 @@ DIFFICULTY = {
     # Hard: enemies hit harder and the tide strengthens them faster, so a long, thorough run (every quest,
     # every lair) meets a stronger world than a quick one (owner, Nov 2026: a real choice). `surge` is the
     # share stronger per rise (tuning.SURGE where unset).
-    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 3.0, "surge": 0.009},
+    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.010},
 }
 MOVES = 4
 PATH_MAX = 20  # hexes in one turn's route at most (a current carries a skiff a long way)

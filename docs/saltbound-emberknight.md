@@ -49,7 +49,7 @@ party with it).
 | HP | 28 (+4 a level): between the Warden (26) and the Duelist (31) |
 | Base dice | d8 and d6, plain |
 | Start | Searing Strike, Flashover |
-| Weapon | **Ember Mace** (new common, d6): Slash (deal the die +1). Its hits get the Heat bonus like any |
+| Weapon | **Ember Mace** (new common, d6): Slash (now a cooldown special: the die +3, overkill carries on). Its hits get the Heat bonus like any |
 | Armor | Padded Coat (existing) |
 | Map ability | **Banked Coals** (below) |
 
@@ -60,7 +60,7 @@ round, as for every class.
 
 | Action | Dice | Text | Notes |
 |---|---|---|---|
-| **Searing Strike** (basic) | 1 | Deal the die +1. Crit: add 5 Heat. | Strike is the die +2; the Heat bonus (+1 to +3) is what makes up for it. |
+| **Searing Strike** (basic) | 1 | Deal the die +2. Crit: add 5 Heat. | Was the die +1 (the Heat bonus made up the gap with Strike); +2 since weapon actions got cooldowns (Nov 2026: the Emberknight fell to 27% on Hard without its mace as a free second attack). |
 | **Flashover** | 1 | Any row: spend all your Heat; every enemy takes half of it, +the die. | cd 2. At 18 Heat with a d6: about 12 to every enemy, then you start cold. |
 
 ## Level-up pool

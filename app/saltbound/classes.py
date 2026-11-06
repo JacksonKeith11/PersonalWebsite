@@ -222,7 +222,7 @@ ACTIONS = {
              "text": "Every enemy is Weak this round."},
 
     # ---- Ranger
-    "shoot_r": {"name": "Shoot", "req": {"n": 1}, "tgt": "foe", "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Any row: deal the die +1."},
+    "shoot_r": {"name": "Shoot", "req": {"n": 1}, "tgt": "foe", "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Any row: deal the die +2."},
     "hunters_mark": {"name": "Hunter's Mark", "req": {"n": 1}, "tgt": "foe",
                      "ops": [{"op": "status", "s": "mark", "n": 1}, {"op": "dmg", "amt": "v//3"}],
                      "text": "Mark an enemy (every hit on it deals +3) and deal a third of the die."},
@@ -681,7 +681,7 @@ HEAT_AFTER = 10
 OVERHEAT_HP = 5
 ACTIONS.update({
     "searing_strike": {"name": "Searing Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
-                       "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Deal the die +1."},
+                       "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Deal the die +2."},
     "flashover": {"name": "Flashover", "req": {"n": 1}, "tgt": "foes", "tags": [],
                   "ops": [{"op": "dmg", "amt": "heat//2+v"}, {"op": "heat", "amt": "-heat"}],
                   "text": "Any row: spend all your Heat; every enemy takes half of it, plus the die."},
@@ -1411,7 +1411,7 @@ SHORT = {
     "drink_deep": ("sword", "die +4 · heal on kill", "½ die"), "frenzy": ("sword", "sum +3 · take 2", None),
     "cleave": ("sword", "die to front row", "½ die to one"), "earthshaker": ("crack", "all: ½ sum · one attack −½ sum", "nothing"),
     "reckless_swing": ("sword", "die +12 · take 2", "½ die · take 2"), "howl": ("down", "all enemies Weak", None),
-    "shoot_r": ("sword", "die +1", None), "hunters_mark": ("target", "Mark · ⅓ die", None),
+    "shoot_r": ("sword", "die +2", None), "hunters_mark": ("target", "Mark · ⅓ die", None),
     "aimed_shot": ("target", "2× die +1", "½ die"), "called_shot": ("target", "sum +8 · pair +6 · pierce", None),
     "sic_em": ("sword", "die · Weak · hawk hunts it", None), "pack_tactics": ("sword", "die +5 (+7 hunted)", "½ die"),
     "spotter": ("eye", "reveal all enemy dice · ½ die Armor", None), "volley": ("sword", "all: ½ each die +1", None),
@@ -1495,7 +1495,7 @@ SHORT.update({
     "molt": ("plus", "shed 1: heal die +3", None), "brood_bond": ("shield", "ally: 2 Armor a round, this fight", None),
 })
 SHORT.update({
-    "searing_strike": ("sword", "die +1", None), "flashover": ("flame", "all: ½ Heat + die · spend all", None),
+    "searing_strike": ("sword", "die +2", None), "flashover": ("flame", "all: ½ Heat + die · spend all", None),
     "stoke": ("flame", "die · Heat ×3", None), "inferno_cleave": ("sword", "front row: die each", None),
     "meteor_fist": ("sword", "die +4 · Heat bonus ×2 (5+)", "½ die"), "cinder_lance": ("flame", "die + up to 10 Heat · spend", None),
     "quench": ("shield", "cool 2× die · as Armor", None), "ember_ward": ("shield", "die +1 Armor · attackers Burn", None),

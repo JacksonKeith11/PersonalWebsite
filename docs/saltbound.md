@@ -1397,7 +1397,15 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, weapon actions on cooldowns, then Shoot and Searing Strike die +2 and the Ranger
+**Latest (Nov 2026, 22 new weapon skills in place of Slash and Zap, Kindle +2, Emberknight 31 HP;
+300 Hard runs, seed 5000): 52.3%**. Classes 47-60%: Alchemist 60.0, Mender 59.1, Dragonborn 58.5,
+Scoundrel 56.7, Warden 55.4, Berserker 52.3, Vanguard 52.2, Emberknight 50.0, Herald 49.2, Duelist 49.1,
+Spellblade and Psion 47.6, Ranger and Arcanist 46.9. The new skills before the last two tweaks gave
+49.0% with the Emberknight at 36.4% (Searbrand's Burn gets no Heat bonus; Slash's hit did) and Kindle
+played 23 times in 64 Arcanist runs (133 after the +2). Most played: Thunderhead, Ricochet, Rallying
+Cut, Royal Decree; least: Tend the Grove (only pays with summons).
+
+**Before that (weapon actions on cooldowns, then Shoot and Searing Strike die +2 and the Ranger
 27 HP; 300 Hard runs, seed 5000): 54.0%**. Classes 45-62%: Herald 61.9, Alchemist and Dragonborn 60,
 Duelist 59.6, Mender 57.6, Warden 55.4, Berserker 53.8, Emberknight 53.0, Scoundrel 52.2, Psion 50.8,
 Vanguard 50.7, Spellblade 49.2, Arcanist 46.9, Ranger 45.3. The basics' buff alone gave 53.3% with the

@@ -94,7 +94,7 @@ class Actions:
         f = self.s["fight"]
         n = m.get("might", 0) + self.herald_aura()
         n += (f.get("ground") or {}).get("might", 0)  # the Prism Wood's Resonance
-        n += m.get("momentum", 0) * f["acts"].get(str(h), 0)
+        n += min(C.MOMENTUM_CAP, m.get("momentum", 0) * f["acts"].get(str(h), 0))
         n += m.get("rage", 0) * ((self.maxhp(h) - self.hero(h)["hp"]) // 5)
         x = self.hs(h)
         if a.get("bomb"):
@@ -770,7 +770,12 @@ class Actions:
 
     def _op_summon(self, c, op, targets):
         hp = amt(op["hp"], self.env(c.h, c.a, c.dice)) + c.plus if op.get("hp") else None
+        if hp is None and op.get("tough"):
+            hp = C.SUMMONS[op["k"]]["hp"] * 3 // 2  # an upgraded summon with a fixed HP
         self.summon(c.h, op["k"], hp)
+
+    def _op_cue_self(self, c, op, targets):
+        c.x["cued"] = c.x.get("cued", 0) + op["n"]  # an upgraded defence: your next hit this round
 
     # ------------------------------------------------------------------ instant actions
 
@@ -1101,7 +1106,7 @@ class Actions:
     def _inst_reroll_ally(self, c, op):
         y = self.hs(c.other)
         y["rr"] += 2 + (1 if c.a["plus"] else 0)
-        y["inspire"] = y.get("inspire", 0) + 3 + c.extra
+        y["inspire"] = y.get("inspire", 0) + 5 + c.extra  # Quicksilver (was 3)
         self.fx("st", to=f"h{c.other}", s="rerolls")
 
     def _inst_flip(self, c, op):

@@ -1058,6 +1058,10 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple) and g.active(t[1]):
                         left = sum(1 for d in g.hs(t[1])["dice"] if not d["used"] and "guard" not in (d.get("dk") or []))
                         val += share * min(op["n"], left) * (n_ * 0.85 + 2.5)
+            elif k == "cue_self":
+                # an upgraded defence readies the next hit: worth it if a die is left for one
+                if sum(1 for d in g.hs(h)["dice"] if not d["used"]) > len(dice):
+                    val += op["n"] * 0.8
             elif k == "harm_spend":
                 # Crescendo of Light spends every Harmony: what they'd still have done for the party
                 val -= sum((g.s["fight"].get("harm") or {}).values()) * 2.5

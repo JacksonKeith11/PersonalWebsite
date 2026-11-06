@@ -1204,6 +1204,27 @@ ACTIONS["thornlash"]["text"] = "Any row: deal the die +1, and Root (Entwine) the
 CLASSES["warden"]["start"] = ["thornlash", "sprout", "tangleroot"]
 CLASSES["warden"]["pool"] += ["choking_vines", "thicket", "strangler_fig", "snare_line", "sapping_vines", "thorned_tendrils", "heart_of_wild"]
 
+# ---- The weakest old picks, reworked (owner's request, Nov 2026; each read -19 to -25 vs passed).
+MOMENTUM_CAP = 4
+PASSIVES["momentum"].update(mods={"momentum": 2}, text="Each of your actions after the first in a round deals +2 (up to +4).")
+ACTIONS["sanctuary"]["ops"] = [{"op": "sanct", "n": 3}]
+ACTIONS["sanctuary"]["miss"] = [{"op": "sanct", "n": 2}]
+ACTIONS["sanctuary"]["text"] = "On 5+: every hit on the party this round deals 3 less. Otherwise: 2 less."
+ACTIONS["panacea"]["req"] = {"n": 2}
+ACTIONS["panacea"].pop("miss", None)
+ACTIONS["panacea"]["text"] = ("Two dice: remove every Burn, Poison, Weak, Vulnerable, Mark and Root from the party, "
+                              "and heal everyone half the sum.")
+ACTIONS["quicksilver"]["text"] = "An ally gets 2 more automatic rerolls this fight, and their next die rolls 5 higher."
+ACTIONS["read_intent"].update(tgt="foes", text="No die, 1 Focus: every enemy rolls its attack now, so the party sees the exact numbers.")
+ACTIONS["mind_crush"]["ops"] = [{"op": "dmg", "amt": "4*v"}]
+ACTIONS["mind_crush"]["miss"] = [{"op": "dmg", "amt": "sum"}]
+ACTIONS["mind_crush"]["text"] = "Two dice, a pair: any row, the enemy takes four times the pair's number. Otherwise: their sum."
+ACTIONS["call_bear"]["req"] = {"n": 2, "sum_min": 7}
+ACTIONS["call_bear"]["miss"] = [{"op": "summon", "k": "sapling", "hp": "sum"}]
+ACTIONS["call_bear"]["text"] = "Two dice summing to 7+: a bear joins the fight (15 HP, hits for 4 each round). Otherwise: a sapling with their sum in HP."
+ACTIONS["briar_wall"]["ops"] = [{"op": "armor", "amt": "sum//2+1+2*pair", "to": "party"}, {"op": "status", "s": "thorns", "n": 3, "to": "party"}]
+ACTIONS["briar_wall"]["text"] = "Two dice: the party gains half their sum +1 as Armor (+2 more each if they're a pair), and attackers take 3 this round."
+
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
 
@@ -1292,6 +1313,49 @@ for _k, _a in ACTIONS.items():
     if _k not in FREE and not _a.get("once") and not _a.get("per_rest"):
         _a["cd"] = max(_a.get("cd", 2), BIG.get(_k, 2))
 
+# Upgrades (owner's request, Nov 2026): learning an action twice still gives +2 to its numbers, and also one
+# rider suited to what it does (`up` on the action: fields merged over it when upgraded, by
+# `Game.action_def`; `up_text` says what in words). A long cooldown gets shorter; melee reaches any row;
+# a single-target hit splashes the enemies beside it; a hit on several gives you Armor; a debuff lasts
+# a round longer; help for an ally helps you too; a defence readies your next hit; a summon is tougher.
+UP_SPLASH = 2
+UP_CUE = 3
+
+
+def _upgrade(k, a):
+    if "up" in a or a.get("once") or a.get("per_rest") or a["req"].get("n", 1) == 0 and not a["ops"]:
+        return
+    ops = a["ops"]
+    kinds = {o["op"] for o in ops}
+    dmg = [o for o in ops if o["op"] == "dmg"]
+    if a.get("cd", 0) >= 3:
+        a["up"], a["up_text"] = {"cd": a["cd"] - 1}, f"its cooldown is {a['cd'] - 1} (was {a['cd']})"
+    elif dmg and a.get("melee"):
+        a["up"], a["up_text"] = {"melee": False}, "it reaches any row"
+    elif dmg and a["tgt"] == "foe" and not any(o.get("splash") or o.get("random") for o in dmg):
+        first = ops.index(dmg[0])
+        a["up"] = {"ops": ops[:first] + [{**dmg[0], "splash": UP_SPLASH}] + ops[first + 1:]}
+        a["up_text"] = f"it also deals {UP_SPLASH} to each enemy beside its target"
+    elif dmg:
+        a["up"], a["up_text"] = {"ops": ops + [{"op": "armor", "amt": "max(2,v//2)", "to": "self"}]}, "you also gain half the die as Armor (at least 2)"
+    elif any(o["op"] == "status" and o["s"] in ("weak", "vuln", "mark", "root") for o in ops) and a["tgt"] in ("foe", "foes", "front"):
+        a["up"] = {"ops": [{**o, "n": (o["n"] + 1) if isinstance(o.get("n"), int) else o.get("n")}
+                           if o["op"] == "status" and o["s"] in ("weak", "vuln", "mark", "root") else o for o in ops]}
+        a["up_text"] = "its Weak, Vulnerable, Mark or Root lasts a round longer"
+    elif a["tgt"] in ("ally", "other") and kinds & {"heal", "armor"}:
+        a["up"], a["up_text"] = {"ops": ops + [{"op": "armor", "amt": "max(2,v//2)", "to": "self"}]}, "you also gain half the die as Armor (at least 2)"
+    elif "summon" in kinds:
+        a["up"] = {"ops": [{**o, "hp": f"({o['hp']})*3//2"} if o["op"] == "summon" and o.get("hp") else
+                           {**o, "tough": True} if o["op"] == "summon" else o for o in ops]}
+        a["up_text"] = "its summon has half again as much HP"
+    else:
+        # a defence, a buff, a trick: it readies your next hit
+        a["up"], a["up_text"] = {"ops": ops + [{"op": "cue_self", "n": UP_CUE}]}, f"your next hit this round deals +{UP_CUE}"
+
+
+for _k, _a in ACTIONS.items():
+    _upgrade(_k, _a)
+
 # Party XP needed for each level (index = level - 1).
 XP_FOR = [0, 20, 50, 90, 140, 200, 270, 350]
 MAX_LEVEL = len(XP_FOR)
@@ -1333,7 +1397,7 @@ SHORT = {
     "siphon": ("sword", "die +2 · heal half", "½ die · heal half"), "doom": ("skull", "26 − die, next round", None),
     "mend": ("plus", "heal die +2", None), "lift": ("hand", "revive: 1½× die", None),
     "renew": ("plus", "party: heal ½ sum · pair: sum", None), "lifeline": ("plus", "heal ½ max HP at round end", "heal ½ die"),
-    "ward": ("shield", "ally: 2× die Armor", None), "sanctuary": ("shield", "party: hits −2", "hits −1"),
+    "ward": ("shield", "ally: 2× die Armor", None), "sanctuary": ("shield", "party: hits −3", "hits −2"),
     "cleanse": ("plus", "cure + heal die", None), "smite": ("sword", "die +4 · ally heals 2", "½ die"),
     "quick_lift": ("hand", "revive with 4 HP", None),
     "slash_d": ("sword", "die +2 · +2 if it aims at you", "½ die"), "parry": ("shield", "die Armor · riposte 4", None),
@@ -1364,11 +1428,11 @@ SHORT = {
     "toss": ("sword", "die · splash 2", None), "tonic_a": ("plus", "heal die +1", None),
     "firebomb": ("flame", "die to its row · Burn 1", "½ die"), "acid_flask": ("drop", "strip Armor · Vuln 2 · die", None),
     "concussion": ("sword", "3 + Stun", "½ die"), "bottle_it": ("drop", "brew a potion", None),
-    "quicksilver": ("refresh", "ally +2 rerolls · next die +3", None), "panacea": ("plus", "party: cure + heal ½ sum", "cure"),
+    "quicksilver": ("refresh", "ally +2 rerolls · next die +5", None), "panacea": ("plus", "party: cure + heal ½ sum", None),
     "thornlash": ("sword", "die +1 · 5+: Root", None), "sprout": ("spark", "sapling, 2× die HP", None),
-    "call_bear": ("spark", "a bear joins", "nothing"), "swarm": ("spark", "wasps: sum HP, sting all 2", None),
+    "call_bear": ("spark", "a bear joins (7+)", "a sapling: sum HP"), "swarm": ("spark", "wasps: sum HP, sting all 2", None),
     "regrowth": ("plus", "party: heal ½ die +1", None), "entangle": ("root", "Root + Weak · ½ die", None),
-    "briar_wall": ("shield", "party: ½ sum Armor · thorns 2", None), "strangle": ("sword", "die +2, 2× if Rooted", "½ die"),
+    "briar_wall": ("shield", "party: ½ sum +1 Armor · thorns 3", None), "strangle": ("sword", "die +2, 2× if Rooted", "½ die"),
     "ancient_guardian": ("spark", "a treant rises", None),
     # weapon actions
     "hack": ("sword", "die +3", "½ die"), "zap": ("bolt", "die · Shock", None), "flare": ("target", "½ die · Mark", None),
@@ -1408,9 +1472,9 @@ SHORT.update({
 })
 SHORT.update({
     "mind_spike": ("bolt", "die · exactly 6: 12", None), "kinetic_shield": ("shield", "die +2 Armor · exactly 1: 8", None),
-    "mind_crush": ("bolt", "pair: 3× its number", "nothing"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),
+    "mind_crush": ("bolt", "pair: 4× its number", "sum"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),
     "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: die · drag", None),
-    "read_intent": ("eye", "1 Focus: its roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
+    "read_intent": ("eye", "1 Focus: every roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
     "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
 })
 SHORT.update({

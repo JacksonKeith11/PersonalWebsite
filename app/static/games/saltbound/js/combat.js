@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=142';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=142';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=142';
-import { stageURL, stageKey } from './stage.js?v=142';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=142';
-import { render } from './main.js?v=142';
-import { skillCard } from './hud.js?v=142';
-import { SKILL_FX, foeFx } from './skillfx.js?v=142';
-import * as sfx from './audio.js?v=142';
+import { S, send, mine, controllerName } from './store.js?v=143';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=143';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=143';
+import { stageURL, stageKey } from './stage.js?v=143';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=143';
+import { render } from './main.js?v=143';
+import { skillCard, upDef, upText } from './hud.js?v=143';
+import { SKILL_FX, foeFx } from './skillfx.js?v=143';
+import * as sfx from './audio.js?v=143';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -1060,7 +1060,7 @@ export function reqBadge(req) {
 
 function actionCard(f, x, k, i, selDice, ready) {
   const base = k.replace(/\+$/, '');
-  const a = S.static.actions[base];
+  const a = upDef(k);
   const hs = f.hs[x];
   const once = a.once && hs.once.includes(base);
   const spent = a.per_rest && (S.game.heroes[x].spent || []).includes(base);
@@ -1086,7 +1086,7 @@ function actionCard(f, x, k, i, selDice, ready) {
   const [ico, eff, miss] = a.short || ['spark', a.text, null];
   const oddCls = chance === null ? '' : chance >= 0.6 ? '.good' : chance >= 0.3 ? '.mid' : '.bad';
   return h('button.action.v2' + (fits ? '.fits' : '') + (guardOff ? '.guard-off' : '') + (a.def ? '.def' : '') + (noDice ? '.nodice' : ''), {
-    disabled: dis, onmouseenter: () => light(true), onmouseleave: () => light(false), onfocus: () => light(true), onblur: () => light(false), tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${a.melee ? '\nMelee: reaches only the enemies’ front row.' : ''}${cdText}${why}`,
+    disabled: dis, onmouseenter: () => light(true), onmouseleave: () => light(false), onfocus: () => light(true), onblur: () => light(false), tip: `${a.name}${k.endsWith('+') ? '+' : ''}\n${reqText(a.req)}\n${a.text}${upText(k, a)}${a.melee ? '\nMelee: reaches only the enemies’ front row.' : ''}${cdText}${why}`,
     onclick: () => pickAction(f, x, k, selDice),
   },
     h('div.rq' + (bd.risky ? '.risky' : '') + oddCls, { tip: `Needs: ${reqText(a.req)}${chance !== null ? `\n${Math.round(chance * 100)}% to hit with ${auto ? 'the dice it would use' : 'your picked dice'}` : ''}` },
@@ -1146,7 +1146,7 @@ function needsTarget(a) { return ['foe', 'ally', 'other', 'downed'].includes(a.t
 
 function pickAction(f, x, k, selDice) {
   const base = k.replace(/\+$/, '');
-  const a = S.static.actions[base];
+  const a = upDef(k);
   const n = a.req.n ?? 1;
   let dice = selDice;
   if (n > 0 && !dice.length) {
@@ -1368,7 +1368,7 @@ function heroTip(x, hs) {
     const a = S.static.actions[k.replace(/\+$/, '')];
     if (!a) continue;
     const cd = hs?.cds?.[k.replace(/\+$/, '')];
-    lines.push(`${a.name}${k.endsWith('+') ? '+' : ''}${cd ? ` (ready in ${cd})` : ''}: ${a.text}`);
+    lines.push(`${a.name}${k.endsWith('+') ? '+' : ''}${cd ? ` (ready in ${cd})` : ''}: ${a.text}${upText(k, a)}`);
   }
   lines.push('Click for their full sheet.');
   return lines.join('\n');

@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=142';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=142';
-import { spriteURL, placeURL } from './art.js?v=142';
-import { itemURL } from './itemart.js?v=142';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=142';
-import { MapView } from './hexmap.js?v=142';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=142';
-import { disconnect } from './main.js?v=142';
-import * as sfx from './audio.js?v=142';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=143';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=143';
+import { spriteURL, placeURL } from './art.js?v=143';
+import { itemURL } from './itemart.js?v=143';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=143';
+import { MapView } from './hexmap.js?v=143';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=143';
+import { disconnect } from './main.js?v=143';
+import * as sfx from './audio.js?v=143';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -22,7 +22,10 @@ export function teardownGame() {
 
 const seat = h => `var(--hero-${h})`;
 const cls = k => S.static.classes[k];
-const actionDef = k => S.static.actions[k.replace(/\+$/, '')];
+// an upgraded action (key+) is the action with its rider merged in (classes.py `_upgrade`)
+export const upDef = (k, a = S.static.actions[k.replace(/\+$/, '')]) => (a && k.endsWith('+') && a.up ? { ...a, ...a.up } : a);
+export const upText = (k, a) => (k.endsWith('+') ? ` Upgraded: +2 to its numbers${a?.up_text ? `, and ${a.up_text}` : ''}.` : '');
+const actionDef = k => upDef(k);
 const skillDef = k => S.static.actions[k.replace(/\+$/, '')] || S.static.passives[k.replace(/\+$/, '')];
 const item = k => S.static.items[k];
 
@@ -1201,7 +1204,7 @@ export function skillCard(k, source = null) {
       h('span.tag' + (when === 'Every round' ? '.free' : ''), null, sk.cd ? icon('clock') : null, when),
       source ? h('span.tag', { tip: `From your ${source}` }, source) : null,
       sk.def ? h('span.tag.def', { tip: 'Defensive: takes Guard dice.' }, icon('shield'), 'Guard dice') : null) : null,
-    h('p', null, sk.text + (up ? ' Upgraded: +2 to its numbers.' : '')),
+    h('p', null, sk.text + upText(k, sk)),
     sk.tags?.length ? h('div', { style: { display: 'flex', gap: '4px' } }, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
 }
 
@@ -1438,7 +1441,7 @@ function renderDialogs() {
             h('h3', null, sk.name + (up ? '+' : '')),
             isAct ? skillFace(k) : null,
             isAct && sk.cd ? h('span.req', null, icon('clock'), `cooldown ${sk.cd}`) : null,
-            h('p', null, up ? `${sk.text} Upgraded: +2 to its numbers.` : sk.text),
+            h('p', null, sk.text + upText(k, sk)),
             sk.tags?.length ? h('div.tags', null, ...sk.tags.map(t => h('span.chip', null, t[0].toUpperCase() + t.slice(1)))) : null);
         })),
       ];

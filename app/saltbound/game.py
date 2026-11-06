@@ -306,6 +306,8 @@ class Game(Combat, Biomes, Quests, Travel):
     def action_def(self, h, key):
         base = key.rstrip("+")
         a = dict(C.ACTIONS.get(base) or I.WEAPON_ACTIONS[base])
+        if key.endswith("+") and a.get("up"):
+            a.update(a["up"])  # the upgrade's rider (classes.py `_upgrade`)
         a.update(self.mods(h)["override"].get(base, {}))
         a["key"] = base
         a["plus"] = key.endswith("+")

@@ -182,6 +182,13 @@ Keep to these. They came from the owner directly.
   HP automatically, and levels 3 and 6 upgrade one base die a size (d6 to d8). Every level-up also
   offers a **choice of 1 of 3** from the class's skill pool: new actions, passives, upgrades to
   skills already owned (Slash → Slash+), and from level 6, capstones. No rerolling the offer.
+- **Upgrades** (Nov 2026): an upgraded action gets +2 to its numbers and one rider suited to what it
+  does (`up` and `up_text` on the action, made by `classes._upgrade`, merged in `Game.action_def` and,
+  in the browser, `hud.upDef`): a cooldown of 3+ is 1 shorter; melee reaches any row; a single-target
+  hit also deals 2 to each enemy beside its target; a hit on several gives half the die as Armor; a
+  Weak, Vulnerable, Mark or Root lasts a round longer; help for an ally gives you half the die as Armor;
+  a summon has half again its HP; anything else readies your next hit this round (+3, `cue_self`). A
+  hand-written `up` on an action wins over the generated one. Lift (once per rest) keeps only the +2.
 - **Tags, not branches**: each class has two tags (e.g. Vanguard's *Bulwark* and *Juggernaut*).
   Offers lean toward tags the hero already has, so builds come together without locking anyone
   in. Untagged skills are offered evenly.
@@ -950,6 +957,14 @@ Alchemist 24 HP (was 21), Toss splashes 2 (was 1). 400 Hard runs, seed 5000: **H
 Mender 44.4% (was 60.0%), Psion 37.6% (was 35.3%), Alchemist 38.8% (was 36.5%); the rest 37–49%. The
 Mender's Overflow kept whole parties alive, so its cut lowered every class a little; the two buffs moved
 their classes about 2 points, inside the ±10 noise of an all-class batch.
+
+**Upgrades with riders, and the weakest old picks reworked** (owner's request, 2026-11-06). Upgrades: see
+Heroes. Reworked (each read -19 to -25 vs passed): Momentum +2 an action after the first, up to +4
+(was +1, no cap; `C.MOMENTUM_CAP`); Sanctuary hits -3 on 5+, -2 otherwise (was -2/-1); Panacea always
+heals (no 8+ needed); Quicksilver the next die +5 (was +3); Read Intent shows every enemy's roll (was
+one); Mind Crush four times the pair (was three), the sum on a miss (was nothing); Call Bear on 7+ (was
+9+), a sapling with the sum in HP on a miss; Briar Wall half the sum +1 as Armor and thorns 3 (was +0,
+2). UPGRADE_RESULTS
 
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),

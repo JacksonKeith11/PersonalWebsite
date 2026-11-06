@@ -102,7 +102,7 @@ MODS = {
     "open_circuit": "allies' spells and bombs deal +n per Sigil on their target",
     # damage
     "might": "flat damage on every hit",
-    "momentum": "+n damage per action already taken this round",
+    "momentum": "+n damage per action already taken this round (up to MOMENTUM_CAP)",
     "rage": "+n damage per 5 HP missing",
     "first_strike": "+n on the hero's first hit each fight",
     "opportunist": "+n against Stunned or Rooted enemies",

@@ -117,6 +117,18 @@ What the owner has called dull: a flat +N, a +1 duration, an immunity, a map-onl
 that fires only when you're already losing (Undying Fury), a once-per-run effect you never see (Miracle),
 and a bonus that repeats one the class already has (Backstab on top of Stab).
 
+## Weapon actions
+
+Owner's request (Nov 2026): weapons give new options, and the class basic must stay the every-round
+play. So every weapon action has a cooldown (2; 3 for a Stun) and must beat the class's basic **in
+its situation** with something the basic can't do: reach (Long Thrust), a verb (Reel In's drag,
+Sunder's strip), a setup or payoff between actions (Zap then Storm Bolt, Burn then Cinder Cleave,
+Poison then Vine Lash), timing (Aim and Loose grows while it waits), kill order (Slash's carry), or the
+number on the die (Prism Ray). A weapon action that's "the die +1" on a cooldown is dead; one that's
+"the die +1" without a cooldown makes the basic pointless. Check a new one against the weakest basic
+(Bolt, Cutting Words, Rebuke: the die, any row) and the strongest (Strike, Claw: die +2), and never
+reuse a class action's key.
+
 ## Designing a new pick: the checklist
 
 1. **The decision.** Say in one sentence what it makes the player do differently. If the answer is

@@ -11,36 +11,39 @@
 
 D = lambda n: list(range(1, n + 1))
 
-# One weapon action per region, the same shape as items.WEAPON_ACTIONS.
+# One weapon action per region, the same shape as items.WEAPON_ACTIONS (every one gets the weapon
+# cooldown there; Stone Gaze, a Stun, waits 3).
 ACTIONS = {
-    "cinder": {"name": "Cinder Cleave", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True,
-               "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "burn", "n": 2}], "miss": [{"op": "dmg", "amt": "v//2"}],
-               "text": "On 4+: deal the die +2 and Burn the enemy for 2. Otherwise: deal half the die."},
+    "cinder": {"name": "Cinder Cleave", "req": {"n": 1}, "tgt": "foe", "melee": True,
+               "ops": [{"op": "dmg", "amt": "v+2+burn"}, {"op": "status", "s": "burn", "n": 2}],
+               "text": "Deal the die +2 plus the enemy's Burn, then Burn it for 2."},
     "sandwind": {"cd": 2, "name": "Scouring Wind", "req": {"n": 2}, "tgt": "foes", "spell": True,
                  "ops": [{"op": "dmg", "amt": "sum//3"}, {"op": "status", "s": "weak", "n": 1}],
                  "text": "Two dice: every enemy takes a third of their sum and is Weak for a round."},
-    "stonebolt": {"name": "Stone Gaze", "req": {"n": 1, "min": 5}, "tgt": "foe",
+    "stonebolt": {"cd": 3, "name": "Stone Gaze", "req": {"n": 1, "min": 5}, "tgt": "foe",
                   "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
                   "text": "Any row. On 5+: deal the die and Stun the enemy. Otherwise: deal half the die."},
     "vinelash": {"name": "Vine Lash", "req": {"n": 1}, "tgt": "foe",
-                 "ops": [{"op": "dmg", "amt": "v//2+1"}, {"op": "status", "s": "root", "n": 1}],
-                 "text": "Any row: deal half the die +1 and Root the enemy."},
-    "smite": {"name": "Smite", "req": {"n": 1}, "tgt": "foe", "melee": True,
-              "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "heal", "amt": "2", "to": "self"}],
-              "text": "Deal the die +2, and heal 2."},
+                 "ops": [{"op": "status", "s": "root", "n": 1}, {"op": "dmg", "amt": "v//2+psn"}],
+                 "text": "Any row: Root the enemy and deal half the die plus its Poison (the Poison stays)."},
+    "radiant": {"name": "Radiant Strike", "req": {"n": 1}, "tgt": "foe", "melee": True,
+                "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "heal", "amt": "2", "to": "party"}],
+                "text": "Deal the die +2, and everyone in the party heals 2."},
     "prism_ray": {"name": "Prism Ray", "req": {"n": 1}, "tgt": "foe", "spell": True,
-                  "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "mark", "n": 1, "if": "v>=6"}],
-                  "text": "Any row: deal the die. On 6+, Mark the enemy too (allies deal +3 to it)."},
+                  "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "burn", "n": 2, "if": "v%2==1"},
+                          {"op": "status", "s": "weak", "n": 1, "if": "v%2==0"}],
+                  "text": "Any row: deal the die +2. An odd die Burns the enemy for 2; an even one makes it Weak."},
     "lull": {"name": "Lull", "req": {"n": 1}, "tgt": "foe", "spell": True,
-             "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "weak", "n": 1}, {"op": "status", "s": "vuln", "n": 1, "if": "v>=5"}],
-             "text": "Any row: deal half the die and make the enemy Weak. On 5+, it's Vulnerable too."},
+             "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": 1}, {"op": "status", "s": "vuln", "n": 1, "if": "v>=5"}],
+             "text": "Any row: deal the die and make the enemy Weak. On 5+, it's Vulnerable too."},
     "glacial": {"name": "Glacial Strike", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True,
-                "ops": [{"op": "dmg", "amt": "v+1"}, {"op": "status", "s": "freeze", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
-                "text": "On 4+: deal the die +1 and Freeze the enemy. Otherwise: deal half the die."},
+                "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "status", "s": "freeze", "n": 1}], "miss": [{"op": "dmg", "amt": "v"}],
+                "text": "On 4+: deal the die +3 and Freeze the enemy (it hits for half). Otherwise: deal the die."},
     # an armor's own defensive action (takes the place of Block)
     "stoneform": {"name": "Stoneform", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v+2"}],
                   "text": "Gain the die +2 as Armor."},
 }
+GUARD_ACTIONS = {"stoneform"}
 
 
 def _g(name, slot, rarity, die, mods, text, region=None, acts=None, dk=None, guard=None, **extra):
@@ -125,9 +128,9 @@ ITEMS = {
     # ---------------------------------------------------------------- Aetherhold: gold and white light
     "seraph_blade": _g("Seraph Blade", W, "legendary", [1, 2, 3, "S", 5, 6, 7, 8, 9, 10, "W", 12], {"heal_armor": 2, "engage": 3},
                        "Halo: anyone you heal also gains 2 Armor, and +3 damage against enemies at full health.",
-                       "heaven", ["smite", "sweep"], dk=["augur"]),
+                       "heaven", ["radiant", "sweep"], dk=["augur"]),
     "sunlance": _g("Sunlance", W, "uncommon", [1, 2, 3, 4, "F5", 6, 7, 8], {"engage": 3},
-                   "Dawn strike: +3 damage against enemies at full health.", "heaven", ["thrust", "smite"]),
+                   "Dawn strike: +3 damage against enemies at full health.", "heaven", ["thrust", "radiant"]),
     "hymnal": _g("Hymnal", W, "common", D(6), {"heal_bonus": 1, "max_hp": 2},
                  "Psalms: your heals are 1 stronger. +2 max HP.", "heaven", ["blessing"]),
     "guardian_mantle": _g("Guardian's Mantle", A, "rare", [2, 3, 4, "S", "S", 7], {"last_stand": 5, "max_hp": 3},

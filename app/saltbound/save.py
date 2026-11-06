@@ -180,8 +180,18 @@ def _v10(state):
     return state
 
 
+def _v11(state):
+    """v12 puts a cooldown on every weapon action, so the Mender (whose only free attack was its
+    Lantern Rod's Flare) learns a basic of its own, Rebuke."""
+    for hero in state.get("heroes", []):
+        if hero.get("cls") == "mender" and "rebuke" not in hero.get("skills", []):
+            hero["skills"] = ["rebuke"] + list(hero.get("skills", []))
+    state["v"] = 12
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10, 11: _v11}
 
 
 class TooOld(Exception):

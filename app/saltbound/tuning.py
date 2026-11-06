@@ -55,3 +55,6 @@ SWELL = ((4, 0), (10, 2), (12, 7), (20, 12))
 ECHO_FACES = 8
 
 ROLL_MODS = ("sleight", "shield_top", "one_is_top", "keen_edge", "skull_top")
+
+# Aim and Loose (the bows' weapon action): +2 for each round it waited ready and unused, up to this many.
+AIM_CAP = 3

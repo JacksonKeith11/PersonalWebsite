@@ -21,7 +21,7 @@ from .dice import Dice, face, is_pair, num, top_face
 from .foes import Foes
 from .crits import is_crit
 from .actions import element_of
-from .tuning import SWELL, ECHO_FACES
+from .tuning import SWELL, ECHO_FACES, AIM_CAP
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
 
@@ -537,6 +537,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 x["swell"] = 0 if old["used"] else min(x.get("swell", 0) + 1, len(SWELL) - 1)
         x["dice"] = []
         x["round_once"] = []
+        if x.get("dealt") and "shoot" not in x.get("cds", {}) and "shoot" in self.actions_of(h):
+            x["aim"] = min(AIM_CAP, x.get("aim", 0) + 1)  # Aim and Loose: a round waited ready and unused
+        x["dealt"] = True
         x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
         x["links"] = {}
         x["tempo"] = False
@@ -1041,6 +1044,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.combo_hit(h, int(tgt[1:]))
         if a.get("bomb"):
             x["bombs"] = x.get("bombs", 0) + 1
+        if a["key"] == "shoot":
+            x["aim"] = 0  # Aim and Loose: loosed
         if self.mods(h).get("quarry") and a["tgt"] == "foe" and isinstance(tgt, str) and tgt.startswith("f"):
             fid, r, q = int(tgt[1:]), f["round"], x.get("quarry")
             if q and q["id"] == fid and q["r"] == r - 1:

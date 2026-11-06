@@ -760,11 +760,11 @@ def dice_combos(g, h, dice):
     same dice are scored on many actions and targets."""
     x = g.hs(h)
     m = g.mods(h)
-    # everything dice_env reads goes in the key (Heat, Scales, the enemies' Sigils, Quiet Glyph), or a
+    # everything dice_env reads goes in the key (Heat, Scales, the enemies' Sigils, Quiet Glyph, Aim), or a
     # cached outcome from another fight, or another run in the same process, is used by mistake
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            x.get("heat", 0), x.get("impact", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
-           bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()),
+           bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()), x.get("aim", 0),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:
@@ -907,6 +907,12 @@ def evaluate(g, b, h, a, dice, tgt):
                     if n >= left:
                         val += share * stopv
                         bump(eff["stop"], tid, pr * share)
+                        if op.get("carry") and n > left:
+                            # Slash's follow-through: the damage past the kill carries on to the next enemy in reach
+                            nxt = [o["hp"] - b.dmg.get(o["id"], 0) for o in foes if o is not t and (g.in_reach(o) or not melee)]
+                            nxt = [z for z in nxt if z > 0]
+                            if nxt:
+                                val += share * min(n - left, min(nxt)) * 0.8
                     elif n > 0 and spell_burn:
                         val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share)
                     if 0 < n < left and bomb_poison:

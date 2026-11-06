@@ -43,7 +43,8 @@ class Actions:
                 "scales": self.hero(h).get("scales", 0), "back": 0, "hunted": 0, "hi": max(vals) if vals else 0,
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
-                "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2)}
+                "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2),
+                "aim": x.get("aim", 0), "shocked": 0, "psn": 0}
 
     def target_env(self, e, h, target, vals):
         """A copy of `dice_env`'s variables with the target enemy's added."""
@@ -57,7 +58,8 @@ class Actions:
                      stunned=int(bool(st.get("stun"))), poisoned=int(bool(st.get("poison"))), marked=int(bool(st.get("mark"))),
                      aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"),
                      hunted=int(self.hs(h).get("hawk") == f"f{target['id']}"),
-                     combo=self.combo_on(h, target), res=int(bool(target.get("res"))), burn=st.get("burn", 0))
+                     combo=self.combo_on(h, target), res=int(bool(target.get("res"))), burn=st.get("burn", 0),
+                     shocked=int(bool(st.get("shock"))), psn=st.get("poison", 0))
             e["sigv"] = sigil_worth(e)
         return e
 
@@ -76,7 +78,8 @@ class Actions:
                      "marked": int(bool(st.get("mark"))), "aimed": int(f"h{h}" in self.intent_aims(it)), "matched": 0,
                      "sig": st.get("sigil", 0), "back": int(target["row"] == "back"),
                      "hunted": int(self.hs(h).get("hawk") == f"f{target['id']}"),
-                     "combo": self.combo_on(h, target), "res": int(bool(target.get("res"))), "burn": st.get("burn", 0)}
+                     "combo": self.combo_on(h, target), "res": int(bool(target.get("res"))), "burn": st.get("burn", 0),
+                     "shocked": int(bool(st.get("shock"))), "psn": st.get("poison", 0)}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -344,8 +347,11 @@ class Actions:
                 n = self.hit_finish(h, n, c.dice, vals, i, 1 if c.crescendo else 0, spell=bool(a.get("spell")))
                 if c.x.pop("redline", None):
                     n *= 2  # Redline: the hit after an overheat
+                hp0 = t["hp"]
                 done = self.hurt_foe(t, n, h, pierce=pierce, bomb=a.get("bomb"))
                 c.dealt = True
+                if op.get("carry") and t["hp"] <= 0 and done > hp0:
+                    self.carry_over(h, a, t, done - hp0)
                 if a.get("melee") and c.x["st"].get("infuse"):
                     self.infuse_hit(h, t)
                 if done and t["hp"] > 0 and (c.x["st"].get("kindled") or (m.get("molten_edge") and c.x.get("heat", 0) >= 15)):
@@ -390,6 +396,16 @@ class Actions:
                     self.fight_heal(h, done // 3, h)
                 if op.get("onkill") and t["hp"] <= 0:
                     self.fight_heal(h, amt(op["onkill"], env), h)
+
+    def carry_over(self, h, a, t, n):
+        """Slash's follow-through: damage past a kill carries on to another enemy in reach (one in
+        the same row first, then the weakest), as a plain hit."""
+        pool = [o for o in self.foes() if o is not t and (self.in_reach(o) or not a.get("melee"))]
+        if not pool:
+            return
+        o = min(pool, key=lambda o: (o["row"] != t["row"], o["hp"], o["id"]))
+        self.fx("st", to=f"f{o['id']}", s="carried")
+        self.hurt_foe(o, n, h, pure=True)
 
     def _op_carve(self, c, op, targets):
         for t in targets:

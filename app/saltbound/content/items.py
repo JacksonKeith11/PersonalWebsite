@@ -10,39 +10,51 @@ D = lambda n: list(range(1, n + 1))
 PRICE = {"common": 15, "uncommon": 30, "rare": 55, "legendary": 90}
 RARITIES = ["common", "uncommon", "rare", "legendary"]
 
-# Actions that come with weapons, in the same shape as classes.ACTIONS.
+# Actions that come with weapons, in the same shape as classes.ACTIONS. Every one has a cooldown
+# (owner's request, Nov 2026): a weapon's action is a special to fire when the moment is right, never a
+# second basic attack, so the class's own basic stays the every-round play. Each does something the
+# basic can't (docs/saltbound-skills.md, "Weapon actions").
+WEAPON_CD = 2
 WEAPON_ACTIONS = {
-    "hack": {"name": "Hack", "req": {"n": 1, "min": 4}, "tgt": "foe", "melee": True,
-             "ops": [{"op": "dmg", "amt": "v+3"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "On 4+: deal the die +3. Otherwise: deal half the die."},
+    "hack": {"name": "Sunder", "req": {"n": 1}, "tgt": "foe", "melee": True,
+             "ops": [{"op": "strip", "amt": "99"}, {"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "vuln", "n": 1}],
+             "text": "Strip the enemy's Armor, deal the die +2, and make it Vulnerable this round (it takes 25% more)."},
     "zap": {"name": "Zap", "req": {"n": 1}, "tgt": "foe", "spell": True,
-            "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "shock", "n": 1}],
-            "text": "Any row: deal the die and Shock the enemy (its next hit also hits a neighbour)."},
+            "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "shock", "n": 1}],
+            "text": "Any row: deal the die +2 and Shock the enemy (the next hit on it also hits a neighbour for half)."},
     "flare": {"name": "Flare", "req": {"n": 1}, "tgt": "foe",
-              "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "mark", "n": 1}], "text": "Any row: deal half the die and Mark the enemy."},
-    "thrust": {"name": "Jab", "req": {"n": 1}, "tgt": "foe", "melee": True,
-            "ops": [{"op": "dmg", "amt": "v"}], "text": "Deal the die."},
-    "harpoon": {"name": "Reel In", "req": {"n": 1, "min": 4}, "tgt": "foe",
-                "ops": [{"op": "dmg", "amt": "v"}, {"op": "drag"}], "miss": [{"op": "dmg", "amt": "v//2"}],
-                "text": "Any row. On 4+: deal the die and drag the enemy to the front row. Otherwise: deal half the die."},
-    "shoot": {"name": "Aim and Loose", "req": {"n": 1, "min": 5}, "tgt": "foe",
-              "ops": [{"op": "dmg", "amt": "v+4"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "Any row. On 5+: deal the die +4. Otherwise: deal half the die."},
+              "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "mark", "n": 1}, {"op": "heal", "amt": "2", "to": "lowest"}],
+              "text": "Any row: deal half the die and Mark the enemy (every hit on it deals +3), and your ally with the lowest HP heals 2."},
+    "thrust": {"name": "Long Thrust", "req": {"n": 1}, "tgt": "foe",
+               "ops": [{"op": "dmg", "amt": "v+2+3*back"}],
+               "text": "Any row, a long reach: deal the die +2, and 3 more against an enemy in the back row."},
+    "harpoon": {"name": "Reel In", "req": {"n": 1}, "tgt": "foe",
+                "ops": [{"op": "drag"}, {"op": "status", "s": "root", "n": 1, "if": "v>=4"}, {"op": "dmg", "amt": "v+1"}],
+                "text": "Any row: drag the enemy to the front row and deal the die +1. On 4+, Root it there first."},
+    "shoot": {"name": "Aim and Loose", "req": {"n": 1}, "tgt": "foe",
+              "ops": [{"op": "dmg", "amt": "v+2+2*aim"}],
+              "text": "Any row: deal the die +2, and 2 more for each round it has waited ready and unused (up to +6)."},
     "slash": {"name": "Slash", "req": {"n": 1}, "tgt": "foe", "melee": True,
-              "ops": [{"op": "dmg", "amt": "v+1"}], "text": "Deal the die +1."},
+              "ops": [{"op": "dmg", "amt": "v+3", "carry": True}],
+              "text": "Deal the die +3. If it kills, the damage past the kill carries on to another enemy in reach."},
     "crush": {"name": "Crush", "req": {"n": 1, "min": 5}, "tgt": "foe", "melee": True,
-              "ops": [{"op": "dmg", "amt": "v+5"}], "miss": [{"op": "dmg", "amt": "v//2"}], "text": "On 5+: deal the die +5. Otherwise: deal half the die."},
-    "sweep": {"cd": 2, "name": "Sweep", "req": {"n": 2}, "tgt": "front", "melee": True,
+              "ops": [{"op": "dmg", "amt": "v+6", "pierce": True}], "miss": [{"op": "dmg", "amt": "v"}],
+              "text": "On 5+: deal the die +6, ignoring Armor. Otherwise: deal the die."},
+    "sweep": {"name": "Sweep", "req": {"n": 2}, "tgt": "front", "melee": True,
               "ops": [{"op": "dmg", "amt": "sum//2+3*pair"}], "text": "Two dice: every enemy in the front row takes half their sum (+3 if they're a pair)."},
-    "tidal": {"cd": 2, "name": "Surge", "req": {"n": 2}, "tgt": "foes", "spell": True,
+    "tidal": {"name": "Surge", "req": {"n": 2}, "tgt": "foes", "spell": True,
               "ops": [{"op": "dmg", "amt": "sum//2+3*pair"}], "text": "Two dice: every enemy takes half their sum (+3 if they're a pair)."},
-    "storm_bolt": {"name": "Storm Bolt", "req": {"n": 1, "min": 6}, "tgt": "foe", "spell": True,
-                   "ops": [{"op": "dmg", "amt": "v+4"}, {"op": "status", "s": "shock", "n": 1}], "miss": [],
-                   "text": "Any row. On 6+: deal the die +4 and Shock the enemy. Otherwise: nothing."},
+    "storm_bolt": {"name": "Storm Bolt", "req": {"n": 1}, "tgt": "foe", "spell": True,
+                   "ops": [{"op": "dmg", "amt": "(v+2)*(1+shocked)"}],
+                   "text": "Any row: deal the die +2, or twice that to a Shocked enemy."},
     "venom_stab": {"name": "Venom Stab", "req": {"n": 1}, "tgt": "foe", "melee": True,
-                   "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "poison", "n": 2}], "text": "Deal half the die and Poison the enemy for 2."},
+                   "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "poison", "n": "2+2*poisoned"}],
+                   "text": "Deal the die and Poison the enemy for 2, or for 4 if it's already Poisoned."},
     "pass_die": {"name": "Pass a Die", "req": {"n": 1}, "tgt": "other", "instant": True,
              "ops": [{"op": "give", "bonus": 2}], "text": "Give one of your dice to an ally to use this round; it rolls 2 higher."},
     "blessing": {"name": "Blessing", "req": {"n": 1}, "tgt": "ally",
-                 "ops": [{"op": "heal", "amt": "v"}, {"op": "armor", "amt": "2"}], "text": "Heal an ally by the die and give them 2 Armor."},
+                 "ops": [{"op": "heal", "amt": "v+1"}, {"op": "armor", "amt": "v//2+1"}],
+                 "text": "Heal an ally by the die +1 and give them half the die +1 as Armor."},
 }
 
 # Each armor's own defensive action, which takes the place of Block for whoever wears it (`guard` on
@@ -269,6 +281,9 @@ for _k, (_m, _t) in PASSIVES.items():
 from . import gear2 as _G  # noqa: E402
 WEAPON_ACTIONS.update(_G.ACTIONS)
 ITEMS.update(_G.ITEMS)
+for _k, _a in WEAPON_ACTIONS.items():
+    if _k not in ARMOR_ACTIONS and _k not in _G.GUARD_ACTIONS and not _a.get("instant"):
+        _a["cd"] = max(_a.get("cd", WEAPON_CD), WEAPON_CD)
 
 GUARD_ACT = {'hide_vest': 'hunker',
              'padded_coat': 'hunker',

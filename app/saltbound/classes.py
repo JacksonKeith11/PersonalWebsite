@@ -151,6 +151,8 @@ ACTIONS = {
 
     # ---- Mender
     "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+2"}], "text": "Heal an ally by the die +2."},
+    "rebuke": {"name": "Rebuke", "req": {"n": 1}, "tgt": "foe", "spell": True, "ops": [{"op": "dmg", "amt": "v"}],
+               "text": "Any row: deal the die."},
     "lift": {"name": "Lift", "per_rest": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*3//2"}],
              "text": "Once until you rest: revive a knocked-down ally with one and a half times the die in HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
@@ -388,7 +390,7 @@ CLASSES = {
         "name": "Mender", "hp": 21, "hp_lvl": 4, "role": "Healer",
         "dice": [D(6), D(6)], "tags": ["restoration", "warding"],
         "map": {"key": "field_medic", "name": "Field Medic", "text": "Everyone who rests on your hex heals an extra 10% of their max HP."},
-        "start": ["mend", "lift", "overflow"], "weapon": "lantern_rod", "armor": "nurses_apron",
+        "start": ["rebuke", "mend", "lift", "overflow"], "weapon": "lantern_rod", "armor": "nurses_apron",
         "pool": ["renew", "lifeline", "ward", "sanctuary", "cleanse", "smite",
                  "bedside_manner", "quick_hands", "blessed_supplies", "aura", "clean_bill", "transfusion",
                  "shared_burden", "aegis"],
@@ -1301,11 +1303,11 @@ def is_defensive(a):
 
 
 # Cooldowns: only each class's basic action (the Vanguard's Brace too: a tank needs a defence it can
-# count on every round), Block, Flee and Lift (plus weapon actions, in
-# items.py) can be used every round. Everything else waits at least a round after use, so a hero
+# count on every round), Block, Flee and Lift can be used every round. Weapon actions all cool too
+# (items.WEAPON_CD). Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "thrust", "toss", "thornlash",
-        "block", "flee"}  # the Mender's free action is its weapon's Flare; Mend cools, Lift is once per rest
+FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "rebuke",
+        "toss", "thornlash", "block", "flee"}  # Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3, "mend": 3}
 
 for _k, _a in ACTIONS.items():
@@ -1395,7 +1397,7 @@ SHORT = {
     "fireball": ("flame", "all: ½ sum +2 · Burn 2", "nothing"), "frost_lance": ("snow", "die +3 · Freeze", "½ die"),
     "chain_lightning": ("bolt", "die +3 · Shock · arcs ½", None), "hex": ("down", "Weak + Vulnerable", None),
     "siphon": ("sword", "die +2 · heal half", "½ die · heal half"), "doom": ("skull", "26 − die, next round", None),
-    "mend": ("plus", "heal die +2", None), "lift": ("hand", "revive: 1½× die", None),
+    "mend": ("plus", "heal die +2", None), "rebuke": ("bolt", "die", None), "lift": ("hand", "revive: 1½× die", None),
     "renew": ("plus", "party: heal ½ sum · pair: sum", None), "lifeline": ("plus", "heal ½ max HP at round end", "heal ½ die"),
     "ward": ("shield", "ally: 2× die Armor", None), "sanctuary": ("shield", "party: hits −3", "hits −2"),
     "cleanse": ("plus", "cure + heal die", None), "smite": ("sword", "die +4 · ally heals 2", "½ die"),
@@ -1435,12 +1437,19 @@ SHORT = {
     "briar_wall": ("shield", "party: ½ sum +1 Armor · thorns 3", None), "strangle": ("sword", "die +2, 2× if Rooted", "½ die"),
     "ancient_guardian": ("spark", "a treant rises", None),
     # weapon actions
-    "hack": ("sword", "die +3", "½ die"), "zap": ("bolt", "die · Shock", None), "flare": ("target", "½ die · Mark", None),
-    "thrust": ("sword", "die", None), "harpoon": ("sword", "die · drag to front", "½ die"),
-    "shoot": ("sword", "die +4", "½ die"), "slash": ("sword", "die +1", None), "crush": ("sword", "die +5", "½ die"),
+    "hack": ("sword", "strip Armor · die +2 · Vuln", None), "zap": ("bolt", "die +2 · Shock", None),
+    "flare": ("target", "½ die · Mark · weakest ally heals 2", None),
+    "thrust": ("sword", "any row: die +2 · back row +3", None), "harpoon": ("sword", "drag to front · die +1 · 4+: Root", None),
+    "shoot": ("sword", "die +2 · +2 a round waited", None), "slash": ("sword", "die +3 · overkill carries on", None),
+    "crush": ("sword", "die +6, ignores Armor", "die"),
     "sweep": ("sword", "front row: ½ sum · pair +3", None), "tidal": ("wave", "all: ½ sum · pair +3", None),
-    "storm_bolt": ("bolt", "die +4 · Shock", "nothing"), "venom_stab": ("drop", "½ die · Poison 2", None),
-    "blessing": ("plus", "heal die · 2 Armor", None),
+    "storm_bolt": ("bolt", "die +2 · ×2 if Shocked", None), "venom_stab": ("drop", "die · Poison 2, 4 if Poisoned", None),
+    "blessing": ("plus", "heal die +1 · ½ die +1 Armor", None),
+    "cinder": ("flame", "die +2 + its Burn · Burn 2", None), "sandwind": ("wave", "all: ⅓ sum · Weak", None),
+    "stonebolt": ("star", "die · Stun", "½ die"), "vinelash": ("root", "Root · ½ die + its Poison", None),
+    "radiant": ("sword", "die +2 · party heals 2", None), "prism_ray": ("bolt", "die +2 · odd: Burn 2 · even: Weak", None),
+    "lull": ("down", "die · Weak · 5+: Vuln", None), "glacial": ("snow", "die +3 · Freeze", "die"),
+    "stoneform": ("shield", "die +2 Armor", None),
     "pass_die": ("spark", "give a die to an ally", None),
     # armor actions (they take Block's place)
     "hunker": ("shield", "die +1 Armor", None), "patch_up": ("shield", "die Armor · heal 2", None),

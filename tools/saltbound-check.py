@@ -211,6 +211,40 @@ def main():
                     print(f"  {k}/{key}: CRASH")
                     traceback.print_exc()
                     break
+    # every weapon's actions, on a Vanguard who holds it (weapon actions are on cooldowns, so each
+    # weapon gets a fresh fight)
+    for key, it in I.ITEMS.items():
+        if it.get("slot") != "weapon":
+            continue
+        g = game.Game.new(78, ["vanguard", "mender", "ranger"], "normal")
+        g.hero(0)["equip"]["weapon"] = key
+        for y in range(3):
+            g.hero(y)["tile"] = g.hero(0)["tile"]
+        fight(g, [0, 1, 2])
+        for act in it.get("acts", []):
+            try:
+                if g.s["phase"] != "fight" or not g.s["fight"]:
+                    break
+                a = g.action_def(0, act)
+                fo = (g.front_foes() if a.get("melee") else g.foes())[0]
+                fo["st"].update(shock=1, poison=2, burn=2)  # what Storm Bolt, Vine Lash and Cinder Cleave feed on
+                tgt = target(g, 0, a)
+                if tgt is False:
+                    continue
+                tried += 1
+                g.act(0, {"t": "place", "a": a["key"], "dice": fit_dice(g, 0, a, tgt), "tgt": tgt})
+                if not g.cooling(0, a["key"]) and a.get("cd"):
+                    print("  problem:", f"{key}/{act}: no cooldown after use")
+                    problems.append(f"{key}/{act}: no cooldown after use")
+                for y in list(g.s["fight"]["heroes"]) if g.s["fight"] else []:
+                    if g.s["fight"] and g.active(y) and not g.hs(y)["ready"]:
+                        g.act(y, {"t": "fready"})
+            except Invalid as e:
+                print(f"  weapon {key}/{act}: refused: {e}")
+            except Exception:
+                bad += 1
+                print(f"  weapon {key}/{act}: CRASH")
+                traceback.print_exc()
     print(f"{tried} placements, {bad} crashes, {len(problems)} other problems")
     sys.exit(1 if bad or problems else 0)
 

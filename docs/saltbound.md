@@ -614,8 +614,11 @@ weapons, armor and trinkets.
   **`Game.gear()`** is the run's loot list: the catalogue less the regional pieces of regions it didn't
   draw (every loot, shop, prize, ship, reforge and job-reward pick goes through it). Their passives use
   only mod keys the engine already reads, written out in `text`. Eight new weapon actions, one per
-  region (`gear2.ACTIONS`: Cinder Cleave, Scouring Wind, Stone Gaze, Vine Lash, Smite, Prism Ray, Lull,
-  Glacial Strike), and one armor action, Stoneform (the die +2 as Armor).
+  region (`gear2.ACTIONS`: Cinder Cleave, Scouring Wind, Stone Gaze, Vine Lash, Radiant Strike, Prism Ray, Lull,
+  Glacial Strike), and one armor action, Stoneform (the die +2 as Armor). Radiant Strike's key is
+  `radiant`: it was `smite`, which the Mender's class Smite shadowed (`Game.action_def` and the
+  browser's action list both prefer `C.ACTIONS`), so Sunlance and Seraph Blade used to swing the
+  Mender's Smite. **Never give a weapon action a key a class action already has.**
 - **Using a material** (any enchant or forge material): the bag shows one **Use on gear…** button,
   which opens a popup of every piece worn (`materialPicker` in `hud.js`): its die now and after (the
   label, the faces with the new one picked out), or why it can't take it (`materialResult` mirrors
@@ -779,9 +782,10 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   Duelist dealt the most damage but died the most (0.70 a run), so its HP went 27 → 31: parties with a
   Duelist now win 52% (150 hard runs, `--with=duelist`).
 - **Cooldowns** (`"cd": N`): only basic attacks are usable every round (owner's request). `FREE` in
-  `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block, Flee and weapon
-  actions except Sweep and Tidal). Everything else has 2; the biggest skills 3. Lift is once per rest
-  (`per_rest`, the hero's `spent` list).
+  `classes.py` lists what's exempt (each class's basic, the Vanguard's Brace, Block and Flee).
+  Everything else has 2; the biggest skills 3. Lift is once per rest (`per_rest`, the hero's `spent`
+  list). **Weapon actions cool too** (`WEAPON_CD` 2 in `content/items.py`, Stone Gaze 3; armor actions,
+  which take Block's place, and trinket instants like Pass a Die don't): see "Weapon actions" under Items.
 - **Swell and Echo dice** (owner's request: dice that change what you plan around). The **Swell die**
   (Building Rage for the Berserker, Sap Rising for the Warden) starts each fight as a d4 and grows a
   step each round it's left unused: d10 +2, d12 +7, d20 +12 (`SWELL` in `tuning.py`); using it starts it
@@ -1264,6 +1268,45 @@ steadier, not stronger, unless a Vanguard's Shieldwall makes each shield worth 5
 guard dice (`GUARD_TRINKETS` is empty: Lucky Shell and Pearl Charm used to be, a hidden cost no other
 trinket had). No common may be strictly worse than starting gear (owner's request): the Fishing
 Spear (a Rapier) and Sailcloth Wrap (a worse Wool Robe) were removed; save v5 swaps them for those.
+
+**Weapon actions** (owner's request, Nov 2026: "weapons should provide new interesting options", and
+the class basic must not become irrelevant). Every weapon action has a cooldown (`WEAPON_CD` 2; Stone
+Gaze, a Stun, 3) and does something the class's basic can't, so it's a special to fire at the right
+moment and the basic stays the every-round play. The audit before found Jab (melee, the die: worse
+than every basic), Vine Lash (half the die and a Root that does little to enemies), Storm Bolt (6+ or
+nothing, worse than the Zap on the same staves) and Slash (die +1: a copy of three classes' basics)
+dead or dull, and Hack and Aim and Loose a gamble for about +0.5. What each does now:
+
+| Key | Name | Effect | The point |
+|---|---|---|---|
+| `hack` | Sunder | strip Armor, die +2, Vulnerable this round | axes open an enemy up for the allies after you |
+| `zap` | Zap | any row: die +2, Shock | sets up an ally's hit (and Storm Bolt) |
+| `flare` | Flare | any row: ½ die, Mark, the weakest ally heals 2 | a support's opener |
+| `thrust` | Long Thrust | any row: die +2, +3 on the back row | reach: spears hit the casters |
+| `harpoon` | Reel In | any row: drag to the front, die +1; 4+ Roots first | pulls a back-row enemy to the melee |
+| `shoot` | Aim and Loose | any row: die +2, +2 for each round it waited ready (`aim`, up to `AIM_CAP` 3) | when to loose |
+| `slash` | Slash | die +3; past a kill, the rest carries on (`carry`) | kill order |
+| `crush` | Crush | 5+: die +6 ignoring Armor; else the die | one big hit |
+| `sweep`, `tidal`, `sandwind` | | two dice on a row or everyone | crowds |
+| `storm_bolt` | Storm Bolt | any row: die +2, doubled on a Shocked enemy (`shocked`) | Zap first |
+| `venom_stab` | Venom Stab | die, Poison 2 (4 on a Poisoned enemy) | keep stacking one target |
+| `blessing` | Blessing | heal die +1, ½ die +1 Armor | |
+| `cinder` | Cinder Cleave | die +2 plus its Burn, then Burn 2 | Burn first |
+| `stonebolt` | Stone Gaze | 5+: die and Stun (cd 3) | |
+| `vinelash` | Vine Lash | Root, ½ die plus its Poison (`psn`), which stays | the poison weapons' payoff |
+| `radiant` | Radiant Strike | die +2, the party heals 2 | |
+| `prism_ray` | Prism Ray | die +2; odd Burns 2, even Weak | the number matters |
+| `lull` | Lull | die, Weak; 5+ Vulnerable | |
+| `glacial` | Glacial Strike | 4+: die +3 and Freeze; else the die | |
+
+New amount variables: `aim` (`dice_env`, from `x["aim"]`: raised in `deal_dice` when Aim and Loose
+wasn't cooling last round, zeroed in `after_action`; it's in the bots' `dice_combos` cache key),
+`shocked` and `psn` (`target_env` and `target_part`). Slash's `carry` op flag runs
+`Actions.carry_over` (the overkill hits another enemy in reach, same row first, as a plain hit); the
+bots value it in `bot.evaluate`. Every weapon action has a crit and a `SHORT` card line (the regional
+ones had neither). With its Lantern Rod's Flare on a cooldown the **Mender** got a class basic,
+**Rebuke** (any row: the die; crit: the weakest ally heals 3); save v12 (`save._v11`) teaches it to
+old Menders. `tools/saltbound-check.py` now also equips every weapon and fires each of its actions.
 
 **Weapon faces** (owner's request): every found weapon but the Heirloom Sword (whose faces grow
 with the party's level) has a special face or two, in its theme: freeze faces on the harpoons, the
@@ -1768,7 +1811,7 @@ clock anywhere: the run changes only when someone acts.
   a key. The view and the forecast send keys plus a parallel `aff` list (`foeName(k, aff)` in
   `hud.js`).
 - **Action keys are one namespace across classes and items**: the Alchemist has `toss`, so the Bosun's
-  Bell is `pass_die`; the weapon Jab is `thrust` because `jab` is the Herald's Cutting Words.
+  Bell is `pass_die`; the weapon Long Thrust is `thrust` because `jab` is the Herald's Cutting Words, the weapon Sunder is `hack` (the Berserker's Hack is `hack_b`), and Radiant Strike is `radiant` because `smite` is the Mender's.
 - **Cache versions**: after changing CSS or JS run `python3 tools/bump-version.py
   app/static/games/saltbound`, which bumps every `?v=` together (a module loaded under two URLs runs
   twice). The page's `?v=` is also how the server tells a tab left open across a deploy to reload, so

@@ -24,6 +24,7 @@ CRITS = {
     "shoot_r": ([{"op": "dmg", "amt": "v", "to": "another"}], "the die to another enemy", "the arrow carries on: the die to another enemy"),
     "stab": ([{"op": "status", "s": "poison", "n": "1"}], "Poison 1", "Poison it for 1"),
     "jab": ([{"op": "status", "s": "mark", "n": "1"}], "Mark", "Mark it (every hit on it deals +3)"),
+    "rebuke": ([{"op": "heal", "amt": "3", "to": "lowest"}], "weakest ally heals 3", "your weakest ally heals 3"),
     "toss": ([{"op": "status", "s": "burn", "n": "2"}], "Burn 2", "Burn it for 2"),
     "thornlash": ([{"op": "status", "s": "root", "n": "1", "to": "another"}], "Root another enemy", "the vines spread: Root another enemy"),
     "rune_cut": ([{"op": "carve", "n": 2}], "carve 2 more", "carve 2 more Sigils"),
@@ -37,17 +38,25 @@ CRITS = {
     # ---- weapon actions
     "hack": ([{"op": "dmg", "amt": "3"}], "hit again for 3", "hit again for 3"),
     "zap": ([{"op": "dmg", "amt": "v", "to": "another"}], "arc: the die to another", "it arcs: the die to another enemy"),
-    "flare": ([{"op": "dmg", "amt": "v-v//2"}], "the full die", "deal the full die instead"),
+    "flare": ([{"op": "status", "s": "mark", "n": 1, "to": "another"}], "Mark another", "the light spreads: Mark another enemy too"),
     "thrust": ([{"op": "dmg", "amt": "3"}], "hit again for 3", "hit again for 3"),
-    "harpoon": ([{"op": "status", "s": "root", "n": "1"}], "Root", "Root it"),
+    "harpoon": ([{"op": "dmg", "amt": "3"}], "3 more", "the barb tears: 3 more"),
     "shoot": ([{"op": "dmg", "amt": "4"}], "hit again for 4", "hit again for 4"),
     "slash": ([{"op": "status", "s": "poison", "n": "2"}], "bleed: Poison 2", "it bleeds: Poison 2"),
     "crush": ([{"op": "status", "s": "weak", "n": "1"}], "Weak", "it reels: Weak"),
     "sweep": ([{"op": "dmg", "amt": "2"}], "+2 to each", "each enemy hit takes 2 more"),
     "tidal": ([{"op": "status", "s": "weak", "n": "1"}], "every enemy Weak", "every enemy is Weak"),
-    "storm_bolt": ([{"op": "dmg", "amt": "5"}], "hit again for 5", "hit again for 5"),
+    "storm_bolt": ([{"op": "status", "s": "shock", "n": 1}], "Shock it", "the storm clings: Shock it again"),
     "venom_stab": ([{"op": "status", "s": "poison", "n": "1"}], "Poison +1", "Poison it for 1 more"),
     "blessing": ([{"op": "heal", "amt": "3"}], "heal 3 more", "heal 3 more"),
+    "cinder": ([{"op": "status", "s": "burn", "n": 2, "to": "another"}], "Burn another 2", "the fire leaps: Burn another enemy for 2"),
+    "sandwind": ([{"op": "dmg", "amt": "2"}], "+2 to each", "each enemy takes 2 more"),
+    "stonebolt": ([{"op": "dmg", "amt": "3"}], "3 more", "it cracks: 3 more"),
+    "vinelash": ([{"op": "status", "s": "poison", "n": 2}], "Poison 2", "the thorns are venomous: Poison it for 2"),
+    "radiant": ([{"op": "heal", "amt": "2", "to": "party"}], "party heals 2 more", "everyone heals 2 more"),
+    "prism_ray": ([{"op": "status", "s": "mark", "n": 1}], "Mark", "the light pins it: Mark it"),
+    "lull": ([{"op": "status", "s": "weak", "n": 1, "to": "another"}], "another Weak", "the lull spreads: another enemy is Weak"),
+    "glacial": ([{"op": "dmg", "amt": "3"}], "3 more", "the ice shatters: 3 more"),
 
     # ---- armor actions (they take Block's place)
     "hunker": ([{"op": "armor", "amt": "3"}], "+3 Armor", "gain 3 more Armor"),
@@ -58,6 +67,7 @@ CRITS = {
     "echo_shell": ([{"op": "weaken", "amt": "2", "to": "aiming"}], "they drop by 4", "every attack aimed at you drops by 4 instead"),
     "cover": ([{"op": "armor", "amt": "v", "to": "self"}], "you gain it too", "you gain the die as Armor too"),
     "tidewall": ([{"op": "armor", "amt": "2", "to": "party"}], "the party +2 more", "the whole party gains 2 more"),
+    "stoneform": ([{"op": "armor", "amt": "3"}], "+3 Armor", "gain 3 more Armor"),
 }
 
 for _k, (_ops, _short, _say) in CRITS.items():

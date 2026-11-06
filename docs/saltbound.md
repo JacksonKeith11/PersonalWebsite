@@ -908,6 +908,11 @@ then -20); only `--with=<class>` batches can settle the picks. A first tuning pa
 hit (was +3, ending the combo), Unstable Compound the die +6 at cd 2 (was +4 at cd 3), Martyr the
 party's damage by half (was the Mender's own), Frost Flask without its Weak.
 
+**All-class batch after every signature mechanic** (2026-11-06, 400 Hard runs, seed 5000): **Hard 60.0%**.
+Duelist 70.6%, Dragonborn 70.2%, Mender 70.0%, Herald 67.9%, Ranger 60.9%, Scoundrel 60.9%, Emberknight
+60.2%, Alchemist 60.0%, Berserker 59.8%, Spellblade 55.8%, Vanguard 55.3%, Warden 53.6%, Arcanist 49.4%,
+Psion 44.7%. Each class is in about 85 runs, so each number is good to about ±10.
+
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
 each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit

@@ -1472,7 +1472,21 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, a harder Hard whose tide makes long runs cost; seed 5000): 55.3% doing everything
+**Latest (Nov 2026, the Great Tide and the middle road; 200 Hard runs per style, seed 5000): 62.5% on the
+path, 49.0% doing everything, 45.5% rushing.** Owner's request: the middle road should be best, with
+whether a quest is worth it depending on the path, and the tide rarer, bigger and obvious. The simulator's
+`--style=path` bots take a job or quest step only when it's at most `bot.PATH_DETOUR` (6) hexes out of
+the way to the next objective (71 turns, 22 rises); `all` does everything (94 turns, 30 rises); `rush`
+skips them (56 turns, 17 rises). Hard: `foe_dmg` 2.95; each rise +0.65%, and past rise 20 another
+0.06% times the square of the rises past it (Game.surge): +11% at 17 rises, +15% at 22, +24% at 30.
+Classes on the path 51-82% (Emberknight 81.6, Arcanist 51.4); doing everything 32-65 (Herald 31.7);
+rushing 33-62 (Spellblade 33.3). The steps there: the accelerating tide from rise 20 then 26, before the
+Great Tide made runs shorter, gave path 53.5 / rush 51.5 / all 35.0; the Great Tide with the old curve
+gave path 62.5 / all 64.5 / rush 51.0, with two runs stuck on a bot swapping two items forever (fixed:
+`bot.item_score` leaves out the actions of the piece it would replace). For the best road to sit at
+about 50% too, raise Hard's `foe_dmg` (about 5% more strength takes about 10 points off each road).
+
+**Before that (a harder Hard whose tide makes long runs cost; seed 5000): 55.3% doing everything
 (300 runs), 45.3% rushing (150 runs, `--rush`)**. Owner's request: make Hard harder, and make finishing
 every quest and lair a real choice against heading straight for the objectives. Hard's `foe_dmg` is
 2.85 (was 2.9) and its tide strengthens enemies 0.85% a rise (`surge` on the difficulty; Story and

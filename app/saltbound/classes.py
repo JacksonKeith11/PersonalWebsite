@@ -150,7 +150,7 @@ ACTIONS = {
              "text": "At the end of next round, the enemy takes 26 minus the die (at least 8). The lower the roll, the bigger the hit."},
 
     # ---- Mender
-    "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+3"}], "text": "Heal an ally by the die +3."},
+    "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+2"}], "text": "Heal an ally by the die +2."},
     "lift": {"name": "Lift", "per_rest": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2"}],
              "text": "Once until you rest: revive a knocked-down ally with twice the die in HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
@@ -172,8 +172,8 @@ ACTIONS = {
 
     # ---- Duelist
     "slash_d": {"name": "Riposte Cut", "req": {"n": 1, "min": 3}, "tgt": "foe", "melee": True,
-                "ops": [{"op": "dmg", "amt": "v+2+3*aimed"}], "miss": [{"op": "dmg", "amt": "v//2"}],
-                "text": "On 3+: deal the die +2, and 3 more if that enemy is aiming at you. Otherwise: deal half the die."},
+                "ops": [{"op": "dmg", "amt": "v+2+2*aimed"}], "miss": [{"op": "dmg", "amt": "v//2"}],
+                "text": "On 3+: deal the die +2, and 2 more if that enemy is aiming at you. Otherwise: deal half the die."},
     "parry": {"name": "Parry", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "riposte", "n": 4, "to": "self"}],
               "text": "Gain Armor equal to the die. If it fully blocks a hit this round, strike back for 4."},
     "twin_cut": {"name": "Twin Cut", "req": {"n": 2}, "tgt": "foe", "melee": True, "tags": ["flurry"],
@@ -509,7 +509,7 @@ PASSIVES.update({
 
 CLASSES.update({
     "duelist": {
-        "name": "Duelist", "hp": 31, "hp_lvl": 4, "role": "Single-target damage",
+        "name": "Duelist", "hp": 29, "hp_lvl": 4, "role": "Single-target damage",
         "dice": [D(8), D(6)], "tags": ["flurry", "precision"],
         "map": {"key": "ambush", "name": "Ambush", "text": "A fight you start gives the party a free first round."},
         "start": ["slash_d", "parry"], "weapon": "rapier", "armor": "padded_coat",
@@ -906,7 +906,7 @@ CLASSES["psion"] = {
 COMBO_STEP = 1
 BERSERK_AT = 1 / 3
 BERSERK_MIGHT = 2  # added after the first batch: the Berserker was the weakest class (48.8% on Hard)
-GRACE_MAX = 20
+GRACE_MAX = 25  # was 20 (owner, Nov 2026: the Mender led the all-class batches)
 REACTIONS = {frozenset(("fire", "acid")): "caustic", frozenset(("fire", "frost")): "steam", frozenset(("acid", "frost")): "brittle"}
 REACTION_TEXT = {"caustic": "Caustic burst: 6 to every enemy in its row", "steam": "Steam: its attack this round deals half",
                  "brittle": "Brittle: Vulnerable for 2 rounds"}
@@ -1326,12 +1326,12 @@ SHORT = {
     "fireball": ("flame", "all: ½ sum +2 · Burn 2", "nothing"), "frost_lance": ("snow", "die +3 · Freeze", "½ die"),
     "chain_lightning": ("bolt", "die +3 · Shock · arcs ½", None), "hex": ("down", "Weak + Vulnerable", None),
     "siphon": ("sword", "die +2 · heal half", "½ die · heal half"), "doom": ("skull", "26 − die, next round", None),
-    "mend": ("plus", "heal die +3", None), "lift": ("hand", "revive: 2× die", None),
+    "mend": ("plus", "heal die +2", None), "lift": ("hand", "revive: 2× die", None),
     "renew": ("plus", "party: heal ½ sum · pair: sum", None), "lifeline": ("plus", "heal ½ max HP at round end", "heal ½ die"),
     "ward": ("shield", "ally: 2× die Armor", None), "sanctuary": ("shield", "party: hits −2", "hits −1"),
     "cleanse": ("plus", "cure + heal die", None), "smite": ("sword", "die +4 · ally heals 2", "½ die"),
     "quick_lift": ("hand", "revive with 6 HP", None),
-    "slash_d": ("sword", "die +2 · +3 if it aims at you", "½ die"), "parry": ("shield", "die Armor · riposte 4", None),
+    "slash_d": ("sword", "die +2 · +2 if it aims at you", "½ die"), "parry": ("shield", "die Armor · riposte 4", None),
     "twin_cut": ("sword", "two hits, each die +4", None), "whirl": ("sword", "each die +1, random foes", None),
     "read_blade": ("eye", "reveal · die, 2× +2 if you beat it", None), "lunge": ("sword", "die +10", "nothing"),
     "finisher": ("sword", "sum +6 · straight 2×", None), "pinpoint": ("target", "die +1, 2× if it aims at you", None),

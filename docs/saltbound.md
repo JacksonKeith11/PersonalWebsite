@@ -865,7 +865,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Class | HP (per level) | Map ability | Role | Tags |
 |---|---|---|---|---|
 | Vanguard | 46 (+5) | **Trailbreaker**: rough ground costs 1 | Tank | Bulwark, Juggernaut |
-| Duelist | 31 (+4) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
+| Duelist | 29 (+4) | **Ambush**: a fight they start gives the party a free first round | Single-target damage | Flurry, Precision |
 | Berserker | 32 (+4) | **Forage**: camps heal them fully | High-risk damage | Bloodlust, Rampage |
 | Ranger | 24 (+4) | **Tracker**: spots enemies 2 hexes further | Ranged damage | Marksman, Beastmaster |
 | Arcanist | 23 (+4) | **Farsight**: sees 1 hex further; spots cursed loot | AoE and burst | Elementalist, Hexer |
@@ -891,7 +891,7 @@ next to `COMBO_STEP`, rules in `actions.py` (`combo_on`, `add_grace`, `react`) a
   can't use defensive actions (`do_place`). Picks: Savage Blow (twice the die +2 while berserk), Hair
   Trigger (at a quarter), Red Haze (hits heal 2), Cold Fury (one defensive action a round).
 - **Mender, Grace** (`hero["grace"]`, mirrored on the fight state): healing it does fills Grace
-  (`fight_heal`); at `GRACE_MAX` (20) its next heal is Radiance: it lands on the whole party and
+  (`fight_heal`); at `GRACE_MAX` (25; was 20) its next heal is Radiance: it lands on the whole party and
   cleanses them (`_op_heal`). Picks: Benediction (+5 Grace), Overflowing Grace (overhealing counts
   double), Martyr (the party's damage fills it by half), Blessed Rest (it carries between fights).
 - **Alchemist, Reactions** (`fo["res"]`): its bombs leave a residue (`residue` on the action: Toss and

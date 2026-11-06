@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=140';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=140';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=140';
-import { stageURL, stageKey } from './stage.js?v=140';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=140';
-import { render } from './main.js?v=140';
-import { skillCard } from './hud.js?v=140';
-import { SKILL_FX, foeFx } from './skillfx.js?v=140';
-import * as sfx from './audio.js?v=140';
+import { S, send, mine, controllerName } from './store.js?v=141';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=141';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=141';
+import { stageURL, stageKey } from './stage.js?v=141';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=141';
+import { render } from './main.js?v=141';
+import { skillCard } from './hud.js?v=141';
+import { SKILL_FX, foeFx } from './skillfx.js?v=141';
+import * as sfx from './audio.js?v=141';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -533,10 +533,10 @@ function attuneChip(hs) {
   return h('div.covered-chip.attune.' + hs.attune, { tip: `Attuned to ${name}\nYour damaging spells also: ${does}. A spell of another element moves your attunement and gives 1 Flux; at 3 Flux your next spell Converges: +50%, and all three elements.` },
     `${ic} ${name}`, h('span.flux', null, hs.converge ? ' · Converge!' : ' · ' + '●'.repeat(flux) + '○'.repeat(Math.max(0, 3 - flux))));
 }
-// The Mender's Grace: healing fills it; at 20 the next heal is Radiance (the whole party, cleansed).
+// The Mender's Grace: healing fills it; at 25 the next heal is Radiance (the whole party, cleansed).
 function graceBar(n, ready) {
-  return h('div.heat-gauge.grace' + (ready ? '.hot' : ''), { tip: `Grace ${n} / 20\nHealing you do fills it. At 20, your next heal is Radiance: it lands on the whole party and cleanses them.` },
-    h('i', { style: { width: Math.min(100, n * 5) + '%' } }), h('span', null, ready ? 'Radiance ready' : `Grace ${n} / 20`));
+  return h('div.heat-gauge.grace' + (ready ? '.hot' : ''), { tip: `Grace ${n} / 25\nHealing you do fills it. At 25, your next heal is Radiance: it lands on the whole party and cleanses them.` },
+    h('i', { style: { width: Math.min(100, n * 4) + '%' } }), h('span', null, ready ? 'Radiance ready' : `Grace ${n} / 25`));
 }
 // The Dragonborn's Scales: up to 5, 1 Armor each at the start of every round, kept between fights.
 export function scalePips(n) {

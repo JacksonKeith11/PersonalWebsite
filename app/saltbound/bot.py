@@ -206,7 +206,14 @@ def item_score(g, h, key):
     """Roughly what a piece of gear is worth to this hero: its rarity, its die, and its passive
     unless the passive needs actions the hero doesn't have (bomb bonuses on someone with no bombs)."""
     it = g.item(key)
-    acts = [g.action_def(h, k) for k in g.actions_of(h)] + \
+    # the hero's actions as they'd be wearing it: without those of the piece it replaces (counting them
+    # made two pieces each look better than the other, and the bots swapped them forever)
+    slots = I.slots_for(it["slot"])
+    worn = g.hero(h)["equip"].get(slots[0]) if len(slots) == 1 else None
+    drop = set(g.item(worn).get("acts", [])) if worn and worn != key else set()
+    if worn and worn != key and it["slot"] == "armor":
+        drop.add(g.item(worn).get("guard") or "block")
+    acts = [g.action_def(h, k) for k in g.actions_of(h) if k.rstrip("+") not in drop] + \
         [g.action_def(h, k) for k in it.get("acts", []) if k in I.WEAPON_ACTIONS or k in C.ACTIONS]
     score = RANK[it["rarity"]] * 2.5
     die = it.get("die")

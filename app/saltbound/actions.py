@@ -44,7 +44,8 @@ class Actions:
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2),
-                "aim": x.get("aim", 0), "shocked": 0, "psn": 0}
+                "aim": x.get("aim", 0), "shocked": 0, "psn": 0, "frozen": 0, "low": 0,
+                "targeted": int(any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()))}
 
     def target_env(self, e, h, target, vals):
         """A copy of `dice_env`'s variables with the target enemy's added."""
@@ -59,7 +60,8 @@ class Actions:
                      aimed=int(f"h{h}" in self.intent_aims(it)), matched=0, sig=st.get("sigil", 0), back=int(target["row"] == "back"),
                      hunted=int(self.hs(h).get("hawk") == f"f{target['id']}"),
                      combo=self.combo_on(h, target), res=int(bool(target.get("res"))), burn=st.get("burn", 0),
-                     shocked=int(bool(st.get("shock"))), psn=st.get("poison", 0))
+                     shocked=int(bool(st.get("shock"))), psn=st.get("poison", 0), frozen=int(bool(st.get("freeze"))),
+                     low=int(target["hp"] * 2 < target["max"]))
             e["sigv"] = sigil_worth(e)
         return e
 
@@ -79,7 +81,8 @@ class Actions:
                      "sig": st.get("sigil", 0), "back": int(target["row"] == "back"),
                      "hunted": int(self.hs(h).get("hawk") == f"f{target['id']}"),
                      "combo": self.combo_on(h, target), "res": int(bool(target.get("res"))), "burn": st.get("burn", 0),
-                     "shocked": int(bool(st.get("shock"))), "psn": st.get("poison", 0)}
+                     "shocked": int(bool(st.get("shock"))), "psn": st.get("poison", 0), "frozen": int(bool(st.get("freeze"))),
+                     "low": int(target["hp"] * 2 < target["max"])}
 
     def target_env_from(self, e, part, target, vals):
         """`target_env`, from a `target_part` worked out earlier."""
@@ -105,6 +108,8 @@ class Actions:
         if a.get("spell") and m.get("spellweave") and any(k != a["key"] for k in x.get("spells", [])):
             n += m["spellweave"]
         n += x.get("cued", 0) + x.get("apex_n", 0)
+        if a.get("spell"):
+            n += x.get("spellcue", 0)  # Kindle: the next spell this round
         if a.get("melee") and x["st"].get("infuse"):
             n += x.get("inf", {}).get("dmg", 0)  # an infused blade (Spellblade)
         if x.get("berserk"):
@@ -233,6 +238,8 @@ class Actions:
             return [max(aimed, key=lambda fo: fo["intent"].get("v", 0))] if aimed else []
         if to == "sigiled":
             return [fo for fo in self.foes() if fo["st"].get("sigil")]
+        if to == "foes":
+            return self.foes()  # every enemy (Thunderhead's Shock)
         return base
 
     # ------------------------------------------------------------------ one hit's numbers
@@ -717,8 +724,9 @@ class Actions:
         self.fx("st", to="party", s="sanct")
 
     def _op_weaken(self, c, op, targets):
-        n = self.op_amount(c, op)
         for t in targets:
+            # per target: Choking Kelp drops an attack by that enemy's Poison
+            n = c.scale(amt(op["amt"], self.env(c.h, c.a, c.dice, t if isinstance(t, dict) else None)) + c.plus)
             it = t.get("intent") if isinstance(t, dict) else None
             if it and it.get("dice") and it["k"] in ("attack", "all", "block", "guard", "heal"):
                 it["bonus"] = it.get("bonus", 0) - n
@@ -789,6 +797,25 @@ class Actions:
         if hp is None and op.get("tough"):
             hp = C.SUMMONS[op["k"]]["hp"] * 3 // 2  # an upgraded summon with a fixed HP
         self.summon(c.h, op["k"], hp)
+
+    def _op_spellcue(self, c, op, targets):
+        c.x["spellcue"] = c.x.get("spellcue", 0) + self.op_amount(c, op)  # Kindle: your next spell this round
+
+    def _op_push(self, c, op, targets):
+        """Riptide: the enemy goes to the other row (a Rooted one stays put)."""
+        for t in targets:
+            if isinstance(t, dict) and t["hp"] > 0 and not t["st"].get("root"):
+                t["row"] = "back" if t["row"] == "front" else "front"
+                self.fx("drag", to=f"f{t['id']}")
+
+    def _op_rally(self, c, op, targets):
+        """Rallying Cut: a kill readies the allies' next hits this round."""
+        if any(isinstance(t, dict) and t["hp"] <= 0 for t in targets):
+            n = self.op_amount(c, op)
+            for y in self.actives():
+                if y != c.h:
+                    self.hs(y)["cued"] = self.hs(y).get("cued", 0) + n
+                    self.fx("st", to=f"h{y}", s="rallied")
 
     def _op_cue_self(self, c, op, targets):
         c.x["cued"] = c.x.get("cued", 0) + op["n"]  # an upgraded defence: your next hit this round

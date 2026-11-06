@@ -49,7 +49,7 @@ party with it).
 | HP | 28 (+4 a level): between the Warden (26) and the Duelist (31) |
 | Base dice | d8 and d6, plain |
 | Start | Searing Strike, Flashover |
-| Weapon | **Ember Mace** (new common, d6): Slash (now a cooldown special: the die +3, overkill carries on). Its hits get the Heat bonus like any |
+| Weapon | **Ember Mace** (new common, d6): Searbrand (cooldown 2: the die, and Burn half the die +1; was Slash). Its hits get the Heat bonus like any |
 | Armor | Padded Coat (existing) |
 | Map ability | **Banked Coals** (below) |
 

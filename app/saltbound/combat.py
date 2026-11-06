@@ -546,6 +546,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         x["kdie"] = False
         x["inspire"] = x.pop("carry", 0)  # Clean Bill's bonus, earned after their dice were spent
         x.pop("spells", None)
+        x.pop("spellcue", None)  # Kindle lasts the round
         x.pop("cued", None)
         x["pain_bonus"] = pain.get(str(h), 0)
         x["soaked"] = False
@@ -1046,6 +1047,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["bombs"] = x.get("bombs", 0) + 1
         if a["key"] == "shoot":
             x["aim"] = 0  # Aim and Loose: loosed
+        if a.get("spell") and a["key"] != "kindle" and any(o["op"] == "dmg" for o in a["ops"]):
+            x.pop("spellcue", None)  # Kindle's bonus is spent on this spell
         if self.mods(h).get("quarry") and a["tgt"] == "foe" and isinstance(tgt, str) and tgt.startswith("f"):
             fid, r, q = int(tgt[1:]), f["round"], x.get("quarry")
             if q and q["id"] == fid and q["r"] == r - 1:

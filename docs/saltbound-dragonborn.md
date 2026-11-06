@@ -51,7 +51,7 @@ Why it fits the game:
 | HP | 34 (+4 a level): between the Duelist (31) and the Vanguard (46) |
 | Base dice | d8 and d6, plain |
 | Start | Claw, Breath |
-| Weapon | **Talon Gauntlets** (new common, d6): Slash (deal the die +1) |
+| Weapon | **Talon Gauntlets** (new common, d6): Rake (cooldown 2: two hits of half the die +1; was Slash) |
 | Armor | Hide Vest (existing) |
 | Map ability | **Dragon's Rest** (below) |
 

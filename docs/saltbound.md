@@ -1299,9 +1299,38 @@ dead or dull, and Hack and Aim and Loose a gamble for about +0.5. What each does
 | `lull` | Lull | die, Weak; 5+ Vulnerable | |
 | `glacial` | Glacial Strike | 4+: die +3 and Freeze; else the die | |
 
+**Variety pass** (owner's request, Nov 2026: Slash and Zap were on 22 of 60 weapons). Each of those
+weapons got a skill of its own, and no weapon carries Slash or Zap any more (their definitions stay, so
+saves load). 41 skills across 60 weapons now, most on one or two:
+
+| Weapon | Key | Skill | Effect |
+|---|---|---|---|
+| Etched Sword (Spellblade) | `challenge` | Challenge | die +1; that enemy's attack swings at you (the `gaze` op) |
+| Ember Mace (Emberknight) | `searbrand` | Searbrand | die, Burn ½ die +1 (`brand` is the Spellblade's Brand) |
+| Talon Gauntlets (Dragonborn) | `rake` | Rake | two hits of ½ die +1: per-hit bonuses count twice |
+| Oak Staff (Arcanist) | `kindle` | Kindle | ½ die; your next spell this round +the die (`spellcue`) |
+| Gnarled Staff (Warden) | `tend_grove` | Tend the Grove | ½ die; your summons heal the die |
+| Focus Crystal (Psion) | `foresight` | Foresight | reveal its attack, ½ die |
+| Coral Blade | `riptide` | Riptide | die; the enemy swaps rows (`push`; Root holds it) |
+| Captain's Sabre | `rallying_cut` | Rallying Cut | die +1; a kill gives every ally's next hit +3 (`rally`) |
+| Ember Blade | `flashpoint` | Flashpoint | die + all its Burn at once (n(n+1)/2), then out |
+| Heirloom Sword | `ancestral_guard` | Ancestral Guard | die; the die as Armor if any enemy aims at you (`targeted`) |
+| Khopesh | `disarm` | Disarm (cd 3) | die; its biggest attack die is knocked out (a one-die enemy loses its attack; bosses keep theirs) |
+| Gorgon Glaive | `reaping_arc` | Reaping Arc | front row: ½ die +2 |
+| Sleepwalker's Knife | `vanish` | Vanish | die +2; enemies aiming at you pick someone else |
+| Frostbrand | `shatter` | Shatter | die, ×3 on a Frozen enemy (`frozen`) |
+| Sun-King's Khopesh | `royal_decree` | Royal Decree | every enemy below half health: die +2 (`low`) |
+| Kelp Wand | `choking_kelp` | Choking Kelp | its attack drops by its Poison (weaken now reads the target), ½ die |
+| Storm Staff | `thunderhead` | Thunderhead | ½ die, then Shock every enemy (`to: "foes"`) |
+| Forked Staff | `ricochet` | Ricochet | die −1 to two enemies |
+| Ashen Wand | `cinder_rain` | Cinder Rain | every enemy: ⅓ die, Burn 1 |
+| Sandstorm Staff | `sand_eyes` | Sand in the Eyes | ½ die, Weak, its attack picks a new target |
+| Prism Staff | `prism_shield` | Prism Shield | an ally: the die as Armor, thorns 3 |
+| Dreamcatcher | `nightmare` | Nightmare (cd 3) | 5+: its attack lands on its own (`turn`, like Puppet Strings); else ½ die |
+
 New amount variables: `aim` (`dice_env`, from `x["aim"]`: raised in `deal_dice` when Aim and Loose
 wasn't cooling last round, zeroed in `after_action`; it's in the bots' `dice_combos` cache key),
-`shocked` and `psn` (`target_env` and `target_part`). Slash's `carry` op flag runs
+`shocked`, `psn`, `frozen` and `low` (`target_env` and `target_part`), `targeted` (`dice_env`: any enemy aims at the hero; in the bots' cache key). Slash's `carry` op flag runs
 `Actions.carry_over` (the overkill hits another enemy in reach, same row first, as a plain hit); the
 bots value it in `bot.evaluate`. Every weapon action has a crit and a `SHORT` card line (the regional
 ones had neither). With its Lantern Rod's Flare on a cooldown the **Mender** got a class basic,

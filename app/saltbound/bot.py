@@ -765,6 +765,7 @@ def dice_combos(g, h, dice):
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            x.get("heat", 0), x.get("impact", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
            bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()), x.get("aim", 0),
+           any(f"h{h}" in g.intent_aims(fo.get("intent") or {}) for fo in g.foes()),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:
@@ -982,8 +983,8 @@ def evaluate(g, b, h, a, dice, tgt):
                         val += share * (st.get("burn", 0) + 2 * st.get("poison", 0) + 2 * sum(1 for s in ("weak", "vuln", "mark", "root") if st.get(s))
                                         + 3 * bool(st.get("hex")))
             elif k == "weaken":
-                n = amt(op["amt"], de) + plus
                 for t, share in tg:
+                    n = amt(op["amt"], g.target_env(de, h, t, vals) if isinstance(t, dict) else de) + plus
                     if isinstance(t, dict) and (t.get("intent") or {}).get("v") is not None:
                         v = t["intent"]["v"]
                         val += share * min(n, v) / max(1, v) * now[t["id"]]
@@ -1014,6 +1015,23 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, dict):
                         val += share * min(n, t["st"].get("armor", 0)) * 0.8
+            elif k == "spellcue":
+                # Kindle: worth it when another spell can still go out this round
+                n_ = amt(op["amt"], de) + plus
+                spells = [g.action_def(h, q) for q in g.actions_of(h)]
+                if any(s_.get("spell") and s_["key"] != "kindle" and not g.cooling(h, s_["key"]) for s_ in spells) \
+                        and sum(1 for d in g.hs(h)["dice"] if not d["used"]) >= 2:
+                    val += n_ * 0.7
+            elif k == "push":
+                # Riptide: a front-row wall to the back lets melee reach what's behind it; a back-row caster forward
+                for t, share in tg:
+                    if isinstance(t, dict):
+                        val += share * (1.0 if t["row"] == "back" or len(g.front_foes()) > 1 else 0.2)
+            elif k == "rally":
+                # Rallying Cut: +3 on each ally's next hit if this one kills
+                for t, share in tg:
+                    if isinstance(t, dict) and dealt.get(t["id"], 0) >= t["hp"] - b.dmg.get(t["id"], 0):
+                        val += share * (amt(op["amt"], de) + plus) * 0.8 * sum(1 for y in g.actives() if y != h)
             elif k == "drag":
                 for t, share in tg:
                     if isinstance(t, dict) and t["row"] == "back":
@@ -1410,6 +1428,8 @@ def op_targets(g, h, op, base):
         return [(fo, 1) for fo in g.foes() if f"h{h}" in g.intent_aims(fo.get("intent") or {})]
     if to == "sigiled":
         return [(fo, 1) for fo in g.foes() if fo["st"].get("sigil")]
+    if to == "foes":
+        return [(fo, 1) for fo in g.foes()]
     if to == "biggest":
         aimed = [fo for fo in g.foes() if (fo.get("intent") or {}).get("k") in ("attack", "all")]
         return [(max(aimed, key=lambda fo: fo["intent"].get("v", 0)), 1)] if aimed else []

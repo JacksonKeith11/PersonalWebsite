@@ -44,7 +44,7 @@ them are "dice values matter" or "order of play" decisions, which the skills doc
 | HP | 27 (+4 a level), between the Ranger (24) and the Warden (26) |
 | Base dice | d8 and d6, plain. A rune face lives in a dice pick instead (Rune-Etched Blade) |
 | Start | Rune Cut, Sigil Burst |
-| Weapon | **Etched Sword** (new common, d6): Slash (deal the die +1). Melee, no carving: carving is the class's |
+| Weapon | **Etched Sword** (new common, d6): Challenge (cooldown 2: the die +1, and that enemy's attack swings at you; was Slash). Melee, no carving: carving is the class's |
 | Armor | Padded Coat (existing) |
 | Map ability | **Runewright** (below) |
 
@@ -134,7 +134,7 @@ first play. If that's too much, lower what each Sigil adds to Burst (+3 now), no
   `quiet_glyph`, `open_circuit`, `covenant`, `runestorm`.
 - **Map key** `runewright`: in `on_combat_start` (starting Sigils and Armor) and `on_rest`
   (a counter of fights).
-- **Crits** in `crits.py` for Rune Cut (carve 2 more) and the Etched Sword's Slash.
+- **Crits** in `crits.py` for Rune Cut (carve 2 more) and the Etched Sword's Challenge.
 - **Bots**: Sigils' future value in `bot.evaluate`, about 2 per Sigil while Burst is ready within a
   round. Without it the bots never carve on purpose, and the sims would understate the class.
 - **Client**: a portrait, the class's colour, the lobby card, SHORT lines for each action, and

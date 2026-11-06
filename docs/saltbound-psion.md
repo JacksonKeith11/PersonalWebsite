@@ -52,7 +52,7 @@ Armor, moving enemies).
 | HP | 22 (+3 a level): fragile, like the Arcanist (23) and the Mender (21) |
 | Base dice | d6 and d6: dice the same size match more often, which suits pairs |
 | Start | Mind Spike, Kinetic Shield, Mind Link |
-| Weapon | **Focus Crystal** (new common, d6): Zap (any row: deal the die and Shock) |
+| Weapon | **Focus Crystal** (new common, d6): Foresight (cooldown 2: reveal the enemy's attack, half the die; was Zap) |
 | Armor | Wool Robe (existing) |
 | Map ability | **Precognition** (below) |
 

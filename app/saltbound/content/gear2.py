@@ -69,7 +69,7 @@ ITEMS = {
     "magma_maul": _g("Magma Maul", W, "rare", [2, 3, 4, "F5", 6, 7, 8, "F9", "S", 10], {"burn_bonus": 2},
                      "Molten core: your Burns are 2 stronger.", "ash", ["crush", "cinder"]),
     "ashen_wand": _g("Ashen Wand", W, "common", [1, 2, "F3", 4, 5, 6], {"spell_burn": 1},
-                     "Cinders: your spells also Burn 1.", "ash", ["zap"]),
+                     "Cinders: your spells also Burn 1.", "ash", ["cinder_rain"]),
     "slagplate": _g("Slagplate", A, "rare", [3, 4, "S", "S", 6, 7], {"thorns": 3, "burn_immune": 1},
                     "Molten skin: enemies that hit you take 3, and you can't be Burned.", "ash", guard="bristle"),
     "salamander_scale": _g("Salamander Scale", A, "uncommon", [1, 2, 3, "S", 5, 6], {"burn_immune": 1, "regen": 1},
@@ -79,9 +79,9 @@ ITEMS = {
 
     # ---------------------------------------------------------------- the Shifting Sands: bronze and sandglass
     "khopesh": _g("Khopesh", W, "uncommon", [1, 2, 3, 4, 5, 6, 7, "W"], {"execute_bonus": 3},
-                  "Hooked edge: +3 damage against enemies below half health.", "dunes", ["slash"]),
+                  "Hooked edge: +3 damage against enemies below half health.", "dunes", ["disarm"]),
     "sandstorm_staff": _g("Sandstorm Staff", W, "rare", [1, 2, 3, 4, 5, 6, 7, 8, 9, "W"], {"open_weak": 1},
-                          "Blinding sand: every enemy is Weak for the fight's first round.", "dunes", ["sandwind", "zap"]),
+                          "Blinding sand: every enemy is Weak for the fight's first round.", "dunes", ["sandwind", "sand_eyes"]),
     "scarab_bow": _g("Scarab Bow", W, "common", [1, 2, 3, 4, "P5", 6], {"first_strike": 2},
                      "Desert ambush: your first hit each fight deals +2.", "dunes", ["shoot"]),
     "nomad_wraps": _g("Nomad's Wraps", A, "common", [1, 2, 3, "S"], {"move": 1},
@@ -97,7 +97,7 @@ ITEMS = {
     "petrified_club": _g("Petrified Club", W, "common", [2, 3, 3, 4, "S", 6], {"opportunist": 2},
                          "Heavy as stone: +2 damage against Stunned or Rooted enemies.", "petrified", ["crush"]),
     "gorgon_glaive": _g("Gorgon Glaive", W, "rare", [1, 2, 3, 4, 5, 6, 7, 8, "W", 10], {"opportunist": 3},
-                        "Stone gaze: +3 damage against Stunned or Rooted enemies.", "petrified", ["stonebolt", "slash"]),
+                        "Stone gaze: +3 damage against Stunned or Rooted enemies.", "petrified", ["stonebolt", "reaping_arc"]),
     "amber_rod": _g("Amber Rod", W, "uncommon", [1, 2, 3, 4, 5, 6, 7, "W"], {"mark_ext": 1},
                     "Preserved light: your Marks last a round longer.", "petrified", ["flare", "blessing"]),
     "bark_of_ages": _g("Bark of Ages", A, "uncommon", [2, 3, 3, 4, "S", "S"], {"max_hp": 5},
@@ -144,7 +144,7 @@ ITEMS = {
 
     # ---------------------------------------------------------------- the Prism Wood: glass and light
     "prism_staff": _g("Prism Staff", W, "rare", [1, 2, 3, 4, 5, 6, 7, "I8", 9, 10], {"spell_chain": 1},
-                      "Refracted: a spell that hits one enemy also hits another for half.", "crystal", ["prism_ray", "zap"], dk=["seer"]),
+                      "Refracted: a spell that hits one enemy also hits another for half.", "crystal", ["prism_ray", "prism_shield"], dk=["seer"]),
     "crystal_shiv": _g("Crystal Shiv", W, "common", D(6), {"keen_edge": 1},
                        "Razor facet: your 6s count as 7s.", "crystal", ["thrust"]),
     "geode_hammer": _g("Geode Hammer", W, "uncommon", [2, 3, 4, 5, 6, "S"], {"kill_armor": 3},
@@ -162,9 +162,9 @@ ITEMS = {
 
     # ---------------------------------------------------------------- the Drowsing Vale: lavender and moonlight
     "dreamcatcher": _g("Dreamcatcher", W, "uncommon", [1, 2, 3, 4, 5, 6, "W", 8], {"debuff_ext": 1},
-                       "Snared dreams: Weak, Vulnerable and Mark that you apply last a round longer.", "dream", ["lull", "zap"]),
+                       "Snared dreams: Weak, Vulnerable and Mark that you apply last a round longer.", "dream", ["lull", "nightmare"]),
     "sleepwalker_knife": _g("Sleepwalker's Knife", W, "rare", [1, 2, 3, 4, 5, 6, 7, 8, 9, "W"], {"unseen": 3},
-                            "Unnoticed: while no enemy is aiming at you, your hits deal +3.", "dream", ["slash", "lull"], dk=["fate"]),
+                            "Unnoticed: while no enemy is aiming at you, your hits deal +3.", "dream", ["vanish", "lull"], dk=["fate"]),
     "moonsilk_robe": _g("Moonsilk Robe", A, "uncommon", [1, 2, 3, 4, "S", 6], {"stun_ward": 1, "rest_bonus": 0.1},
                         "Restful: ignore the first Stun each fight, and resting heals an extra 10% of your max HP.",
                         "dream", guard="sidestep"),
@@ -177,7 +177,7 @@ ITEMS = {
 
     # ---------------------------------------------------------------- the Frostpeaks: ice and fur
     "frostbrand": _g("Frostbrand", W, "rare", [1, 2, "I3", 4, 5, "I6", 7, 8, "I9", 10], {"frozen_bonus": 3},
-                     "Bitter edge: Frozen enemies take +3 from you.", "frost", ["glacial", "slash"]),
+                     "Bitter edge: Frozen enemies take +3 from you.", "frost", ["glacial", "shatter"]),
     "ice_pick": _g("Ice Pick", W, "common", [1, 2, 3, "I4", 5, 6], {"frozen_bonus": 2},
                    "Crack the ice: Frozen enemies take +2 from you.", "frost", ["hack"]),
     "yeti_hide": _g("Yeti Hide", A, "uncommon", [2, 2, 3, 3, 4, "S"], {"freeze_immune": 1, "max_hp": 5},
@@ -198,7 +198,7 @@ ITEMS = {
     "sunking_khopesh": _g("Sun-King's Khopesh", W, "legendary", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, "W", 12],
                           {"execute_bonus": 4, "kill_gold": 3},
                           "The king's due: +4 damage against enemies below half health, and each kill gives you 3 gold.",
-                          "dunes", ["slash", "sandwind"], dk=["seer"], unique=True),
+                          "dunes", ["royal_decree", "sandwind"], dk=["seer"], unique=True),
     "stillwood_heart": _g("Heart of the Stillwood", A, "legendary", ["S", "S", "S", "S", 7, 8, 9, 10],
                           {"start_armor": 8, "max_hp": 8},
                           "Timeless: start each fight with 8 Armor. +8 max HP.", "petrified", dk=["steady"], guard="stoneform", unique=True),

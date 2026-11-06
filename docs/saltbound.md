@@ -1430,7 +1430,14 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, 22 new weapon skills in place of Slash and Zap, Kindle +2, Emberknight 31 HP;
+**Latest (Nov 2026, the armory: 20 more weapons, 80 in all; 300 Hard runs, seed 5000): 48.0%**.
+Classes 40-57%: Warden 56.9, Emberknight 56.1, Scoundrel 52.2, Ranger 51.6, Mender 51.5, Herald 50.8,
+Spellblade 47.6, Duelist 47.4, Arcanist 45.3, Alchemist 44.6, Psion 44.4, Vanguard 41.8, Berserker
+41.5, Dragonborn 40.0 (58.5 the batch before, with no change to its kit: the loot is spread over more
+weapons, and class numbers have swung ±10 between batches). Every new weapon's loot pick is inside the
+noise; the extremes are Scarab Flail −26 (12 takes) and Thornvine Whip +28 (7). Not retuned.
+
+**Before that (22 new weapon skills in place of Slash and Zap, Kindle +2, Emberknight 31 HP;
 300 Hard runs, seed 5000): 52.3%**. Classes 47-60%: Alchemist 60.0, Mender 59.1, Dragonborn 58.5,
 Scoundrel 56.7, Warden 55.4, Berserker 52.3, Vanguard 52.2, Emberknight 50.0, Herald 49.2, Duelist 49.1,
 Spellblade and Psion 47.6, Ranger and Arcanist 46.9. The new skills before the last two tweaks gave

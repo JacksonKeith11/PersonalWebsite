@@ -30,10 +30,11 @@ VERSION = 12
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
     "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.6},
-    # Hard: enemies hit harder and the tide strengthens them faster, so a long, thorough run (every quest,
-    # every lair) meets a stronger world than a quick one (owner, Nov 2026: a real choice). `surge` is the
-    # share stronger per rise (tuning.SURGE where unset).
-    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.0085},
+    # Hard: the tide's strength accelerates, so a few quests on the way are cheap but chasing every one is
+    # dear (owner, Nov 2026: the middle road should be best, and whether a quest is worth it depends on the
+    # path). Each rise adds `surge` (tuning.SURGE where unset), and past `surge_from` rises another
+    # `surge2` times the square of how far past (Game.surge).
+    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.0065, "surge2": 0.0004, "surge_from": 20},
 }
 MOVES = 4
 PATH_MAX = 20  # hexes in one turn's route at most (a current carries a skiff a long way)
@@ -1423,7 +1424,8 @@ class Game(Combat, Biomes, Quests, Travel):
 
     def surge(self):
         """How much stronger enemies are for the tide having risen: HP and damage both."""
-        return 1 + self.diff().get("surge", SURGE) * self.s["rises"]
+        d, r = self.diff(), self.s["rises"]
+        return 1 + d.get("surge", SURGE) * r + d.get("surge2", 0) * max(0, r - d.get("surge_from", 0)) ** 2
 
     def rest(self, h):
         hero = self.hero(h)

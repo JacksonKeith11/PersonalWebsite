@@ -940,7 +940,9 @@ set-up when a Warden fights (it goes before the party's hits) and a hit on an En
 splash; Crescendo of Light counts the Harmonies it spends, Unstable Compound the residues, Ignite the
 Burn; Static Field values its double arc, Rob Blind and Ransack their trinkets, Sic 'Em and Swoop the
 hawk move; the hawk watches whoever is about to take a hit of 8+; and upgrades to a class's free basic
-rank above other picks at level-up (3.2, was 2.0 like every upgrade). AUDIT_RESULTS
+rank above other picks at level-up (3.2, was 2.0 like every upgrade). Measured after (400 Hard runs, seed 5000):
+**Hard 45.8%** (was 44.5%, the same within noise; classes 35–60%). The Warden's damage rose to 28.5 a round
+(was 24.4) as the party plays into the web, and Crescendo of Light reads 0 vs passed (was -16).
 
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),

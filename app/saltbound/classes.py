@@ -531,7 +531,7 @@ CLASSES.update({
         "blurb": "Trades blood for power, and gets more dangerous the more it's hurt.",
     },
     "ranger": {
-        "name": "Ranger", "hp": 24, "hp_lvl": 4, "role": "Ranged damage",
+        "name": "Ranger", "hp": 27, "hp_lvl": 4, "role": "Ranged damage",
         "dice": [D(8), D(6)], "tags": ["marksman", "beastmaster"],
         "map": {"key": "tracker", "name": "Tracker", "text": "+1 move on land, and you see enemies 2 hexes further off."},
         "start": ["shoot_r", "hunters_mark"], "weapon": "short_bow", "armor": "padded_coat",

@@ -1,10 +1,12 @@
 """Plays whole Saltbound runs with bots on the server's own rules, for balance and save checks.
 
     python3 tools/saltbound-sim.py [runs] [difficulty] [--classes=a,b,c] [--with=class] [--saves] [--report]
-                                   [--json=out.json] [--jobs=N] [--seed=1000] [--fast] [--tally]
+                                   [--json=out.json] [--jobs=N] [--seed=1000] [--fast] [--tally] [--rush]
 
 Two kinds of test:
 
+- **--rush**: the bots skip jobs and quests and head for the objectives (bot.RUSH): the other side
+  of the time-versus-power choice. Saved apart (last-rush-<difficulty>.txt).
 - **--fast, for checking a feature works**: greedy bots (each fight move is the best single
   placement, no look-ahead), about 4x quicker. They play worse, so their win rates say nothing about
   balance, but they still reach every part of a run on Normal. Prints a tally of what happened
@@ -137,7 +139,8 @@ def play(seed, classes, diff, roundtrip=False, limit=20000, stats=None):
 def one(job):
     """A worker's run: the summary line's numbers, the analytics, and any save mismatch."""
     global TALLY
-    seed, cls, diff, saves, fast, tally = job
+    seed, cls, diff, saves, fast, tally, rush = job
+    bot.RUSH = rush
     if fast:
         bot.BEAM, bot.DEPTH = FAST
     stats = SS.Stats()
@@ -229,7 +232,7 @@ def save_batch(args, text, secs):
             f"{secs / 60:.1f} min\n# python3 tools/saltbound-sim.py {' '.join(sys.argv[1:])}\n")
     os.makedirs(SAVED, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    kind = f"fast-{diff}" if "--fast" in sys.argv else diff
+    kind = ("fast-" if "--fast" in sys.argv else "") + ("rush-" if "--rush" in sys.argv else "") + diff
     for name in (f"{stamp}-{kind}.txt", f"last-{kind}.txt"):
         with open(os.path.join(SAVED, name), "w") as fh:
             fh.write(head + text)
@@ -245,7 +248,7 @@ def play_batch(args, opt):
     random.Random(seed0).shuffle(combos)  # so a short batch still sees every class
     fast = "fast" in opt
     tally = fast or "tally" in opt
-    jobs = [(seed0 + i, combos[i % len(combos)], diff, "saves" in opt, fast, tally) for i in range(runs)]
+    jobs = [(seed0 + i, combos[i % len(combos)], diff, "saves" in opt, fast, tally, "rush" in opt) for i in range(runs)]
     workers = int(opt.get("jobs", os.cpu_count() or 1))
     results, turns, levels, causes = Counter(), [], [], Counter()
     total = SS.Stats()

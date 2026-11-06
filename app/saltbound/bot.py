@@ -17,6 +17,11 @@ from .dice import amt, check_hit, top_face
 from .dice import face as face_of
 from .tuning import ROLL_MODS
 from .content import archipelago as A
+
+# The bots' map style: False plays everything (jobs, quests, every place); the simulator's --rush sets True,
+# a party that skips the jobs and the regions' quests and heads for the objectives (the other side of
+# the time-versus-power choice; docs/saltbound.md "Difficulty").
+RUSH = False
 from .content import items as I
 
 RANK = {r: i for i, r in enumerate(I.RARITIES)}
@@ -263,7 +268,7 @@ def plan_move(g, h):
         town = g.place(hero["tile"])
         jobs = town.get("jobs") or []
         active = [q for q in s["quests"] if not q["done"] and not q.get("failed") and q["kind"] != "trail"]
-        if jobs and not town.get("quest_taken") and len(active) < 2:
+        if jobs and not town.get("quest_taken") and len(active) < 2 and not RUSH:
             # the best-paying job the party could manage (lairs and bounties once it's strong enough)
             ok = [i for i, j in enumerate(jobs) if j["kind"] in ("deliver", "salvage") or s["level"] >= 3]
             if ok:
@@ -370,7 +375,7 @@ def party_goal(g):
     # a job, while there's time to finish it, unless it's time for a dungeon
     ready_for = 2 + 2 * len(s["cleared"])
     due = s["level"] >= ready_for or s["rises"] >= 8
-    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed") and not due and q["kind"] != "trail"]
+    jobs = [q for q in s["quests"] if not q["done"] and not q.get("failed") and not due and q["kind"] != "trail" and not RUSH]
     for q in sorted(jobs, key=lambda q: q["until"]):
         goal = g.job_goal(q)
         trip = Wd.dist(goal, at) + (Wd.dist(goal, q["src_tile"]) if q["kind"] == "salvage" and q.get("stage") == "fetch" else 0)
@@ -378,11 +383,11 @@ def party_goal(g):
             return goal
     # a quest under way, once the party can take its fights: always if it's near, else unless it's time for a dungeon
     trails = sorted((q["tile"] for q in s["quests"] if q["kind"] == "trail" and not q["done"]), key=lambda t: Wd.dist(t, at))
-    if trails and s["level"] >= 3 and (not due or Wd.dist(trails[0], at) <= 8):
+    if trails and s["level"] >= 3 and (not due or Wd.dist(trails[0], at) <= 8) and not RUSH:
         return trails[0]
     givers = sorted((int(t) for t, p in places.items() if p["kind"] == "quest" and s["seen"][int(t)] and not p.get("taken")
                      and not g.trail(p["q"])), key=lambda t: Wd.dist(t, at))
-    if givers and Wd.dist(givers[0], at) <= 6 and not any(d["type"] == "event" for d in s["pending"][str(alive[0])]):
+    if givers and Wd.dist(givers[0], at) <= 6 and not RUSH and not any(d["type"] == "event" for d in s["pending"][str(alive[0])]):
         return givers[0]
     ready_for = 2 + 2 * len(s["cleared"])
     if s["level"] >= ready_for or s["rises"] >= 8:
@@ -391,9 +396,9 @@ def party_goal(g):
             return min(dungeons, key=lambda t: Wd.dist(t, at))
     targets = [gr["tile"] for gr in s["groups"] if s["seen"][gr["tile"]] and (not gr["lair"] or s["level"] >= 3)]
     # a region's quest: its giver, then each site once the party can take a big fight
-    if s["level"] >= 3:
+    if s["level"] >= 3 and not RUSH:
         targets += [q["tile"] for q in s["quests"] if q["kind"] == "trail" and not q["done"]]
-    targets += [int(t) for t, p in places.items() if p["kind"] == "quest" and s["seen"][int(t)] and not p.get("taken")
+    targets += [int(t) for t, p in places.items() if p["kind"] == "quest" and s["seen"][int(t)] and not p.get("taken") and not RUSH
                 and not g.trail(p["q"]) and not any(d["type"] == "event" for d in s["pending"][str(alive[0])])]
     sailors = all(g.hero(h)["skiff"] for h in alive)
     targets += [int(t) for t, p in places.items() if s["seen"][int(t)] and p["kind"] in ("event", "wreck", "shrine", "cache", "lookout", "grotto", "cove", "flotsam", "beacon")

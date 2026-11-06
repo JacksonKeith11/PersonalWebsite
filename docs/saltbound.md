@@ -944,6 +944,13 @@ rank above other picks at level-up (3.2, was 2.0 like every upgrade). Measured a
 **Hard 45.8%** (was 44.5%, the same within noise; classes 35–60%). The Warden's damage rose to 28.5 a round
 (was 24.4) as the party plays into the web, and Crescendo of Light reads 0 vs passed (was -16).
 
+**Mender down, Psion and Alchemist up** (owner's request, 2026-11-06): Overflow turns half the overhealing
+into Armor (was all); Psion 25 HP (was 22), Puppet Strings on double 6s at cooldown 4 (was three 6s, cd 3);
+Alchemist 24 HP (was 21), Toss splashes 2 (was 1). 400 Hard runs, seed 5000: **Hard 43.0%** (was 45.8%).
+Mender 44.4% (was 60.0%), Psion 37.6% (was 35.3%), Alchemist 38.8% (was 36.5%); the rest 37–49%. The
+Mender's Overflow kept whole parties alive, so its cut lowered every class a little; the two buffs moved
+their classes about 2 points, inside the ±10 noise of an all-class batch.
+
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
 each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit

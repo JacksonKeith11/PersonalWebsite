@@ -927,6 +927,10 @@ with the die ×1.5 (was ×2), Quick Lift with 4 HP (was 6). 400 runs each, seed 
 (Mender 61.1%, the rest 41–58%), **Normal 83.3%** (was 84.3%: more enemy damage barely moves Normal,
 where parties rarely fall; classes 74–91%, Duelist 90.6% on top, Psion 74.1% at the bottom).
 
+**Third pass** (owner's request, 2026-11-06): `SURGE` 0.0055 → 0.0065, for both. 400 runs each, seed
+5000: **Normal 82.0%** (was 83.3%; classes 76–90%), **Hard 44.5%** (was 48.5%; classes 35–53%, Mender
+53.3% on top, Psion 35.3% and Herald 38.1% at the bottom), a few points under the 50% target.
+
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
 each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit

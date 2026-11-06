@@ -738,7 +738,7 @@ PASSIVES.update({
 })
 CLASS_DICE["emberknight"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["emberknight"] = {
-    "name": "Emberknight", "hp": 28, "hp_lvl": 4, "role": "Damage that runs hot",
+    "name": "Emberknight", "hp": 31, "hp_lvl": 4, "role": "Damage that runs hot",
     "dice": [D(8), D(6)], "tags": ["blaze", "temper"],
     "map": {"key": "banked_coals", "name": "Banked Coals",
             "text": "Each fight starts with Heat equal to twice the map turns since your last fight (up to 10)."},
@@ -1451,7 +1451,7 @@ SHORT = {
     "lull": ("down", "die · Weak · 5+: Vuln", None), "glacial": ("snow", "die +3 · Freeze", "die"),
     "stoneform": ("shield", "die +2 Armor", None),
     "challenge": ("shield", "die +1 · its attack hits you", None), "searbrand": ("flame", "die · Burn ½ die +1", None),
-    "rake": ("sword", "two hits: ½ die +1 each", None), "kindle": ("flame", "½ die · next spell +die", None),
+    "rake": ("sword", "two hits: ½ die +1 each", None), "kindle": ("flame", "½ die · next spell +die +2", None),
     "tend_grove": ("plus", "½ die · summons heal die", None), "foresight": ("eye", "reveal its attack · ½ die", None),
     "riptide": ("wave", "die · swap its row", None), "rallying_cut": ("flag", "die +1 · kill: allies' next hit +3", None),
     "flashpoint": ("flame", "die + all its Burn now", None), "ancestral_guard": ("shield", "die · targeted: die Armor", None),

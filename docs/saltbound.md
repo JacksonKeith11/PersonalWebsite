@@ -1308,7 +1308,7 @@ saves load). 41 skills across 60 weapons now, most on one or two:
 | Etched Sword (Spellblade) | `challenge` | Challenge | die +1; that enemy's attack swings at you (the `gaze` op) |
 | Ember Mace (Emberknight) | `searbrand` | Searbrand | die, Burn ½ die +1 (`brand` is the Spellblade's Brand) |
 | Talon Gauntlets (Dragonborn) | `rake` | Rake | two hits of ½ die +1: per-hit bonuses count twice |
-| Oak Staff (Arcanist) | `kindle` | Kindle | ½ die; your next spell this round +the die (`spellcue`) |
+| Oak Staff (Arcanist) | `kindle` | Kindle | ½ die; your next spell this round +the die +2 (`spellcue`) |
 | Gnarled Staff (Warden) | `tend_grove` | Tend the Grove | ½ die; your summons heal the die |
 | Focus Crystal (Psion) | `foresight` | Foresight | reveal its attack, ½ die |
 | Coral Blade | `riptide` | Riptide | die; the enemy swaps rows (`push`; Root holds it) |

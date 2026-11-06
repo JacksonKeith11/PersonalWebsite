@@ -964,7 +964,11 @@ Heroes. Reworked (each read -19 to -25 vs passed): Momentum +2 an action after t
 heals (no 8+ needed); Quicksilver the next die +5 (was +3); Read Intent shows every enemy's roll (was
 one); Mind Crush four times the pair (was three), the sum on a miss (was nothing); Call Bear on 7+ (was
 9+), a sapling with the sum in HP on a miss; Briar Wall half the sum +1 as Armor and thorns 3 (was +0,
-2). UPGRADE_RESULTS
+2). 400 Hard runs, seed 5000: **Hard 43.0%** (unchanged;
+classes 35–54%). Upgrades are taken 34% of the times they're offered (was 7–17%) and average +2 vs
+passed. Reworked picks vs passed: Momentum +7 (was -23), Sanctuary +13 (-19), Call Bear +1 (-19),
+Quicksilver -3 (-25), Briar Wall -4 (-12), Mind Crush -6 (-21); still low: Read Intent -16 (-24),
+Panacea -19 (-25).
 
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),

@@ -872,9 +872,9 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Mender | 21 (+4) | **Field Medic**: resting on their hex heals everyone there an extra 10% | Healer | Restoration, Warding |
 | Scoundrel | 22 (+3) | **Light Fingers**: +1 loot choice | Debuffs and loot | Poisons, Tricks |
 | Herald | 18 (+3) | **Silver Tongue**: shops 20% cheaper; extra event options | Buffs for allies | Anthem, Discord |
-| Alchemist | 21 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
+| Alchemist | 24 (+3) | **Brewer**: a potion at each rest | Items and gadgets | Bombs, Elixirs |
 | Warden | 26 (+3) | **Wildspeak**: forest costs 1 | Summons and control | Grove, Thorns |
-| Psion | 22 (+3) | **Precognition**: in its fights, every enemy's first attack is rolled in the open | Precise damage and support | Telekinesis, Telepathy |
+| Psion | 25 (+3) | **Precognition**: in its fights, every enemy's first attack is rolled in the open | Precise damage and support | Telekinesis, Telepathy |
 | Dragonborn | 34 (+4) | **Dragon's Rest**: resting grows a Scale (2 at a camp or in a town) | Bruiser with breath | Wrath, Hide |
 | Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |

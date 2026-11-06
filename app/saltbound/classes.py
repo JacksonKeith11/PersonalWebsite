@@ -69,7 +69,7 @@ PASSIVES = {
     # ---- Mender
     "bedside_manner": {"name": "Diagnosis", "mods": {"seer_small": 1}, "tags": ["restoration"],
                        "text": "Your smallest die is a Seer die: it's rolled and shown while you plan, so you know what your heal will be."},
-    "overflow": {"name": "Overflow", "mods": {"overflow": 1}, "tags": ["warding"], "text": "Healing beyond max HP becomes Armor."},
+    "overflow": {"name": "Overflow", "mods": {"overflow": 1}, "tags": ["warding"], "text": "Half the healing beyond max HP becomes Armor."},
     "quick_hands": {"name": "Quick Hands", "mods": {"grant": "quick_lift"}, "tags": ["restoration"],
                     "text": "Learn Quick Lift: once until you rest, revive a knocked-down ally without a die."},
     "blessed_supplies": {"name": "Triage", "mods": {"triage": 1}, "tags": ["restoration"],
@@ -297,8 +297,8 @@ ACTIONS = {
                 "text": "Once per fight, no die needed: cancel an enemy's coming action."},
 
     # ---- Alchemist
-    "toss": {"name": "Toss", "req": {"n": 1}, "tgt": "foe", "bomb": True, "ops": [{"op": "dmg", "amt": "v", "splash": 1}],
-             "text": "A bomb, any row: deal the die to one enemy and 1 to each enemy beside it."},
+    "toss": {"name": "Toss", "req": {"n": 1}, "tgt": "foe", "bomb": True, "ops": [{"op": "dmg", "amt": "v", "splash": 2}],
+             "text": "A bomb, any row: deal the die to one enemy and 2 to each enemy beside it."},
     "tonic_a": {"name": "Tonic", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+1"}], "text": "Heal an ally by the die +1."},
     "firebomb": {"cd": 2, "name": "Firebomb", "req": {"n": 1, "min": 4}, "tgt": "foe", "bomb": True, "tags": ["bombs"],
                  "ops": [{"op": "dmg", "amt": "v", "to": "row"}, {"op": "status", "s": "burn", "n": 1, "to": "row"}],
@@ -559,7 +559,7 @@ CLASSES.update({
         "blurb": "Makes everyone else's dice better, and throws enemies off their stride.",
     },
     "alchemist": {
-        "name": "Alchemist", "hp": 21, "hp_lvl": 3, "role": "Items and gadgets",
+        "name": "Alchemist", "hp": 24, "hp_lvl": 3, "role": "Items and gadgets",
         "dice": [D(6), D(6)], "tags": ["bombs", "elixirs"],
         "map": {"key": "brewer", "name": "Brewer", "text": "Brew a potion whenever you rest."},
         "start": ["toss", "tonic_a"], "weapon": "sling", "armor": "leather_apron",
@@ -855,9 +855,9 @@ ACTIONS.update({
     "mind_fog": {"name": "Mind Fog", "req": {"n": 1}, "tgt": "foe", "tags": ["telepathy"],
                  "ops": [{"op": "weaken", "amt": "v+1"}],
                  "text": "Any row: the enemy's attack this round deals the die +1 less."},
-    "puppet_strings": {"cd": 3, "name": "Puppet Strings", "req": {"n": 3, "exact": 6}, "tgt": "foe", "spell": True,
+    "puppet_strings": {"cd": 4, "name": "Puppet Strings", "req": {"n": 2, "exact": 6}, "tgt": "foe", "spell": True,
                        "tags": ["telepathy"], "ops": [{"op": "turn"}], "miss": [{"op": "dmg", "amt": "sum//2"}],
-                       "text": "Three dice, all 6: the enemy turns its attack this round on another enemy (that one takes it now, "
+                       "text": "Two dice, both 6: the enemy turns its attack this round on another enemy (that one takes it now, "
                                "and the attack is spent). Otherwise: deal half the sum."},
 })
 PASSIVES.update({
@@ -883,7 +883,7 @@ PASSIVES.update({
 })
 CLASS_DICE["psion"] = [{"faces": D(6), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["psion"] = {
-    "name": "Psion", "hp": 22, "hp_lvl": 3, "role": "Precise damage and party support",
+    "name": "Psion", "hp": 25, "hp_lvl": 3, "role": "Precise damage and party support",
     "dice": [D(6), D(6)], "tags": ["telekinesis", "telepathy"],
     "map": {"key": "precognition", "name": "Precognition",
             "text": "In a fight you're in, every enemy's first attack is rolled in the open: the party sees the exact numbers."},
@@ -1361,7 +1361,7 @@ SHORT = {
     "crescendo": ("up", "party's next hit +50%", None), "dirge": ("down", "Weak · ½ die", None),
     "taunting_verse": ("arrow", "its attack swings away · Mark", "its attack −3"), "cacophony": ("x", "it loses its turn", "its attack −⅓ sum"),
     "requiem": ("x", "cancel an intent", None),
-    "toss": ("sword", "die · splash 1", None), "tonic_a": ("plus", "heal die +1", None),
+    "toss": ("sword", "die · splash 2", None), "tonic_a": ("plus", "heal die +1", None),
     "firebomb": ("flame", "die to its row · Burn 1", "½ die"), "acid_flask": ("drop", "strip Armor · Vuln 2 · die", None),
     "concussion": ("sword", "3 + Stun", "½ die"), "bottle_it": ("drop", "brew a potion", None),
     "quicksilver": ("refresh", "ally +2 rerolls · next die +3", None), "panacea": ("plus", "party: cure + heal ½ sum", "cure"),
@@ -1411,7 +1411,7 @@ SHORT.update({
     "mind_crush": ("bolt", "pair: 3× its number", "nothing"), "psionic_storm": ("bolt", "straight: all, highest +4", "nothing"),
     "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: die · drag", None),
     "read_intent": ("eye", "1 Focus: its roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
-    "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "three 6s: its attack hits another", "½ sum"),
+    "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
 })
 SHORT.update({
     "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),

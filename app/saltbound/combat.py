@@ -1413,8 +1413,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             over = n - got
             if str(by) in self.s["fight"]["hs"]:
                 self.add_grace(by, got + (2 * max(0, over) if self.mods(by).get("overflowing_grace") else 0))
-            if over > 0 and self.mods(by).get("overflow"):
-                self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + over
+            if over > 1 and self.mods(by).get("overflow"):
+                self.hs(h)["st"]["armor"] = self.hs(h)["st"].get("armor", 0) + over // 2  # Overflow: half (Nov 2026)
             bill = self.mods(by).get("clean_bill", 0)
             if bill and got > 0 and h != by and hero["hp"] >= mx and self.active(h):
                 # Clean Bill: their next die this round, or next round's if they've nothing left to roll

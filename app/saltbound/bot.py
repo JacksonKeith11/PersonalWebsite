@@ -1349,7 +1349,7 @@ def heal_value(g, b, y, n, inc, overflow=False):
     useful = max(0, min(n, missing))
     extra = 0.0
     if overflow and n > useful:
-        spare = n - useful
+        spare = (n - useful) // 2  # Overflow turns half the overhealing into Armor
         need = max(0, inc.get(y, 0) - g.hs(y)["st"].get("armor", 0) - b.armor.get(y, 0) - useful)
         extra = min(spare, need) + spare * 0.15
     left = hero["hp"] + b.heal.get(y, 0) + g.hs(y)["st"].get("armor", 0) + b.armor.get(y, 0) - inc.get(y, 0)

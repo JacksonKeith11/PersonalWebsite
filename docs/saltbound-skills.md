@@ -159,6 +159,10 @@ reuse a class action's key.
 
 ## Measuring
 
+- **Class balance is measured on the "path" bots** (owner, Nov 2026; the simulator's default): they take
+  a job or quest step only when it's on the way. `--style=all` and `--rush` are for the
+  time-versus-power question, not class balance.
+
 - **One balance batch at the end of a set of changes**: `python3 tools/saltbound-sim.py 300 hard
   --seed=5000 --report` (about 3 minutes). 300 runs pins the overall rate to about ±3 points and each
   class to about ±5.

@@ -5,10 +5,10 @@
 
 Two kinds of test:
 
-- **--style=path|rush** (bot.STYLE; --rush is short for --style=rush): "rush" bots skip jobs and quests
-  and head for the objectives; "path" bots take one only when it's a short detour on the way to the next
-  objective (bot.PATH_DETOUR hexes); the default "all" does everything. Saved apart
-  (last-<style>-<difficulty>.txt).
+- **--style=all|rush** (bot.STYLE; --rush is short for --style=rush): the default, "path", takes a job or
+  quest step only when it's a short detour on the way to the next objective (bot.PATH_DETOUR hexes), the
+  best road and the one class balance is measured on (owner, Nov 2026); "all" does everything; "rush"
+  skips jobs and quests. Other styles are saved apart (last-<style>-<difficulty>.txt).
 - **--fast, for checking a feature works**: greedy bots (each fight move is the best single
   placement, no look-ahead), about 4x quicker. They play worse, so their win rates say nothing about
   balance, but they still reach every part of a run on Normal. Prints a tally of what happened
@@ -234,8 +234,8 @@ def save_batch(args, text, secs):
             f"{secs / 60:.1f} min\n# python3 tools/saltbound-sim.py {' '.join(sys.argv[1:])}\n")
     os.makedirs(SAVED, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    style = "rush" if "--rush" in sys.argv else next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--style=")), "all")
-    kind = ("fast-" if "--fast" in sys.argv else "") + ("" if style == "all" else style + "-") + diff
+    style = "rush" if "--rush" in sys.argv else next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--style=")), "path")
+    kind = ("fast-" if "--fast" in sys.argv else "") + ("" if style == "path" else style + "-") + diff
     for name in (f"{stamp}-{kind}.txt", f"last-{kind}.txt"):
         with open(os.path.join(SAVED, name), "w") as fh:
             fh.write(head + text)
@@ -251,7 +251,7 @@ def play_batch(args, opt):
     random.Random(seed0).shuffle(combos)  # so a short batch still sees every class
     fast = "fast" in opt
     tally = fast or "tally" in opt
-    style = "rush" if "rush" in opt else opt.get("style", "all")
+    style = "rush" if "rush" in opt else opt.get("style", "path")
     jobs = [(seed0 + i, combos[i % len(combos)], diff, "saves" in opt, fast, tally, style) for i in range(runs)]
     workers = int(opt.get("jobs", os.cpu_count() or 1))
     results, turns, levels, causes = Counter(), [], [], Counter()

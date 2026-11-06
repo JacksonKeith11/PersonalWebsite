@@ -22,7 +22,7 @@ from .content import archipelago as A
 # skips the jobs and the regions' quests and heads for the objectives; "path" takes a job or a quest step
 # only when it's roughly on the way (a detour of at most PATH_DETOUR hexes on the way to the next
 # objective). The time-versus-power choice: docs/saltbound.md "Balance now".
-STYLE = "all"
+STYLE = "path"  # the default (the best road, the one balance is measured on); the simulator sets it per run
 PATH_DETOUR = 6
 
 

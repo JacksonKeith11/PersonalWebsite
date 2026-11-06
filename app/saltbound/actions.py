@@ -45,6 +45,7 @@ class Actions:
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2),
                 "aim": x.get("aim", 0), "shocked": 0, "psn": 0, "frozen": 0, "low": 0, "grudge": 0,
+                "hurt": int(self.hero(h)["hp"] * 2 < self.maxhp(h)),
                 "targeted": int(any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()))}
 
     def target_env(self, e, h, target, vals):
@@ -242,6 +243,8 @@ class Actions:
             return [fo for fo in self.foes() if fo["st"].get("sigil")]
         if to == "foes":
             return self.foes()  # every enemy (Thunderhead's Shock)
+        if to == "others":
+            return [("h", y) for y in self.actives() if y != h]  # every ally but you
         if to == "behind":
             # Skewer: the enemy behind the target, in the other row
             first = next((t for t in base if isinstance(t, dict)), None)
@@ -841,6 +844,23 @@ class Actions:
                 if y != c.h:
                     self.hs(y)["cued"] = self.hs(y).get("cued", 0) + n
                     self.fx("st", to=f"h{y}", s="rallied")
+
+    def _op_cue(self, c, op, targets):
+        """A buff: these allies' next damaging hit this round deals more."""
+        n = self.op_amount(c, op)
+        for t in targets:
+            if isinstance(t, tuple) and self.active(t[1]):
+                y = self.hs(t[1])
+                y["cued"] = y.get("cued", 0) + n
+                self.fx("st", to=f"h{t[1]}", s="cued")
+
+    def _op_reroll(self, c, op, targets):
+        """Good Luck: one more automatic reroll this fight."""
+        n = self.op_amount(c, op)
+        for t in targets:
+            if isinstance(t, tuple) and self.active(t[1]):
+                self.hs(t[1])["rr"] = self.hs(t[1]).get("rr", 0) + n
+                self.fx("st", to=f"h{t[1]}", s="lucky")
 
     def _op_snag(self, c, op, targets):
         """Snag: the enemy's Armor becomes the hero's."""

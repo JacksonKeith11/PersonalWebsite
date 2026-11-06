@@ -138,7 +138,7 @@ ITEMS = {
     "slagplate": _g("Slagplate", A, "rare", [3, 4, "S", "S", 6, 7], {"thorns": 3, "burn_immune": 1},
                     "Molten skin: enemies that hit you take 3, and you can't be Burned.", "ash", guard="bristle"),
     "salamander_scale": _g("Salamander Scale", A, "uncommon", [1, 2, 3, "S", 5, 6], {"burn_immune": 1, "regen": 1},
-                           "Fireproof: you can't be Burned, and you heal 1 each round in fights.", "ash", guard="patch_up"),
+                           "Fireproof: you can't be Burned, and you heal 1 each round in fights.", "ash", guard="second_wind"),
     "cinder_heart": _g("Cinder Heart", T, "rare", [1, 2, "F3", 4, "F5", "F6"], {"burn_bonus": 1, "might": 1},
                        "Banked fire: your Burns are 1 stronger, and +1 damage on every hit.", "ash"),
 
@@ -156,7 +156,7 @@ ITEMS = {
     "scarab_amulet": _g("Scarab Amulet", T, "rare", D(6), {"unbreakable": 1},
                         "Rebirth: once a fight, survive a lethal hit at 1 HP.", "dunes"),
     "oasis_flask": _g("Oasis Flask", T, "uncommon", D(6), {"rest_bonus": 0.2, "regen": 1},
-                      "Sweet water: resting heals an extra 20% of your max HP, and you heal 1 each round in fights.", "dunes"),
+                      "Sweet water: resting heals an extra 20% of your max HP, and you heal 1 each round in fights.", "dunes", acts=["cool_water"]),
 
     # ---------------------------------------------------------------- the Stillwood: stone and amber
     "petrified_club": _g("Petrified Club", W, "common", [2, 3, 3, 4, "S", 6], {"opportunist": 2},
@@ -186,7 +186,7 @@ ITEMS = {
                          "Living thorns: enemies that hit you take 2, and you heal 1 each round in fights.", "jungle", guard="coral_growth"),
     "jaguar_pelt": _g("Jaguar Pelt", A, "rare", [2, 3, 4, 5, "S", 7], {"evasive": 1, "backstab": 3},
                       "Prowler: the first hit on you each fight misses, and +3 damage against enemies aiming at someone else.",
-                      "jungle", guard="sidestep"),
+                      "jungle", guard="riposte_stance"),
     "jade_frog": _g("Jade Frog", T, "uncommon", D(6), {"kill_heal": 3, "regen": 1},
                     "Lucky frog: heal 3 whenever you kill an enemy, and 1 each round in fights.", "jungle"),
 
@@ -201,9 +201,9 @@ ITEMS = {
     "guardian_mantle": _g("Guardian's Mantle", A, "rare", [2, 3, 4, "S", "S", 7], {"last_stand": 5, "max_hp": 3},
                           "Last light: while you're at half HP or less, gain 5 Armor each round. +3 max HP.", "heaven", guard="cover"),
     "vestment_of_light": _g("Vestment of Light", A, "uncommon", [1, 2, 3, 4, "S", 6], {"weak_immune": 1, "heal_bonus": 1},
-                            "Unbowed: you can't be made Weak, and your heals are 1 stronger.", "heaven", guard="patch_up"),
+                            "Unbowed: you can't be made Weak, and your heals are 1 stronger.", "heaven", guard="warding_light"),
     "angel_feather": _g("Angel Feather", T, "uncommon", [1, 2, 3, 4, 5, "W"], {"evasive": 1},
-                        "Lighter than air: the first hit on you each fight misses.", "heaven"),
+                        "Lighter than air: the first hit on you each fight misses.", "heaven", acts=["featherlight"]),
     "sun_disc": _g("Sun Disc", T, "rare", [1, 2, 3, 4, 5, 6, 7, "W"], {"might": 1, "regen": 1},
                    "Noon: +1 damage on every hit, and heal 1 each round in fights.", "heaven"),
 
@@ -216,12 +216,12 @@ ITEMS = {
                        "Shatterproof: each kill gives you 3 Armor.", "crystal", ["crush"]),
     "crystal_carapace": _g("Crystal Carapace", A, "rare", [3, 4, "S", "S", "S", 6], {"first_hit_soak": 2, "thorns": 2},
                            "Faceted: the first hit on you each round deals 2 less, and enemies that hit you take 2.",
-                           "crystal", guard="echo_shell"),
+                           "crystal", guard="shell_up"),
     "prismweave_robe": _g("Prismweave Robe", A, "uncommon", D(6), {"spellweave": 2},
                           "Shifting colours: your spells deal +2 if you've cast a different spell earlier this round.",
-                          "crystal", guard="sidestep"),
+                          "crystal", guard="fade"),
     "tuning_fork": _g("Tuning Fork", T, "uncommon", D(6), {"momentum": 1},
-                      "Resonance: each of your actions after the first in a round deals +1.", "crystal"),
+                      "Resonance: each of your actions after the first in a round deals +1.", "crystal", acts=["resonate"]),
     "prism_shard": _g("Prism Shard", T, "rare", [1, 2, 3, 4, 5, "W"], {"eagle_eye": 1},
                       "Refraction: a die showing its highest face deals half again as much damage.", "crystal", dk=["fate"]),
 
@@ -232,13 +232,13 @@ ITEMS = {
                             "Unnoticed: while no enemy is aiming at you, your hits deal +3.", "dream", ["vanish", "lull"], dk=["fate"]),
     "moonsilk_robe": _g("Moonsilk Robe", A, "uncommon", [1, 2, 3, 4, "S", 6], {"stun_ward": 1, "rest_bonus": 0.1},
                         "Restful: ignore the first Stun each fight, and resting heals an extra 10% of your max HP.",
-                        "dream", guard="sidestep"),
+                        "dream", guard="hold_fast"),
     "nightmare_mail": _g("Nightmare Mail", A, "rare", [2, 3, 4, "S", "S", 6, 7, 8], {"heckler": 3, "max_hp": 3},
                          "Dread: each enemy's first attack each fight deals 3 less. +3 max HP.", "dream", guard="bristle"),
     "sandman_pouch": _g("Sandman's Pouch", T, "uncommon", D(6), {"cloak": 1},
                         "Drowse: each round, the first enemy that would attack you picks someone else (if there's anyone).", "dream"),
     "music_box": _g("Music Box", T, "rare", D(8), {"hymn_aura": 1, "reroll": 1},
-                    "Lullaby: while you're above half health, the whole party deals +1 damage. +1 reroll per fight.", "dream"),
+                    "Lullaby: while you're above half health, the whole party deals +1 damage. +1 reroll per fight.", "dream", acts=["lullaby"]),
 
     # ---------------------------------------------------------------- the Frostpeaks: ice and fur
     "frostbrand": _g("Frostbrand", W, "rare", [1, 2, "I3", 4, 5, "I6", 7, 8, "I9", 10], {"frozen_bonus": 3},
@@ -246,10 +246,10 @@ ITEMS = {
     "ice_pick": _g("Ice Pick", W, "common", [1, 2, 3, "I4", 5, 6], {"frozen_bonus": 2},
                    "Crack the ice: Frozen enemies take +2 from you.", "frost", ["hack"]),
     "yeti_hide": _g("Yeti Hide", A, "uncommon", [2, 2, 3, 3, 4, "S"], {"freeze_immune": 1, "max_hp": 5},
-                    "Thick fur: your dice can't be Frozen. +5 max HP.", "frost", guard="hunker"),
+                    "Thick fur: your dice can't be Frozen. +5 max HP.", "frost", guard="hold_fast"),
     "glacier_plate": _g("Glacier Plate", A, "rare", ["S", "S", 4, 5, 6, 7], {"freeze_immune": 1, "first_hit_soak": 2, "max_hp": 6},
                         "Glacial: your dice can't be Frozen, and the first hit on you each round deals 2 less. +6 max HP.",
-                        "frost", guard="cover"),
+                        "frost", guard="shell_up"),
     "rime_amulet": _g("Rime Amulet", T, "uncommon", [1, "I2", 3, "I4", 5, 6], {"frozen_bonus": 2, "freeze_immune": 1},
                       "Cold to the touch: Frozen enemies take +2 from you, and your dice can't be Frozen.", "frost"),
     "aurora_crystal": _g("Aurora Crystal", T, "legendary", [1, "W", 6, "I8", 10, 12], {"might": 2, "frozen_bonus": 2},
@@ -335,4 +335,14 @@ ITEMS.update({
                          "Warm grip: your dice can't be Frozen.", "frost", ["icefall"]),
     "glacier_lance": _g("Glacier Lance", W, "rare", [1, 2, 3, "I4", 5, 6, 7, "I8", 9, 10], {"frozen_bonus": 3},
                         "Bitter cold: Frozen enemies take +3 from you.", "frost", ["rime_guard"]),
+})
+
+# ---------------------------------------------------------------- more regional trinkets (Nov 2026)
+ITEMS.update({
+    "tinderbox": _g("Tinderbox", T, "uncommon", [1, 2, "F3", 4, "F5", 6], {"burn_bonus": 1},
+                    "Dry tinder: your Burns are 1 stronger.", "ash", ["warm_hands"]),
+    "prayer_beads": _g("Prayer Beads", T, "common", D(4), {"heal_bonus": 1},
+                       "Devotion: your heals are 1 stronger.", "heaven", ["benediction_bead"]),
+    "frost_charm": _g("Frostbitten Charm", T, "common", [1, "I2", 3, 4], {"frozen_bonus": 1},
+                      "Chilled: Frozen enemies take +1 from you.", "frost"),
 })

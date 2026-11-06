@@ -1355,6 +1355,24 @@ rest regional. Passives use existing mod keys.
 | Icebreaker Axe | Frostpeaks | `icefall` | Icefall | die, and every other Frozen enemy takes the die | `to: "frozen"` |
 | Glacier Lance | Frostpeaks | `rime_guard` | Rime Guard | you and an ally: die Armor; the next attacker is Frozen | `chill` hero status |
 
+**Armor skills and trinket actions** (owner's request, Nov 2026: more defensive variety, buff actions
+on trinkets, more gear with commons first). Eight new guard actions (in `ARMOR_ACTIONS`, free like Block,
+all defensive ops so the armor's guard die fits): **Hold Fast** (4 Armor, or the die +1), **Batten Down**
+(die Armor, cure yourself), **Fade** (die Armor, enemies aiming at you pick someone else), **Riposte
+Stance** (die Armor, riposte 3), **Second Wind** (die Armor; below half health also heal the die: the
+`hurt` variable), **Warding Light** (die Armor, the weakest ally heals 2), **Shell Up** (die Armor, +3 on
+4+) and **Deflect** (die Armor, the biggest enemy attack −2). No guard action is on more than four pieces
+now; Hunker Down is the four starting coats'. Trinket actions are buffs on cooldowns (2, or 3 for the
+strong ones): Good Luck (+1 reroll this fight: the `reroll` op), Pearl's Calm, Salt Ward, Rally the Crew,
+Featherlight, Resonate (Crescendo on an ally), Lullaby (party −1 a hit), Cool Water, Hone the Edge, Rally
+Call, Bind Wounds, Lash Together, Flash (an attack −the die), Warm Hands (Pass the Flame's `kindle`) and
+Benediction. The `cue` op adds to an ally's `cued` (their next damaging hit this round), and `to:
+"others"` is every ally but you. New gear: seven common trinkets (Whetstone, War Horn, Bandage Roll,
+Sailor's Knot, Signal Mirror, Rabbit's Foot, Fishhook Earring), Tinderbox, Prayer Beads and Frostbitten
+Charm in their regions, and six armor (Netcaster's Vest, Driftwood Buckler, Patchwork Coat, Tar-Soaked
+Jerkin, Cloak of Many Pockets, Lighthouse Mantle). 43 armor, 51 trinkets (15 common, 16 with an action).
+`tools/saltbound-check.py` fires every weapon's and trinket's actions and every armor's guard action.
+
 When an enemy attacks a hero (`hurt_hero`), first a Snare springs and a set Pike strikes (if either kills
 it, the hit doesn't land), then Sleep Dart's `owed` rides on, then a Tether splits the hit; after the hit,
 Rime freezes the attacker. `counter` and `chill` clear at the round's end (`ROUND_ONLY`); `wound`,

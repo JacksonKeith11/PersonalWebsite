@@ -156,6 +156,12 @@ const ICON = {
   thornvine_whip: ['sling', 'green', 'kelp'], judgment_halberd: ['glaive', 'gold', 'holy'], cherub_bow: ['bow', 'holy', 'gold'],
   geode_sling: ['sling', 'leather', 'crystal'], mirror_blade: ['sword', 'glass', 'crystal'], dream_needle: ['rapier', 'dream', 'pearl'],
   icebreaker_axe: ['axe', 'ice', 'wood'], glacier_lance: ['spear', 'ice', 'frost'],
+  whetstone: ['gem', 'stone', 'grey'], war_horn: ['conch', 'bone', 'bronze'], bandage_roll: ['scroll', 'white', 'red'],
+  sailors_knot: ['ring', 'tan', 'leather'], signal_mirror: ['lens', 'glass', 'bronze'], rabbits_foot: ['tooth', 'fur', 'gold'],
+  fishhook_earring: ['ring', 'steel', 'pearl'], tinderbox: ['jar', 'wood', 'ember'], prayer_beads: ['locket', 'holy', 'gold'],
+  frost_charm: ['locket', 'ice', 'frost'], netcaster_vest: ['vest', 'tan', 'kelp'], driftwood_buckler: ['shield', 'drift', 'iron'],
+  patchwork_coat: ['coat', 'leather', 'red'], tar_jerkin: ['vest', 'black', 'leather'], pocket_cloak: ['cloak', 'green', 'tan'],
+  lighthouse_mantle: ['cloak', 'white', 'gold'],
   frostbrand: ['sword', 'ice', 'frost'], ice_pick: ['pick', 'ice'], yeti_hide: ['pelt', 'fur', 'frost'], glacier_plate: ['plate', 'ice', 'frost'],
   rime_amulet: ['locket', 'ice', 'steel', 'frost'], aurora_crystal: ['globe', 'iron', 'ice', 'crystal'],
   // relics

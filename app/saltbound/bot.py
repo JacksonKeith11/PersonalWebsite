@@ -1023,6 +1023,16 @@ def evaluate(g, b, h, a, dice, tgt):
                 for t, share in tg:
                     if isinstance(t, dict):
                         val += share * min(n, t["st"].get("armor", 0)) * 0.8
+            elif k == "cue":
+                # a buff on an ally's next hit this round: worth it if they still have a hit to make
+                n_ = amt(op["amt"], de) + plus
+                for t, share in tg:
+                    if isinstance(t, tuple) and t[1] != h and g.active(t[1]) and not g.hs(t[1])["ready"] and unrolled(g, t[1]):
+                        val += share * n_ * 0.75
+            elif k == "reroll":
+                for t, share in tg:
+                    if isinstance(t, tuple) and g.active(t[1]):
+                        val += share * (2.0 if has_risky(g, t[1]) else 0.8)
             elif k == "snag":
                 for t, share in tg:
                     if isinstance(t, dict):
@@ -1469,6 +1479,8 @@ def op_targets(g, h, op, base):
         return [(fo, 1) for fo in g.foes() if fo["st"].get("sigil")]
     if to == "foes":
         return [(fo, 1) for fo in g.foes()]
+    if to == "others":
+        return [(("h", y), 1) for y in g.actives() if y != h]
     if to == "behind":
         first = next((t for t in base if isinstance(t, dict)), None)
         return [(fo, 1) for fo in g.foes() if first and fo["row"] != first["row"]][:1]

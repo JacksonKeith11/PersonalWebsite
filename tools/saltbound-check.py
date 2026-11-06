@@ -211,17 +211,20 @@ def main():
                     print(f"  {k}/{key}: CRASH")
                     traceback.print_exc()
                     break
-    # every weapon's actions, on a Vanguard who holds it (weapon actions are on cooldowns, so each
-    # weapon gets a fresh fight)
+    # every weapon's and trinket's actions and every armor's guard action, on a Vanguard who wears it
+    # (they're on cooldowns, so each piece gets a fresh fight)
     for key, it in I.ITEMS.items():
-        if it.get("slot") != "weapon":
+        if it.get("slot") not in ("weapon", "trinket", "armor"):
+            continue
+        acts = it.get("acts", []) if it["slot"] != "armor" else [it.get("guard") or "block"]
+        if not acts:
             continue
         g = game.Game.new(78, ["vanguard", "mender", "ranger"], "normal")
-        g.hero(0)["equip"]["weapon"] = key
+        g.hero(0)["equip"][it["slot"]] = key
         for y in range(3):
             g.hero(y)["tile"] = g.hero(0)["tile"]
         fight(g, [0, 1, 2])
-        for act in it.get("acts", []):
+        for act in acts:
             try:
                 if g.s["phase"] != "fight" or not g.s["fight"]:
                     break

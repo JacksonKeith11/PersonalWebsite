@@ -1464,7 +1464,18 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, legendary powers; 300 Hard runs, seed 5000): 61.3%**, from 50.3%, over the ~50%
+**Latest (Nov 2026, a harder Hard whose tide makes long runs cost; seed 5000): 55.3% doing everything
+(300 runs), 45.3% rushing (150 runs, `--rush`)**. Owner's request: make Hard harder, and make finishing
+every quest and lair a real choice against heading straight for the objectives. Hard's `foe_dmg` is
+2.85 (was 2.9) and its tide strengthens enemies 0.85% a rise (`surge` on the difficulty; Story and
+Normal keep `SURGE` 0.65%). A thorough run takes about 127 turns and 42 rises (enemies +36% by the end);
+a rush about 71 turns and 23 rises (+19%), but without the relics, jobs and quest levels. Classes doing
+everything 43-70% (Scoundrel 70.1, Spellblade 42.9); rushing 27-58% (Warden 57.7, Herald 27.3: the
+support classes need the extra levels most). The tide is the big lever: at 1.0% a rise Hard was 43.0%
+doing everything and 38.7% rushing, at 0.9% (with `foe_dmg` 3.0) 43.7% and 39.3%; about 0.0092 would
+bring the thorough runs to 50%.
+
+**Before that (legendary powers; 300 Hard runs, seed 5000): 61.3%**, from 50.3%, over the ~50%
 target: every class rose (Arcanist 67.2 to Berserker 49.2; Herald 50.8). Runs that took a loot legendary
 won 62-87% (Sentinel Plate 86.7, Aurora Crystal 85.7, Tidelord's Aegis 78.3), though against the runs
 that passed it at the same moment they're still about level (−0.3 points, take-weighted), so much of

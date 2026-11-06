@@ -1368,7 +1368,15 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, after the quests, regional gear and boons; 300 Hard runs, seed 5000): 56.3%**,
+**Latest (Nov 2026, weapon actions on cooldowns, Rebuke for the Mender; 300 Hard runs, seed 5000):
+46.7%**, from 56.3%. Weapon actions were most classes' free second attack; now they're 1-3% of
+plays each and the basics carry the load. Classes 27-59%: Dragonborn 58.5, Alchemist 56.9, Mender
+54.5, Scoundrel, Warden, Psion and Herald 49, Spellblade and Duelist 47.5, Arcanist 45, Berserker 45,
+Vanguard 43, **Ranger 31.2 and Emberknight 27.3** (both far below: the Ranger's bow and the
+Emberknight's mace were their second free attack). Not retuned: for the owner (levers: their basics,
+HP, or a shorter cooldown on their starting weapon's action).
+
+**Before that (Nov 2026, after the quests, regional gear and boons; 300 Hard runs, seed 5000): 56.3%**,
 up from 47.3% with the eleven regions alone. The bots finish almost every drawn quest (a relic or a
 boon each), and runs are much longer (114 turns on average, from 69; 37 rises, from 22) as they
 detour for them; classes 48-65% (Scoundrel 65, Vanguard 48), regions 48-63%. Not retuned yet: it's

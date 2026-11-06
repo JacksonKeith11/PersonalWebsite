@@ -1368,7 +1368,13 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, weapon actions on cooldowns, Rebuke for the Mender; 300 Hard runs, seed 5000):
+**Latest (Nov 2026, weapon actions on cooldowns, then Shoot and Searing Strike die +2 and the Ranger
+27 HP; 300 Hard runs, seed 5000): 54.0%**. Classes 45-62%: Herald 61.9, Alchemist and Dragonborn 60,
+Duelist 59.6, Mender 57.6, Warden 55.4, Berserker 53.8, Emberknight 53.0, Scoundrel 52.2, Psion 50.8,
+Vanguard 50.7, Spellblade 49.2, Arcanist 46.9, Ranger 45.3. The basics' buff alone gave 53.3% with the
+Ranger at 42.2% and the Emberknight at 51.5% (from 27.3%), so the Ranger also got 3 HP.
+
+**Before the buffs (weapon actions on cooldowns, Rebuke for the Mender; 300 Hard runs, seed 5000):
 46.7%**, from 56.3%. Weapon actions were most classes' free second attack; now they're 1-3% of
 plays each and the basics carry the load. Classes 27-59%: Dragonborn 58.5, Alchemist 56.9, Mender
 54.5, Scoundrel, Warden, Psion and Herald 49, Spellblade and Duelist 47.5, Arcanist 45, Berserker 45,

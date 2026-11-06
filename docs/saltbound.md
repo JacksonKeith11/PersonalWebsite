@@ -913,6 +913,15 @@ Duelist 70.6%, Dragonborn 70.2%, Mender 70.0%, Herald 67.9%, Ranger 60.9%, Scoun
 60.2%, Alchemist 60.0%, Berserker 59.8%, Spellblade 55.8%, Vanguard 55.3%, Warden 53.6%, Arcanist 49.4%,
 Psion 44.7%. Each class is in about 85 runs, so each number is good to about ±10.
 
+**Harder Hard and Normal** (owner's request, 2026-11-06): a stronger rising tide (`SURGE` 0.0045 →
+0.0055), more enemy damage (Hard `foe_dmg` 2.8 → 2.9, Normal 2.3 → 2.45), the Duelist trimmed (29 HP, was
+31; Riposte Cut +2 on an enemy aiming at it, was +3) and the Mender (Mend the die +2, was +3; Radiance at
+25 Grace, was 20). 400 runs each, seed 5000: **Hard 49.3%** (was 60.0%): Mender 64.4%, Duelist 56.5%,
+Ranger 56.3%, Herald 53.6%, Alchemist 52.9%, Warden 51.2%, Vanguard 49.4%, Dragonborn 46.4%, Spellblade
+44.2%, Berserker 43.9%, Emberknight 43.2%, Scoundrel 42.4%, Psion 42.4%, Arcanist 42.2%. **Normal
+84.3%** (classes 75–92%, Mender 92.2% and Berserker 91.5% on top, Warden 75.0% and Herald 76.2% at the
+bottom; Normal hadn't been measured since before the signature mechanics).
+
 **Scoundrel, Pickings** (owner's request, Nov 2026): its crits (once a round) and killing blows lift a
 random trinket (`x["trinkets"]`, up to `C.TRINKET_CAP` 2, gone when the fight ends; Stash keeps one),
 each used once without a die (the `trinket` message, `Combat.do_trinket`): Smoke Pellet (the next hit

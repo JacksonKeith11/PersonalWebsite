@@ -34,7 +34,7 @@ DIFFICULTY = {
     # dear (owner, Nov 2026: the middle road should be best, and whether a quest is worth it depends on the
     # path). Each rise adds `surge` (tuning.SURGE where unset), and past `surge_from` rises another
     # `surge2` times the square of how far past (Game.surge).
-    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.0065, "surge2": 0.0004, "surge_from": 20},
+    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.0065, "surge2": 0.0007, "surge_from": 26},
 }
 MOVES = 4
 PATH_MAX = 20  # hexes in one turn's route at most (a current carries a skiff a long way)

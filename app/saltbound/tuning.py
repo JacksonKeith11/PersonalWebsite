@@ -14,7 +14,7 @@ DUNGEON_STEP_HP = (0.85, 1.0, 1.15)
 DUNGEON_STEP_DMG = (0.9, 1.0, 1.1)
 # The rising tide: each rise makes every enemy this share stronger, HP and damage (rises come every
 # few turns, by difficulty; see DIFFICULTY in game.py).
-SURGE = 0.0055  # was 0.0045 (owner, Nov 2026: a stronger rising tide)
+SURGE = 0.0065  # was 0.0045, then 0.0055 (owner, Nov 2026: a stronger rising tide)
 # Enemies met on the map (roaming groups and lairs) last longer but hit softer, so those fights
 # take a few rounds without being deadlier. Elites and big threats are meant to be dangerous: no change.
 ROAM_HP = 2.2

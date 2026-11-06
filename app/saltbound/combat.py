@@ -549,6 +549,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if x.get("dealt") and "shoot" not in x.get("cds", {}) and "shoot" in self.actions_of(h):
             x["aim"] = min(AIM_CAP, x.get("aim", 0) + 1)  # Aim and Loose: a round waited ready and unused
         x["dealt"] = True
+        if self.mods(h).get("echo_round"):
+            x["echo"] = False  # the Abyssal Tome: the echo comes back every round
         x["cds"] = {k: n - 1 for k, n in x.get("cds", {}).items() if n > 1}
         x["links"] = {}
         x["tempo"] = False
@@ -1499,10 +1501,14 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if x["st"].pop("dodge", 0):
                 self.fx("st", to=f"h{h}", s="dodged")
                 return 0
+            if fo is not None and not x.get("pevade") and any(self.mods(y).get("party_evasive") for y in self.actives()):
+                x["pevade"] = True  # the Wings of the Arbiter: the first hit on each hero each fight misses
+                self.fx("st", to=f"h{h}", s="dodged")
+                return 0
             if x["st"].pop("halfhit", 0):
                 n //= 2  # Evasive, Smoke Bomb: half
                 self.fx("st", to=f"h{h}", s="glanced")
-            soak = self.mods(h).get("first_hit_soak", 0)
+            soak = self.mods(h).get("first_hit_soak", 0) + max([self.mods(y).get("ward_party", 0) for y in self.actives()] or [0])
             if soak and not x.get("soaked"):
                 x["soaked"] = True
                 n -= soak

@@ -1044,9 +1044,11 @@ def evaluate(g, b, h, a, dice, tgt):
                     if isinstance(t, tuple) and t[1] != h:
                         val += share * 0.35 * max(big.get(t[1], 0), big.get(h, 0))
             elif k == "refresh":
-                cds = [n_ for q, n_ in g.hs(h)["cds"].items() if q != a["key"]]
-                if cds:
-                    val += 3 + 1.5 * max(cds)
+                whom = [t[1] for t, _ in tg if isinstance(t, tuple)] if op.get("to") else [h]
+                for y in whom:
+                    cds = [n_ for q, n_ in g.hs(y)["cds"].items() if not (y == h and q == a["key"])]
+                    if cds:
+                        val += 3 + 1.5 * max(cds)
             elif k in ("delay", "sleep"):
                 for t, share in tg:
                     it = t.get("intent") if isinstance(t, dict) else None

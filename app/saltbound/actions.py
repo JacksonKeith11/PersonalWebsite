@@ -878,12 +878,16 @@ class Actions:
                 self.fx("st", to=f"h{t[1]}", s="tethered")
 
     def _op_refresh(self, c, op, targets):
-        """Borrowed Time: the hero's other skill with the longest cooldown left is ready."""
-        cds = {k: n for k, n in c.x["cds"].items() if k != c.a["key"]}
-        if cds:
-            k = max(cds, key=lambda k: (cds[k], k))
-            del c.x["cds"][k]
-            self.fx("st", to=f"h{c.h}", s="refreshed")
+        """Borrowed Time: the hero's other skill with the longest cooldown left is ready (Turn the Glass:
+        each ally's)."""
+        whom = [t[1] for t in targets if isinstance(t, tuple)] if op.get("to") else [c.h]
+        for y in whom:
+            x = self.hs(y)
+            cds = {k: n for k, n in x["cds"].items() if not (y == c.h and k == c.a["key"])}
+            if cds:
+                k = max(cds, key=lambda k: (cds[k], k))
+                del x["cds"][k]
+                self.fx("st", to=f"h{y}", s="refreshed")
 
     def _op_delay(self, c, op, targets):
         """Sleep Dart: this round's attack is lost, and half of it rides on the enemy's next hit."""

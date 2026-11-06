@@ -438,6 +438,83 @@ for _k, (_m, _t) in PASSIVES.items():
 from . import gear2 as _G  # noqa: E402
 WEAPON_ACTIONS.update(_G.ACTIONS)
 ITEMS.update(_G.ITEMS)
+
+# Legendary powers (owner's request, Nov 2026: a legendary should feel like a big step up from a rare).
+# Every legendary's die loses its faces below 4, and each gains a power of its own: a strong passive, a
+# signature skill, or both. (item: (extra mods, sentence added to its text, extra actions, new guard))
+LEGENDARY_ACTIONS = {
+    "crown_smash": {"cd": 3, "name": "Crown Smash", "req": {"n": 1}, "tgt": "foe", "melee": True,
+                    "ops": [{"op": "dmg", "amt": "v*2+4", "pierce": True}, {"op": "status", "s": "weak", "n": 1, "to": "foes"}],
+                    "text": "Deal twice the die +4, ignoring Armor, and every enemy is Weak this round."},
+    "drowned_tithe": {"cd": 3, "name": "Drowned Tithe", "req": {"n": 1}, "tgt": "self",
+                      "ops": [{"op": "selfdmg", "amt": "4"}, {"op": "cue", "amt": "v+2", "to": "others"}],
+                      "text": "Pay 4 HP: every ally's next hit this round deals the die +2 more."},
+    "turn_the_glass": {"cd": 3, "name": "Turn the Glass", "req": {"n": 1}, "tgt": "self",
+                       "ops": [{"op": "refresh", "to": "others"}],
+                       "text": "Every ally's skill with the longest cooldown left is ready again."},
+    "dawnbreak": {"cd": 3, "name": "Dawnbreak", "req": {"n": 1}, "tgt": "foe",
+                  "ops": [{"op": "dmg", "amt": "v*2+2"}, {"op": "heal", "amt": "v", "to": "party"}],
+                  "text": "Any row: deal twice the die +2, and everyone in the party heals the die."},
+    "northern_lights": {"once": True, "name": "Northern Lights", "req": {"n": 1}, "tgt": "self",
+                        "ops": [{"op": "status", "s": "freeze", "n": 1, "to": "foes"}],
+                        "text": "Once per fight: every enemy is Frozen (it hits for half)."},
+    "rekindle": {"once": True, "name": "Rekindle", "req": {"n": 1}, "tgt": "downed",
+                 "ops": [{"op": "lift", "amt": "12+v"}, {"op": "status", "s": "burn", "n": 2, "to": "foes"}],
+                 "text": "Once per fight: a knocked-down ally rises with the die +12 HP, and every enemy Burns for 2."},
+    "winters_heart": {"cd": 3, "name": "Winter's Heart", "req": {"n": 1}, "tgt": "foe",
+                      "ops": [{"op": "status", "s": "freeze", "n": 1, "to": "row"}, {"op": "dmg", "amt": "v"}],
+                      "text": "Any row: Freeze the enemy and every enemy in its row, then deal the die to it."},
+}
+LEGENDARY_GUARDS = {
+    "unmoving_wall": {"name": "Unmoving Wall", "req": {"n": 1}, "tgt": "self",
+                      "ops": [{"op": "armor", "amt": "v+2"}, {"op": "weaken", "amt": "2", "to": "foes"}],
+                      "text": "Gain the die +2 as Armor, and every enemy attack this round drops by 2."},
+    "heartwood": {"name": "Heartwood", "req": {"n": 1}, "tgt": "self",
+                  "ops": [{"op": "armor", "amt": "v+2"}, {"op": "armor", "amt": "2", "to": "others"}, {"op": "heal", "amt": "2", "to": "self"}],
+                  "text": "Gain the die +2 as Armor and heal 2; every ally gains 2 Armor."},
+}
+ARMOR_ACTIONS.update(LEGENDARY_GUARDS)
+WEAPON_ACTIONS.update(LEGENDARY_GUARDS)
+WEAPON_ACTIONS.update(LEGENDARY_ACTIONS)
+LEGENDARY = {
+    "crownbreaker": ({}, "Legendary: Crown Smash.", ["crown_smash"], None),
+    "abyssal_tome": ({"echo_round": 1}, "Legendary: the echo comes back every round.", [], None),
+    "tidelord_aegis": ({"ward_party": 2}, "Legendary: the first hit on each ally each round deals 2 less.", [], None),
+    "drowned_idol": ({}, "Legendary: Drowned Tithe.", ["drowned_tithe"], None),
+    "tide_hourglass": ({}, "Legendary: Turn the Glass.", ["turn_the_glass"], None),
+    "sentinel_plate": ({}, "Legendary: its guard is the Unmoving Wall.", [], "unmoving_wall"),
+    "seraph_blade": ({}, "Legendary: Dawnbreak.", ["dawnbreak"], None),
+    "aurora_crystal": ({}, "Legendary: Northern Lights.", ["northern_lights"], None),
+    "phoenix_plume": ({}, "Legendary: Rekindle.", ["rekindle"], None),
+    "sunking_khopesh": ({"kill_die": 6}, "Legendary: your first kill each round gives you a fresh d6.", [], None),
+    "stillwood_heart": ({}, "Legendary: its guard is Heartwood.", [], "heartwood"),
+    "jade_fang": ({"fester": 1}, "Legendary: every hit on a Poisoned enemy, by anyone, makes its Poison 1 stronger.", [], None),
+    "arbiter_wings": ({"party_evasive": 1}, "Legendary: the first hit on each ally each fight misses.", [], None),
+    "heartprism": ({"eagle_eye": 1}, "Legendary: a die showing its highest face deals half again as much.", [], None),
+    "somnarch_lantern": ({}, "Legendary: Sleep Thread.", ["sleep_thread"], None),
+    "rimeheart": ({}, "Legendary: Winter's Heart.", ["winters_heart"], None),
+}
+
+
+def _legend_face(f):
+    if isinstance(f, int):
+        return max(4, f)
+    if isinstance(f, str) and f[:1] in "FIP" and f[1:].isdigit():
+        return f[0] + str(max(4, int(f[1:])))
+    return f
+
+
+for _k, (_m, _t, _acts, _guard) in LEGENDARY.items():
+    _it = ITEMS[_k]
+    assert _it["rarity"] == "legendary", _k
+    _it["die"] = [_legend_face(f) for f in _it["die"]]
+    _it["mods"] = {**_it.get("mods", {}), **_m}
+    _it["text"] = (_it.get("text", "") + " " + _t).strip()
+    if _acts:
+        _it["acts"] = list(_it.get("acts", [])) + _acts
+    if _guard:
+        _it["guard"] = _guard
+assert all(k in LEGENDARY for k, v in ITEMS.items() if v.get("rarity") == "legendary" and v["slot"] != "use"), "a legendary has no power"
 for _k, _a in WEAPON_ACTIONS.items():
     if _k not in ARMOR_ACTIONS and _k not in _G.GUARD_ACTIONS and not _a.get("instant") and not _a.get("once"):
         _a["cd"] = max(_a.get("cd", WEAPON_CD), WEAPON_CD)

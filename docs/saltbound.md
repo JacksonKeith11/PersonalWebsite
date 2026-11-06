@@ -1355,6 +1355,22 @@ rest regional. Passives use existing mod keys.
 | Icebreaker Axe | Frostpeaks | `icefall` | Icefall | die, and every other Frozen enemy takes the die | `to: "frozen"` |
 | Glacier Lance | Frostpeaks | `rime_guard` | Rime Guard | you and an ally: die Armor; the next attacker is Frozen | `chill` hero status |
 
+**Legendary powers** (owner's request, Nov 2026: legendaries should feel like a big step up; before,
+taking one won no more often than passing it). `LEGENDARY` in `content/items.py` gives every legendary
+(the loot ones and the relics) a die with no faces below 4 and a power of its own, written onto its mods,
+actions, guard and text after the regional gear merges in (an assert fails if a new legendary has none):
+Crownbreaker **Crown Smash** (cd 3: 2× die +4 ignoring Armor, every enemy Weak); Abyssal Tome's echo
+every round (`echo_round`); Tidelord's Aegis: the first hit on each ally each round −2 (`ward_party`);
+Drowned Idol **Drowned Tithe** (pay 4 HP: allies' next hit +die +2); Tide Hourglass **Turn the Glass**
+(each ally's longest cooldown ends: `refresh` to `others`); Sentinel Plate's guard **Unmoving Wall**
+(die +2 Armor, every enemy attack −2); Seraph Blade **Dawnbreak** (2× die +2, the party heals the die);
+Aurora Crystal **Northern Lights** (once a fight: every enemy Frozen); Phoenix Plume **Rekindle** (once a
+fight: revive an ally at die +12, every enemy Burns 2); Sun-King's Khopesh: the first kill each round
+gives a d6 (`kill_die`); Stillwood Heart's guard **Heartwood** (die +2 Armor, heal 2, allies +2 Armor);
+Fang of the Jade Serpent: Fester; Wings of the Arbiter: the first hit on each ally each fight misses
+(`party_evasive`); the Heartprism: Eagle Eye; Somnarch's Lantern: Sleep Thread; Rimeheart **Winter's
+Heart** (cd 3: Freeze its row, deal the die). Legendary loot cards already shimmer (`ui.css`).
+
 **Armor skills and trinket actions** (owner's request, Nov 2026: more defensive variety, buff actions
 on trinkets, more gear with commons first). Eight new guard actions (in `ARMOR_ACTIONS`, free like Block,
 all defensive ops so the armor's guard die fits): **Hold Fast** (4 Armor, or the die +1), **Batten Down**

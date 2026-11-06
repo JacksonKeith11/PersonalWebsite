@@ -8,6 +8,10 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # legendary powers (content/items.py LEGENDARY)
+    "echo_round": "the Echo (echo_any) comes back every round",
+    "ward_party": "the first hit on each ally each round deals n less",
+    "party_evasive": "the first hit on each ally each fight misses",
     # the Warden's Rootweb (classes.py WEB_*; Combat.web_splash)
     "thicket": "the Rootweb carries 1 more",
     "strangler_fig": "summons' hits Root",

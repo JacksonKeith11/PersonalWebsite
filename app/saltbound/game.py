@@ -8,7 +8,8 @@ for everyone.
 A map turn: every living hero plans a path (or rests) and readies up; then everyone moves at
 once, enemies close in, fights start where heroes and enemies meet (every hero within a hex
 joins), and landing on a place (an event, a wreck, a shrine) queues a dialog for that hero. Then
-the next turn begins: the tide may turn, and every few turns it rises and enemies grow stronger.
+the next turn begins: the tide may turn, and every few turns the Great Tide rises: enemies grow
+stronger, the sea brings arrivals and the garrisons grow.
 
 Phases: `plan` (map turns), `fight`, `reward` (after a fight, until everyone's picks are made),
 `end`.
@@ -26,20 +27,23 @@ from .content import items as I
 from .rng import Rng
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 
-VERSION = 12
+VERSION = 13
 DIFFICULTY = {
-    "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
-    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.6},
+    # `rise`: turns between Great Tides (owner, Nov 2026: rarer and bigger, each one RISE_STEPS rises of
+    # enemy strength at once, with the garrisons growing on the same turn)
+    "story": {"rise": 12, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
+    "normal": {"rise": 9, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.6},
     # Hard: the tide's strength accelerates, so a few quests on the way are cheap but chasing every one is
     # dear (owner, Nov 2026: the middle road should be best, and whether a quest is worth it depends on the
     # path). Each rise adds `surge` (tuning.SURGE where unset), and past `surge_from` rises another
     # `surge2` times the square of how far past (Game.surge).
-    "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.0065, "surge2": 0.0007, "surge_from": 26},
+    "hard": {"rise": 9, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.85, "surge": 0.0065, "surge2": 0.0007, "surge_from": 26},
 }
 MOVES = 4
 PATH_MAX = 20  # hexes in one turn's route at most (a current carries a skiff a long way)
 VISION = 5  # land seen around a hero: more than a turn's walk, so a move's result is in view
 GROW_FROM = 10  # after this many rises more enemies come ashore
+RISE_STEPS = 3  # rises of enemy strength a Great Tide brings at once (`s["rises"]`; `s["tides"]` counts the tides)
 TIDE_EVERY = 4
 SPAWN_EVERY = 4
 MAX_GROUPS = 12
@@ -83,7 +87,7 @@ class Game(Combat, Biomes, Quests, Travel):
             })
         s = {
             "v": VERSION, "seed": seed, "rng": seed * 7919 + 17, "diff": difficulty, "turn": 1, "sea": Wd.SEA0,
-            "rises": 0, "phase": "plan", "result": None, "world": w, "seen": [0] * (Wd.W * Wd.H), "cleared": [],
+            "rises": 0, "tides": 0, "phase": "plan", "result": None, "world": w, "seen": [0] * (Wd.W * Wd.H), "cleared": [],
             "dungeon": {}, "heroes": heroes, "xp": 0, "level": 1, "revives": diff["revives"], "miracle": False,
             "groups": [], "gid": 1, "plans": {}, "pending": {"0": [], "1": [], "2": []}, "pools": {}, "poolid": 0, "fights": [],
             "fight": None, "after": "turn", "quests": [], "shops": {}, "fx": [], "fxid": 0, "log": [],
@@ -894,6 +898,8 @@ class Game(Combat, Biomes, Quests, Travel):
         return list(g[:A.GARRISON_ESCORTS]), A.GARRISON_BOSS * max(0, len(g) - A.GARRISON_ESCORTS)
 
     def grow_garrisons(self):
+        """Each objective not yet cleared grows its garrison (on each Great Tide). Returns
+        [{"reg", "name", "tile", "n"}] for those that grew."""
         s = self.s
         grown = []
         for reg in self.regions():
@@ -907,10 +913,11 @@ class Game(Combat, Biomes, Quests, Travel):
                 self.say(f"{D['name']}'s garrison doesn't grow: its raiders never came back.")
                 continue
             g.append(self.rng.choice([k for e in D["escort"] for k in e]))
-            grown.append(D["name"])
+            tile = next((int(t) for t, p in s["world"]["places"].items() if p["kind"] == "dungeon" and p.get("region") == reg), None)
+            grown.append({"reg": reg, "name": D["name"], "tile": tile, "n": len(g)})
         if grown:
-            self.say("The garrisons grow: " + ", ".join(grown) + ". Their bosses will be harder to reach.")
-            self.fx("garrison", regs=[r for r in self.regions() if r not in s["cleared"]])
+            self.say("The garrisons grow: " + ", ".join(x["name"] for x in grown) + ". Their bosses will be harder to reach.")
+        return grown
 
     def make_fork(self, reg, step, tile, heroes):
         """After a dungeon fight: the party picks one of two ways on."""
@@ -1008,11 +1015,9 @@ class Game(Combat, Biomes, Quests, Travel):
             self.say("The tide turns: it's " + self.tide() + " tide.")
             self.fx("tide", tide=self.tide())
         if (s["turn"] - 1) % self.diff()["rise"] == 0:
-            self.rise()
+            self.rise()  # the Great Tide: stronger enemies, arrivals, and the garrisons grow
         if s["phase"] == "end":
             return
-        if s["turn"] > 1 and (s["turn"] - 1) % A.GARRISON_EVERY == 0:
-            self.grow_garrisons()
         self.tick_tide()
         self.tick_opps()
         self.tick_chains()
@@ -1168,14 +1173,20 @@ class Game(Combat, Biomes, Quests, Travel):
         return "low" if ((turn - 1) // TIDE_EVERY) % 2 == 0 else "high"
 
     def rise(self):
-        """The tide rises: every enemy met from now on is a little stronger (`surge`). The land
+        """The Great Tide: every enemy met from now on is stronger (`surge`, RISE_STEPS rises at once),
+        the sea brings arrivals, and the garrisons of the objectives still standing grow. The land
         stays as it is: the sea never floods hexes or sinks places."""
         s = self.s
-        s["rises"] += 1
-        self.say("The tide rises.")
+        before = self.surge()
+        was = s["rises"]
+        s["rises"] += RISE_STEPS
+        s["tides"] = s.get("tides", 0) + 1
+        self.say(f"The Great Tide rises: enemies are stronger (+{round((self.surge() - before) * 100)}%).")
         news = self.tide_arrivals()
-        self.fx("rise", rises=s["rises"], news=news)
-        if s["rises"] == GROW_FROM + 1:
+        grown = self.grow_garrisons()
+        self.fx("rise", rises=s["rises"], tide=s["tides"], news=news, up=round((self.surge() - before) * 100),
+                surge=round((self.surge() - 1) * 100), garrisons=grown)
+        if was <= GROW_FROM < s["rises"]:
             self.say("More enemies come ashore with every rise now.")
 
     def tick_tide(self):
@@ -1191,7 +1202,7 @@ class Game(Combat, Biomes, Quests, Travel):
         s = self.s
         r = s["rises"]
         late = r >= A.TIDE_LATE
-        n = 2 if r >= A.TIDE_TWO_FROM else 1
+        n = 3 if r >= 2 * A.TIDE_TWO_FROM else 2  # a Great Tide brings two arrivals, three later on
         heroes = [self.hero(h)["tile"] for h in self.living()]
         news = []
         if not heroes:
@@ -2634,7 +2645,7 @@ class Game(Combat, Biomes, Quests, Travel):
             "turn": s["turn"], "sea": s["sea"], "rises": s["rises"], "tide": self.tide(), "phase": s["phase"],
             "result": s["result"], "diff": s["diff"], "rise_every": self.diff()["rise"],
             "grow_from": GROW_FROM, "tidenews": s.get("tidenews", []), "next_tide": TIDE_EVERY - (s["turn"] - 1) % TIDE_EVERY,
-            "next_rise": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"],
+            "next_rise": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"], "tides": s.get("tides", 0),
             "seen": "".join(map(str, s["seen"])), "places": places, "groups": groups, "heroes": heroes,
             "xp": s["xp"], "level": s["level"], "xp_next": C.XP_FOR[s["level"]] if s["level"] < C.MAX_LEVEL else None,
             "xp_this": C.XP_FOR[s["level"] - 1], "revives": s["revives"], "cleared": s["cleared"],
@@ -2651,7 +2662,7 @@ class Game(Combat, Biomes, Quests, Travel):
                                "n": len(s.get("garrison", {}).get(reg, []))} for reg in self.regions()},
             "dungeon_step": {"hp": round(100 * DUNGEON_STEP_HP[min(self.tier(), 2)] * (1 + 0.15 * self.tier())),
                              "dmg": round(100 * DUNGEON_STEP_DMG[min(self.tier(), 2)] * (1 + 0.1 * self.tier()))},
-            "garrison_next": A.GARRISON_EVERY - (s["turn"] - 1) % A.GARRISON_EVERY,
+            "garrison_next": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"],  # with the Great Tide
             "crown_cut": round(A.CROWN_CUT * s.get("crown_cut", 0) * 100),
             "reforge": {k: self.reforge_cost(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
             "temper": {k: self.temper_options(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},

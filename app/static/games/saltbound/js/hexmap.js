@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=149';
-import { spriteCanvas, placeCanvas } from './art.js?v=149';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=150';
+import { spriteCanvas, placeCanvas } from './art.js?v=150';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -790,7 +790,7 @@ export class MapView {
     if (!this.scene) return;
     const sc = this.scene, [cx, cy] = center(t);
     for (let k = 0; k < 3; k++) {
-      const ring = sc.add.ellipse(cx, cy + 8, 22, 9).setStrokeStyle(2, kind === 'boon' ? 0xffe7a8 : 0xbfe4ec, 0.9);
+      const ring = sc.add.ellipse(cx, cy + 8, 22, 9).setStrokeStyle(kind === 'garrison' ? 3 : 2, kind === 'boon' ? 0xffe7a8 : kind === 'garrison' ? 0xe0705a : 0xbfe4ec, 0.9);
       this.layerLand.add(ring);
       sc.tweens.add({ targets: ring, scale: 3.2, alpha: 0, duration: 1300, delay: 250 + k * 320, onComplete: () => ring.destroy() });
     }

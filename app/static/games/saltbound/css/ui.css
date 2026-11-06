@@ -1624,6 +1624,17 @@ button.stat.goal b { max-width: 180px; overflow: hidden; text-overflow: ellipsis
   background-size: 260% 100%; animation: tidewash 1600ms ease-in-out both; }
 @keyframes tidewash { from { background-position: 120% 0; } to { background-position: -40% 0; } }
 @media (prefers-reduced-motion: reduce) { .map.tide-wave::after { display: none; } }
+/* the Great Tide (hud.js 'rise'): a wall of water sweeps the whole screen, and the top bar warns the turn before */
+body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; pointer-events: none;
+  background: linear-gradient(100deg, transparent 0 22%, rgba(40, 110, 150, 0.0) 26%, rgba(60, 140, 180, 0.45) 38%, rgba(190, 236, 250, 0.7) 46%,
+    rgba(70, 150, 190, 0.5) 52%, rgba(20, 70, 110, 0.35) 62%, transparent 74%);
+  background-size: 300% 100%; animation: greattide 2400ms cubic-bezier(0.35, 0, 0.25, 1) both; }
+@keyframes greattide { from { background-position: 130% 0; opacity: 1; } 85% { opacity: 1; } to { background-position: -50% 0; opacity: 0; } }
+.big-banner.great .bb-title { font-size: clamp(52px, 9.5vw, 104px); letter-spacing: 0.02em; }
+.big-banner.great .bb-sub { color: var(--info); }
+.stat.tide-soon { color: var(--info); animation: tidesoon 1.6s ease-in-out infinite; }
+@keyframes tidesoon { 50% { box-shadow: 0 0 0 2px rgba(79, 159, 192, 0.55), 0 0 16px rgba(79, 159, 192, 0.35); } }
+@media (prefers-reduced-motion: reduce) { body.great-tide::after, .stat.tide-soon { animation: none; } body.great-tide::after { display: none; } }
 
 /* ---- an ally's event on everyone else's screen (hud.js renderPartyEvents), the chip-in huddle and
    suggestions (Nov 2026) */

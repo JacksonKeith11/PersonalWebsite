@@ -429,7 +429,8 @@ OPP_EVERY = 5   # a new one every this many turns (from turn 3)...
 OPP_MAX = 2     # ...while fewer than this many are about
 OPP_RANGE = {"ship": (4, 14), "drift": (4, 10), "healer": (3, 12)}  # how far from the nearest hero
 
-# Garrisons: every `GARRISON_EVERY` turns each objective not yet cleared grows. The first two growths
+# Garrisons: on each Great Tide (`Game.rise`; GARRISON_EVERY is only the old pace, kept for the browser's
+# static data) each objective not yet cleared grows. The first two growths
 # add an escort to its boss fight; past that its boss gets `GARRISON_BOSS` more health per growth.
 # An objective cleared before its garrison ever grew weakens the Drowned Crown by `CROWN_CUT`.
 GARRISON_EVERY = 6

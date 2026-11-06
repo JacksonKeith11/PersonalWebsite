@@ -375,7 +375,15 @@ there was no reason to hurry, so the best plan was to visit everything. Content 
   at a camp (heals each hero who arrives to full and lifts curses, 4 turns). They're sighted even in the
   fog, ringed in gold on the map with the turns left, and listed under "This turn" (click to find).
   The bots go for one when they can reach it in time (about 3 hexes a turn).
-- **Garrisons** (`grow_garrisons`, `garrison_of`): every `GARRISON_EVERY` (6) turns, each objective not
+- **The Great Tide** (owner's request, Nov 2026: rarer, bigger, and obvious): every `rise` turns of the
+  difficulty (9 on Normal and Hard, 12 on Story; `Game.rise`) the tide rises by `RISE_STEPS` (3) rises
+  of enemy strength at once (`s["rises"]`, which the strength curve and every rise threshold read;
+  `s["tides"]` counts the tides), brings two arrivals (three from the fourth tide), and grows the
+  garrisons, all in one `rise` fx (`up`, `surge`, `news`, `garrisons`). The browser plays a wall of water
+  across the whole screen (`body.great-tide`), a "The Great Tide" banner saying what changed, the arrivals
+  coming in and a red ring on each objective whose garrison grew; the top bar's "Great Tide in N" glows
+  the turn before (`.stat.tide-soon`). Save v13 counts `tides` from `rises`.
+- **Garrisons** (`grow_garrisons`, `garrison_of`): on each Great Tide, each objective not
   yet cleared grows. The first two growths add an escort to its boss fight (drawn from its escort pool),
   later ones give its boss `GARRISON_BOSS` (15%) more health each, up to six growths. An objective cleared before
   its garrison ever grew weakens the Drowned Crown by `CROWN_CUT` (10% of its health) each. The map

@@ -190,8 +190,15 @@ def _v11(state):
     return state
 
 
+def _v12(state):
+    """v13: the tide rises as a Great Tide every few turns, RISE_STEPS rises at once; `tides` counts them."""
+    state["tides"] = state.get("rises", 0) // 3
+    state["v"] = 13
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10, 11: _v11}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10, 11: _v11, 12: _v12}
 
 
 class TooOld(Exception):

@@ -29,7 +29,7 @@ from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 VERSION = 11
 DIFFICULTY = {
     "story": {"rise": 4, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
-    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.45},
+    "normal": {"rise": 3, "revives": 3, "foe_hp": 1.9, "foe_dmg": 2.6},
     "hard": {"rise": 3, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.9},
 }
 MOVES = 4

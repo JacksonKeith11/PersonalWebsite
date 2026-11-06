@@ -151,8 +151,8 @@ ACTIONS = {
 
     # ---- Mender
     "mend": {"name": "Mend", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "heal", "amt": "v+2"}], "text": "Heal an ally by the die +2."},
-    "lift": {"name": "Lift", "per_rest": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*2"}],
-             "text": "Once until you rest: revive a knocked-down ally with twice the die in HP."},
+    "lift": {"name": "Lift", "per_rest": True, "req": {"n": 1}, "tgt": "downed", "ops": [{"op": "lift", "amt": "v*3//2"}],
+             "text": "Once until you rest: revive a knocked-down ally with one and a half times the die in HP."},
     "renew": {"cd": 2, "name": "Renew", "req": {"n": 2}, "tgt": "party", "ops": [{"op": "heal", "amt": "sum//2+(sum//2)*pair"}],
               "tags": ["restoration"], "text": "Two dice: heal everyone in the party by half their sum, or by the full sum if they're a pair."},
     "lifeline": {"cd": 2, "name": "Lifeline", "req": {"n": 1, "min": 5}, "tgt": "ally", "tags": ["restoration"],
@@ -168,7 +168,7 @@ ACTIONS = {
     "smite": {"name": "Smite", "req": {"n": 1, "min": 4}, "tgt": "foe", "ops": [{"op": "dmg", "amt": "v+4+3*undead"}, {"op": "heal", "amt": "2", "to": "lowest"}],
               "miss": [{"op": "dmg", "amt": "v//2"}], "text": "Any row. On 4+: deal the die +4 (+3 more against the undead), and your ally with the lowest HP heals 2. Otherwise: deal half the die."},
     "quick_lift": {"name": "Quick Lift", "req": {"n": 0}, "tgt": "downed", "per_rest": True,
-                   "ops": [{"op": "lift", "amt": "6"}], "text": "Once until you rest, no die needed: revive a knocked-down ally with 6 HP."},
+                   "ops": [{"op": "lift", "amt": "4"}], "text": "Once until you rest, no die needed: revive a knocked-down ally with 4 HP."},
 
     # ---- Duelist
     "slash_d": {"name": "Riposte Cut", "req": {"n": 1, "min": 3}, "tgt": "foe", "melee": True,
@@ -1326,11 +1326,11 @@ SHORT = {
     "fireball": ("flame", "all: ½ sum +2 · Burn 2", "nothing"), "frost_lance": ("snow", "die +3 · Freeze", "½ die"),
     "chain_lightning": ("bolt", "die +3 · Shock · arcs ½", None), "hex": ("down", "Weak + Vulnerable", None),
     "siphon": ("sword", "die +2 · heal half", "½ die · heal half"), "doom": ("skull", "26 − die, next round", None),
-    "mend": ("plus", "heal die +2", None), "lift": ("hand", "revive: 2× die", None),
+    "mend": ("plus", "heal die +2", None), "lift": ("hand", "revive: 1½× die", None),
     "renew": ("plus", "party: heal ½ sum · pair: sum", None), "lifeline": ("plus", "heal ½ max HP at round end", "heal ½ die"),
     "ward": ("shield", "ally: 2× die Armor", None), "sanctuary": ("shield", "party: hits −2", "hits −1"),
     "cleanse": ("plus", "cure + heal die", None), "smite": ("sword", "die +4 · ally heals 2", "½ die"),
-    "quick_lift": ("hand", "revive with 6 HP", None),
+    "quick_lift": ("hand", "revive with 4 HP", None),
     "slash_d": ("sword", "die +2 · +2 if it aims at you", "½ die"), "parry": ("shield", "die Armor · riposte 4", None),
     "twin_cut": ("sword", "two hits, each die +4", None), "whirl": ("sword", "each die +1, random foes", None),
     "read_blade": ("eye", "reveal · die, 2× +2 if you beat it", None), "lunge": ("sword", "die +10", "nothing"),

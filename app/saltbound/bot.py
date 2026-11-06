@@ -1028,7 +1028,7 @@ def evaluate(g, b, h, a, dice, tgt):
                 n_ = amt(op["amt"], de) + plus
                 for t, share in tg:
                     if isinstance(t, tuple) and t[1] != h and g.active(t[1]) and not g.hs(t[1])["ready"] and unrolled(g, t[1]):
-                        val += share * n_ * 0.75
+                        val += share * n_ * 0.9
             elif k == "reroll":
                 for t, share in tg:
                     if isinstance(t, tuple) and g.active(t[1]):

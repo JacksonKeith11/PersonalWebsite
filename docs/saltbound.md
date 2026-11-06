@@ -1363,9 +1363,9 @@ Stance** (die Armor, riposte 3), **Second Wind** (die Armor; below half health a
 `hurt` variable), **Warding Light** (die Armor, the weakest ally heals 2), **Shell Up** (die Armor, +3 on
 4+) and **Deflect** (die Armor, the biggest enemy attack −2). No guard action is on more than four pieces
 now; Hunker Down is the four starting coats'. Trinket actions are buffs on cooldowns (2, or 3 for the
-strong ones): Good Luck (+1 reroll this fight: the `reroll` op), Pearl's Calm, Salt Ward, Rally the Crew,
-Featherlight, Resonate (Crescendo on an ally), Lullaby (party −1 a hit), Cool Water, Hone the Edge, Rally
-Call, Bind Wounds, Lash Together, Flash (an attack −the die), Warm Hands (Pass the Flame's `kindle`) and
+strong ones): Good Luck (+2 rerolls this fight and heal half the die: the `reroll` op), Pearl's Calm, Salt Ward, Rally the Crew,
+Featherlight, Resonate (Crescendo and +½ die on an ally), Lullaby (party −1 a hit), Cool Water, Hone the
+Edge (an ally's next hit +the die +4), Rally Call (allies' next hit +½ die +3), Bind Wounds, Lash Together, Flash (an attack −the die), Warm Hands (Pass the Flame's `kindle`) and
 Benediction. The `cue` op adds to an ally's `cued` (their next damaging hit this round), and `to:
 "others"` is every ally but you. New gear: seven common trinkets (Whetstone, War Horn, Bandage Roll,
 Sailor's Knot, Signal Mirror, Rabbit's Foot, Fishhook Earring), Tinderbox, Prayer Beads and Frostbitten
@@ -1448,7 +1448,17 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, the armory: 20 more weapons, 80 in all; 300 Hard runs, seed 5000): 48.0%**.
+**Latest (Nov 2026, eight armor skills, trinket buff actions, 10 trinkets and 6 armor more; 300 Hard
+runs, seed 5000): 50.3%**. Classes 41-63%: Scoundrel 62.7, Mender 57.6, Alchemist and Dragonborn 55.4,
+Ranger 53.1, Psion 52.4, Warden 52.3, Arcanist 48.4, Vanguard 47.8, Spellblade 46.0, Duelist 45.6,
+Berserker 43.1, Emberknight 42.4, Herald 41.3. The armor skills are played a lot (Fade 4760, Shell Up
+3237, Deflect 3035, Warding Light 1866); the next-hit buffs almost never (Hone the Edge 2, Resonate 3,
+Rally Call 9): worth no more than attacking with the die. So Hone the Edge became the die +4, Rally Call
+half the die +3, Rally the Crew +3 and half the die +2 Armor, Resonate adds half the die, Good Luck two
+rerolls and a heal, and the bots value a `cue` at 0.9 (was 0.75); an 80-run fast spot check then had
+Hone the Edge 25, Rally the Crew 62, Rally Call 12. No new piece's loot pick is far outside the noise.
+
+**Before that (the armory: 20 more weapons, 80 in all; 300 Hard runs, seed 5000): 48.0%**.
 Classes 40-57%: Warden 56.9, Emberknight 56.1, Scoundrel 52.2, Ranger 51.6, Mender 51.5, Herald 50.8,
 Spellblade 47.6, Duelist 47.4, Arcanist 45.3, Alchemist 44.6, Psion 44.4, Vanguard 41.8, Berserker
 41.5, Dragonborn 40.0 (58.5 the batch before, with no change to its kit: the loot is spread over more

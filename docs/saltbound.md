@@ -896,7 +896,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Psion | 25 (+3) | **Precognition**: in its fights, every enemy's first attack is rolled in the open | Precise damage and support | Telekinesis, Telepathy |
 | Dragonborn | 34 (+4) | **Dragon's Rest**: resting grows a Scale (2 at a camp or in a town) | Bruiser with breath | Wrath, Hide |
 | Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
-| Gunslinger | 26 (+3) | **Quick Draw**: when a fight it's in starts, the enemy with the biggest attack takes 4 | Ranged damage on a six-shot clock | Quickdraw, Trickshot |
+| Gunslinger | 29 (+4) | **Quick Draw**: when a fight it's in starts, the enemy with the biggest attack takes 6 | Ranged damage on a six-shot clock | Quickdraw, Trickshot |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
 
 **Signature mechanics for the original classes** (owner's request, Nov 2026; numbers in `classes.py`

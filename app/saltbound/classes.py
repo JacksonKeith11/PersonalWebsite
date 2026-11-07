@@ -904,7 +904,7 @@ CLASSES["psion"] = {
 # (`cylinder`, `silver`, `_op_reload`) and Combat (`fire_rounds`).
 CYLINDER = 6
 COCKED = 3  # Reload on a 1-3 cocks the hammer: the next shot this round deals +3 (Hammer Back: any roll, +5)
-QUICK_DRAW = 4  # the map ability: the free shot when a fight starts
+QUICK_DRAW = 6  # the map ability (was 4: the first batch had Gunslinger parties at 64% on Normal): the free shot when a fight starts
 ACTIONS.update({
     "fire": {"name": "Fire", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": [],
              "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "dmg", "amt": "rico", "to": "another", "if": "rico and v%2==0"}],
@@ -959,7 +959,7 @@ PASSIVES.update({
 })
 CLASS_DICE["gunslinger"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["gunslinger"] = {
-    "name": "Gunslinger", "hp": 26, "hp_lvl": 3, "role": "Ranged damage on a six-shot clock",
+    "name": "Gunslinger", "hp": 29, "hp_lvl": 4, "role": "Ranged damage on a six-shot clock",
     "dice": [D(8), D(6)], "tags": ["quickdraw", "trickshot"],
     "map": {"key": "quick_draw", "name": "Quick Draw",
             "text": f"When a fight you're in starts, you shoot first: the enemy with the biggest attack takes {QUICK_DRAW}."},

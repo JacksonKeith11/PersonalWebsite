@@ -23,11 +23,11 @@ lands on the boss or the big hitter. The count is shown as pips on the hero card
 silver when it's the Silver Round.
 
 **Quick Draw** (the map ability, `quick_draw`): when a fight it's in starts, the Gunslinger fires first:
-the enemy with the biggest attack takes 4 (`Combat.quick_draw`).
+the enemy with the biggest attack takes 6 (`Combat.quick_draw`; was 4).
 
 ## The kit
 
-Dice d8 + d6, 26 HP (+3 a level). Starts with Fire, Reload, Pistol Whip, the Six-Shooter (Warning Shot:
+Dice d8 + d6, 29 HP (+4 a level; was 26 and +3). Starts with Fire, Reload, Pistol Whip, the Six-Shooter (Warning Shot:
 any row, half the die, Weak this round) and the Padded Coat.
 
 | | Quickdraw (the cylinder) | Trickshot (the aim) |

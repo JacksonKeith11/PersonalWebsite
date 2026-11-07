@@ -32,7 +32,7 @@ DIFFICULTY = {
     # `rise`: turns between Great Tides (owner, Nov 2026: rarer and bigger, each one RISE_STEPS rises of
     # enemy strength at once, with the garrisons growing on the same turn)
     "story": {"rise": 12, "revives": 4, "foe_hp": 1.0, "foe_dmg": 0.95},
-    "normal": {"rise": 9, "revives": 3, "foe_hp": 2.0, "foe_dmg": 2.85, "surge": 0.0065, "surge2": 0.0006, "surge_from": 20},
+    "normal": {"rise": 9, "revives": 3, "foe_hp": 2.15, "foe_dmg": 2.95, "surge": 0.0065, "surge2": 0.0006, "surge_from": 20},
     # Hard: the tide's strength accelerates, so a few quests on the way are cheap but chasing every one is
     # dear (owner, Nov 2026: the middle road should be best, and whether a quest is worth it depends on the
     # path). Each rise adds `surge` (tuning.SURGE where unset), and past `surge_from` rises another

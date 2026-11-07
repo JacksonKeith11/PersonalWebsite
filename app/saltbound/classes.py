@@ -1837,22 +1837,22 @@ SHORT.update({
 # reactions, Break.
 COMBOS = {
     "chord": {"name": "Chord", "text": "Hit an enemy, and have the very next action be another hero's on the same enemy, "
-                                       "with a die showing a number yours showed: it copies your hit (up to 20). A third "
+                                       "with a die showing a number yours showed: it copies your hit (up to 15). A third "
                                        "hero right after, with that number again, copies it twice. Any other action in "
                                        "between breaks it."},
     "overload": {"name": "Overload", "text": "Burn meets another hero's Shock: it explodes for 8 + 2 per Burn and Shock, "
                                              "and half that to every other enemy."},
     "thermal": {"name": "Thermal Shock", "text": "Burn meets another hero's Freeze: 6 + 3 per Burn, through Armor; its Armor "
                                                  "cracks off and it's Vulnerable for 2 rounds."},
-    "blightfire": {"name": "Blightfire", "text": "Burn meets another hero's Poison: 3 per Burn and Poison, and the Poison "
+    "blightfire": {"name": "Blightfire", "text": "Burn meets another hero's Poison: 2 per Burn and Poison, and half the Poison "
                                                  "spreads to every other enemy."},
     "fracture": {"name": "Fracture", "text": "Freeze meets another hero's Shock: the ice cracks for 12 + 3 per Shock, "
                                              "through Armor, and it's Weak for 2 rounds."},
     "conduction": {"name": "Conduction", "text": "Shock meets another hero's Poison: the Poison doubles, and every other "
-                                                 "enemy gets that much Poison too."},
+                                                 "enemy gets half that much Poison."},
     "frostlock": {"name": "Frostlock", "text": "Root meets another hero's Freeze: it's frozen fast and Stunned. Once a "
                                                "fight per enemy; a boss (or one locked before) takes 15 instead."},
-    "kindling": {"name": "Kindling", "text": "Root meets another hero's Burn: the roots catch and the Burn triples (to 12)."},
+    "kindling": {"name": "Kindling", "text": "Root meets another hero's Burn: the roots catch and the Burn doubles (to 10)."},
     "break": {"name": "Break", "text": "Some bosses' big moves show a Break bar. Deal that much to the boss, from at least two "
                                        "heroes, before it acts, and the move is broken: it does nothing."},
 }

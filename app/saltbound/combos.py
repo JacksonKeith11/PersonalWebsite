@@ -141,11 +141,11 @@ class Combos:
                 continue
             if kind == "overload" and n:
                 self.hurt_foe(o, n // 2, h, pure=True)
-            elif kind == "blightfire" and poison:
-                o["st"]["poison"] = max(o["st"].get("poison", 0), poison)
+            elif kind == "blightfire" and poison // 2:
+                o["st"]["poison"] = max(o["st"].get("poison", 0), poison // 2)
                 self.fx("st", to=f"f{o['id']}", s="poison")
-            elif kind == "conduction" and poison:
-                o["st"]["poison"] = o["st"].get("poison", 0) + poison
+            elif kind == "conduction" and poison // 2:
+                o["st"]["poison"] = o["st"].get("poison", 0) + poison // 2
                 self.fx("st", to=f"f{o['id']}", s="poison")
 
     @staticmethod
@@ -163,11 +163,11 @@ class Combos:
         others = len([o for o in self.foes() if o is not fo])
         return {"overload": (REACT_OVERLOAD + REACT_OVERLOAD_EACH * (burn + shock)) * (1 + others / 2),
                 "thermal": REACT_THERMAL + REACT_THERMAL_EACH * burn + 6,
-                "blightfire": REACT_BLIGHT * (burn + poison) + 2 * poison * others,
+                "blightfire": REACT_BLIGHT * (burn + poison) + poison * others,
                 "fracture": REACT_FRACTURE + REACT_FRACTURE_EACH * shock + 4,
-                "conduction": poison * (2 + 2 * others),
+                "conduction": poison * (2 + others),
                 "frostlock": FROSTLOCK_BOSS if self.boss_like(fo) or fo.get("locked") else 14,
-                "kindling": 2 * burn * 3}[kind]
+                "kindling": 2 * burn * (REACT_KINDLE - 1)}[kind]
 
     # ---------------------------------------------------------------- Break
     # A boss's big move (`brk` on the move: the share of its health) shows a Break bar. Enough damage

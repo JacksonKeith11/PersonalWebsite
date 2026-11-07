@@ -35,13 +35,13 @@ KEG_BLAST = 6      # a Powder Keg a hero breaks hits every enemy for this (times
 CURSED_DIE = ["X", 1, 2, 3]
 
 # Cross-hero combos: what two heroes do together (see COMBOS in classes.py for the words).
-CHORD_CAP = 20   # Chord: each copy of the first hit counts at most this much (two heroes: x1, three: x2)
+CHORD_CAP = 15   # Chord: each copy of the first hit counts at most this much (was 20: Hard 58%) (two heroes: x1, three: x2)
 # Elemental reactions (combos.py): two statuses from two heroes on one enemy, both used up
 REACT_OVERLOAD, REACT_OVERLOAD_EACH = 8, 2    # Burn + Shock: 8 + 2 per Burn and Shock, half to every other enemy
 REACT_THERMAL, REACT_THERMAL_EACH = 6, 3      # Burn + Freeze: 6 + 3 per Burn through Armor, its Armor gone, Vulnerable 2
-REACT_BLIGHT = 3                              # Burn + Poison: 3 per Burn and Poison; the Poison spreads to the rest
+REACT_BLIGHT = 2                              # Burn + Poison: 2 per Burn and Poison; half the Poison spreads (was 3, all)
 REACT_FRACTURE, REACT_FRACTURE_EACH = 12, 3   # Freeze + Shock: 12 + 3 per Shock through Armor, Weak 2
-REACT_KINDLE, REACT_KINDLE_CAP = 3, 12        # Root + Burn: the Burn triples (to 12)
+REACT_KINDLE, REACT_KINDLE_CAP = 2, 10        # Root + Burn: the Burn doubles (to 10; was triples, to 12)
 FROSTLOCK_BOSS = 15                           # Root + Freeze: Stun once a fight; a boss (or a second time) takes this
 SWALLOW_GUT = 0.15  # the Reef Maw spits a hero out after taking this share of its health
 

@@ -1826,7 +1826,6 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
 @keyframes eye { 0% { transform: translate(-50%, -50%) scaleY(0); opacity: 1; } 25% { transform: translate(-50%, -50%) scaleY(1); } 75% { transform: translate(-50%, -50%) scaleY(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scaleY(0); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .fx.pillar, .fx.fall, .fx.hexshield, .fx.ripple, .fx.eye, .fx.line.tether, .fx.line.strings { animation-duration: 1ms !important; } }
 /* ---- combos (combos.py): Chord and reaction hints under an enemy, the Break bar on a boss's intent */
-.combo-hint.react { color: #ffb37a; border-color: rgba(255, 160, 100, 0.5); }
 .combo-hint.chord { color: var(--combo); box-shadow: 0 0 8px rgba(255, 210, 110, 0.45); }
 .intent.card.breakable { box-shadow: 0 0 0 1px rgba(255, 90, 74, 0.6), 0 0 14px rgba(255, 90, 74, 0.35); }
 .it-break { display: flex; align-items: center; gap: 5px; margin-top: 3px; font: 700 10px/1 var(--font-ui); color: #ff8a7a; }
@@ -1841,13 +1840,3 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
 .unit.foe.chorded .fig { filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.85)); }
 .unit.foe.reactable .fig { filter: drop-shadow(0 0 5px rgba(255, 150, 80, 0.7)); }
 .unit.foe.chorded.reactable .fig { filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.85)) drop-shadow(0 0 4px rgba(255, 150, 80, 0.7)); }
-/* what the hero you're playing could set off right now (combat.js comboStrip) */
-.combo-strip { position: absolute; left: 12px; top: 10px; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: min(620px, 46%);
-  padding: 6px 10px; border-radius: 12px; background: var(--glass-dark); border: var(--bw) solid rgba(255, 211, 107, 0.4); pointer-events: auto; }
-.combo-strip > b { color: var(--combo); font: 700 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; }
-.combo-strip .cs { display: inline-flex; align-items: center; gap: 4px; font: 600 12px/1.2 var(--font-ui); color: var(--text); padding: 3px 8px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.06); }
-.combo-strip .cs .icon-svg { width: 12px; height: 12px; }
-.combo-strip .cs.chord { color: var(--combo); }
-.combo-strip .cs.react { color: #ffb37a; }
-.combo-strip .cs.brk { color: #ff8a7a; }
-@media (max-width: 700px) { .combo-strip { position: static; max-width: none; margin: 6px 8px 0; } }

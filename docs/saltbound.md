@@ -937,10 +937,10 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     lowest), Mirrored Edge (Duelist: every die's lowest but the armor's). Drawn ♫.
   - **Reading them** (owner's request): an enemy's Burn, Freeze, Shock, Poison and Root chips carry a
     dot in the colour of the hero who put them on, and glow when another hero's status would set them
-    off (the tooltip names the reaction); an enemy glows gold while a Chord waits on it and orange while
-    it has a status ready to react; and **Combos now** (`comboStrip`, top left of the stage, while you
-    plan) lists what the hero you're playing can set off this moment: a Chord, a reaction with one of
-    your actions' statuses, a Break and how much is left.
+    off; an enemy glows gold while a Chord waits on it ("Chord: a 4 now" under it) and orange while it
+    has a status ready to react; a Break shows only as the bar on the boss's intent. (A "Combos now"
+    strip over the stage and chips under enemies listing which statuses would react were tried and cut
+    at the owner's request: too much text.)
   - The Bell-Warden's crack (below) stays, as a boss rule. The Bosun's Whistle now gives Chords and
     reactions +4 (`combo_up`).
   - The bots see them: `bell_parts`/`bell_sum` add the Chord (and the bell) to a hit, `reaction_worth`

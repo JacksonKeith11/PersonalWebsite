@@ -1472,7 +1472,14 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Latest (Nov 2026, the Great Tide and the middle road; 200 Hard runs per style, seed 5000): 62.5% on the
+**Latest (Nov 2026, Emberknight 29 HP and Arcanist 26 HP; 600 Hard runs on the path bots, the default
+since then, seed 5000): 59.7%**, about 125-135 runs a class (±4.5 points). Classes 53-69%: Warden 69.1,
+Dragonborn 66.7, Emberknight 62.6 (81.6 at 31 HP in 38 runs), Scoundrel 61.5, Duelist 60.7, Spellblade
+60.3, Alchemist 59.1, Psion 58.5, Ranger 58.4, Vanguard 57.4, Herald 57.1, Arcanist 56.0 (51.4 at 23 HP),
+Mender 55.3, Berserker 53.0. Regions 52-65% (Aetherhold 65.2, Smugglers' Keys 52.1). 72 turns, 22.5
+rises. Over the ~50% target: raising Hard's `foe_dmg` would bring it down (owner's call).
+
+**Before that (the Great Tide and the middle road; 200 Hard runs per style, seed 5000): 62.5% on the
 path, 49.0% doing everything, 45.5% rushing.** Owner's request: the middle road should be best, with
 whether a quest is worth it depending on the path, and the tide rarer, bigger and obvious. The simulator's
 `--style=path` bots take a job or quest step only when it's at most `bot.PATH_DETOUR` (6) hexes out of

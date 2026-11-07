@@ -75,12 +75,12 @@ export const SKILL_FX = {
   strike: x => { x.hit('slash', null, 420, 150); if (!x.miss) x.hit('pop small', C.steel, 400, 260); return 'melee'; },
   brace: x => { x.me('slam', C.shield, 520); x.me('shieldfx', null, 700, 120); return 'brace'; },
   shield_bash: x => { x.hit('slam', C.shield, 480, 150); if (!x.miss) { x.hit('star', null, 520, 260); x.shake(200); } return 'charge'; },
-  payback: x => { x.me('shieldfx', null, 400); x.hit('bigslash', null, 520, 180); if (!x.miss) { x.hit('star', null, 520, 300); x.shake(320); } return 'melee'; },
-  brace_impact: x => { x.me('shieldfx', null, 800); return 'brace'; },
-  shockwave: x => { x.me('shieldfx', null, 400); x.hit('slam', C.steel, 500, 200); if (!x.miss) x.shake(360); return 'melee'; },
-  share_load: x => { x.me('shieldfx', null, 500); return 'brace'; },
-  linebreaker: x => { x.hit('slam', C.steel, 480, 160); return 'charge'; },
-  retaliate: x => { x.me('shieldfx', null, 500); x.hit('bigslash', null, 520, 200); if (!x.miss) x.shake(260); return 'melee'; },
+  payback: x => { x.me('shieldfx', null, 400); x.sparks(x.from, C.shield, { n: 14, r: 60, ms: 300 }); x.hit('bigslash', C.shield, 520, 220); if (!x.miss) { x.hit('shards full', null, 560, 260); x.burst(C.shield, { n: 12, dir: 0, cone: 140 }, 260); x.punch(260); } return 'melee'; },
+  brace_impact: x => { x.me('ripple', C.shield, 700); x.me('slam', C.shield, 480, 60); x.sparks(x.from, C.shield, { n: 12, r: 80, inward: true, ms: 400 }); x.me('shieldfx', null, 800, 260); return 'brace'; },
+  shockwave: x => { x.me('slam', C.steel, 420); x.me('ripple', C.steel, 700, 80); x.t.forEach((u, i) => { x.on(u, 'ripple', C.steel, 700, 200 + i * 90); x.on(u, 'slam', C.steel, 480, 220 + i * 90); }); if (!x.miss) x.quake(220); return 'melee'; },
+  share_load: x => { x.line(x.from, x.t[0], 'tether', 900, 0, C.shield); x.shot('shieldorb', null, ['shieldfx', null, 700], { delay: 120 }); x.me('shieldfx', null, 600); x.hit('hoop', C.shield, 600, 380); return 'brace'; },
+  linebreaker: x => { x.hit('slam', C.steel, 480, 160); if (!x.miss) { x.hit('shards full', null, 560, 200); x.burst(C.steel, { n: 12, r: 90, dir: 0, cone: 90 }, 180); x.hit('glyph', '#ff7a6a', 800, 300, '✖'); x.punch(180); } return 'charge'; },
+  retaliate: x => { x.me('cross', C.steel, 520); x.hit('cross', C.blood, 520, 200); x.hit('bigslash', null, 520, 260); if (!x.miss) x.shake(300); return 'melee'; },
   shield_throw: x => {
     x.shot('disc', C.shield, ['slam', C.shield, 420], { spin: true });
     x.later(() => x.back('disc', C.shield, null, { spin: true }), 340);
@@ -96,7 +96,7 @@ export const SKILL_FX = {
     x.later(() => { x.shot('orb big', C.arcane, ['pop big', C.arcane, 640]); if (!x.miss) x.later(() => x.screen('tint', 360, 'rgba(160, 110, 255, 0.25)'), 260); }, 320);
     return 'cast';
   },
-  hex: x => { x.shot('orb small', C.shadow, ['rune', C.shadow, 1000]); return 'cast'; },
+  hex: x => { x.shot('orb small', C.shadow, ['rune', C.shadow, 1000]); x.sparks(x.t[0], C.shadow, { n: 10, r: 80, inward: true, cls: 'mote', ms: 600 }, 200); x.hit('glyph', C.shadow, 900, 300, '✖'); return 'cast'; },
   siphon: x => {
     x.shot('orb', C.shadow, ['pop', C.shadow, 480]);
     if (!x.miss) x.later(() => x.back('drop', C.blood, ['healglow', null, 800], { stagger: 60 }), 320);
@@ -107,7 +107,7 @@ export const SKILL_FX = {
   mend: x => { x.shot('orb', C.heal, ['healglow', null, 900]); x.hit('drops', C.heal, 900, 280); return 'cast'; },
   lift: x => { x.hit('beam', null, 700); x.hit('healglow big', null, 1000, 300); x.screen('gold', 400); return 'cast'; },
   quick_lift: x => { x.hit('beam', null, 500); x.hit('healglow big', null, 800, 160); return 'cast'; },
-  lifeline: x => { x.shot('orb small', C.heal, ['hoop', C.heal, 700]); x.hit('hoop', C.heal, 700, 420); return 'cast'; },
+  lifeline: x => { x.line(x.from, x.t[0], 'tether', 1100, 0, C.heal); x.hit('hoop', C.heal, 700, 200); x.hit('glyph', C.heal, 900, 300, '♥'); return 'cast'; },
   ward: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); x.hit('glyph', C.shield, 800, 300, '◆'); return 'cast'; },
   cleanse: x => { x.hit('splash', C.water, 600); x.hit('healglow', null, 900, 200); x.hit('drops', C.water, 900, 120); return 'cast'; },
 
@@ -115,7 +115,7 @@ export const SKILL_FX = {
   slash_d: x => { x.hit('slash', null, 420, 140); if (!x.miss) x.hit('star', null, 480, 260); return 'melee'; },
   parry: x => { x.me('cross', C.steel, 620); x.me('shieldfx', null, 700, 120); return 'brace'; },
   twin_cut: x => { x.hit('chop', C.steel, 400, 120); x.hit('chop flip', C.steel, 400, 260); return 'melee'; },
-  whirl: x => { x.t.forEach((u, i) => x.on(u, 'arc', null, 500, 120 + i * 110)); return 'spin'; },
+  whirl: x => { x.t.forEach((u, i) => { x.on(u, 'arc', null, 500, 120 + i * 110); if (!x.miss) x.sparks(u, C.steel, { n: 6, dir: 0, cone: 160 }, 160 + i * 110); }); return 'spin'; },
   read_blade: x => { x.hit('crosshair', C.gold, 520); x.hit('slash', null, 420, 340); return 'melee'; },
   pinpoint: x => { x.hit('crosshair', C.steel, 420); x.hit('thrust', null, 420, 260); if (!x.miss) x.hit('star', null, 480, 380); return 'melee'; },
   feint: x => { x.hit('slash ghost', null, 420, 120); x.hit('glyph', C.gold, 800, 260, '?'); return 'act'; },
@@ -123,33 +123,33 @@ export const SKILL_FX = {
 
   // Berserker
   hack_b: x => { x.hit('chop', C.blood, 420, 150); if (!x.miss) x.shake(220); return 'melee'; },
-  bloodprice: x => { x.me('drops', C.blood, 900); x.me('aura', C.blood, 900, 100); return 'brace'; },
+  bloodprice: x => { x.me('drops', C.blood, 900); x.me('pillar', C.blood, 700, 100); x.sparks(x.from, C.blood, { n: 10, r: 70, inward: true, ms: 500 }, 80); x.me('glyph', C.blood, 800, 260, '✶'); return 'brace'; },
   drink_deep: x => {
     x.hit('bite', C.blood, 480, 140);
     if (!x.miss) x.later(() => x.back('drop', C.blood, ['healglow', null, 700], { stagger: 60 }), 360);
     return 'melee';
   },
   frenzy: x => { [0, 100, 200].forEach((ms, i) => x.hit(i % 2 ? 'chop flip' : 'chop', C.blood, 380, 120 + ms)); if (!x.miss) x.shake(320); x.me('pop small', C.blood, 400, 360); return 'melee'; },
-  howl: x => { x.me('shout', C.blood, 800); x.hit('hoop', C.arcane, 600, 260); x.hit('glyph', C.arcane, 800, 300, '↓'); return 'brace'; },
+  howl: x => { x.me('shout', C.blood, 800); x.ring(x.from, C.blood, 150, true); x.screen('tint', 400, 'rgba(255, 60, 40, 0.18)'); x.hit('glyph', C.arcane, 800, 300, '↓'); x.shake(200); return 'brace'; },
 
   // Ranger
   shoot_r: x => { x.shot('ranged', null, ['pierce', null, 420]); return 'shoot'; },
   hunters_mark: x => { x.hit('crosshair', C.blood, 600); x.later(() => x.shot('ranged', null, ['pierce', null, 420]), 300); return 'shoot'; },
   swoop: x => { x.shot('hawk', C.gold, ['claw', C.gold, 300], { arc: -60 }); x.me('shieldfx', null, 500); return 'act'; },
-  tangleroot: x => { x.hit('vines', C.nature, 600); return 'cast'; },
-  choking_vines: x => { x.hit('vines', C.nature, 700); return 'cast'; },
-  sic_em: x => { x.shot('hawk', C.gold, ['claw', C.gold, 460], { arc: -70 }); return 'act'; },
+  tangleroot: x => { x.hit('vines', C.nature, 800); x.hit('ripple', '#8a6a3a', 700, 80); x.hit('squeeze', '#8a6a3a', 600, 200); x.burst(C.nature, { n: 6, cls: 'leaf', dir: -90, cone: 120, fall: 20, ms: 700 }, 200); return 'cast'; },
+  choking_vines: x => { x.t.forEach((u, i) => { x.on(u, 'vines', C.nature, 900, i * 70); x.on(u, 'squeeze', C.nature, 700, 200 + i * 70); }); x.screen('tint', 400, 'rgba(90, 180, 70, 0.15)'); return 'cast'; },
+  sic_em: x => { x.shot('hawk', C.gold, ['claw', C.gold, 460], { arc: -70 }); x.sparks(x.t[0], '#c8a878', { n: 8, r: 60, cls: 'leaf', fall: 30, ms: 700 }, 260); x.hit('glyph', C.arcane, 800, 400, '↓'); return 'act'; },
   pack_tactics: x => {
     x.shot('hawk', C.gold, ['claw', C.gold, 460], { arc: -70 });
     x.later(() => x.shot('ranged', null, ['pierce', null, 420]), 160);
     return 'act';
   },
-  spotter: x => { x.hit('crosshair', C.gold, 700, 0); x.me('glyph', C.gold, 900, 0, '◉'); return 'cast'; },
+  spotter: x => { x.me('eye', C.gold, 900); x.t.forEach((u, i) => x.on(u, 'crosshair', C.gold, 700, 150 + i * 60)); x.me('shieldfx', null, 600, 300); return 'cast'; },
   covering_fire: x => { [0, 90, 180].forEach(ms => x.shot('ranged', null, ['pierce', null, 360], { delay: ms })); x.party.forEach(u => x.on(u, 'hoop', C.shield, 500, 300)); return 'fan'; },
 
   // Scoundrel
   stab: x => { x.hit('stabfx', C.steel, 360, 120); if (!x.miss) x.hit('pop small', C.blood, 380, 220); return 'melee'; },
-  slip: x => { x.me('smoke', C.smoke, 800); return x.miss ? 'act' : 'retreat'; },
+  slip: x => { x.me('smoke', C.smoke, 800); x.sparks(x.from, '#c8c8d0', { n: 8, r: 60, ms: 500 }); return x.miss ? 'act' : 'retreat'; },
   envenom: x => { x.shot('dagger', C.poison, ['splash', C.poison, 560]); x.hit('drops', C.poison, 900, 320); return 'act'; },
   garrote: x => { x.hit('squeeze', C.steel, 700, 120); if (!x.miss) x.hit('pop small', C.blood, 400, 520); return 'melee'; },
   pickpocket: x => { x.hit('claw', C.steel, 420, 120); if (!x.miss) x.later(() => x.back('coin', null, ['glyph', C.gold, 700, 0, '+'], { spin: true }), 300); return 'melee'; },
@@ -161,7 +161,7 @@ export const SKILL_FX = {
   jab: x => { x.shot('wave', C.song, ['pop', C.song, 460]); return 'cast'; },
   mocking_jest: x => { x.shot('wave', C.song, ['glyph', C.song, 800, 0, '!']); x.hit('crosshair', C.blood, 520, 260); return 'cast'; },
   rousing_chorus: x => { x.me('notes', null, 1100); x.party.forEach((u, i) => x.on(u, 'aura', C.gold, 900, 150 + i * 90)); x.screen('gold', 400); return 'cast'; },
-  lend_a_hand: x => { x.shot('orb small', C.gold, ['glyph spin', C.gold, 800, 0, '⚂']); return 'cast'; },
+  lend_a_hand: x => { x.line(x.from, x.t[0], 'tether', 800, 0, C.gold); x.shot('orb small', C.gold, ['glyph spin', C.gold, 800, 0, '⚂'], { arc: 50 }); x.sparks(x.t[0], C.gold, { n: 8, cls: 'mote' }, 380); return 'cast'; },
   dirge: x => { x.shot('wave', C.shadow, ['notes dark', null, 1000]); x.hit('hoop', C.shadow, 600, 300); return 'cast'; },
   taunting_verse: x => { x.shot('wave', C.song, ['shout small', null, 700]); x.hit('crosshair', C.blood, 520, 300); return 'cast'; },
   cacophony: x => { [0, 100, 200].forEach(ms => x.shot('wave', C.song, null, { delay: ms })); if (!x.miss) { x.hit('zap', null, 500, 320); x.shake(320); } return 'cast'; },
@@ -176,7 +176,7 @@ export const SKILL_FX = {
     if (!x.miss) x.later(() => x.screen('fire', 400), 300);
     return 'act';
   },
-  acid_flask: x => { x.shot('flask', C.acid, ['splash', C.acid, 600], { arc: 70, spin: true }); x.hit('smoke', 'rgba(180, 230, 60, 0.6)', 900, 300); return 'act'; },
+  acid_flask: x => { x.shot('flask', C.acid, ['splash', C.acid, 600], { arc: 70, spin: true }); x.hit('smoke', 'rgba(180, 230, 60, 0.6)', 900, 300); x.burst(C.acid, { n: 8, dir: -90, cone: 90, cls: 'bubble', ms: 900 }, 380); x.hit('shards', null, 560, 380); return 'act'; },
   concussion: x => {
     x.shot('flask', C.steel, ['slam', C.steel, 480], { arc: 70, spin: true });
     if (!x.miss) { x.hit('star', null, 520, 320); x.later(() => x.screen('white', 220), 300); }
@@ -205,73 +205,97 @@ export const SKILL_FX = {
   // Emberknight
   searing_strike: x => { x.hit('slash', C.fire, 420, 120); if (!x.miss) x.hit('pop small', C.fire, 400, 240); return 'melee'; },
   flashover: x => { x.me('fireburst', null, 700); x.foes.forEach((u, i) => x.on(u, 'fireburst', null, 700, 200 + i * 60)); x.later(() => x.screen('fire', 400), 200); return 'cast'; },
-  stoke: x => { x.hit('slash', C.fire, 380, 100); x.me('glyph', C.fire, 800, 160, '▲'); return 'melee'; },
-  inferno_cleave: x => { x.t.forEach((u, i) => x.on(u, 'bigslash', C.fire, 480, 120 + i * 60)); x.shake(260); return 'spin'; },
+  stoke: x => { x.hit('slash', C.fire, 380, 100); x.me('pillar', C.fire, 600, 160); x.me('glyph', C.fire, 800, 200, '▲'); return 'melee'; },
+  inferno_cleave: x => { x.t.forEach((u, i) => { x.on(u, 'bigslash', C.fire, 480, 120 + i * 60); x.on(u, 'pillar', C.fire, 600, 200 + i * 60); }); x.shake(260); return 'spin'; },
   meteor_fist: x => { x.hit('slam', C.fire, 520, 150); if (!x.miss) { x.hit('fireburst', null, 800, 260); x.shake(260); } return 'charge'; },
-  cinder_lance: x => { x.shot('fireorb', null, ['fireburst', null, 700]); return 'cast'; },
-  quench: x => { x.me('smoke', C.smoke, 900); x.me('shieldfx', null, 700, 120); return 'brace'; },
-  ember_ward: x => { x.me('shieldfx', null, 700); x.me('aura', C.fire, 900, 100); return 'brace'; },
-  pass_the_flame: x => { x.shot('fireorb', null, ['aura', C.fire, 900]); return 'cast'; },
-  backdraft: x => { x.shot('fireorb', null, ['fireburst', null, 800]); if (!x.miss) x.shake(300); return 'cast'; },
+  cinder_lance: x => { x.tracer(x.t[0], C.fire, { cls: 'lance', past: 160, ms: 420 }); x.hit('fireburst', null, 700, 120); x.burst(C.fire, { n: 12, r: 90, dir: 0, cone: 60 }, 120); return 'cast'; },
+  quench: x => { x.me('smoke', 'rgba(230, 240, 250, 0.7)', 900); x.sparks(x.from, C.water, { n: 10, r: 60, dir: -90, cone: 100, cls: 'mote', ms: 700 }); x.me('shieldfx', null, 700, 160); return 'brace'; },
+  ember_ward: x => { x.me('shieldfx', null, 700); x.me('pillar', C.fire, 700, 60); x.sparks(x.from, C.fire, { n: 12, r: 80, inward: true, ms: 500 }); return 'brace'; },
+  pass_the_flame: x => { x.shot('fireorb', null, ['pillar', C.fire, 700], { arc: 60 }); x.hit('aura', C.fire, 900, 400); return 'cast'; },
+  backdraft: x => { x.hit('squeeze', C.fire, 500); x.hit('fireburst', null, 800, 300); x.ring(x.t[0], C.fire, 320, true); x.burst(C.fire, { n: 16, r: 100 }, 320); if (!x.miss) x.shake(320); return 'cast'; },
 
   // Dragonborn
   claw: x => { x.hit('claw', null, 420, 120); return 'melee'; },
-  breath: x => { x.me('aura', C.fire, 500); x.foes.forEach((u, i) => x.on(u, 'fireburst', null, 800, 150 + i * 70)); x.later(() => x.screen('fire', 450), 150); return 'cast'; },
-  tail_sweep: x => { x.t.forEach((u, i) => x.on(u, 'bigslash', null, 480, 120 + i * 60)); x.shake(240); return 'spin'; },
-  sky_dive: x => { x.hit('slam', null, 520, 220); x.shake(260); return 'charge'; },
+  breath: x => { x.me('aura', C.fire, 500); x.foes.forEach((u, i) => { x.tracer(u, C.fire, { cls: 'ray', ms: 560 }, 100 + i * 50); x.on(u, 'fireburst', null, 800, 220 + i * 60); }); x.later(() => x.screen('fire', 450), 150); x.shake(260); return 'cast'; },
+  tail_sweep: x => { x.t.forEach((u, i) => { x.on(u, 'arc', '#ff9a5a', 500, 120 + i * 60); x.on(u, 'ripple', '#c8a878', 600, 160 + i * 60); }); x.burst('#c8a878', { n: 8, r: 60, dir: -90, cone: 140, fall: 30 }, 200); x.shake(240); return 'spin'; },
+  sky_dive: x => { x.hit('fall', C.fire, 400); x.hit('slam', null, 520, 330); x.hit('ripple', '#c8a878', 700, 340); x.burst('#c8a878', { n: 12, r: 80, dir: -90, cone: 160, fall: 30 }, 340); x.quake(340); return 'charge'; },
   rending_bite: x => { x.hit('bite', C.blood, 520, 120); x.hit('drops', C.poison, 700, 260); return 'melee'; },
-  focused_breath: x => { x.shot('fireorb', null, ['fireburst', null, 900]); x.shake(300); return 'cast'; },
+  focused_breath: x => { x.me('aura', C.fire, 500); x.tracer(x.t[0], C.fire, { cls: 'ray', ms: 620 }, 120); x.hit('fireburst', null, 900, 260); x.burst(C.fire, { n: 14, r: 90, dir: 0, cone: 100 }, 280); x.shake(300); return 'cast'; },
   draconic_roar: x => { x.me('shout', C.fire, 800); x.foes.forEach((u, i) => x.on(u, 'glyph', C.fire, 700, 200 + i * 60, '↓')); x.shake(200); return 'cast'; },
-  dread_gaze: x => { x.hit('crosshair', C.fire, 800); return 'cast'; },
-  wing_buffet: x => { x.t.forEach((u, i) => x.on(u, 'smoke', C.smoke, 700, 100 + i * 60)); return 'act'; },
-  wing_guard: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); x.me('shieldfx', null, 700); return 'brace'; },
-  molt: x => { x.me('healglow', null, 900); return 'cast'; },
-  brood_bond: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); return 'cast'; },
+  dread_gaze: x => { x.hit('eye', C.fire, 900); x.line(x.t[0], x.from, 'aim', 900, 200); x.me('shieldfx', null, 700, 300); return 'brace'; },
+  wing_buffet: x => { x.t.forEach((u, i) => { x.sparks(u, '#e8f0f4', { n: 10, r: 90, dir: 0, cone: 40, ms: 420 }, 80 + i * 60); x.on(u, 'smoke', C.smoke, 700, 100 + i * 60); x.on(u, 'glyph', C.arcane, 700, 260 + i * 60, '↓'); }); return 'act'; },
+  wing_guard: x => { x.line(x.from, x.t[0], 'tether', 900, 0, C.fire); x.shot('shieldorb', null, ['shieldfx', null, 700]); x.me('shieldfx', null, 700); x.sparks(x.t[0], '#ff9a5a', { n: 8, r: 60, cls: 'scale', fall: 30, ms: 700 }, 260); return 'brace'; },
+  molt: x => { x.sparks(x.from, '#ff9a5a', { n: 14, r: 70, cls: 'scale', fall: 50, ms: 800 }); x.me('healglow', null, 900, 120); x.me('aura', C.fire, 800); return 'cast'; },
+  brood_bond: x => { x.line(x.from, x.t[0], 'tether', 1000, 0, C.fire); x.shot('disc', C.fire, ['shieldfx', null, 700], { spin: true, delay: 120 }); x.hit('glyph', C.fire, 800, 360, '◈'); return 'cast'; },
 
   // Psion
   mind_spike: x => { x.bolt(x.from, x.t[0]); x.hit('zap', C.water, 500, 120); return 'cast'; },
-  kinetic_shield: x => { x.me('shieldfx', null, 700); x.me('hoop', C.water, 600, 80); return 'brace'; },
+  kinetic_shield: x => { x.me('hexshield', C.water, 800); x.sparks(x.from, C.water, { n: 10, r: 70, inward: true, cls: 'mote', ms: 400 }); return 'brace'; },
   mind_crush: x => { x.hit('squeeze', C.water, 800); if (!x.miss) { x.hit('slam', C.water, 520, 300); x.shake(320); } return 'cast'; },
-  psionic_storm: x => { x.foes.forEach((u, i) => x.on(u, 'zap', null, 600, 100 + i * 70)); if (!x.miss) x.later(() => x.screen('bolt', 250), 150); return 'cast'; },
-  telekinetic_hurl: x => { x.hit('slam', C.water, 520, 200); x.shake(240); return 'cast'; },
-  gravity_well: x => { x.foes.forEach((u, i) => x.on(u, 'hoop', C.water, 700, 100 + i * 60)); return 'cast'; },
-  read_intent: x => { x.hit('glyph', C.water, 800, 0, '👁'); return 'cast'; },
-  psychic_scream: x => { x.me('shout', C.water, 800); x.foes.forEach((u, i) => x.on(u, 'glyph', C.water, 700, 200 + i * 60, '↓')); return 'cast'; },
-  mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); return 'cast'; },
-  puppet_strings: x => { x.hit('glyph spin', C.water, 900, 0, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
+  psionic_storm: x => { x.foes.forEach((u, i) => { x.later(() => x.bolt(x.from, u), i * 80); x.on(u, 'zap', C.water, 600, 100 + i * 80); }); if (!x.miss) x.later(() => x.screen('bolt', 250), 150); return 'cast'; },
+  telekinetic_hurl: x => { x.hit('squeeze', C.water, 400); x.hit('fall', C.water, 380, 200); x.hit('slam', C.water, 520, 540); if (!x.miss) { x.burst(C.water, { n: 12 }, 540); x.quake(540); } return 'cast'; },
+  gravity_well: x => { x.t.forEach((u, i) => { x.on(u, 'ripple', C.water, 700, i * 60); x.on(u, 'squeeze', C.water, 700, 80 + i * 60); x.sparks(u, C.water, { n: 10, r: 90, inward: true, cls: 'mote', ms: 600 }, i * 60); }); x.shake(400); return 'cast'; },
+  read_intent: x => { x.me('eye', C.water, 900); x.t.forEach((u, i) => { x.on(u, 'eye', C.water, 900, 200 + i * 80); x.line(x.from, u, 'tether', 800, 150 + i * 60, C.water); }); return 'cast'; },
+  psychic_scream: x => { x.me('shout', C.water, 800); x.ring(x.from, C.water, 100, true); x.ring(x.from, C.water, 260, true); x.foes.forEach((u, i) => x.on(u, 'glyph', C.water, 700, 300 + i * 60, '↓')); x.screen('tint', 400, 'rgba(127, 227, 255, 0.15)'); return 'cast'; },
+  mind_fog: x => { x.hit('smoke', 'rgba(127, 227, 255, 0.5)', 900); x.hit('glyph spin', C.water, 800, 200, '?'); x.burst(C.water, { n: 8, cls: 'mote', ms: 800 }, 100); return 'cast'; },
+  puppet_strings: x => { x.line(x.from, x.t[0], 'strings', 1000, 0, C.water); x.hit('glyph spin', C.water, 900, 200, '⟲'); if (!x.miss) x.shake(300); return 'cast'; },
 
   // Scoundrel Pickings
   rob_blind: x => { x.hit('stabfx', C.steel, 420, 100); x.me('glyph', C.gold, 700, 200, '✋'); return 'melee'; },
-  ransack: x => { x.hit('bigslash', C.steel, 480, 120); x.shake(220); return 'melee'; },
+  ransack: x => { x.hit('claw', C.steel, 420, 100); x.hit('bigslash', C.steel, 480, 200); if (!x.miss) { x.burst(C.gold, { n: 10, r: 80, cls: 'mote', dir: -90, cone: 120, fall: 40, ms: 700 }, 260); x.shake(220); } return 'melee'; },
 
   // Herald Harmonies
-  ward_song: x => { x.me('shieldfx', null, 700); x.me('notes', null, 900, 100); return 'cast'; },
-  song_of_blades: x => { x.party.forEach((u, i) => x.on(u, 'notes', null, 900, i * 80)); return 'cast'; },
-  shield_hymn: x => { x.shot('note', C.song, ['shieldfx', null, 700]); return 'cast'; },
-  jarring_note: x => { x.shot('note', C.song, ['zap', null, 500]); return 'cast'; },
-  resonant_chord: x => { x.me('hoop', C.song, 700); x.me('notes', null, 900, 100); return 'cast'; },
+  ward_song: x => { x.me('hexshield', C.song, 800); x.me('notes', null, 900, 100); return 'brace'; },
+  song_of_blades: x => { x.me('notes', null, 900); x.party.forEach((u, i) => { x.on(u, 'shieldfx', null, 600, 120 + i * 80); x.on(u, 'glyph', C.song, 800, 200 + i * 80, '⚔'); }); return 'cast'; },
+  shield_hymn: x => { x.shot('note', C.song, ['shieldfx', null, 700]); x.hit('notes', null, 900, 280); x.hit('hoop', C.shield, 600, 300); return 'cast'; },
+  jarring_note: x => { x.shot('wave', C.song, ['shock', C.song, 600]); x.hit('glyph', C.song, 800, 280, '♯'); x.burst(C.song, { n: 8 }, 280); return 'cast'; },
+  resonant_chord: x => { [0, 140, 280].forEach(d => x.me('hoop', C.song, 600, d)); x.me('notes', null, 900, 100); return 'cast'; },
   crescendo_of_light: x => { x.party.forEach((u, i) => x.on(u, 'healglow', null, 900, i * 90)); x.screen('white', 250); return 'cast'; },
 
   // Arcanist elements
-  flame_wave: x => { x.t.forEach((u, i) => x.on(u, 'fireburst', null, 700, 80 + i * 60)); return 'cast'; },
-  ignite: x => { x.shot('fireorb', null, ['fireburst', null, 900]); x.shake(260); return 'cast'; },
-  glacial_spike: x => { x.shot('ice', null, ['iceburst', null, 700]); return 'cast'; },
+  flame_wave: x => { x.t.forEach((u, i) => { x.on(u, 'pillar', C.fire, 700, 80 + i * 90); x.on(u, 'fireburst', null, 600, 160 + i * 90); x.sparks(u, C.fire, { n: 8, r: 70, dir: -90, cone: 80 }, 160 + i * 90); }); x.later(() => x.screen('fire', 300), 120); return 'cast'; },
+  ignite: x => { x.shot('fireorb', null, ['fireburst', null, 900]); x.hit('pillar', C.fire, 800, 260); x.burst(C.fire, { n: 14, r: 90, dir: -90, cone: 120 }, 280); x.shake(280); return 'cast'; },
+  glacial_spike: x => { x.hit('fall', C.water, 420); x.hit('iceburst', null, 700, 340); x.burst('#d8f1ff', { n: 10, r: 70, cls: 'mote' }, 340); if (!x.miss) x.punch(340); return 'cast'; },
   ice_ward: x => { x.me('shieldfx', null, 700); x.shot('shieldorb', null, ['shieldfx', null, 700]); return 'cast'; },
-  thunderclap: x => { x.foes.forEach((u, i) => x.on(u, 'zap', null, 500, 100 + i * 60)); x.later(() => x.screen('bolt', 220), 120); return 'cast'; },
-  static_field: x => { x.bolt(x.from, x.t[0]); x.hit('zap', null, 500, 120); return 'cast'; },
+  thunderclap: x => { x.foes.forEach((u, i) => { x.on(u, 'beam tinted', C.storm, 500, 60 + i * 70); x.on(u, 'zap', null, 500, 140 + i * 70); }); x.later(() => x.screen('bolt', 220), 120); x.shake(160); return 'cast'; },
+  static_field: x => { x.bolt(x.from, x.t[0]); x.hit('zap', null, 500, 120); x.hit('hoop', C.storm, 600, 160); x.sparks(x.t[0], C.storm, { n: 12, r: 70, cls: 'mote', ms: 700 }, 150); x.me('glyph', C.storm, 700, 200, 'ϟ'); return 'cast'; },
 
   // the original classes' new picks
-  coup_de_grace: x => { x.hit('bigslash', C.steel, 480, 120); if (!x.miss) x.shake(260); return 'melee'; },
-  savage_blow: x => { x.hit('bigslash', C.blood, 520, 140); x.shake(240); return 'melee'; },
-  benediction: x => { x.shot('orb', C.holy, ['healglow', null, 900]); return 'cast'; },
-  frost_flask: x => { x.shot('flask', C.water, ['iceburst', null, 700], { arc: 70, spin: true }); return 'act'; },
+  coup_de_grace: x => { x.hit('crosshair', C.steel, 400); x.split(x.t[0], C.steel, -30, 260); x.split(x.t[0], C.steel, 30, 330); if (!x.miss) { x.punch(300); x.later(() => x.screen('white', 160), 300); x.burst(C.blood, { n: 12, dir: 0, cone: 160 }, 320); } return 'melee'; },
+  savage_blow: x => { x.hit('claw', C.blood, 480, 140); x.hit('bigslash', C.blood, 520, 200); if (!x.miss) { x.burst(C.blood, { n: 14, r: 90, dir: 0, cone: 120 }, 220); x.punch(220); x.shake(240); } return 'melee'; },
+  benediction: x => { x.hit('beam tinted', C.holy, 700); x.hit('healglow', null, 900, 200); x.sparks(x.t[0], C.holy, { n: 10, dir: -90, cone: 120, cls: 'mote', ms: 800 }, 200); return 'cast'; },
+  frost_flask: x => { x.shot('flask', C.water, ['iceburst', null, 700], { arc: 70, spin: true }); x.burst('#d8f1ff', { n: 10, r: 70, cls: 'mote' }, 380); return 'act'; },
   unstable_compound: x => { x.foes.forEach((u, i) => x.on(u, 'fireburst', null, 700, 120 + i * 70)); x.later(() => x.screen('fire', 300), 150); return 'act'; },
 
   // Warden
   thornlash: x => { x.shot('thorn', C.nature, ['pop small', C.nature, 400]); if (!x.miss) x.hit('vines', C.nature, 800, 260); return 'act'; },
-  sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },
+  sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); x.me('pillar', C.heal, 600, 200); return 'cast'; },
   entangle: x => { x.hit('vines', C.nature, 1000); x.hit('squeeze', C.nature, 700, 300); return 'cast'; },
   strangle: x => { x.hit('vines', C.nature, 900); x.hit('squeeze', C.nature, 700, 250); if (!x.miss) x.shake(420); return 'cast'; },
+
+  // older cooldown skills given their own looks (they used SIGNATURE in combat.js, or nothing)
+  taunt: x => { x.me('shout', C.blood, 800); x.ring(x.from, C.blood, 100, true); x.foes.forEach((u, i) => { x.line(u, x.from, 'aim', 900, 120 + i * 60); x.on(u, 'glyph', C.blood, 700, 200 + i * 60, '!'); }); x.me('shieldfx', null, 700, 300); return 'brace'; },
+  rally_wall: x => { x.me('ripple', C.gold, 800); x.party.forEach((u, i) => { x.on(u, 'pillar', C.shield, 700, 100 + i * 80); x.on(u, 'shieldfx', null, 700, 220 + i * 80); }); x.screen('tint', 400, 'rgba(140, 200, 255, 0.18)'); return 'brace'; },
+  guard: x => { x.line(x.from, x.t[0], 'tether', 1000, 0, C.shield); x.shot('shieldorb', null, ['shieldfx', null, 800], { delay: 100 }); x.me('shieldfx', null, 700); x.me('glyph', C.shield, 800, 200, '⛨'); return 'brace'; },
+  doom: x => { x.hit('sigil', null, 1300); x.hit('rune', C.dark, 1300, 100); x.hit('glyph', C.shadow, 1100, 300, '☠'); x.sparks(x.t[0], C.shadow, { n: 12, r: 90, inward: true, ms: 700, cls: 'mote' }, 200); x.screen('tint', 700, 'rgba(30, 10, 50, 0.35)'); return 'cast'; },
+  cleave: x => { x.t.forEach((u, i) => x.on(u, 'arc', null, 500, 140 + i * 40)); x.burst(C.blood, { n: 8, dir: 0, cone: 150 }, 200); if (!x.miss) x.shake(220); return 'melee'; },
+  crescendo: x => { x.me('notes', null, 1100); x.ring(x.from, C.song, 80, true); x.t.forEach((u, i) => { x.on(u, 'notes', null, 1100, 150 + i * 90); x.on(u, 'glyph', C.song, 800, 250 + i * 90, '▲'); }); x.screen('tint', 400, 'rgba(255, 150, 210, 0.18)'); return 'cast'; },
+  hymn_of_valor: x => { x.me('notes', null, 1100); x.party.forEach((u, i) => { x.on(u, 'pillar', C.gold, 700, 120 + i * 80); x.on(u, 'glyph', C.gold, 800, 220 + i * 80, '+2'); }); x.screen('gold', 300); return 'cast'; },
+  smite: x => { x.hit('beam', null, 700); x.hit('shock', C.gold, 600, 200); x.burst(C.holy, { n: 14, r: 90 }, 200); if (!x.miss) { x.punch(200); x.later(() => x.back('orb small', C.heal, null), 300); } return 'cast'; },
+  sanctuary: x => { x.me('beam', null, 700); x.party.forEach((u, i) => { x.on(u, 'dome', null, 900, i * 70); x.on(u, 'ripple', C.gold, 700, i * 70); }); x.screen('gold', 300); return 'cast'; },
+  regrowth: x => { x.party.forEach((u, i) => { x.on(u, 'vines', C.nature, 800, i * 80); x.on(u, 'healglow', null, 900, 150 + i * 80); x.sparks(u, C.nature, { n: 6, r: 60, dir: -90, cone: 90, cls: 'leaf', ms: 800 }, 150 + i * 80); }); x.screen('green', 400); return 'cast'; },
+  called_shot: x => {
+    x.hit('crosshair', C.blood, 700); x.hit('crosshair', C.gold, 500, 200);
+    x.later(() => { x.tracer(x.t[0], '#e8dcc0', { past: 200, cls: 'heavy', ms: 300 }); x.shot('ranged', null, ['pierce', null, 520], { ms: 140 }); }, 480);
+    x.burst('#e8dcc0', { n: 14, r: 100, dir: 0, cone: 60 }, 620); if (!x.miss) x.punch(620);
+    return 'shoot';
+  },
+  toxic_cloud: x => { if (!x.miss) x.t.forEach((u, i) => { x.on(u, 'cloud', null, 1100, i * 60); x.sparks(u, C.poison, { n: 8, r: 60, dir: -90, cone: 90, cls: 'bubble', ms: 900 }, 100 + i * 60); }); x.screen('tint', 500, 'rgba(140, 220, 80, 0.15)'); return 'act'; },
+  call_bear: x => { x.me('circle big', null, 1100); x.me('pillar', C.nature, 700, 200); x.sparks(x.from, C.nature, { n: 14, r: 90, dir: -90, cone: 140, cls: 'leaf', ms: 900 }, 200); x.me('shout', '#c8a878', 700, 400); x.shake(420); return 'cast'; },
+  swarm: x => { x.me('circle', null, 900); x.sparks(x.from, '#ffd36b', { n: 20, r: 110, cls: 'mote', ms: 900 }, 150); x.foes.forEach((u, i) => x.sparks(u, '#ffd36b', { n: 8, r: 50, inward: true, cls: 'mote', ms: 500 }, 500 + i * 60)); return 'cast'; },
+  ancient_guardian: x => { x.me('circle big', null, 1300); x.me('pillar', C.nature, 900, 150); x.me('vines', C.nature, 1000, 250); x.sparks(x.from, C.nature, { n: 20, r: 120, dir: -90, cone: 160, cls: 'leaf', ms: 1100 }, 250); x.screen('green', 500); x.quake(300); return 'cast'; },
+  briar_wall: x => { x.party.forEach((u, i) => { x.on(u, 'dome thorny', null, 900, i * 70); x.on(u, 'vines', C.nature, 800, i * 70); x.sparks(u, C.nature, { n: 6, r: 60, cls: 'leaf', ms: 700 }, 100 + i * 70); }); return 'brace'; },
+  panacea: x => { x.me('glyph', C.heal, 800, 0, '⚗'); x.party.forEach((u, i) => { x.on(u, 'splash', C.heal, 600, 200 + i * 60); x.on(u, 'healglow big', null, 900, 260 + i * 60); x.sparks(u, C.heal, { n: 6, r: 50, dir: -90, cone: 80, cls: 'bubble', ms: 800 }, 260 + i * 60); }); return 'act'; },
 
   // Gunslinger: rounds are quick streaks of light from the muzzle, and the gun kicks back, not forward
   fire: x => { x.t.forEach(u => bang(x, u)); return 'shoot'; },

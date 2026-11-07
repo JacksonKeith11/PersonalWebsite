@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=166';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=166';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=166';
-import { stageURL, stageKey } from './stage.js?v=166';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=166';
-import { render } from './main.js?v=166';
-import { skillCard, upDef, upText } from './hud.js?v=166';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=166';
-import * as sfx from './audio.js?v=166';
+import { S, send, mine, controllerName } from './store.js?v=167';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=167';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=167';
+import { stageURL, stageKey } from './stage.js?v=167';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=167';
+import { render } from './main.js?v=167';
+import { skillCard, upDef, upText } from './hud.js?v=167';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=167';
+import * as sfx from './audio.js?v=167';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -1540,11 +1540,12 @@ function fxShot(from, to, cls, done, o = {}) {
   anim.onfinish = () => { el.remove(); done?.(); };
 }
 // A line between two units that draws itself, holds, then fades: an enemy's aim, an Echo's link.
-function fxLine(from, to, cls, ms = 900) {
+function fxLine(from, to, cls, ms = 900, col = null) {
   const a = unitCenter(from), b = unitCenter(to);
   if (!a || !b) return;
   const el = document.createElement('div');
   el.className = 'fx line ' + cls;
+  if (col) el.style.setProperty('--c', col);
   const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
   el.style.left = a[0] + 'px'; el.style.top = a[1] + 'px'; el.style.width = len + 'px';
   el.style.transform = `rotate(${Math.atan2(b[1] - a[1], b[0] - a[0])}rad)`;
@@ -1587,31 +1588,14 @@ function fxBolt(from, to, ms = 420) {
 const SIGNATURE = {
   fireball: (f, t, miss, later) => { fxShot('h' + f.h, t[0] || 'h' + f.h, 'fireorb', () => { if (!miss) { fxScreen('fire'); t.forEach(u => fxAt(u, 'fireburst', 800)); flash('stage', 'shake', 380); } }); return 'spell'; },
   earthshaker: (f, t, miss, later) => { later(() => { if (!miss) { flash('stage', 'quake', 600); fxScreen('dust', 600); t.forEach((u, i) => later(() => fxAt(u, 'quake', 700), i * 70)); } }, 160); return 'melee'; },
-  cleave: (f, t, miss, later) => { later(() => t.forEach(u => fxAt(u, 'arc' + (miss ? ' miss' : ''), 500)), 140); return 'melee'; },
   reckless_swing: (f, t, miss, later) => { later(() => { t.forEach(u => fxAt(u, 'bigslash' + (miss ? ' miss' : ''), 520)); if (!miss) flash('stage', 'shake', 380); }, 180); return 'melee'; },
   lunge: (f, t, miss, later) => { later(() => t.forEach(u => { fxAt(u, 'thrust' + (miss ? ' miss' : ''), 420); if (!miss) later(() => fxAt(u, 'star', 520), 120); }), 120); return 'melee'; },
   finisher: (f, t, miss, later) => { [0, 110, 220].forEach(ms => later(() => t.forEach(u => fxAt(u, 'slash', 420)), ms + 120)); if (!miss) later(() => fxScreen('white', 240), 360); return 'melee'; },
   chain_lightning: (f, t, miss, later) => { t.forEach(u => fxBolt('h' + f.h, u)); if (!miss) { later(() => fxScreen('bolt', 200), 40); t.forEach(u => fxAt(u, 'zap', 500)); } return 'spell'; },
   frost_lance: (f, t, miss) => { t.forEach(u => fxShot('h' + f.h, u, 'ice', () => fxAt(u, 'iceburst' + (miss ? ' miss' : ''), 700))); return 'spell'; },
-  doom: (f, t) => { t.forEach(u => fxAt(u, 'sigil', 1200)); return 'spell'; },
-  smite: (f, t, miss) => { t.forEach(u => fxAt(u, 'beam' + (miss ? ' miss' : ''), 700)); return 'spell'; },
   volley: (f, t, miss, later) => { t.forEach((u, i) => [0, 90, 180].forEach(ms => later(() => fxAt(u, 'rain', 520), ms + i * 40))); return 'ranged'; },
   aimed_shot: (f, t, miss, later) => { t.forEach(u => { fxAt(u, 'crosshair', 520); later(() => fxShot('h' + f.h, u, 'ranged', () => fxAt(u, 'pierce' + (miss ? ' miss' : ''), 520)), 300); }); return 'ranged'; },
-  called_shot: (f, t, miss, later) => SIGNATURE.aimed_shot(f, t, miss, later),
-  toxic_cloud: (f, t, miss) => { if (!miss) t.forEach(u => fxAt(u, 'cloud', 1100)); return 'buff'; },
-  taunt: (f, t) => { fxAt('h' + f.h, 'shout', 800); return 'armor'; },
-  guard: (f, t) => { t.forEach(u => fxShot('h' + f.h, u, 'shieldorb', () => fxAt(u, 'shieldfx', 700))); fxAt('h' + f.h, 'shieldfx', 700); return 'armor'; },
   renew: (f, t) => { t.forEach((u, i) => setTimeout(() => fxAt(u, 'healglow big', 1000), i * 90)); fxScreen('green', 400); return 'heal'; },
-  regrowth: (f, t) => SIGNATURE.renew(f, t),
-  panacea: (f, t) => SIGNATURE.renew(f, t),
-  sanctuary: (f, t) => { t.forEach(u => fxAt(u, 'dome', 900)); fxScreen('gold', 300); return 'armor'; },
-  rally_wall: (f, t) => { t.forEach(u => fxAt(u, 'dome', 900)); return 'armor'; },
-  briar_wall: (f, t) => { t.forEach(u => fxAt(u, 'dome thorny', 900)); return 'armor'; },
-  hymn_of_valor: (f, t) => { (f.heroes || t).forEach(u => fxAt(u, 'notes', 1100)); fxScreen('gold', 300); return 'buff'; },
-  crescendo: (f, t) => { t.forEach(u => fxAt(u, 'notes', 1100)); return 'buff'; },
-  call_bear: (f, t) => { fxAt('h' + f.h, 'circle', 1000); return 'buff'; },
-  ancient_guardian: (f, t) => { fxAt('h' + f.h, 'circle big', 1200); fxScreen('green', 400); return 'buff'; },
-  swarm: (f, t) => { fxAt('h' + f.h, 'circle', 900); return 'buff'; },
 };
 // The effects kit skillfx.js builds its looks from (see the top of that file).
 function fxKit(from, tgts, miss, d) {
@@ -1634,7 +1618,7 @@ function fxKit(from, tgts, miss, d) {
     tracer: (to, c, o = {}, delay = 0) => later(() => fxTracer(o.from || from, to, c, { miss, ...o }), delay),
     split: (id, c, deg, delay = 0, ms) => later(() => fxSplit(id, c, deg, ms), delay),
     ring: (id, c, delay = 0, big) => x.on(id, 'shock' + (big ? ' big' : ''), c, 640, delay),
-    line: (a, b, cls, ms, delay = 0) => later(() => fxLine(a, b, cls, ms), delay),
+    line: (a, b, cls, ms, delay = 0, c = null) => later(() => fxLine(a, b, cls, ms, c), delay),
     punch: (delay = 0) => later(() => flash('stage', 'punch', 240), delay),
     back: (cls, c, impact, o = {}) => x.shot(cls, c, impact, { ...o, back: true }),
     bolt: (a, b) => fxBolt(a, b),
@@ -1667,6 +1651,8 @@ const FOE_MOTION_MS = { lunge: 380, pounce: 460, slam: 520, charge: 560, cast: 4
 const MOTION_MS = { melee: 360, charge: 520, spin: 560, retreat: 600, brace: 420, cast: 420, act: 360, shoot: 260, fan: 560, iai: 460, ready: 260 };
 // How long a cooldown skill winds up before it lands (a capstone's banner comes first).
 const WINDUP_MS = 260, CUTIN_MS = 620;
+// the generic kinds (abilityKind) as body motions: a spell or a heal is cast, Armor braces, a shot kicks
+const KIND_MOTION = { ranged: 'shoot', spell: 'cast', heal: 'cast', buff: 'cast', armor: 'brace', bomb: 'act' };
 
 // Plays an action's look and the hero's motion. A cooldown skill winds up first (its class's sigil at
 // the hero's feet, light drawn into them), and a once-a-fight capstone opens with its name across the
@@ -1687,9 +1673,8 @@ function abilityFx(f, ad, d, only) {
     flash(from, 'charging', WINDUP_MS);
   }, cutin / sp);
   const play = () => {
-    let kind = playLook(f, ad, d, tgts, from, miss);
-    if (kind === 'ranged') kind = 'shoot';
-    const motion = MOTION_MS[kind] ? kind : 'act';
+    const kind = playLook(f, ad, d, tgts, from, miss);
+    const motion = MOTION_MS[kind] ? kind : KIND_MOTION[kind] || 'act';
     flash(from, motion, MOTION_MS[motion]);
   };
   if (pre) setTimeout(play, pre / sp); else play();

@@ -1793,3 +1793,35 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
   .unit.ready img, .unit.shoot img, .unit.fan img, .unit.iai img, .unit.charging img, .stage.punch { animation: none !important; }
   .fx-cutin, .fx-cutin b { animation-duration: 1ms !important; }
 }
+/* more pieces for the cooldown skills' looks (js/skillfx.js) */
+.fx.spark.leaf { width: 10px; height: 6px; border-radius: 0 80% 0 80%; background: var(--c); box-shadow: none; }
+.fx.spark.scale { width: 8px; height: 8px; border-radius: 50% 50% 10% 50%; background: radial-gradient(circle at 35% 35%, #fff 0 15%, var(--c) 50%); box-shadow: 0 0 4px var(--c); }
+.fx.spark.mote { width: 5px; height: 5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+.fx.spark.bubble { width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0 12%, transparent 30%); border: 1.5px solid var(--c); box-shadow: none; }
+/* a column of colour bursting up from a unit's feet: fire, light, roots */
+.fx.pillar { width: 70px; height: 170px; margin-top: -30px; border-radius: 40% 40% 50% 50%; transform-origin: 50% 100%;
+  background: linear-gradient(0deg, #fff 0 6%, var(--c) 22%, color-mix(in srgb, var(--c) 50%, transparent) 60%, transparent); filter: drop-shadow(0 0 12px var(--c)); animation: pillar 700ms ease-out forwards; }
+@keyframes pillar { 0% { transform: translate(-50%, -50%) scaleY(0) scaleX(0.6); opacity: 1; } 30% { transform: translate(-50%, -50%) scaleY(1.05) scaleX(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scaleY(1) scaleX(0.3); opacity: 0; } }
+/* something falling from the sky onto a unit: an ice spike, a comet, a diving dragon */
+.fx.fall { width: 22px; height: 70px; border-radius: 50% 50% 40% 40%; background: linear-gradient(180deg, transparent, var(--c) 60%, #fff); filter: drop-shadow(0 0 10px var(--c)); animation: fall 380ms ease-in forwards; }
+@keyframes fall { 0% { transform: translate(-50%, -420%); opacity: 0; } 20% { opacity: 1; } 92% { transform: translate(-50%, -60%); opacity: 1; } 100% { transform: translate(-50%, -50%) scaleY(0.3); opacity: 0; } }
+/* a beam of coloured light from above (Smite's is gold) */
+.fx.beam.tinted { background: linear-gradient(180deg, transparent, var(--c) 70%, #fff); box-shadow: 0 0 30px var(--c); }
+/* a breath or a ray: a thick streak that holds on the target */
+.fx.tracer.ray { height: 16px; border-radius: 8px; background: linear-gradient(180deg, transparent, var(--c) 25%, #fff 50%, var(--c) 75%, transparent); box-shadow: none; filter: drop-shadow(0 0 10px var(--c)); }
+/* a link between two units that draws itself: a shield passed, a string pulled */
+.fx.line.tether { height: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 30%, transparent), var(--c), #fff, var(--c)); box-shadow: 0 0 8px var(--c);
+  clip-path: inset(0 100% 0 0); animation: linedraw var(--ms, 900ms) var(--ease) both; }
+.fx.line.strings { height: 1px; background: var(--c); box-shadow: 0 6px 0 var(--c), 0 -6px 0 var(--c), 0 0 6px var(--c); clip-path: inset(0 100% 0 0); animation: linedraw var(--ms, 900ms) var(--ease) both; }
+/* a psionic barrier: hexagons over a bubble */
+.fx.hexshield { width: 120px; height: 130px; border-radius: 50%; border: 2px solid var(--c);
+  background: conic-gradient(from 30deg, color-mix(in srgb, var(--c) 35%, transparent) 0 16.6%, transparent 0 33.3%, color-mix(in srgb, var(--c) 35%, transparent) 0 50%, transparent 0 66.6%, color-mix(in srgb, var(--c) 35%, transparent) 0 83.3%, transparent 0);
+  box-shadow: 0 0 18px var(--c), inset 0 0 22px var(--c); animation: hexshield 800ms ease-out forwards; }
+@keyframes hexshield { 0% { transform: translate(-50%, -50%) scale(0.4) rotate(-30deg); opacity: 0; } 35% { transform: translate(-50%, -50%) scale(1.05) rotate(0); opacity: 1; } 70% { opacity: 0.9; } 100% { transform: translate(-50%, -50%) scale(1.12); opacity: 0; } }
+/* ground ripples: rings flattened onto the floor at a unit's feet */
+.fx.ripple { width: 170px; height: 54px; margin-top: 52px; border-radius: 50%; border: 3px solid var(--c); box-shadow: 0 0 14px var(--c); animation: ring 700ms ease-out forwards; }
+/* a big eye opening over a unit */
+.fx.eye { width: 90px; height: 46px; margin-top: -70px; border-radius: 50%; border: 3px solid var(--c); background: radial-gradient(circle, #000 0 9px, var(--c) 10px 16px, transparent 17px);
+  box-shadow: 0 0 16px var(--c); animation: eye 900ms ease-out forwards; }
+@keyframes eye { 0% { transform: translate(-50%, -50%) scaleY(0); opacity: 1; } 25% { transform: translate(-50%, -50%) scaleY(1); } 75% { transform: translate(-50%, -50%) scaleY(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scaleY(0); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .fx.pillar, .fx.fall, .fx.hexshield, .fx.ripple, .fx.eye, .fx.line.tether, .fx.line.strings { animation-duration: 1ms !important; } }

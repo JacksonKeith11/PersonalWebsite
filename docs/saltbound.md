@@ -283,6 +283,19 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      (`fxSplit`) and rings. **Ranged attacks kick back instead of lunging**: the dice roll gives a
      small lift (`ready`; it used to lunge too, so a shot stepped forward twice), and a shot plays
      `shoot` (a recoil), `fan` (several) or, for the Samurai's draws, `iai` (a dash through).
+     **The older cooldown skills' looks were audited** (owner's request, Nov 2026) for ones that
+     looked alike or were a single effect: 75 were redone in `skillfx.js`, and seventeen moved out of
+     `SIGNATURE` (taunt, guard, rally wall, doom, cleave, crescendo, hymn of valor, smite, sanctuary,
+     regrowth, panacea, called shot, toxic cloud, call bear, swarm, ancient guardian, briar wall),
+     which keeps only Fireball, Earthshaker, Reckless Swing, Lunge, Finisher, Chain Lightning, Frost
+     Lance, Volley, Aimed Shot and Renew. New pieces: pillars of colour from the feet (`pillar`),
+     something falling from the sky (`fall`), a held breath or ray (`tracer` with `ray`), a tether or
+     puppet strings between two units (`line` with `tether`/`strings` and a colour), a hex barrier
+     (`hexshield`), ground ripples (`ripple`), an opening eye (`eye`), a tinted beam from above
+     (`beam tinted`), and leaf, scale, mote and bubble particles. The five fire skills that were all
+     "orb, then burst" now differ (Ignite's pillar, Cinder Lance's lance through, Backdraft's flame
+     drawn in and blown out, Focused Breath's ray, Detonate). A kind that isn't a body motion (`spell`,
+     `heal`, `armor`, `buff`) maps to one (`KIND_MOTION`); they used to fall back to the lunge.
      Clicking an ally's hero card on the map opens their sheet read-only (skills, gear, about).
      **Multiplayer clarity** (owner's request, after a two-browser test): another player's hero shows
      who plays it ("Vanguard · Alice") and the dice they hold this round under the portrait (spent

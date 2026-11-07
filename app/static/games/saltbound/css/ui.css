@@ -593,10 +593,17 @@ a:hover { color: var(--accent-hi); }
 .map-ab b { color: var(--text); font-weight: var(--fw-semibold); }
 .muted.small { font-size: 13px; }
 /* the class picker: name, role, row and HP on each tile */
-.class-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.class-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .class-opt .co-text { display: grid; min-width: 0; }
 .class-opt .co-text span { font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .class-opt .co-meta { color: var(--text-2) !important; }
+/* the name with its HP (under it when there isn't room), then the role, wrapped rather than cut off */
+.class-opt .co-text { flex: 1 1 0; }
+.class-opt .co-text b { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: 6px; }
+.class-opt .co-text .co-hp { flex: none; font-weight: normal; color: var(--text-2); }
+.class-opt .co-text .co-role { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+/* an odd class out (15 of them) takes the whole last row rather than leaving a gap */
+.class-pick > .class-opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
 @media (max-width: 1100px) { .lobby-grid { grid-template-columns: 1fr; } }
 .tag.free { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
 .lobby-grid > *, .slots > *, .slot > * { min-width: 0; }

@@ -911,7 +911,7 @@ ACTIONS.update({
              "text": "Any row: deal the die +3. Fires a round; the last round in the cylinder is the Silver Round and deals double."},
     "reload": {"name": "Reload", "req": {"n": 1}, "tgt": "self", "tags": [],
                "ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"}],
-               "text": "Refill your cylinder. On 1-3 the hammer's cocked: your next shot this round deals +3."},
+               "text": "Refill your cylinder. On 1–3 the hammer's cocked: your next shot this round deals +3."},
     "pistol_whip": {"name": "Pistol Whip", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
                     "ops": [{"op": "dmg", "amt": "v+1"}],
                     # its own upgrade: the usual "reaches any row" would make it a better Fire with no rounds
@@ -1622,7 +1622,7 @@ SHORT.update({
     "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
 })
 SHORT.update({
-    "fire": ("target", "any row: die +3 · 1 round · last round ×2", None), "reload": ("refresh", "refill · 1-3: next shot +3", None),
+    "fire": ("target", "any row: die +3 · 1 round · last round ×2", None), "reload": ("refresh", "refill · 1–3: next shot +3", None),
     "pistol_whip": ("sword", "die +1 · no rounds", None), "fan_the_hammer": ("target", "every round: die +2 each", None),
     "take_cover": ("shield", "die +2 Armor · load 2", None), "high_noon": ("target", "all: die +1 per round · empty", None),
     "cover_fire": ("target", "die · its attack −die", None), "showdown": ("target", "die +3 · aims at you: Weak", None),

@@ -1,14 +1,14 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=151';
-import { $, h, icon, toast } from './ui.js?v=151';
-import { spriteURL, hasSprite } from './art.js?v=151';
+import { S, saved, persist, send } from './store.js?v=154';
+import { $, h, icon, toast } from './ui.js?v=154';
+import { spriteURL, hasSprite } from './art.js?v=154';
 
 // the ten classes, for the title screen's roster (it shows before the server has sent any class data)
 const ROSTER = ['vanguard', 'duelist', 'berserker', 'ranger', 'arcanist', 'mender', 'scoundrel', 'herald', 'alchemist', 'warden', 'spellblade', 'emberknight', 'dragonborn', 'psion', 'gunslinger'];
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=151';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=151';
-import { connect, disconnect, debug } from './main.js?v=151';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=154';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=154';
+import { connect, disconnect, debug } from './main.js?v=154';
 
 const app = () => $('app');
 
@@ -136,7 +136,7 @@ export function renderLobby() {
           onclick: () => (mySlot < 0 && !slot.pid) || isMine ? send({ t: 'claim', slot: i, cls: k }) : send({ t: 'setcls', slot: i, cls: k }),
           tip: `${cl.name}\n${cl.role} · ${cl.hp} HP\n${cl.blurb}`,
         }, h('img.pix', { src: spriteURL(k), alt: '' }),
-          h('span.co-text', null, h('b', null, cl.name), h('span', null, cl.role), h('span.co-meta', null, `${cl.hp} HP`))))),
+          h('span.co-text', null, h('b', null, cl.name, h('span.co-hp', null, `${cl.hp} HP`)), h('span.co-role', null, cl.role))))),
       ];
     }
     return h('div.slot.card' + (isMine ? '.mine' : ''), null, h('div.slot-head', null, h('span.eyebrow', null, `Hero ${i + 1}`), ctl), ...body);

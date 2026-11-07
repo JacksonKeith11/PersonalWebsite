@@ -1472,10 +1472,13 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
-**Normal (Nov 2026; 300 runs on the path bots, seed 5000): 88.0%**, inside the 85-90% target, after
-`foe_dmg` 2.6 → 2.7 and its tide 0.8% a rise (`surge`; was the default 0.65%, still Story's; linear, no
-acceleration). Classes 82-92% (Mender 92.4, Scoundrel 82.1); 80 turns, 25 rises; 21 of the 36 losses at
-the final boss. Before: 92.7%, classes 87-99%.
+**Normal (Nov 2026; 300 runs on the path bots, seed 5000): 74.0%**, for the owner's new target of about
+75% (was 85-90%). Normal has Hard's tide curve (0.65% a rise, and past rise 20 another 0.06% times the
+square past it), `foe_hp` 2.15 and `foe_dmg` 2.95; Hard keeps more health (2.35) and one revive fewer.
+Classes 65-87% (Vanguard 86.6, Scoundrel 83.6, Arcanist 65.6, Berserker 64.6); 80 turns, 25 rises; 47 of
+the 78 losses at the final boss. The steps: 92.7% (2.6 damage, 0.65% linear tide); 88.0% (2.7, 0.8%
+linear); 83.0% (the curve, health 2.0, damage 2.85). Near the top, extra enemy strength moves the rate
+less: about 10% more took only 5 points off.
 
 **Latest (Nov 2026, Emberknight 29 HP and Arcanist 26 HP; 600 Hard runs on the path bots, the default
 since then, seed 5000): 59.7%**, about 125-135 runs a class (±4.5 points). Classes 53-69%: Warden 69.1,

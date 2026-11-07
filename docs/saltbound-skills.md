@@ -8,7 +8,7 @@ in "Balance now" in `docs/saltbound.md`; this is the distilled version.
 ## The goal
 
 - **Hard is tuned to about 50% for the bots**, with no class far ahead (owner, Nov 2026, "for now").
-  Normal is about 85–90%; Story nearly always wins. Leave the difficulty multipliers alone unless the
+  Normal is about 75% (owner, Nov 2026; was 85–90%); Story nearly always wins. Leave the difficulty multipliers alone unless the
   owner asks: balance classes and picks instead.
 - **The owner prefers picks that make you think over raw power.** When something is weak, rework it into
   a decision rather than adding a flat number; when something is strong, trim the thing that makes it

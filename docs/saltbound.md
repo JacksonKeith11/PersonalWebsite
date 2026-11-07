@@ -888,7 +888,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   (a banner across the screen and its own effect, `COMBO_LOOK` in `combat.js`):
   - **Chord**: a hero hits an enemy, and *the very next action* is another hero's hit on the same
     enemy with a die showing a number the first showed: it copies the first hit (at most
-    `CHORD_CAP`, 20). A third hero right after, with that number again, copies it twice. Any other
+    `CHORD_CAP`, 15). A third hero right after, with that number again, copies it twice. Any other
     action in between ends it (`chord_open` before an action, `chord_hit` on its first hit,
     `chord_close` after it; `f["seq"]` counts the round's actions, `f["chord"]` is the open chord).
     The enemy shows "Chord: a 4 now, +12" to the heroes who can follow, and their matching dice get the
@@ -897,10 +897,10 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     and both are used up; an enemy reacts at most once a round (`foe_status_by` → `reaction_on` →
     `react_elements`; who put each status on is `fo["st_by"]`). **Overload** (Burn + Shock: 8 + 2 per
     Burn and Shock, half to every other enemy), **Thermal Shock** (Burn + Freeze: 6 + 3 per Burn through
-    Armor, its Armor gone, Vulnerable 2), **Blightfire** (Burn + Poison: 3 per Burn and Poison, the
+    Armor, its Armor gone, Vulnerable 2), **Blightfire** (Burn + Poison: 2 per Burn and Poison, half the
     Poison spreads to the rest), **Fracture** (Freeze + Shock: 12 + 3 per Shock through Armor, Weak 2),
-    **Conduction** (Shock + Poison: the Poison doubles and every other enemy gets as much), **Kindling**
-    (Root + Burn: the Burn triples, to 12) and **Frostlock** (Root + Freeze), the only one that Stuns:
+    **Conduction** (Shock + Poison: the Poison doubles and every other enemy gets half as much),
+    **Kindling** (Root + Burn: the Burn doubles, to 10) and **Frostlock** (Root + Freeze), the only one that Stuns:
     once a fight per enemy, Steeled bosses resist it, and a boss (or an enemy locked before) takes 15
     instead. The enemy shows which statuses would set its status off.
   - **Break**: some bosses' biggest move carries `brk` (a share of its health): the intent shows a
@@ -919,6 +919,9 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   - In 40 fast-bot Normal runs: Blightfire 142 (about 29 damage), Kindling 94, Chord 80 (all two-hero),
     Overload 50, Thermal Shock 43, Conduction 34, Frostlock 13, Fracture 8, Break 13 of about 90
     breakable moves.
+  - **Balance** (300 Hard runs, seed 5000, full bots): 58.0% as first built (Blightfire 3 a stack with
+    all the Poison spreading, Kindling tripling to 12, Chord to 20), against about 50% with the old
+    combos; **53.0%** after toning those down (classes 41-65%, Herald and Arcanist lowest).
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
   one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the

@@ -1097,7 +1097,12 @@ Binding (carve 2, Weak at 3+), Glyph Snare (every enemy carved 1, ⅓ die), Rune
 +1, carve 1). Dragonborn: Scale Shield (shed one for an ally's die +4 Armor), Dragon's Hunger (kills heal 4).
 Samurai: Swallow Reversal (Drawn: the die +2, and again if that leaves it below half), Bushido Code (kills +4
 Resolve). Mender: Prayer (twice the die to Grace). Alchemist: Tar Pot (a bomb: ½ die, Root, acid residue).
-Emberknight: Cinder Brand (the die, Burn 1 per 5 Heat). POOLS20_RESULTS
+Emberknight: Cinder Brand (the die, Burn 1 per 5 Heat). **Hard after it (2026-11-07, 600 runs, all sixteen classes,
+path bots, seed 5000): 50.3%**, on the target; classes 41-56% (Warden 56.4, Vanguard 56.1, Alchemist 55.4, Herald
+55.3, Duelist 54.5, Mender 53.0, Ranger 52.3, Scoundrel 51.3, Arcanist 50.4, Spellblade 49.1, Psion 48.2,
+Berserker 47.1, Dragonborn 46.8, Emberknight 46.1, Gunslinger 42.2, Samurai 40.9; about 110 runs each, so ±5).
+The new picks vs passed: Thought Shield +17, Dread Vision +16, Runebreaker +16, Bushido Code +15, Twin Spike
++13, Scale Shield +10; Dragon's Hunger -4, Prayer -3, the rest within ±4.
 
 **The Samurai** (owner's request, Nov 2026; design in `docs/saltbound-samurai.md`). The blade is Sheathed
 or Drawn (`x["sheathed"]`, every fight starts Sheathed); an action's `stance` says which it needs. Resolve

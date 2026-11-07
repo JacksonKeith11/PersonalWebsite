@@ -1819,6 +1819,16 @@ SHORT.update({
     "brand": ("down", "Burst · Weak + Vulnerable 2 (6+)", "nothing"),
 })
 
+# card lines for the picks that brought every pool up to 20
+SHORT.update({
+    "psychic_lance": ("bolt", "die · even: ×2", None), "thought_shield": ("shield", "ally: die +2 Armor · exactly 1: 8", None),
+    "dread_vision": ("down", "all attacks −2 · exactly 6: −4", None), "glyph_of_binding": ("spark", "carve 2 · 3+ Sigils: Weak", None),
+    "glyph_snare": ("spark", "all: carve 1 · ⅓ die", None), "runebreaker": ("sword", "strip Armor · die +1 · carve 1", None),
+    "scale_shield": ("shield", "shed 1: ally die +4 Armor", None), "swallow_reversal": ("sword", "die +2 · below ½: die again", None),
+    "prayer": ("plus", "2× die to Grace", None), "tar_pot": ("drop", "½ die · Root · acid", None),
+    "cinder_brand": ("flame", "die · Burn 1 per 5 Heat", None),
+})
+
 # Cross-hero combos (the numbers are in combat.py): what two heroes do together.
 COMBOS = {
     "pincer": {"name": "Pincer", "text": "Your first hit on an enemy an ally already hit this round: +2 damage, or +5 if one of your "
@@ -1829,12 +1839,3 @@ COMBOS = {
                                          "for Burn + Poison, and half that to every other enemy. Once per enemy."},
 }
 
-# card lines for the picks that brought every pool up to 20
-SHORT.update({
-    "psychic_lance": ("bolt", "die · even: ×2", None), "thought_shield": ("shield", "ally: die +2 Armor · exactly 1: 8", None),
-    "dread_vision": ("down", "all attacks −2 · exactly 6: −4", None), "glyph_of_binding": ("spark", "carve 2 · 3+ Sigils: Weak", None),
-    "glyph_snare": ("spark", "all: carve 1 · ⅓ die", None), "runebreaker": ("sword", "strip Armor · die +1 · carve 1", None),
-    "scale_shield": ("shield", "shed 1: ally die +4 Armor", None), "swallow_reversal": ("sword", "die +2 · below ½: die again", None),
-    "prayer": ("plus", "2× die to Grace", None), "tar_pot": ("drop", "½ die · Root · acid", None),
-    "cinder_brand": ("flame", "die · Burn 1 per 5 Heat", None),
-})

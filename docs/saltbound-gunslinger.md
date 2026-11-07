@@ -55,6 +55,11 @@ Crits: Fire puts a round back; Pistol Whip makes it Weak; Warning Shot makes it 
   it the die +3 at any row with no rounds, a better Fire.
 - `bot.ROUND_WORTH` was 1.3 at first; the bots then whipped with a full cylinder (Fire came out only 0.5
   ahead). A round fired also brings the Silver Round on, so it's 0.6.
+- **The Silver Round is settled before the shot lands** (`resolve_action` passes it to `fire_rounds`): Fire's
+  crit puts a round back first, so working it out afterwards missed Silver Bullets, Two Guns and Silver
+  Lining on a crit (audit, Nov 2026).
+- The fight screen greys out shots on an empty cylinder; a one-round shot's card says "Silver Round: ×2"
+  when the next round is silver.
 - `tools/saltbound-check.py` refills the cylinder before each placement, since Fan the Hammer and High
   Noon empty it.
 

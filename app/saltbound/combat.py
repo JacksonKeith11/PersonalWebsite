@@ -1001,10 +1001,12 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["st"]["armor"] = x["st"].get("armor", 0) + n
             self.fx("armor", to=f"h{h}", n=n)
         x["acting"] = a["key"]
-        if x.get("sheathed") and hit and not a.get("stance") and a["tgt"] in ("foe", "foes", "front") \
+        if x.get("sheathed") and not a.get("stance") and a["tgt"] in ("foe", "foes", "front") \
                 and any(o["op"] == "dmg" for o in ops):
-            self.draw_blade(h)  # the Samurai swings something else: the blade comes out and the Resolve is lost
-        if a.get("shot") == 1 and self.silver(h):
+            self.draw_blade(h)  # the Samurai swings something else (hit or miss): the blade comes out, the Resolve is lost
+        # the Silver Round is settled before the shot lands: a crit's round back mustn't change it afterwards
+        silver = bool(a.get("shot") == 1 and self.silver(h))
+        if silver:
             self.fx("st", to=f"h{h}", s="silver_round")
         if m.get("frozen_bonus") and isinstance(tgt, str) and tgt.startswith("f") and any(d.get("tag") == "freeze" for d in dice):
             # a freeze face freezes before its own hit lands, so Frostbite counts on that hit too
@@ -1057,19 +1059,29 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.fx("act", h=h, a=a["key"], tgt=tgt, echo=True)
             self.run_ops(h, a, dice, tgt, half=True, ops=ops, hit=hit)
         if a.get("shot") and self.s["fight"] is f:
-            self.fire_rounds(h, a, tgt, dice)
+            self.fire_rounds(h, a, tgt, dice, silver)
         if "sheathed" in x and self.s["fight"] is f and hit:
-            if a["key"] == "scabbard_strike" and m.get("hilt_sheath"):
-                self.add_resolve(h, m["hilt_sheath"])  # Hilt and Sheath
-            fo_ = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
-            if a["key"] == "cut" and m.get("chiburi") and fo_ and fo_["hp"] <= 0 and not x["sheathed"]:
-                x["sheathed"] = True  # Chiburi
-                self.fx("st", to=f"h{h}", s="sheathed")
+            self.blade_after(h, a, tgt)
         f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
         done["vals"] = [num(d) for d in dice]
         done["out"] = self.act_outcome(since)
         if self.s["fight"] is f:
             self.check_end()
+
+    def blade_after(self, h, a, tgt):
+        """The Samurai's picks that react to what just landed: Hilt and Sheath, Chiburi."""
+        x = self.hs(h)
+        m = self.mods(h)
+        if a["key"] == "scabbard_strike" and m.get("hilt_sheath"):
+            self.add_resolve(h, m["hilt_sheath"])  # Hilt and Sheath
+        fo = self.target_foe(tgt)
+        if a["key"] == "cut" and m.get("chiburi") and fo and fo["hp"] <= 0 and not x["sheathed"]:
+            x["sheathed"] = True  # Chiburi: a Cut that kills sheathes the blade
+            self.fx("st", to=f"h{h}", s="sheathed")
+
+    def target_foe(self, tgt):
+        """The enemy an action's target string names ("f3"), dead or alive, or None."""
+        return self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
 
     def draw_blade(self, h):
         x = self.hs(h)
@@ -1080,8 +1092,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         """The Samurai's iai counter: while Sheathed, the first enemy to hit it each round is cut for half its
         Resolve (Mirror Edge, Waiting Stance: all of it)."""
         x = self.hs(h)
-        if not x.get("sheathed") or x.get("countered") or not x.get("resolve") or fo["hp"] <= 0:
-            return
+        if not x.get("sheathed") or x.get("countered") or not x.get("resolve") or fo["hp"] <= 0 or self.hero(h)["hp"] <= 0:
+            return  # a blow that knocks the Samurai down isn't countered (Final Breath is that cut)
         x["countered"] = True
         full = self.mods(h).get("mirror_edge") or x["st"].get("machi")
         self.fx("st", to=f"f{fo['id']}", s="iai")
@@ -1097,16 +1109,17 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.hurt_foe(fo, C.QUICK_DRAW, h)
         self.check_end()
 
-    def fire_rounds(self, h, a, tgt, dice=()):
+    def fire_rounds(self, h, a, tgt, dice, silver):
         """A shot spends its rounds (after it lands, so `ammo` and `silver` in its amounts are the rounds
-        before it): Silver Bullets' Vulnerable, Fresh Cartridge's round back on a kill."""
+        before it), then the Silver Round's extras (Silver Bullets, Two Guns, Silver Lining) and Fresh
+        Cartridge's round back on a kill. `silver`: whether it fired the Silver Round, settled before it
+        landed (a crit's round back changes the count)."""
         x = self.hs(h)
         m = self.mods(h)
         have = x.get("ammo", 0)
-        silver = a["shot"] == 1 and self.silver(h)
         x["ammo"] = have - (have if a["shot"] == "all" else min(have, a["shot"]))
         x["st"].pop("cocked", None)
-        fo = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
+        fo = self.target_foe(tgt)
         if silver and fo and m.get("silver_bullets") and fo["hp"] > 0:
             fo["st"]["vuln"] = max(fo["st"].get("vuln", 0), 2)
             self.fx("st", to=f"f{fo['id']}", s="vuln")

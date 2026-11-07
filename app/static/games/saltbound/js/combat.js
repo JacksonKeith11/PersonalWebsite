@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=155';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=155';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=155';
-import { stageURL, stageKey } from './stage.js?v=155';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=155';
-import { render } from './main.js?v=155';
-import { skillCard, upDef, upText } from './hud.js?v=155';
-import { SKILL_FX, foeFx } from './skillfx.js?v=155';
-import * as sfx from './audio.js?v=155';
+import { S, send, mine, controllerName } from './store.js?v=160';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=160';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=160';
+import { stageURL, stageKey } from './stage.js?v=160';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=160';
+import { render } from './main.js?v=160';
+import { skillCard, upDef, upText } from './hud.js?v=160';
+import { SKILL_FX, foeFx } from './skillfx.js?v=160';
+import * as sfx from './audio.js?v=160';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -1081,16 +1081,23 @@ function actionCard(f, x, k, i, selDice, ready) {
   const spent = a.per_rest && (S.game.heroes[x].spent || []).includes(base);
   const cooling = a.cd ? (hs.cds?.[base] || 0) : 0;
   const meleeBlocked = false;
+  // the Samurai's blade the wrong way for it, or the Gunslinger's cylinder empty
+  const wrongStance = a.stance && hs.sheathed != null && hs.sheathed !== (a.stance === 'sheathed');
+  const empty = a.shot && (hs.ammo || 0) <= 0;
+  // what the class's gauge means for this card right now: the Silver Round next, the Resolve a Draw would spend
+  const silverNext = a.shot === 1 && hs.ammo > 0 && (hs.ammo === 1 || (hs.lucky && hs.ammo === (hs.cap || 6) - 2));
+  const live = silverNext ? ' · Silver Round: ×2' : (base === 'the_draw' || base === 'flash_draw') && hs.sheathed ? ` · Resolve ${hs.resolve || 0}` : '';
   const noFlee = base === 'flee' && (f.kind === 'dungeon' || f.kind === 'boss');
   const n = a.req.n ?? 1;
   const guardOff = !a.def && selDice.some(d => d.dk?.includes('guard'));
-  const fits = !ready && !once && !spent && !cooling && !meleeBlocked && !noFlee && !guardOff && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
+  const fits = !ready && !once && !spent && !cooling && !meleeBlocked && !noFlee && !guardOff && !wrongStance && !empty && (n === 0 ? selDice.length === 0 : countOk(a.req, selDice));
   // with nothing picked, the dice a click would use: shown on hover, and their odds on the card
   const auto = n > 0 && !selDice.length ? autoDice(f, x, a) : null;
   const noDice = n > 0 && !selDice.length && !auto;
   const chance = fits && n > 0 ? hitChance(a.req, selDice, f.hymn || 0, hs.rollmods) : auto && isRisky(a.req) ? hitChance(a.req, auto, f.hymn || 0, hs.rollmods) : null;
-  const dis = ready || once || spent || noFlee || cooling > 0 || noDice;
-  const why = spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
+  const dis = ready || once || spent || noFlee || cooling > 0 || noDice || wrongStance || empty;
+  const why = wrongStance ? (a.stance === 'sheathed' ? '\nYour blade is drawn: Sheathe it first.' : '\nYour blade is sheathed: the Draw brings it out.')
+    : empty ? '\nYour cylinder is empty: Reload first.' : spent ? '\nSpent: it comes back when you rest.' : guardOff ? '\nGuard dice only go on defensive actions.' : once ? '\nOnce per fight.' : noFlee ? '\nThere’s no running from this one.'
     : cooling ? `\nCooling down: ready ${cooling > 1 ? `in ${cooling} rounds` : 'next round'}.`
     : noDice ? `\nNo dice left that it can take${!a.def && hs.dice.some(d => !d.used && d.dk?.includes('guard')) ? ' (Guard dice only go on defensive actions)' : ''}.`
     : auto ? `\nClick to use ${auto.map(d => dieLabel(d)).join(' + ')}: the dice lit up below.` : '';
@@ -1110,7 +1117,7 @@ function actionCard(f, x, k, i, selDice, ready) {
       h('div.top', null, h('b', null, a.name + (k.endsWith('+') ? '+' : '')),
         cooling ? h('span.cd.on', null, icon('clock'), cooling > 1 ? `${cooling}` : '1')
           : a.cd ? h('span.cd', { tip: `Cooldown ${a.cd}\nAfter using it, wait ${a.cd - 1} round${a.cd === 2 ? '' : 's'}.` }, icon('clock'), a.cd) : null),
-      h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''))),
+      h('div.eff', null, icon(ico), h('span', null, eff + (k.endsWith('+') ? ' (+2)' : ''), live ? h('b.live', null, live) : null)),
       miss ? h('div.miss', null, `miss: ${miss}`) : null,
       a.crit_short ? h('div.crit', { tip: CRIT_TIP }, `crit: ${a.crit_short}`) : null),
     i < KEYS.length ? h('span.kbd', null, KEYS[i].toUpperCase()) : null);
@@ -1258,6 +1265,13 @@ document.addEventListener('keydown', e => {
   const ai = KEYS.indexOf(e.key.toLowerCase());
   if (ai >= 0) {
     const k = S.game.heroes[x].actions[ai];
+    // a greyed-out card (cooling, spent, the blade the wrong way, an empty cylinder...) says why, as a click can't reach it
+    const card = document.querySelectorAll('.tray .actions > .action')[ai];
+    if (card?.disabled) {
+      const why = (card.dataset.tip || '').split('\n').pop();
+      if (why) toast(why);
+      return;
+    }
     if (k) pickAction(f, x, k, hs.dice.filter(d => C.sel.has(d.id) && !d.used));
   }
 });

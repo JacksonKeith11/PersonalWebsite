@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=155';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=155';
-import { spriteURL, placeURL } from './art.js?v=155';
-import { itemURL } from './itemart.js?v=155';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=155';
-import { MapView } from './hexmap.js?v=155';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=155';
-import { disconnect } from './main.js?v=155';
-import * as sfx from './audio.js?v=155';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=160';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=160';
+import { spriteURL, placeURL } from './art.js?v=160';
+import { itemURL } from './itemart.js?v=160';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=160';
+import { MapView } from './hexmap.js?v=160';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=160';
+import { disconnect } from './main.js?v=160';
+import * as sfx from './audio.js?v=160';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };

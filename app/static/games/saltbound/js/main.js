@@ -1,11 +1,11 @@
 // Saltbound in the browser: the connection, and choosing which screen to show from the room
 // state the server sends whenever anything changes.
-import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=155';
-import { $, toast } from './ui.js?v=155';
-import { renderTitle, renderLobby, renderEnd } from './screens.js?v=155';
-import { renderGame, handleFx, teardownGame } from './hud.js?v=155';
-import { combatBusy } from './combat.js?v=155';
-import * as sfx from './audio.js?v=155';
+import { S, saved, persist, tab, setSender, send, mine } from './store.js?v=160';
+import { $, toast } from './ui.js?v=160';
+import { renderTitle, renderLobby, renderEnd } from './screens.js?v=160';
+import { renderGame, handleFx, teardownGame } from './hud.js?v=160';
+import { combatBusy } from './combat.js?v=160';
+import * as sfx from './audio.js?v=160';
 import { GameSocket } from '../../shared/net.js?v=1';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');

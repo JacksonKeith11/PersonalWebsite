@@ -44,6 +44,11 @@ Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
   the Draw by the Resolve it spends (`draw_cost`, cheaper near the cap, where waiting gains nothing);
   `sheathe_value` counts the Resolve a round and the counter. A Sheathed Samurai's other attacks are charged
   the Resolve they'd throw away.
+- **Audit fixes (Nov 2026)**: a blow that knocks the Samurai down isn't countered (Final Breath is that cut;
+  both used to land); a gear attack that misses but still deals damage (Crush's half die) draws the blade
+  too. The after-action picks live in `Combat.blade_after`.
+- The fight screen greys out the other stance's actions (the tooltip says why), and the Draw's card shows
+  the Resolve it would spend.
 - `tools/saltbound-check.py` sets the blade the way each action needs, with 8 Resolve, before placing it.
 
 ## Results

@@ -1090,6 +1090,12 @@ a violet glow and crackling arcs for Storm, and a turning ring of all three when
 a few points under the 59.5% all-class batch the same day; no new pick past 15 points vs passed
 (Ignite -14, so it now deals three times the Burn, not twice).
 
+**Action cards that can't be played now are greyed out** with the reason as the tooltip's last line
+(`actionCard`'s `why`): cooling, spent, once a fight, no dice, the Samurai's blade the wrong way, the
+Gunslinger's cylinder empty. The Q-P shortcut keys check the same and toast that reason instead of sending
+an action the server will refuse. The cards' minimum width is 196px, so 1440px fits four across and the
+Samurai's eight cards take two rows (at 232px the third row was cut off with no sign it scrolled).
+
 **Every pool at 20 or more** (owner's request, 2026-11-07; the block before the signature mechanics in
 `classes.py`). Psion: Psychic Lance (double on an even die), Thought Shield (an ally's Armor, 8 on exactly 1),
 Dread Vision (every attack −2, −4 on a 6), Twin Spike (Mind Spike's 12 on a 1 too). Spellblade: Glyph of

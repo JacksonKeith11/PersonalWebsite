@@ -89,6 +89,10 @@ Read this before changing `app/books/` or `app/static/books/`.
 - **iOS needs special handling:**
   - Audio can only start from a tap. The reader plays a blip of silence inside the tap to unlock
     the `<audio>` element.
+  - With the screen off, iOS suspends the page moments after audio stops. So when a chapter ends
+    the reader loops that silence (`keepAlive`) until the next chapter's audio is loaded, or
+    narrated, and starts the audio before laying out the next chapter's page (which waits on
+    images and fonts and may never finish in the background).
   - The home-screen app's status bar color changes only when the meta tag is replaced, not edited.
   - Layout uses `env(safe-area-inset-*)` throughout `reader.css`.
 - **The page text is selectable** (to copy it; a long press on phones) while the rest of the stage

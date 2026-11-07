@@ -703,6 +703,17 @@
     return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
   }
 
+  // With the screen off, iOS suspends the page moments after audio stops, so the gap between
+  // chapters (fetching what's next, waiting for narration) is filled with looping silence. That
+  // keeps the page running and the <audio> element allowed to play the next chapter by itself.
+  function keepAlive() {
+    if (unlocking) return;
+    unlocking = true;
+    audio.loop = true;
+    audio.src = silence;
+    audio.play().catch(() => {});
+  }
+
   function setStatus(text) {
     $("#player-status").textContent = text;
   }
@@ -743,6 +754,7 @@
     listening = false;
     clearTimeout(waitTimer);
     audio.pause();
+    audio.loop = false;
     audio.removeAttribute("src");
     audio.load();
     timing = null;
@@ -783,9 +795,13 @@
   async function load(n, t, at) {
     timing = t;
     unlocking = false;
+    audio.loop = false;
     audio.src = api(`/audio/${n}.mp3?${rev()}`) + (t.complete === false ? `&bytes=${t.bytes}` : "");
     audio.defaultPlaybackRate = settings.speed;
     audio.playbackRate = settings.speed;
+    // Start straight away when playing from the top (the usual case: the next chapter), rather
+    // than after a round trip for the metadata, which a phone with its screen off may not wait for.
+    if (!at) audio.play().catch(() => {});
     const loaded = await new Promise((done) => {
       audio.addEventListener("loadedmetadata", () => done(true), { once: true });
       audio.addEventListener("error", () => done(false), { once: true });
@@ -793,10 +809,11 @@
     if (audioChapter !== n || !listening) return;
     if (!loaded) {
       setStatus("Couldn't load audio; retrying…");
+      keepAlive();
       waitTimer = setTimeout(() => continuePartial(n, at), 4000);
       return;
     }
-    audio.currentTime = at;
+    if (at) audio.currentTime = at;
     audio.playbackRate = settings.speed;
     audio.play().catch(() => setStatus("Tap play to start"));
     updateMediaSession();
@@ -804,6 +821,7 @@
 
   // Ask for this section to be narrated next and check back until paragraph `seg` exists.
   async function waitFor(n, seg, retry) {
+    keepAlive();
     fetch(api("/listen"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chapter: n }) });
     const s = await refreshAudioStatus().catch(() => null);
     if (audioChapter !== n || !listening) return;
@@ -832,13 +850,19 @@
   async function advance(n) {
     const next = n + 1;
     if (next >= book.chapters.length) return stopListening();
-    if (chapter === n) await jump(next, 0); // turn along with the narration when the reader is following it
+    // Start the audio first: laying out the next chapter waits on images and fonts, which a
+    // phone with its screen off may never get to. The page turns along when the reader was
+    // following the narration.
+    const turn = chapter === n;
     playChapter(next, 0);
+    if (turn) jump(next, 0);
   }
 
   audio.addEventListener("ended", () => {
     if (unlocking || !listening || !timing) return;
-    if (timing.complete === false) continuePartial(audioChapter, audio.currentTime);
+    const at = audio.currentTime;
+    keepAlive();
+    if (timing.complete === false) continuePartial(audioChapter, at);
     else advance(audioChapter);
   });
 

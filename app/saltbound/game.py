@@ -311,12 +311,31 @@ class Game(Combat, Biomes, Quests, Travel):
             return empty[0]
         return min(slots, key=lambda s: I.RARITIES.index(self.item(equip[s])["rarity"]))
 
+    def overridden(self, h, base):
+        """An action as this hero has it before any upgrade: the base definition with a passive's override
+        merged in (Grand Curse's Hex on every enemy, Gunsmoke's Reload...). When the override reshapes it,
+        its upgrade rider is worked out again on the new shape, so learning it twice still adds the rider."""
+        a = dict(C.ACTIONS.get(base) or I.WEAPON_ACTIONS[base])
+        ov = self.mods(h)["override"].get(base)
+        if ov:
+            a.update(ov)
+            if set(ov) & C.UPGRADE_SHAPE:
+                a.pop("up", None)
+                a.pop("up_text", None)
+                C.make_upgrade(base, a)
+        return a
+
+    def overridden_view(self, h, base):
+        """`overridden`, with what the static copy adds for the browser: the defensive flag and the card line
+        (the override's own `short`, if it changes what the card should say)."""
+        a = self.overridden(h, base)
+        return {**a, "def": C.is_defensive(a), "short": a.get("short") or C.SHORT.get(base)}
+
     def action_def(self, h, key):
         base = key.rstrip("+")
-        a = dict(C.ACTIONS.get(base) or I.WEAPON_ACTIONS[base])
+        a = self.overridden(h, base)
         if key.endswith("+") and a.get("up"):
-            a.update(a["up"])  # the upgrade's rider (classes.py `_upgrade`)
-        a.update(self.mods(h)["override"].get(base, {}))
+            a.update(a["up"])  # the upgrade's rider (classes.py `make_upgrade`)
         a["key"] = base
         a["plus"] = key.endswith("+")
         a["def"] = C.is_defensive(a)
@@ -2625,7 +2644,9 @@ class Game(Combat, Biomes, Quests, Travel):
             hero = s["heroes"][h]
             heroes.append({**{k: v for k, v in hero.items() if k not in ("tags",)}, "maxhp": self.maxhp(h),
                            "moves": self.moves(h), "sight": self.enemy_sight(h), "dice": [{"faces": d["faces"], "dk": d["dk"], "src": d["src"]} for d in self.dice_of(h)], "sellrate": self.sell_rate(h),
-                           "actions": self.actions_of(h)})
+                           "actions": self.actions_of(h),
+                           # the actions a passive reshapes, as this hero has them (the client merges them over its static copy)
+                           "ovr": {k: self.overridden_view(h, k) for k in self.mods(h)["override"]}})
         places = {}
         for t, p in s["world"]["places"].items():
             if s["seen"][int(t)] and not (p.get("hidden") and not p.get("found")):

@@ -183,8 +183,13 @@ Keep to these. They came from the owner directly.
   offers a **choice of 1 of 3** from the class's skill pool: new actions, passives, upgrades to
   skills already owned (Slash → Slash+), and from level 6, capstones. No rerolling the offer.
 - **Upgrades** (Nov 2026): an upgraded action gets +2 to its numbers and one rider suited to what it
-  does (`up` and `up_text` on the action, made by `classes._upgrade`, merged in `Game.action_def` and,
-  in the browser, `hud.upDef`): a cooldown of 3+ is 1 shorter; melee reaches any row; a single-target
+  does (`up` and `up_text` on the action, made by `classes.make_upgrade`, merged in `Game.action_def` and,
+  in the browser, `hud.upDef`). A passive's override (Grand Curse, Gunsmoke, Twin Spike...) is merged
+  first (`Game.overridden`); if it reshapes the action (`C.UPGRADE_SHAPE`: ops, target, cooldown, reach,
+  dice), the rider is made again on the new shape, so an overridden action still gets it when upgraded
+  (before Nov 2026 the override replaced the rider's ops). The view sends each hero's overridden actions
+  (`ovr`), and `hud.upDef(k, x)` merges them over the static copy, so the card, its target and its
+  cooldown match. The riders: a cooldown of 3+ is 1 shorter; melee reaches any row; a single-target
   hit also deals 2 to each enemy beside its target; a hit on several gives half the die as Armor; a
   Weak, Vulnerable, Mark or Root lasts a round longer; help for an ally gives you half the die as Armor;
   a summon has half again its HP; anything else readies your next hit this round (+3, `cue_self`). A
@@ -897,7 +902,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Dragonborn | 34 (+4) | **Dragon's Rest**: resting grows a Scale (2 at a camp or in a town) | Bruiser with breath | Wrath, Hide |
 | Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
 | Gunslinger | 31 (+4) | **Quick Draw**: when a fight it's in starts, the enemy with the biggest attack takes 8 | Ranged damage on a six-shot clock | Quickdraw, Trickshot |
-| Samurai | 32 (+4) | **Meditation**: after a rest, the next fight starts with 8 Resolve | One decisive cut | Iai, Bushido |
+| Samurai | 35 (+4) | **Meditation**: after a rest, the next fight starts with 8 Resolve | One decisive cut | Iai, Bushido |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
 
 **Signature mechanics for the original classes** (owner's request, Nov 2026; numbers in `classes.py`
@@ -1089,6 +1094,12 @@ rules in `ui.css`): an orange glow and flames licking up for Fire, a blue glow a
 a violet glow and crackling arcs for Storm, and a turning ring of all three when it's ready to Converge. Measured (2026-11-05, 400 Hard runs with an Arcanist in every party): **52.2%**,
 a few points under the 59.5% all-class batch the same day; no new pick past 15 points vs passed
 (Ignite -14, so it now deals three times the Burn, not twice).
+
+**Crowded enemy columns are packed** (Nov 2026): with three or more enemies in a column on a screen
+wider than a phone, `col()` in `combat.js` adds `.packed` and each enemy is one row (portrait, then name,
+health and statuses, then its intent on the right) instead of the intent stacked above its card. Three
+stacked cards ran about 150px each and spilled over the tray at 1440x900; packed, four fit at 1280x720
+(tighter still below 760px tall). Phones keep the stacked cards, which scroll.
 
 **Action cards that can't be played now are greyed out** with the reason as the tooltip's last line
 (`actionCard`'s `why`): cooling, spent, once a fight, no dice, the Samurai's blade the wrong way, the

@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=160';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=160';
-import { spriteURL, placeURL } from './art.js?v=160';
-import { itemURL } from './itemart.js?v=160';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=160';
-import { MapView } from './hexmap.js?v=160';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=160';
-import { disconnect } from './main.js?v=160';
-import * as sfx from './audio.js?v=160';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=162';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=162';
+import { spriteURL, placeURL } from './art.js?v=162';
+import { itemURL } from './itemart.js?v=162';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=162';
+import { MapView } from './hexmap.js?v=162';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=162';
+import { disconnect } from './main.js?v=162';
+import * as sfx from './audio.js?v=162';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -22,10 +22,15 @@ export function teardownGame() {
 
 const seat = h => `var(--hero-${h})`;
 const cls = k => S.static.classes[k];
-// an upgraded action (key+) is the action with its rider merged in (classes.py `_upgrade`)
-export const upDef = (k, a = S.static.actions[k.replace(/\+$/, '')]) => (a && k.endsWith('+') && a.up ? { ...a, ...a.up } : a);
+// An action as hero x has it: the static copy, with a passive's override merged in (the view's `ovr`, from
+// Game.overridden_view), and for an upgraded key (key+) the upgrade's rider (classes.py `make_upgrade`).
+export const upDef = (k, x) => {
+  const base = k.replace(/\+$/, '');
+  const ov = x != null ? S.game?.heroes?.[x]?.ovr?.[base] : null;
+  const a = ov ? { ...S.static.actions[base], ...ov } : S.static.actions[base];
+  return a && k.endsWith('+') && a.up ? { ...a, ...a.up } : a;
+};
 export const upText = (k, a) => (k.endsWith('+') ? ` Upgraded: +2 to its numbers${a?.up_text ? `, and ${a.up_text}` : ''}.` : '');
-const actionDef = k => upDef(k);
 const skillDef = k => S.static.actions[k.replace(/\+$/, '')] || S.static.passives[k.replace(/\+$/, '')];
 const item = k => S.static.items[k];
 

@@ -24,7 +24,7 @@ hits) for a bigger Draw later, read against the enemies' intents.
 
 ## The kit
 
-Dice d8 + d6, 32 HP (+4 a level; was 29). Starts with the Draw, Cut, Scabbard Strike, Kamae and Sheathe, the Katana
+Dice d8 + d6, 35 HP (+4 a level; was 29, then 32). Starts with the Draw, Cut, Scabbard Strike, Kamae and Sheathe, the Katana
 (Kesa Cut: the die, then half the die to every enemy in its row) and the Padded Coat. Crits: the Draw,
 Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
 

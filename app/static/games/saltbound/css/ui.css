@@ -1704,3 +1704,22 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
 .face.changed { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
 .choice.on { border-color: var(--accent); background: var(--accent-wash); }
 .choice small { color: var(--muted); font-weight: var(--fw-regular); }
+
+/* a packed enemy column (three or more, wider screens): one row per enemy, the portrait left, name,
+   health and statuses in the middle, its intent on the right, instead of the intent stacked above. Three
+   stacked cards (about 150px each) didn't fit the stage of a 1440x900 window and spilled over the tray. */
+@media (min-width: 701px) {
+  .col.packed { gap: 6px; }
+  .col.packed .unit { width: min(100%, 360px); grid-template-columns: 60px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; padding: 4px 6px; }
+  .col.packed .unit > * { grid-column: 2; }
+  .col.packed .unit > .fig { grid-column: 1; grid-row: 1 / span 6; align-self: center; }
+  .col.packed .unit > .intent { grid-column: 3; grid-row: 1 / span 6; align-self: center; justify-self: end; max-width: 156px; }
+  .col.packed .unit .fig > img { width: 60px; height: 60px; }
+}
+@media (min-width: 701px) and (max-height: 760px) {
+  /* short laptop screens: four in a packed column still fit */
+  .col.packed { gap: 2px; }
+  .col.packed .unit { padding: 1px 6px; }
+  .col.packed .unit .fig > img { width: 46px; height: 46px; }
+  .col.packed .unit > .intent:not(.none) { padding: 2px 8px; gap: 0; }
+}

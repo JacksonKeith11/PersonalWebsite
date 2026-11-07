@@ -34,7 +34,7 @@ PASSIVES = {
                   "text": "Start each fight with 5 Armor."},
     # what Overguard and Strike once did for every Vanguard, now level-ups (owner's request)
     "interpose": {"name": "Interpose", "tags": ["bulwark"],
-                  "mods": {"override": {"guard": {"cd": 0, "ops": [{"op": "guard"}],
+                  "mods": {"override": {"guard": {"short": ('shield', "take an ally's hit · every round · no Armor", None), "cd": 0, "ops": [{"op": "guard"}],
                                                   "text": "The next attack aimed at an ally this round hits you instead."}}},
                   "text": "Guard can be used every round, but gives you no Armor."},
     "iron_stance": {"name": "Iron Stance", "mods": {"overguard": 1}, "tags": ["bulwark"],
@@ -46,7 +46,7 @@ PASSIVES = {
     "last_stand": {"name": "Last Stand", "mods": {"last_stand": 6}, "text": "While you're at half HP or less, gain 6 Armor each round."},
     "unbreakable": {"name": "Unbreakable", "cap": True, "mods": {"unbreakable": 1}, "tags": ["bulwark"],
                     "text": "Once per fight, a hit that would knock you down leaves you at 1 HP instead."},
-    "avalanche": {"name": "Avalanche", "cap": True, "mods": {"override": {"retaliate": {"tgt": "front"}}},
+    "avalanche": {"name": "Avalanche", "cap": True, "mods": {"override": {"retaliate": {"short": ('sword', 'front row: your Armor + die', None), "tgt": "front"}}},
                   "tags": ["juggernaut"], "text": "Retaliate hits every enemy in the front row."},
 
     # ---- Arcanist
@@ -61,9 +61,9 @@ PASSIVES = {
     "spell_echo": {"name": "Spell Echo", "mods": {"spell_echo": 1},
                    "text": "Your first spell each fight happens twice; the second time at half strength."},
     "cataclysm": {"name": "Cataclysm", "cap": True, "tags": ["elementalist"],
-                  "mods": {"override": {"fireball": {"ops": [{"op": "dmg", "amt": "sum"}, {"op": "status", "s": "burn", "n": 2}]}}},
+                  "mods": {"override": {"fireball": {"short": ('flame', 'all: sum · Burn 2', 'nothing'), "text": 'Two dice, sum 10+: every enemy takes the full sum and Burns 2. Otherwise: nothing.', "ops": [{"op": "dmg", "amt": "sum"}, {"op": "status", "s": "burn", "n": 2}]}}},
                   "text": "Fireball deals the full sum to every enemy, not half."},
-    "grand_curse": {"name": "Grand Curse", "cap": True, "tags": ["hexer"], "mods": {"override": {"hex": {"tgt": "foes"}}},
+    "grand_curse": {"name": "Grand Curse", "cap": True, "tags": ["hexer"], "mods": {"override": {"hex": {"short": ('down', 'all: Weak + Vulnerable', None), "tgt": "foes"}}},
                     "text": "Hex hits every enemy."},
 
     # ---- Mender
@@ -406,7 +406,7 @@ PASSIVES.update({
     "opportunist": {"name": "Opportunist", "mods": {"opportunist": 3}, "text": "+3 damage against Stunned or Rooted enemies."},
     "second_wind": {"name": "Steal Tempo", "mods": {"tempo": 1},
                     "text": "When your die beats every die an enemy has shown (after Read the Blade or Spotter), gain a free d6 this round."},
-    "thousand_cuts": {"name": "Thousand Cuts", "cap": True, "tags": ["flurry"], "mods": {"override": {"twin_cut": {"req": {"n": 4, "upto": True}}}},
+    "thousand_cuts": {"name": "Thousand Cuts", "cap": True, "tags": ["flurry"], "mods": {"override": {"twin_cut": {"short": ('sword', 'up to four hits, each die +4', None), "req": {"n": 4, "upto": True}}}},
                       "text": "Twin Cut takes up to four dice."},
     "perfect_poise": {"name": "Perfect Poise", "cap": True, "tags": ["precision"], "mods": {"grant": "perfect_form"},
                       "text": "Learn Perfect Form: once a round, make one of your dice roll its highest face."},
@@ -653,7 +653,7 @@ PASSIVES.update({
     "open_circuit": {"name": "Open Circuit", "mods": {"open_circuit": 2}, "tags": ["sigil"],
                      "text": "Your allies' spells and bombs deal +2 per Sigil on their target, without spending them."},
     "runestorm": {"name": "Runestorm", "cap": True, "tags": ["sigil"],
-                  "mods": {"override": {"sigil_burst": {"tgt": "foes", "ops": [{"op": "dmg", "amt": "v+sigv", "burst": True, "if": "sig"}],
+                  "mods": {"override": {"sigil_burst": {"short": ('spark', 'all with Sigils: die +3 each · spend', None), "tgt": "foes", "ops": [{"op": "dmg", "amt": "v+sigv", "burst": True, "if": "sig"}],
                                                         "text": "Deal the die +3 per Sigil to every enemy with Sigils, and spend them."}}},
                   "text": "Sigil Burst hits every enemy with Sigils, each for its own."},
 })
@@ -969,7 +969,7 @@ PASSIVES.update({
     "two_guns": {"name": "Two Guns", "mods": {"silver_twin": 3}, "tags": ["quickdraw"],
                  "text": "Your Silver Round is fired from both guns: another enemy takes the die +3 too."},
     "gunsmoke": {"name": "Gunsmoke", "tags": ["quickdraw"],
-                 "mods": {"override": {"reload": {"ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"},
+                 "mods": {"override": {"reload": {"short": ('refresh', 'refill · die Armor · 1–3: next shot +3', None), "text": "Refill your cylinder and gain the die as Armor. On 1–3 the hammer's cocked: your next shot this round deals +3.", "ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"},
                                                           {"op": "armor", "amt": "v", "to": "self"}]}}},
                  "text": "Reloading behind a cloud of smoke: Reload also gives you the die as Armor."},
     "silver_lining": {"name": "Silver Lining", "mods": {"silver_lining": 5}, "tags": ["trickshot"],
@@ -1048,7 +1048,7 @@ PASSIVES.update({
     "hilt_and_sheath": {"name": "Hilt and Sheath", "mods": {"hilt_sheath": 2}, "tags": ["iai"],
                         "text": "Scabbard Strike also adds 2 to your Resolve."},
     "deep_kamae": {"name": "Deep Kamae", "tags": ["iai"],
-                   "mods": {"deep_kamae": 1, "override": {"kamae": {"ops": [{"op": "armor", "amt": "v"}, {"op": "resolve", "amt": "v"}]}}},
+                   "mods": {"deep_kamae": 1, "override": {"kamae": {"short": ('shield', 'die Armor · die +1 to Resolve', None), "text": 'Sheathed: take your stance: gain the die as Armor and add the die +1 to your Resolve.', "ops": [{"op": "armor", "amt": "v"}, {"op": "resolve", "amt": "v"}]}}},
                    "text": "Kamae gives the whole die as Armor, not half, and adds 1 more Resolve."},
     "chiburi": {"name": "Chiburi", "mods": {"chiburi": 1}, "tags": ["iai"],
                 "text": "When a Cut kills, you flick the blade clean and Sheathe it at once."},
@@ -1067,7 +1067,7 @@ PASSIVES.update({
 })
 CLASS_DICE["samurai"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["samurai"] = {
-    "name": "Samurai", "hp": 32, "hp_lvl": 4, "role": "One decisive cut",
+    "name": "Samurai", "hp": 35, "hp_lvl": 4, "role": "One decisive cut",
     "dice": [D(8), D(6)], "tags": ["iai", "bushido"],
     "map": {"key": "meditation", "name": "Meditation",
             "text": f"After you rest, your next fight starts with {MEDITATION} Resolve."},
@@ -1123,7 +1123,7 @@ ACTIONS.update({
 })
 PASSIVES.update({
     "twin_spike": {"name": "Twin Spike", "tags": ["telekinesis"],
-                   "mods": {"override": {"mind_spike": {"ops": [{"op": "dmg", "amt": "12 if v in (1,6) else v"}]}}},
+                   "mods": {"override": {"mind_spike": {"short": ('bolt', 'die · exactly 1 or 6: 12', None), "text": 'Any row: deal the die. On exactly 1 or 6, deal 12 instead.', "ops": [{"op": "dmg", "amt": "12 if v in (1,6) else v"}]}}},
                    "text": "Mind Spike also deals 12 on exactly 1, not just on 6."},
     "dragons_hunger": {"name": "Dragon's Hunger", "mods": {"kill_heal": 4}, "tags": ["wrath"],
                        "text": "Each kill heals you 4."},
@@ -1371,7 +1371,7 @@ PASSIVES.update({
                   "text": "Impact holds up to 20, and Payback heals you for half the Impact it spends."},
 })
 PASSIVES["shield_weight"].update(
-    mods={"override": {"strike": {"ops": [{"op": "dmg", "amt": "v+2+impact//3"}],
+    mods={"override": {"strike": {"short": ("sword", "die +2 + ⅓ Impact", None), "ops": [{"op": "dmg", "amt": "v+2+impact//3"}],
                                   "text": "Deal the die +2, plus a third of your Impact (not spent)."}}},
     text="Strike also deals a third of your Impact, without spending it.")
 CLASSES["vanguard"]["start"] = ["strike", "guard", "payback", "overguard"]
@@ -1565,7 +1565,11 @@ UP_SPLASH = 2
 UP_CUE = 3
 
 
-def _upgrade(k, a):
+# the fields an override can change that decide an action's upgrade rider (`make_upgrade`)
+UPGRADE_SHAPE = {"ops", "tgt", "cd", "melee", "req"}
+
+
+def make_upgrade(k, a):
     if "up" in a or a.get("once") or a.get("per_rest") or a["req"].get("n", 1) == 0 and not a["ops"]:
         return
     ops = a["ops"]
@@ -1597,7 +1601,7 @@ def _upgrade(k, a):
 
 
 for _k, _a in ACTIONS.items():
-    _upgrade(_k, _a)
+    make_upgrade(_k, _a)
 
 # Party XP needed for each level (index = level - 1).
 XP_FOR = [0, 20, 50, 90, 140, 200, 270, 350]

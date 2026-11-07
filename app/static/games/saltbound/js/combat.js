@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=160';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=160';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=160';
-import { stageURL, stageKey } from './stage.js?v=160';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=160';
-import { render } from './main.js?v=160';
-import { skillCard, upDef, upText } from './hud.js?v=160';
-import { SKILL_FX, foeFx } from './skillfx.js?v=160';
-import * as sfx from './audio.js?v=160';
+import { S, send, mine, controllerName } from './store.js?v=162';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=162';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=162';
+import { stageURL, stageKey } from './stage.js?v=162';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=162';
+import { render } from './main.js?v=162';
+import { skillCard, upDef, upText } from './hud.js?v=162';
+import { SKILL_FX, foeFx } from './skillfx.js?v=162';
+import * as sfx from './audio.js?v=162';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -194,8 +194,10 @@ export function renderCombat(el) {
   const allies = (f.allies || []).filter(a => a.hp > 0 || (C.playing && a.wasUp));
   const foesIn = row => f.foes.filter(fo => fo.row === row || (row === 'front' && fo.row !== 'back'));
 
-  // three or more in a column: shrink them so the column fits
-  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 2 || party ? '.crowd' : '') + (!units.length ? '.empty' : ''), null, h('span.lbl', null, label), ...units);
+  // two or more in a column (and the party, always): compact cards; three or more enemies: packed, each
+  // card one row with its intent beside it, so the column fits a laptop screen (ui.css .col.packed)
+  const col = (label, units, party) => h('div.col' + (party ? '.herocol' : '') + (units.length >= 2 || party ? '.crowd' : '')
+    + (!party && units.length >= 3 ? '.packed' : '') + (!units.length ? '.empty' : ''), null, h('span.lbl', null, label), ...units);
   const stage = h('div.stage' + (C.anim.stage ? '.' + C.anim.stage : ''), { style: { '--stage-art': `url(${stageURL(stageKey(f, S.world), f.ground)})` } },
     f.ground?.k === 'woods' ? leaves() : null,
     h('div.side-units' + (allies.length ? '' : '.solo'), null,
@@ -1075,7 +1077,7 @@ export function reqBadge(req) {
 
 function actionCard(f, x, k, i, selDice, ready) {
   const base = k.replace(/\+$/, '');
-  const a = upDef(k);
+  const a = upDef(k, x);
   const hs = f.hs[x];
   const once = a.once && hs.once.includes(base);
   const spent = a.per_rest && (S.game.heroes[x].spent || []).includes(base);
@@ -1168,7 +1170,7 @@ function needsTarget(a) { return ['foe', 'ally', 'other', 'downed'].includes(a.t
 
 function pickAction(f, x, k, selDice) {
   const base = k.replace(/\+$/, '');
-  const a = upDef(k);
+  const a = upDef(k, x);
   const n = a.req.n ?? 1;
   let dice = selDice;
   if (n > 0 && !dice.length) {

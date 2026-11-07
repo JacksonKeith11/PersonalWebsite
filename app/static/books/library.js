@@ -21,14 +21,17 @@
     n.classList.toggle("err", isError);
   }
 
+  // An audiobook started partway through (in the reader) is finished once its last chapter is.
+  const audioDone = (a) => a.ready.length === a.total || (a.from > 0 && a.left === 0);
+
   function audioLine(a) {
-    if (a.ready.length === a.total) return "Audio ready";
+    if (audioDone(a)) return "Audio ready";
     if (!a.requested) return a.percent ? `Audio ${a.percent}% · stopped` : "";
     if (a.working) return `Narrating · ${a.percent}%`;
     return a.percent ? `Audio ${a.percent}%` : "Audio queued";
   }
 
-  const narrating = (a) => a.requested && a.ready.length < a.total;
+  const narrating = (a) => a.requested && !audioDone(a);
 
   function cover(b) {
     if (b.cover) return el("div", { className: "cover" }, el("img", { src: b.cover, alt: "" }));
@@ -174,7 +177,7 @@
     }
     // Narration only runs when asked for (here, or by pressing listen in the reader).
     let narrate = null;
-    if (b.audio.ready.length < b.audio.total) {
+    if (!audioDone(b.audio)) {
       narrate = el("button", {
         textContent: b.audio.requested ? "Stop making audiobook" : b.audio.percent ? "Resume making audiobook" : "Make audiobook",
       });

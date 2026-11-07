@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 26
+ASSET_VERSION = 27
 STYLE = "/static/style.css?v=10"
 # What the pages load from this site, kept by the service worker (sw.js) so they open offline.
 SHELL = [
@@ -225,6 +225,7 @@ def reader(book: dict, theme: str = "original") -> str:
       <a class="menu-item" id="dl-book-zip" href="/books/api/{escape(book["id"])}/download-chapters.zip" download>Download audiobook as separate chapters (ZIP)</a>
       <a class="menu-item" id="dl-chapter-mp3" href="#" download>Download this chapter's audio</a>
       <button class="menu-item" id="narrate" type="button" hidden></button>
+      <button class="menu-item" id="narrate-from" type="button" hidden>Make audiobook from this chapter to the end</button>
       <p id="audio-summary" class="muted"></p>
       <a class="menu-item" href="/books">Back to library</a>
     </div>

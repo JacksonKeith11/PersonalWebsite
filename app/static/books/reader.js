@@ -610,23 +610,36 @@
   }
 
   let workingChapter = -1;
+  let lastStatus = null;
   function updateChapterDownload() {
     const some = audioReady.has(chapter) || workingChapter === chapter;
     setLink($("#dl-chapter-mp3"), api(`/download.mp3?chapter=${chapter}`), some && book.chapters[chapter].segments > 0);
+    narrateFromButton();
   }
 
   function narrateButton(s) {
     const b = $("#narrate");
-    b.hidden = s.ready.length === s.total;
+    // An audiobook started partway through is finished once its last chapter is.
+    b.hidden = s.ready.length === s.total || (s.from > 0 && s.left === 0);
     b.textContent = s.requested ? "Stop making audiobook" : s.percent ? "Resume making audiobook" : "Make audiobook";
     b.dataset.on = s.requested ? "1" : "";
   }
 
-  $("#narrate").addEventListener("click", async () => {
-    const on = !$("#narrate").dataset.on;
-    await fetch(api("/narrate"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) });
+  // Start (or restart) the audiobook at the chapter being read; it runs from there to the end.
+  function narrateFromButton() {
+    const s = lastStatus;
+    const b = $("#narrate-from");
+    const rest = book.chapters.slice(chapter).every((_, i) => audioReady.has(chapter + i));
+    b.hidden = !s || chapter < 0 || rest || (s.requested && s.from === chapter);
+  }
+
+  async function narrate(body) {
+    await fetch(api("/narrate"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     refreshAudioSummary();
-  });
+  }
+
+  $("#narrate").addEventListener("click", () => narrate({ on: !$("#narrate").dataset.on }));
+  $("#narrate-from").addEventListener("click", () => narrate({ on: true, from: chapter }));
 
   async function refreshAudioSummary() {
     let s;
@@ -643,7 +656,12 @@
       text += ` Working on “${book.chapters[s.working.chapter].title}” (${pct}% of that section).`;
     }
     if (!s.requested && done < s.total) text = s.percent ? `Audio: ${s.percent}% narrated; narration is stopped.` : "No audiobook yet. Press listen, or make the whole audiobook here.";
+    if (s.from > 0 && done < s.total && book.chapters[s.from]) {
+      const start = `from “${book.chapters[s.from].title}” to the end`;
+      text = s.left === 0 ? `Audiobook narrated ${start}.` : `${text} The audiobook runs ${start}.`;
+    }
     $("#audio-summary").textContent = text;
+    lastStatus = s;
     narrateButton(s);
     setLink($("#dl-book-mp3"), api("/download.mp3"), s.percent > 0);
     $("#dl-book-mp3").textContent = s.percent >= 100 || s.percent === 0 ? "Download audiobook (MP3)" : `Download audiobook so far (MP3, ${s.percent}%)`;

@@ -8,6 +8,7 @@ data/books/
   <id>/book.epub         the original upload
   <id>/progress.json     reading position
   <id>/narrate           present once someone asks for the audiobook; the worker narrates only these
+  <id>/narrate_from      the chapter number the audiobook starts at (absent: the first); earlier ones are skipped
   <id>/chapters/<n>.html reader markup; every spoken block carries data-s="<segment>"
   <id>/chapters/<n>.json the text of each segment, in order
   <id>/audio/<n>.mp3     narration for chapter n
@@ -24,6 +25,7 @@ BOOKS_DIR = Path(os.environ.get("BOOKS_DIR", "/app/data/books"))
 PRIORITY = BOOKS_DIR / "priority.json"
 WORKER = BOOKS_DIR / "worker.json"
 NARRATE = "narrate"
+NARRATE_FROM = "narrate_from"
 ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
 
@@ -68,6 +70,22 @@ def list_books(owner: str | None = None) -> list[dict]:
 
 def narration_requested(book_id: str) -> bool:
     return (BOOKS_DIR / book_id / NARRATE).exists()
+
+
+def narrate_from(book_id: str) -> int:
+    """The chapter the audiobook starts at. It outlasts stopping, so resuming carries on from there."""
+    try:
+        return max(0, int((BOOKS_DIR / book_id / NARRATE_FROM).read_text()))
+    except (OSError, ValueError):
+        return 0
+
+
+def set_narrate_from(book_id: str, n: int) -> None:
+    path = BOOKS_DIR / book_id / NARRATE_FROM
+    if n > 0:
+        write_text(path, str(n))
+    else:
+        path.unlink(missing_ok=True)
 
 
 def partial_paths(folder: Path, n: int) -> tuple[Path, Path]:

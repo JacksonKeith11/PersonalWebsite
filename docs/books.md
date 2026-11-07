@@ -30,7 +30,10 @@ Read this before changing `app/books/` or `app/static/books/`.
 - **`worker.py`** runs in the `tts` container and narrates with Kokoro (voice `am_michael`). It only
   narrates books with a `narrate` file (made by "Make audiobook", or by pressing listen). The order
   is: the chapter someone pressed listen on (`priority.json`), the rest of that book, then other
-  requested books newest first.
+  requested books newest first. "Make audiobook from this chapter to the end" in the reader's menu
+  writes `narrate_from`, and the worker skips chapters before it (unless listen is pressed on one).
+  It outlasts stopping, so resuming carries on from there; the audio status reports it as `from`,
+  with `left` chapters still to do, and the menus treat `left == 0` as finished.
 - **`pages.py`** renders the HTML shells (login, library, receive, reader) with `ASSET_VERSION` on
   every asset. The behavior is in `app/static/books/library.js` and `reader.js`.
 - **Offline reading:** `sw.js` is a service worker served at `/books/sw.js` (not `/static`) so its

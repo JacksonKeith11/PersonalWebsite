@@ -316,6 +316,63 @@ def gunslinger4():  # Witch-hunter: tall buckled hat with a low brim shading the
     flintlock(g)
     return g
 
+# Samurai options (owner's request, Nov 2026): for review (build.REVIEW).
+SAM = {**SKIN, 'e': E, 'W': '#e8eef4', 'w': '#2a1e18', 'k': '#1a1620', 'n': '#14101a', 'G': '#ffd36b'}
+
+def hakama(g, c='L', dark='l'):
+    g.rows(8, 22, [(1, 10), (0, 11), (0, 11), (-1, 12), (-1, 12), (-1, 12), (-2, 13)], c)
+    g.rect(13, 24, 14, 28, dark); g.rect(9, 29, 12, 30, 'k'); g.rect(15, 29, 18, 30, 'k')
+
+def kimono(g, c='B', inner='b', sash='T'):
+    torso(g, c, rows=10); g.line(10, 13, 14, 18, inner); g.line(17, 13, 14, 17, inner); g.rect(9, 20, 18, 21, sash)
+
+def katana(g, high=False):
+    if high:
+        g.rect(21, 13, 22, 15, 'w'); g.rect(20, 12, 23, 12, 'X'); g.line(22, 11, 27, 1, 'W')
+    else:
+        g.px(20, 19, 'w'); g.px(21, 18, 'w'); g.rect(22, 16, 23, 17, 'X'); g.line(24, 15, 30, 9, 'W')
+
+def saya(g, drawn=True):
+    g.line(3, 25, 9, 20, 'w'); g.line(4, 25, 10, 20, 'w')
+    if not drawn:
+        g.rect(10, 18, 11, 19, 'X'); g.line(12, 17, 14, 15, 'k')
+
+def topknot(g, y=6):
+    g.rect(10, y - 2, 17, y, 'H'); g.rect(9, y - 1, 9, y + 2, 'H'); g.rect(18, y - 1, 18, y + 1, 'H'); g.rect(13, y - 4, 14, y - 3, 'H')
+
+def samurai1():  # Ronin: topknot, stubble, faded blue kimono and grey hakama, katana drawn, the scabbard at the hip
+    g = G({**SAM, 'B': '#3a5a7a', 'b': '#d8d0c0', 'T': '#2a2a36', 'L': '#5a5e6a', 'l': '#3a3e48', 'H': '#1a1420', 'X': '#a88a3a'})
+    hakama(g); kimono(g); arms(g); face(g, 10, 6, 8, 6); g.rect(12, 10, 15, 10, 'S'); g.rect(11, 11, 16, 11, 'S'); topknot(g)
+    saya(g); katana(g)
+    return g
+
+def samurai2():  # Wanderer: wide straw hat shading the eyes, dark haori, hand on the hilt of a sheathed blade
+    g = G({**SAM, 'B': '#2a2a36', 'b': '#8a2a2a', 'T': '#c8a040', 'L': '#3a3440', 'l': '#24202a', 'h': '#c8a868', 'x': '#8a6a3a', 'X': '#c8a040'})
+    hakama(g); kimono(g); arms(g); face(g, 10, 6, 8, 6); g.rect(10, 6, 17, 7, 'S')
+    g.text(5, 0, ['        hh        ', '      hhhhhh      ', '    hhhhhhhhhh    ', '  hhhhhhhhhhhhhh  ', 'xhhhhhhhhhhhhhhhhx'])
+    g.rect(5, 5, 22, 5, 'x')
+    g.line(13, 24, 25, 17, 'w'); g.line(14, 24, 26, 17, 'w'); g.rect(19, 19, 20, 20, 'X'); g.line(21, 18, 24, 16, 'k')  # saya forward, hilt in hand
+    g.rect(20, 16, 22, 18, 's')
+    return g
+
+def samurai3():  # Armoured samurai: kabuto with a gold crescent crest, red lacquered plate and shoulder boards, a face mask, katana drawn
+    g = G({**SAM, 'B': '#a82a24', 'b': '#6a1a18', 'T': '#c8a040', 'L': '#2a2430', 'l': '#1a1620', 'A': '#24202a', 'X': '#c8a040', 'M': '#6a1a18'})
+    hakama(g, 'B', 'b'); g.rect(9, 22, 18, 22, 'T')
+    torso(g, 'B', rows=10); g.rect(9, 15, 18, 15, 'b'); g.rect(9, 17, 18, 17, 'b'); g.rect(9, 19, 18, 19, 'b'); g.rect(9, 21, 18, 21, 'T')
+    arms(g); g.rect(5, 13, 9, 17, 'A'); g.rect(18, 13, 22, 16, 'A'); g.rect(5, 15, 9, 15, 'T'); g.rect(18, 15, 22, 15, 'T')  # sode
+    face(g, 10, 6, 8, 6); g.rect(10, 9, 17, 11, 'M'); g.px(13, 10, 'n'); g.px(14, 10, 'n')  # menpo
+    g.rows(9, 2, [(1, 8), (0, 9), (0, 9), (-1, 10)], 'A'); g.rect(8, 6, 9, 9, 'A'); g.rect(18, 6, 19, 9, 'A')
+    g.text(7, 0, ['X            X', ' XX   XX   XX ', '   XXX  XXX   ']); g.rect(13, 3, 14, 4, 'X')
+    saya(g); katana(g)
+    return g
+
+def samurai4():  # Kensei: long tied-back hair, white headband with trailing tails, white kimono and red hakama, katana raised high
+    g = G({**SAM, 'B': '#e8e2d4', 'b': '#a8a090', 'T': '#2a2a36', 'L': '#a82a24', 'l': '#6a1a18', 'H': '#1a1420', 'X': '#c8a040', 'Y': '#f4f0e8'})
+    hakama(g); kimono(g); arms(g, left_y=15); g.rect(20, 13, 22, 15, 's'); g.rows(19, 14, [(0, 2), (0, 2)], 'B')
+    head(g, 'pony'); g.rect(9, 5, 18, 5, 'Y'); g.text(4, 5, ['YYYY ', '  YY ', '   Y '])
+    saya(g); katana(g, high=True)
+    return g
+
 SK = SKIN
 OPTIONS = {
     'duelist': [
@@ -405,6 +462,10 @@ OPTIONS = {
     # owner's request, Nov 2026: for review, not built yet (build.REVIEW)
     'gunslinger': [
         ('Drifter', gunslinger1), ('Outlaw', gunslinger2), ('Pistoleer', gunslinger3), ('Witch-hunter', gunslinger4),
+    ],
+    # owner's request, Nov 2026: for review, not built yet (build.REVIEW)
+    'samurai': [
+        ('Ronin', samurai1), ('Wanderer', samurai2), ('Armoured Samurai', samurai3), ('Kensei', samurai4),
     ],
     'emberknight': [
         ('Emberknight', build({**SK, 'B': '#7a2a1e', 'b': '#3a2a2a', 'T': '#e0a040', 'H': '#2a1e18', 'h': '#5a5e6a', 'X': '#ffa030', 'x': '#c0501a', 'W': '#ffb048', 'w': '#4a3a30', 'k': '#1e1a1a', 'L': '#3a2a2a'},

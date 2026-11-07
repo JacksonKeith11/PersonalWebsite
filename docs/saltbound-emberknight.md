@@ -49,7 +49,7 @@ party with it).
 | HP | 28 (+4 a level): between the Warden (26) and the Duelist (31) |
 | Base dice | d8 and d6, plain |
 | Start | Searing Strike, Flashover |
-| Weapon | **Ember Mace** (new common, d6): Searbrand (cooldown 2: the die, and Burn half the die +1; was Slash). Emberknight 31 HP (was 28) since the Ember Mace lost Slash. Its hits get the Heat bonus like any |
+| Weapon | **Ember Mace** (new common, d6): Searbrand (cooldown 2: the die, and Burn half the die +1; was Slash). Emberknight 31 HP (was 28) since the Ember Mace lost Slash, then 29 (Nov 2026: it led the path-style batch at 81.6%). Its hits get the Heat bonus like any |
 | Armor | Padded Coat (existing) |
 | Map ability | **Banked Coals** (below) |
 

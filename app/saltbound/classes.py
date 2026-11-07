@@ -377,7 +377,7 @@ CLASSES = {
         "blurb": "Wades in, armoured, and takes the hits meant for everyone else.",
     },
     "arcanist": {
-        "name": "Arcanist", "hp": 23, "hp_lvl": 4, "role": "Area damage and burst",
+        "name": "Arcanist", "hp": 26, "hp_lvl": 4, "role": "Area damage and burst",
         "dice": [D(12), D(4)], "tags": ["elementalist", "hexer"],
         "map": {"key": "farsight", "name": "Farsight", "text": "See 3 hexes around you, and spot cursed items in loot."},
         "start": ["bolt", "channel"], "weapon": "oak_staff", "armor": "wool_robe",
@@ -738,7 +738,7 @@ PASSIVES.update({
 })
 CLASS_DICE["emberknight"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["emberknight"] = {
-    "name": "Emberknight", "hp": 31, "hp_lvl": 4, "role": "Damage that runs hot",
+    "name": "Emberknight", "hp": 29, "hp_lvl": 4, "role": "Damage that runs hot",
     "dice": [D(8), D(6)], "tags": ["blaze", "temper"],
     "map": {"key": "banked_coals", "name": "Banked Coals",
             "text": "Each fight starts with Heat equal to twice the map turns since your last fight (up to 10)."},

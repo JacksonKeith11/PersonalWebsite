@@ -1,8 +1,8 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=168';
-import { spriteCanvas, placeCanvas } from './art.js?v=168';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=169';
+import { spriteCanvas, placeCanvas } from './art.js?v=169';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
@@ -942,7 +942,7 @@ export class MapView {
     for (const [t, p] of Object.entries(this.state.places)) {
       const [cx, cy] = center(+t);
       // an event shows what it risks in its icon (a seal's colour, a dagger for a fight); once seen, a plain note
-      const kind = p.kind === 'event' && !p.done && (p.risk === 'risky' || p.risk === 'fight') ? `event_${p.risk}` : p.kind === 'beacon' && p.lit ? 'beacon_lit' : p.kind;
+      const kind = p.kind === 'event' && !p.done && (p.risk === 'risky' || p.risk === 'fight') ? `event_${p.risk}` : p.kind === 'beacon' && p.lit ? 'beacon_lit' : p.kind === 'tower' ? 'lookout' : p.kind;
       const tex = this.texFor('place_' + kind, () => placeCanvas(kind));
       const yoff = p.kind === 'town' ? 14 : 2;
       // places are drawn half again as big as their 16px art, on a soft shadow, so they read at a glance

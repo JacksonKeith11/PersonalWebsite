@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=168';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=168';
-import { spriteURL, placeURL } from './art.js?v=168';
-import { itemURL } from './itemart.js?v=168';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=168';
-import { MapView } from './hexmap.js?v=168';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=168';
-import { disconnect } from './main.js?v=168';
-import * as sfx from './audio.js?v=168';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=169';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=169';
+import { spriteURL, placeURL } from './art.js?v=169';
+import { itemURL } from './itemart.js?v=169';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=169';
+import { MapView } from './hexmap.js?v=169';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=169';
+import { disconnect } from './main.js?v=169';
+import * as sfx from './audio.js?v=169';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -230,7 +230,7 @@ function placeTitle(p) {
     shrine: p.dark ? 'Dark shrine' : 'Shrine', camp: 'Camp', event: p.title && !p.done ? p.title : 'Something curious',
     wreck: p.guard && !p.done ? 'Guarded wreck' : 'Wreck', lair: 'Lair', cache: 'Buried cache',
     cove: 'Smugglers’ cove', flotsam: 'Flotsam', lookout: 'Lookout', grotto: p.grotto === 'spring' ? 'Grotto spring' : 'Hidden grotto',
-    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate', quest: p.name, beacon: p.lit ? 'Lit beacon' : 'Beacon tower',
+    oasis: 'Oasis', fossil: 'Fossil bed', geode: 'Geode', gate: 'Light-gate', quest: p.name, beacon: p.lit ? 'Lit beacon' : 'Beacon tower', tower: 'Watchtower',
   }[p.kind] + (p.kind === 'shrine' && p.sea ? ' (drowned)' : '') + (p.occupied ? ' · occupied' : '');
 }
 const RISK = { safe: 'Nothing here can hurt you.', risky: 'A roll could go badly.', fight: 'It could turn into a fight.' };
@@ -260,6 +260,9 @@ function jobText(q) {
   if (q.kind === 'deliver') return `deliver a parcel to ${q.name}`;
   if (q.kind === 'lair') return 'clear the lair';
   if (q.kind === 'bounty') return `catch ${q.crew}`;
+  if (q.kind === 'defend') return `defend ${q.src || 'the town'} from the war band`;
+  if (q.kind === 'beacon') return 'raise a beacon on the hilltop';
+  if (q.kind === 'tower') return 'build a watchtower';
   if (q.stage === 'return') return `${g.heroes[q.carrier]?.name || 'someone'} brings the cargo back to ${q.src}`;
   return `fetch the cargo from a ${q.guarded ? 'guarded ' : ''}wreck`;
 }
@@ -270,7 +273,8 @@ function rewardText(r) {
   if (!r) return '';
   const st = S.static;
   const extra = { loot: 'a pick of loot for whoever finishes it', item: `${st.items[r.item]?.name} (rare ${st.items[r.item]?.slot})`, revive: '+1 revive',
-    trade: `a free go at the ${st.town_specs[r.spec]?.name.toLowerCase()}`, restock: 'the town restocks its shop with better wares' }[r.type];
+    trade: `a free go at the ${st.town_specs[r.spec]?.name.toLowerCase()}`, restock: 'the town restocks its shop with better wares',
+    legend: `a legendary to choose (${(r.opts || []).map(k => st.items[k]?.name).join(' or ')})` }[r.type];
   return `${r.gold} gold each, and ${extra}`;
 }
 // What an objective's growing garrison adds to its boss fight, and when it next grows.
@@ -310,6 +314,7 @@ function placeText(p) {
     case 'lair': return p.done ? 'Cleared.' : 'A nest of tougher enemies, guarding good loot.';
     case 'cove': return p.done ? 'Emptied.' : `Out at sea, by skiff only: a smugglers’ stash (${S.static.sea.cove_gold} gold and a pick of uncommon or rare loot).`;
     case 'flotsam': return p.done ? 'Picked over.' : `Out at sea, by skiff only: ${S.static.sea.flotsam_gold} gold and a little loot.`;
+    case 'tower': return `Built for ${p.built}. It keeps watch: every enemy within ${S.static.tower_sight} hexes is shown.`;
     case 'lookout': return p.done ? 'Climbed: the land around is on your map.' : `Climb it to see everything ${S.static.lookout_sight} hexes around, hidden grottos too.`;
     case 'grotto': return p.done ? 'Already found and taken.' : p.grotto === 'spring' ? 'A clear spring: full health for whoever drinks, and a revive for the party.'
       : `An old hoard: ${S.static.sea.grotto_gold} gold, a pick of rare loot and an enchant material.`;
@@ -536,7 +541,7 @@ function renderActionbar() {
 // The server works the turn out from what the party can see (Game.forecast): one line per hero, so
 // everyone knows who's walking into what, who gets pulled into a fight, and where enemies will step.
 const LAND = { event: 'finds something curious', wreck: 'loots a wreck', shrine: 'reaches a shrine', town: 'reaches town', camp: 'reaches a camp', lair: 'reaches a lair',
-  cache: 'digs up the cache', cove: 'searches the cove', flotsam: 'hauls in the flotsam', lookout: 'climbs the lookout', grotto: 'enters the grotto', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage', quest: 'takes the quest on a step' };
+  cache: 'digs up the cache', cove: 'searches the cove', flotsam: 'hauls in the flotsam', lookout: 'climbs the lookout', grotto: 'enters the grotto', drift: 'hauls in the drifting cargo', healer: 'is seen to by the healer', job: 'finishes a job', cargo: 'picks up the salvage', build: 'builds on the site', quest: 'takes the quest on a step' };
 // An enemy's name, with its elite affix ("Hulking Crabfolk Brute").
 export function foeName(k, aff) {
   const st = S.static;
@@ -998,7 +1003,9 @@ function townDrawer(h0, town, d) {
     body = [h('h3', null, 'Notice board'),
       jobs.length ? h('p.muted', null, 'Take one of these. The other comes down when you do.') : h('p.muted', null, town.quest_taken ? 'You’ve taken this town’s job.' : 'Nothing pinned up today.'),
       ...jobs.map((j, n) => h('div.card.job', null,
-        h('div.job-head', null, h('span.kind', null, st.job_kinds[j.kind].name), h('span.chip', { tip: 'Turns to finish it, counting this one' }, icon('clock'), `${j.turns} turns`)),
+        h('div.job-head', null, h('span.kind', null, st.job_kinds[j.kind].name),
+          j.link ? h('span.chip.brass', { tip: `A follow-up: ${town.name} trusts you after the last job. Each one pays more, and job ${st.chain_max} pays a legendary.` }, icon('link'), `Job ${j.link} of ${st.chain_max}`) : null,
+          h('span.chip', { tip: 'Turns to finish it, counting this one' }, icon('clock'), `${j.turns} turns`)),
         h('b', null, cap(jobText(j))), h('p.muted', null, st.job_kinds[j.kind].text),
         h('div.gains', null, h('span.chip.brass', null, cap(rewardText(j.reward)))),
         h('div', { style: { display: 'flex', gap: '8px' } },
@@ -1623,6 +1630,8 @@ export function handleFx(list, before) {
       case 'buff': if (mine().includes(f.h)) later.push(() => resultNote(f.h, S.static.buffs[f.b].name, () => toast(`${S.game.heroes[f.h].name}: ${S.static.buffs[f.b].name}`))); break;
       case 'quest': later.push(() => { const Q = S.static.quests[f.key], t = f.done ? `Quest complete: ${Q.name}!` : `${Q.name}: the next step is marked on your map.`;
         mine().includes(f.h) ? resultNote(f.h, t, () => toast(t, 'big')) : toast(t, f.done ? 'big' : undefined); if (f.done) sfx.play('coin'); }); break;
+      case 'built': later.push(() => { toast(`${S.game.heroes[f.h].name} ${f.what === 'beacon' ? 'raises a beacon: it\u2019s on your beacon road' : 'builds a watchtower: it keeps watch for the party'}`, 'big'); map?.centerOn(f.tile); sfx.play('rare'); }); break;
+      case 'chain': later.push(() => toast(`${f.src} has a follow-up job on its board (job ${f.link} of ${S.static.chain_max})`, 'big')); break;
       case 'job': later.push(() => { const t = `Job done for ${f.src}: +${f.gold} gold each${f.extra}`; mine().includes(f.h) ? resultNote(f.h, t, () => toast(t, 'big')) : toast(t, 'big'); sfx.play('coin'); }); break;
       case 'opp': if (list.some(r => r.k === 'rise' && (r.news || []).some(n => n.tile === f.tile))) break; later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
       case 'garrison': if (list.some(r => r.k === 'rise')) break; later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;

@@ -866,20 +866,35 @@ QUEST_REWARD = 25  # the gold every hero got for a job before rewards scaled (ol
 # for whoever finishes it (`JOB_REWARDS`).
 JOBS_PER_BOARD = 2
 JOB_PACE = 3
-JOB_SLACK = {"deliver": 3, "lair": 5, "bounty": 6, "salvage": 4}
+JOB_SLACK = {"deliver": 3, "lair": 5, "bounty": 6, "salvage": 4, "defend": 1, "beacon": 3, "tower": 3}
 JOB_GOLD = 8
 JOB_PER_HEX = 2
-JOB_BONUS = {"deliver": 0, "lair": 10, "bounty": 15, "salvage": 8}
+JOB_BONUS = {"deliver": 0, "lair": 10, "bounty": 15, "salvage": 8, "defend": 20, "beacon": 6, "tower": 6}
 JOB_KINDS = {
     "deliver": {"name": "Delivery", "text": "Carry a parcel to another town."},
     "lair": {"name": "Clear a lair", "text": "Clear out the lair that's been troubling the town."},
     "bounty": {"name": "Bounty", "text": "Hunt down a wanted crew. They run from you, a hex a turn, and stay on the map wherever they go."},
     "salvage": {"name": "Salvage", "text": "Fetch the cargo from a wreck and bring it back here. Whoever picks it up must carry it home."},
+    "defend": {"name": "Defend the town", "text": "A war band is marching on the town. Beat it before it gets here, or "
+                                                  "stand in the town when it arrives and fight it there. If it takes the town, the job fails."},
+    "beacon": {"name": "Raise a beacon", "text": "Carry the timber to a hilltop and end a turn there: a new beacon tower "
+                                                 "goes up, already lit, so you can travel to it from any lit beacon."},
+    "tower": {"name": "Build a watchtower", "text": "Carry the stone to the site and end a turn there: a watchtower goes up "
+                                                    "and keeps watch for the rest of the run, showing every enemy near it."},
 }
+# Defend the town: the war band starts this many hexes' march away (its road), from the nearest objective's
+# region. Chain jobs: finishing a job posts a better follow-up on the same board, up to `CHAIN_MAX` links;
+# each link pays `CHAIN_GOLD` more, and the last pays a legendary. Build jobs: a site `BUILD_RANGE` hexes off.
+DEFEND_ROAD = (5, 8)
+CHAIN_MAX = 3
+CHAIN_GOLD = 0.4
+BUILD_RANGE = (3, 8)
+TOWER_SIGHT = 6  # a watchtower shows enemies this many hexes round it, for the rest of the run
+TOWER_GAP = 6    # at least this far from another watchtower
 # what else a job pays, with weights; "trade" (a free go at the town's smithy, chart or temple revive)
 # only from a town with one; the rest of the gold is cut a little when the extra is worth more
 JOB_REWARDS = {"loot": 4, "item": 2, "revive": 1, "trade": 2, "restock": 1}
-JOB_GOLD_CUT = {"loot": 1.0, "item": 0.5, "revive": 0.5, "trade": 0.7, "restock": 0.7}
+JOB_GOLD_CUT = {"loot": 1.0, "item": 0.5, "revive": 0.5, "trade": 0.7, "restock": 0.7, "legend": 0.5}
 BOUNTY_NAMES = ["Red Mag's crew", "One-Eyed Pell's lot", "the Brine Sisters", "Captain Gristle's gang", "Old Scuttle's mob",
                 "the Gull-Eaters", "Salt Annie's band", "the Barnacle Brothers", "Mother Kelp's brood", "the Rusted Hooks"]
 BOUNTY_RANGE = (5, 10)  # hexes from the town where the wanted crew is first seen

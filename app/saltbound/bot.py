@@ -300,7 +300,7 @@ def plan_move(g, h):
         active = [q for q in s["quests"] if not q["done"] and not q.get("failed") and q["kind"] != "trail"]
         if jobs and not town.get("quest_taken") and len(active) < 2 and STYLE != "rush":
             # the best-paying job the party could manage (lairs and bounties once it's strong enough)
-            ok = [i for i, j in enumerate(jobs) if (j["kind"] in ("deliver", "salvage") or s["level"] >= 3)
+            ok = [i for i, j in enumerate(jobs) if (j["kind"] in ("deliver", "salvage", "beacon", "tower") or s["level"] >= 3)
                   and (STYLE == "all" or j.get("tile") is None or wants(g, hero["tile"], j["tile"]))]
             if ok:
                 return {"t": "quest", "n": max(ok, key=lambda i: job_value(jobs[i]))}
@@ -411,7 +411,7 @@ def party_goal(g):
     for q in sorted(jobs, key=lambda q: q["until"]):
         goal = g.job_goal(q)
         trip = Wd.dist(goal, at) + (Wd.dist(goal, q["src_tile"]) if q["kind"] == "salvage" and q.get("stage") == "fetch" else 0)
-        if goal is not None and trip <= (q["until"] - s["turn"] + 1) * 3 and (q["kind"] not in ("lair", "bounty") or s["level"] >= 3):
+        if goal is not None and trip <= (q["until"] - s["turn"] + 1) * 3 and (q["kind"] not in ("lair", "bounty", "defend") or s["level"] >= 3):
             return goal
     # a quest under way, once the party can take its fights: always if it's near, else unless it's time for a dungeon
     trails = sorted((q["tile"] for q in s["quests"] if q["kind"] == "trail" and not q["done"]), key=lambda t: Wd.dist(t, at))
@@ -447,7 +447,7 @@ def party_goal(g):
     return None
 
 
-JOB_EXTRA = {"loot": 25, "item": 40, "revive": 45, "trade": 30, "restock": 20}
+JOB_EXTRA = {"loot": 25, "item": 40, "revive": 45, "trade": 30, "restock": 20, "legend": 80}
 
 
 def job_value(j):

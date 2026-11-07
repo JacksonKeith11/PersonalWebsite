@@ -453,6 +453,8 @@ class Game(Combat, Biomes, Quests, Travel):
         out = set()
         for h in self.living():
             out |= Wd.within(self.hero(h)["tile"], self.enemy_sight(h))
+        for t in self.towers():
+            out |= Wd.within(t, A.TOWER_SIGHT)  # a watchtower keeps watch for the party
         return out
 
     # ------------------------------------------------------------------ enemies on the map
@@ -1367,6 +1369,10 @@ class Game(Combat, Biomes, Quests, Travel):
         g["lair"] = True
         town["occupied"] = g["id"]
         town.pop("jobs", None)
+        for q in s["quests"]:
+            if q.get("group") == g["id"] and not q["done"] and not q.get("failed"):
+                q["failed"] = True
+                self.say(f"The job for {q['src']} has failed: the town has fallen.")
         gar = s.setdefault("garrison", {}).setdefault(reg, [])
         if reg not in s["cleared"] and len(gar) < A.GARRISON_MAX:
             gar.append(self.rng.choice([k for e in A.DUNGEONS[reg]["escort"] for k in e]))
@@ -2355,8 +2361,9 @@ class Game(Combat, Biomes, Quests, Travel):
     def job_targets(self):
         return {q.get("tile") for q in self.s["quests"] if not q["done"] and not q.get("failed")}
 
-    def make_job(self, t, kind):
-        """One job offer from town t, or None if there's nothing of that kind to do."""
+    def make_job(self, t, kind, link=1):
+        """One job offer from town t, or None if there's nothing of that kind to do. `link`: its place in
+        the town's chain (a follow-up pays more, the last a legendary)."""
         s = self.s
         places = s["world"]["places"]
         busy = self.job_targets()
@@ -2386,25 +2393,72 @@ class Game(Combat, Biomes, Quests, Travel):
             names = [n for n in A.BOUNTY_NAMES if n not in used] or A.BOUNTY_NAMES
             job.update(tile=self.rng.choice(cands), crew=self.rng.choice(names))
             trip = Wd.dist(t, job["tile"]) + 2  # they run
-        else:  # salvage
+        elif kind == "salvage":
             wrecks = [int(k) for k, q in places.items() if q["kind"] == "wreck" and int(k) not in busy and 3 <= Wd.dist(int(k), t) <= 12]
             if not wrecks:
                 return None
             w = self.rng.choice(wrecks)
             job.update(tile=w, guarded=bool(self.place(w).get("guard") and not self.place(w).get("done")))
             trip = 2 * Wd.dist(t, w)
-        job["turns"] = -(-trip // A.JOB_PACE) + A.JOB_SLACK[kind]
-        gold = A.JOB_GOLD + A.JOB_PER_HEX * trip + A.JOB_BONUS[kind]
+        elif kind == "defend":
+            if self.place(t).get("occupied") or any(g.get("raid", {}).get("to") == t for g in s["groups"]):
+                return None
+            way = self.defend_start(t)
+            if not way:
+                return None
+            job.update(tile=t, march=len(way[1]))
+            trip = len(way[1])
+        else:  # beacon, tower: build one at a site near the town
+            site = self.build_site(t, kind)
+            if site is None:
+                return None
+            job.update(tile=site)
+            trip = Wd.dist(t, site)
+        job["turns"] = -(-trip // A.JOB_PACE) + A.JOB_SLACK[kind] if kind != "defend" else trip + A.JOB_SLACK[kind]
+        gold = (A.JOB_GOLD + A.JOB_PER_HEX * trip + A.JOB_BONUS[kind]) * (1 + A.CHAIN_GOLD * (link - 1))
         spec = self.place(t).get("spec")
         weights = [(k, w) for k, w in A.JOB_REWARDS.items() if k != "trade" or spec in ("smith", "cartographer", "temple")]
-        kind_r = self.rng.weighted(weights)
+        kind_r = "legend" if link >= A.CHAIN_MAX else self.rng.weighted(weights)
         r = {"gold": round(gold * A.JOB_GOLD_CUT[kind_r]), "type": kind_r}
+        if link > 1:
+            job["link"] = link
         if kind_r == "item":
             r["item"] = self.rng.choice([k for k in self.gear() if self.item(k)["rarity"] == "rare"])
+        if kind_r == "legend":
+            legends = [k for k in self.gear() if self.item(k)["rarity"] == "legendary"]
+            r["opts"] = self.rng.sample(legends, min(2, len(legends)))
         if kind_r == "trade":
             r["spec"] = spec
         job["reward"] = r
         return job
+
+    def defend_start(self, t):
+        """Where a war band marching on town t would start, and its road: `DEFEND_ROAD` hexes' march."""
+        lo, hi = A.DEFEND_ROAD
+        heroes = {self.hero(h)["tile"] for h in self.living()}
+        cands = sorted(x for x in Wd.within(t, hi) if lo <= Wd.dist(x, t) and self.terrain(x) in Wd.COST
+                       and self.terrain(x) != "town" and not self.place(x) and not self.group_at(x) and x not in heroes)
+        for x in self.rng.shuffle(cands):
+            road = self.raid_road(x, t)
+            if road and lo <= len(road) <= hi:
+                return x, road
+        return None
+
+    def build_site(self, t, kind):
+        """An open hex near town t for a new beacon (on a hill or peak, away from the others) or watchtower."""
+        lo, hi = A.BUILD_RANGE
+        w = self.s["world"]
+        busy = self.job_targets()
+        same = [int(k) for k, p in w["places"].items() if p["kind"] == ("beacon" if kind == "beacon" else "tower")]
+        gap = A.BEACON_GAP if kind == "beacon" else A.TOWER_GAP
+        cands = [x for x in Wd.within(t, hi) if lo <= Wd.dist(x, t) and self.terrain(x) in Wd.COST and self.terrain(x) != "town"
+                 and not self.place(x) and not self.group_at(x) and x not in busy and x != w["peak"]
+                 and (kind != "beacon" or w["bio"][x] in ("hills", "peak"))
+                 and all(Wd.dist(x, c) >= gap for c in same)]
+        return self.rng.choice(sorted(cands)) if cands else None
+
+    def towers(self):
+        return [int(k) for k, p in self.s["world"]["places"].items() if p["kind"] == "tower"]
 
     def do_quest(self, h, msg):
         p = self.town(h)
@@ -2433,6 +2487,23 @@ class Game(Combat, Biomes, Quests, Travel):
             q["group"], q["tile"] = g["id"], spot
         if q["kind"] == "salvage":
             q["stage"] = "fetch"
+        if q["kind"] == "defend":
+            way = self.defend_start(t)
+            if not way:
+                p["quest_taken"] = False
+                raise Invalid("The war band has turned back: there's nothing to defend against.")
+            st, road = way
+            regs = sorted((int(k), p2["region"]) for k, p2 in s["world"]["places"].items() if p2["kind"] == "dungeon")
+            open_regs = [r for _, r in regs if r not in s["cleared"]] or [r for _, r in regs]
+            reg = min(open_regs, key=lambda r: min(Wd.dist(st, k) for k, r2 in regs if r2 == r))
+            foes = self.group_foes(self.near_region(st))
+            i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
+            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            g = self.add_group(st, foes)
+            g["raid"] = {"reg": reg, "to": t, "job": q["id"]}
+            q["group"], q["until"] = g["id"], s["turn"] + len(road) + A.JOB_SLACK["defend"]
+            self.reveal(st, 1)
+            self.fx("raid", g=g["id"], tile=st, to=t, reg=reg, eta=len(road))
         s["quests"].append(q)
         self.say(f"{self.hero(h)['name']} takes a job in {p['name']}: {self.job_line(q)} ({q['turns']} turns).")
 
@@ -2445,6 +2516,10 @@ class Game(Combat, Biomes, Quests, Travel):
             return "clear a lair"
         if q["kind"] == "bounty":
             return f"the bounty on {q['crew']}"
+        if q["kind"] == "defend":
+            return f"defend {q['src']}"
+        if q["kind"] in ("beacon", "tower"):
+            return "raise a beacon" if q["kind"] == "beacon" else "build a watchtower"
         return "salvage from a wreck"
 
     def tick_jobs(self):
@@ -2474,6 +2549,21 @@ class Game(Combat, Biomes, Quests, Travel):
                 self.say(f"{self.hero(h)['name']} hauls the cargo out of the wreck. Now back to {q['src']}.")
             elif q["kind"] == "salvage" and q.get("stage") == "return" and q["carrier"] == h and q["src_tile"] == t:
                 self.complete_quest(q, h)
+            elif q["kind"] in ("beacon", "tower") and q["tile"] == t and not self.group_at(t) and not self.place(t):
+                self.build(q, h)
+
+    def build(self, q, h):
+        """A build job done: a new lit beacon or a watchtower stands on the site."""
+        t = q["tile"]
+        if q["kind"] == "beacon":
+            self.s["world"]["places"][str(t)] = {"kind": "beacon", "lit": True, "built": q["src"]}
+            self.say(f"{self.hero(h)['name']} raises a beacon tower and lights it: it's on the party's beacon road.")
+        else:
+            self.s["world"]["places"][str(t)] = {"kind": "tower", "built": q["src"]}
+            self.say(f"{self.hero(h)['name']} finishes the watchtower: it keeps watch {A.TOWER_SIGHT} hexes round.")
+        self.reveal(t, A.TOWER_SIGHT if q["kind"] == "tower" else A.BEACON_SIGHT)
+        self.fx("built", h=h, tile=t, what=q["kind"])
+        self.complete_quest(q, h)
 
     def job_step(self, h, t):
         """What standing on t would do for a job: "job" (finish one), "cargo" (pick salvage up) or None."""
@@ -2487,12 +2577,14 @@ class Game(Combat, Biomes, Quests, Travel):
                 return "job"
             if q["kind"] == "salvage" and q.get("stage") == "fetch" and q["tile"] == t and not self.group_at(t):
                 return "cargo"
+            if q["kind"] in ("beacon", "tower") and q["tile"] == t and not self.group_at(t) and not self.place(t):
+                return "build"
         return None
 
     def job_goal(self, q, h=None):
         """Where a job wants a hero to go next."""
-        if q["kind"] == "bounty":
-            g = next((g for g in self.s["groups"] if g.get("bounty") == q["id"]), None)
+        if q["kind"] in ("bounty", "defend"):
+            g = next((g for g in self.s["groups"] if g["id"] == q.get("group")), None)
             return g["tile"] if g else None
         if q["kind"] == "salvage" and q.get("stage") == "return":
             return q["src_tile"]
@@ -2519,8 +2611,33 @@ class Game(Combat, Biomes, Quests, Travel):
         elif typ == "restock":
             self.restock(q["src_tile"])
             extra = f", and {q['src']} restocks its shop with better wares"
+        elif typ == "legend":
+            self.push(h, {"type": "loot", "opts": list(r["opts"])})
+            extra = ", and a legendary to choose"
         self.say(f"Job done for {q['src']}: +{r['gold']} gold each{extra}.")
         self.fx("job", h=h, src=q["src"], gold=r["gold"], extra=extra)
+        self.chain_job(q)
+
+    def chain_job(self, q):
+        """A job done: the town that posted it trusts you with a better one (up to `CHAIN_MAX` links)."""
+        if q.get("src_tile") is None:
+            return  # a region's quest, not a town's job
+        src = self.place(q["src_tile"])
+        link = q.get("link", 1) + 1
+        if not src or src["kind"] != "town" or src.get("occupied") or link > A.CHAIN_MAX:
+            return
+        jobs = []
+        for kind in self.rng.shuffle(list(A.JOB_KINDS)):
+            j = self.make_job(q["src_tile"], kind, link)
+            if j:
+                jobs.append(j)
+            if len(jobs) >= A.JOBS_PER_BOARD:
+                break
+        if jobs:
+            src["jobs"], src["quest_taken"] = jobs, False
+            self.say(f"{q['src']} has more work for you: a follow-up is pinned up (job {link} of {A.CHAIN_MAX}"
+                     + (", for a legendary)." if link >= A.CHAIN_MAX else ", paying more)."))
+            self.fx("chain", src=q["src"], tile=q["src_tile"], link=link)
 
     def wear(self, h, key, into=None):
         """Put new gear straight on; what it replaces goes in the bag."""
@@ -2707,7 +2824,7 @@ def static():
     return {
         "classes": C.CLASSES, "actions": acts, "passives": C.PASSIVES, "items": I.ITEMS, "foes": A.FOES,
         "events": {e["key"]: e for e in A.EVENTS}, "buffs": A.BUFFS, "regions": A.REGION_NAMES,
-        "town_specs": A.TOWN_SPECS, "job_kinds": A.JOB_KINDS, "opps": A.OPPS, "temple_revive": A.TEMPLE_REVIVE, "chart_cost": A.CHART_COST, "garrison_every": A.GARRISON_EVERY,
+        "town_specs": A.TOWN_SPECS, "job_kinds": A.JOB_KINDS, "chain_max": A.CHAIN_MAX, "tower_sight": A.TOWER_SIGHT, "opps": A.OPPS, "temple_revive": A.TEMPLE_REVIVE, "chart_cost": A.CHART_COST, "garrison_every": A.GARRISON_EVERY,
         "dungeons": {k: v["name"] for k, v in A.DUNGEONS.items()}, "paths": A.PATHS, "elites": A.ELITES, "combos": C.COMBOS, "xp_for": C.XP_FOR,
         "prices": {k: I.price(k) for k in I.ITEMS},
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},

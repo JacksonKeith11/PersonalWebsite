@@ -62,5 +62,6 @@ Crits: Fire puts a round back; Pistol Whip makes it Weak; Warning Shot makes it 
 
 200 Normal runs with a Gunslinger in every party (path bots, seed 5000, 2026-11-07): 64.0% at 26 HP and
 Quick Draw 4; **68.0% at 29 HP (+4 a level) and Quick Draw 6**. The all-class Normal batch had classes at
-65-87%, so it sits in the lower middle. Pick numbers and the next steps are in `docs/saltbound.md`; a
-`--with=gunslinger` Hard batch hasn't been run yet.
+65-87%, so it sits in the lower middle. Pick numbers and the next steps are in `docs/saltbound.md`; after the seven
+more picks, 400 Hard runs with a Gunslinger in every party: **53.8%** (the all-class Hard batch: 59.7%,
+classes 53-69%).

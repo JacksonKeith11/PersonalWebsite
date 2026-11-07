@@ -1101,7 +1101,11 @@ deaths of the damage classes (0.41 a run); **68.0% at 29 HP (+4 a level) and Qui
 sits in the lower middle. Picks with 200+ takers: Lucky Chamber +8, High Noon +9, Count Your Shots +8,
 Disarming Shot +8; Fan the Hammer -10 (+18 in the first batch), Fresh Cartridge -7, Cover Fire -6, all
 within the noise of one batch. That batch also found an old crash: Freeze then a theft in one round
-(`dice_attacks`) tried to steal a die Freeze had already taken.
+(`dice_attacks`) tried to steal a die Freeze had already taken. **Hard, after seven more picks**
+(2026-11-07, 400 runs with a Gunslinger in every party, path bots, seed 5000): **53.8%**, deaths 0.52 a
+run, damage 36.1 a round; the last all-class Hard batch was 59.7% with classes at 53-69%, so it's at the
+low edge, near the 50% target. Picks with 300+ takers within ±10 of passed; Lucky Chamber +12, High Noon
++12, Long Barrel +13, Aces and Eights +9, Piercing Round +8; Showdown -3, Take Cover -2.
 
 **The Psion** (owner's request, Nov 2026; design and results in `docs/saltbound-psion.md`). All its
 dice are Seer dice (`round_dice`), and it has **Focus** each round (`x["focus"]`: `C.FOCUS_BASE` 2, +1

@@ -1002,18 +1002,18 @@ CLASSES["gunslinger"] = {
 # amount is the Resolve. Rules in Actions (`_op_draw`, `_op_sheathe`, `_op_resolve`, `add_resolve`) and
 # Combat (`iai_counter`, `draw_blade`).
 RESOLVE_CAP = 15
-RESOLVE_ROUND = 3
+RESOLVE_ROUND = 4  # was 3 (the first batch: Samurai parties 56.5% on Normal, the least damage of the damage classes)
 MEDITATION = 8  # the map ability: Resolve at the start of the first fight after a rest
 DRAWS = ("the_draw", "flash_draw")
 ACTIONS.update({
     "the_draw": {"name": "The Draw", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "sheathed", "tags": [],
-                 "ops": [{"op": "dmg", "amt": "v+resolve"}, {"op": "draw"}],
-                 "text": "Sheathed: one cut from the scabbard: deal the die + all your Resolve. You're Drawn, and your Resolve is spent."},
+                 "ops": [{"op": "dmg", "amt": "v+2+resolve"}, {"op": "draw"}],
+                 "text": "Sheathed: one cut from the scabbard: deal the die +2 + all your Resolve. You're Drawn, and your Resolve is spent."},
     "cut": {"name": "Cut", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "drawn", "tags": [],
-            "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Drawn: deal the die +2."},
+            "ops": [{"op": "dmg", "amt": "v+3"}], "text": "Drawn: deal the die +3."},
     "scabbard_strike": {"name": "Scabbard Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "sheathed", "tags": [],
-                        "ops": [{"op": "dmg", "amt": "v"}],
-                        "text": "Sheathed: strike with the scabbard: deal the die. The blade stays Sheathed."},
+                        "ops": [{"op": "dmg", "amt": "v+1"}],
+                        "text": "Sheathed: strike with the scabbard: deal the die +1. The blade stays Sheathed."},
     "kamae": {"name": "Kamae", "req": {"n": 1}, "tgt": "self", "stance": "sheathed", "tags": [],
               "ops": [{"op": "armor", "amt": "v//2"}, {"op": "resolve", "amt": "v"}],
               "text": "Sheathed: take your stance: gain half the die as Armor and add the die to your Resolve."},
@@ -1038,7 +1038,7 @@ ACTIONS.update({
 })
 PASSIVES.update({
     "patient_blade": {"name": "Patient Blade", "mods": {"patient_blade": 2}, "tags": ["iai"],
-                      "text": "While Sheathed, you gain 5 Resolve at the start of each round, not 3."},
+                      "text": "While Sheathed, you gain 6 Resolve at the start of each round, not 4."},
     "zanshin": {"name": "Zanshin", "mods": {"zanshin": 4}, "tags": ["iai"],
                 "text": "After the Draw, your next hit this round deals +4."},
     "mirror_edge": {"name": "Mirror Edge", "mods": {"mirror_edge": 1}, "tags": ["iai"],
@@ -1717,8 +1717,8 @@ SHORT.update({
     "piercing_round": ("target", "die +4 · through Armor", None),
 })
 SHORT.update({
-    "the_draw": ("sword", "die + all Resolve · Drawn", None), "cut": ("sword", "die +2", None),
-    "scabbard_strike": ("sword", "die · stay Sheathed", None), "kamae": ("shield", "½ die Armor · die to Resolve", None),
+    "the_draw": ("sword", "die +2 + all Resolve · Drawn", None), "cut": ("sword", "die +3", None),
+    "scabbard_strike": ("sword", "die +1 · stay Sheathed", None), "kamae": ("shield", "½ die Armor · die to Resolve", None),
     "sheathe": ("shield", "½ die Armor · die to Resolve · Sheathed", None), "flash_draw": ("sword", "front row: die + ½ Resolve · Drawn", None),
     "waiting_stance": ("shield", "die +2 Armor · counter for all Resolve", None), "single_combat": ("target", "its attack → you · die to Resolve", None),
     "return_stroke": ("sword", "die · Sheathed", None), "kiai": ("down", "all Weak · +3 Resolve", None),

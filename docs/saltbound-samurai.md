@@ -9,12 +9,12 @@ with a gold crest, a red face mask, red lacquered plate). The live numbers are i
 
 - The blade is **Sheathed** or **Drawn** (`x["sheathed"]`); every fight starts Sheathed. An action's `stance`
   says which it needs (`Combat.do_place`; the bots skip the others in `candidates`).
-- **Resolve** (`x["resolve"]`, to 15): +3 at the start of each round while Sheathed (Patient Blade: +5), plus
+- **Resolve** (`x["resolve"]`, to 15): +4 at the start of each round while Sheathed (Patient Blade: +6; was 3 and 5), plus
   the die from Kamae and Sheathe, and what picks add (`Actions.add_resolve`).
-- **Sheathed**: the Draw (front row: the die + all the Resolve, then Drawn, Resolve spent), Scabbard Strike
-  (the die; stays Sheathed), Kamae (half the die as Armor, the die to Resolve). The **iai counter**
+- **Sheathed**: the Draw (front row: the die +2 + all the Resolve, then Drawn, Resolve spent), Scabbard Strike
+  (the die +1; stays Sheathed), Kamae (half the die as Armor, the die to Resolve). The **iai counter**
   (`Combat.iai_counter`): the first enemy to hit the Samurai each round is cut for half the Resolve.
-- **Drawn**: Cut (the die +2) and Sheathe (half the die as Armor, the die to Resolve, then Sheathed).
+- **Drawn**: Cut (the die +3) and Sheathe (half the die as Armor, the die to Resolve, then Sheathed).
 - **Any other attack while Sheathed** (a gear skill such as Kesa Cut) works, but it draws the blade and
   throws the Resolve away (`Combat.draw_blade`, in `resolve_action`).
 - **Meditation** (the map ability): after a rest, the next fight starts with 8 Resolve.
@@ -31,7 +31,7 @@ Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
 | | Iai (the draw) | Bushido (the code) |
 |---|---|---|
 | Actions | Flash Draw (cd 2, Sheathed: every front-row enemy takes the die + half the Resolve; Drawn); Waiting Stance (cd 2, Sheathed: the die +2 Armor, this round's counter cuts for all the Resolve) | Duel (cd 2, any row: its attack turns on you, the die to Resolve); Return Stroke (cd 2, Drawn: the die, then Sheathed); Kiai (cd 3: every enemy Weak, +3 Resolve) |
-| Passives | Patient Blade (+5 a round, not 3); Zanshin (after the Draw, the next hit this round +4); Mirror Edge (the counter cuts for all the Resolve); Iai Master (the Draw +5 as the party's first move of the round); Hilt and Sheath (Scabbard Strike +2 Resolve); Deep Kamae (Kamae: the whole die as Armor, +1 Resolve); Chiburi (a Cut that kills sheathes the blade); **One Cut** (capstone: the Draw ignores Armor; a kill keeps half the Resolve and the blade Sheathed) | Honor Guard (each enemy hit on an ally +2 Resolve); Unbowed (below half HP the Draw deals half again); Loyalty (an ally knocked down: Sheathe, +8 Resolve); Tempered Spirit (Resolve to 18, and the Draw gives 3 Armor); **Final Breath** (capstone: once a fight, knocked down, cut the attacker for the Resolve +5) |
+| Passives | Patient Blade (+6 a round, not 4); Zanshin (after the Draw, the next hit this round +4); Mirror Edge (the counter cuts for all the Resolve); Iai Master (the Draw +5 as the party's first move of the round); Hilt and Sheath (Scabbard Strike +2 Resolve); Deep Kamae (Kamae: the whole die as Armor, +1 Resolve); Chiburi (a Cut that kills sheathes the blade); **One Cut** (capstone: the Draw ignores Armor; a kill keeps half the Resolve and the blade Sheathed) | Honor Guard (each enemy hit on an ally +2 Resolve); Unbowed (below half HP the Draw deals half again); Loyalty (an ally knocked down: Sheathe, +8 Resolve); Tempered Spirit (Resolve to 18, and the Draw gives 3 Armor); **Final Breath** (capstone: once a fight, knocked down, cut the attacker for the Resolve +5) |
 
 ## Notes from building it
 

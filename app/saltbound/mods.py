@@ -8,6 +8,20 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Samurai's blade and Resolve (classes.py RESOLVE_*; Actions._op_draw, add_resolve; Combat.iai_counter)
+    "patient_blade": "+n more Resolve a round while Sheathed",
+    "zanshin": "after the Draw, the next hit this round deals +n",
+    "mirror_edge": "the iai counter cuts for all the Resolve",
+    "iai_master": "the Draw deals +n as the party's first move of the round",
+    "hilt_sheath": "Scabbard Strike adds n Resolve",
+    "deep_kamae": "Kamae adds 1 more Resolve",
+    "chiburi": "a Cut that kills sheathes the blade",
+    "one_cut": "the Draw ignores Armor; a kill keeps half the Resolve and the blade Sheathed",
+    "honor_guard": "each enemy hit on an ally adds n Resolve",
+    "unbowed": "below half HP, the Draw deals half again",
+    "loyalty": "an ally knocked down: Sheathe and gain n Resolve",
+    "tempered": "Resolve grows to n more, and the Draw gives n Armor",
+    "final_breath": "once a fight, knocked down: cut the attacker for the Resolve +n",
     # the Gunslinger's cylinder (classes.py CYLINDER; Actions.cylinder, silver, _op_reload; Combat.fire_rounds)
     "cylinder": "the cylinder holds n more rounds",
     "count_shots": "each shot deals +1 per round already fired from this cylinder (to +4)",

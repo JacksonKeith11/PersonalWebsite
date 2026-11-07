@@ -993,6 +993,91 @@ CLASSES["gunslinger"] = {
     "blurb": "Six shots, then a choice. Count them so the last, the silver one, lands where it matters.",
 }
 
+# ---- Samurai (owner's request, Nov 2026; docs/saltbound-samurai.md): its blade is Sheathed or Drawn
+# (`x["sheathed"]`; every fight starts Sheathed). Resolve (`x["resolve"]`, up to RESOLVE_CAP) grows only
+# while Sheathed: RESOLVE_ROUND at the start of each round, and what Kamae adds. The Draw spends it all on
+# one cut and draws the blade; Sheathe puts it away. An action's `stance` says which state it needs. While
+# Sheathed, the first enemy to hit the Samurai each round is cut for half its Resolve (the iai counter),
+# and any attack other than a Sheathed one draws the blade and throws the Resolve away. `resolve` in an
+# amount is the Resolve. Rules in Actions (`_op_draw`, `_op_sheathe`, `_op_resolve`, `add_resolve`) and
+# Combat (`iai_counter`, `draw_blade`).
+RESOLVE_CAP = 15
+RESOLVE_ROUND = 3
+MEDITATION = 8  # the map ability: Resolve at the start of the first fight after a rest
+DRAWS = ("the_draw", "flash_draw")
+ACTIONS.update({
+    "the_draw": {"name": "The Draw", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "sheathed", "tags": [],
+                 "ops": [{"op": "dmg", "amt": "v+resolve"}, {"op": "draw"}],
+                 "text": "Sheathed: one cut from the scabbard: deal the die + all your Resolve. You're Drawn, and your Resolve is spent."},
+    "cut": {"name": "Cut", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "drawn", "tags": [],
+            "ops": [{"op": "dmg", "amt": "v+2"}], "text": "Drawn: deal the die +2."},
+    "scabbard_strike": {"name": "Scabbard Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "sheathed", "tags": [],
+                        "ops": [{"op": "dmg", "amt": "v"}],
+                        "text": "Sheathed: strike with the scabbard: deal the die. The blade stays Sheathed."},
+    "kamae": {"name": "Kamae", "req": {"n": 1}, "tgt": "self", "stance": "sheathed", "tags": [],
+              "ops": [{"op": "armor", "amt": "v//2"}, {"op": "resolve", "amt": "v"}],
+              "text": "Sheathed: take your stance: gain half the die as Armor and add the die to your Resolve."},
+    "sheathe": {"name": "Sheathe", "req": {"n": 1}, "tgt": "self", "stance": "drawn", "tags": [],
+                "ops": [{"op": "armor", "amt": "v//2"}, {"op": "sheathe"}, {"op": "resolve", "amt": "v"}],
+                "text": "Drawn: put the blade away: gain half the die as Armor and add the die to your Resolve. You're Sheathed."},
+    "flash_draw": {"cd": 2, "name": "Flash Draw", "req": {"n": 1}, "tgt": "front", "melee": True, "stance": "sheathed", "tags": ["iai"],
+                   "ops": [{"op": "dmg", "amt": "v+resolve//2"}, {"op": "draw"}],
+                   "text": "Sheathed: a wide draw: every front-row enemy takes the die + half your Resolve. You're Drawn, and your Resolve is spent."},
+    "waiting_stance": {"cd": 2, "name": "Waiting Stance", "req": {"n": 1}, "tgt": "self", "stance": "sheathed", "tags": ["iai"],
+                       "ops": [{"op": "armor", "amt": "v+2"}, {"op": "status", "s": "machi", "n": 1, "to": "self"}],
+                       "text": "Sheathed: gain the die +2 as Armor; this round your iai counter cuts for all your Resolve, not half."},
+    "single_combat": {"cd": 2, "name": "Duel", "req": {"n": 1}, "tgt": "foe", "tags": ["bushido"],
+             "ops": [{"op": "gaze"}, {"op": "resolve", "amt": "v"}],
+             "text": "Any row: challenge an enemy: its attack this round turns on you, and the die adds to your Resolve."},
+    "return_stroke": {"cd": 2, "name": "Return Stroke", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "drawn", "tags": ["bushido"],
+                      "ops": [{"op": "dmg", "amt": "v"}, {"op": "sheathe"}],
+                      "text": "Drawn: deal the die, and the blade goes back in its scabbard as it finishes: you're Sheathed."},
+    "kiai": {"cd": 3, "name": "Kiai", "req": {"n": 1}, "tgt": "foes", "tags": ["bushido"],
+             "ops": [{"op": "status", "s": "weak", "n": 1}, {"op": "resolve", "amt": "3", "to": "self"}],
+             "text": "A shout before the cut: every enemy is Weak this round, and you gain 3 Resolve."},
+})
+PASSIVES.update({
+    "patient_blade": {"name": "Patient Blade", "mods": {"patient_blade": 2}, "tags": ["iai"],
+                      "text": "While Sheathed, you gain 5 Resolve at the start of each round, not 3."},
+    "zanshin": {"name": "Zanshin", "mods": {"zanshin": 4}, "tags": ["iai"],
+                "text": "After the Draw, your next hit this round deals +4."},
+    "mirror_edge": {"name": "Mirror Edge", "mods": {"mirror_edge": 1}, "tags": ["iai"],
+                    "text": "Your iai counter cuts for all your Resolve, not half."},
+    "iai_master": {"name": "Iai Master", "mods": {"iai_master": 5}, "tags": ["iai"],
+                   "text": "The Draw deals +5 when it's the first thing anyone in the party does this round."},
+    "hilt_and_sheath": {"name": "Hilt and Sheath", "mods": {"hilt_sheath": 2}, "tags": ["iai"],
+                        "text": "Scabbard Strike also adds 2 to your Resolve."},
+    "deep_kamae": {"name": "Deep Kamae", "tags": ["iai"],
+                   "mods": {"deep_kamae": 1, "override": {"kamae": {"ops": [{"op": "armor", "amt": "v"}, {"op": "resolve", "amt": "v"}]}}},
+                   "text": "Kamae gives the whole die as Armor, not half, and adds 1 more Resolve."},
+    "chiburi": {"name": "Chiburi", "mods": {"chiburi": 1}, "tags": ["iai"],
+                "text": "When a Cut kills, you flick the blade clean and Sheathe it at once."},
+    "one_cut": {"name": "One Cut", "cap": True, "mods": {"one_cut": 1}, "tags": ["iai"],
+                "text": "The Draw ignores Armor. If it kills, you keep half your Resolve and stay Sheathed."},
+    "honor_guard": {"name": "Honor Guard", "mods": {"honor_guard": 2}, "tags": ["bushido"],
+                    "text": "Each enemy hit on an ally adds 2 to your Resolve."},
+    "unbowed": {"name": "Unbowed", "mods": {"unbowed": 1}, "tags": ["bushido"],
+                "text": "Below half HP, the Draw deals half again."},
+    "loyalty": {"name": "Loyalty", "mods": {"loyalty": 8}, "tags": ["bushido"],
+                "text": "When an ally is knocked down, you Sheathe and gain 8 Resolve."},
+    "tempered_spirit": {"name": "Tempered Spirit", "mods": {"tempered": 3}, "tags": ["bushido"],
+                     "text": "Your Resolve can grow to 18, and the Draw also gives you 3 Armor."},
+    "final_breath": {"name": "Final Breath", "cap": True, "mods": {"final_breath": 5}, "tags": ["bushido"],
+                     "text": "Once a fight, when you're knocked down, you cut the enemy that did it for all your Resolve +5."},
+})
+CLASS_DICE["samurai"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
+CLASSES["samurai"] = {
+    "name": "Samurai", "hp": 29, "hp_lvl": 4, "role": "One decisive cut",
+    "dice": [D(8), D(6)], "tags": ["iai", "bushido"],
+    "map": {"key": "meditation", "name": "Meditation",
+            "text": f"After you rest, your next fight starts with {MEDITATION} Resolve."},
+    "start": ["the_draw", "cut", "scabbard_strike", "kamae", "sheathe"], "weapon": "katana", "armor": "padded_coat",
+    "pool": ["flash_draw", "waiting_stance", "patient_blade", "zanshin", "mirror_edge", "iai_master", "hilt_and_sheath",
+             "deep_kamae", "chiburi", "one_cut", "single_combat", "return_stroke", "kiai", "honor_guard", "unbowed", "loyalty",
+             "tempered_spirit", "final_breath"],
+    "blurb": "Waits with the blade in its scabbard, then ends it in one cut.",
+}
+
 # ---- Signature mechanics for four original classes (owner's request, Nov 2026; docs/saltbound-skills.md):
 # - Duelist, Combo: each hit on the enemy it hit last this round deals +COMBO_STEP per hit before it
 #   (`x["combo"]`); hitting another enemy starts over. `combo` in an amount is that count.
@@ -1403,7 +1488,8 @@ def is_defensive(a):
 # count on every round), Block, Flee and Lift can be used every round. Weapon actions all cool too
 # (items.WEAPON_CD). Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "fire", "reload", "pistol_whip", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "rebuke",
+FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "fire", "reload", "pistol_whip",
+        "the_draw", "cut", "scabbard_strike", "kamae", "sheathe", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "rebuke",
         "toss", "thornlash", "block", "flee"}  # Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3, "mend": 3}
 
@@ -1629,6 +1715,14 @@ SHORT.update({
     "trick_shot": ("target", "die +2 · die to the other row", None), "disarming_shot": ("down", "die · Weak (5+: 2 rounds)", None),
     "suppressing_fire": ("down", "3 rounds · all: ½ die · attacks −2", None), "aces_and_eights": ("target", "die +3 · a 1 or 8: ×3", None),
     "piercing_round": ("target", "die +4 · through Armor", None),
+})
+SHORT.update({
+    "the_draw": ("sword", "die + all Resolve · Drawn", None), "cut": ("sword", "die +2", None),
+    "scabbard_strike": ("sword", "die · stay Sheathed", None), "kamae": ("shield", "½ die Armor · die to Resolve", None),
+    "sheathe": ("shield", "½ die Armor · die to Resolve · Sheathed", None), "flash_draw": ("sword", "front row: die + ½ Resolve · Drawn", None),
+    "waiting_stance": ("shield", "die +2 Armor · counter for all Resolve", None), "single_combat": ("target", "its attack → you · die to Resolve", None),
+    "return_stroke": ("sword", "die · Sheathed", None), "kiai": ("down", "all Weak · +3 Resolve", None),
+    "kesa_cut": ("sword", "die · its row ½ die", None),
 })
 SHORT.update({
     "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),

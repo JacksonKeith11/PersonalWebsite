@@ -1458,6 +1458,8 @@ class Game(Combat, Biomes, Quests, Travel):
         if key == "brewer":
             for _ in range(2 if self.mods(h).get("distiller") else 1):
                 hero["bag"].append("potion")
+        if key == "meditation":
+            hero["meditated"] = True  # Meditation: the next fight starts with Resolve
         if key == "dragons_rest":
             # Dragon's Rest: a Scale, two at a camp or in a town
             hero["scales"] = min(C.SCALE_CAP, hero.get("scales", 0) + (2 if p and p["kind"] in ("camp", "town") else 1))

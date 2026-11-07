@@ -44,7 +44,7 @@ class Actions:
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2),
-                "aim": x.get("aim", 0), "ammo": x.get("ammo", 0), "silver": int(self.silver(h)),
+                "aim": x.get("aim", 0), "ammo": x.get("ammo", 0), "silver": int(self.silver(h)), "resolve": x.get("resolve", 0),
                 "rico": self.mods(h).get("ricochet", 0), "hammer": int(bool(self.mods(h).get("hammer_back"))), "shocked": 0, "psn": 0, "frozen": 0, "low": 0, "grudge": 0,
                 "hurt": int(self.hero(h)["hp"] * 2 < self.maxhp(h)),
                 "targeted": int(any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()))}
@@ -128,6 +128,8 @@ class Actions:
                 n += min(4, max(0, self.cylinder(h) - x["ammo"]))  # Count Your Shots
         if a["key"] == "pistol_whip" and x.get("ammo", 1) == 0:
             n += m.get("dry_fire", 0)  # Dry Fire
+        if a["key"] in C.DRAWS and m.get("iai_master") and len(f["done"]) - (1 if x.get("acting") else 0) == 0:
+            n += m["iai_master"]  # Iai Master: the party's first move this round
         if m.get("hoard_gleam"):
             n += min(3, self.hero(h)["gold"] // m["hoard_gleam"])  # Hoard's Gleam
         if x.get("ascend"):
@@ -281,6 +283,8 @@ class Actions:
         n = amt(op["amt"], env) + (2 if a["plus"] else 0)
         if a.get("shot") == 1 and env.get("silver") and not op.get("to"):
             n *= 2  # the Gunslinger's Silver Round: the last round in the cylinder
+        if a["key"] in C.DRAWS and env.get("hurt") and self.mods(h).get("unbowed"):
+            n = n * 3 // 2  # Unbowed
         return (n // 2 if half else n) + (self.dmg_bonus(h, a, t) if bonus is None else bonus), env
 
     def hit_finish(self, h, n, dice, vals, i=None, cresc=0, spell=False):
@@ -302,7 +306,8 @@ class Actions:
     def hit_pierces(self, h, a, op):
         m = self.mods(h)
         return bool((m.get("unstoppable") and a["key"] in UNSTOPPABLE) or op.get("pierce") or m.get("pierce_all")
-                    or (m.get("silver_bullets") and a.get("shot") == 1 and not op.get("to") and self.silver(h)))
+                    or (m.get("silver_bullets") and a.get("shot") == 1 and not op.get("to") and self.silver(h))
+                    or (m.get("one_cut") and a["key"] == "the_draw"))
 
     def foe_soak(self, fo, n, h, pure=False, pierce=False):
         """What an enemy's crust and Armor take off a hit (no changes made):
@@ -473,6 +478,48 @@ class Actions:
         x = self.hs(h)
         n = x.get("ammo", 0)
         return n > 0 and (n == 1 or bool(self.mods(h).get("lucky_chamber")) and n == self.cylinder(h) - 2)
+
+    def resolve_cap(self, h):
+        return C.RESOLVE_CAP + self.mods(h).get("tempered", 0)
+
+    def add_resolve(self, h, n):
+        """The Samurai's Resolve (up to RESOLVE_CAP; Tempered Spirit: more)."""
+        x = self.hs(h)
+        if "resolve" not in x or n <= 0:
+            return
+        was = x["resolve"]
+        x["resolve"] = min(self.resolve_cap(h), was + n)
+        if x["resolve"] > was:
+            self.fx("st", to=f"h{h}", s="resolve")
+
+    def _op_resolve(self, c, op, targets):
+        n = amt(op["amt"], self.env(c.h, c.a, c.dice))
+        if c.a["key"] == "kamae" and c.m.get("deep_kamae"):
+            n += 1  # Deep Kamae
+        self.add_resolve(c.h, n)
+
+    def _op_sheathe(self, c, op, targets):
+        if "sheathed" in c.x and not c.x["sheathed"]:
+            c.x["sheathed"] = True
+            self.fx("st", to=f"h{c.h}", s="sheathed")
+
+    def _op_draw(self, c, op, targets):
+        """The Draw (and Flash Draw): the blade is out and the Resolve spent; One Cut keeps half on a kill."""
+        x = c.x
+        if "sheathed" not in x:
+            return
+        kill = any(isinstance(t, dict) and t["hp"] <= 0 for t in c.base)
+        if c.m.get("one_cut") and c.a["key"] == "the_draw" and kill:
+            x["resolve"] //= 2
+            self.fx("st", to=f"h{c.h}", s="one_cut")
+        else:
+            x["sheathed"], x["resolve"] = False, 0
+            self.fx("st", to=f"h{c.h}", s="drawn")
+        if c.m.get("zanshin"):
+            x["cued"] = x.get("cued", 0) + c.m["zanshin"]  # Zanshin: the next hit this round
+        if c.m.get("tempered"):
+            x["st"]["armor"] = x["st"].get("armor", 0) + c.m["tempered"]  # Tempered Spirit
+            self.fx("armor", to=f"h{c.h}", n=c.m["tempered"])
 
     def _op_reload(self, c, op, targets):
         """Reload: refill the cylinder, or load `n` rounds."""

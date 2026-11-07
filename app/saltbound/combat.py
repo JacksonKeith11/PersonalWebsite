@@ -95,6 +95,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             f["hs"][str(h)]["grace"] = hero.get("grace", 0)
             if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
                 self.grow_scales(h, 1)  # Thick Hide
+            if C.map_key(hero) == "meditation":
+                # the Samurai: every fight starts Sheathed (Meditation: with Resolve after a rest)
+                f["hs"][str(h)].update(sheathed=True, resolve=C.MEDITATION if hero.pop("meditated", False) else 0,
+                                       rcap=self.resolve_cap(h))
             if C.map_key(hero) == "quick_draw":
                 f["hs"][str(h)].update(ammo=self.cylinder(h), cap=self.cylinder(h), lucky=bool(m.get("lucky_chamber")))  # the Gunslinger's cylinder, full
             if C.map_key(hero) == "tracker":
@@ -417,6 +421,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if psion and self.mods(h).get("hive_mind"):
                 base = max(0, base - (len(self.actives()) - 1))  # Hive Mind: each ally takes one of yours
             x["focus"], x["focus_free"] = base + self.mods(h).get("overclock", 0), base  # the Psion's Focus (Hive Mind's)
+            if "sheathed" in x:
+                x["countered"] = False  # the Samurai's iai counter: once a round
+                if x["sheathed"] and self.active(h):
+                    self.add_resolve(h, C.RESOLVE_ROUND + self.mods(h).get("patient_blade", 0))
         for h in f["heroes"]:
             self.deal_dice(h, anthem, pain)
         # the swallow can knock the last hero down; and with nobody else left to fight, the Maw spits its prey out
@@ -784,6 +792,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid("Not enough Focus.")
         if a.get("shot") and x.get("ammo", 0) <= 0:
             raise Invalid("Your cylinder's empty: Reload, or Pistol Whip.")
+        if a.get("stance") and "sheathed" in x and x["sheathed"] != (a["stance"] == "sheathed"):
+            raise Invalid("Your blade is drawn: Cut, or Sheathe it first." if a["stance"] == "sheathed"
+                          else "Your blade is sheathed: Draw it, or strike with the scabbard.")
         if x.get("berserk") and a["def"]:
             if not self.mods(h).get("cold_fury") or x.get("cold_used"):
                 raise Invalid("You're berserk: no defending now.")
@@ -990,6 +1001,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["st"]["armor"] = x["st"].get("armor", 0) + n
             self.fx("armor", to=f"h{h}", n=n)
         x["acting"] = a["key"]
+        if x.get("sheathed") and hit and not a.get("stance") and a["tgt"] in ("foe", "foes", "front") \
+                and any(o["op"] == "dmg" for o in ops):
+            self.draw_blade(h)  # the Samurai swings something else: the blade comes out and the Resolve is lost
         if a.get("shot") == 1 and self.silver(h):
             self.fx("st", to=f"h{h}", s="silver_round")
         if m.get("frozen_bonus") and isinstance(tgt, str) and tgt.startswith("f") and any(d.get("tag") == "freeze" for d in dice):
@@ -1044,11 +1058,34 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.run_ops(h, a, dice, tgt, half=True, ops=ops, hit=hit)
         if a.get("shot") and self.s["fight"] is f:
             self.fire_rounds(h, a, tgt, dice)
+        if "sheathed" in x and self.s["fight"] is f and hit:
+            if a["key"] == "scabbard_strike" and m.get("hilt_sheath"):
+                self.add_resolve(h, m["hilt_sheath"])  # Hilt and Sheath
+            fo_ = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
+            if a["key"] == "cut" and m.get("chiburi") and fo_ and fo_["hp"] <= 0 and not x["sheathed"]:
+                x["sheathed"] = True  # Chiburi
+                self.fx("st", to=f"h{h}", s="sheathed")
         f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
         done["vals"] = [num(d) for d in dice]
         done["out"] = self.act_outcome(since)
         if self.s["fight"] is f:
             self.check_end()
+
+    def draw_blade(self, h):
+        x = self.hs(h)
+        x["sheathed"], x["resolve"] = False, 0
+        self.fx("st", to=f"h{h}", s="drawn")
+
+    def iai_counter(self, h, fo):
+        """The Samurai's iai counter: while Sheathed, the first enemy to hit it each round is cut for half its
+        Resolve (Mirror Edge, Waiting Stance: all of it)."""
+        x = self.hs(h)
+        if not x.get("sheathed") or x.get("countered") or not x.get("resolve") or fo["hp"] <= 0:
+            return
+        x["countered"] = True
+        full = self.mods(h).get("mirror_edge") or x["st"].get("machi")
+        self.fx("st", to=f"f{fo['id']}", s="iai")
+        self.hurt_foe(fo, x["resolve"] if full else x["resolve"] // 2, h, pure=True)
 
     def quick_draw(self, h):
         """The Gunslinger's Quick Draw: when a fight starts, a free shot at the enemy with the biggest attack."""
@@ -1600,6 +1637,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for y in self.actives():
                 if self.mods(y).get("martyr"):
                     self.add_grace(y, n // 2)  # Martyr: the party's wounds fill the Mender's Grace
+                if y != h and fo is not None and self.mods(y).get("honor_guard"):
+                    self.add_resolve(y, self.mods(y)["honor_guard"])  # Honor Guard
             if not x.get("berserk") and C.map_key(hero) == "forage" and \
                     x["lost"] >= self.maxhp(h) * (0.25 if m.get("hair_trigger") else C.BERSERK_AT):
                 x["berserk"] = True  # the Berserker goes berserk: the rest of its dice explode
@@ -1626,6 +1665,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.hurt_foe(fo, x["st"]["riposte"] + (self.combo_on(h, fo) * C.COMBO_STEP if chain else 0), h, pure=True)
                 if chain:
                     self.combo_hit(h, fo["id"])  # Riposte Chain
+            self.iai_counter(h, fo)
             if x["st"].get("glyphward"):
                 self.carve(fo, x["st"]["glyphward"])  # Counter-Glyph: whoever hits you is carved
             if x["st"].get("emberward"):
@@ -1666,8 +1706,17 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 return 0
             else:
                 hero["hp"] = 0
+                if self.mods(h).get("final_breath") and not x.get("fbreath") and fo is not None and fo["hp"] > 0 \
+                        and "resolve" in x:
+                    x["fbreath"] = True  # Final Breath: one last cut
+                    self.fx("st", to=f"f{fo['id']}", s="iai")
+                    self.hurt_foe(fo, x["resolve"] + self.mods(h)["final_breath"], h, pure=True)
                 x["down"] = True
                 x["st"] = {}
+                for y in self.actives():
+                    if y != h and self.mods(y).get("loyalty") and "sheathed" in self.hs(y):
+                        self.hs(y)["sheathed"] = True  # Loyalty
+                        self.add_resolve(y, self.mods(y)["loyalty"])
                 if hero.get("scales"):
                     hero["scales"] //= 2  # knocked down: half the Scales go (rounded up)
                 self.fx("down", to=f"h{h}")

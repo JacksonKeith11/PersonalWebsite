@@ -333,6 +333,7 @@ export const STATUS = {
   asleep: { name: 'Asleep', icon: 'clock', text: 'Does nothing until something hits it. Then it wakes, angry.' },
   sigil: { name: 'Sigil', icon: 'rune', text: 'Runes carved by a Spellblade (up to 5). A Burst spends them for +3 damage each; they don’t wear off.', bad: true },
   glyphward: { name: 'Counter-Glyph', icon: 'rune', text: 'Every enemy that hits you this round has this many Sigils carved into it.' },
+  machi: { name: 'Waiting Stance', icon: 'shield', text: 'This round your iai counter cuts for all your Resolve, not half.' },
   cocked: { name: 'Hammer Cocked', icon: 'up', text: 'Your next shot this round deals more (+3; +5 with Hammer Back).' },
   wingguard: { name: 'Wing Guard', icon: 'shield', text: 'Hits on you this round grow 2 Scales, not 1.' },
   emberward: { name: 'Ember Ward', icon: 'flame', text: 'Enemies that hit you this round Burn for this much.' },

@@ -191,6 +191,9 @@ def main():
                     g.hs(0)["st"].pop("root", None)
                     if "ammo" in g.hs(0):
                         g.hs(0)["ammo"] = g.cylinder(0)  # every shot gets a full cylinder (Fan and High Noon empty it)
+                    if "sheathed" in g.hs(0):
+                        a0 = g.action_def(0, key)  # the Samurai's blade the way the action needs it, with some Resolve
+                        g.hs(0).update(sheathed=a0.get("stance", "sheathed") == "sheathed", resolve=8)
                     a = g.action_def(0, key)
                     tgt = target(g, 0, a)
                     if tgt is False:

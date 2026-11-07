@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=154';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=154';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=154';
-import { stageURL, stageKey } from './stage.js?v=154';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=154';
-import { render } from './main.js?v=154';
-import { skillCard, upDef, upText } from './hud.js?v=154';
-import { SKILL_FX, foeFx } from './skillfx.js?v=154';
-import * as sfx from './audio.js?v=154';
+import { S, send, mine, controllerName } from './store.js?v=155';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=155';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=155';
+import { stageURL, stageKey } from './stage.js?v=155';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=155';
+import { render } from './main.js?v=155';
+import { skillCard, upDef, upText } from './hud.js?v=155';
+import { SKILL_FX, foeFx } from './skillfx.js?v=155';
+import * as sfx from './audio.js?v=155';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -142,6 +142,7 @@ export function renderCombat(el) {
       hs?.hawk ? hawkChip(f, hs) : null,
       hero.cls === 'dragonborn' ? scalePips(hero.scales || 0) : null,
       hs && hs.ammo != null ? ammoPips(hs) : null,
+      hs && hs.sheathed != null ? resolveGauge(hs) : null,
       hero.cls === 'mender' && hs ? graceBar(hs.grace || 0, hs.radiant) : null,
       hs?.attune ? attuneChip(hs) : null,
       hs?.berserk ? h('div.covered-chip.berserk', { tip: 'Berserk\nYou lost a third of your HP this fight: every die explodes and your hits deal +2, but you can’t use defensive actions.' }, 'Berserk!') : null,
@@ -555,6 +556,12 @@ function ammoPips(hs) {
   return h('div.scale-pips.ammo' + (silver ? '.silver' : ''), { tip: `Rounds ${n} / ${cap}\nEach shot fires a round; you can't shoot with the cylinder empty (Reload, or Pistol Whip). The last round is the Silver Round: a single shot with it deals double.${hs.st?.cocked ? '\nHammer cocked: your next shot this round deals more.' : ''}` },
     ...Array.from({ length: cap }, (_, i) => h('i' + (i < n ? '.on' : '') + (i === n - 1 && silver ? '.ag' : ''))),
     h('span', null, n ? `${n} round${n === 1 ? '' : 's'}${silver ? ' · silver next' : ''}` : 'Empty: reload'));
+}
+// The Samurai's blade (Sheathed or Drawn) and its Resolve, which the Draw spends.
+function resolveGauge(hs) {
+  const n = hs.resolve || 0, cap = hs.rcap || 15;
+  return meter('resolve', n / cap, hs.sheathed && n >= cap, `${hs.sheathed ? 'Sheathed' : 'Drawn'} · Resolve ${n}`,
+    `${hs.sheathed ? 'Sheathed' : 'Drawn'} · Resolve ${n} / ${cap}\nWhile Sheathed, Resolve grows each round, the first enemy to hit you each round is cut for half of it, and your attacks are the Draw (the die + all your Resolve) and Scabbard Strike. Drawn, you Cut; Sheathe to start building again. Any other attack while Sheathed draws the blade and loses the Resolve.`);
 }
 // The Ranger's hawk: who it's with, and what that does.
 function hawkChip(f, hs) {
@@ -1786,7 +1793,7 @@ function apply(f) {
         return 360;
       }
       const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', foreseen: 'Foreseen!', echo: 'Echo!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', web: 'Rootweb!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison', carried: 'Carried on!', rallied: 'Rallied: +3', tethered: 'Tethered', refreshed: 'Ready again!', drowsy: 'Drowsy', asleep: 'Asleep', wakes: 'Wakes!', mirrored: 'Mirrored!', 'nothing to mirror': 'Nothing to mirror', counter: 'Pike set', chill: 'Rime', wound: 'Wounded', mummy: 'Mummified', snare: 'Snared', cued: 'Next hit up!', lucky: '+1 reroll', reloaded: 'Reloaded!', silver_round: 'Silver Round!', quick_draw: 'Quick Draw!', cocked: 'Hammer cocked' }[f.s] || f.s;
+        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', foreseen: 'Foreseen!', echo: 'Echo!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', web: 'Rootweb!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison', carried: 'Carried on!', rallied: 'Rallied: +3', tethered: 'Tethered', refreshed: 'Ready again!', drowsy: 'Drowsy', asleep: 'Asleep', wakes: 'Wakes!', mirrored: 'Mirrored!', 'nothing to mirror': 'Nothing to mirror', counter: 'Pike set', chill: 'Rime', wound: 'Wounded', mummy: 'Mummified', snare: 'Snared', cued: 'Next hit up!', lucky: '+1 reroll', reloaded: 'Reloaded!', resolve: 'Resolve', sheathed: 'Sheathed', drawn: 'Drawn!', iai: 'Iai!', one_cut: 'One cut!', silver_round: 'Silver Round!', quick_draw: 'Quick Draw!', cocked: 'Hammer cocked' }[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

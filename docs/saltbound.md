@@ -3,7 +3,7 @@
 Read this before changing anything in `app/saltbound/`, `app/static/games/saltbound/`, or the
 `tools/saltbound-*` scripts.
 
-**Status: built and public.** All fifteen classes play whole runs, and the game is listed on `/games`.
+**Status: built and public.** All sixteen classes play whole runs, and the game is listed on `/games`.
 The first half of this doc is the design the owner signed off on, with the answers they gave while it
 was built; "How it plays now" is the game as it is. When a change alters how the game works, update
 "How it plays now" (not a new section at the end) in the same commit.
@@ -171,7 +171,7 @@ Keep to these. They came from the owner directly.
 
 ### Heroes
 
-- **15 classes, each unique within a party.** Each has one map ability and one combat role, so
+- **16 classes, each unique within a party.** Each has one map ability and one combat role, so
   the choice matters outside fights too.
 - **Classes are generic, not tied to the archipelago**, so they carry over to future maps. A map
   ability only talks to systems every map has, through hooks the map engine calls:
@@ -897,6 +897,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
 | Dragonborn | 34 (+4) | **Dragon's Rest**: resting grows a Scale (2 at a camp or in a town) | Bruiser with breath | Wrath, Hide |
 | Emberknight | 28 (+4) | **Banked Coals**: fights start with Heat, twice the map turns since the last fight (up to 10) | Damage that runs hot | Blaze, Temper |
 | Gunslinger | 29 (+4) | **Quick Draw**: when a fight it's in starts, the enemy with the biggest attack takes 6 | Ranged damage on a six-shot clock | Quickdraw, Trickshot |
+| Samurai | 29 (+4) | **Meditation**: after a rest, the next fight starts with 8 Resolve | One decisive cut | Iai, Bushido |
 | Spellblade | 27 (+4) | **Runewright**: enemies start fights with a Sigil (2 after a rest, for two fights after a town) | Melee and spell damage | Edge, Sigil |
 
 **Signature mechanics for the original classes** (owner's request, Nov 2026; numbers in `classes.py`
@@ -1089,6 +1090,13 @@ a violet glow and crackling arcs for Storm, and a turning ring of all three when
 a few points under the 59.5% all-class batch the same day; no new pick past 15 points vs passed
 (Ignite -14, so it now deals three times the Burn, not twice).
 
+**The Samurai** (owner's request, Nov 2026; design in `docs/saltbound-samurai.md`). The blade is Sheathed
+or Drawn (`x["sheathed"]`, every fight starts Sheathed); an action's `stance` says which it needs. Resolve
+(`x["resolve"]`, to `C.RESOLVE_CAP`) grows while Sheathed (`new_round`) and from Kamae and Sheathe; the Draw
+spends it (`_op_draw`); while Sheathed the first enemy hit each round is countered for half of it
+(`Combat.iai_counter`, in `hurt_hero`), and any other attack draws the blade and loses it
+(`Combat.draw_blade`). The bots value Resolve at `bot.resolve_worth`. SAMURAI_RESULTS
+
 **The Gunslinger** (owner's request, Nov 2026; design in `docs/saltbound-gunslinger.md`). A cylinder of
 `C.CYLINDER` rounds (`x["ammo"]`, full each fight; `x["cap"]` for the hero card's pips). Actions with
 `shot` spend rounds after they land (`Combat.fire_rounds`) and can't be played on an empty cylinder;
@@ -1172,7 +1180,7 @@ deals 20 minus the die, so low rolls are good; Undying Fury hits back for 8 when
 
 Hero sprites: the owner picked the Shieldbearer with the Spear-warden's spear (`vanguard1`), the
 Sorceress (`arcanist2`), the Cleric (`mender1`) and the Huntress for the Ranger; the others use option
-1 until picked (the owner picked the Spellblade's Runeknight, option 2; the Emberknight five, and the owner picked the Flame Paladin, option 3; the Dragonborn's Dragon Knight, option 3 of four; the Psion's Floating Seer, option 3 of four; the Gunslinger's Drifter, option 1 of four; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
+1 until picked (the owner picked the Spellblade's Runeknight, option 2; the Emberknight five, and the owner picked the Flame Paladin, option 3; the Dragonborn's Dragon Knight, option 3 of four; the Psion's Floating Seer, option 3 of four; the Gunslinger's Drifter, option 1 of four; the Samurai's Armoured Samurai, option 3 of four; `PICKS` and `STEP2_PICKS` in `tools/saltbound-art/build.py`).
 
 ### Passive mods
 
@@ -1339,6 +1347,7 @@ saves load). 41 skills across 60 weapons now, most on one or two:
 | Gnarled Staff (Warden) | `tend_grove` | Tend the Grove | ½ die; your summons heal the die |
 | Focus Crystal (Psion) | `foresight` | Foresight | reveal its attack, ½ die |
 | Six-Shooter (Gunslinger) | `warning_shot` | Warning Shot | ½ die, Weak this round |
+| Katana (Samurai) | `kesa_cut` | Kesa Cut | die; ½ die to its whole row |
 | Coral Blade | `riptide` | Riptide | die; the enemy swaps rows (`push`; Root holds it) |
 | Captain's Sabre | `rallying_cut` | Rallying Cut | die +1; a kill gives every ally's next hit +3 (`rally`) |
 | Ember Blade | `flashpoint` | Flashpoint | die + all its Burn at once (n(n+1)/2), then out |

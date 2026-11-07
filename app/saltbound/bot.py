@@ -822,7 +822,7 @@ def dice_combos(g, h, dice):
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            x.get("heat", 0), x.get("impact", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
            bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()), x.get("aim", 0),
-           x.get("ammo", 0), g.silver(h), m.get("ricochet", 0), bool(m.get("hammer_back")),
+           x.get("ammo", 0), g.silver(h), m.get("ricochet", 0), bool(m.get("hammer_back")), x.get("resolve", 0),
            any(f"h{h}" in g.intent_aims(fo.get("intent") or {}) for fo in g.foes()),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
@@ -1235,6 +1235,15 @@ def evaluate(g, b, h, a, dice, tgt):
                 val += infuse_value(g, h, dice, op["n"], n_, op.get("el") or element_of(vals[0] if vals else 0))
             elif k == "reload":
                 val += reload_value(g, h, op.get("n"))
+            elif k == "resolve":
+                x_ = g.hs(h)
+                if "resolve" in x_:
+                    n_ = amt(op["amt"], de) + (1 if a["key"] == "kamae" and m.get("deep_kamae") else 0)
+                    val += min(n_, max(0, g.resolve_cap(h) - x_["resolve"])) * resolve_worth(g, h)
+            elif k == "draw":
+                val -= draw_cost(g, h)
+            elif k == "sheathe":
+                val += sheathe_value(g, h, inc)
         if heat is not None:
             val += heat_value(g, h, a, dice, vals, de, hit, heat, inc)
         if hit and react_t is not None:
@@ -1248,6 +1257,9 @@ def evaluate(g, b, h, a, dice, tgt):
         total += pr * val
     if a.get("harmony"):
         total += harmony_value(g, h, a, inc, hits)
+    x_ = g.hs(h)
+    if x_.get("sheathed") and not a.get("stance") and a["tgt"] in ("foe", "foes", "front") and any(o["op"] == "dmg" for o in a["ops"]):
+        total -= draw_cost(g, h)  # a Samurai swinging anything else draws the blade and loses its Resolve
     if a.get("shot"):
         have = g.hs(h).get("ammo", 0)
         total -= (have if a["shot"] == "all" else min(have, a["shot"])) * ROUND_WORTH  # the rounds it spends
@@ -1256,6 +1268,32 @@ def evaluate(g, b, h, a, dice, tgt):
         if a["shot"] == 1 and m.get("silver_twin") and g.silver(h) and len(g.foes()) > 1:
             total += (sum(top_face(d["faces"]) for d in dice[:1]) / 2 + 1 + m["silver_twin"]) * 0.8  # Two Guns' second hit
     return total, eff
+
+
+def resolve_worth(g, h):
+    """What a point of the Samurai's Resolve is worth kept for the Draw: most of a point of damage, less
+    when the fight is nearly over (there may be no Draw left to spend it on)."""
+    left = sum(fo["hp"] for fo in g.foes())
+    return 0.8 * min(1.0, left / 40)
+
+
+def draw_cost(g, h):
+    """Drawing the blade spends the Resolve (the Draw's own damage counts it back in) and ends the iai
+    counter and the Resolve a round while Sheathed. At the cap, waiting gains nothing."""
+    x = g.hs(h)
+    r = x.get("resolve", 0)
+    if not x.get("sheathed"):
+        return 0.0
+    full = r >= g.resolve_cap(h) - 2
+    return r * resolve_worth(g, h) * (0.4 if full else 1.0) + (0 if full else 1.5)
+
+
+def sheathe_value(g, h, inc):
+    """Sheathing: Resolve each round from now on, and the iai counter on whoever hits the Samurai."""
+    x = g.hs(h)
+    if x.get("sheathed") or "sheathed" not in x:
+        return 0.0
+    return (C.RESOLVE_ROUND + g.mods(h).get("patient_blade", 0)) * resolve_worth(g, h) + (1.0 if inc.get(h) else 0)
 
 
 def reload_value(g, h, n):
@@ -1346,6 +1384,10 @@ def _web_value(g, t):
 def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
     if not g.active(y):
         return 0
+    if s == "machi":
+        # Waiting Stance: the counter cuts for all the Resolve, not half, if something hits the Samurai
+        x = g.hs(y)
+        return x.get("resolve", 0) / 2 * 0.8 if x.get("sheathed") and not x.get("countered") and hits.get(y) else 0
     if s == "cocked":
         # Reload's cocked hammer: the next shot this round, if a die is left for one
         left = sum(1 for d in g.hs(y)["dice"] if not d["used"]) - 1
@@ -1617,6 +1659,8 @@ def candidates(g, h, b, free):
             continue
         if a.get("shot") and x.get("ammo", 0) <= 0:
             continue  # an empty cylinder
+        if a.get("stance") and "sheathed" in x and x["sheathed"] != (a["stance"] == "sheathed"):
+            continue  # the Samurai's blade is the other way
         if x.get("berserk") and a["def"] and (not g.mods(h).get("cold_fury") or x.get("cold_used")):
             continue  # berserk: no defending
         n = a["req"].get("n", 1)

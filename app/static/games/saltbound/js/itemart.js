@@ -163,7 +163,7 @@ const ICON = {
   patchwork_coat: ['coat', 'leather', 'red'], tar_jerkin: ['vest', 'black', 'leather'], pocket_cloak: ['cloak', 'green', 'tan'],
   lighthouse_mantle: ['cloak', 'white', 'gold'],
   etched_sword: ['sword', 'steel', 'crystal', 'crystal'], ember_mace: ['hammer', 'iron', 'ember', 'magma'],
-  talon_gauntlets: ['daggers', 'bone', 'red'], focus_crystal: ['wand', 'crystal', 'pearl', 'crystal'], six_shooter: ['gun', 'iron'],
+  talon_gauntlets: ['daggers', 'bone', 'red'], focus_crystal: ['wand', 'crystal', 'pearl', 'crystal'], six_shooter: ['gun', 'iron'], katana: ['sword', 'steel'],
   frostbrand: ['sword', 'ice', 'frost'], ice_pick: ['pick', 'ice'], yeti_hide: ['pelt', 'fur', 'frost'], glacier_plate: ['plate', 'ice', 'frost'],
   rime_amulet: ['locket', 'ice', 'steel', 'frost'], aurora_crystal: ['globe', 'iron', 'ice', 'crystal'],
   // relics

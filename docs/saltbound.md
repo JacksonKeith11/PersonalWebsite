@@ -270,6 +270,19 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      (`LOOK`), and a move's name can override that (`BY_NAME`: pistols, songs, breaths, beams, tidal
      waves, cannon broadsides, rockslides, hooks); area moves wash over the whole party, and a status
      rider rings the target in its colour.
+     **Cooldown skills** (owner's request, Nov 2026) wind up before they land (`abilityFx`): the
+     class's mark (`CLASS_LOOK` in `skillfx.js`, a colour and a glyph per class) turns at the hero's
+     feet and light is drawn into them for `WINDUP_MS`; a once-a-fight capstone first slashes its name
+     across the screen (`fxCutin`, `CUTIN_MS`). The `act` event waits that much longer, so the damage
+     numbers still land with the effect. A hero's blow throws sparks off what it hits (`C.hitBy`, read
+     on each `dmg`): white and small for the rest, bigger and in the class's colour for a cooldown
+     skill, with a shockwave and the stage jolting in (`punch`) on a big hit. The kit also has
+     particles (`fxSparks`: sparks, light drawn in, petals), gunfire (`fxMuzzle` and `fxTracer`: a
+     flash at the sprite's front and a streak to the target, animated with the Web Animations API
+     because a CSS clip-path animation started a frame late and barely showed), clean sword cuts
+     (`fxSplit`) and rings. **Ranged attacks kick back instead of lunging**: the dice roll gives a
+     small lift (`ready`; it used to lunge too, so a shot stepped forward twice), and a shot plays
+     `shoot` (a recoil), `fan` (several) or, for the Samurai's draws, `iai` (a dash through).
      Clicking an ally's hero card on the map opens their sheet read-only (skills, gear, about).
      **Multiplayer clarity** (owner's request, after a two-browser test): another player's hero shows
      who plays it ("Vanguard · Alice") and the dice they hold this round under the portrait (spent

@@ -62,6 +62,11 @@ Crits: Fire puts a round back; Pistol Whip makes it Weak; Warning Shot makes it 
   when the next round is silver.
 - `tools/saltbound-check.py` refills the cylinder before each placement, since Fan the Hammer and High
   Noon empty it.
+- **Looks** (`skillfx.js`, `bang`): each round is a muzzle flash at the gun, a streak of light and a
+  slug to the target and sparks off it; the hero kicks back (`shoot`, `fan`) rather than stepping in.
+  Reload spins the cylinder, Fan the Hammer fires six in a row, Trick Shot glances on to a second
+  enemy, Piercing Round's streak carries on past the target, and High Noon opens with its banner,
+  turns the light gold, puts a sight on every enemy and fires at all of them at once.
 
 ## Results
 

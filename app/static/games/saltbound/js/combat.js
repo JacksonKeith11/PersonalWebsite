@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=162';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=162';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=162';
-import { stageURL, stageKey } from './stage.js?v=162';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=162';
-import { render } from './main.js?v=162';
-import { skillCard, upDef, upText } from './hud.js?v=162';
-import { SKILL_FX, foeFx } from './skillfx.js?v=162';
-import * as sfx from './audio.js?v=162';
+import { S, send, mine, controllerName } from './store.js?v=166';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=166';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=166';
+import { stageURL, stageKey } from './stage.js?v=166';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=166';
+import { render } from './main.js?v=166';
+import { skillCard, upDef, upText } from './hud.js?v=166';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=166';
+import * as sfx from './audio.js?v=166';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -1332,7 +1332,7 @@ function playNext() {
 
 function finish(ended) {
   const close = () => {
-    C.playing = false; C.display = null; C.hp = null; C.maxhp = null; C.anim = {}; C.floats = {}; C.tray = null; C.caption = null;
+    C.playing = false; C.display = null; C.hp = null; C.maxhp = null; C.anim = {}; C.floats = {}; C.hitBy = null; C.tray = null; C.caption = null;
     if (queue.length) { playNext(); return; }
     render();
     flushIdle();
@@ -1452,7 +1452,75 @@ function fxAt(id, cls, ms = 650, col = null, glyph = null) {
   fxLayer().appendChild(el);
   setTimeout(() => el.remove(), ms);
 }
-// o: { c: colour (--c), arc: px the shot lifts mid-flight (a lob; negative dips), spin: it tumbles }
+// The front of a hero's sprite (heroes face right), where a gun's muzzle or a blade's hilt is.
+function unitFront(id) {
+  const img = host?.querySelector(`[data-uid="${id}"] img`);
+  if (!img) return null;
+  const r = img.getBoundingClientRect();
+  return id.startsWith('f') ? [r.left + r.width * 0.15, r.top + r.height * 0.45] : [r.right - r.width * 0.15, r.top + r.height * 0.45];
+}
+function fxPoint(p, cls, ms, col) {
+  const el = document.createElement('div');
+  el.className = 'fx ' + cls;
+  if (col) el.style.setProperty('--c', col);
+  el.style.left = p[0] + 'px'; el.style.top = p[1] + 'px';
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), ms);
+  return el;
+}
+// A spray of particles from a unit, or drawn into it (o.inward). o: { n, r: reach in px, dir and cone
+// in degrees (a cone of spray, else all round), ms, cls: 'petal' and the like, fall: px they drop }
+function fxSparks(id, col, o = {}) {
+  const p = unitCenter(id);
+  if (!p) return;
+  const n = o.n || 10, ms = (o.ms || 520) / (S.settings.speed || 1);
+  for (let i = 0; i < n; i++) {
+    const deg = o.cone != null ? (o.dir || 0) + (Math.random() - 0.5) * o.cone : (360 * (i + Math.random())) / n;
+    const rad = deg * Math.PI / 180, r = (o.r || 70) * (0.55 + Math.random() * 0.7);
+    const out = [Math.cos(rad) * r, Math.sin(rad) * r + (o.fall || 0)];
+    const [a, b] = o.inward ? [out, [0, 0]] : [[0, 0], out];
+    const el = fxPoint(p, 'spark' + (o.cls ? ' ' + o.cls : ''), ms + 40, col);
+    const tf = (q, s) => `translate(calc(-50% + ${q[0]}px), calc(-50% + ${q[1]}px)) rotate(${deg}deg) scale(${s})`;
+    el.animate([{ transform: tf(a, 1), opacity: 1 }, { transform: tf(b, o.inward ? 0.6 : 0.3), opacity: o.inward ? 0.9 : 0 }],
+      { duration: ms * (0.75 + Math.random() * 0.25), easing: o.inward ? 'ease-in' : 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'forwards' });
+  }
+}
+// A gun going off: a flash at the muzzle and a streak of light to the target (o.past: px it carries on
+// beyond it, for a round that goes through; a miss flies wide).
+function fxMuzzle(id, col) { const p = unitFront(id); if (p) fxPoint(p, 'muzzle', 220 / (S.settings.speed || 1), col); }
+function fxTracer(from, to, col, o = {}) {
+  const a = unitFront(from), b = unitCenter(to);
+  if (!a || !b) return;
+  const end = o.miss ? [b[0] + 30, b[1] - 46] : b;
+  const len = Math.hypot(end[0] - a[0], end[1] - a[1]) + (o.past || 0);
+  const ms = (o.ms || 320) / (S.settings.speed || 1);
+  const el = fxPoint(a, 'tracer' + (o.cls ? ' ' + o.cls : ''), ms + 40, col);
+  el.style.width = len + 'px';
+  el.style.transform = `translateY(-50%) rotate(${Math.atan2(end[1] - a[1], end[0] - a[0])}rad)`;
+  // the streak races out to the target, then its tail catches up
+  el.animate([{ clipPath: 'inset(0 100% 0 0)', opacity: 1 }, { clipPath: 'inset(0 0 0 0)', opacity: 1, offset: 0.3 }, { clipPath: 'inset(0 0 0 40%)', opacity: 0.9, offset: 0.6 }, { clipPath: 'inset(0 0 0 85%)', opacity: 0 }],
+    { duration: ms, easing: 'ease-out', fill: 'forwards' });
+}
+// A clean cut straight across a unit: a long line that draws itself at an angle, then splits apart.
+function fxSplit(id, col, deg = -20, ms = 520) {
+  const c = unitCenter(id);
+  if (!c) return;
+  const el = fxPoint(c, 'split', ms / (S.settings.speed || 1), col);
+  el.style.setProperty('--r', deg + 'deg');
+  el.style.setProperty('--ms', ms / (S.settings.speed || 1) + 'ms');
+}
+// A capstone's name across the screen, before it plays.
+function fxCutin(text, sub, col, ms = 900) {
+  const el = document.createElement('div');
+  el.className = 'fx-cutin';
+  el.style.setProperty('--c', col);
+  el.style.setProperty('--ms', ms / (S.settings.speed || 1) + 'ms');
+  el.append(Object.assign(document.createElement('b'), { textContent: text }), Object.assign(document.createElement('span'), { textContent: sub }));
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), ms / (S.settings.speed || 1));
+}
+// o: { c: colour (--c), arc: px the shot lifts mid-flight (a lob; negative dips), spin: it tumbles,
+//      ms: its flight time (a bullet is quick) }
 function fxShot(from, to, cls, done, o = {}) {
   const a = unitCenter(from), b = unitCenter(to);
   if (!a || !b) { done?.(); return; }
@@ -1462,7 +1530,7 @@ function fxShot(from, to, cls, done, o = {}) {
   el.style.left = a[0] + 'px'; el.style.top = a[1] + 'px';
   const ang = o.spin ? 0 : Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
   fxLayer().appendChild(el);
-  const ms = (o.arc ? 380 : 260) / (S.settings.speed || 1);
+  const ms = (o.ms || (o.arc ? 380 : 260)) / (S.settings.speed || 1);
   const dx = b[0] - a[0], dy = b[1] - a[1];
   const at = (t, lift, rot) => ({ transform: `translate(calc(-50% + ${dx * t}px), calc(-50% + ${dy * t - lift}px)) rotate(${rot}deg)` });
   const frames = o.arc
@@ -1557,8 +1625,17 @@ function fxKit(from, tgts, miss, d) {
     me: (cls, c, ms, delay, g) => x.on(from, cls, c, ms, delay, g),
     shot: (cls, c, impact, o = {}) => (o.to || tgts).forEach((u, i) => later(() => {
       const [a, b] = o.back ? [u, from] : [from, u];
-      fxShot(a, b, cls, impact ? () => x.on(b, impact[0], impact[1] ?? c, impact[2], 0, impact[4]) : null, { c, arc: o.arc, spin: o.spin });
+      fxShot(a, b, cls, impact ? () => x.on(b, impact[0], impact[1] ?? c, impact[2], 0, impact[4]) : null, { c, arc: o.arc, spin: o.spin, ms: o.ms });
     }, (o.delay || 0) + i * (o.stagger ?? 0))),
+    sparks: (id, c, o = {}, delay = 0) => later(() => fxSparks(id, c, o), delay),
+    // sparks off each target that was hit (none on a miss)
+    burst: (c, o = {}, delay = 0) => { if (!miss) tgts.forEach(u => x.sparks(u, c, o, delay)); },
+    muzzle: (c, delay = 0) => later(() => fxMuzzle(from, c), delay),
+    tracer: (to, c, o = {}, delay = 0) => later(() => fxTracer(o.from || from, to, c, { miss, ...o }), delay),
+    split: (id, c, deg, delay = 0, ms) => later(() => fxSplit(id, c, deg, ms), delay),
+    ring: (id, c, delay = 0, big) => x.on(id, 'shock' + (big ? ' big' : ''), c, 640, delay),
+    line: (a, b, cls, ms, delay = 0) => later(() => fxLine(a, b, cls, ms), delay),
+    punch: (delay = 0) => later(() => flash('stage', 'punch', 240), delay),
     back: (cls, c, impact, o = {}) => x.shot(cls, c, impact, { ...o, back: true }),
     bolt: (a, b) => fxBolt(a, b),
     screen: (cls, ms, c) => fxScreen(cls, ms, c),
@@ -1574,11 +1651,9 @@ if (new URLSearchParams(location.search).has('bots')) window.saltboundFx = {
   skills: () => Object.keys(SKILL_FX).concat(Object.keys(SIGNATURE)),
   skill(a, h, tgts) {
     const d = S.game.fight, ad = S.static.actions[a];
-    const f = { a, h, tgt: tgts[0], hit: true };
-    const kind = SIGNATURE[a] ? SIGNATURE[a]({ ...f, heroes: d.heroes.map(x => 'h' + x) }, tgts, false, (fn, ms) => setTimeout(fn, ms)) : SKILL_FX[a]?.(fxKit('h' + h, tgts, false, d));
-    const motion = MOTION_MS[kind] ? kind : 'act';
-    flash('h' + h, motion, MOTION_MS[motion]); render();
-    return kind;
+    // nothing is playing back, so keep drawing while it moves
+    const iv = setInterval(render, 40); setTimeout(() => clearInterval(iv), 2400);
+    return abilityFx({ a, h, tgt: tgts[0], hit: true }, ad, d, tgts);
   },
   foe(fid, it, tgts) {
     const d = S.game.fight, fo = d.foes.find(x => x.id === fid);
@@ -1588,13 +1663,40 @@ if (new URLSearchParams(location.search).has('bots')) window.saltboundFx = {
 };
 const FOE_MOTION_MS = { lunge: 380, pounce: 460, slam: 520, charge: 560, cast: 420, brace: 420 };
 // how a hero's body moves as they act (the stylesheet's .unit.<motion> img)
-const MOTION_MS = { melee: 360, charge: 520, spin: 560, retreat: 600, brace: 420, cast: 420, act: 360 };
+// (shoot: a gun's or a bow's kick back, not a step forward; fan: several in a row; iai: a dash through)
+const MOTION_MS = { melee: 360, charge: 520, spin: 560, retreat: 600, brace: 420, cast: 420, act: 360, shoot: 260, fan: 560, iai: 460, ready: 260 };
+// How long a cooldown skill winds up before it lands (a capstone's banner comes first).
+const WINDUP_MS = 260, CUTIN_MS = 620;
 
-function abilityFx(f, ad, d) {
-  if (!ad || !S.settings.speed) return null;
-  const kind = abilityKind(ad);
+// Plays an action's look and the hero's motion. A cooldown skill winds up first (its class's sigil at
+// the hero's feet, light drawn into them), and a once-a-fight capstone opens with its name across the
+// screen; returns how long that takes, so the damage numbers wait for it. (`only`: the targets, for the
+// effects sheet.)
+function abilityFx(f, ad, d, only) {
+  if (!ad || !S.settings.speed) return 0;
+  const sp = S.settings.speed || 1;
   const from = 'h' + f.h, miss = f.hit === false;
-  const tgts = abilityTargets(f, ad, d);
+  const tgts = only || abilityTargets(f, ad, d);
+  const look = CLASS_LOOK[S.game.heroes[f.h]?.cls] || CLASS_LOOK.default;
+  const big = !!(ad.cd || ad.once) && !f.echo;
+  const cutin = big && ad.once ? CUTIN_MS : 0, pre = big ? cutin + WINDUP_MS : 0;
+  if (cutin) fxCutin(ad.name, S.game.heroes[f.h]?.name || '', look.c, cutin + 260);
+  if (big) setTimeout(() => {
+    fxAt(from, 'windup', WINDUP_MS + 260, look.c, look.g);
+    fxSparks(from, look.c, { n: 12, r: 90, inward: true, ms: WINDUP_MS });
+    flash(from, 'charging', WINDUP_MS);
+  }, cutin / sp);
+  const play = () => {
+    let kind = playLook(f, ad, d, tgts, from, miss);
+    if (kind === 'ranged') kind = 'shoot';
+    const motion = MOTION_MS[kind] ? kind : 'act';
+    flash(from, motion, MOTION_MS[motion]);
+  };
+  if (pre) setTimeout(play, pre / sp); else play();
+  return pre / sp;
+}
+function playLook(f, ad, d, tgts, from, miss) {
+  const kind = abilityKind(ad);
   const sig = SIGNATURE[f.a];
   if (sig) return sig({ ...f, heroes: (d.heroes || []).filter(x => !d.hs[x]?.down).map(x => 'h' + x) }, tgts, miss, (fn, ms) => setTimeout(fn, ms / (S.settings.speed || 1)));
   if (SKILL_FX[f.a]) return SKILL_FX[f.a](fxKit(from, tgts, miss, d));
@@ -1669,6 +1771,7 @@ function apply(f) {
   const ally = id => (d.allies || []).find(a => 's' + a.id === id);
   switch (f.k) {
     case 'round': {
+      C.hitBy = null;
       // a new round opens with its number in the roll tray
       if (f.n <= 1) return 0;
       C.tray = { round: f.n, t: performance.now() };
@@ -1687,7 +1790,7 @@ function apply(f) {
       C.tray = { h: f.h, a: act?.a, t: now, dice: f.dice.map(x => ({ ...x, t: now, faces: held.find(y => y.id === x.id)?.faces, crit: !!ad0?.crit_short && critDie(x.v, x.tag, held.find(y => y.id === x.id)?.faces) })) };
       // the caption names the action now playing, from its first roll (never the one before it)
       C.caption = act && !mine().includes(f.h) && S.static.actions[act.a] ? makeCaption(act, S.static.actions[act.a], d, true) : null;
-      flash('h' + f.h, 'act');
+      flash('h' + f.h, 'ready', MOTION_MS.ready);
       sfx.play('dice');
       return 760;
     }
@@ -1702,23 +1805,24 @@ function apply(f) {
       if (!mine().includes(f.h) && ad && !f.echo) C.caption = makeCaption(f, ad, d, false);
       else if (mine().includes(f.h)) C.caption = null;
       if (f.instant) return 0;
-      const kind = abilityFx(f, ad, d);
-      const motion = MOTION_MS[kind] ? kind : 'act';
-      flash('h' + f.h, motion, MOTION_MS[motion]);
+      // what it hits next sprays sparks: the class's colour for a cooldown skill, white for the rest
+      C.hitBy = { h: f.h, big: !!(ad?.cd || ad?.once), c: (CLASS_LOOK[S.game.heroes[f.h]?.cls] || CLASS_LOOK.default).c };
+      const pre = Math.round(abilityFx(f, ad, d));
       if (C.tray?.h === f.h && C.tray.a === f.a && !f.echo) {
         sfx.play(f.hit === false ? 'error' : 'swing');
         if (ad && isRisky(ad.req)) {
           C.tray.verdict = f.hit === false ? 'miss' : 'hit'; C.tray.vt = performance.now();
           if (f.hit !== false) sfx.play('hitwin');
-          return 640;
+          return 640 + pre;
         }
-        return 240;
+        return 240 + pre;
       }
       addFloat('h' + f.h, (ad?.name || '') + (f.echo ? ' (echo)' : '') + (f.hit === false ? ': miss' : ''), f.hit === false ? 'miss' : 'txt');
       sfx.play(f.hit === false ? 'error' : 'swing');
-      return 480;
+      return 480 + pre;
     }
     case 'froll': {
+      C.hitBy = null;
       // an enemy rolls its dice in the open: each die lands, then the total (or what went wrong)
       const fo = foe('f' + f.f);
       const now = performance.now();
@@ -1749,6 +1853,7 @@ function apply(f) {
       return 760;
     }
     case 'fact': {
+      C.hitBy = null;
       if (C.tray?.fid !== f.f) C.tray = null;
       C.caption = null;
       if (f.ik !== 'dazed') sfx.play('swing');
@@ -1776,6 +1881,12 @@ function apply(f) {
       if (f.n > 0 || !f.block) addFloat(f.to, big ? `−${f.n}!` : `−${f.n}`, big ? 'dmg.big' : 'dmg');
       flash(f.to, big ? 'bighit' : 'hit', big ? 420 : 300);
       if (big) { flash('stage', 'shake', 380); sfx.play('crit'); } else sfx.play(f.n > 0 ? 'hit' : 'block');
+      // a hero's blow throws sparks off what it hits; a cooldown skill's are bigger, in its class's colour
+      if (C.hitBy && f.n > 0 && !f.to.startsWith('h') && S.settings.speed) {
+        const hb = C.hitBy;
+        fxSparks(f.to, hb.big ? hb.c : '#fff4d8', { n: hb.big ? (big ? 18 : 11) : 6, r: hb.big ? 84 : 52, dir: 0, cone: 200 });
+        if (hb.big && big) { fxAt(f.to, 'shock big', 640, hb.c); flash('stage', 'punch', 240); }
+      }
       return big ? 460 : 300;
     }
     case 'heal': {
@@ -1828,7 +1939,7 @@ function apply(f) {
       }
       if (u) u.hp = 0; sfx.play('die'); return 320;
     }
-    case 'sact': C.tray = null; C.caption = null; flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
+    case 'sact': C.hitBy = null; C.tray = null; C.caption = null; flash('s' + f.s, 'act'); sfx.play('swing'); return 300;
     case 'down': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = true; sfx.play('die'); return 380; }
     case 'lift': { const x = +f.to.slice(1); if (d.hs[x]) d.hs[x].down = false; C.hp[x] = f.n; addFloat(f.to, 'Back up!', 'heal.big'); flash(f.to, 'revive', 800); sfx.play('revive'); return 520; }
     case 'summon': {

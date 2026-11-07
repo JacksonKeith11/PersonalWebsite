@@ -6,15 +6,54 @@
 //   x.shot(cls, colour, [impact cls, colour, ms], { arc, spin, delay, stagger, to, back })
 //   x.back(...)                            a shot from each target back to the actor
 //   x.bolt(from, to), x.screen(cls, ms, colour), x.shake(delay), x.quake(delay), x.move(id, cls, ms)
+//   x.sparks(id, colour, { n, r, dir, cone, inward, cls, fall }, delay)   particles off (or into) a unit
+//   x.burst(colour, o, delay)              sparks off each target (none on a miss)
+//   x.muzzle(colour, delay), x.tracer(to, colour, { past, cls, from }, delay)   a gun going off
+//   x.split(id, colour, degrees, delay)    a clean cut across a unit; x.ring(id, colour, delay, big)
+//   x.line(a, b, cls, ms, delay), x.punch(delay) (the stage jolts in, for a heavy blow)
 //   x.later(fn, ms)                        (all timings scale with the animation speed)
 // A hero's entry returns how the hero moves: 'melee' (lunge), 'charge', 'spin', 'retreat', 'brace',
-// 'cast' or 'act'. Effects take their colour as --c in the stylesheet (the "skill effects" section).
+// 'cast', 'shoot' (a gun's or bow's kick back), 'fan' (several kicks), 'iai' (a dash through) or 'act'.
+// Every cooldown skill also winds up first in its class's look (CLASS_LOOK, combat.js abilityFx). Effects take their colour as --c in the stylesheet (the "skill effects" section).
 
 const C = {
   steel: '#e4ecf4', shield: '#8cc8ff', blood: '#ff5a4a', gold: '#ffd36b', holy: '#ffe9a0', heal: '#6ee59a',
   arcane: '#b48cff', shadow: '#8a63ff', poison: '#8ee04a', acid: '#c4f03a', fire: '#ffa030', nature: '#6fd36a',
   song: '#ff9ad5', smoke: 'rgba(170, 180, 190, 0.75)', silver: '#d8e4ee', water: '#7cc8ff', storm: '#bfe0ff', dark: '#5a3a8a',
 };
+
+// Each class's colour and mark: a cooldown skill winds up with the mark at the hero's feet and light
+// drawn in, its hits throw sparks in the colour, and a capstone's banner is in it.
+export const CLASS_LOOK = {
+  vanguard: { c: '#8cc8ff', g: '⛨' }, arcanist: { c: '#b48cff', g: '✦' }, mender: { c: '#6ee59a', g: '✚' },
+  duelist: { c: '#e4ecf4', g: '⚔' }, berserker: { c: '#ff5a4a', g: '✶' }, ranger: { c: '#9be06a', g: '➶' },
+  scoundrel: { c: '#e0c890', g: '✧' }, herald: { c: '#ff9ad5', g: '♪' }, alchemist: { c: '#c4f03a', g: '⚗' },
+  warden: { c: '#6fd36a', g: '❦' }, spellblade: { c: '#9a7bff', g: 'ᚱ' }, emberknight: { c: '#ffa030', g: '▲' },
+  dragonborn: { c: '#ff7a3a', g: '◈' }, psion: { c: '#7fe3ff', g: '◉' }, gunslinger: { c: '#ffd36b', g: '✵' },
+  samurai: { c: '#ff5a6a', g: '❀' }, default: { c: '#fff1c8', g: '✦' },
+};
+
+// One round fired: a flash at the muzzle, a streak to the target and a slug that gets there first,
+// then sparks thrown off the far side. o: { c, delay, past (it goes through), big (a heavier round) }
+function bang(x, u, o = {}) {
+  const c = o.c || C.gold, d = o.delay || 0;
+  x.muzzle(c, d);
+  x.tracer(u, c, { past: o.past, cls: o.big ? 'heavy' : '' }, d);
+  x.shot('bullet', c, null, { to: [u], ms: 110, delay: d });
+  if (x.miss) { x.on(u, 'pop small', C.smoke, 400, d + 110); return; }
+  x.on(u, o.big ? 'pierce' : 'pop small', o.big ? null : c, 400, d + 110);
+  x.sparks(u, c, { n: o.big ? 12 : 6, r: o.big ? 80 : 50, dir: 0, cone: 110 }, d + 110);
+}
+// A katana cut: a clean line across each target, the screen flashes white, petals scatter.
+function iai(x, us, o = {}) {
+  const d = o.delay ?? 120;
+  us.forEach((u, i) => {
+    x.split(u, o.c || C.steel, o.deg ?? (-18 - i * 14), d + i * (o.stagger ?? 50));
+    if (!x.miss) x.sparks(u, PETAL, { n: o.petals || 10, r: 80, dir: 0, cone: 200, cls: 'petal', fall: 30, ms: 900 }, d + 160 + i * 50);
+  });
+  if (!x.miss) { x.later(() => x.screen('white', 160), d + 120); x.punch(d + 120); }
+}
+const PETAL = '#ffb3c6';
 
 // ------------------------------------------------------------------ hero actions
 export const SKILL_FX = {
@@ -94,8 +133,8 @@ export const SKILL_FX = {
   howl: x => { x.me('shout', C.blood, 800); x.hit('hoop', C.arcane, 600, 260); x.hit('glyph', C.arcane, 800, 300, '↓'); return 'brace'; },
 
   // Ranger
-  shoot_r: x => { x.shot('ranged', null, ['pierce', null, 420]); return 'act'; },
-  hunters_mark: x => { x.hit('crosshair', C.blood, 600); x.later(() => x.shot('ranged', null, ['pierce', null, 420]), 300); return 'act'; },
+  shoot_r: x => { x.shot('ranged', null, ['pierce', null, 420]); return 'shoot'; },
+  hunters_mark: x => { x.hit('crosshair', C.blood, 600); x.later(() => x.shot('ranged', null, ['pierce', null, 420]), 300); return 'shoot'; },
   swoop: x => { x.shot('hawk', C.gold, ['claw', C.gold, 300], { arc: -60 }); x.me('shieldfx', null, 500); return 'act'; },
   tangleroot: x => { x.hit('vines', C.nature, 600); return 'cast'; },
   choking_vines: x => { x.hit('vines', C.nature, 700); return 'cast'; },
@@ -106,7 +145,7 @@ export const SKILL_FX = {
     return 'act';
   },
   spotter: x => { x.hit('crosshair', C.gold, 700, 0); x.me('glyph', C.gold, 900, 0, '◉'); return 'cast'; },
-  covering_fire: x => { [0, 90, 180].forEach(ms => x.shot('ranged', null, ['pierce', null, 360], { delay: ms })); x.party.forEach(u => x.on(u, 'hoop', C.shield, 500, 300)); return 'act'; },
+  covering_fire: x => { [0, 90, 180].forEach(ms => x.shot('ranged', null, ['pierce', null, 360], { delay: ms })); x.party.forEach(u => x.on(u, 'hoop', C.shield, 500, 300)); return 'fan'; },
 
   // Scoundrel
   stab: x => { x.hit('stabfx', C.steel, 360, 120); if (!x.miss) x.hit('pop small', C.blood, 380, 220); return 'melee'; },
@@ -233,6 +272,93 @@ export const SKILL_FX = {
   sprout: x => { x.me('circle', null, 900); x.me('vines', C.nature, 900, 120); return 'cast'; },
   entangle: x => { x.hit('vines', C.nature, 1000); x.hit('squeeze', C.nature, 700, 300); return 'cast'; },
   strangle: x => { x.hit('vines', C.nature, 900); x.hit('squeeze', C.nature, 700, 250); if (!x.miss) x.shake(420); return 'cast'; },
+
+  // Gunslinger: rounds are quick streaks of light from the muzzle, and the gun kicks back, not forward
+  fire: x => { x.t.forEach(u => bang(x, u)); return 'shoot'; },
+  warning_shot: x => { x.t.forEach(u => { bang(x, u, { c: C.steel }); x.on(u, 'glyph', C.gold, 700, 160, '!'); }); return 'shoot'; },
+  reload: x => {
+    x.me('cylinder', C.gold, 620);
+    x.sparks(x.from, C.gold, { n: 6, r: 40, inward: true, ms: 300 }, 80);
+    x.me('hoop', C.gold, 420, 380);
+    return 'brace';
+  },
+  pistol_whip: x => { x.hit('chop', C.gold, 380, 120); if (!x.miss) { x.hit('star', null, 480, 220); x.burst(C.steel, { n: 6, dir: 0, cone: 140 }, 200); } return 'melee'; },
+  fan_the_hammer: x => {
+    const u = x.t[0];
+    [0, 70, 140, 210, 280, 350].forEach((ms, i) => { x.later(() => bang(x, u, { c: i % 2 ? C.fire : C.gold }), ms); });
+    if (!x.miss) { x.shake(380); x.ring(u, C.fire, 420, true); }
+    return 'fan';
+  },
+  take_cover: x => { x.me('smoke', C.smoke, 900); x.me('shieldfx', null, 700, 120); x.me('cylinder', C.gold, 520, 260); x.sparks(x.from, '#c8a878', { n: 8, r: 60, dir: -90, cone: 160, fall: 40 }); return 'retreat'; },
+  high_noon: x => {
+    // the sun at its height: the light goes gold, a sight on every enemy, then one shot each, all at once
+    x.screen('noon', 1100);
+    x.t.forEach((u, i) => x.on(u, 'crosshair', C.gold, 700, i * 70));
+    x.t.forEach((u, i) => x.later(() => bang(x, u, { big: true, c: C.gold }), 520 + i * 60));
+    if (!x.miss) { x.later(() => x.screen('white', 200), 540); x.shake(560); x.punch(560); }
+    return 'fan';
+  },
+  cover_fire: x => { x.t.forEach(u => { bang(x, u); bang(x, u, { delay: 90 }); x.on(u, 'glyph', C.shield, 700, 260, '↓'); }); x.party.forEach(u => x.on(u, 'hoop', C.shield, 500, 300)); return 'fan'; },
+  showdown: x => {
+    // a long look, a glint, then one heavy shot
+    x.line(x.from, x.t[0], 'duel', 700);
+    x.me('glint', C.gold, 500, 80);
+    x.hit('crosshair', C.blood, 600, 120);
+    x.t.forEach(u => bang(x, u, { big: true, delay: 420 }));
+    if (!x.miss) x.punch(540);
+    return 'shoot';
+  },
+  trick_shot: x => {
+    // it strikes the target and glances off to an enemy in the other row
+    const u = x.t[0], v = x.foes.find(w => w !== u);
+    bang(x, u, { c: C.gold });
+    if (v && !x.miss) { x.tracer(v, C.gold, { from: u }, 140); x.shot('bullet', C.gold, null, { to: [v], ms: 110, delay: 140 }); x.later(() => { x.on(v, 'pop small', C.gold, 400); x.sparks(v, C.gold, { n: 6, r: 50 }); }, 250); x.on(u, 'star', null, 420, 130); }
+    return 'shoot';
+  },
+  disarming_shot: x => { x.t.forEach(u => { bang(x, u, { c: C.steel }); x.on(u, 'glyph spin', C.steel, 800, 160, '⚔'); x.on(u, 'glyph', C.arcane, 700, 420, '↓'); }); return 'shoot'; },
+  suppressing_fire: x => {
+    x.t.forEach((u, i) => [0, 1].forEach(k => x.later(() => bang(x, u, { c: k ? C.fire : C.gold }), i * 60 + k * 180)));
+    x.t.forEach((u, i) => x.on(u, 'glyph', C.arcane, 700, 420 + i * 40, '↓'));
+    return 'fan';
+  },
+  aces_and_eights: x => {
+    x.t.forEach(u => ['♠', '♣', '♠', '♣'].forEach((g, i) => x.on(u, 'card', i % 2 ? C.steel : C.blood, 700, i * 70, g)));
+    x.t.forEach(u => bang(x, u, { big: true, delay: 320 }));
+    return 'shoot';
+  },
+  piercing_round: x => { x.t.forEach(u => { bang(x, u, { big: true, past: 480, c: C.silver }); x.on(u, 'shards', null, 560, 120); }); x.punch(130); return 'shoot'; },
+
+  // Samurai: the blade comes out faster than the eye; a cut is a clean line across the target
+  the_draw: x => { x.me('glint', C.steel, 420); iai(x, x.t, { delay: 160, petals: 14 }); return 'iai'; },
+  cut: x => { x.hit('slash', C.steel, 420, 130); x.burst(PETAL, { n: 5, r: 60, dir: 0, cone: 160, cls: 'petal', fall: 20, ms: 700 }, 220); return 'melee'; },
+  scabbard_strike: x => { x.hit('slam', '#3a2a2a', 440, 140); if (!x.miss) { x.hit('star', null, 460, 220); x.burst(C.steel, { n: 6, dir: 0, cone: 120 }, 220); } return 'melee'; },
+  kamae: x => { x.me('aura', '#ff5a6a', 900); x.me('shieldfx', null, 700, 80); x.sparks(x.from, PETAL, { n: 10, r: 90, inward: true, cls: 'petal', ms: 560 }); return 'brace'; },
+  sheathe: x => { x.me('sheathe', C.steel, 520); x.me('hoop', C.steel, 420, 360); x.me('shieldfx', null, 600, 380); return 'brace'; },
+  kesa_cut: x => { x.t.forEach((u, i) => x.split(u, C.steel, -48, 120 + i * 60)); x.burst(PETAL, { n: 6, r: 70, dir: 0, cone: 180, cls: 'petal', fall: 30, ms: 800 }, 260); if (!x.miss) x.shake(260); return 'melee'; },
+  flash_draw: x => {
+    // one stroke, every enemy in the front row cut at once, then the petals
+    x.me('glint', C.steel, 420);
+    iai(x, x.t, { delay: 180, stagger: 30, petals: 16 });
+    if (!x.miss) x.later(() => x.screen('tint', 360, 'rgba(255, 120, 150, 0.18)'), 320);
+    return 'iai';
+  },
+  waiting_stance: x => { x.me('shieldfx', null, 800); x.me('cross', C.steel, 620, 120); x.me('aura', '#ff5a6a', 900, 60); x.me('glint', C.steel, 420, 420); return 'brace'; },
+  single_combat: x => { x.line(x.from, x.t[0], 'duel', 1000); x.hit('crosshair', '#ff5a6a', 800, 100); x.hit('glyph', '#ff5a6a', 800, 300, '⚔'); x.me('glyph', '#ff5a6a', 800, 300, '⚔'); return 'brace'; },
+  return_stroke: x => { iai(x, x.t, { delay: 120, deg: -24, petals: 6 }); x.t.forEach(u => x.split(u, C.steel, 160, 300)); x.me('sheathe', C.steel, 520, 420); return 'iai'; },
+  kiai: x => { x.me('shout', '#ff5a6a', 800); x.ring(x.from, '#ff5a6a', 120, true); x.t.forEach((u, i) => x.on(u, 'glyph', C.arcane, 700, 200 + i * 60, '↓')); x.shake(200); return 'brace'; },
+  swallow_reversal: x => { x.t.forEach(u => { x.split(u, C.steel, 30, 110); x.split(u, C.steel, -30, 260); }); x.burst(PETAL, { n: 8, r: 70, dir: 0, cone: 200, cls: 'petal', fall: 30, ms: 800 }, 300); if (!x.miss) x.punch(260); return 'melee'; },
+
+  // newer picks for the other classes
+  psychic_lance: x => { x.t.forEach(u => x.tracer(u, C.water, { cls: 'lance', past: 120 })); x.hit('zap', C.water, 500, 100); x.burst(C.water, { n: 8, dir: 0, cone: 120 }, 100); return 'cast'; },
+  thought_shield: x => { x.shot('shieldorb', null, ['shieldfx', null, 700]); x.hit('hoop', C.water, 600, 300); x.hit('glyph', C.water, 800, 340, '◉'); return 'cast'; },
+  dread_vision: x => { x.screen('tint', 600, 'rgba(30, 20, 60, 0.35)'); x.t.forEach((u, i) => { x.on(u, 'rune', C.water, 900, i * 70); x.on(u, 'glyph', C.water, 800, 200 + i * 70, '↓'); }); return 'cast'; },
+  glyph_of_binding: x => { x.hit('rune', C.arcane, 1000); x.hit('squeeze', C.arcane, 700, 200); x.hit('glyph', C.arcane, 800, 300, 'ᛒ'); return 'cast'; },
+  glyph_snare: x => { x.t.forEach((u, i) => { x.on(u, 'rune', C.arcane, 900, i * 70); x.on(u, 'glyph', C.arcane, 700, 160 + i * 70, 'ᛉ'); }); return 'cast'; },
+  runebreaker: x => { x.hit('bigslash', C.arcane, 480, 130); x.hit('shards', null, 560, 200); x.hit('glyph', C.arcane, 800, 300, 'ᚱ'); if (!x.miss) x.shake(240); return 'melee'; },
+  scale_shield: x => { x.me('glyph', C.fire, 600, 0, '◈'); x.shot('disc', C.fire, ['shieldfx', null, 700], { spin: true, delay: 120 }); return 'cast'; },
+  prayer: x => { x.me('beam', null, 700); x.me('glyph', C.holy, 900, 160, '✚'); x.sparks(x.from, C.holy, { n: 10, r: 80, inward: true, ms: 600 }, 100); return 'cast'; },
+  tar_pot: x => { x.shot('flask', '#3a3226', ['splash', '#5a4a30', 600], { arc: 70, spin: true }); x.hit('vines', '#6a5838', 800, 300); x.hit('smoke', 'rgba(180, 230, 60, 0.5)', 900, 360); return 'act'; },
+  cinder_brand: x => { x.hit('slash', C.fire, 420, 120); x.hit('glyph', C.fire, 800, 240, '▲'); x.hit('fireburst', null, 600, 260); x.burst(C.fire, { n: 8, dir: 0, cone: 160 }, 240); return 'melee'; },
 };
 
 // ------------------------------------------------------------------ enemy moves

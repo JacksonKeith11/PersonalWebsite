@@ -50,6 +50,10 @@ Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
 - The fight screen greys out the other stance's actions (the tooltip says why), and the Draw's card shows
   the Resolve it would spend.
 - `tools/saltbound-check.py` sets the blade the way each action needs, with 8 Resolve, before placing it.
+- **Looks** (`skillfx.js`, `iai`): the Draw is a glint at the hilt, a dash through (`iai`) and a
+  clean line across the target (`fxSplit`), then a white flash and petals; Flash Draw cuts the whole
+  front row at once, Return Stroke cuts back the other way and slides the blade home, Sheathe is a
+  gleam running back into the scabbard.
 
 ## Results
 

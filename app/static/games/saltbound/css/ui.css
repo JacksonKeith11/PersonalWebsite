@@ -1723,3 +1723,73 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
   .col.packed .unit .fig > img { width: 46px; height: 46px; }
   .col.packed .unit > .intent:not(.none) { padding: 2px 8px; gap: 0; }
 }
+
+/* ---- cooldown skills and the newer looks (combat.js abilityFx, fxSparks/fxTracer/fxSplit/fxCutin; js/skillfx.js) */
+/* how a hero moves: a gun or bow kicks back instead of stepping forward; a samurai dashes through */
+.unit.ready img { animation: ready 260ms var(--ease); }
+@keyframes ready { 0%, 100% { transform: none; } 45% { transform: translateY(-4px); } }
+.unit.shoot img { animation: shoot 260ms var(--ease); }
+@keyframes shoot { 0%, 100% { transform: none; filter: none; } 12% { transform: translateX(-7px) rotate(-3deg); filter: brightness(1.35); } 45% { transform: translateX(-3px); } }
+.unit.fan img { animation: fan 560ms linear; }
+@keyframes fan { 0%, 100% { transform: none; } 8%, 28%, 48%, 68% { transform: translateX(-6px) rotate(-3deg); } 18%, 38%, 58%, 78% { transform: translateX(-1px); } }
+.unit.iai img { animation: iai 460ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes iai { 0% { transform: none; } 10% { transform: translateX(-8px) scale(1.04, 0.96); } 28% { transform: translateX(96px) skewX(-10deg); opacity: 0.55; filter: blur(1px) brightness(1.6); }
+  62% { transform: translateX(96px); opacity: 1; filter: none; } 100% { transform: none; } }
+/* a cooldown skill winding up: the hero glows, the class's mark turns at their feet */
+.unit.charging img { animation: charging 260ms ease-in; }
+@keyframes charging { 0% { filter: none; } 100% { filter: brightness(1.5) drop-shadow(0 0 10px rgba(255, 240, 200, 0.9)); transform: translateY(-2px) scale(1.03); } }
+.fx.windup { width: 150px; height: 46px; margin-top: 52px; border-radius: 50%; border: 2px solid var(--c); box-shadow: 0 0 18px var(--c), inset 0 0 14px var(--c); animation: windup 520ms ease-out forwards; }
+.fx.windup::before { content: ""; position: absolute; inset: 7px 18px; border-radius: 50%; border: 2px dashed var(--c); opacity: 0.8; }
+.fx.windup::after { content: attr(data-g); position: absolute; left: 0; right: 0; top: -104px; text-align: center; color: var(--c); font: 700 30px/1 var(--font-ui);
+  text-shadow: 0 0 12px var(--c), 0 2px 0 rgba(0, 0, 0, 0.6); animation: glyph 520ms ease-out forwards; }
+@keyframes windup { 0% { transform: translate(-50%, -50%) scale(0.3) rotate(0); opacity: 0; } 40% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } 100% { transform: translate(-50%, -50%) scale(1.25); opacity: 0; } }
+/* particles: sparks off a hit, light drawn in, petals */
+.fx.spark { width: 10px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--c) 40%, #fff); box-shadow: 0 0 6px var(--c); }
+.fx.spark.petal { width: 9px; height: 6px; border-radius: 70% 0 70% 0; background: var(--c); box-shadow: none; }
+.fx.shock { width: 120px; height: 120px; border-radius: 50%; border: 3px solid var(--c, #fff); box-shadow: 0 0 16px var(--c, #fff), inset 0 0 10px var(--c, #fff); animation: shock 640ms cubic-bezier(0.1, 0.7, 0.3, 1) forwards; }
+.fx.shock.big { width: 170px; height: 170px; border-width: 4px; }
+@keyframes shock { 0% { transform: translate(-50%, -50%) scale(0.15); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; border-width: 1px; } }
+.stage.punch { animation: punch 240ms ease-out; }
+@keyframes punch { 0%, 100% { transform: none; } 25% { transform: scale(1.018); filter: brightness(1.12); } }
+/* guns: the flash at the muzzle and the streak a round leaves */
+.fx.muzzle { width: 38px; height: 38px; background: radial-gradient(circle, #fff 0 18%, var(--c) 38%, transparent 66%),
+  conic-gradient(from 60deg, transparent 0 10%, var(--c) 12% 14%, transparent 16% 40%, var(--c) 42% 44%, transparent 46% 100%); border-radius: 50%; animation: muzzle 220ms ease-out forwards; }
+@keyframes muzzle { 0% { transform: translate(-30%, -50%) scale(0.4); opacity: 1; } 40% { transform: translate(-30%, -50%) scale(1.25); opacity: 1; } 100% { transform: translate(-30%, -50%) scale(1.4); opacity: 0; } }
+.fx.tracer { height: 3px; transform-origin: 0 50%; border-radius: 2px; background: linear-gradient(180deg, var(--c), #fff 50%, var(--c));
+  box-shadow: 0 0 8px var(--c); }
+.fx.tracer.heavy { height: 5px; box-shadow: 0 0 14px var(--c), 0 0 4px #fff; }
+.fx.tracer.lance { height: 5px; background: linear-gradient(90deg, transparent, var(--c) 30%, #fff 70%, var(--c)); box-shadow: 0 0 16px var(--c); }
+.fx.cylinder { width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--c);
+  background: radial-gradient(circle at 50% 18%, var(--c) 0 5px, transparent 6px), radial-gradient(circle at 82% 38%, var(--c) 0 5px, transparent 6px), radial-gradient(circle at 70% 76%, var(--c) 0 5px, transparent 6px),
+    radial-gradient(circle at 30% 76%, var(--c) 0 5px, transparent 6px), radial-gradient(circle at 18% 38%, var(--c) 0 5px, transparent 6px), radial-gradient(circle, #fff 0 4px, transparent 5px);
+  box-shadow: 0 0 12px var(--c); animation: cylinder 620ms cubic-bezier(0.3, 0.6, 0.2, 1) forwards; }
+@keyframes cylinder { 0% { transform: translate(-50%, -110%) rotate(0) scale(0.6); opacity: 0; } 25% { opacity: 1; transform: translate(-50%, -110%) scale(1); } 85% { opacity: 1; transform: translate(-50%, -110%) rotate(300deg); } 100% { opacity: 0; transform: translate(-50%, -110%) rotate(300deg); } }
+.fx.card { width: 30px; height: 42px; display: grid; place-items: center; border-radius: 4px; background: #f6efe0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); animation: card 700ms ease-out forwards; }
+.fx.card::before { content: attr(data-g); color: var(--c); font: 700 22px/1 serif; }
+@keyframes card { 0% { transform: translate(-50%, -50%) rotate(-40deg) scale(0.4); opacity: 0; } 35% { opacity: 1; transform: translate(-50%, -150%) rotate(15deg) scale(1); } 100% { opacity: 0; transform: translate(-50%, -190%) rotate(40deg); } }
+.fx.line.duel { height: 2px; background: linear-gradient(90deg, rgba(255, 90, 106, 0.2), #ffd36b, rgba(255, 90, 106, 0.2)); box-shadow: 0 0 10px #ff5a6a;
+  clip-path: inset(0 100% 0 0); animation: linedraw var(--ms, 900ms) var(--ease) both; }
+.fx-screen.noon { background: radial-gradient(circle at 50% -10%, rgba(255, 250, 220, 0.7), rgba(255, 190, 80, 0.35) 40%, rgba(160, 90, 20, 0.25)); animation: noon 1100ms ease-in-out forwards; }
+@keyframes noon { 0% { opacity: 0; } 30%, 60% { opacity: 1; } 100% { opacity: 0; } }
+/* swords: a glint at the hilt, a cut straight across, the blade sliding home */
+.fx.glint { width: 60px; height: 60px; background: conic-gradient(from 0deg, transparent 0 22%, #fff 24% 26%, transparent 28% 47%, #fff 49% 51%, transparent 53% 72%, #fff 74% 76%, transparent 78% 97%, #fff 99%);
+  -webkit-mask: radial-gradient(circle, #000 20%, transparent 62%); mask: radial-gradient(circle, #000 20%, transparent 62%); margin-left: 30px; animation: glint 420ms ease-out forwards; }
+@keyframes glint { 0% { transform: translate(-50%, -50%) rotate(0) scale(0.2); opacity: 0; } 40% { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(0.4); } }
+.fx.split { width: 300px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--c) 15%, #fff 50%, var(--c) 85%, transparent);
+  box-shadow: 0 0 12px var(--c), 0 0 3px #fff; animation: split var(--ms, 520ms) cubic-bezier(0.1, 0.9, 0.2, 1) forwards; }
+@keyframes split { 0% { transform: translate(-50%, -50%) rotate(var(--r)) scaleX(0); opacity: 1; } 22% { transform: translate(-50%, -50%) rotate(var(--r)) scaleX(1); opacity: 1; height: 4px; }
+  55% { height: 2px; opacity: 1; } 100% { transform: translate(-50%, -50%) rotate(var(--r)) scaleX(1.1); height: 1px; opacity: 0; } }
+.fx.sheathe { width: 90px; height: 3px; margin-left: 10px; background: linear-gradient(90deg, transparent, #fff, var(--c)); box-shadow: 0 0 8px var(--c); animation: sheathe 520ms ease-in forwards; }
+@keyframes sheathe { 0% { transform: translate(10%, -50%) scaleX(1); opacity: 1; } 80% { transform: translate(-90%, -50%) scaleX(0.2); opacity: 1; } 100% { transform: translate(-90%, -50%) scaleX(0); opacity: 0; } }
+/* a capstone's name, slashed across the screen before it plays */
+.fx-cutin { position: absolute; left: 0; right: 0; top: 38%; height: 92px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
+  background: linear-gradient(90deg, transparent, rgba(10, 14, 20, 0.88) 18%, rgba(10, 14, 20, 0.88) 82%, transparent); border-top: 2px solid var(--c); border-bottom: 2px solid var(--c);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--c) 50%, transparent); transform: skewY(-3deg); animation: cutin var(--ms, 880ms) cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+.fx-cutin b { color: #fff; font: 800 italic clamp(28px, 5vw, 46px)/1 var(--font-ui); letter-spacing: 0.04em; text-transform: uppercase; text-shadow: 0 0 18px var(--c), 0 3px 0 rgba(0, 0, 0, 0.6); animation: cutin-text var(--ms, 880ms) cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+.fx-cutin span { color: var(--c); font: 600 var(--fs-14)/1 var(--font-ui); letter-spacing: 0.2em; text-transform: uppercase; }
+@keyframes cutin { 0% { clip-path: inset(0 100% 0 0); } 20% { clip-path: inset(0 0 0 0); } 80% { clip-path: inset(0 0 0 0); opacity: 1; } 100% { clip-path: inset(0 0 0 100%); opacity: 0.6; } }
+@keyframes cutin-text { 0% { transform: translateX(-60px); } 20% { transform: translateX(0); } 80% { transform: translateX(14px); } 100% { transform: translateX(40px); } }
+@media (prefers-reduced-motion: reduce) {
+  .unit.ready img, .unit.shoot img, .unit.fan img, .unit.iai img, .unit.charging img, .stage.punch { animation: none !important; }
+  .fx-cutin, .fx-cutin b { animation-duration: 1ms !important; }
+}

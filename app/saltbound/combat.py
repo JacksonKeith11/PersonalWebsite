@@ -1043,7 +1043,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.fx("act", h=h, a=a["key"], tgt=tgt, echo=True)
             self.run_ops(h, a, dice, tgt, half=True, ops=ops, hit=hit)
         if a.get("shot") and self.s["fight"] is f:
-            self.fire_rounds(h, a, tgt)
+            self.fire_rounds(h, a, tgt, dice)
         f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
         done["vals"] = [num(d) for d in dice]
         done["out"] = self.act_outcome(since)
@@ -1060,7 +1060,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.hurt_foe(fo, C.QUICK_DRAW, h)
         self.check_end()
 
-    def fire_rounds(self, h, a, tgt):
+    def fire_rounds(self, h, a, tgt, dice=()):
         """A shot spends its rounds (after it lands, so `ammo` and `silver` in its amounts are the rounds
         before it): Silver Bullets' Vulnerable, Fresh Cartridge's round back on a kill."""
         x = self.hs(h)
@@ -1073,6 +1073,13 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if silver and fo and m.get("silver_bullets") and fo["hp"] > 0:
             fo["st"]["vuln"] = max(fo["st"].get("vuln", 0), 2)
             self.fx("st", to=f"f{fo['id']}", s="vuln")
+        if silver and m.get("silver_twin"):
+            others = [o for o in self.foes() if o is not fo]
+            if others:  # Two Guns: the off-hand fires the Silver Round too
+                self.hurt_foe(self.rng.choice(others), (num(dice[0]) if dice else 0) + m["silver_twin"], h)
+        if silver and m.get("silver_lining"):
+            y = min(self.actives(), key=lambda y: self.hero(y)["hp"] / self.maxhp(y))  # Silver Lining
+            self.fight_heal(y, m["silver_lining"], h)
         if m.get("scavenge") and fo and fo["hp"] <= 0 and x["ammo"] < self.cylinder(h):
             x["ammo"] += 1  # Fresh Cartridge
             self.fx("st", to=f"h{h}", s="reloaded")

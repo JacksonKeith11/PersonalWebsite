@@ -17,6 +17,8 @@ MODS = {
     "ricochet": "Fire on an even die also deals n to another enemy",
     "silver_bullets": "the Silver Round ignores Armor and makes the enemy Vulnerable for 2 rounds",
     "lucky_chamber": "the third round in each cylinder is a Silver Round too",
+    "silver_twin": "the Silver Round also hits another enemy for the die +n",
+    "silver_lining": "the Silver Round heals the most wounded ally (or the hero) n",
     # legendary powers (content/items.py LEGENDARY)
     "echo_round": "the Echo (echo_any) comes back every round",
     "ward_party": "the first hit on each ally each round deals n less",

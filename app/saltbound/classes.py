@@ -914,6 +914,8 @@ ACTIONS.update({
                "text": "Refill your cylinder. On 1-3 the hammer's cocked: your next shot this round deals +3."},
     "pistol_whip": {"name": "Pistol Whip", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
                     "ops": [{"op": "dmg", "amt": "v+1"}],
+                    # its own upgrade: the usual "reaches any row" would make it a better Fire with no rounds
+                    "up": {"ops": [{"op": "dmg", "amt": "v+1"}, {"op": "reload", "n": 1}]}, "up_text": "it also thumbs a round into the cylinder",
                     "text": "Deal the die +1. Needs no rounds: for when the cylinder's empty."},
     "fan_the_hammer": {"cd": 2, "name": "Fan the Hammer", "req": {"n": 1}, "tgt": "foe", "shot": "all", "tags": ["quickdraw"],
                        "ops": [{"op": "dmg", "amt": "v+2*ammo"}],
@@ -936,6 +938,16 @@ ACTIONS.update({
     "disarming_shot": {"cd": 3, "name": "Disarming Shot", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": "1+(v>=5)"}],
                "text": "Any row: deal the die and shoot the weapon from its hand: it's Weak this round (on 5+, for 2 rounds)."},
+    # the second set (owner's request, Nov 2026)
+    "suppressing_fire": {"cd": 3, "name": "Suppressing Fire", "req": {"n": 1}, "tgt": "foes", "shot": 3, "tags": ["quickdraw"],
+                         "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "weaken", "amt": "2"}],
+                         "text": "Fire 3 rounds across the field: every enemy takes half the die, and every attack this round deals 2 less."},
+    "aces_and_eights": {"cd": 2, "name": "Aces and Eights", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
+                        "ops": [{"op": "dmg", "amt": "(v+3)*(1+2*(v==1 or v==8))"}],
+                        "text": "Any row: deal the die +3. On a 1 or an 8 (the dead man's hand), three times that."},
+    "piercing_round": {"cd": 2, "name": "Piercing Round", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
+                       "ops": [{"op": "dmg", "amt": "v+4", "pierce": True}],
+                       "text": "Any row: deal the die +4, straight through its Armor."},
 })
 PASSIVES.update({
     "speed_loader": {"name": "Speed Loader", "mods": {"cylinder": 2}, "tags": ["quickdraw"],
@@ -954,6 +966,16 @@ PASSIVES.update({
                        "text": "Your Silver Round ignores Armor and leaves the enemy Vulnerable for 2 rounds."},
     "long_barrel": {"name": "Long Barrel", "mods": {"longshot": 2}, "tags": ["trickshot"],
                     "text": "Your shots and other ranged hits on back-row enemies deal +2."},
+    "two_guns": {"name": "Two Guns", "mods": {"silver_twin": 3}, "tags": ["quickdraw"],
+                 "text": "Your Silver Round is fired from both guns: another enemy takes the die +3 too."},
+    "gunsmoke": {"name": "Gunsmoke", "tags": ["quickdraw"],
+                 "mods": {"override": {"reload": {"ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"},
+                                                          {"op": "armor", "amt": "v", "to": "self"}]}}},
+                 "text": "Reloading behind a cloud of smoke: Reload also gives you the die as Armor."},
+    "silver_lining": {"name": "Silver Lining", "mods": {"silver_lining": 5}, "tags": ["trickshot"],
+                      "text": "When your Silver Round lands, your most wounded ally (or you) heals 5."},
+    "finish_the_job": {"name": "Finish the Job", "mods": {"execute_bonus": 2}, "tags": ["trickshot"],
+                       "text": "Your hits on enemies below half health deal +2."},
     "lucky_chamber": {"name": "Lucky Chamber", "cap": True, "mods": {"lucky_chamber": 1}, "tags": ["trickshot"],
                       "text": "The third round in each cylinder is a Silver Round too."},
 })
@@ -966,7 +988,8 @@ CLASSES["gunslinger"] = {
     "start": ["fire", "reload", "pistol_whip"], "weapon": "six_shooter", "armor": "padded_coat",
     "pool": ["fan_the_hammer", "take_cover", "high_noon", "cover_fire", "showdown", "trick_shot", "disarming_shot",
              "speed_loader", "count_your_shots", "dry_fire", "hammer_back", "fresh_cartridge", "ricochet_rounds",
-             "silver_bullets", "long_barrel", "lucky_chamber"],
+             "silver_bullets", "long_barrel", "lucky_chamber", "suppressing_fire", "aces_and_eights", "piercing_round",
+             "two_guns", "gunsmoke", "silver_lining", "finish_the_job"],
     "blurb": "Six shots, then a choice. Count them so the last, the silver one, lands where it matters.",
 }
 
@@ -1604,6 +1627,8 @@ SHORT.update({
     "take_cover": ("shield", "die +2 Armor · load 2", None), "high_noon": ("target", "all: die +1 per round · empty", None),
     "cover_fire": ("target", "die · its attack −die", None), "showdown": ("target", "die +3 · aims at you: Weak", None),
     "trick_shot": ("target", "die +2 · die to the other row", None), "disarming_shot": ("down", "die · Weak (5+: 2 rounds)", None),
+    "suppressing_fire": ("down", "3 rounds · all: ½ die · attacks −2", None), "aces_and_eights": ("target", "die +3 · a 1 or 8: ×3", None),
+    "piercing_round": ("target", "die +4 · through Armor", None),
 })
 SHORT.update({
     "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),

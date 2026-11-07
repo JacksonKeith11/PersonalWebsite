@@ -521,7 +521,7 @@ def route(g, h, goal):
 
 BEAM = 3
 DEPTH = 3
-ROUND_WORTH = 1.3  # a Gunslinger's round in the cylinder: about a sixth of a die spent on Reload
+ROUND_WORTH = 0.6  # a Gunslinger's round: a sixth of a die spent on Reload, less what firing it brings the Silver Round on (1.3 had the bots whipping a full cylinder)
 COMBO_CAP = 96
 
 
@@ -1251,6 +1251,10 @@ def evaluate(g, b, h, a, dice, tgt):
     if a.get("shot"):
         have = g.hs(h).get("ammo", 0)
         total -= (have if a["shot"] == "all" else min(have, a["shot"])) * ROUND_WORTH  # the rounds it spends
+        if a["shot"] == 1 and m.get("silver_lining") and g.silver(h):
+            total += m["silver_lining"] * 0.7  # Silver Lining's heal
+        if a["shot"] == 1 and m.get("silver_twin") and g.silver(h) and len(g.foes()) > 1:
+            total += (sum(top_face(d["faces"]) for d in dice[:1]) / 2 + 1 + m["silver_twin"]) * 0.8  # Two Guns' second hit
     return total, eff
 
 

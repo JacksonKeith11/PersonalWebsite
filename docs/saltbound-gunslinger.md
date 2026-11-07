@@ -32,8 +32,8 @@ any row, half the die, Weak this round) and the Padded Coat.
 
 | | Quickdraw (the cylinder) | Trickshot (the aim) |
 |---|---|---|
-| Actions | Fan the Hammer (cd 2: every round left, the die +2 each, as one hit); Take Cover (cd 2: the die +2 Armor, load 2 rounds); **High Noon** (capstone, once a fight: every round left, every enemy takes the die +1 per round) | Cover Fire (cd 2: the die; its attack −the die); Showdown (cd 2: the die +3; if it's aiming at you, Weak too); Trick Shot (cd 2: the die +2, and the die to an enemy in the other row); Disarming Shot (cd 3: the die; Weak, 2 rounds on 5+) |
-| Passives | Speed Loader (8 rounds); Count Your Shots (+1 per round already fired, to +4); Dry Fire (Pistol Whip +4 on an empty cylinder); Hammer Back (Reload cocks on any roll, +5); Fresh Cartridge (a kill puts a round back) | Ricochet Rounds (Fire on an even die: 3 to another enemy); Silver Bullets (the Silver Round ignores Armor, Vulnerable 2); Long Barrel (+2 on ranged hits on the back row); **Lucky Chamber** (capstone: the third round is silver too) |
+| Actions | Fan the Hammer (cd 2: every round left, the die +2 each, as one hit); Take Cover (cd 2: the die +2 Armor, load 2 rounds); Suppressing Fire (cd 3, 3 rounds: every enemy takes half the die, every attack −2); **High Noon** (capstone, once a fight: every round left, every enemy takes the die +1 per round) | Cover Fire (cd 2: the die; its attack −the die); Showdown (cd 2: the die +3; if it's aiming at you, Weak too); Trick Shot (cd 2: the die +2, and the die to an enemy in the other row); Disarming Shot (cd 3: the die; Weak, 2 rounds on 5+); Aces and Eights (cd 2: the die +3, ×3 on a 1 or an 8); Piercing Round (cd 2: the die +4 through Armor) |
+| Passives | Speed Loader (8 rounds); Count Your Shots (+1 per round already fired, to +4); Dry Fire (Pistol Whip +4 on an empty cylinder); Hammer Back (Reload cocks on any roll, +5); Fresh Cartridge (a kill puts a round back); Two Guns (the Silver Round also hits another enemy for the die +3); Gunsmoke (Reload also gives the die as Armor) | Ricochet Rounds (Fire on an even die: 3 to another enemy); Silver Bullets (the Silver Round ignores Armor, Vulnerable 2); Long Barrel (+2 on ranged hits on the back row); Silver Lining (the Silver Round heals the most wounded 5); Finish the Job (+2 on enemies below half); **Lucky Chamber** (capstone: the third round is silver too) |
 
 Crits: Fire puts a round back; Pistol Whip makes it Weak; Warning Shot makes it Vulnerable.
 
@@ -48,6 +48,13 @@ Crits: Fire puts a round back; Pistol Whip makes it Weak; Warning Shot makes it 
   now, so it never saw "Reload, then Fire" and Pistol Whipped an empty gun with two dice left:
   `bot.reload_first` reloads with the smallest die first in that case (not with Dry Fire, which makes the
   whip a fair play).
+- **The second set** (owner's request): Suppressing Fire, Aces and Eights, Piercing Round, Two Guns, Gunsmoke,
+  Silver Lining, Finish the Job. A first "Second Gun" (Pistol Whip reaches any row) had the bots whipping more
+  than firing, so the cylinder stopped mattering: it became Two Guns.
+- **Pistol Whip+** has its own upgrade (it loads a round): the usual melee upgrade, "reaches any row", made
+  it the die +3 at any row with no rounds, a better Fire.
+- `bot.ROUND_WORTH` was 1.3 at first; the bots then whipped with a full cylinder (Fire came out only 0.5
+  ahead). A round fired also brings the Silver Round on, so it's 0.6.
 - `tools/saltbound-check.py` refills the cylinder before each placement, since Fan the Hammer and High
   Noon empty it.
 

@@ -904,7 +904,7 @@ CLASSES["psion"] = {
 # (`cylinder`, `silver`, `_op_reload`) and Combat (`fire_rounds`).
 CYLINDER = 6
 COCKED = 3  # Reload on a 1-3 cocks the hammer: the next shot this round deals +3 (Hammer Back: any roll, +5)
-QUICK_DRAW = 6  # the map ability (was 4: the first batch had Gunslinger parties at 64% on Normal): the free shot when a fight starts
+QUICK_DRAW = 8  # the map ability (4, then 6 after the first Normal batch; 8 after Hard had it at 42%): the free shot when a fight starts
 ACTIONS.update({
     "fire": {"name": "Fire", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": [],
              "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "dmg", "amt": "rico", "to": "another", "if": "rico and v%2==0"}],
@@ -981,7 +981,7 @@ PASSIVES.update({
 })
 CLASS_DICE["gunslinger"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["gunslinger"] = {
-    "name": "Gunslinger", "hp": 29, "hp_lvl": 4, "role": "Ranged damage on a six-shot clock",
+    "name": "Gunslinger", "hp": 31, "hp_lvl": 4, "role": "Ranged damage on a six-shot clock",
     "dice": [D(8), D(6)], "tags": ["quickdraw", "trickshot"],
     "map": {"key": "quick_draw", "name": "Quick Draw",
             "text": f"When a fight you're in starts, you shoot first: the enemy with the biggest attack takes {QUICK_DRAW}."},
@@ -1002,7 +1002,7 @@ CLASSES["gunslinger"] = {
 # amount is the Resolve. Rules in Actions (`_op_draw`, `_op_sheathe`, `_op_resolve`, `add_resolve`) and
 # Combat (`iai_counter`, `draw_blade`).
 RESOLVE_CAP = 15
-RESOLVE_ROUND = 4  # was 3 (the first batch: Samurai parties 56.5% on Normal, the least damage of the damage classes)
+RESOLVE_ROUND = 5  # 5 after Hard had it at 41%; was 3, then 4 after (the first batch: Samurai parties 56.5% on Normal, the least damage of the damage classes)
 MEDITATION = 8  # the map ability: Resolve at the start of the first fight after a rest
 DRAWS = ("the_draw", "flash_draw")
 ACTIONS.update({
@@ -1038,7 +1038,7 @@ ACTIONS.update({
 })
 PASSIVES.update({
     "patient_blade": {"name": "Patient Blade", "mods": {"patient_blade": 2}, "tags": ["iai"],
-                      "text": "While Sheathed, you gain 6 Resolve at the start of each round, not 4."},
+                      "text": "While Sheathed, you gain 7 Resolve at the start of each round, not 5."},
     "zanshin": {"name": "Zanshin", "mods": {"zanshin": 4}, "tags": ["iai"],
                 "text": "After the Draw, your next hit this round deals +4."},
     "mirror_edge": {"name": "Mirror Edge", "mods": {"mirror_edge": 1}, "tags": ["iai"],
@@ -1067,7 +1067,7 @@ PASSIVES.update({
 })
 CLASS_DICE["samurai"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["samurai"] = {
-    "name": "Samurai", "hp": 29, "hp_lvl": 4, "role": "One decisive cut",
+    "name": "Samurai", "hp": 32, "hp_lvl": 4, "role": "One decisive cut",
     "dice": [D(8), D(6)], "tags": ["iai", "bushido"],
     "map": {"key": "meditation", "name": "Meditation",
             "text": f"After you rest, your next fight starts with {MEDITATION} Resolve."},

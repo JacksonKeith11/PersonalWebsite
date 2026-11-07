@@ -244,6 +244,78 @@ def psion4():  # Void Monk: bare-armed, a blindfold, a halo of floating shards, 
         g.px(x, y, 'V'); g.px(x + 1, y, 'G')
     return g
 
+# Gunslinger options (owner's request, Nov 2026): two frontier looks and two flintlock ones.
+GUN = {**SKIN, 'e': E, 'W': '#b8c0cc', 'w': '#6a4a2e', 'G': '#f0f4f8', 'k': '#2a1e18', 'n': '#14101a'}
+
+def duster(g, coat='B', shirt='b', belt='T', long=True):
+    legs(g, 'L')
+    spans = [(1, 10), (0, 11), (0, 11), (0, 11), (0, 11), (0, 11), (-1, 12), (-1, 12), (-1, 12), (-2, 13), (-2, 13), (-2, 13)]
+    if long:
+        spans += [(-2, 4), (-3, 4), (-3, 4)]
+    g.rows(8, 13, spans, coat)
+    if long:
+        g.rows(17, 25, [(0, 5), (0, 6), (0, 6)], coat)
+    g.rect(12, 13, 15, 21, shirt); g.rect(10, 20, 17, 20, belt)
+
+def gun_arms(g, coat='B'):
+    g.rows(6, 15, [(1, 3), (0, 3), (0, 3), (0, 3)], coat); g.rect(6, 19, 8, 20, 's')
+    g.rows(19, 14, [(0, 2), (0, 3), (1, 3)], coat); g.rect(20, 16, 22, 18, 's')
+
+def revolver(g, x=22, y=15):
+    g.rect(x, y, x + 6, y, 'W'); g.rect(x + 1, y, x + 2, y + 1, 'W'); g.px(x + 2, y + 1, 'n'); g.px(x, y - 1, 'W')
+    g.rect(x, y + 1, x, y + 3, 'w'); g.px(x + 6, y - 1, 'W')
+
+def flintlock(g, x=22, y=15):
+    g.rect(x + 2, y, x + 7, y, 'W'); g.rect(x, y, x + 2, y + 1, 'w'); g.rect(x - 1, y + 2, x, y + 3, 'w')
+    g.px(x + 1, y - 1, 'X'); g.px(x + 2, y + 1, 'X')
+
+def cowboy(g, y=6):
+    g.rect(6, y - 1, 21, y - 1, 'h'); g.px(6, y - 2, 'h'); g.px(21, y - 2, 'h')
+    g.rect(10, y - 4, 17, y - 2, 'h'); g.rect(11, y - 5, 12, y - 5, 'h'); g.rect(15, y - 5, 16, y - 5, 'h')
+    g.rect(10, y - 2, 17, y - 2, 'X')
+
+def holster(g):
+    g.rect(8, 21, 9, 24, 'w'); g.px(8, 20, 'W'); g.px(9, 20, 'w')
+
+def gunslinger1():  # Drifter: tan duster, cowboy hat, stubble, a revolver drawn and a second in its holster
+    g = G({**GUN, 'B': '#a88a5a', 'b': '#e0d6bc', 'T': '#5a3a24', 'H': '#6a4a2e', 'h': '#5a4030', 'X': '#2a1e18', 'L': '#3a3440'})
+    duster(g); gun_arms(g); head(g, 'short', 'stache'); g.rect(11, 11, 16, 11, 'S'); cowboy(g)
+    holster(g); revolver(g)
+    return g
+
+def gunslinger2():  # Outlaw: striped poncho, a red bandana over the face, flat wide hat, revolver out of the poncho
+    g = G({**GUN, 'B': '#8a5a3a', 'b': '#5a3a24', 'T': '#e0c070', 'R': '#a83030', 'H': '#1a1420', 'h': '#2a2028', 'X': '#a83030', 'L': '#4a3a30'})
+    legs(g, 'L'); torso(g, 'b')
+    spans = [(2, 13), (1, 14), (0, 15), (0, 15), (0, 15), (1, 14), (2, 13), (3, 12), (4, 11), (5, 10), (6, 9)]
+    g.rows(6, 13, spans, 'B'); g.rows(6, 17, [spans[4]], 'T'); g.rows(6, 20, [spans[7]], 'T'); g.rows(6, 22, [spans[9]], 'T')
+    g.rect(13, 13, 14, 14, 'R')
+    g.rect(20, 16, 22, 18, 's')
+    head(g, 'long'); g.rect(10, 9, 17, 11, 'R'); g.px(13, 12, 'R'); g.px(14, 12, 'R')
+    g.rect(5, 5, 22, 5, 'h'); g.rows(10, 1, [(1, 6), (0, 7), (0, 7), (0, 7)], 'h'); g.rect(10, 4, 17, 4, 'T')
+    revolver(g)
+    return g
+
+def gunslinger3():  # Pistoleer: tricorne, blue coat with gold trim, a long flintlock, a powder horn at the hip
+    g = G({**GUN, 'B': '#2a4a7a', 'b': '#e8e2d4', 'T': '#c8a040', 'H': '#8a5a2a', 'h': '#1e1a26', 'X': '#c8a040', 'L': '#e8e2d4', 'O': '#e8dcc0', 'o': '#a89878'})
+    duster(g, long=False); g.rect(8, 13, 8, 24, 'T'); g.rect(19, 13, 19, 24, 'T'); gun_arms(g)
+    head(g, 'pony', 'goatee')
+    g.text(8, 2, ['   hhhhhh   ', ' hhhhhhhhhh ', 'hhhhhhhhhhhh', 'hXXXXXXXXXXh']); g.px(7, 3, 'h'); g.px(20, 3, 'h')
+    g.text(3, 20, ['O   ', 'OO  ', ' Oo ', '  ow'])
+    flintlock(g)
+    return g
+
+def gunslinger4():  # Witch-hunter: tall buckled hat with a low brim shading the eyes, black coat, bandolier, twin silver flintlocks
+    g = G({**GUN, 'B': '#24202a', 'b': '#8a2a2a', 'T': '#c8ccd6', 'H': '#d8d0c0', 'h': '#1a1620', 'X': '#d8dce6', 'L': '#2a2630', 'Y': '#f0f4f8'})
+    duster(g, shirt='b'); gun_arms(g)
+    head(g, 'long'); g.rect(10, 6, 17, 7, 'S'); g.px(12, 8, 'Y'); g.px(15, 8, 'Y'); g.px(12, 9, 's'); g.px(15, 9, 's')
+    g.rect(10, -1, 17, 4, 'h'); g.rect(7, 5, 20, 5, 'h'); g.rect(10, 3, 17, 3, 'T'); g.rect(13, 2, 14, 4, 'X')
+    for i, (x, y) in enumerate(((9, 13), (10, 14), (11, 15), (12, 16), (13, 17), (14, 18), (15, 19))):
+        g.px(x, y, 'w')
+        if i % 2: g.px(x + 1, y, 'X')
+    g.rect(6, 21, 6, 26, 'W'); g.rect(7, 19, 8, 21, 'w'); g.px(6, 27, 'W')
+    flintlock(g)
+    return g
+
 SK = SKIN
 OPTIONS = {
     'duelist': [
@@ -329,6 +401,10 @@ OPTIONS = {
     ],
     'dragonborn': [
         ('Red Wyrmkin', dragonborn1), ('Bronze Drake', dragonborn2), ('Dragon Knight', dragonborn3), ('Wyrm Guard', dragonborn4),
+    ],
+    # owner's request, Nov 2026: for review, not built yet (build.REVIEW)
+    'gunslinger': [
+        ('Drifter', gunslinger1), ('Outlaw', gunslinger2), ('Pistoleer', gunslinger3), ('Witch-hunter', gunslinger4),
     ],
     'emberknight': [
         ('Emberknight', build({**SK, 'B': '#7a2a1e', 'b': '#3a2a2a', 'T': '#e0a040', 'H': '#2a1e18', 'h': '#5a5e6a', 'X': '#ffa030', 'x': '#c0501a', 'W': '#ffb048', 'w': '#4a3a30', 'k': '#1e1a1a', 'L': '#3a2a2a'},

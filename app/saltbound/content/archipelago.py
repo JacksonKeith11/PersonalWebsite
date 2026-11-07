@@ -55,7 +55,7 @@ FOES = {
                     "moves": {"swing": {"name": "Censer Swing", "k": "attack", "use": [0, 1], "pair": {"st": "stun", "sn": 1}},
                               "toll": {"name": "Toll the Bell", "k": "all", "use": [2], "st": "stun", "sn": 1, "st_min": 6},
                               "ring": {"name": "Ring for the Drowned", "k": "summon", "f": "deckhand"},
-                              "crush": {"name": "Bell Drop", "k": "attack", "use": [0, 1, 2], "tgt": "vengeful"},
+                              "crush": {"name": "Bell Drop", "k": "attack", "use": [0, 1, 2], "brk": 0.4, "tgt": "vengeful"},
                               # never in `seq`: it comes when the knell counts down (`Bosses.foe_round`)
                               "knell": {"name": "Death Knell", "k": "all", "use": [0, 1], "st": "hex", "sn": 1}},
                     "bloodied": {"might": 2, "rule": "requiem", "text": "it tolls a requiem: the Death Knell comes every other round.",
@@ -197,12 +197,12 @@ FOES = {
                       "dice": [FROST, _d(10), _d(8), _d(6)],
                       "seq": ["wave", "depths", "rise", "surge", "curse"],
                       "moves": {"wave": {"name": "Tidal Wave", "k": "all", "use": [3]},
-                                "depths": {"name": "Crushing Depths", "k": "attack", "use": [1, 2, 3], "tgt": "vengeful"},
+                                "depths": {"name": "Crushing Depths", "k": "attack", "use": [1, 2, 3], "brk": 0.3, "tgt": "vengeful"},
                                 "rise": {"name": "Rise, Guard", "k": "summon", "f": "tide_guard"},
                                 "surge": {"name": "Freezing Surge", "k": "attack", "use": [0], "sweep": 2},
                                 "curse": {"name": "Drowned Curse", "k": "debuff", "use": [3], "st": "hex", "sn": 1, "tgt": "weakest"},
                                 # never in `seq`: the round after each change of phase (`Bosses.boss_phase`)
-                                "deluge": {"name": "The Deluge", "k": "all", "use": [0, 1, 2, 3]}}},
+                                "deluge": {"name": "The Deluge", "k": "all", "use": [0, 1, 2, 3], "brk": 0.3}}},
 }
 
 from . import biomes as _B

@@ -149,6 +149,7 @@ class Bosses:
             fo["st"].pop("asleep", None)
             self.fx("st", to=f"f{fo['id']}", s="wakes")
             self.say(f"{fo['name']} wakes up!")
+        self.break_hit(fo, n, h)
         if h is not None and n > 0:
             fo.setdefault("hitr", [])
             if h not in fo["hitr"]:

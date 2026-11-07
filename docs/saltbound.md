@@ -835,7 +835,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   to go down. The **Echo die** (Echo Chorus for the Herald, Mirror Step for the Duelist) is a d8 until
   an ally uses a die this round; then it shows the biggest number of that ally's last play
   (`Combat.echo_out`, after every action and instant), so the order of play is a party decision, and a
-  copied number always matches for Pincer.
+  copied number always matches for a Chord.
 - **Dice picks** (owner's request: more level-ups that change dice): passives that change a hero's
   dice for the fight (`Combat.dice_picks`; `NEW_DICE_PICKS` in `classes.py` adds them to the pools):
   Shield Rim (Vanguard: the armor die's two lowest faces become shield faces), Wild Surge (Arcanist:
@@ -882,16 +882,43 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   or next to the hex (and not in another fight) joins; enemies deal 0.7× (`EVENT_DMG`) and their
   health scales with who's there (`EVENT_HP`: 0.9× alone, 1.4× for two, 1.9× for three). On Hard,
   dungeon and roaming fights take about 3.8 rounds and the boss about 7.
-- **Cross-hero combos** (`COMBOS` in `classes.py` for the words, `combos.py` for the rules, numbers in
-  `tuning.py`), all plannable: **Pincer** (your first hit on an enemy an ally already hit this round:
-  +2, or +5 if one of your dice shows a number one of theirs showed; once per enemy per round),
-  **Covered** (your first hit after an ally Guarded or Taunted for you: +3), **Shatter** (hitting an
-  enemy an ally Froze: +4, the Freeze ends), **Wildfire** (Burn meets an ally's Poison or the reverse:
-  it erupts for Burn + Poison and half that to every other enemy, once per enemy), and the Bell-Warden's
-  crack (below). `combo_peek` lists what a hit would score without scoring it (the bots use it);
-  `combo_bonus` scores. The fight shows what's on offer: gold chips under an enemy, a gold ring on a
-  known die that would score, a Covered hero's card. Who put each status on an enemy is in
-  `fo["st_by"]`; the dice each enemy was last hit with this round are in `f["lastdie"]`.
+- **Combos** (owner's request, Nov 2026: the old Pincer, Covered, Shatter and Wildfire were too easy
+  and too small, and are gone). `COMBOS` in `classes.py` has the words, `combos.py` the rules,
+  `tuning.py` the numbers. Each one needs two heroes working at it, and is shown big when it goes off
+  (a banner across the screen and its own effect, `COMBO_LOOK` in `combat.js`):
+  - **Chord**: a hero hits an enemy, and *the very next action* is another hero's hit on the same
+    enemy with a die showing a number the first showed: it copies the first hit (at most
+    `CHORD_CAP`, 20). A third hero right after, with that number again, copies it twice. Any other
+    action in between ends it (`chord_open` before an action, `chord_hit` on its first hit,
+    `chord_close` after it; `f["seq"]` counts the round's actions, `f["chord"]` is the open chord).
+    The enemy shows "Chord: a 4 now, +12" to the heroes who can follow, and their matching dice get the
+    gold ring.
+  - **Elemental reactions**: a status meeting another hero's different status on one enemy reacts,
+    and both are used up; an enemy reacts at most once a round (`foe_status_by` → `reaction_on` →
+    `react_elements`; who put each status on is `fo["st_by"]`). **Overload** (Burn + Shock: 8 + 2 per
+    Burn and Shock, half to every other enemy), **Thermal Shock** (Burn + Freeze: 6 + 3 per Burn through
+    Armor, its Armor gone, Vulnerable 2), **Blightfire** (Burn + Poison: 3 per Burn and Poison, the
+    Poison spreads to the rest), **Fracture** (Freeze + Shock: 12 + 3 per Shock through Armor, Weak 2),
+    **Conduction** (Shock + Poison: the Poison doubles and every other enemy gets as much), **Kindling**
+    (Root + Burn: the Burn triples, to 12) and **Frostlock** (Root + Freeze), the only one that Stuns:
+    once a fight per enemy, Steeled bosses resist it, and a boss (or an enemy locked before) takes 15
+    instead. The enemy shows which statuses would set its status off.
+  - **Break**: some bosses' biggest move carries `brk` (a share of its health): the intent shows a
+    Break bar, and that much damage from at least two heroes before it acts breaks the move (it does
+    nothing; the boss is Steeled for the next round, so it can't be broken twice running).
+    `choose_intent` sets `it["brk"]`, `break_hit` (from `foe_hit_hooks`) counts `fo["brk_d"]` and
+    `fo["brk_by"]`. The shares sit at about the top 15% of what a party deals that boss in an ordinary
+    round (measured: 12 Hard runs, 304 boss rounds; median 17% of a boss's health a round, top quarter
+    30%, top tenth 39%), so attacking as usual rarely breaks it: Bell Drop 40%, Crushing Depths and the
+    Deluge 30% (the Crown has the most health and its Tide Guards), Shatter the Statue 40%, the Sentence
+    42%, Shatterstorm 36%, Endless Winter 38%, the Slag Tyrant's Eruption 45%.
+  - The Bell-Warden's crack (below) stays, as a boss rule. The Bosun's Whistle now gives Chords and
+    reactions +4 (`combo_up`).
+  - The bots see them: `bell_parts`/`bell_sum` add the Chord (and the bell) to a hit, `reaction_worth`
+    prices a status that would react, and a hit that would finish a Break is worth the move it stops.
+  - In 40 fast-bot Normal runs: Blightfire 142 (about 29 damage), Kindling 94, Chord 80 (all two-hero),
+    Overload 50, Thermal Shock 43, Conduction 34, Frostlock 13, Fracture 8, Break 13 of about 90
+    breakable moves.
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
   one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the
@@ -1771,7 +1798,7 @@ multipliers alone unless the owner asks.** Boss health is `BOSS_HP` in `content/
     another enemy's coming attack), Virulence → **Fester** (every hit on a Poisoned enemy adds 1
     Poison), Backstab (which repeated Stab's own bonus) → **Unseen** (+2 while no enemy aims at you),
     Battle Hymn → **Call and Response** (after the Herald acts, each ally's next damaging action that
-    round deals +3, `cue`; not "matching numbers", which Pincer already rewards), Volatile → **Short
+    round deals +3, `cue`; not "matching numbers", which Chord now rewards), Volatile → **Short
     Fuse** (a bomb showing 1 or 2 deals as if it were an 8, in `hit_base`), Deep Pockets → **Reagents**
     (bombs +1 per bomb already thrown this fight, up to +5), Verdant → **Bloom** (a summon's death heals
     the party half its max HP), and after the study, Distiller → **Catalyst** (bombs also Poison 1).
@@ -1924,7 +1951,7 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/dice.py` | Faces, condition checks, amount expressions (`amt`), and `Dice`: rolling, odds for planning (`outcomes`, `joint_outcomes`), `roll_for` with its rerolls. |
 | `app/saltbound/crits.py` | The crit each action does when a die lands on its top face (`CRITS`), written onto the actions on import, and `is_crit`. |
 | `app/saltbound/actions.py` | `Actions`: targets, amount variables (`env` = `dice_env` + `target_env`), one handler per op (`_op_dmg`, `_op_status`...) and per instant (`_inst_flip`...), and the **shared hit sums** (`hit_base`, `hit_finish`, `hit_pierces`, `foe_damage_after`, `foe_soak`, `hit_spill`, `status_amount`) that the fight and the bots both use. |
-| `app/saltbound/combos.py` | `Combos`: Pincer, Covered, Shatter, the Bell, Wildfire, Spiteful elites. |
+| `app/saltbound/combos.py` | `Combos`: Chord, the elemental reactions, Break, the Bell, Spiteful elites. |
 | `app/saltbound/bosses.py` | `Bosses`: the Crown's phases and Undertow, the Bell-Warden, the Lamp Keeper, the Iron Bosun's crew, Harpies' flight, splitting, the Maw's swallow. |
 | `app/saltbound/tuning.py` | The fight numbers (fight-kind scaling, combos, boss numbers, status lists). |
 | `app/saltbound/mods.py` | Every passive mod name and what it does; `check_content`. |
@@ -2033,9 +2060,9 @@ clock anywhere: the run changes only when someone acts.
   must check it. A map boon has to be mirrored in `rules.js` (`perk`); `saltbound-check.py`'s step
   check gives the second hero all three.
 - **The bots' scoring works out once per target what doesn't depend on the roll** (`evaluate`'s
-  `prep`): `target_part`/`target_env_from` split `target_env`, `combo_parts`/`combo_sum` split
-  `combo_peek` (in `combos.py`, beside it), and `die_sig` is cached while a bot thinks (`frozen`). A
-  change to `target_env` or `combo_peek` belongs in its split too. This made the full bots about 25%
+  `prep`): `target_part`/`target_env_from` split `target_env`, `bell_parts`/`bell_sum` work out the Chord and
+  the bell (in `combos.py`), and `die_sig` is cached while a bot thinks (`frozen`). A change to
+  `target_env` belongs in its split too. This made the full bots about 25%
   faster with identical runs: check a change like it with run fingerprints (play fixed seeds, hash
   `g.s`, compare before and after), which must not change.
 

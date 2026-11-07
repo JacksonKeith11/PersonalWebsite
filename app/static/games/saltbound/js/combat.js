@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=167';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=167';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=167';
-import { stageURL, stageKey } from './stage.js?v=167';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=167';
-import { render } from './main.js?v=167';
-import { skillCard, upDef, upText } from './hud.js?v=167';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=167';
-import * as sfx from './audio.js?v=167';
+import { S, send, mine, controllerName } from './store.js?v=168';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=168';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=168';
+import { stageURL, stageKey } from './stage.js?v=168';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=168';
+import { render } from './main.js?v=168';
+import { skillCard, upDef, upText } from './hud.js?v=168';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=168';
+import * as sfx from './audio.js?v=168';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -135,7 +135,6 @@ export function renderCombat(el) {
       hs?.swallowed ? h('div.covered-chip.undertow', { tip: 'Swallowed: no dice, and you take damage each round until the Reef Maw spits you out.' }, 'Swallowed!') : null,
       hs?.static ? h('div.covered-chip.undertow', { tip: 'Static: any of your dice that rolls 1 or 2 shocks you for 3 this round.' }, 'Static: 1–2 shocks you') : null,
       hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
-      (f.covered || []).includes(x) ? h('div.covered-chip', { tip: `Covered\n${S.static.combos.covered.text}` }, `Covered: next hit +3`) : null,
       hs?.st?.infuse ? infusedChip(hs) : null,
       hs && hs.heat != null ? heatGauge(hs) : null,
       hs && hs.impact != null ? impactGauge(hs, hero) : null,
@@ -408,13 +407,18 @@ function drawVines(stage, sr, svg, f) {
   }
 }
 
-// What the acting hero could score on this enemy from what allies have already done this round:
-// Pincer (an ally hit it), Shatter (an ally Froze it), Wildfire (an ally Burned or Poisoned it).
-export function pincerNums(fo, f, x) {
-  const last = f.lastdie?.[fo.id];
-  if (!last || last[0] === x || (f.pincered || []).includes(fo.id)) return null;
-  return [...new Set(last[1].filter(Boolean))].sort((a, b) => a - b);
+// Chord: the numbers hero x's next action needs to show to copy an ally's hit on this enemy (null
+// when there's no chord on it for them: it has to be the very next action, by another hero).
+export function chordNums(fo, f, x) {
+  const ch = f.chord;
+  if (!ch || ch.seq !== f.seq || ch.t !== 'f' + fo.id || ch.hs.includes(x)) return null;
+  return ch.vals;
 }
+// The elemental reactions: two statuses from two heroes meet on one enemy (combos.py REACTIONS).
+const REACTS = { 'burn+shock': 'overload', 'burn+freeze': 'thermal', 'burn+poison': 'blightfire', 'freeze+shock': 'fracture',
+  'poison+shock': 'conduction', 'freeze+root': 'frostlock', 'burn+root': 'kindling' };
+const REACT_ELS = ['burn', 'freeze', 'shock', 'poison', 'root'];
+const reactOf = (a, b) => REACTS[[a, b].sort().join('+')];
 function foeState(fo, f) {
   // what makes this enemy different right now, in words
   const chips = [];
@@ -439,12 +443,22 @@ function comboHints(fo, f) {
   const x = C.tab;
   if (x == null || !f.heroes.includes(x)) return null;
   const by = fo.st_by || {}, chips = [];
-  const nums = pincerNums(fo, f, x);
-  if (nums) chips.push(h('span.combo-hint', { tip: `Pincer\n${S.game.heroes[f.lastdie[fo.id][0]].name} hit it this round: your first hit on it deals +2, or +5 if one of your dice shows ${nums.join(' or ')}.` }, `Pincer +2 · ${nums.join('/')}: +5`));
-  if (fo.st.freeze && by.freeze != null && by.freeze !== x) chips.push(h('span.combo-hint', { tip: 'Shatter\nAn ally Froze it: your next hit on it breaks the ice for +4 (the Freeze ends).' }, 'Shatter +4'));
-  if (!fo.wildfire) {
-    if (fo.st.burn && by.burn != null && by.burn !== x && !fo.st.poison) chips.push(h('span.combo-hint', { tip: 'Wildfire\nAn ally Burned it: Poison it and it erupts for Burn + Poison, and half that to every other enemy.' }, 'Wildfire: Poison it'));
-    if (fo.st.poison && by.poison != null && by.poison !== x && !fo.st.burn) chips.push(h('span.combo-hint', { tip: 'Wildfire\nAn ally Poisoned it: Burn it and it erupts for Burn + Poison, and half that to every other enemy.' }, 'Wildfire: Burn it'));
+  const nums = chordNums(fo, f, x);
+  if (nums) {
+    const n = Math.min(f.chord.base, 20) * f.chord.hs.length;
+    const who = f.chord.hs.map(y => S.game.heroes[y].name).join(' and ');
+    chips.push(h('span.combo-hint.chord', { tip: `Chord\n${who} just hit it. Make your next action a hit on it with a die showing ${nums.join(' or ')}, before anyone else acts, and it copies that hit: +${n}.` },
+      `Chord: a ${nums.join('/')} now, +${n}`));
+  }
+  // a status another hero put on it, and what yours would set off
+  if (fo.reacted !== f.round) {
+    for (const s of REACT_ELS) {
+      if (!fo.st?.[s] || by[s] == null || by[s] === x) continue;
+      const opts = REACT_ELS.filter(o => o !== s && reactOf(s, o)).map(o => [o, reactOf(s, o)]);
+      const names = opts.map(([o, r]) => `${STATUS[o]?.name || o} → ${S.static.combos[r].name}`);
+      chips.push(h('span.combo-hint.react', { tip: `${S.game.heroes[by[s]].name}'s ${STATUS[s]?.name || s} is on it. Add another status and it reacts (both are used up):\n${opts.map(([o, r]) => `${STATUS[o]?.name || o}: ${S.static.combos[r].name}. ${S.static.combos[r].text}`).join('\n')}` },
+        `${STATUS[s]?.name || s}: add ${opts.map(([o]) => STATUS[o]?.name || o).join(' / ')}`));
+    }
   }
   return chips.length ? h('div.combo-hints', null, ...chips) : null;
 }
@@ -760,9 +774,14 @@ function intentChip(fo, f) {
     ? h('div.it-row', null, h('span.it-dice', null, ...dice, b ? h('span.bn', null, b > 0 ? `+${b}` : `−${-b}`) : null),
         range ? h('b.it-range', null, range, hits > 1 ? h('small', null, ` ×${hits}`) : null) : null)
     : h('div.it-row', null, icon(ic), h('span.it-what', null, range || { buff: 'buff', summon: 'calls help', charge: 'charging', dazed: 'nothing' }[it.k] || ''));
-  return h('div.intent.card' + sure + (it.guarded != null ? '.guarded' : ''), { style: { '--c': col }, tip: lines.join('\n') },
+  // Break: a boss's big move stops if the party deals this much to it, from two heroes, before it acts
+  const brk = it.brk ? Math.min(1, (fo.brk_d || 0) / it.brk) : 0;
+  if (it.brk) lines.push(`Break: deal ${it.brk} to it before it acts, from at least two heroes, and this move is broken (${fo.brk_d || 0} so far, from ${(fo.brk_by || []).length} hero${(fo.brk_by || []).length === 1 ? '' : 'es'}).`);
+  return h('div.intent.card' + sure + (it.guarded != null ? '.guarded' : '') + (it.brk ? '.breakable' : ''), { style: { '--c': col }, tip: lines.join('\n') },
     h('div.it-name', null, h('span.ic', null, icon(ic)), it.name || INTENT_TEXT[it.k] || '', it.guarded != null ? h('span.gd', null, icon('shield')) : null),
     body,
+    it.brk ? h('div.it-break', null, h('span.bk-label', null, 'Break'), h('span.bk-bar', null, h('b', { style: { width: `${Math.round(brk * 100)}%` } })),
+      h('span.bk-num', null, `${fo.brk_d || 0}/${it.brk}`)) : null,
     who.length || it.k === 'all' || tags.length ? h('div.it-foot', null, it.k === 'all' ? h('span.who.all', null, h('i'), 'everyone') : null, ...who, ...tags) : null);
 }
 
@@ -889,7 +908,7 @@ function outcomeText(o) {
 // Everything the tray shows, so it's rebuilt only when one of them changes.
 function traySig(f, x, my) {
   const g = S.game, hero = g.heroes[x], hs = f.hs[x];
-  return JSON.stringify([f.id, f.round, x, my, hs, hero.actions, hero.bag, hero.spent, f.hymn, f.foes, f.lastdie,
+  return JSON.stringify([f.id, f.round, x, my, hs, hero.actions, hero.bag, hero.spent, f.hymn, f.foes, f.chord, f.seq,
     f.heroes.map(y => [f.hs[y]?.ready, f.hs[y]?.down, f.hs[y]?.fled]), [...C.sel], C.pending?.msg ?? null, C.playing && !hs.ready]);
 }
 
@@ -1042,11 +1061,11 @@ function dieButton(d, i, ready) {
   if (d.bonus) marks.push(h('span.mk.bonus', null, `+${d.bonus}`));
   if (d.link) marks.push(h('span.mk', null, icon('link')));
   const f0 = S.game.fight;
-  const pinc = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && pincerNums(fo, f0, C.tab)?.includes(d.v)).map(fo => fo.name) : [];
+  const pinc = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && chordNums(fo, f0, C.tab)?.includes(d.v)).map(fo => fo.name) : [];
   const bells = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && fo.bell && !fo.cracked && fo.bell === d.v) : [];
   if (pinc.length || bells.length) cls += '.combo';
   if (d.locked) cls += '.locked';
-  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nPincer +5 on ${pinc.join(', ')}: it matches an ally's die.` : ''}${bells.length ? '\nMatches the bell: hit the Bell-Warden with it to crack the bell.' : ''}${d.locked ? '\nCrusted over by a Barnacle Priest: you can’t use it this round.' : ''}`;
+  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nChord on ${pinc.join(', ')}: hit it with this next and it copies your ally's hit.` : ''}${bells.length ? '\nMatches the bell: hit the Bell-Warden with it to crack the bell.' : ''}${d.locked ? '\nCrusted over by a Barnacle Priest: you can’t use it this round.' : ''}`;
   // a Swell die is drawn bigger with every round it waits (its step: d4, d10+2, d12+7, d20+12)
   if (d.src === 'swell') cls += '.swell.s' + Math.max(0, [4, 10, 12, 20].indexOf(d.faces.length));
   return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
@@ -1738,6 +1757,19 @@ function nextActor() {
   return null;
 }
 
+// What each combo looks like when it goes off (the 'combo' effect): its colour, the line under its
+// banner, and an effect on the enemy it hit.
+const COMBO_LOOK = {
+  chord: { c: '#ffd36b', sub: 'Combo: the same number, back to back', fx: (u, c) => { fxAt(u, 'shock big', 640, c); fxAt(u, 'notes', 1000); fxSparks(u, c, { n: 18, r: 100 }); } },
+  overload: { c: '#bfe0ff', sub: 'Reaction: Burn + Shock', fx: (u, c) => { fxAt(u, 'zap', 520); fxAt(u, 'fireburst', 800); fxScreen('bolt', 220); fxSparks(u, c, { n: 20, r: 130 }); flash('stage', 'shake', 380); } },
+  thermal: { c: '#ff9a5a', sub: 'Reaction: Burn + Freeze', fx: (u, c) => { fxAt(u, 'smoke', 900, 'rgba(240, 245, 250, 0.8)'); fxAt(u, 'shards full', 560); fxSparks(u, c, { n: 14, r: 90 }); flash('stage', 'punch', 240); } },
+  blightfire: { c: '#c4f03a', sub: 'Reaction: Burn + Poison', fx: (u, c) => { fxAt(u, 'fireburst', 800); fxAt(u, 'cloud', 1100); fxSparks(u, c, { n: 14, r: 90, dir: -90, cone: 120, cls: 'bubble', ms: 900 }); } },
+  fracture: { c: '#9fdcff', sub: 'Reaction: Freeze + Shock', fx: (u, c) => { fxAt(u, 'iceburst', 700); fxAt(u, 'shards full', 560); fxScreen('white', 160); fxSparks(u, c, { n: 18, r: 110, cls: 'mote' }); flash('stage', 'punch', 240); } },
+  conduction: { c: '#8ee04a', sub: 'Reaction: Shock + Poison', fx: (u, c) => { fxAt(u, 'zap', 520, c); fxAt(u, 'hoop', 600, c); fxSparks(u, c, { n: 16, r: 140, cls: 'bubble', ms: 800 }); } },
+  frostlock: { c: '#bfe6ff', sub: 'Reaction: Root + Freeze', fx: (u, c) => { fxAt(u, 'vines', 900, '#6fd36a'); fxAt(u, 'iceburst', 800); fxAt(u, 'squeeze', 700, c); fxSparks(u, c, { n: 12, r: 80, inward: true, cls: 'mote', ms: 500 }); } },
+  kindling: { c: '#ffa030', sub: 'Reaction: Root + Burn', fx: (u, c) => { fxAt(u, 'vines', 800, '#6fd36a'); fxAt(u, 'pillar', 800, c); fxSparks(u, c, { n: 14, r: 90, dir: -90, cone: 120 }); } },
+  break: { c: '#ff5a4a', sub: 'Its big move is broken', fx: (u, c) => { fxAt(u, 'shock big', 640, c); fxAt(u, 'shards full', 560); fxScreen('white', 200); fxSparks(u, c, { n: 20, r: 120 }); flash('stage', 'shake', 380); } },
+};
 function addFloat(id, text, cls) {
   const list = (C.floats[id] ||= []);
   const fl = { id: ++floatId, text, cls, t: performance.now() };
@@ -1883,12 +1915,16 @@ function apply(f) {
     }
     case 'armor': addFloat(f.to, `+${f.n} ◆`, 'arm'); sfx.play('block'); return 220;
     case 'combo': {
+      // Chord, an elemental reaction or a Break: a banner across the screen and its own effect
       const name = S.static.combos?.[f.c]?.name || { bell: 'Bell cracked' }[f.c] || f.c;
-      addFloat(f.to, `${name}! +${f.n}`, 'combo');
+      addFloat(f.to, f.n ? `${name}! +${f.n}` : `${name}!`, 'combo');
       sfx.play('rare');
-      return 420;
-    }
-    case 'st': {
+      const look = COMBO_LOOK[f.c];
+      if (!look || !S.settings.speed) return 420;
+      fxCutin(f.c === 'chord' ? `Chord ×${f.lvl || 2}` : name, look.sub, look.c, 760);
+      look.fx(f.to, look.c);
+      return 760;
+    }    case 'st': {
       if (f.s === 'crit') {
         // a crit: a gold callout over the hero, and the stage gives a jolt
         addFloat(f.to, 'Crit!', 'crit');

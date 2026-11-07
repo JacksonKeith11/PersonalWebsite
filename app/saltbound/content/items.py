@@ -399,7 +399,7 @@ PASSIVES = {
     "powder_heart": ({"all_explode": 1, "max_hp": -6}, "Powder heart: all your dice explode on their top face. −6 max HP."),
     "weighted_coin": ({"one_is_top": 1}, "Heads I win: a 1 you roll counts as the die's top face."),
     "bloodstone": ({"blood_reroll": 3}, "Blood price: out of rerolls, a miss rerolls anyway for 3 HP."),
-    "bosuns_whistle": ({"combo_up": 2}, "All hands: your combos deal +2 more."),
+    "bosuns_whistle": ({"combo_up": 4}, "All hands: your Chords and elemental reactions deal +4 more."),
     "bosuns_bell": ({}, "Ring it: hand one of your dice to an ally."),
     "sea_glass_lens": ({"guard_free": 1}, "Clear sight: your armor's die can go on attacks too."),
     # more gear

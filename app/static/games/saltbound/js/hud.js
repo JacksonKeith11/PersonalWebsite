@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=167';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=167';
-import { spriteURL, placeURL } from './art.js?v=167';
-import { itemURL } from './itemart.js?v=167';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=167';
-import { MapView } from './hexmap.js?v=167';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=167';
-import { disconnect } from './main.js?v=167';
-import * as sfx from './audio.js?v=167';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=168';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=168';
+import { spriteURL, placeURL } from './art.js?v=168';
+import { itemURL } from './itemart.js?v=168';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=168';
+import { MapView } from './hexmap.js?v=168';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=168';
+import { disconnect } from './main.js?v=168';
+import * as sfx from './audio.js?v=168';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -1563,7 +1563,7 @@ function forkView(fk) {
 // ------------------------------------------------------------------ first-time hints
 const HINTS = {
   plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
-  fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
+  fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: the same number on one enemy back to back (Chord), two heroes’ statuses meeting on one enemy (elemental reactions), and enough damage to break a boss’s big move. Hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
   sea: ['Time and tide', 'Every nine turns the Great Tide rises: every enemy grows stronger, and the sea brings things ashore: wreckage and visitors at first, raiders and worse as the run goes on. They show on the map at once and under “This turn”. When the Great Tide rises the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
 };
 function renderHint() {

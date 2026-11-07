@@ -462,10 +462,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f["done"] = []
         f["rec"] = None
         f["guard"] = {}
-        f["lastdie"] = {}
-        f["pincered"] = []
+        f["chord"] = None
         f["cloaked"] = []
-        f["covered"] = []
         f["taunt"] = None
         f["sanct"] = 0
         f["acts"] = {}
@@ -988,6 +986,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if a.get("per_rest"):
             self.hero(h).setdefault("spent", []).append(a["key"])
         since = self.s["fxid"]
+        self.chord_open(h, a, dice, tgt if isinstance(tgt, str) else None)
         hit = self.roll_for(h, a, dice)
         self.echo_out(h, dice)
         done = {"h": h, "a": a["key"], "plus": a["plus"], "tgt": tgt, "hit": hit}
@@ -1045,8 +1044,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if self.s["fight"] is f:
             self.after_action(h, a, tgt)
         self.elements(h, a, dice, tgt)
+        if self.s["fight"] is f:
+            self.chord_close(h, dice)
         if self.s["fight"] is f and a["tgt"] == "foe" and dice and isinstance(tgt, str) and tgt.startswith("f"):
-            f.setdefault("lastdie", {})[tgt[1:]] = [h, [num(d) for d in dice]]
             fo = self.foe(int(tgt[1:]))
             known = [d["v"] for d in ((fo or {}).get("intent") or {}).get("dice") or [] if d.get("v") is not None]
             if self.mods(h).get("tempo") and known and not x.get("tempo") and max(num(d) for d in dice) > max(known):
@@ -2006,9 +2006,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             return None
         out = {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "done", "guard", "taunt",
                                  "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
-        out["covered"] = f.get("covered", [])
-        out["lastdie"] = f.get("lastdie", {})
-        out["pincered"] = f.get("pincered", [])
+        out["chord"] = f.get("chord")
+        out["seq"] = f.get("seq", 0)
         out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)
         out["last"] = f.get("last", [])

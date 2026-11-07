@@ -898,7 +898,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         continue
                     tid = t["id"]
                     st = t["st"]
-                    per.append((t, share, g.target_part(h, t), dmg_bonus(t), g.combo_parts(h, t),
+                    per.append((t, share, g.target_part(h, t), dmg_bonus(t), g.bell_parts(h, t),
                                 None if st.get("vuln") else 1 + 0.25 * b.vuln.get(tid, 0),
                                 None if st.get("mark") else 3 * b.mark.get(tid, 0),
                                 t["hp"] - b.dmg.get(tid, 0), 0.75 + 0.5 * tb[tid] / top, now[tid] + 2 + 0.5 * tb[tid]))
@@ -937,7 +937,7 @@ def evaluate(g, b, h, a, dice, tgt):
                     for j, i in enumerate(each):
                         raw, _ = g.hit_base(h, a, op, t, dice, vals, tags, i, env=env, bonus=bonus_t)
                         if j == 0:
-                            raw += g.combo_sum(combo, vals)  # Pincer, Covered, Shatter, the bell (as combo_peek)
+                            raw += g.bell_sum(combo, vals)  # Chord and the bell (Combos.bell_parts)
                         raw = g.hit_finish(h, raw, dice, vals, i, cres, spell=bool(a.get("spell")))
                         got = g.foe_damage_after(t, int(raw), h)
                         # Vulnerable and Mark that earlier placements will have put on it
@@ -971,9 +971,12 @@ def evaluate(g, b, h, a, dice, tgt):
                     val += share * min(n, left) * w
                     if n > 0 and t["st"].get("sleep") and t.get("slept"):
                         val -= share * (t["slept"].get("v", 0) or 3)  # it wakes up and attacks after all
+                    brk = g.break_left(t, h)
                     if n >= left:
                         val += share * stopv
                         bump(eff["stop"], tid, pr * share)
+                    elif brk is not None and n + b.dmg.get(tid, 0) >= brk:
+                        val += share * stopv  # Break: this hit stops the boss's big move
                         if op.get("carry") and n > left:
                             # Slash's follow-through: the damage past the kill carries on to the next enemy in reach
                             nxt = [o["hp"] - b.dmg.get(o["id"], 0) for o in foes if o is not t and (g.in_reach(o) or not melee)]
@@ -981,9 +984,9 @@ def evaluate(g, b, h, a, dice, tgt):
                             if nxt:
                                 val += share * min(n - left, min(nxt)) * 0.8
                     elif n > 0 and spell_burn:
-                        val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share)
+                        val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share, h)
                     if 0 < n < left and bomb_poison:
-                        val += share * foe_status(g, b, "poison", 1, t, now, tb, top, eff, pr * share)
+                        val += share * foe_status(g, b, "poison", 1, t, now, tb, top, eff, pr * share, h)
                     if leech:
                         val += share * min(n, left) * 0.3
                     if red_mist:
@@ -997,7 +1000,7 @@ def evaluate(g, b, h, a, dice, tgt):
                         continue
                     n = g.status_amount(h, a, op["s"], amt(op["n"], env))
                     if isinstance(t, dict):
-                        val += share * foe_status(g, b, op["s"], n, t, now, tb, top, eff, pr * share)
+                        val += share * foe_status(g, b, op["s"], n, t, now, tb, top, eff, pr * share, h)
                     else:
                         val += share * hero_status(g, b, h, op["s"], n, t[1], inc, big, hits, eff, pr * share)
             elif k == "armor":
@@ -1308,10 +1311,28 @@ def reload_value(g, h, n):
     return (new - x["ammo"]) * ROUND_WORTH + (2.5 if x["ammo"] == 0 and left > 0 else 0)
 
 
-def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
+def foe_status(g, b, s, n, t, now, tb, top, eff, pr, h=None):
     left = max(0, t["hp"] - b.dmg.get(t["id"], 0))
     if left <= 0 or n <= 0:
         return 0
+    return status_worth(g, b, s, n, t, now, tb, top, eff, pr, left) + 0.8 * reaction_worth(g, t, s, h)
+
+
+def reaction_worth(g, t, s, h):
+    """An elemental reaction this status would set off (another hero's status already on it)."""
+    if h is None or s not in ("burn", "freeze", "shock", "poison", "root"):
+        return 0
+    st = t["st"]
+    if not st.get(s):
+        st[s] = 1  # reaction_on asks whether the status has landed
+        try:
+            return g.reaction_worth(t, s, h)
+        finally:
+            st.pop(s, None)
+    return g.reaction_worth(t, s, h)
+
+
+def status_worth(g, b, s, n, t, now, tb, top, eff, pr, left):
     w = 0.75 + 0.5 * tb[t["id"]] / top
     if s == "stun":
         if t["st"].get("stun") or g.steeled(t):

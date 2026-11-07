@@ -210,6 +210,9 @@ class Foes:
             key = next((k for k in moves if moves[k]["k"] == "attack"), key)
             mv = moves[key]
         it = {"k": mv["k"], "m": key, "name": mv["name"]}
+        fo["brk_d"], fo["brk_by"] = 0, []
+        if mv.get("brk") and not self.steeled(fo):
+            it["brk"] = max(1, round(mv["brk"] * fo["max"]))  # Break: this much from two heroes stops it
         for opt in ("each", "sweep", "chain", "st", "sn", "st_min", "pair", "v", "f", "self", "all", "next"):
             if opt in mv:
                 it[opt] = mv[opt]

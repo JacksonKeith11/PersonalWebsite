@@ -380,10 +380,11 @@ class Actions:
                     self.fx("st", to=f"f{t['id']}", s="out of reach")
                     continue
                 n, env = self.hit_base(h, a, op, t, c.dice, vals, tags, i, c.half)
-                n += self.combo_bonus(h, a, c.dice, t, c.used)
+                n += self.bell_crack(h, c.dice, t, c.used)
                 n = self.hit_finish(h, n, c.dice, vals, i, 1 if c.crescendo else 0, spell=bool(a.get("spell")))
                 if c.x.pop("redline", None):
                     n *= 2  # Redline: the hit after an overheat
+                n = self.chord_hit(h, t, n)  # Chord: another hero's hit just before, with this number
                 hp0 = t["hp"]
                 done = self.hurt_foe(t, n, h, pierce=pierce, bomb=a.get("bomb"))
                 c.dealt = True
@@ -785,7 +786,6 @@ class Actions:
                     self.s["fight"]["guard"][str(t[1])] = h
                 self.fx("st", to=f"h{t[1]}", s="guarded")
                 if t[1] != h:
-                    self.cover(t[1])
                     if c.m.get("guard_share"):
                         st = self.hs(t[1])["st"]
                         st["armor"] = st.get("armor", 0) + c.m["guard_share"]
@@ -798,7 +798,6 @@ class Actions:
         self.fx("st", to=f"h{h}", s="taunt")
         for y in self.actives():
             if y != h:
-                self.cover(y)
                 if c.m.get("guard_share"):
                     st = self.hs(y)["st"]
                     st["armor"] = st.get("armor", 0) + 2

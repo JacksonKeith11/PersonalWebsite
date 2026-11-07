@@ -75,7 +75,7 @@ passes:
   Called Shot), never in the requirement. The one exception is a class that can see or steer the match
   (the Scoundrel's linked dice make Smoke Bomb's pair likely); without that, don't.
 - **Multi-die actions**: they have to beat the sum of what each die would do alone, plus whatever bonus
-  per hit (Mark, Pincer, Crescendo) they give up by being one hit. Budget about +3 to +4 per extra die.
+  per hit (Mark, Crescendo, a Chord) they give up by being one hit. Budget about +3 to +4 per extra die.
 - **Risky actions** (5+, 6+, a big sum, a pair) need to pay about a quarter more on average than a safe
   action with the same die, and a miss that does nothing needs more again. Misses scale with the risk:
   3+ to 5+ deals about half the die on a miss, 6+ and pairs deal nothing.
@@ -100,11 +100,11 @@ The owner's directions, and what the reworks found:
   - dice you can see and steer (Seer, Augur and Fate dice; Read the Blade; Second Opinion);
   - dice verbs: flip, split, graft, link, pass (Counterpoint, Splitting Flask, Grafting, Loaded Dice).
 - **The order of play matters.** Spellweave (a different spell earlier this round), Call and Response
-  (the Herald acts first), Pincer and Covered (an ally set it up), Acid Flask ("throw it before the big
+  (the Herald acts first), Chord (the same number, back to back), Acid Flask ("throw it before the big
   hits"). These give the party something to plan together on the voice call.
 - **Target choice matters.** Engage (enemies at full health), Quarry (keep hitting the same one), Pass the
   Mark (the order of kills), Pinpoint and Riposte Cut (whoever is aiming at you), Stab (whoever isn't).
-- **Cross-hero synergy.** Wildfire (Burn meets Poison), Shatter (Freeze), Fester (anyone's hits grow the
+- **Cross-hero synergy.** The elemental reactions (two heroes' statuses meet: Burn, Freeze, Shock, Poison, Root), Fester (anyone's hits grow the
   Scoundrel's Poison), Catalyst (bombs Poison, so an ally's Burn erupts).
 - **A miss or a bad moment still gives something.** Backlash Ward (a missed spell gives Armor), Bloom (a
   summon dying heals the party), Shared Burden.
@@ -142,7 +142,7 @@ reuse a class action's key.
    resets, statuses tick).
 4. **Overlap.** Search `classes.py`, `COMBOS` and the item passives in `content/items.py` for the same
    effect. Heroes have no rows (only enemies do), so nothing may move, place or protect allies by row.
-   Pincer already rewards matching numbers; Stab already rewards enemies aiming elsewhere.
+   Chord already rewards matching numbers; Stab already rewards enemies aiming elsewhere.
 5. **Build it so the bots see it.** Damage rules go in `dmg_bonus` or `hit_base` in `actions.py` (the
    shared hit sums), never inline in `_op_dmg`. A face rule goes in `face_rules` (`dice.py`), `ROLL_MODS`
    (`tuning.py`) and `faceRules` (`js/rules.js`). An instant needs a value in `bot.instant_value`, and a

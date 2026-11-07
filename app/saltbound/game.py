@@ -2468,6 +2468,12 @@ class Game(Combat, Biomes, Quests, Travel):
         if p.get("quest_taken") or not isinstance(n, int) or not 0 <= n < len(jobs):
             raise Invalid("There's no work going here.")
         s = self.s
+        way = self.defend_start(t) if jobs[n]["kind"] == "defend" else None
+        if jobs[n]["kind"] == "defend" and not way:
+            # the war band can't reach the town any more: the notice comes down (taking it again would loop)
+            jobs.pop(n)
+            self.say(f"The war band marching on {p['name']} has turned back: that notice comes down.")
+            return
         p["quest_taken"] = True
         s["jobid"] = s.get("jobid", 0) + 1
         q = dict(jobs[n], id=s["jobid"], done=False, failed=False, src=p["name"], src_tile=t,
@@ -2488,10 +2494,6 @@ class Game(Combat, Biomes, Quests, Travel):
         if q["kind"] == "salvage":
             q["stage"] = "fetch"
         if q["kind"] == "defend":
-            way = self.defend_start(t)
-            if not way:
-                p["quest_taken"] = False
-                raise Invalid("The war band has turned back: there's nothing to defend against.")
             st, road = way
             regs = sorted((int(k), p2["region"]) for k, p2 in s["world"]["places"].items() if p2["kind"] == "dungeon")
             open_regs = [r for _, r in regs if r not in s["cleared"]] or [r for _, r in regs]

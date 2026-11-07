@@ -489,7 +489,9 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 - **More kinds** (owner's request, Nov 2026): **Defend the town** (`defend`: a war band, a raid in
   every way, `g["raid"]["job"]`, sets out `DEFEND_ROAD` (5-8) hexes' march away from the nearest
   objective's side when the job is taken; beat it on the road or in the town and the job's done, and
-  the raid pays as ever; if it takes the town, `occupy` fails the job). **Raise a beacon** and **Build a
+  the raid pays as ever; if it takes the town, `occupy` fails the job). An offer whose band can no
+  longer find a road comes off the board when someone tries to take it (raising `Invalid` instead left
+  it pinned up, and a bot took it every turn forever: a 6,497-turn run in the first Hard batch). **Raise a beacon** and **Build a
   watchtower** change the map (`build_site`, `build`): end a turn on the site (`BUILD_RANGE` 3-8 hexes
   out; a beacon on a hill or peak, `BEACON_GAP` from the others) and a new place stands there: a lit
   beacon on the party's beacon road, or a watchtower (place kind `tower`, drawn with the lookout's art)
@@ -951,6 +953,8 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   - **Balance** (300 Hard runs, seed 5000, full bots): 58.0% as first built (Blightfire 3 a stack with
     all the Poison spreading, Kindling tripling to 12, Chord to 20), against about 50% with the old
     combos; **53.0%** after toning those down (classes 41-65%, Herald and Arcanist lowest).
+  - With the new jobs, Resonance faces and Break on 18 enemies (300 Hard runs): **54.0%** (classes
+    46-70%; Vanguard and Duelist top, Alchemist and Berserker bottom).
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
   one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the

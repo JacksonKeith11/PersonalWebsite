@@ -1456,6 +1456,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                         f["echoed"] = True  # Harmonic Echo, once a round
                         self.raise_harmony(y, self.hs(y)["lastharm"])
                         break
+            if m.get("kill_resolve") and x and "resolve" in x and self.active(h):
+                self.add_resolve(h, m["kill_resolve"])  # Bushido Code
             if m.get("fan_flames") and x and "heat" in x and self.active(h):
                 self.add_heat(h, m["fan_flames"])  # Fan the Flames
             if m.get("kill_armor") and self.active(h):

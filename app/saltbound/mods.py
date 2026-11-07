@@ -21,6 +21,7 @@ MODS = {
     "unbowed": "below half HP, the Draw deals half again",
     "loyalty": "an ally knocked down: Sheathe and gain n Resolve",
     "tempered": "Resolve grows to n more, and the Draw gives n Armor",
+    "kill_resolve": "each kill adds n Resolve",
     "final_breath": "once a fight, knocked down: cut the attacker for the Resolve +n",
     # the Gunslinger's cylinder (classes.py CYLINDER; Actions.cylinder, silver, _op_reload; Combat.fire_rounds)
     "cylinder": "the cylinder holds n more rounds",

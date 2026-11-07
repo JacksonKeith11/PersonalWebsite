@@ -1078,6 +1078,64 @@ CLASSES["samurai"] = {
     "blurb": "Waits with the blade in its scabbard, then ends it in one cut.",
 }
 
+# ---- Pools up to 20 (owner's request, Nov 2026): every class has at least 20 picks.
+ACTIONS.update({
+    # Psion
+    "psychic_lance": {"cd": 2, "name": "Psychic Lance", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["telekinesis"],
+                      "ops": [{"op": "dmg", "amt": "v*(1+(v%2==0))"}],
+                      "text": "Any row: deal the die; on an even number, twice that. Nudge it to land."},
+    "thought_shield": {"name": "Thought Shield", "req": {"n": 1}, "tgt": "other", "tags": ["telepathy"],
+                       "ops": [{"op": "armor", "amt": "8 if v==1 else v+2"}],
+                       "text": "An ally gains the die +2 as Armor. On exactly 1, they gain 8 instead."},
+    "dread_vision": {"cd": 3, "name": "Dread Vision", "req": {"n": 1}, "tgt": "foes", "tags": ["telepathy"],
+                     "ops": [{"op": "weaken", "amt": "4 if v==6 else 2"}],
+                     "text": "Show them how it ends: every enemy's attack this round deals 2 less; on exactly 6, 4 less."},
+    # Spellblade
+    "glyph_of_binding": {"cd": 2, "name": "Glyph of Binding", "req": {"n": 1}, "tgt": "foe", "tags": ["sigil"],
+                         "ops": [{"op": "carve", "n": 2}, {"op": "status", "s": "weak", "n": 1, "if": "sig>=3"}],
+                         "text": "Any row: carve 2 Sigils. If it now has 3 or more, it's Weak this round."},
+    "glyph_snare": {"cd": 2, "name": "Glyph Snare", "req": {"n": 1}, "tgt": "foes", "tags": ["sigil"],
+                    "ops": [{"op": "carve", "n": 1}, {"op": "dmg", "amt": "v//3"}],
+                    "text": "Carve a Sigil on every enemy, and deal each a third of the die."},
+    "runebreaker": {"cd": 2, "name": "Runebreaker", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["edge"],
+                    "ops": [{"op": "strip", "amt": "99"}, {"op": "dmg", "amt": "v+1"}, {"op": "carve", "n": 1}],
+                    "text": "Strip all of the enemy's Armor, then deal the die +1 and carve a Sigil."},
+    # Dragonborn
+    "scale_shield": {"name": "Scale Shield", "req": {"n": 1}, "tgt": "other", "tags": ["hide"],
+                     "ops": [{"op": "armor", "amt": "(v+4)*min(1,scales)"}, {"op": "shed", "n": 1}],
+                     "text": "Shed a Scale onto an ally: they gain the die +4 as Armor (nothing without a Scale)."},
+    # Samurai
+    "swallow_reversal": {"cd": 2, "name": "Swallow Reversal", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "drawn", "tags": ["iai"],
+                         "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "dmg", "amt": "v", "if": "low"}],
+                         "text": "Drawn: deal the die +2; if that leaves it below half health, the blade turns back for the die again."},
+    # Mender
+    "prayer": {"name": "Prayer", "req": {"n": 1}, "tgt": "self", "tags": ["restoration"],
+               "ops": [{"op": "grace", "amt": "2*v"}],
+               "text": "Add twice the die to your Grace."},
+    # Alchemist
+    "tar_pot": {"cd": 2, "name": "Tar Pot", "req": {"n": 1}, "tgt": "foe", "bomb": True, "residue": "acid", "tags": ["bombs"],
+                "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "root", "n": 1}],
+                "text": "A bomb, any row: deal half the die; it's Rooted and coated in acid residue."},
+    # Emberknight
+    "cinder_brand": {"cd": 2, "name": "Cinder Brand", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": ["blaze"],
+                     "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "burn", "n": "max(1,heat//5)"}],
+                     "text": "Deal the die and Burn the enemy for 1 per 5 Heat you have (at least 1)."},
+})
+PASSIVES.update({
+    "twin_spike": {"name": "Twin Spike", "tags": ["telekinesis"],
+                   "mods": {"override": {"mind_spike": {"ops": [{"op": "dmg", "amt": "12 if v in (1,6) else v"}]}}},
+                   "text": "Mind Spike also deals 12 on exactly 1, not just on 6."},
+    "dragons_hunger": {"name": "Dragon's Hunger", "mods": {"kill_heal": 4}, "tags": ["wrath"],
+                       "text": "Each kill heals you 4."},
+    "bushido_code": {"name": "Bushido Code", "mods": {"kill_resolve": 4}, "tags": ["bushido"],
+                     "text": "Each kill adds 4 to your Resolve."},
+})
+for _c, _ks in (("psion", ["psychic_lance", "thought_shield", "dread_vision", "twin_spike"]),
+                ("spellblade", ["glyph_of_binding", "glyph_snare", "runebreaker"]),
+                ("dragonborn", ["scale_shield", "dragons_hunger"]), ("samurai", ["swallow_reversal", "bushido_code"]),
+                ("mender", ["prayer"]), ("alchemist", ["tar_pot"]), ("emberknight", ["cinder_brand"])):
+    CLASSES[_c]["pool"] += _ks
+
 # ---- Signature mechanics for four original classes (owner's request, Nov 2026; docs/saltbound-skills.md):
 # - Duelist, Combo: each hit on the enemy it hit last this round deals +COMBO_STEP per hit before it
 #   (`x["combo"]`); hitting another enemy starts over. `combo` in an amount is that count.
@@ -1770,3 +1828,13 @@ COMBOS = {
     "wildfire": {"name": "Wildfire", "text": "Burn meets an ally's Poison on one enemy (or Poison meets Burn): it erupts "
                                          "for Burn + Poison, and half that to every other enemy. Once per enemy."},
 }
+
+# card lines for the picks that brought every pool up to 20
+SHORT.update({
+    "psychic_lance": ("bolt", "die · even: ×2", None), "thought_shield": ("shield", "ally: die +2 Armor · exactly 1: 8", None),
+    "dread_vision": ("down", "all attacks −2 · exactly 6: −4", None), "glyph_of_binding": ("spark", "carve 2 · 3+ Sigils: Weak", None),
+    "glyph_snare": ("spark", "all: carve 1 · ⅓ die", None), "runebreaker": ("sword", "strip Armor · die +1 · carve 1", None),
+    "scale_shield": ("shield", "shed 1: ally die +4 Armor", None), "swallow_reversal": ("sword", "die +2 · below ½: die again", None),
+    "prayer": ("plus", "2× die to Grace", None), "tar_pot": ("drop", "½ die · Root · acid", None),
+    "cinder_brand": ("flame", "die · Burn 1 per 5 Heat", None),
+})

@@ -1090,6 +1090,15 @@ a violet glow and crackling arcs for Storm, and a turning ring of all three when
 a few points under the 59.5% all-class batch the same day; no new pick past 15 points vs passed
 (Ignite -14, so it now deals three times the Burn, not twice).
 
+**Every pool at 20 or more** (owner's request, 2026-11-07; the block before the signature mechanics in
+`classes.py`). Psion: Psychic Lance (double on an even die), Thought Shield (an ally's Armor, 8 on exactly 1),
+Dread Vision (every attack −2, −4 on a 6), Twin Spike (Mind Spike's 12 on a 1 too). Spellblade: Glyph of
+Binding (carve 2, Weak at 3+), Glyph Snare (every enemy carved 1, ⅓ die), Runebreaker (strip all Armor, the die
++1, carve 1). Dragonborn: Scale Shield (shed one for an ally's die +4 Armor), Dragon's Hunger (kills heal 4).
+Samurai: Swallow Reversal (Drawn: the die +2, and again if that leaves it below half), Bushido Code (kills +4
+Resolve). Mender: Prayer (twice the die to Grace). Alchemist: Tar Pot (a bomb: ½ die, Root, acid residue).
+Emberknight: Cinder Brand (the die, Burn 1 per 5 Heat). POOLS20_RESULTS
+
 **The Samurai** (owner's request, Nov 2026; design in `docs/saltbound-samurai.md`). The blade is Sheathed
 or Drawn (`x["sheathed"]`, every fight starts Sheathed); an action's `stance` says which it needs. Resolve
 (`x["resolve"]`, to `C.RESOLVE_CAP`) grows while Sheathed (`new_round`) and from Kamae and Sheathe; the Draw

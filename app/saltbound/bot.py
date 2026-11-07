@@ -247,7 +247,10 @@ def level_score(g, h, lvl, key):
     elif base in C.PASSIVES:
         score = 3.5 if C.PASSIVES[base].get("cap") else 2.5
     else:
-        score = 3.0 if len(actions) < 5 else 1.6
+        # new actions are worth taking until the hand has two more than it started with (at least five):
+        # a flat five left the Samurai, which starts with five, never taking one
+        start = [k for k in C.CLASSES[hero["cls"]]["start"] if k in C.ACTIONS and k not in C.GENERIC]
+        score = 3.0 if len(actions) < max(5, len(start) + 2) else 1.6
         if C.ACTIONS.get(base, {}).get("cd"):
             score -= 0.3
     noise = zlib.crc32(f"{g.s['seed']}:{h}:{lvl}:{key}".encode()) % 1000 / 1000

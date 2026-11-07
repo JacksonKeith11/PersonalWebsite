@@ -62,3 +62,13 @@ Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
 in `docs/saltbound.md`.
 
 On Hard (200 runs with a Samurai in every party): 44.5% at 32 HP, **47.0% at 35 HP**.
+
+**The bots' level-up rule** used to rate a new action as a poor pick once the hero had five, and the
+Samurai starts with five, so it almost never took Flash Draw, Return Stroke, Swallow Reversal, Waiting
+Stance, Kiai or Duel (0-5% when offered). `bot.level_score` now counts the starting hand: new actions
+are good picks until the hand has two more than it started with (at least five). With that (200 Hard
+runs with a Samurai in every party): **45.0%**, each taken 27-35% of the times it was offered. Against
+runs offered the same pick that took something else: Swallow Reversal +10 points, Kiai +7, Return
+Stroke +1, Flash Draw -10, Duel -11, Waiting Stance -12 (about 150-170 offers each, so a few points
+are noise). Swallow Reversal deals 16 a use, Return Stroke 5.7.
+

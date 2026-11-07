@@ -1472,6 +1472,10 @@ comes first, and enemies' "intents" are called their coming attack or action.
 `docs/saltbound-skills.md` distils what follows into guidance for tuning and designing picks:
 what tends to be strong, weak and fun, the design checklist, and how to measure.
 
+**Normal (Nov 2026, same build; 300 runs on the path bots, seed 5000): 92.7%**, a little over the 85-90%
+target. Classes 87-99% (Mender 98.5, Spellblade 87.3); 77 turns, 24 rises; 15 of the 22 losses at the
+final boss. Normal keeps the old linear tide (0.65% a rise).
+
 **Latest (Nov 2026, Emberknight 29 HP and Arcanist 26 HP; 600 Hard runs on the path bots, the default
 since then, seed 5000): 59.7%**, about 125-135 runs a class (±4.5 points). Classes 53-69%: Warden 69.1,
 Dragonborn 66.7, Emberknight 62.6 (81.6 at 31 HP in 38 runs), Scoundrel 61.5, Duelist 60.7, Spellblade

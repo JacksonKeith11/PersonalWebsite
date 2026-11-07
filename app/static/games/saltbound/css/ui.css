@@ -1834,3 +1834,20 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
 .it-break .bk-bar { flex: 1; height: 5px; min-width: 40px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .it-break .bk-bar b { display: block; height: 100%; background: linear-gradient(90deg, #ff5a4a, #ffd36b); transition: width 300ms var(--ease); }
 .it-break .bk-num { color: var(--text-2); font-variant-numeric: tabular-nums; }
+/* who put a status on an enemy (a dot in their colour), and a status another hero's would set off */
+.st .st-by { width: 7px; height: 7px; border-radius: 50%; background: var(--seat); margin-left: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.st.reacts { box-shadow: 0 0 0 1px rgba(255, 170, 110, 0.75), 0 0 8px rgba(255, 150, 80, 0.55); }
+/* an enemy a Chord is waiting on, or one with a status ready to react */
+.unit.foe.chorded .fig { filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.85)); }
+.unit.foe.reactable .fig { filter: drop-shadow(0 0 5px rgba(255, 150, 80, 0.7)); }
+.unit.foe.chorded.reactable .fig { filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.85)) drop-shadow(0 0 4px rgba(255, 150, 80, 0.7)); }
+/* what the hero you're playing could set off right now (combat.js comboStrip) */
+.combo-strip { position: absolute; left: 12px; top: 10px; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: min(620px, 46%);
+  padding: 6px 10px; border-radius: 12px; background: var(--glass-dark); border: var(--bw) solid rgba(255, 211, 107, 0.4); pointer-events: auto; }
+.combo-strip > b { color: var(--combo); font: 700 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; }
+.combo-strip .cs { display: inline-flex; align-items: center; gap: 4px; font: 600 12px/1.2 var(--font-ui); color: var(--text); padding: 3px 8px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.06); }
+.combo-strip .cs .icon-svg { width: 12px; height: 12px; }
+.combo-strip .cs.chord { color: var(--combo); }
+.combo-strip .cs.react { color: #ffb37a; }
+.combo-strip .cs.brk { color: #ff8a7a; }
+@media (max-width: 700px) { .combo-strip { position: static; max-width: none; margin: 6px 8px 0; } }

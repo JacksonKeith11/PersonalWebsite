@@ -486,8 +486,19 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 - **On the map**: each job's next stop has a parchment tag with the turns left; "This turn" lists the
   jobs (click to find) and says when a planned move finishes one or picks up salvage, and when a fight
   is a job; hex tooltips name job targets and wanted crews.
-- **The bots** take the board's job worth most per turn (lairs and bounties from level 3), at most two
-  at once, and head for a job's next stop while there's time to finish it and no dungeon is due.
+- **More kinds** (owner's request, Nov 2026): **Defend the town** (`defend`: a war band, a raid in
+  every way, `g["raid"]["job"]`, sets out `DEFEND_ROAD` (5-8) hexes' march away from the nearest
+  objective's side when the job is taken; beat it on the road or in the town and the job's done, and
+  the raid pays as ever; if it takes the town, `occupy` fails the job). **Raise a beacon** and **Build a
+  watchtower** change the map (`build_site`, `build`): end a turn on the site (`BUILD_RANGE` 3-8 hexes
+  out; a beacon on a hill or peak, `BEACON_GAP` from the others) and a new place stands there: a lit
+  beacon on the party's beacon road, or a watchtower (place kind `tower`, drawn with the lookout's art)
+  that keeps watch `TOWER_SIGHT` (6) hexes round for the rest of the run (`visible_tiles`).
+- **Chain jobs** (`chain_job`): finishing a town's job pins up a fresh board there with a follow-up
+  (`link` on the job, "Job 2 of 3" on the card) paying `CHAIN_GOLD` (40%) more per link; the last
+  (`CHAIN_MAX` 3) pays a pick of two legendaries (reward type `legend`).
+- **The bots** take the board's job worth most per turn (lairs, bounties and defending from level 3), at
+  most two at once, and head for a job's next stop while there's time to finish it and no dungeon is due.
 
 ### The sea, the land's secrets, raids and the weather
 
@@ -912,6 +923,24 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     30%, top tenth 39%), so attacking as usual rarely breaks it: Bell Drop 40%, Crushing Depths and the
     Deluge 30% (the Crown has the most health and its Tide Guards), Shatter the Statue 40%, the Sentence
     42%, Shatterstorm 36%, Endless Winter 38%, the Slag Tyrant's Eruption 45%.
+  - **Break on more fights** (owner's request): the big threats' heaviest bloodied move (the Reef Maw's,
+    Sandworm's, Basilisk's and Yeti's Thrash, the Jade Serpent's at 35%, the Iron Bosun's Keelhaul,
+    the Storm Roc's Talons, the Caldera Wyrm's Eruption, the Wheel of Eyes' Blaze of Glory at 30%, the
+    Prism Colossus's Shatter, the Night Mare's Stampede, the Yeti's Maul; 40% unless said) and the
+    Thunder Wyvern's Storm Breath (50%, the round after it Draws Breath). A Break on an ordinary enemy
+    doesn't Steel it.
+  - **Resonance faces** (`R`; owner's request, to make Chords plannable): a 3 while planning; when it
+    rolls it takes the biggest number the last other hero to play a die this round played
+    (`Dice.resonant`, from `f["plays"]`, kept by `echo_out`). On the Bosun's Bell (two), the crystal
+    Tuning Fork (two), the new Choir Blade (a rare Sweep weapon, two), and three dice picks:
+    Sympathetic Strings (Herald: the weapon die's two lowest), Attuned Mind (Psion: the biggest die's
+    lowest), Mirrored Edge (Duelist: every die's lowest but the armor's). Drawn ♫.
+  - **Reading them** (owner's request): an enemy's Burn, Freeze, Shock, Poison and Root chips carry a
+    dot in the colour of the hero who put them on, and glow when another hero's status would set them
+    off (the tooltip names the reaction); an enemy glows gold while a Chord waits on it and orange while
+    it has a status ready to react; and **Combos now** (`comboStrip`, top left of the stage, while you
+    plan) lists what the hero you're playing can set off this moment: a Chord, a reaction with one of
+    your actions' statuses, a Break and how much is left.
   - The Bell-Warden's crack (below) stays, as a boss rule. The Bosun's Whistle now gives Chords and
     reactions +4 (`combo_up`).
   - The bots see them: `bell_parts`/`bell_sum` add the Chord (and the bell) to a hit, `reaction_worth`

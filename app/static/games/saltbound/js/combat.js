@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=171';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=171';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=171';
-import { stageURL, stageKey } from './stage.js?v=171';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=171';
-import { render } from './main.js?v=171';
-import { skillCard, upDef, upText } from './hud.js?v=171';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=171';
-import * as sfx from './audio.js?v=171';
+import { S, send, mine, controllerName } from './store.js?v=173';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=173';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=173';
+import { stageURL, stageKey } from './stage.js?v=173';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=173';
+import { render } from './main.js?v=173';
+import { skillCard, upDef, upText } from './hud.js?v=173';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=173';
+import * as sfx from './audio.js?v=173';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -160,6 +160,8 @@ export function renderCombat(el) {
     else cl.push(...statusCls(fo.st));
     if (C.anim['f' + fo.id]) cl.push(C.anim['f' + fo.id]);
     if (isTarget('f' + fo.id, f)) cl.push('target');
+    if (fo.hp > 0 && f.chord && f.chord.seq === f.seq && f.chord.t === 'f' + fo.id) cl.push('chorded');
+    if (fo.hp > 0 && fo.reacted !== f.round && REACT_ELS.some(s => fo.st?.[s] && fo.st_by?.[s] != null)) cl.push('reactable');
     return h('div.' + cl.join('.'), { 'data-uid': 'f' + fo.id, tip: foeTip(fo) },
       intentChip(fo, f),
       poseImg(fo.k, 'f' + fo.id, false, fo.st),
@@ -170,7 +172,7 @@ export function renderCombat(el) {
         fo.bl ? h('span.foe-tag.bloodied', { tip: `Bloodied\n${d.bloodied?.text || ''}` }, 'Bloodied') : null) : null,
       hpBar(Math.max(0, fo.hp), fo.max, true, 'f' + fo.id),
       previewRow('f' + fo.id, prev, fo.hp),
-      statusRow(fo.st, [...(fo.res ? [`${{ fire: '🔥', acid: '🧪', frost: '❄' }[fo.res] || ''} ${fo.res} residue`] : []), ...(fo.might ? [`+${fo.might} might`] : []), ...(fo.st.warded ? ['Warded: ½ damage'] : []), ...(fo.st.exposed ? ['Exposed: +50%'] : [])], traitChips(d)),
+      statusRow(fo.st, [...(fo.res ? [`${{ fire: '🔥', acid: '🧪', frost: '❄' }[fo.res] || ''} ${fo.res} residue`] : []), ...(fo.might ? [`+${fo.might} might`] : []), ...(fo.st.warded ? ['Warded: ½ damage'] : []), ...(fo.st.exposed ? ['Exposed: +50%'] : [])], traitChips(d), fo),
       fo.hp > 0 ? foeState(fo, f) : null,
       fo.hp > 0 ? comboHints(fo, f) : null,
       floats('f' + fo.id));
@@ -208,7 +210,8 @@ export function renderCombat(el) {
     rollTray(),
     C.inspect != null && f.heroes.includes(C.inspect) ? allyPanel(f, C.inspect) : null,
     C.playing && queue.length ? h('div.queue-badge', { tip: 'Plays still to show: they play faster until caught up' }, `+${queue.length} more`) : null,
-    C.caption ? h('div.act-caption', { style: { '--seat': `var(--hero-${C.caption.h})` } }, h('b', null, C.caption.text), h('span', null, C.caption.what)) : null);
+    C.caption ? h('div.act-caption', { style: { '--seat': `var(--hero-${C.caption.h})` } }, h('b', null, C.caption.text), h('span', null, C.caption.what)) : null,
+    !C.playing ? comboStrip(f) : null);
 
   const done = f.done || [];
   const combos = S.static.combos || {};
@@ -439,6 +442,43 @@ function foeState(fo, f) {
   if (fo.gut) chips.push(h('span.st.bad', { tip: 'A hero is inside. Deal this much more damage to it and it spits them out.' }, `Spits out in ${fo.gut} dmg`));
   return chips.length ? h('div.combo-hints', null, ...chips) : null;
 }
+// What the hero you're playing could set off right now, in one strip over the stage: a Chord on an
+// enemy an ally just hit, a reaction with an ally's status (if one of your actions puts on the other),
+// a boss's Break bar.
+function comboStrip(f) {
+  const x = C.tab;
+  if (x == null || !f.heroes.includes(x) || !mine().includes(x) || f.hs[x]?.ready) return null;
+  const live = f.foes.filter(fo => fo.hp > 0);
+  const mySt = new Set();
+  for (const k of S.game.heroes[x].actions || []) {
+    const a = S.static.actions[String(k).replace(/\+$/, '')];
+    for (const op of [...(a?.ops || []), ...(a?.crit || [])]) if (op.op === 'status' && REACT_ELS.includes(op.s)) mySt.add(op.s);
+  }
+  for (const d of f.hs[x]?.dice || []) for (const fc of d.faces || []) { const t = { F: 'burn', I: 'freeze', P: 'poison' }[String(fc)[0]]; if (t) mySt.add(t); }
+  const chips = [];
+  for (const fo of live) {
+    const nums = chordNums(fo, f, x);
+    if (nums) chips.push(h('span.cs.chord', { tip: S.static.combos.chord.text }, icon('spark'), `Chord on ${fo.name}: a ${nums.join('/')} next, +${Math.min(f.chord.base, 15) * f.chord.hs.length}`));
+  }
+  for (const fo of live) {
+    if (fo.reacted === f.round) continue;
+    for (const s of REACT_ELS) {
+      const by = fo.st_by?.[s];
+      if (!fo.st?.[s] || by == null || by === x) continue;
+      for (const o of [...mySt].filter(o => o !== s && reactOf(s, o))) {
+        const r = S.static.combos[reactOf(s, o)];
+        chips.push(h('span.cs.react', { tip: `${r.name}\n${r.text}` }, icon('bolt'), `${fo.name}: ${S.game.heroes[by].name}'s ${STATUS[s]?.name || s} + your ${STATUS[o]?.name || o} → ${r.name}`));
+      }
+    }
+  }
+  for (const fo of live) {
+    const it = fo.intent;
+    if (it?.brk && !it.broken) chips.push(h('span.cs.brk', { tip: S.static.combos.break.text }, icon('target'),
+      `Break ${fo.name}'s ${it.name}: ${Math.max(0, it.brk - (fo.brk_d || 0))} more${(fo.brk_by || []).length < 2 ? ', from two heroes' : ''}`));
+  }
+  if (!chips.length) return null;
+  return h('div.combo-strip', null, h('b', null, 'Combos now'), ...chips.slice(0, 4));
+}
 function comboHints(fo, f) {
   const x = C.tab;
   if (x == null || !f.heroes.includes(x)) return null;
@@ -621,16 +661,25 @@ function infusedChip(hs) {
     `${name} blade: ${n} × +${inf.dmg || 0}`);
 }
 const ST_SHORT = { steeled: 'Steeled', vuln: 'Vuln', stun: 'Stunned', freeze: 'Frozen', root: 'Rooted', shock: 'Shocked', hex: 'Hexed', crescendo: 'Crescendo', lifeline: 'Lifeline' };
-function statusRow(st, extra = [], tail = []) {
+// `fo`: the enemy, for who put each status on it (a dot in their colour) and what it would react with.
+function statusRow(st, extra = [], tail = [], fo = null) {
   const chips = [];
+  const f = S.game.fight;
   for (const [k, v] of Object.entries(st || {})) {
     if (!v || ['doomt', 'warded', 'exposed', 'undertow', 'knell'].includes(k)) continue;
     const s = STATUS[k];
     if (!s) continue;
     const n = ['stun', 'freeze', 'shock', 'warded', 'exposed', 'steeled'].includes(k) ? '' : v;
-    // icon, short name and number, so a status reads at a glance ("Armor 3", "Rooted")
-    chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k, { tip: `${s.name}${n !== '' ? ' ' + n : ''}\n${s.text}` }, icon(s.icon),
-      h('span.st-name', null, ST_SHORT[k] || s.name), n !== '' ? h('b', null, n) : null));
+    const by = fo?.st_by?.[k];
+    const el = fo && REACT_ELS.includes(k) && by != null;
+    const reacts = el && fo.reacted !== f?.round ? REACT_ELS.filter(o => o !== k && reactOf(k, o)) : [];
+    const tip = `${s.name}${n !== '' ? ' ' + n : ''}${el ? ` (from ${S.game.heroes[by]?.name})` : ''}\n${s.text}`
+      + (reacts.length ? `\nAnother hero's ${reacts.map(o => STATUS[o]?.name || o).join(', ')} sets off: ${reacts.map(o => S.static.combos[reactOf(k, o)].name).join(', ')}.` : '');
+    // icon, short name and number, so a status reads at a glance ("Armor 3", "Rooted"); a dot in the
+    // colour of the hero who put it on, and a glow when another hero's status would set it off
+    chips.push(h('span.st.' + (k === 'armor' ? 'armor' : s.bad ? 'bad' : 'good') + '.' + k + (reacts.length ? '.reacts' : ''), { tip }, icon(s.icon),
+      h('span.st-name', null, ST_SHORT[k] || s.name), n !== '' ? h('b', null, n) : null,
+      el ? h('i.st-by', { style: { '--seat': `var(--hero-${by})` } }) : null));
   }
   for (const e of extra) chips.push(h('span.st', null, e));
   return h('div.sts', null, ...chips, ...tail);

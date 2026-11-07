@@ -1121,7 +1121,7 @@ Berserker 47.1, Dragonborn 46.8, Emberknight 46.1, Gunslinger 42.2, Samurai 40.9
 The new picks vs passed: Thought Shield +17, Dread Vision +16, Runebreaker +16, Bushido Code +15, Twin Spike
 +13, Scale Shield +10; Dragon's Hunger -4, Prayer -3, the rest within ±4. **Then small buffs for the two lowest**
 (owner's request): Gunslinger 31 HP and Quick Draw 8, Samurai 32 HP and Resolve 5 a round. 200 Hard runs with
-each in every party: Gunslinger parties **50.0%**, Samurai parties **44.5%** (still a few points low).
+each in every party: Gunslinger parties **50.0%**, Samurai parties **44.5%** (still a few points low). Samurai 35 HP (was 32): Samurai parties **47.0%** on Hard (200 runs, within the noise of 50%).
 
 **The Samurai** (owner's request, Nov 2026; design in `docs/saltbound-samurai.md`). The blade is Sheathed
 or Drawn (`x["sheathed"]`, every fight starts Sheathed); an action's `stance` says which it needs. Resolve

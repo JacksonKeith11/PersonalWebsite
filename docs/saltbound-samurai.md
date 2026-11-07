@@ -56,3 +56,5 @@ Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
 200 Normal runs with a Samurai in every party (path bots, seed 5000, 2026-11-07): 56.5% as first built;
 **69.5%** after the damage buff (Cut +3, Scabbard Strike +1, the Draw +2, Resolve 4 a round). The details are
 in `docs/saltbound.md`.
+
+On Hard (200 runs with a Samurai in every party): 44.5% at 32 HP, **47.0% at 35 HP**.

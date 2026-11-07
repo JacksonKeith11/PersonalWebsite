@@ -708,6 +708,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.fx("st", to=f"h{h}", s="hexed")
         if x["st"].pop("freeze", 0) and not m.get("freeze_immune") and x["dice"]:
             x["dice"].remove(min(x["dice"], key=num))
+        pool = [d for d in x["dice"] if d["src"] != "swell"]  # Freeze may have taken one of them
         if x["st"].pop("steal", 0) and pool:
             x["dice"].remove(max(pool, key=lambda d: top_face(d["faces"])))
             self.fx("st", to=f"h{h}", s="robbed")

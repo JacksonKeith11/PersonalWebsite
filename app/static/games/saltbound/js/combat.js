@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=174';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=174';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=174';
-import { stageURL, stageKey } from './stage.js?v=174';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=174';
-import { render } from './main.js?v=174';
-import { skillCard, upDef, upText } from './hud.js?v=174';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=174';
-import * as sfx from './audio.js?v=174';
+import { S, send, mine, controllerName } from './store.js?v=175';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=175';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=175';
+import { stageURL, stageKey } from './stage.js?v=175';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=175';
+import { render } from './main.js?v=175';
+import { skillCard, upDef, upText } from './hud.js?v=175';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=175';
+import * as sfx from './audio.js?v=175';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -421,6 +421,8 @@ const REACTS = { 'burn+shock': 'overload', 'burn+freeze': 'thermal', 'burn+poiso
   'poison+shock': 'conduction', 'freeze+root': 'frostlock', 'burn+root': 'kindling' };
 const REACT_ELS = ['burn', 'freeze', 'shock', 'poison', 'root'];
 const reactOf = (a, b) => REACTS[[a, b].sort().join('+')];
+// "4", "4 or 6", "2, 4 or 6"
+const orList = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}` : String(xs[0]);
 function foeState(fo, f) {
   // what makes this enemy different right now, in words
   const chips = [];
@@ -449,8 +451,8 @@ function comboHints(fo, f) {
   if (nums) {
     const n = Math.min(f.chord.base, 20) * f.chord.hs.length;
     const who = f.chord.hs.map(y => S.game.heroes[y].name).join(' and ');
-    chips.push(h('span.combo-hint.chord', { tip: `Chord\n${who} just hit it. Make your next action a hit on it with a die showing ${nums.join(' or ')}, before anyone else acts, and it copies that hit: +${n}.` },
-      `Chord: a ${nums.join('/')} now, +${n}`));
+    chips.push(h('span.combo-hint.chord', { tip: `Chord\n${who} just hit it. Make your next action a hit on it with a die showing ${orList(nums)}, before anyone else acts, and it copies that hit: +${n}.` },
+      `Chord: a ${orList(nums)} now, +${n}`));
   }
   return chips.length ? h('div.combo-hints', null, ...chips) : null;
 }

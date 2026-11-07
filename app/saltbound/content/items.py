@@ -257,6 +257,7 @@ ITEMS = {
     "kelp_wand": {"name": "Kelp Wand", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, "P3", 4, 5, "P6", 7, 8], "acts": ["choking_kelp", "venom_stab"]},
     "chaplain_censer": {"name": "Chaplain's Censer", "slot": "weapon", "rarity": "uncommon", "die": [1, 2, 3, 4, 5, 6, 7, "W"], "dk": ["augur"],
                         "acts": ["blessing"]},
+    "choir_blade": {"name": "Choir Blade", "slot": "weapon", "rarity": "rare", "die": [1, 2, "R", 4, 5, 6, "R", 8], "dk": ["steady"], "acts": ["sweep"]},
     "captains_sabre": {"name": "Captain's Sabre", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, 4, 5, 6, 7, 8, 9, "W"], "dk": ["fate"], "acts": ["rallying_cut", "sweep"]},
     "storm_staff": {"name": "Storm Staff", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, "I4", 5, 6, "I7", 8, 9, 10], "dk": ["exploding"], "acts": ["storm_bolt", "thunderhead"]},
     "leviathan_rod": {"name": "Leviathan Rod", "slot": "weapon", "rarity": "rare", "die": [1, 2, 3, 4, 5, 6, "I7", 8, 9, 10], "dk": ["seer"], "acts": ["tidal"]},
@@ -303,7 +304,7 @@ ITEMS = {
     "weighted_coin": {"name": "Weighted Coin", "slot": "trinket", "rarity": "uncommon", "die": D(6)},
     "bloodstone": {"name": "Bloodstone", "slot": "trinket", "rarity": "rare", "die": D(6)},
     "bosuns_whistle": {"name": "Bosun's Whistle", "slot": "trinket", "rarity": "uncommon", "die": D(6)},
-    "bosuns_bell": {"name": "Bosun's Bell", "slot": "trinket", "rarity": "uncommon", "die": D(6), "acts": ["pass_die"]},
+    "bosuns_bell": {"name": "Bosun's Bell", "slot": "trinket", "rarity": "uncommon", "die": [1, 2, "R", 4, 5, "R"], "acts": ["pass_die"]},
     "sea_glass_lens": {"name": "Sea-Glass Lens", "slot": "trinket", "rarity": "rare", "die": D(6), "dk": ["seer"]},
 
     # ---- more gear: low rarities that beat a rare in the right hands or the right fight
@@ -400,7 +401,7 @@ PASSIVES = {
     "weighted_coin": ({"one_is_top": 1}, "Heads I win: a 1 you roll counts as the die's top face."),
     "bloodstone": ({"blood_reroll": 3}, "Blood price: out of rerolls, a miss rerolls anyway for 3 HP."),
     "bosuns_whistle": ({"combo_up": 4}, "All hands: your Chords and elemental reactions deal +4 more."),
-    "bosuns_bell": ({}, "Ring it: hand one of your dice to an ally."),
+    "bosuns_bell": ({}, "Ring it: hand one of your dice to an ally. Its own die rings true: two Resonance faces."),
     "sea_glass_lens": ({"guard_free": 1}, "Clear sight: your armor's die can go on attacks too."),
     # more gear
     "gutting_knife": ({"execute_bonus": 3}, "Finish them: +3 damage against enemies below half health."),

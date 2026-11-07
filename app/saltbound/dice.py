@@ -25,13 +25,15 @@ TAGS = {"F": "burn", "I": "freeze", "P": "poison"}
 
 
 def face(f):
-    """(value, tag) for a die face: numbers, "S" shield, "X" skull, "W" wild, "F3"/"I3"/"P3"."""
+    """(value, tag) for a die face: numbers, "S" shield, "X" skull, "W" wild, "R" resonance, "F3"/"I3"/"P3"."""
     if isinstance(f, int):
         return f, None
     if f in ("S", "X"):
         return 0, f
     if f == "W":
         return None, "W"
+    if f == "R":
+        return 3, "R"  # Resonance: a 3 while planning; it takes an ally's number when it rolls (Dice.roll)
     return int(f[1:]), TAGS[f[0]]
 
 
@@ -97,6 +99,14 @@ class Dice:
         return {"id": f"{h}.{self.s['fight']['round']}.n{x['nid']}", "faces": faces, "dk": list(dk or []), "src": src,
                 "used": False, "v": None, "bonus": 0, "top": False}
 
+    def resonant(self, h):
+        """What a Resonance face rolls for hero h: the biggest number the last other hero to play a die
+        this round played (so it lines up a Chord), or 3 if nobody else has."""
+        for y, v in reversed(self.s["fight"].get("plays", [])):
+            if y != h:
+                return v
+        return 3
+
     # ------------------------------------------------------------------ rolling
 
     def raw_roll(self, h, d):
@@ -137,6 +147,8 @@ class Dice:
             v, t = self.rng.choice(d["fc"]), None
         else:
             v, t = self.raw_roll(h, d)
+        if t == "R":
+            v = self.resonant(h)
         if t == "X":
             hero = self.hero(h)
             n = min(3, hero["hp"] - 1)

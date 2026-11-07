@@ -220,8 +220,9 @@ ITEMS = {
     "prismweave_robe": _g("Prismweave Robe", A, "uncommon", D(6), {"spellweave": 2},
                           "Shifting colours: your spells deal +2 if you've cast a different spell earlier this round.",
                           "crystal", guard="fade"),
-    "tuning_fork": _g("Tuning Fork", T, "uncommon", D(6), {"momentum": 1},
-                      "Resonance: each of your actions after the first in a round deals +1.", "crystal", acts=["resonate"]),
+    "tuning_fork": _g("Tuning Fork", T, "uncommon", [1, "R", 3, 4, "R", 6], {"momentum": 1},
+                      "Resonance: each of your actions after the first in a round deals +1, and its die has two "
+                      "Resonance faces.", "crystal", acts=["resonate"]),
     "prism_shard": _g("Prism Shard", T, "rare", [1, 2, 3, 4, 5, "W"], {"eagle_eye": 1},
                       "Refraction: a die showing its highest face deals half again as much damage.", "crystal", dk=["fate"]),
 

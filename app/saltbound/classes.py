@@ -1518,12 +1518,22 @@ PASSIVES.update({
                     "text": "Gain an Echo die: a d8 until an ally uses a die this round, then it shows the biggest number of their last play."},
     "reactive_mix": {"name": "Reactive Mix", "mods": {"catalyst": 1}, "tags": ["bombs"],
                      "text": "Your weapon die's two lowest numbers become a burn face and a poison face."},
+    "sympathetic_strings": {"name": "Sympathetic Strings", "mods": {"res_weapon": 1}, "tags": ["anthem"],
+                            "text": "Your weapon die's two lowest faces become Resonance faces: each rolls the biggest number "
+                                    "the last ally to act this round played (a 3 if nobody has), so it lines up Chords."},
+    "attuned_mind": {"name": "Attuned Mind", "mods": {"res_low": 1}, "tags": ["telekinesis"],
+                     "text": "Your biggest die's lowest face becomes a Resonance face: it rolls the biggest number the "
+                             "last ally to act this round played (a 3 if nobody has)."},
+    "mirrored_edge": {"name": "Mirrored Edge", "mods": {"res_mirror": 1}, "tags": ["flurry"],
+                      "text": "Each of your dice's lowest face (not your armor's) becomes a Resonance face: it rolls the "
+                              "biggest number the last ally to act this round played (a 3 if nobody has)."},
     "sap_rising": {"name": "Sap Rising", "mods": {"swell_die": 1}, "tags": ["grove"],
                    "text": "Gain a Swell die. It starts each fight as a d4 and grows each round you leave it: d10 +2, d12 +7, then d20 +12. Using it starts it over."},
 })
 NEW_DICE_PICKS = {"vanguard": ["shield_rim"], "arcanist": ["wild_surge"], "mender": ["steady_hands"],
-                  "duelist": ["fated_blade", "mirror_step"], "berserker": ["building_rage", "powder_edge"],
-                  "ranger": ["hawks_eye"], "scoundrel": ["loaded_bones"], "herald": ["echo_chorus"],
+                  "duelist": ["fated_blade", "mirror_step", "mirrored_edge"], "berserker": ["building_rage", "powder_edge"],
+                  "ranger": ["hawks_eye"], "scoundrel": ["loaded_bones"], "herald": ["echo_chorus", "sympathetic_strings"],
+                  "psion": ["attuned_mind"],
                   "alchemist": ["reactive_mix"], "warden": ["sap_rising"]}
 for _c, _ks in NEW_DICE_PICKS.items():
     CLASSES[_c]["pool"] += [k for k in _ks if k not in CLASSES[_c]["pool"]]

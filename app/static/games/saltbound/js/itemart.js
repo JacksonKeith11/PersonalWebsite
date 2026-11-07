@@ -101,7 +101,7 @@ const ICON = {
   oak_staff: ['staff', 'wood', 'tan', 'gold'], gnarled_staff: ['staff', 'wood', 'kelp', 'kelp'], driftwood_staff: ['staff', 'drift', 'drift', 'glass'],
   storm_staff: ['staff', 'iron', 'blue', 'frost'], forked_staff: ['fork', 'wood'], leviathan_rod: ['lantern', 'abyss', 'abyss', 'glass'],
   lantern_rod: ['lantern', 'wood', 'bronze', 'ember'], reef_lantern: ['lantern', 'coral', 'coral', 'glass'],
-  rapier: ['rapier', 'steel', 'gold'], coral_blade: ['sword', 'coral', 'bronze'], captains_sabre: ['sword', 'steel', 'gold'],
+  rapier: ['rapier', 'steel', 'gold'], coral_blade: ['sword', 'coral', 'bronze'], captains_sabre: ['sword', 'steel', 'gold'], choir_blade: ['sword', 'steel', 'white'],
   ember_blade: ['sword', 'ember', 'iron'], heirloom_sword: ['sword', 'gold', 'blue'], crownbreaker: ['sword', 'abyss', 'gold'],
   short_bow: ['bow', 'wood'], gull_bow: ['bow', 'white'], daggers: ['daggers', 'steel'], gutting_knife: ['knife', 'steel', 'leather'],
   lute: ['lute', 'wood'], sling: ['sling', 'leather', 'tan'], rusty_harpoon: ['harpoon', 'bronze'], harpoon_gun: ['gun', 'iron'],

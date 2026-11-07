@@ -463,6 +463,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         f["rec"] = None
         f["guard"] = {}
         f["chord"] = None
+        f["plays"] = []
         f["cloaked"] = []
         f["taunt"] = None
         f["sanct"] = 0
@@ -682,6 +683,19 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             for d in by_src("weapon"):
                 for i in lows(d, 1):
                     d["faces"][i] = "W"
+        if m.get("res_weapon"):  # Sympathetic Strings: the weapon die's two lowest faces resonate
+            for d in by_src("weapon"):
+                for i in lows(d):
+                    d["faces"][i] = "R"
+        if m.get("res_low") and dice:  # Attuned Mind: the biggest die's lowest face resonates
+            d = max(dice, key=lambda d: top_face(d["faces"]))
+            for i in lows(d, 1):
+                d["faces"][i] = "R"
+        if m.get("res_mirror"):  # Mirrored Edge: each die's lowest face resonates, but not the armor's
+            for d in dice:
+                if d["src"] != "armor":
+                    for i in lows(d, 1):
+                        d["faces"][i] = "R"
         if m.get("explosive_weapon"):  # Powder Edge: the weapon die explodes
             for d in by_src("weapon"):
                 if "exploding" not in d["dk"]:
@@ -693,6 +707,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if not vals or not self.s.get("fight"):
             return
         v = max(vals)
+        self.s["fight"].setdefault("plays", []).append([h, v])  # for Resonance faces (Dice.resonant)
         for y in self.s["fight"]["heroes"]:
             if y == h or not self.active(y):
                 continue

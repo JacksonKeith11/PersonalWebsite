@@ -155,6 +155,7 @@ export function face(f) {
   if (typeof f === 'number') return [f, null];
   if (f === 'S' || f === 'X') return [0, f];
   if (f === 'W') return [null, 'W'];
+  if (f === 'R') return [3, 'R'];  // Resonance: a 3 while planning, an ally's number when it rolls
   return [+f.slice(1), TAGS[f[0]]];
 }
 export const topFace = faces => Math.max(0, ...faces.map(f => face(f)[0]).filter(v => v !== null));
@@ -270,7 +271,7 @@ export function dieLabel(d) {
   const size = marks + 'd' + faces.length;
   return [...kinds, size].join(' ');
 }
-export const faceText = f => ({ S: '◆', X: '☠', W: '★' }[f] || (typeof f === 'string' ? `${f.slice(1)}${{ F: '🔥', I: '❄', P: '☣' }[f[0]]}` : String(f)));
+export const faceText = f => ({ S: '◆', X: '☠', W: '★', R: '♫' }[f] || (typeof f === 'string' ? `${f.slice(1)}${{ F: '🔥', I: '❄', P: '☣' }[f[0]]}` : String(f)));
 export function dieTip(d) {
   const faces = Array.isArray(d) ? d : d.faces;
   const kinds = Array.isArray(d) ? [] : d.dk || [];
@@ -292,6 +293,7 @@ export function faceTip(f) {
     S: '◆ Shield face: worth 0, but blocks 3 damage this round.',
     X: '☠ Skull face: worth 0, and you take 3 damage.',
     W: '★ Wild face: counts as the top face and passes any condition.',
+    R: '♫ Resonance face: rolls the biggest number the last ally to act this round played (a 3 if nobody has). Play it right after an ally hits to make a Chord.',
     F: `${faceText(f)} Fire face: worth ${f.slice(1)} and Burns the target.`,
     I: `${faceText(f)} Ice face: worth ${f.slice(1)} and Freezes the target.`,
     P: `${faceText(f)} Poison face: worth ${f.slice(1)} and Poisons the target.`,

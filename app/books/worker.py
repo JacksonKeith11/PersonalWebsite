@@ -1,8 +1,9 @@
 """Narrates every uploaded book with Kokoro, one chapter MP3 at a time.
 
 Runs in its own container (see Dockerfile.tts). Only books someone asked to narrate (Make
-audiobook, or pressing listen) are done. Order of work: the chapter someone pressed listen on and
-the rest of that book, then the newest request first.
+audiobook, or pressing listen) are done, from their start chapter (`narrate_from`) to the end.
+Order of work: the chapter someone pressed listen on and the rest of that book, then the newest
+request first.
 """
 
 import logging
@@ -51,9 +52,11 @@ def next_job() -> tuple[dict, int] | None:
     books.sort(key=lambda b: b["id"] != pri_book)
     for book in books:
         done = store.audio_done(book["id"])
-        start = pri_chapter if book["id"] == pri_book else 0
+        first = store.narrate_from(book["id"])
+        start = pri_chapter if book["id"] == pri_book else first
         count = len(book["chapters"])
-        for n in [*range(start, count), *range(0, min(start, count))]:
+        # Chapters before the book's start are skipped, unless someone pressed listen on one.
+        for n in [*range(start, count), *range(first, min(start, count))]:
             if n not in done:
                 return book, n
     return None

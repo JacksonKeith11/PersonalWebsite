@@ -130,12 +130,16 @@ def _audio_status(book: dict) -> dict:
         elif partial := store.read_json(store.partial_paths(folder, n)[1]):
             narrated += chapter["chars"] * len(partial["starts"]) / max(1, chapter["segments"])
     total = sum(c["chars"] for c in book["chapters"]) or 1
+    first = store.narrate_from(book["id"])
     return {
         "ready": sorted(done),
         "total": len(book["chapters"]),
         "percent": 100 if len(done) == len(book["chapters"]) else min(99, int(narrated / total * 100)),
         "working": working,
         "requested": store.narration_requested(book["id"]),
+        "from": first,
+        # Chapters still to narrate, from the start chapter to the end.
+        "left": sum(n not in done for n in range(first, len(book["chapters"]))),
     }
 
 
@@ -344,9 +348,13 @@ async def listen(book_id: str, request: Request, user: str = Depends(require_use
 
 @api.post("/{book_id}/narrate")
 async def narrate(book_id: str, request: Request, user: str = Depends(require_user)):
-    """Start or stop making the audiobook; stopping keeps what's been narrated."""
+    """Start or stop making the audiobook; stopping keeps what's been narrated. With `from`, the
+    audiobook starts at that chapter and runs to the end; without it, it keeps its start."""
     book, folder = _book(book_id, user)
-    if (await request.json()).get("on", True):
+    body = await request.json()
+    if "from" in body:
+        store.set_narrate_from(book_id, min(max(0, int(body["from"])), len(book["chapters"]) - 1))
+    if body.get("on", True):
         (folder / store.NARRATE).touch()
     else:
         (folder / store.NARRATE).unlink(missing_ok=True)

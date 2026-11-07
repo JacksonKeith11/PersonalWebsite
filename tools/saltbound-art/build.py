@@ -4,8 +4,8 @@ import json, os
 import heroes, heroes2, foes, foes2
 # owner's picks among heroes2.OPTIONS (0-based); unpicked classes use option 1
 # looks drawn for review, for classes not built yet: not written to sprites.js
-REVIEW = {'gunslinger'}
-STEP2_PICKS = {'ranger': 2, 'emberknight': 2, 'spellblade': 1, 'dragonborn': 2, 'psion': 2}
+REVIEW = set()
+STEP2_PICKS = {'ranger': 2, 'emberknight': 2, 'spellblade': 1, 'dragonborn': 2, 'psion': 2, 'gunslinger': 0}
 PICKS = {
     'vanguard': heroes.vanguard1, 'arcanist': heroes.arcanist2, 'mender': heroes.mender1,  # the owner's picks
     # build step 2's classes (see heroes2.OPTIONS)

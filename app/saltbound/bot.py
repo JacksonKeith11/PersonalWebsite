@@ -521,6 +521,7 @@ def route(g, h, goal):
 
 BEAM = 3
 DEPTH = 3
+ROUND_WORTH = 1.3  # a Gunslinger's round in the cylinder: about a sixth of a die spent on Reload
 COMBO_CAP = 96
 
 
@@ -571,10 +572,27 @@ def _fight_move(g, h, x):
         if nudge:
             return nudge
     if free:
+        reload = reload_first(g, h, x, free)
+        if reload:
+            return reload
         val, msg = plan_hand(g, h, b, free, DEPTH)
         if msg and val > 0.3:
             return msg
     return {"t": "fready"}
+
+
+def reload_first(g, h, x, free):
+    """A Gunslinger with an empty cylinder and two dice or more reloads first, with its smallest die, so
+    the rest can shoot (the planner scores each die on the cylinder as it is now, so it can't see the shots
+    a Reload opens up). With Dry Fire, Pistol Whip on an empty cylinder is a fair play, so it's left to the
+    planner."""
+    if x.get("ammo") != 0 or g.mods(h).get("dry_fire"):
+        return None
+    dice = [d for d in free if "guard" not in (d.get("dk") or [])]
+    if len(dice) < 2 or not any(k.rstrip("+") == "reload" for k in g.actions_of(h)):
+        return None
+    low = min(dice, key=lambda d: (d["v"] if d.get("v") is not None else top_face(d["faces"]), top_face(d["faces"])))
+    return {"t": "place", "a": "reload", "dice": [low["id"]]}
 
 
 def focus_move(g, h, b, free, x):
@@ -804,6 +822,7 @@ def dice_combos(g, h, dice):
     key = (h, g.s["fight"].get("hymn", 0), tuple(m.get(k, 0) for k in ROLL_MODS), x["st"].get("armor", 0), g.maxhp(h) - g.hero(h)["hp"],
            x.get("heat", 0), x.get("impact", 0), g.hero(h).get("scales", 0), sum(fo["st"].get("sigil", 0) for fo in g.foes()), bool(m.get("quiet_glyph")),
            bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()), x.get("aim", 0),
+           x.get("ammo", 0), g.silver(h), m.get("ricochet", 0), bool(m.get("hammer_back")),
            any(f"h{h}" in g.intent_aims(fo.get("intent") or {}) for fo in g.foes()),
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
@@ -1214,6 +1233,8 @@ def evaluate(g, b, h, a, dice, tgt):
             elif k == "infuse":
                 n_ = amt(op["amt"], de) + plus
                 val += infuse_value(g, h, dice, op["n"], n_, op.get("el") or element_of(vals[0] if vals else 0))
+            elif k == "reload":
+                val += reload_value(g, h, op.get("n"))
         if heat is not None:
             val += heat_value(g, h, a, dice, vals, de, hit, heat, inc)
         if hit and react_t is not None:
@@ -1227,7 +1248,22 @@ def evaluate(g, b, h, a, dice, tgt):
         total += pr * val
     if a.get("harmony"):
         total += harmony_value(g, h, a, inc, hits)
+    if a.get("shot"):
+        have = g.hs(h).get("ammo", 0)
+        total -= (have if a["shot"] == "all" else min(have, a["shot"])) * ROUND_WORTH  # the rounds it spends
     return total, eff
+
+
+def reload_value(g, h, n):
+    """Rounds put back in the Gunslinger's cylinder: each is worth a share of a die later, and an empty
+    cylinder with a die still to play this round is worth filling now."""
+    x = g.hs(h)
+    if "ammo" not in x:
+        return 0.0
+    cap = g.cylinder(h)
+    new = cap if n is None else min(cap, x["ammo"] + n)
+    left = sum(1 for d in x["dice"] if not d["used"]) - 1
+    return (new - x["ammo"]) * ROUND_WORTH + (2.5 if x["ammo"] == 0 and left > 0 else 0)
 
 
 def foe_status(g, b, s, n, t, now, tb, top, eff, pr):
@@ -1306,6 +1342,10 @@ def _web_value(g, t):
 def hero_status(g, b, h, s, n, y, inc, big, hits, eff, pr):
     if not g.active(y):
         return 0
+    if s == "cocked":
+        # Reload's cocked hammer: the next shot this round, if a die is left for one
+        left = sum(1 for d in g.hs(y)["dice"] if not d["used"]) - 1
+        return (C.COCKED + (2 if g.mods(y).get("hammer_back") else 0)) * 0.8 if left > 0 else 0
     if s == "dodge":
         return big.get(y, 0) * 0.9 or 0.5
     if s == "halfhit":
@@ -1571,6 +1611,8 @@ def candidates(g, h, b, free):
             continue
         if a.get("focus") and x.get("focus", 0) < a["focus"]:
             continue
+        if a.get("shot") and x.get("ammo", 0) <= 0:
+            continue  # an empty cylinder
         if x.get("berserk") and a["def"] and (not g.mods(h).get("cold_fury") or x.get("cold_used")):
             continue  # berserk: no defending
         n = a["req"].get("n", 1)

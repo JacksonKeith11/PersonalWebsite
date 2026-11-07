@@ -95,6 +95,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             f["hs"][str(h)]["grace"] = hero.get("grace", 0)
             if m.get("thick_scales") and hero.get("scales", 0) < m["thick_scales"]:
                 self.grow_scales(h, 1)  # Thick Hide
+            if C.map_key(hero) == "quick_draw":
+                f["hs"][str(h)].update(ammo=self.cylinder(h), cap=self.cylinder(h), lucky=bool(m.get("lucky_chamber")))  # the Gunslinger's cylinder, full
             if C.map_key(hero) == "tracker":
                 f["hs"][str(h)]["hawk"] = f"h{h}"  # the Ranger's hawk starts each fight watching it
             if C.map_key(hero) == "trailbreaker":
@@ -128,6 +130,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         self.new_round()
         if self.s["fight"] is f and any(C.map_key(self.hero(y)) == "precognition" for y in f["heroes"]):
             self._op_foresee(None, {}, self.foes())  # Precognition: the first attacks rolled in the open
+        for y in f["heroes"]:
+            if self.s["fight"] is f and C.map_key(self.hero(y)) == "quick_draw" and self.active(y):
+                self.quick_draw(y)
 
     def apply_ground(self, gr):
         """A battleground's rule (`A.GROUNDS`, chosen by `Game.ground_of`) at the start of a fight."""
@@ -776,6 +781,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid("Once a round.")
         if a.get("focus") and x.get("focus", 0) < a["focus"]:
             raise Invalid("Not enough Focus.")
+        if a.get("shot") and x.get("ammo", 0) <= 0:
+            raise Invalid("Your cylinder's empty: Reload, or Pistol Whip.")
         if x.get("berserk") and a["def"]:
             if not self.mods(h).get("cold_fury") or x.get("cold_used"):
                 raise Invalid("You're berserk: no defending now.")
@@ -982,6 +989,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["st"]["armor"] = x["st"].get("armor", 0) + n
             self.fx("armor", to=f"h{h}", n=n)
         x["acting"] = a["key"]
+        if a.get("shot") == 1 and self.silver(h):
+            self.fx("st", to=f"h{h}", s="silver_round")
         if m.get("frozen_bonus") and isinstance(tgt, str) and tgt.startswith("f") and any(d.get("tag") == "freeze" for d in dice):
             # a freeze face freezes before its own hit lands, so Frostbite counts on that hit too
             fo = self.foe(int(tgt[1:]))
@@ -1032,11 +1041,40 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             x["echo"] = True
             self.fx("act", h=h, a=a["key"], tgt=tgt, echo=True)
             self.run_ops(h, a, dice, tgt, half=True, ops=ops, hit=hit)
+        if a.get("shot") and self.s["fight"] is f:
+            self.fire_rounds(h, a, tgt)
         f["acts"][str(h)] = f["acts"].get(str(h), 0) + 1
         done["vals"] = [num(d) for d in dice]
         done["out"] = self.act_outcome(since)
         if self.s["fight"] is f:
             self.check_end()
+
+    def quick_draw(self, h):
+        """The Gunslinger's Quick Draw: when a fight starts, a free shot at the enemy with the biggest attack."""
+        foes = self.foes()
+        if not foes:
+            return
+        fo = max(foes, key=lambda o: ((o.get("intent") or {}).get("v", 0) if (o.get("intent") or {}).get("k") in ("attack", "all") else -1, o["hp"]))
+        self.fx("st", to=f"f{fo['id']}", s="quick_draw")
+        self.hurt_foe(fo, C.QUICK_DRAW, h)
+        self.check_end()
+
+    def fire_rounds(self, h, a, tgt):
+        """A shot spends its rounds (after it lands, so `ammo` and `silver` in its amounts are the rounds
+        before it): Silver Bullets' Vulnerable, Fresh Cartridge's round back on a kill."""
+        x = self.hs(h)
+        m = self.mods(h)
+        have = x.get("ammo", 0)
+        silver = a["shot"] == 1 and self.silver(h)
+        x["ammo"] = have - (have if a["shot"] == "all" else min(have, a["shot"]))
+        x["st"].pop("cocked", None)
+        fo = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
+        if silver and fo and m.get("silver_bullets") and fo["hp"] > 0:
+            fo["st"]["vuln"] = max(fo["st"].get("vuln", 0), 2)
+            self.fx("st", to=f"f{fo['id']}", s="vuln")
+        if m.get("scavenge") and fo and fo["hp"] <= 0 and x["ammo"] < self.cylinder(h):
+            x["ammo"] += 1  # Fresh Cartridge
+            self.fx("st", to=f"h{h}", s="reloaded")
 
     def after_action(self, h, a, tgt):
         """Bookkeeping for the passives that care what was done: Spellweave, Reagents, Quarry,

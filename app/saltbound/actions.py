@@ -44,7 +44,8 @@ class Actions:
                 "berserk": int(bool(x.get("berserk"))), "combo": 0, "res": 0, "burn": 0,
                 "harm": sum((self.s["fight"].get("harm") or {}).values()),
                 "qg": int(bool(self.mods(h).get("quiet_glyph")) and bool(vals) and vals[0] <= 2),
-                "aim": x.get("aim", 0), "shocked": 0, "psn": 0, "frozen": 0, "low": 0, "grudge": 0,
+                "aim": x.get("aim", 0), "ammo": x.get("ammo", 0), "silver": int(self.silver(h)),
+                "rico": self.mods(h).get("ricochet", 0), "hammer": int(bool(self.mods(h).get("hammer_back"))), "shocked": 0, "psn": 0, "frozen": 0, "low": 0, "grudge": 0,
                 "hurt": int(self.hero(h)["hp"] * 2 < self.maxhp(h)),
                 "targeted": int(any(f"h{h}" in self.intent_aims(fo.get("intent") or {}) for fo in self.foes()))}
 
@@ -120,6 +121,13 @@ class Actions:
             n += x["heat"] // C.HEAT_STEP + x.get("white", 0)  # the Emberknight's Heat (and Heart of the Forge)
         if x["st"].get("kindled"):
             n += x.get("kdmg", 0)  # an ally's Pass the Flame
+        if a.get("shot") and "ammo" in x:
+            if x["st"].get("cocked"):
+                n += C.COCKED + (2 if m.get("hammer_back") else 0)  # Reload's cocked hammer (Hammer Back)
+            if m.get("count_shots"):
+                n += min(4, max(0, self.cylinder(h) - x["ammo"]))  # Count Your Shots
+        if a["key"] == "pistol_whip" and x.get("ammo", 1) == 0:
+            n += m.get("dry_fire", 0)  # Dry Fire
         if m.get("hoard_gleam"):
             n += min(3, self.hero(h)["gold"] // m["hoard_gleam"])  # Hoard's Gleam
         if x.get("ascend"):
@@ -271,6 +279,8 @@ class Actions:
         if fuse and vals and 0 < vals[0] <= 2:
             env["v"] = env["d"] = fuse  # Short Fuse: a 1 or 2 burns down fast
         n = amt(op["amt"], env) + (2 if a["plus"] else 0)
+        if a.get("shot") == 1 and env.get("silver") and not op.get("to"):
+            n *= 2  # the Gunslinger's Silver Round: the last round in the cylinder
         return (n // 2 if half else n) + (self.dmg_bonus(h, a, t) if bonus is None else bonus), env
 
     def hit_finish(self, h, n, dice, vals, i=None, cresc=0, spell=False):
@@ -291,7 +301,8 @@ class Actions:
 
     def hit_pierces(self, h, a, op):
         m = self.mods(h)
-        return bool((m.get("unstoppable") and a["key"] in UNSTOPPABLE) or op.get("pierce") or m.get("pierce_all"))
+        return bool((m.get("unstoppable") and a["key"] in UNSTOPPABLE) or op.get("pierce") or m.get("pierce_all")
+                    or (m.get("silver_bullets") and a.get("shot") == 1 and not op.get("to") and self.silver(h)))
 
     def foe_soak(self, fo, n, h, pure=False, pierce=False):
         """What an enemy's crust and Armor take off a hit (no changes made):
@@ -451,6 +462,28 @@ class Actions:
                     fo["st"]["burn"] = fo["st"].get("burn", 0) + min(3, x["heat"] // 5)
                     self.fx("st", to=f"f{fo['id']}", s="burn")
         self.add_heat(c.h, n)
+
+    def cylinder(self, h):
+        """How many rounds the Gunslinger's cylinder holds (Speed Loader: more)."""
+        return C.CYLINDER + self.mods(h).get("cylinder", 0)
+
+    def silver(self, h):
+        """Whether the next round in the hero's cylinder is a Silver Round: the last one (Lucky Chamber: the
+        third too)."""
+        x = self.hs(h)
+        n = x.get("ammo", 0)
+        return n > 0 and (n == 1 or bool(self.mods(h).get("lucky_chamber")) and n == self.cylinder(h) - 2)
+
+    def _op_reload(self, c, op, targets):
+        """Reload: refill the cylinder, or load `n` rounds."""
+        x = c.x
+        if "ammo" not in x:
+            return
+        cap = self.cylinder(c.h)
+        new = cap if op.get("n") is None else min(cap, x["ammo"] + op["n"])
+        if new > x["ammo"]:
+            x["ammo"] = new
+            self.fx("st", to=f"h{c.h}", s="reloaded")
 
     def _op_shed(self, c, op, targets):
         hero = self.hero(c.h)

@@ -896,6 +896,80 @@ CLASSES["psion"] = {
     "blurb": "Sees every roll before it lands, and bends the close ones.",
 }
 
+# ---- Gunslinger (owner's request, Nov 2026): a cylinder of CYLINDER rounds (`x["ammo"]`, full at the start
+# of every fight; Speed Loader's `cylinder` adds more). An action with `shot` fires rounds (1, or "all":
+# every one left) and can't be played on an empty cylinder; Reload refills it. A one-round shot that
+# fires the last round is the Silver Round: its main hit deals double (`silver` in an amount, applied in
+# Actions.hit_base). `ammo` in an amount is the rounds left before the shot. Rules in Actions
+# (`cylinder`, `silver`, `_op_reload`) and Combat (`fire_rounds`).
+CYLINDER = 6
+COCKED = 3  # Reload on a 1-3 cocks the hammer: the next shot this round deals +3 (Hammer Back: any roll, +5)
+QUICK_DRAW = 4  # the map ability: the free shot when a fight starts
+ACTIONS.update({
+    "fire": {"name": "Fire", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": [],
+             "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "dmg", "amt": "rico", "to": "another", "if": "rico and v%2==0"}],
+             "text": "Any row: deal the die +3. Fires a round; the last round in the cylinder is the Silver Round and deals double."},
+    "reload": {"name": "Reload", "req": {"n": 1}, "tgt": "self", "tags": [],
+               "ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"}],
+               "text": "Refill your cylinder. On 1-3 the hammer's cocked: your next shot this round deals +3."},
+    "pistol_whip": {"name": "Pistol Whip", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
+                    "ops": [{"op": "dmg", "amt": "v+1"}],
+                    "text": "Deal the die +1. Needs no rounds: for when the cylinder's empty."},
+    "fan_the_hammer": {"cd": 2, "name": "Fan the Hammer", "req": {"n": 1}, "tgt": "foe", "shot": "all", "tags": ["quickdraw"],
+                       "ops": [{"op": "dmg", "amt": "v+2*ammo"}],
+                       "text": "Any row: fire every round left in one volley: the enemy takes the die +2 per round."},
+    "take_cover": {"cd": 2, "name": "Take Cover", "req": {"n": 1}, "tgt": "self", "tags": ["quickdraw"],
+                   "ops": [{"op": "armor", "amt": "v+2"}, {"op": "reload", "n": 2}],
+                   "text": "Gain the die +2 as Armor, and load 2 rounds while you're down."},
+    "high_noon": {"once": True, "cap": True, "name": "High Noon", "req": {"n": 1}, "tgt": "foes", "shot": "all", "tags": ["quickdraw"],
+                  "ops": [{"op": "dmg", "amt": "v+ammo"}],
+                  "text": "Once a fight: fire every round left: every enemy takes the die +1 per round."},
+    "cover_fire": {"cd": 2, "name": "Cover Fire", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
+                   "ops": [{"op": "dmg", "amt": "v"}, {"op": "weaken", "amt": "v"}],
+                   "text": "Any row: deal the die, and the enemy's attack this round deals the die less."},
+    "showdown": {"cd": 2, "name": "Showdown", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
+                 "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "status", "s": "weak", "n": 1, "if": "aimed"}],
+                 "text": "Any row: deal the die +3. If the enemy's attack this round is aimed at you, you draw first: it's Weak this round too."},
+    "trick_shot": {"cd": 2, "name": "Trick Shot", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
+                   "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "dmg", "amt": "v", "to": "behind"}],
+                   "text": "Any row: deal the die +2, and the bullet goes on: the die to an enemy in the other row."},
+    "disarming_shot": {"cd": 3, "name": "Disarming Shot", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
+               "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": "1+(v>=5)"}],
+               "text": "Any row: deal the die and shoot the weapon from its hand: it's Weak this round (on 5+, for 2 rounds)."},
+})
+PASSIVES.update({
+    "speed_loader": {"name": "Speed Loader", "mods": {"cylinder": 2}, "tags": ["quickdraw"],
+                     "text": "Your cylinder holds 8 rounds."},
+    "count_your_shots": {"name": "Count Your Shots", "mods": {"count_shots": 1}, "tags": ["quickdraw"],
+                         "text": "Each shot deals +1 for every round already fired from this cylinder (up to +4)."},
+    "dry_fire": {"name": "Dry Fire", "mods": {"dry_fire": 4}, "tags": ["quickdraw"],
+                 "text": "While your cylinder is empty, Pistol Whip deals +4."},
+    "hammer_back": {"name": "Hammer Back", "mods": {"hammer_back": 1}, "tags": ["quickdraw"],
+                    "text": "Reload cocks the hammer on any roll, and a cocked shot deals +5, not +3."},
+    "fresh_cartridge": {"name": "Fresh Cartridge", "mods": {"scavenge": 1}, "tags": ["quickdraw"],
+                        "text": "A shot that kills puts a round back in your cylinder."},
+    "ricochet_rounds": {"name": "Ricochet Rounds", "mods": {"ricochet": 3}, "tags": ["trickshot"],
+                        "text": "When Fire's die is even, the bullet bounces: 3 to another enemy."},
+    "silver_bullets": {"name": "Silver Bullets", "mods": {"silver_bullets": 1}, "tags": ["trickshot"],
+                       "text": "Your Silver Round ignores Armor and leaves the enemy Vulnerable for 2 rounds."},
+    "long_barrel": {"name": "Long Barrel", "mods": {"longshot": 2}, "tags": ["trickshot"],
+                    "text": "Your shots and other ranged hits on back-row enemies deal +2."},
+    "lucky_chamber": {"name": "Lucky Chamber", "cap": True, "mods": {"lucky_chamber": 1}, "tags": ["trickshot"],
+                      "text": "The third round in each cylinder is a Silver Round too."},
+})
+CLASS_DICE["gunslinger"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
+CLASSES["gunslinger"] = {
+    "name": "Gunslinger", "hp": 26, "hp_lvl": 3, "role": "Ranged damage on a six-shot clock",
+    "dice": [D(8), D(6)], "tags": ["quickdraw", "trickshot"],
+    "map": {"key": "quick_draw", "name": "Quick Draw",
+            "text": f"When a fight you're in starts, you shoot first: the enemy with the biggest attack takes {QUICK_DRAW}."},
+    "start": ["fire", "reload", "pistol_whip"], "weapon": "six_shooter", "armor": "padded_coat",
+    "pool": ["fan_the_hammer", "take_cover", "high_noon", "cover_fire", "showdown", "trick_shot", "disarming_shot",
+             "speed_loader", "count_your_shots", "dry_fire", "hammer_back", "fresh_cartridge", "ricochet_rounds",
+             "silver_bullets", "long_barrel", "lucky_chamber"],
+    "blurb": "Six shots, then a choice. Count them so the last, the silver one, lands where it matters.",
+}
+
 # ---- Signature mechanics for four original classes (owner's request, Nov 2026; docs/saltbound-skills.md):
 # - Duelist, Combo: each hit on the enemy it hit last this round deals +COMBO_STEP per hit before it
 #   (`x["combo"]`); hitting another enemy starts over. `combo` in an amount is that count.
@@ -1306,7 +1380,7 @@ def is_defensive(a):
 # count on every round), Block, Flee and Lift can be used every round. Weapon actions all cool too
 # (items.WEAPON_CD). Everything else waits at least a round after use, so a hero
 # can't win with one strong skill on repeat. `cd` N means usable every N rounds.
-FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "rebuke",
+FREE = {"strike", "rune_cut", "searing_strike", "claw", "mind_spike", "fire", "reload", "pistol_whip", "brace", "bolt", "slash_d", "hack_b", "shoot_r", "stab", "jab", "rebuke",
         "toss", "thornlash", "block", "flee"}  # Mend cools, Lift is once per rest
 BIG = {"finisher": 3, "called_shot": 3, "reckless_swing": 3, "howl": 3, "mend": 3}
 
@@ -1450,7 +1524,7 @@ SHORT = {
     "radiant": ("sword", "die +2 · party heals 2", None), "prism_ray": ("bolt", "die +2 · odd: Burn 2 · even: Weak", None),
     "lull": ("down", "die · Weak · 5+: Vuln", None), "glacial": ("snow", "die +3 · Freeze", "die"),
     "stoneform": ("shield", "die +2 Armor", None),
-    "challenge": ("shield", "die +1 · its attack hits you", None), "searbrand": ("flame", "die · Burn ½ die +1", None),
+    "challenge": ("shield", "die +1 · its attack hits you", None), "warning_shot": ("down", "any row: ½ die · Weak", None), "searbrand": ("flame", "die · Burn ½ die +1", None),
     "rake": ("sword", "two hits: ½ die +1 each", None), "kindle": ("flame", "½ die · next spell +die +2", None),
     "tend_grove": ("plus", "½ die · summons heal die", None), "foresight": ("eye", "reveal its attack · ½ die", None),
     "riptide": ("wave", "die · swap its row", None), "rallying_cut": ("flag", "die +1 · kill: allies' next hit +3", None),
@@ -1523,6 +1597,13 @@ SHORT.update({
     "telekinetic_hurl": ("hand", "die · drag · on 1: thrown, 6 + 6", None), "gravity_well": ("hand", "back row: die · drag", None),
     "read_intent": ("eye", "1 Focus: every roll shown", None), "psychic_scream": ("down", "all Weak · 5+: biggest Vuln", None),
     "mind_fog": ("down", "its attack −(die +1)", None), "puppet_strings": ("link", "two 6s: its attack hits another", "½ sum"),
+})
+SHORT.update({
+    "fire": ("target", "any row: die +3 · 1 round · last round ×2", None), "reload": ("refresh", "refill · 1-3: next shot +3", None),
+    "pistol_whip": ("sword", "die +1 · no rounds", None), "fan_the_hammer": ("target", "every round: die +2 each", None),
+    "take_cover": ("shield", "die +2 Armor · load 2", None), "high_noon": ("target", "all: die +1 per round · empty", None),
+    "cover_fire": ("target", "die · its attack −die", None), "showdown": ("target", "die +3 · aims at you: Weak", None),
+    "trick_shot": ("target", "die +2 · die to the other row", None), "disarming_shot": ("down", "die · Weak (5+: 2 rounds)", None),
 })
 SHORT.update({
     "claw": ("sword", "die +2", None), "breath": ("flame", "all: die +2 per Scale · shed all", None),

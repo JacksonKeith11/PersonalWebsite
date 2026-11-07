@@ -8,6 +8,15 @@ content, and read it in the rules.
 """
 
 MODS = {
+    # the Gunslinger's cylinder (classes.py CYLINDER; Actions.cylinder, silver, _op_reload; Combat.fire_rounds)
+    "cylinder": "the cylinder holds n more rounds",
+    "count_shots": "each shot deals +1 per round already fired from this cylinder (to +4)",
+    "dry_fire": "Pistol Whip deals +n while the cylinder is empty",
+    "hammer_back": "Reload cocks the hammer on any roll, and a cocked shot deals +2 more",
+    "scavenge": "a shot that kills puts a round back in the cylinder",
+    "ricochet": "Fire on an even die also deals n to another enemy",
+    "silver_bullets": "the Silver Round ignores Armor and makes the enemy Vulnerable for 2 rounds",
+    "lucky_chamber": "the third round in each cylinder is a Silver Round too",
     # legendary powers (content/items.py LEGENDARY)
     "echo_round": "the Echo (echo_any) comes back every round",
     "ward_party": "the first hit on each ally each round deals n less",

@@ -189,6 +189,8 @@ def main():
                     if g.hs(0)["ready"]:
                         g.hs(0)["ready"] = False
                     g.hs(0)["st"].pop("root", None)
+                    if "ammo" in g.hs(0):
+                        g.hs(0)["ammo"] = g.cylinder(0)  # every shot gets a full cylinder (Fan and High Noon empty it)
                     a = g.action_def(0, key)
                     tgt = target(g, 0, a)
                     if tgt is False:

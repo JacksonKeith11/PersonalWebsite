@@ -1095,7 +1095,13 @@ or Drawn (`x["sheathed"]`, every fight starts Sheathed); an action's `stance` sa
 (`x["resolve"]`, to `C.RESOLVE_CAP`) grows while Sheathed (`new_round`) and from Kamae and Sheathe; the Draw
 spends it (`_op_draw`); while Sheathed the first enemy hit each round is countered for half of it
 (`Combat.iai_counter`, in `hurt_hero`), and any other attack draws the blade and loses it
-(`Combat.draw_blade`). The bots value Resolve at `bot.resolve_worth`. SAMURAI_RESULTS
+(`Combat.draw_blade`). The bots value Resolve at `bot.resolve_worth`. Measured (2026-11-07, 200 Normal runs with a
+Samurai in every party, path bots, seed 5000): 56.5% at first, with the least damage of the damage classes
+(25.4 a fight round); **69.5% after Cut +3 (was +2), Scabbard Strike +1, the Draw +2 and Resolve 4 a round
+(was 3)**, damage 28.9, deaths 0.34 a run; about where the Gunslinger sits (68.0%). Of the first batch's
+picks, Mirror Edge (+14), Iai Master (+10) and Zanshin (+8) led; the bots rarely take its new actions
+(Duel, Kiai, Flash Draw, Waiting Stance, Return Stroke under 6% of offers), as with every class's actions.
+A Hard batch hasn't been run.
 
 **The Gunslinger** (owner's request, Nov 2026; design in `docs/saltbound-gunslinger.md`). A cylinder of
 `C.CYLINDER` rounds (`x["ammo"]`, full each fight; `x["cap"]` for the hero card's pips). Actions with

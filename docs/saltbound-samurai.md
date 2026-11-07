@@ -19,7 +19,7 @@ with a gold crest, a red face mask, red lacquered plate). The live numbers are i
   throws the Resolve away (`Combat.draw_blade`, in `resolve_action`).
 - **Meditation** (the map ability): after a rest, the next fight starts with 8 Resolve.
 
-The decision: how much damage to give up now (the die rather than the die +2, and dice on Kamae rather than
+The decision: how much damage to give up now (the die +1 rather than the die +3, and dice on Kamae rather than
 hits) for a bigger Draw later, read against the enemies' intents.
 
 ## The kit
@@ -45,3 +45,9 @@ Vulnerable; Cut, +3 Resolve; Scabbard Strike, Weak; Kesa Cut, Wound.
   `sheathe_value` counts the Resolve a round and the counter. A Sheathed Samurai's other attacks are charged
   the Resolve they'd throw away.
 - `tools/saltbound-check.py` sets the blade the way each action needs, with 8 Resolve, before placing it.
+
+## Results
+
+200 Normal runs with a Samurai in every party (path bots, seed 5000, 2026-11-07): 56.5% as first built;
+**69.5%** after the damage buff (Cut +3, Scabbard Strike +1, the Draw +2, Resolve 4 a round). The details are
+in `docs/saltbound.md`.

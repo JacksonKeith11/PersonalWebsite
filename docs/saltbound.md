@@ -962,6 +962,10 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   - After the Nov 2026 audit (the bots value Slash's follow-through again, Tinder never lowers a Burn,
     Frostlock hurts a Steeled enemy, freed towns reopen their boards; 300 Hard runs, seed 5000):
     **56.7%**, within the noise of 54.0%.
+  - With the new enemies (14), multi-job boards, live Resonance odds and Edge/Tune/Scour (300 Hard runs,
+    seed 5000): **56.0%**. The Peak's court is the hardest new group (Drowned Knight 10.5 damage a fight,
+    Coral Colossus 21.8 in its few fights; the median enemy deals 3.3); the first regions' additions sit
+    with their neighbours (Spine Urchin 2.3, Rum Runner 2.1, Lookout Parrot 0.3).
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
   one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the

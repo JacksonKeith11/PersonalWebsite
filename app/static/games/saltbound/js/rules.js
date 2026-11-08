@@ -40,6 +40,8 @@ export function visibleTiles(game) {
     if (!hero.alive) return;
     for (const t of within(hero.tile, hero.sight)) out.add(t);  // Game.enemy_sight
   });
+  // a watchtower keeps watch for the party (Game.visible_tiles; towers built before Nov 2026 lack `sight`)
+  for (const [t, p] of Object.entries(game.places || {})) if (p.kind === 'tower') for (const x of within(+t, p.sight ?? 6)) out.add(x);
   return out;
 }
 

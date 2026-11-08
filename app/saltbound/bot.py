@@ -928,7 +928,7 @@ def evaluate(g, b, h, a, dice, tgt):
                 # worked out with the fight's own sums (Combat.hit_base, hit_finish, foe_soak, hit_spill)
                 per, each_op, pierce, cond, leech = info
                 each = range(len(vals)) if each_op else [None]
-                for t, share, part_env, bonus_t, combo, vfac, madd, left0, w, stopv in per:
+                for t, share, part_env, bonus_t, chord_bell, vfac, madd, left0, w, stopv in per:
                     env = g.target_env_from(de, part_env, t, vals)
                     if b.sig.get(t["id"]):
                         env["sig"] = max(0, min(C.SIGIL_CAP, env["sig"] + b.sig[t["id"]]))
@@ -940,7 +940,7 @@ def evaluate(g, b, h, a, dice, tgt):
                     for j, i in enumerate(each):
                         raw, _ = g.hit_base(h, a, op, t, dice, vals, tags, i, env=env, bonus=bonus_t)
                         if j == 0:
-                            raw += g.bell_sum(combo, vals)  # Chord and the bell (Combos.bell_parts)
+                            raw += g.bell_sum(chord_bell, vals)  # Chord and the bell (Combos.bell_parts)
                         raw = g.hit_finish(h, raw, dice, vals, i, cres, spell=bool(a.get("spell")))
                         got = g.foe_damage_after(t, int(raw), h)
                         # Vulnerable and Mark that earlier placements will have put on it

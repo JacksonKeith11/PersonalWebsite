@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=179';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=179';
-import { spriteURL, placeURL } from './art.js?v=179';
-import { itemURL } from './itemart.js?v=179';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=179';
-import { MapView } from './hexmap.js?v=179';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=179';
-import { disconnect } from './main.js?v=179';
-import * as sfx from './audio.js?v=179';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=180';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=180';
+import { spriteURL, placeURL } from './art.js?v=180';
+import { itemURL } from './itemart.js?v=180';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=180';
+import { MapView } from './hexmap.js?v=180';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=180';
+import { disconnect } from './main.js?v=180';
+import * as sfx from './audio.js?v=180';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -323,6 +323,25 @@ function placeText(p) {
 }
 
 // ------------------------------------------------------------------ top bar
+function tideTip(g) {
+  const lines = [`The Great Tide`, `Rises every ${g.rise_every} turns, next in ${g.next_rise}. Each one makes every enemy stronger, brings two or three arrivals from the sea (wreckage and visitors early on, raiders, war-bands and worse later), and grows the garrisons of the objectives you haven’t cleared.`];
+  if (g.tides) lines.push(`Risen ${g.tides} time${g.tides === 1 ? '' : 's'}.`);
+  if ((g.tidenews || []).length) lines.push(`Last time: ${g.tidenews.map(n => n.name).join('; ')}.`);
+  if (g.rises >= g.grow_from) lines.push('More enemies come ashore now.');
+  return lines.join('\n');
+}
+function objectivesTip(g) {
+  const st = S.static, lines = ['Objectives'];
+  for (const r of worldRegions()) {
+    const gar = g.garrison?.[r]?.n;
+    lines.push(`${st.dungeons[r]} (${st.regions[r]}): ${g.cleared.includes(r) ? 'cleared' : `not yet${gar ? `, garrison +${gar}` : ''}`}`);
+    if (st.biome.rules[r]) lines.push(`  ${st.biome.rules[r]}`);
+  }
+  lines.push(`Each Great Tide (every ${g.rise_every} turns) the garrisons of those not yet cleared grow (next in ${g.garrison_next}).`);
+  lines.push(`Each objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.`);
+  if (g.crown_cut) lines.push(`The Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.`);
+  return lines.join('\n');
+}
 function renderTopbar() {
   const g = S.game;
   const xpPct = g.xp_next ? Math.round(100 * (g.xp - g.xp_this) / (g.xp_next - g.xp_this)) : 100;
@@ -332,13 +351,13 @@ function renderTopbar() {
       h('div.stat', { tip: `Turn ${g.turn}\nEveryone plans, then everyone moves at once.` }, h('span.lbl', null, 'Turn'), h('b', null, g.turn)),
       h('div.stat.opt', { tip: `${g.tide === 'low' ? 'Low' : 'High'} tide\n${g.tide === 'low' ? 'Sandbars and shallows are walkable.' : 'Shallows are under water: skiffs only.'}\nTurns in ${g.next_tide} turn${g.next_tide === 1 ? '' : 's'}.` },
         icon('moon'), h('b', null, g.tide === 'low' ? 'Low tide' : 'High tide'), h('span.lbl', null, `· ${g.next_tide}`)),
-      h('div.stat' + (g.next_rise === 1 ? '.tide-soon' : g.rises >= g.grow_from ? '.warn' : ''), { tip: `The Great Tide\nRises every ${g.rise_every} turns, next in ${g.next_rise}. Each one makes every enemy stronger, brings two or three arrivals from the sea (wreckage and visitors early on, raiders, war-bands and worse later), and grows the garrisons of the objectives you haven’t cleared.${g.tides ? `\nRisen ${g.tides} time${g.tides === 1 ? '' : 's'}.` : ''}${(g.tidenews || []).length ? `\nLast time: ${g.tidenews.map(n => n.name).join('; ')}.` : ''}${g.rises >= g.grow_from ? '\nMore enemies come ashore now.' : ''}` },
+      h('div.stat' + (g.next_rise === 1 ? '.tide-soon' : g.rises >= g.grow_from ? '.warn' : ''), { tip: tideTip(g) },
         icon('wave'), h('b', null, h('span.wide-only', null, 'Great Tide '), g.next_rise === 1 ? 'next turn!' : `in ${g.next_rise}`)),
       h('div.stat', { tip: `Party level ${g.level}\n${g.xp_next ? `${g.xp} / ${g.xp_next} XP` : 'Max level'}\nXP is shared: everyone levels together.` },
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
         icon('feather'), h('b', null, g.revives)),
-      goalStat(g, `Objectives\n${worldRegions().map(r => `${S.static.dungeons[r]} (${S.static.regions[r]}): ${g.cleared.includes(r) ? 'cleared' : `not yet${g.garrison?.[r]?.n ? `, garrison +${g.garrison[r].n}` : ''}`}${S.static.biome.rules[r] ? `\n  ${S.static.biome.rules[r]}` : ''}`).join('\n')}\nEach Great Tide (every ${g.rise_every} turns) the garrisons of those not yet cleared grow (next in ${g.garrison_next}).\nEach objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.${g.crown_cut ? `\nThe Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.` : ''}`)),
+      goalStat(g, objectivesTip(g))),
     h('div.right', null,
       h('button.btn.icon.ghost', { 'aria-label': 'Log', tip: 'Log', onclick: () => { UI.log = !UI.log; saved.logOpen = UI.log; persist(); renderLog(); } }, icon('list')),
       h('button.btn.icon.ghost', { 'aria-label': 'Menu', tip: 'Menu', onclick: () => { UI.menu = !UI.menu; UI.menuFresh = true; renderMenu(); } }, icon('menu')))));

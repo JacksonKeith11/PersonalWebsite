@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=179';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=179';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=179';
-import { stageURL, stageKey } from './stage.js?v=179';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=179';
-import { render } from './main.js?v=179';
-import { skillCard, upDef, upText } from './hud.js?v=179';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=179';
-import * as sfx from './audio.js?v=179';
+import { S, send, mine, controllerName } from './store.js?v=180';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=180';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=180';
+import { stageURL, stageKey } from './stage.js?v=180';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=180';
+import { render } from './main.js?v=180';
+import { skillCard, upDef, upText } from './hud.js?v=180';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=180';
+import * as sfx from './audio.js?v=180';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -1067,11 +1067,17 @@ function dieButton(d, i, ready) {
   if (d.bonus) marks.push(h('span.mk.bonus', null, `+${d.bonus}`));
   if (d.link) marks.push(h('span.mk', null, icon('link')));
   const f0 = S.game.fight;
-  const pinc = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && chordNums(fo, f0, C.tab)?.includes(d.v)).map(fo => fo.name) : [];
+  const chordFoes = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && chordNums(fo, f0, C.tab)?.includes(d.v)).map(fo => fo.name) : [];
   const bells = d.v != null && !d.used && f0 ? f0.foes.filter(fo => fo.hp > 0 && fo.bell && !fo.cracked && fo.bell === d.v) : [];
-  if (pinc.length || bells.length) cls += '.combo';
+  if (chordFoes.length || bells.length) cls += '.combo';
   if (d.locked) cls += '.locked';
-  const tip = `${srcName}\n${dieTip(d)}${d.v == null && !d.fc ? `\nHidden until its action happens. Averages about ${expected(d).toFixed(1)}.` : ''}${d.bonus ? `\nRolls ${d.bonus} higher.` : ''}${pinc.length ? `\nChord on ${pinc.join(', ')}: hit it with this next and it copies your ally's hit.` : ''}${bells.length ? '\nMatches the bell: hit the Bell-Warden with it to crack the bell.' : ''}${d.locked ? '\nCrusted over by a Barnacle Priest: you can’t use it this round.' : ''}`;
+  const tipLines = [srcName, dieTip(d)];
+  if (d.v == null && !d.fc) tipLines.push(`Hidden until its action happens. Averages about ${expected(d).toFixed(1)}.`);
+  if (d.bonus) tipLines.push(`Rolls ${d.bonus} higher.`);
+  if (chordFoes.length) tipLines.push(`Chord on ${chordFoes.join(', ')}: hit it with this next and it copies your ally's hit.`);
+  if (bells.length) tipLines.push('Matches the bell: hit the Bell-Warden with it to crack the bell.');
+  if (d.locked) tipLines.push('Crusted over by a Barnacle Priest: you can’t use it this round.');
+  const tip = tipLines.join('\n');
   // a Swell die is drawn bigger with every round it waits (its step: d4, d10+2, d12+7, d20+12)
   if (d.src === 'swell') cls += '.swell.s' + Math.max(0, [4, 10, 12, 20].indexOf(d.faces.length));
   return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {

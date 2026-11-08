@@ -452,7 +452,7 @@ class Game(Combat, Biomes, Quests, Travel):
         for h in self.living():
             out |= Wd.within(self.hero(h)["tile"], self.enemy_sight(h))
         for t in self.towers():
-            out |= Wd.within(t, A.TOWER_SIGHT)  # a watchtower keeps watch for the party
+            out |= Wd.within(t, A.TOWER_SIGHT)  # a watchtower keeps watch for the party (rules.js visibleTiles too)
         return out
 
     # ------------------------------------------------------------------ enemies on the map
@@ -2577,7 +2577,7 @@ class Game(Combat, Biomes, Quests, Travel):
             self.s["world"]["places"][str(t)] = {"kind": "beacon", "lit": True, "built": q["src"]}
             self.say(f"{self.hero(h)['name']} raises a beacon tower and lights it: it's on the party's beacon road.")
         else:
-            self.s["world"]["places"][str(t)] = {"kind": "tower", "built": q["src"]}
+            self.s["world"]["places"][str(t)] = {"kind": "tower", "built": q["src"], "sight": A.TOWER_SIGHT}
             self.say(f"{self.hero(h)['name']} finishes the watchtower: it keeps watch {A.TOWER_SIGHT} hexes round.")
         self.reveal(t, A.TOWER_SIGHT if q["kind"] == "tower" else A.BEACON_SIGHT)
         self.fx("built", h=h, tile=t, what=q["kind"])

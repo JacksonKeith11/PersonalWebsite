@@ -2224,6 +2224,8 @@ clock anywhere: the run changes only when someone acts.
 - **True and false only go in switch fields** (`BOOL_FIELDS` in `game.py`: `on`, `equip`, `all`, `cancel`):
   `Game.act` refuses them anywhere else, since Python takes `True` for 1 (a hero, a die id), and `str(True)`
   isn't a key. A new boolean message field belongs in that set.
+- **What the party can see lives in two places**: `Game.visible_tiles` and `rules.js` `visibleTiles` (heroes'
+  sight plus every watchtower's `sight`), which the browser uses for routes and which enemies it shows.
 - **Build jobs need their site kept clear** (beacon and watchtower jobs): sites stand above the high tide
   (`BUILD_ABOVE_SEA`), tide wrecks and caches avoid taken job sites (`job_targets`), and a notice whose site was
   taken before anyone accepted it picks another (or comes down) in `do_quest`.

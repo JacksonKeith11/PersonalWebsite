@@ -704,7 +704,7 @@ class Game(Combat, Biomes, Quests, Travel):
             "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use, "temper": self.do_temper, "beacon": self.do_beacon, "mbuy": self.do_mbuy,
             "give": self.do_give, "drop": self.do_drop,
             "reforge": self.do_reforge, "temple": self.do_temple, "chart": self.do_chart,
-            "place": self.do_place, "reroll": self.do_reroll, "nudge": self.do_nudge, "trinket": self.do_trinket, "hawk": self.do_hawk,
+            "place": self.do_place, "nudge": self.do_nudge, "trinket": self.do_trinket, "hawk": self.do_hawk,
             "fready": self.do_fready, "spirit": self.do_spirit, "fork": self.do_fork,
             "suggest": self.do_suggest, "ask": self.do_ask,
         }.get(t)
@@ -732,7 +732,10 @@ class Game(Combat, Biomes, Quests, Travel):
         if not self.can_plan(h):
             raise Invalid("Not now.")
         p = self.plan(h)
-        path = [int(t) for t in msg.get("path") or [] if isinstance(t, int) and 0 <= t < Wd.W * Wd.H][:PATH_MAX]
+        raw = msg.get("path") or []
+        if not isinstance(raw, list):
+            raise Invalid("You can't go that way.")
+        path = [int(t) for t in raw if isinstance(t, int) and 0 <= t < Wd.W * Wd.H][:PATH_MAX]
         if path:
             cost = self.path_cost(h, path)
             if cost is None:
@@ -1170,8 +1173,9 @@ class Game(Combat, Biomes, Quests, Travel):
         hero = self.hero(h)
         if kind == "cache":
             lo, hi = A.CACHE_RANGE
+            busy = self.job_targets()
             cands = [t for t in range(Wd.W * Wd.H) if self.terrain(t) in ("beach", "grass", "forest", "hills")
-                     and not self.place(t) and not self.group_at(t) and lo <= Wd.dist(t, hero["tile"]) <= hi]
+                     and not self.place(t) and not self.group_at(t) and t not in busy and lo <= Wd.dist(t, hero["tile"]) <= hi]
             if cands:
                 t = self.rng.choice(cands)
                 s["world"]["places"][str(t)] = {"kind": "cache"}
@@ -1261,8 +1265,9 @@ class Game(Combat, Biomes, Quests, Travel):
         if k == "wreckage" and sum(1 for p in s["world"]["places"].values() if p.get("tide") and not p.get("done")) >= A.TIDE_WRECKS:
             return None
         lo, hi = a["range"]
+        busy = self.job_targets()
         cands = [t for t in range(Wd.W * Wd.H) if self.terrain(t) == "beach" and not self.place(t)
-                 and not self.group_at(t) and lo <= min(Wd.dist(t, x) for x in heroes) <= hi]
+                 and not self.group_at(t) and t not in busy and lo <= min(Wd.dist(t, x) for x in heroes) <= hi]
         if not cands:
             return None
         t = self.rng.choice(cands)
@@ -1388,6 +1393,7 @@ class Game(Combat, Biomes, Quests, Travel):
             if g.get("occupy"):
                 town = self.place(g["tile"])
                 town.pop("occupied", None)
+                town.pop("quest_taken", None)  # its board reopens with fresh work
                 for h in winners:
                     self.hero(h)["gold"] += A.FREE_GOLD
                 self.restock(g["tile"])
@@ -1736,7 +1742,7 @@ class Game(Combat, Biomes, Quests, Travel):
     def do_suggest(self, h, msg):
         """A hero suggests one of an ally's event choices (or takes the suggestion back with n None)."""
         to, n = msg.get("to"), msg.get("n")
-        if not isinstance(to, int) or not 0 <= to < 3 or to == h:
+        if not isinstance(to, int) or isinstance(to, bool) or not 0 <= to < 3 or to == h:
             raise Invalid("Suggest to whom?")
         q = self.s["pending"][str(to)]
         if not q or q[0]["type"] != "event":
@@ -2452,6 +2458,7 @@ class Game(Combat, Biomes, Quests, Travel):
         same = [int(k) for k, p in w["places"].items() if p["kind"] == ("beacon" if kind == "beacon" else "tower")]
         gap = A.BEACON_GAP if kind == "beacon" else A.TOWER_GAP
         cands = [x for x in Wd.within(t, hi) if lo <= Wd.dist(x, t) and self.terrain(x) in Wd.COST and self.terrain(x) != "town"
+                 and w["elev"][x] >= self.s["sea"] + A.BUILD_ABOVE_SEA  # never on tidal ground
                  and not self.place(x) and not self.group_at(x) and x not in busy and x != w["peak"]
                  and (kind != "beacon" or w["bio"][x] in ("hills", "peak"))
                  and all(Wd.dist(x, c) >= gap for c in same)]
@@ -2474,6 +2481,14 @@ class Game(Combat, Biomes, Quests, Travel):
             jobs.pop(n)
             self.say(f"The war band marching on {p['name']} has turned back: that notice comes down.")
             return
+        if jobs[n]["kind"] in ("beacon", "tower") and (self.place(jobs[n]["tile"]) or self.terrain(jobs[n]["tile"]) not in Wd.COST):
+            # something has turned up on the site since the notice went up: the town picks another
+            site = self.build_site(t, jobs[n]["kind"])
+            if site is None:
+                jobs.pop(n)
+                self.say(f"There's nowhere left near {p['name']} to build: that notice comes down.")
+                return
+            jobs[n] = dict(jobs[n], tile=site)
         p["quest_taken"] = True
         s["jobid"] = s.get("jobid", 0) + 1
         q = dict(jobs[n], id=s["jobid"], done=False, failed=False, src=p["name"], src_tile=t,

@@ -505,7 +505,7 @@ PASSIVES.update({
     "reagents": {"name": "Reagents", "mods": {"reagents": 1},
                  "text": "Each bomb you throw makes your later bombs this fight deal 1 more (up to +5)."},
     "catalyst": {"name": "Catalyst", "mods": {"bomb_poison": 1}, "tags": ["elixirs"],
-                 "text": "Your bombs also Poison 1 (and with an ally's Burn, that's Wildfire)."},
+                 "text": "Your bombs also Poison 1 (meeting an ally's Burn, that's Blightfire)."},
     "bloom": {"name": "Bloom", "mods": {"bloom": 1}, "text": "When one of your summons dies, the party heals half its max HP."},
 })
 

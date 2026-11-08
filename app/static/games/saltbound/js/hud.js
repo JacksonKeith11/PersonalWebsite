@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=175';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=175';
-import { spriteURL, placeURL } from './art.js?v=175';
-import { itemURL } from './itemart.js?v=175';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=175';
-import { MapView } from './hexmap.js?v=175';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=175';
-import { disconnect } from './main.js?v=175';
-import * as sfx from './audio.js?v=175';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=176';
+import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=176';
+import { spriteURL, placeURL } from './art.js?v=176';
+import { itemURL } from './itemart.js?v=176';
+import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=176';
+import { MapView } from './hexmap.js?v=176';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=176';
+import { disconnect } from './main.js?v=176';
+import * as sfx from './audio.js?v=176';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -904,14 +904,20 @@ function itemTip(key) {
   if (it.die) lines.push(...dieTip({ faces: it.die, dk: it.dk || [] }).split('\n'));
   for (const a of it.acts || []) { const ad = S.static.actions[a]; lines.push(`${ad.name} (${reqText(ad.req)}): ${ad.text}`); }
   if (it.guard) { const ad = S.static.actions[it.guard]; lines.push(`In place of Block, ${ad.name}: ${ad.text}`); }
-  if (it.mods) lines.push(modsText(it.mods));
+  if (it.mods) lines.push(modsText(it.mods, it.text));
   if (it.text) lines.push(it.text);
   if (it.work?.length) lines.push(`Work: ${it.work.join(', ')} (${it.work.length} of ${S.static.work.cap})`);
   return lines.filter(Boolean).join('\n');
 }
-function modsText(m) {
+// An item's plain bonuses, leaving out any its own text already states (most say "+3 max HP" there too).
+const MOD_SAID = { max_hp: v => (v < 0 ? `−${-v}` : `+${v}`) + ' max HP', heal_bonus: v => `heals are ${v} stronger`, thorns: v => `take ${v}`,
+  start_armor: v => `with ${v} Armor`, bomb_bonus: v => `+${v} bomb`, move: v => `+${v} move`, might: v => `+${v} damage on every hit`,
+  regen: v => `heal ${v} each round`, reroll: v => new RegExp(`\\+${v} (automatic )?rerolls?`) };
+function modsText(m, text = '') {
   const out = [];
   for (const [k, v] of Object.entries(m)) {
+    const said = MOD_SAID[k]?.(v);
+    if (said && (said instanceof RegExp ? said.test(text) : text.includes(said))) continue;
     out.push({ max_hp: `+${v} max HP`, heal_bonus: `+${v} to heals`, thorns: `Attackers take ${v}`, start_armor: `Start fights with ${v} Armor`, bomb_bonus: `+${v} bomb damage`,
       reroll: `+${v} reroll per fight`, move: `+${v} move`, might: `+${v} damage on every hit`, regen: `Regenerate ${v} HP a round in fights` }[k] || '');
   }
@@ -1001,7 +1007,7 @@ function townDrawer(h0, town, d) {
     const jobs = town.jobs || [];
     const mineJobs = g.quests.filter(q2 => !q2.done && !q2.failed);
     body = [h('h3', null, 'Notice board'),
-      jobs.length ? h('p.muted', null, 'Take one of these. The other comes down when you do.') : h('p.muted', null, town.quest_taken ? 'You’ve taken this town’s job.' : 'Nothing pinned up today.'),
+      jobs.length ? h('p.muted', null, jobs.length > 1 ? 'Take one of these. The others come down when you do.' : 'One job pinned up.') : h('p.muted', null, town.quest_taken ? 'You’ve taken this town’s job.' : 'Nothing pinned up today.'),
       ...jobs.map((j, n) => h('div.card.job', null,
         h('div.job-head', null, h('span.kind', null, st.job_kinds[j.kind].name),
           j.link ? h('span.chip.brass', { tip: `A follow-up: ${town.name} trusts you after the last job. Each one pays more, and job ${st.chain_max} pays a legendary.` }, icon('link'), `Job ${j.link} of ${st.chain_max}`) : null,
@@ -1498,7 +1504,7 @@ function lootCard(h0, k, i, mates, choose, taken) {
     it.die ? faceRow(it) : null,
     it.dk?.length ? h('p', null, it.dk.map(x => KIND_TEXT[x]).filter(Boolean).join(' ')) : null,
     ...(it.acts || []).map(a => h('p', null, h('b', null, S.static.actions[a].name + ': '), S.static.actions[a].text)),
-    it.mods ? h('p', null, modsText(it.mods)) : null,
+    it.mods && modsText(it.mods, it.text) ? h('p', null, modsText(it.mods, it.text)) : null,
     it.text ? h('p.passive', null, it.text) : null,
     sellChip(k, h0)];
   if (taken) {

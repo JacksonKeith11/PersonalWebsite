@@ -891,6 +891,7 @@ CHAIN_GOLD = 0.4
 BUILD_RANGE = (3, 8)
 TOWER_SIGHT = 6  # a watchtower shows enemies this many hexes round it, for the rest of the run
 TOWER_GAP = 6    # at least this far from another watchtower
+BUILD_ABOVE_SEA = 2  # a build site stands clear of the high tide (which covers land one above the sea)
 # what else a job pays, with weights; "trade" (a free go at the town's smithy, chart or temple revive)
 # only from a town with one; the rest of the gold is cut a little when the extra is worth more
 JOB_REWARDS = {"loot": 4, "item": 2, "revive": 1, "trade": 2, "restock": 1}

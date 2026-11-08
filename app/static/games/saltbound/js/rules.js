@@ -194,13 +194,16 @@ function faceRules(d, v, t, rm) {
 // What gets added to a face when it rolls (Combat.die_add): its bonus, Hymn, Sleight of Hand on a linked die.
 const dieAdd = (d, hymn, rm) => (d.bonus || 0) + hymn + (d.link && rm.sleight ? 1 : 0);
 
+// A Fate die's two faces as [value, tag] (older saves kept bare numbers), and how each reads on the tile.
+export const fateFaces = d => d.fc.map(x => (Array.isArray(x) ? x : [x, null]));
+export const fateText = ([v, t]) => ({ S: '◆', X: '☠', R: '♫' }[t] || String(v));
 // What a die might come up as while planning: [[value, tag, chance]]. `rm`: the hero's rollmods.
 export function outcomes(d, hymn = 0, rm = {}) {
   const add = dieAdd(d, hymn, rm);
   let base;
   if (d.rolled) return [[d.v, d.tag, 1]];
   if (d.v !== null && d.v !== undefined) base = [[d.v, d.tag, 1]];
-  else if (d.fc) base = [[d.fc[0], null, 0.5], [d.fc[1], null, 0.5]];
+  else if (d.fc) base = fateFaces(d).map(([v, t]) => [v, t, 0.5]);
   else if (d.top) base = [[topFace(d.faces), null, 1]];
   else {
     let faces = d.faces;
@@ -266,7 +269,7 @@ export function dieLabel(d) {
   // the size, marked with what's unusual about its faces; the tooltip lists them all
   const plain = faces.every((f, i) => f === i + 1);
   const marks = (faces.includes('S') ? '◆' : '') + (faces.includes('X') ? '☠' : '') + (faces.includes('W') ? '★' : '') +
-    (faces.some(f => typeof f === 'string' && 'FIP'.includes(f[0])) ? '✦' : '') +
+    (faces.some(f => typeof f === 'string' && 'FIP'.includes(f[0])) ? '✦' : '') + (faces.includes('R') ? '♫' : '') +
     (!plain && faces.every(f => typeof f === 'number') ? '~' : '');
   const size = marks + 'd' + faces.length;
   return [...kinds, size].join(' ');

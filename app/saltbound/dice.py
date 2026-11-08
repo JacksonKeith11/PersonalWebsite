@@ -46,6 +46,11 @@ def mean_face(faces):
     return sum(vals) / len(vals)
 
 
+def fate_faces(d):
+    """A Fate die's two faces, as (value, tag) pairs (saves from before Nov 2026 kept bare numbers)."""
+    return [tuple(x) if isinstance(x, (list, tuple)) else (x, None) for x in d["fc"]]
+
+
 def num(d):
     """A die's value: rolled or shown, else (while planning) what it rolls on average."""
     if isinstance(d.get("v"), int):
@@ -144,7 +149,7 @@ class Dice:
         elif "sv" in d:
             v, t = d.pop("sv"), d.pop("stag", None)
         elif d.get("fc"):
-            v, t = self.rng.choice(d["fc"]), None
+            v, t = self.rng.choice(fate_faces(d))
         else:
             v, t = self.raw_roll(h, d)
         if t == "R":
@@ -210,7 +215,7 @@ class Dice:
         elif d.get("v") is not None:
             base = [(d["v"], d.get("tag"), 1.0)]
         elif d.get("fc"):
-            base = [(d["fc"][0], None, 0.5), (d["fc"][1], None, 0.5)]
+            base = [(v, t, 0.5) for v, t in fate_faces(d)]
         elif d.get("top"):
             base = [(top_face(d["faces"]), None, 1.0)]
         else:

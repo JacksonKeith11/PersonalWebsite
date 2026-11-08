@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=175';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=175';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=175';
-import { stageURL, stageKey } from './stage.js?v=175';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits } from './rules.js?v=175';
-import { render } from './main.js?v=175';
-import { skillCard, upDef, upText } from './hud.js?v=175';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=175';
-import * as sfx from './audio.js?v=175';
+import { S, send, mine, controllerName } from './store.js?v=176';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=176';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=176';
+import { stageURL, stageKey } from './stage.js?v=176';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=176';
+import { render } from './main.js?v=176';
+import { skillCard, upDef, upText } from './hud.js?v=176';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=176';
+import * as sfx from './audio.js?v=176';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -319,7 +319,7 @@ export function diceText(it) {
     const top = Math.max(...nums);
     const odd = d.faces.some(x => typeof x !== 'number');
     if (d.v != null) parts.push(`[${d.tag === 'W' ? 'W' : d.v}]`);
-    else if (d.fc) parts.push(d.fc.map(x => x[0] ?? 'W').join('|'));
+    else if (d.fc) parts.push(d.fc.map(x => (x[0] == null ? 'W' : fateText(x))).join('|'));
     else if (odd || d.dk.length) parts.push(`d${top}${d.dk.includes('exploding') ? '!' : d.dk.includes('steady') ? '~' : ''}${odd ? '*' : ''}`);
     else plain[top] = (plain[top] || 0) + 1;
   }
@@ -449,7 +449,7 @@ function comboHints(fo, f) {
   const by = fo.st_by || {}, chips = [];
   const nums = chordNums(fo, f, x);
   if (nums) {
-    const n = Math.min(f.chord.base, 20) * f.chord.hs.length;
+    const n = f.chord.bonus?.[x] ?? Math.min(f.chord.base, 15) * f.chord.hs.length;
     const who = f.chord.hs.map(y => S.game.heroes[y].name).join(' and ');
     chips.push(h('span.combo-hint.chord', { tip: `Chord\n${who} just hit it. Make your next action a hit on it with a die showing ${orList(nums)}, before anyone else acts, and it copies that hit: +${n}.` },
       `Chord: a ${orList(nums)} now, +${n}`));
@@ -768,7 +768,7 @@ function intentChip(fo, f) {
     const nums = d.faces.map(x => (typeof x === 'number' ? x : parseInt(String(x).slice(1)) || 0));
     const top = Math.max(...nums);
     const odd = d.faces.some(x => typeof x !== 'number');
-    const label = d.v != null ? (d.tag === 'W' ? 'W' : String(d.v)) : d.fc ? d.fc.map(x => x[0] ?? 'W').join('|') : `d${top}`;
+    const label = d.v != null ? (d.tag === 'W' ? 'W' : String(d.v)) : d.fc ? d.fc.map(x => (x[0] == null ? 'W' : fateText(x))).join('|') : `d${top}`;
     return h('span.md' + (d.v != null ? '.known' : '') + (d.fc ? '.fate' : '') + (d.dk.includes('exploding') ? '.boom' : '') + (d.dk.includes('steady') ? '.steady' : '') + (odd ? '.odd' : ''), null, label);
   });
   const b = it.bonus || 0;
@@ -1051,7 +1051,8 @@ function dieButton(d, i, ready) {
     face = d.tag === 'S' ? icon('shield') : d.tag === 'X' ? '☠' : d.tag === 'R' ? h('span.num', null, '♫') : h('span.num', null, String(d.v));
     cls = '.known';
   } else if (d.fc) {
-    face = h('span.fate', null, d.fc[0], h('i', null, '|'), d.fc[1]);
+    const [a, b] = fateFaces(d).map(fateText);
+    face = h('span.fate', null, a, h('i', null, '|'), b);
     cls = '.known';
   } else if (d.hint) {
     face = h('span.hint', null, d.hint === 'high' ? '▲' : '▼', h('small', null, d.hint));
@@ -1059,6 +1060,8 @@ function dieButton(d, i, ready) {
     face = h('span.size', null, d.top ? '★' : size);
   }
   const kinds = (d.dk || []).filter(k => KIND_ICON[k]);
+  // once the number shows, the size takes the bottom-left corner: room for one kind icon beside it
+  const shownKinds = d.v != null && !d.fc ? kinds.slice(0, 1) : kinds;
   const marks = [];
   if (d.bonus) marks.push(h('span.mk.bonus', null, `+${d.bonus}`));
   if (d.link) marks.push(h('span.mk', null, icon('link')));
@@ -1073,7 +1076,7 @@ function dieButton(d, i, ready) {
   return h('button.die.tile' + cls + (d.used ? '.used' : '') + (C.sel.has(d.id) && !d.used ? '.sel' : '') + (kinds.includes('guard') ? '.guard' : '') + (C.rolled ? '.roll' : ''), {
     style: { '--src': srcCol }, disabled: d.used || ready, 'data-id': d.id, 'aria-label': `Die ${i + 1}: ${size}${d.v != null ? ', showing ' + d.v : ''}`, tip, onclick: () => toggleDie(d.id),
   }, h('span.k', null, i + 1), face,
-    kinds.length ? h('span.kinds', null, ...kinds.map(k => icon(KIND_ICON[k]))) : null,
+    shownKinds.length ? h('span.kinds', null, ...shownKinds.map(k => icon(KIND_ICON[k]))) : null,
     d.v != null && !d.fc ? h('span.sz', null, size) : null,
     marks.length ? h('span.marks', null, ...marks) : null);
 }
@@ -1783,6 +1786,38 @@ function flash(id, cls, ms = 300) {
   setTimeout(() => { if (C.anim[id] === cls) delete C.anim[id]; }, ms);
 }
 
+// What a status event floats over a fighter when it isn't one of the STATUS names (rules.js).
+const ST_FLOAT = {
+  guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!',
+  sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed',
+  dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!',
+  enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next',
+  dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!', die_stolen: 'Die stolen!',
+  locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!',
+  shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!',
+  'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!',
+  recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!',
+  lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder',
+  lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse',
+  harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!',
+  chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!',
+  radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!',
+  nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', foreseen: 'Foreseen!',
+  echo: 'Echo!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!',
+  web: 'Rootweb!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!',
+  impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!',
+  infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!',
+  embers: 'Embers!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!',
+  second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6',
+  rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!',
+  charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen',
+  poison: 'Poison', carried: 'Carried on!', rallied: 'Rallied: +3', tethered: 'Tethered', refreshed: 'Ready again!',
+  drowsy: 'Drowsy', asleep: 'Asleep', wakes: 'Wakes!', mirrored: 'Mirrored!',
+  'nothing to mirror': 'Nothing to mirror', counter: 'Pike set', chill: 'Rime', wound: 'Wounded', mummy: 'Mummified',
+  snare: 'Snared', cued: 'Next hit up!', lucky: '+1 reroll', reloaded: 'Reloaded!', resolve: 'Resolve',
+  sheathed: 'Sheathed', drawn: 'Drawn!', iai: 'Iai!', one_cut: 'One cut!', silver_round: 'Silver Round!',
+  quick_draw: 'Quick Draw!', cocked: 'Hammer cocked'
+};
 function apply(f) {
   const d = C.display;
   if (['dmg', 'heal', 'armor', 'st', 'die', 'down', 'lift', 'drag'].includes(f.k) && typeof f.to !== 'string') return 0;
@@ -1942,8 +1977,7 @@ function apply(f) {
         flash(f.to, 'echoed', 700);
         return 360;
       }
-      const name = STATUS[f.s]?.name || { guarded: 'Guarded', taunt: 'Taunt', stunned: 'Stunned', cleansed: 'Cleansed', unbreakable: 'Unbreakable!', sanct: 'Sanctuary', might: 'Might', weakened: 'Weakened', distracted: 'Distracted', dazed: 'Dazed', dodged: 'Dodged!', inspired: 'Inspired', hymn: 'Hymn', rerolls: '+2 rerolls', thorns: 'Thorns!', enraged: 'Enraged!', explodes: 'Bursts!', bloodied: 'Bloodied!', rallies: 'Rallies!', undertow: 'Undertow next', dragged: 'Dragged under!', scattered: 'Light scattered!', unwarded: 'Ward broken!',
-        robbed: 'Die stolen!', locked: 'Die crusted over!', static: 'Static shock!', snatched: 'Snatched!', merged: 'Merged!', splits: 'Splits!', shrugs: 'Shrugs it off', doused: 'Lamp out!', swallowed: 'Swallowed!', 'spat out': 'Spat out!', 'out of reach': 'Out of reach!', spite: 'Spite +1', steeled: 'Steeled: resists!', flees: 'Flees!', recovered: 'Got it back!', sigil: 'Carved!', burst: 'Burst!', glanced: 'Glancing blow', smoke: 'Smoke!', lifted_smoke: 'Lifted: Smoke Pellet', lifted_caltrops: 'Lifted: Caltrops', lifted_flash: 'Lifted: Flash Powder', lifted_venom: 'Lifted: Venom', lifted_coin: 'Lifted: Loaded Coin', lifted_purse: 'Lifted: a purse', harm_valor: 'Valor +1', harm_aegis: 'Aegis +1', harm_discord: 'Dissonance +1', harm_spent: 'Crescendo!', chilled: 'Chilled', converged: 'Convergence!', converge_ready: 'Flux full!', berserk: 'Berserk!', radiant: 'Grace full!', radiance: 'Radiance!', caustic: 'Caustic burst!', steam: 'Steam!', brittle: 'Brittle!', nudged: 'Nudged', revealed: 'Revealed!', puppeted: 'Turned!', foreseen_die: 'Foreseen!', foreseen: 'Foreseen!', echo: 'Echo!', focus: '+1 Focus', scale: '+Scale', shed: 'Shed!', ascended: 'Ascended!', overheat: 'Overheat!', web: 'Rootweb!', hawk_hunt: 'Hunted!', hawk_watch: 'Hawk watching', hawk_soak: 'Hawk!', impact_full: 'Impact full!', white_heat: 'White heat!', kindled: 'Kindled!', infused_frost: 'Frost blade!', infused_shock: 'Storm blade!', infused_burn: 'Flame blade!', flipped: 'Flipped!', split: 'Split!', embers: 'Embers!', wakes: 'Wakes up!', falling: 'Look out above!', crushed: 'Crushed!', grafted: 'Grafted!', second_opinion: 'Second opinion', triage: 'Triage', tempo: 'Tempo!', bloodlust: 'Bloodlust! +d6', rampage: 'Rampage! Ready again', shielded: 'Shared Burden!', hexed: 'Hexed!', grows: 'Its die grows!', charged: 'Charged!', arced: 'Arced!', robbed: 'Robbed!', resisted: 'Resisted', burn: 'Burn', freeze: 'Frozen', poison: 'Poison', carried: 'Carried on!', rallied: 'Rallied: +3', tethered: 'Tethered', refreshed: 'Ready again!', drowsy: 'Drowsy', asleep: 'Asleep', wakes: 'Wakes!', mirrored: 'Mirrored!', 'nothing to mirror': 'Nothing to mirror', counter: 'Pike set', chill: 'Rime', wound: 'Wounded', mummy: 'Mummified', snare: 'Snared', cued: 'Next hit up!', lucky: '+1 reroll', reloaded: 'Reloaded!', resolve: 'Resolve', sheathed: 'Sheathed', drawn: 'Drawn!', iai: 'Iai!', one_cut: 'One cut!', silver_round: 'Silver Round!', quick_draw: 'Quick Draw!', cocked: 'Hammer cocked' }[f.s] || f.s;
+      const name = STATUS[f.s]?.name || ST_FLOAT[f.s] || f.s;
       if (f.to === 'party' || f.to === 'foes') return 200;
       const landed = f.to.startsWith('f') && (f.s === 'stun' || f.s === 'dazed' || f.s === 'freeze');
       addFloat(f.to, landed ? name + '!' : name, landed ? 'stun' : 'txt');

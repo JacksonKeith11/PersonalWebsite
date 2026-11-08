@@ -17,7 +17,7 @@ from .bosses import Bosses
 from .combos import Combos
 from .content import archipelago as A
 from .content import items as I
-from .dice import Dice, face, is_pair, num, top_face
+from .dice import Dice, face, fate_faces, is_pair, num, top_face
 from .foes import Foes
 from .crits import is_crit
 from .actions import element_of
@@ -599,7 +599,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 lo, hi = min(face(f2)[0] or 0 for f2 in d["faces"]), top_face(d["faces"])
                 inst["hint"] = "high" if inst["sv"] > (lo + hi) / 2 else "low"
             elif "fate" in d["dk"]:
-                inst["fc"] = [self.raw_roll(h, inst)[0], self.raw_roll(h, inst)[0]]
+                inst["fc"] = [list(self.raw_roll(h, inst)), list(self.raw_roll(h, inst))]  # [value, tag] each
             x["dice"].append(inst)
         self.dice_attacks(h, x, m)
 
@@ -732,7 +732,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         pool = [d for d in x["dice"] if d["src"] != "swell"]  # Freeze may have taken one of them
         if x["st"].pop("steal", 0) and pool:
             x["dice"].remove(max(pool, key=lambda d: top_face(d["faces"])))
-            self.fx("st", to=f"h{h}", s="robbed")
+            self.fx("st", to=f"h{h}", s="die_stolen")
         pool = [d for d in x["dice"] if d["src"] != "swell"]
         if x["st"].pop("lock", 0) and pool:
             big = max(pool, key=lambda d: top_face(d["faces"]))
@@ -808,10 +808,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if a.get("stance") and "sheathed" in x and x["sheathed"] != (a["stance"] == "sheathed"):
             raise Invalid("Your blade is drawn: Cut, or Sheathe it first." if a["stance"] == "sheathed"
                           else "Your blade is sheathed: Draw it, or strike with the scabbard.")
-        if x.get("berserk") and a["def"]:
-            if not self.mods(h).get("cold_fury") or x.get("cold_used"):
-                raise Invalid("You're berserk: no defending now.")
-            x["cold_used"] = True  # Cold Fury: one a round
+        cold = bool(x.get("berserk") and a["def"])
+        if cold and (not self.mods(h).get("cold_fury") or x.get("cold_used")):
+            raise Invalid("You're berserk: no defending now.")
         if a["key"] == "flee" and f["kind"] in ("dungeon", "boss"):
             raise Invalid("There's no running from this one.")
         if a["key"] == "flee" and x["st"].get("root"):
@@ -832,6 +831,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             raise Invalid("That enemy needs to be Marked.")
         if a["req"].get("sigils") and self.foe(int(tgt[1:]))["st"].get("sigil", 0) < a["req"]["sigils"]:
             raise Invalid(f"That enemy needs {a['req']['sigils']} Sigils on it.")
+        # it's going ahead: what it uses up is spent from here on
+        if cold:
+            x["cold_used"] = True  # Cold Fury: one defensive action a round while berserk
         if a.get("once") and a.get("instant"):
             x["once"].append(a["key"])
         if a.get("cd") and a.get("instant"):
@@ -911,7 +913,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if "sv" in d:
                 v, t = d.pop("sv"), d.pop("stag", None)
             elif d.get("fc"):
-                v, t = self.rng.choice(d["fc"]), None
+                v, t = self.rng.choice(fate_faces(d))
             else:
                 v, t = self.raw_roll(y, d)
             self.show_die(d, v, t)
@@ -920,19 +922,6 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if by and d.get("tag") not in ("S", "X", "W") and lo <= d["v"] + by <= max(top, d["v"]):
             d["v"] += by
             self.fx("st", to=f"h{y}", s="nudged")
-
-    def do_reroll(self, h, msg):
-        if not self.in_fight(h) or not self.active(h):
-            raise Invalid("You're not fighting.")
-        x = self.hs(h)
-        if x["rr"] <= 0:
-            raise Invalid("No rerolls left this fight.")
-        d = next((d for d in x["dice"] if d["id"] == msg.get("die") and not d["used"]), None)
-        if not d:
-            raise Invalid("Pick an unused die.")
-        x["rr"] -= 1
-        d["v"] = self.roll_face(d["faces"])
-        self.fx("reroll", h=h, die=d["id"], v=d["v"])
 
     def do_spirit(self, h, msg):
         f = self.s["fight"]
@@ -2021,7 +2010,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             return None
         out = {k: f[k] for k in ("id", "kind", "tile", "heroes", "round", "foes", "done", "guard", "taunt",
                                  "sanct", "aegis", "spirit", "region", "step", "phase", "ambush", "allies")}
-        out["chord"] = f.get("chord")
+        ch = f.get("chord")
+        # what each hero's hit would get from it (the cap and Bosun's Whistle are the server's to know)
+        out["chord"] = dict(ch, bonus={str(y): self.chord_for(y, ch["t"], ch["vals"])[0] for y in f["heroes"]}) if ch else None
         out["seq"] = f.get("seq", 0)
         out["path"] = f.get("path")
         out["hymn"] = f.get("hymn", 0)

@@ -2216,6 +2216,14 @@ clock anywhere: the run changes only when someone acts.
   `loop.call_later`.
 - The title screen gets saved runs over HTTP (`GET /games/saltbound/saves?token=`) so they show before
   joining a room.
+- **A die's `v` is always a number** (its tag, `S`/`X`/`W`/`R`/an element, goes in `tag`): set a shown die
+  with `show_die(d, *raw_roll(...))`, never from `roll_face`, which returns the raw face (`"W"`, `"I3"`). A manual
+  `reroll` message did exactly that and was removed in the Nov 2026 audit (rerolls are automatic; nothing sent it).
+  A hero's Fate die keeps its two faces as `[value, tag]` pairs (`fc`; read them with `fate_faces`, which also
+  takes older saves' bare numbers), so a Fate armor die's shield faces still block.
+- **Build jobs need their site kept clear** (beacon and watchtower jobs): sites stand above the high tide
+  (`BUILD_ABOVE_SEA`), tide wrecks and caches avoid taken job sites (`job_targets`), and a notice whose site was
+  taken before anyone accepted it picks another (or comes down) in `do_quest`.
 - Thorns and Volatile can knock a hero down during their own action: `maybe_resolve` ends the round if
   nobody is left acting. The swallow can knock out the last hero at the start of a round, so
   `new_round` checks the end after dealing dice.

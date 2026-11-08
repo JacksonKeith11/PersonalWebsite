@@ -288,6 +288,12 @@ ITEMS = {
     # ---------------------------------------------------------------- materials
     "fate_feather": {"name": "Fate Feather", "slot": "use", "rarity": "rare", "enchant": "fate",
                      "text": "Enchant a piece of gear you wear: its die is a Fate die (you see two faces while you plan, and one of them comes up)."},
+    "augur_bone": {"name": "Augur's Bone", "slot": "use", "rarity": "rare", "enchant": "augur",
+                   "text": "Enchant a piece of gear you wear: its die is an Augur die (while you plan, it shows whether it "
+                           "rolled high or low)."},
+    "tidebell_shard": {"name": "Tidebell Shard", "slot": "use", "rarity": "rare", "forge": "tune", "found": True,
+                       "text": "Tune a piece of gear you wear: its lowest number becomes a Resonance face (it copies the last "
+                               "number an ally played). Doesn't count against its work limit."},
     "starmetal": {"name": "Starmetal Ingot", "slot": "use", "rarity": "legendary", "forge": "hone",
                   "text": "Hone a piece of gear you wear: its lowest number rises by 3. Doesn't count against its work limit."},
     "wyrm_ember": {"name": "Wyrm's Ember", "slot": "use", "rarity": "legendary", "forge": "mark",
@@ -296,7 +302,7 @@ ITEMS = {
 }
 
 RELICS = [k for k, v in ITEMS.items() if v.get("unique")]
-FORGE_MATS = [k for k, v in ITEMS.items() if v.get("forge")]
+FORGE_MATS = [k for k, v in ITEMS.items() if v.get("forge") and not v.get("found")]
 
 
 # ---------------------------------------------------------------- the armory: twenty more weapons (Nov 2026)

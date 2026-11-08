@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=181';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=181';
-import { spriteURL, placeURL } from './art.js?v=181';
-import { itemURL } from './itemart.js?v=181';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=181';
-import { MapView } from './hexmap.js?v=181';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=181';
-import { disconnect } from './main.js?v=181';
-import * as sfx from './audio.js?v=181';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=182';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=182';
+import { spriteURL, placeURL } from './art.js?v=182';
+import { itemURL } from './itemart.js?v=182';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=182';
+import { MapView } from './hexmap.js?v=182';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=182';
+import { disconnect } from './main.js?v=182';
+import * as sfx from './audio.js?v=182';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -911,7 +911,7 @@ function compareWith(h0, key, compact) {
 // How much work (tempering, enchanting) a piece of gear has taken, out of the most it can: a pip each.
 function workPips(it) {
   const most = S.static.work.cap, all = it.work || [], n = all.filter(w => !w.startsWith('star:')).length, star = all.length - n;
-  const names = { hone: 'Honed', mark: 'Marked', exploding: 'Enchanted: Exploding', steady: 'Enchanted: Steady', seer: 'Enchanted: Seer', fate: 'Enchanted: Fate',
+  const names = { hone: 'Honed', mark: 'Marked', edge: 'Edged', tune: 'Tuned (♫)', scour: 'Scoured', exploding: 'Enchanted: Exploding', steady: 'Enchanted: Steady', seer: 'Enchanted: Seer', fate: 'Enchanted: Fate', augur: 'Enchanted: Augur', 'star:tune': 'Tidebell: tuned (free of the limit)',
     'star:hone': 'Starmetal: honed (free of the limit)', 'star:mark': 'Wyrm’s Ember: marked (free of the limit)' };
   return h('span.pips.work', { tip: `Work ${n} of ${most}${all.length ? `\n${all.map(w => names[w] || w).join('\n')}` : '\nA smithy can temper it, and enchant materials can go into it.'}` },
     ...Array.from({ length: most }, (_, i) => h('i' + (i < n ? '.on' : ''))), ...Array.from({ length: star }, () => h('i.on.star')));
@@ -947,10 +947,15 @@ function modsText(m, text = '') {
 // special face), each showing the die it would make, and the item's work so far.
 function temperRow(h0, slot, k, disabled) {
   const g = S.game, hero = g.heroes[h0], it = item(k), opts = g.temper?.[k] || {};
-  const most = S.static.work.cap, n = (it.work || []).length;
+  // free work (Starmetal, Wyrm's Ember, a Tidebell Shard: "star:...") doesn't count against the limit (Game.works)
+  const most = S.static.work.cap, n = (it.work || []).filter(w => !w.startsWith('star:')).length;
   if (!it.die) return null;
   if (n >= most) return h('div.temper', null, h('span.muted', null, `Fully worked (${most} of ${most}): it can’t take any more.`));
-  const what = { hone: ['Hone', `The lowest number rises by ${S.static.work.hone} (no higher than the top face)`], mark: ['Mark', 'The lowest number becomes a special face in the die’s own style'] };
+  const what = { hone: ['Hone', `The lowest number rises by ${S.static.work.hone} (no higher than the top face)`],
+    edge: ['Edge', `The top number rises by ${S.static.work.edge}: a better best roll (and crit)`],
+    mark: ['Mark', 'The lowest number becomes a special face in the die’s own style'],
+    tune: ['Tune', 'The lowest number becomes a ♫ Resonance face: it copies the last number an ally played, for Chords'],
+    scour: ['Scour', 'A skull face is ground off: it becomes the die’s lowest number'] };
   return h('div.temper', null,
     h('span.temper-lbl', null, `Temper · work ${n + 1} of ${most}`),
     ...Object.entries(what).map(([w, [name, text]]) => {
@@ -1026,7 +1031,7 @@ function townDrawer(h0, town, d) {
     const jobs = town.jobs || [];
     const mineJobs = g.quests.filter(q2 => !q2.done && !q2.failed);
     body = [h('h3', null, 'Notice board'),
-      jobs.length ? h('p.muted', null, jobs.length > 1 ? 'Take one of these. The others come down when you do.' : 'One job pinned up.') : h('p.muted', null, town.quest_taken ? 'You’ve taken this town’s job.' : 'Nothing pinned up today.'),
+      h('p.muted', null, jobs.length ? `Take as many as you like: each notice comes down when it’s taken. New work goes up with every Great Tide.` : 'Nothing pinned up just now: new work goes up with the next Great Tide.'),
       ...jobs.map((j, n) => h('div.card.job', null,
         h('div.job-head', null, h('span.kind', null, st.job_kinds[j.kind].name),
           j.link ? h('span.chip.brass', { tip: `A follow-up: ${town.name} trusts you after the last job. Each one pays more, and job ${st.chain_max} pays a legendary.` }, icon('link'), `Job ${j.link} of ${st.chain_max}`) : null,

@@ -27,7 +27,10 @@ from .content import items as I
 from .rng import Rng
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 
-VERSION = 13
+VERSION = 14
+TEMPER_VERB = {"hone": "hones", "mark": "marks", "edge": "edges", "tune": "tunes", "scour": "scours"}
+TEMPER_DONE = {"hone": "honed", "mark": "marked with a special face", "edge": "edged", "tune": "tuned: a Resonance face",
+               "scour": "scoured of its skull"}
 BOOL_FIELDS = {"on", "equip", "all", "cancel"}  # message fields that are switches (Game.act)
 DIFFICULTY = {
     # `rise`: turns between Great Tides (owner, Nov 2026: rarer and bigger, each one RISE_STEPS rises of
@@ -1210,6 +1213,7 @@ class Game(Combat, Biomes, Quests, Travel):
         self.say(f"The Great Tide rises: enemies are stronger (+{round((self.surge() - before) * 100)}%).")
         news = self.tide_arrivals()
         grown = self.grow_garrisons()
+        self.refill_boards()
         self.fx("rise", rises=s["rises"], tide=s["tides"], news=news, up=round((self.surge() - before) * 100),
                 surge=round((self.surge() - 1) * 100), garrisons=grown)
         if was <= GROW_FROM < s["rises"]:
@@ -1394,7 +1398,6 @@ class Game(Combat, Biomes, Quests, Travel):
             if g.get("occupy"):
                 town = self.place(g["tile"])
                 town.pop("occupied", None)
-                town.pop("quest_taken", None)  # its board reopens with fresh work
                 for h in winners:
                     self.hero(h)["gold"] += A.FREE_GOLD
                 self.restock(g["tile"])
@@ -2164,6 +2167,18 @@ class Game(Combat, Biomes, Quests, Travel):
                 mark = list(die)
                 mark[low] = self.temper_face(it)
                 out["mark"] = (mark, cost)
+                if die.count("R") < A.TUNE_MAX:
+                    tune = list(die)
+                    tune[low] = "R"  # a Resonance face: it copies the last number an ally played
+                    out["tune"] = (tune, cost)
+            edge = list(die)
+            hi = max(nums, key=lambda i: (die[i], i))  # the last of the top numbers, so they stay in order
+            edge[hi] = die[hi] + A.EDGE_UP
+            out["edge"] = (edge, cost)
+        if "X" in die:
+            scour = list(die)
+            scour[die.index("X")] = min((die[i] for i in nums), default=1)  # the skull ground off: a plain number
+            out["scour"] = (scour, cost)
         return out
 
     def do_temper(self, h, msg):
@@ -2185,8 +2200,7 @@ class Game(Combat, Biomes, Quests, Travel):
         hero["equip"][slot] = new = self.rework(key, die, list(it.get("dk", [])), what)
         self.fx("coins", h=h, n=-cost)
         self.fx("temper", h=h, slot=slot, what=what)
-        self.say(f"The smith {'hones' if what == 'hone' else 'marks'} {hero['name']}'s {it['name']} "
-                 f"({self.works(new)} of {A.WORK_CAP} works).")
+        self.say(f"The smith {TEMPER_VERB[what]} {hero['name']}'s {it['name']} ({self.works(new)} of {A.WORK_CAP} works).")
 
     def enchant(self, h, i, slot):
         """Rub the material at bag index `i` into the gear in `slot`: its die gains the material's kind."""
@@ -2205,12 +2219,15 @@ class Game(Combat, Biomes, Quests, Travel):
             hero["bag"].pop(i)
             hero["equip"][slot] = self.rework(key, opts[what][0], list(it.get("dk", [])), "star:" + what)
             self.fx("temper", h=h, slot=slot, what=what)
-            self.say(f"{hero['name']} works the {mat['name']} into the {it['name']}: its die "
-                     f"{'is honed' if what == 'hone' else 'gains a special face'} (free of its work limit).")
+            self.say(f"{hero['name']} works the {mat['name']} into the {it['name']}: the die is {TEMPER_DONE[what]} "
+                     f"(free of its work limit).")
             return
         kind = mat["enchant"]
         if kind in it.get("dk", []):
             raise Invalid(f"Its die is already {kind.capitalize()}.")
+        shows = [k for k in ("seer", "augur", "fate") if k in it.get("dk", [])]
+        if kind in ("seer", "augur", "fate") and shows:
+            raise Invalid(f"Its die already shows its roll another way ({shows[0].capitalize()}).")
         if self.works(key) >= A.WORK_CAP:
             raise Invalid("It can't take any more work.")
         hero["bag"].pop(i)
@@ -2365,6 +2382,21 @@ class Game(Combat, Biomes, Quests, Travel):
             p["jobs"] = jobs
         return p["jobs"]
 
+    def refill_boards(self):
+        """A Great Tide: every town whose board has been read pins up new work, back to `JOBS_PER_BOARD`
+        notices (kinds it isn't showing yet first). An occupied town's board is shut."""
+        for t, p in self.s["world"]["places"].items():
+            if p["kind"] != "town" or "jobs" not in p or p.get("occupied"):
+                continue
+            jobs = p["jobs"]
+            have = {j["kind"] for j in jobs}
+            for kind in self.rng.shuffle([k for k in A.JOB_KINDS if k not in have]):
+                if len(jobs) >= A.JOBS_PER_BOARD:
+                    break
+                j = self.make_job(int(t), kind)
+                if j:
+                    jobs.append(j)
+
     def job_targets(self):
         return {q.get("tile") for q in self.s["quests"] if not q["done"] and not q.get("failed")}
 
@@ -2473,7 +2505,7 @@ class Game(Combat, Biomes, Quests, Travel):
         t = self.hero(h)["tile"]
         jobs = p.get("jobs") or []
         n = msg.get("n", 0)
-        if p.get("quest_taken") or not isinstance(n, int) or not 0 <= n < len(jobs):
+        if not isinstance(n, int) or isinstance(n, bool) or not 0 <= n < len(jobs):
             raise Invalid("There's no work going here.")
         s = self.s
         way = self.defend_start(t) if jobs[n]["kind"] == "defend" else None
@@ -2490,10 +2522,10 @@ class Game(Combat, Biomes, Quests, Travel):
                 self.say(f"There's nowhere left near {p['name']} to build: that notice comes down.")
                 return
             jobs[n] = dict(jobs[n], tile=site)
-        p["quest_taken"] = True
+        job = jobs.pop(n)  # that notice comes down; the others stay up
         s["jobid"] = s.get("jobid", 0) + 1
-        q = dict(jobs[n], id=s["jobid"], done=False, failed=False, src=p["name"], src_tile=t,
-                 until=s["turn"] + jobs[n]["turns"] - 1)
+        q = dict(job, id=s["jobid"], done=False, failed=False, src=p["name"], src_tile=t,
+                 until=s["turn"] + job["turns"] - 1)
         if q["kind"] == "bounty":
             spot = q["tile"]
             if self.group_at(spot) or self.place(spot):
@@ -2652,7 +2684,7 @@ class Game(Combat, Biomes, Quests, Travel):
             if len(jobs) >= A.JOBS_PER_BOARD:
                 break
         if jobs:
-            src["jobs"], src["quest_taken"] = jobs, False
+            src["jobs"] = jobs
             self.say(f"{q['src']} has more work for you: a follow-up is pinned up (job {link} of {A.CHAIN_MAX}"
                      + (", for a legendary)." if link >= A.CHAIN_MAX else ", paying more)."))
             self.fx("chain", src=q["src"], tile=q["src_tile"], link=link)
@@ -2794,7 +2826,7 @@ class Game(Combat, Biomes, Quests, Travel):
                     q["docks"] = self.docks(int(t))
                     if any(self.hero(x)["tile"] == int(t) for x in self.living()):
                         q["shop"] = self.shop(int(t))
-                        q["jobs"] = [] if p.get("quest_taken") else p.get("jobs", [])
+                        q["jobs"] = p.get("jobs", [])
                         ship = self.opp_at(int(t))
                         if ship and ship["kind"] == "ship":
                             q["ship"] = ship["stock"]
@@ -2847,7 +2879,7 @@ def static():
         "prices": {k: I.price(k) for k in I.ITEMS},
         "map": {"w": Wd.W, "h": Wd.H, "cost": Wd.COST, "fast": Wd.FAST, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},
         "grounds": A.GROUNDS, "squall": {"r": A.SQUALL_R, "sight": A.SQUALL_SIGHT}, "lookout_sight": A.LOOKOUT_SIGHT,
-        "work": {"cap": A.WORK_CAP, "hone": A.HONE_UP, "cost": A.TEMPER_COST},
+        "work": {"cap": A.WORK_CAP, "hone": A.HONE_UP, "edge": A.EDGE_UP, "cost": A.TEMPER_COST},
         "quests": A.QUESTS,
         "travel": {"beacon_sight": A.BEACON_SIGHT, "markup": A.MERCHANT_MARKUP, "wait": A.MERCHANT_WAIT, "step": A.MERCHANT_STEP},
         "biome": {"skins": A._B.SKINS, "rules": A._B.RULES, "storms": A.STORMS, "trail_turns": A.TRAIL_TURNS, "lava_turns": A.LAVA_TURNS,

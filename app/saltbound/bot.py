@@ -279,7 +279,9 @@ def plan_move(g, h):
             if kind:
                 for sl in ("weapon", "trinket", "armor"):
                     k = hero["equip"].get(sl)
-                    if k and kind not in g.item(k).get("dk", []) and g.works(k) < A.WORK_CAP:
+                    dk = g.item(k).get("dk", []) if k else []
+                    clash = kind in ("seer", "augur", "fate") and any(x in dk for x in ("seer", "augur", "fate"))
+                    if k and kind not in dk and not clash and g.works(k) < A.WORK_CAP:
                         return {"t": "use", "bag": i, "slot": sl}
             forge = g.item(key).get("forge")
             if forge:  # Starmetal and Wyrm's Ember: into the weapon, else the trinket, else the armor
@@ -301,7 +303,7 @@ def plan_move(g, h):
         town = g.place(hero["tile"])
         jobs = town.get("jobs") or []
         active = [q for q in s["quests"] if not q["done"] and not q.get("failed") and q["kind"] != "trail"]
-        if jobs and not town.get("quest_taken") and len(active) < 2 and STYLE != "rush":
+        if jobs and len(active) < 2 and STYLE != "rush":
             # the best-paying job the party could manage (lairs and bounties once it's strong enough)
             ok = [i for i, j in enumerate(jobs) if (j["kind"] in ("deliver", "salvage", "beacon", "tower") or s["level"] >= 3)
                   and (STYLE == "all" or j.get("tile") is None or wants(g, hero["tile"], j["tile"]))]
@@ -324,7 +326,9 @@ def plan_move(g, h):
                 opts = g.temper_options(k) if k else {}
                 if not opts:
                     continue
-                what = "mark" if "mark" in opts and sl != "armor" else "hone" if "hone" in opts else "mark"
+                what = "scour" if "scour" in opts else "mark" if "mark" in opts and sl != "armor" else "hone" if "hone" in opts else "mark"
+                if what not in opts:
+                    what = next(iter(opts))
                 if hero["gold"] >= opts[what][1] + 25:
                     return {"t": "temper", "slot": sl, "what": what}
         stock = list(g.shop(hero["tile"]))
@@ -827,6 +831,7 @@ def dice_combos(g, h, dice):
            bool(x.get("berserk")), sum((g.s["fight"].get("harm") or {}).values()), x.get("aim", 0),
            x.get("ammo", 0), g.silver(h), m.get("ricochet", 0), bool(m.get("hammer_back")), x.get("resolve", 0),
            any(f"h{h}" in g.intent_aims(fo.get("intent") or {}) for fo in g.foes()),
+           g.resonant(h) if any("R" in d["faces"] for d in dice) else None,
            tuple(die_sig(d) + (d.get("rolled"), d.get("tag"), str(x.get("links", {}).get(d.get("link")))) for d in dice))
     got = _COMBOS.get(key)
     if got is None:

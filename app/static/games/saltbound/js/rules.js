@@ -214,6 +214,7 @@ export function outcomes(d, hymn = 0, rm = {}) {
     base = faces.map(f => {
       let [v, t] = face(f);
       if (t === 'W') v = top;
+      else if (t === 'R') v = rm.resonant ?? 3;  // a ♫ copies the last number an ally played (Dice.resonant)
       if (d.dk?.includes('exploding') && v === top && t !== 'W') v += Math.round(meanFace(d.faces));
       return [v, t, 1 / faces.length];
     });

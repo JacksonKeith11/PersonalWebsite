@@ -51,6 +51,8 @@ CRIT_SAY = {"half": "the hit deals half again", "poison": "Poison 2", "weak": "W
             "freeze": "a die frozen"}
 from .content import biomes as _B  # noqa: E402
 FOE_CRIT.update(_B.CRITS)
+from .content import isles as _I  # noqa: E402
+FOE_CRIT.update(_I.CRITS)
 for _k, _d in A.FOES.items():
     _c = FOE_CRIT.get(_k, ("half", None))
     _d["crit"] = list(_c)

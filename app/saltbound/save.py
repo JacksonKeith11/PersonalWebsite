@@ -197,8 +197,19 @@ def _v12(state):
     return state
 
 
+def _v13(state):
+    """v14: a town's board keeps its other notices when one is taken (it used to close: `quest_taken`,
+    with the taken notice still listed). A closed board is cleared; the next Great Tide refills it."""
+    for p in state.get("world", {}).get("places", {}).values():
+        if p.pop("quest_taken", None):
+            p["jobs"] = []
+    state["v"] = 14
+    return state
+
+
 # version -> function(state) -> state at version + 1
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10, 11: _v11, 12: _v12}
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10, 11: _v11, 12: _v12,
+              13: _v13}
 
 
 class TooOld(Exception):

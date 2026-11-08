@@ -574,7 +574,8 @@ def slots_for(item_slot):
 
 
 CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use" and not v.get("enchant") and not v.get("forge")]
-MATERIALS = [k for k, v in ITEMS.items() if v.get("enchant")]  # found at random (shrines, grottos, wrecks, fights)
+# found at random (shrines, grottos, wrecks, fights): the enchants, and the one forge material that isn't a quest's
+MATERIALS = [k for k, v in ITEMS.items() if v.get("enchant") or v.get("found")]
 FORGE_MATS = list(_G.FORGE_MATS)  # Starmetal and Wyrm's Ember: only quests and events hand them out
 RELICS = list(_G.RELICS)          # each region's quest reward, never in the loot
 # loot: every piece of gear but the starting kit and the relics (Game.gear drops the regions a run didn't draw)

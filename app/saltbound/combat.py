@@ -2017,6 +2017,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         out["harm"] = f.get("harm")
         out["raid"] = f.get("raid")
         out["hs"] = {k: dict(x, dice=[{kk: vv for kk, vv in d.items() if kk not in ("sv", "stag")} for d in x["dice"]],
-                             rollmods={m: v for m, v in self.mods(int(k)).items() if m in ROLL_MODS and v})
+                             rollmods=dict({m: v for m, v in self.mods(int(k)).items() if m in ROLL_MODS and v},
+                                           resonant=self.resonant(int(k))))
                      for k, x in f["hs"].items()}
         return out

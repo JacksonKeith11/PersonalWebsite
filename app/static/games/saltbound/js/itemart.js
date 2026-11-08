@@ -171,7 +171,7 @@ const ICON = {
   jade_fang: ['spear', 'jade', 'gold'], arbiter_wings: ['feather', 'gold', 'holy'], heartprism: ['globe', 'crystal', 'gold', 'crystal'],
   somnarch_lantern: ['lantern', 'dream', 'gold', 'dream'], rimeheart: ['heart', 'ice'],
   // materials
-  fate_feather: ['feather', 'dream'], starmetal: ['ingot', 'iron', 'gold'], wyrm_ember: ['orb', 'magma'],
+  fate_feather: ['feather', 'dream'], augur_bone: ['bone', 'bone'], tidebell_shard: ['bell', 'bronze', 'pearl'], starmetal: ['ingot', 'iron', 'gold'], wyrm_ember: ['orb', 'magma'],
 };
 const BY_SLOT = { weapon: ['sword', 'steel'], armor: ['vest', 'leather'], trinket: ['coin', 'gold'], use: ['flask', 'grey', 'red', 'kelp'] };
 

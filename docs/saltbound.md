@@ -99,9 +99,9 @@ Keep to these. They came from the owner directly.
 
   | Region (key) | Land | Enemies | Objective (dungeon: 3 fights with two forks; see "Dungeon forks") and boss |
   |---|---|---|---|
-  | Coral Shallows (`coral`) | the original islands | drowned sailors, crabfolk, reef creatures | the Sunken Chapel: the Bell-Warden |
-  | Smugglers' Keys (`keys`) | the original islands | pirates and a tide cult | the Black Fort: the Gallows Admiral |
-  | Stormcrag (`storm`) | the original islands | storm elementals, harpies, mountain beasts | the Lighthouse: the Lamp Keeper |
+  | Coral Shallows (`coral`) | the original islands | drowned sailors, crabfolk, reef creatures, urchins, kelp stranglers, pearl divers | the Sunken Chapel: the Bell-Warden |
+  | Smugglers' Keys (`keys`) | the original islands | pirates, a tide cult, rum runners, parrots, a quartermaster | the Black Fort: the Gallows Admiral |
+  | Stormcrag (`storm`) | the original islands | storm elementals, harpies, mountain beasts, rocklings, gale sprites, stormcallers | the Lighthouse: the Lamp Keeper |
   | Cinderreach (`ash`) | ash fields and a volcano | imps, magma beasts, obsidian golems, fire cultists | the Caldera Forge: the Slag Tyrant |
   | the Shifting Sands (`dunes`) | dunes and salt flats | scorpions, raiders, mummies, a sphinx | the Buried Tomb: the Sun-Eaten King |
   | the Stillwood (`petrified`) | a petrified forest | stone treants, basilisks, gargoyles, sleeping statues | the Heartwood Vault: the Heartwood Gorgon |
@@ -471,7 +471,9 @@ notice boards"); the rules are in `game.py` (`town_jobs`, `make_job`, `do_quest`
 
 - **Each board offers two jobs of different kinds** (`JOBS_PER_BOARD`), made when a hero first
   stands in the town (the start town's at the start of the run), never when it's looked at. Taking
-  one takes the board down.
+  one takes that notice down; the others stay (owner's request, Nov 2026: until then the board closed,
+  `quest_taken`, which save v14 clears). Every Great Tide refills each read board back to two, kinds it
+  isn't showing first (`refill_boards`); an occupied town's board is shut.
 - **Kinds**: **Delivery** (carry a parcel to another town), **Clear a lair** (the nearest lair to the
   town), **Bounty** (a named elite crew appears when the job is taken, 5-10 hexes out; it runs from heroes
   within 3, a hex a turn, using `group_step`, and is always shown on the map; catch it to finish),
@@ -931,8 +933,10 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     Prism Colossus's Shatter, the Night Mare's Stampede, the Yeti's Maul; 40% unless said) and the
     Thunder Wyvern's Storm Breath (50%, the round after it Draws Breath). A Break on an ordinary enemy
     doesn't Steel it.
-  - **Resonance faces** (`R`; owner's request, to make Chords plannable): a 3 while planning; when it
-    rolls it takes the biggest number the last other hero to play a die this round played
+  - **Resonance faces** (`R`; owner's request, to make Chords plannable): while planning, the number it
+    would copy right now (Nov 2026; before, a flat 3): `Dice.outcomes` and the browser's `outcomes`
+    (from `rollmods.resonant` in the fight view) use `Dice.resonant`, and the bots' dice cache keys on it;
+    the die's tooltip says it. When it rolls it takes the biggest number the last other hero to play a die this round played
     (`Dice.resonant`, from `f["plays"]`, kept by `echo_out`). On the Bosun's Bell (two), the crystal
     Tuning Fork (two), the new Choir Blade (a rare Sweep weapon, two), and three dice picks:
     Sympathetic Strings (Herald: the weapon die's two lowest), Attuned Mind (Psion: the biggest die's
@@ -1350,6 +1354,15 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   advance whether its Lullaby lands); `pair` on doubles (Root, Stun, or `again`).
 - **Targeting** (`tgt`): random, weakest, strongest, vengeful (whoever hurt it most last round). Guard
   and Taunt swing intents in the open (`retarget_intents`).
+- **The first three regions and the Peak got their own enemies** (owner's request, Nov 2026; they had 5
+  of their own each and the Peak 1, against 9-10 in the newer regions): `content/isles.py` (merged like
+  `biomes.py`; sprites in `tools/saltbound-art/foes3.py`) adds Spine Urchin, Kelp Strangler and Drowned
+  Pearl Diver (Coral Shallows), Rum Runner, Lookout Parrot and Smuggler Quartermaster (Smugglers' Keys),
+  Cliffside Rockling, Gale Sprite and Stormcaller Acolyte (Stormcrag), and the Drowned Crown's court for
+  the Peak: Drowned Knight, Crown Herald, Abyssal Angler, Brine Wraith and Coral Colossus. Each region
+  now has 8 of its own, the Peak 6 (with Tide Guards); the Peak's groups are mostly its court, with a few
+  of the first regions' enemies come ashore. They're in their regions' groups, lairs and objective
+  openings and passages.
 - **Traits**: Thorns, Pack, Leech, Volatile, `splits` (Jellyfloats split the first time they're
   hurt), `shell_min` (the Brine Golem ignores hits under 4), `undead`.
 - **Move pools** (`POOLS`): every enemy draws one extra move when it appears (`fo["mv"]`; bosses add
@@ -1603,8 +1616,14 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
   work on an item costs 15/20/30/45 gold for a common/uncommon/rare/legendary, the second twice that
   (`TEMPER_COST`; owner's request: rarer gear costs more to work, as it does to reforge). The smithy tab shows each option's
   die before you pay.
+- **More tempering** (owner's request, Nov 2026, for more depth with the same two works): **Edge** raises
+  the top number by `EDGE_UP` (1; the last of equal tops, so they stay in order), **Tune** turns the
+  lowest number into a ♫ Resonance face (at most `TUNE_MAX`, 2, on a die), and **Scour** grinds a skull face
+  into the die's lowest number (offered only on a die with one). The smithy shows each option's die.
 - **Enchant materials** (`MATERIALS` in `items.py`: Powder Salt for Exploding, Still Pearl for Steady,
-  Seer's Glass for Seer): rare consumables that are never sold or dropped at random. The sea shrine
+  Seer's Glass for Seer, Fate Feather for Fate, Augur's Bone for Augur (Nov 2026), and the Tidebell Shard,
+  a forge material marked `found` that Tunes for free past the work limit, as Starmetal Hones). A die
+  shows its roll one way only: Seer, Augur and Fate refuse each other. rare consumables that are never sold or dropped at random. The sea shrine
   gives one to the first hero there (`mat_taken`), a grotto's hoard holds one, and a guarded wreck's
   pool has one beside its rare gear. Any other won fight's loot pool holds one `FIGHT_MAT_CHANCE` (6%)
   of the time (owner's request: rarely from fights too), about 0.6 a run on Normal from ~11 pools. From the bag, "Into <item>" rubs it into a piece of gear you
@@ -1617,7 +1636,8 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
   merges into `static.items` and `static.prices`; item icons use the base key. A worked item sells
   for `WORK_RESALE` (10) more per work. Selling, dropping or reforging it forgets its record.
 - **Bots** put materials into the weapon, else the trinket, else the armor; at a smithy they reforge
-  only unworked gear, then temper (Mark on weapons and trinkets, Hone on armor) with 25 gold to spare.
+  only unworked gear, then temper (Scour a skull first, else Mark on weapons and trinkets, Hone on armor)
+  with 25 gold to spare. They don't Tune or Edge yet.
 - **Measured** (2026-11-04, 300 Hard runs, seed 5000): **Hard 45.3%** against 46.0% before, inside
   the noise, with about 2 works a run (646 temper and enchant effects). Gold already goes on inns,
   reforges and gear, so the bots work little; players who save for it will get more out of it. Not

@@ -206,8 +206,10 @@ FOES = {
 }
 
 from . import biomes as _B
+from . import isles as _I
 from . import quests as _Q  # noqa: E402  (the other regions' content, merged into these tables)
 FOES.update(_B.FOES)
+FOES.update(_I.FOES)
 
 # Move pools: every enemy draws one of these when it appears, on top of its own moves.
 POOLS = {
@@ -259,6 +261,7 @@ POOLS = {
                       "undertow": {"name": "Undertow", "k": "attack", "use": [1, 3], "tgt": "strongest", "st": "stun", "sn": 1, "st_min": 8}},
 }
 POOLS.update(_B.POOLS)
+POOLS.update(_I.POOLS)
 for _k, _v in POOLS.items():
     FOES[_k]["pool"] = _v
 
@@ -274,23 +277,34 @@ for _v in FOES.values():
 # Who roams each region, by how many objectives the party has cleared (more cleared, more
 # dangerous mixes). Each entry is a group.
 GROUPS = {
-    "coral": [["deckhand"], ["crab"], ["jelly", "jelly"], ["deckhand", "eel"], ["crab", "barnacle_priest"],
-              ["deckhand", "deckhand", "siren"], ["crab", "jelly", "eel"], ["deckhand", "crab", "barnacle_priest"]],
-    "keys": [["cutthroat"], ["deckhound", "deckhound"], ["cutthroat", "powder_monkey"], ["brine_golem"],
-             ["cutthroat", "tide_cultist"], ["deckhound", "cutthroat", "powder_monkey"],
-             ["brine_golem", "tide_cultist"], ["cutthroat", "cutthroat", "corsair_captain"]],
-    "storm": [["crag_ram"], ["harpy"], ["cliff_hermit", "storm_wisp"], ["crag_ram", "harpy"],
-              ["lightning_totem", "cliff_hermit"], ["harpy", "harpy", "storm_wisp"],
+    "coral": [["deckhand"], ["crab"], ["urchin", "urchin"], ["jelly", "jelly"], ["deckhand", "eel"],
+              ["kelp_strangler", "pearl_diver"], ["crab", "barnacle_priest"], ["urchin", "kelp_strangler", "eel"],
+              ["deckhand", "deckhand", "siren"], ["crab", "jelly", "eel"], ["kelp_strangler", "pearl_diver", "siren"],
+              ["deckhand", "crab", "barnacle_priest"]],
+    "keys": [["cutthroat"], ["deckhound", "deckhound"], ["rum_runner", "parrot"], ["cutthroat", "powder_monkey"],
+             ["brine_golem"], ["rum_runner", "rum_runner", "parrot"], ["cutthroat", "tide_cultist"],
+             ["deckhound", "cutthroat", "powder_monkey"], ["quartermaster", "rum_runner", "parrot"],
+             ["brine_golem", "tide_cultist"], ["cutthroat", "quartermaster", "powder_monkey"],
+             ["cutthroat", "cutthroat", "corsair_captain"]],
+    "storm": [["crag_ram"], ["harpy"], ["rockling", "gale_sprite"], ["cliff_hermit", "storm_wisp"], ["crag_ram", "harpy"],
+              ["rockling", "stormcaller"], ["lightning_totem", "cliff_hermit"], ["gale_sprite", "gale_sprite", "harpy"],
+              ["harpy", "harpy", "storm_wisp"], ["rockling", "crag_ram", "stormcaller"],
               ["crag_ram", "cliff_hermit", "lightning_totem"], ["crag_ram", "thunder_wyvern"]],
 }
 GROUPS.update(_B.GROUPS)
-GROUPS["peak"] = [["deckhand", "cutthroat"], ["crag_ram", "eel"], ["brine_golem", "harpy"], ["tide_guard"],
-                  ["tide_guard", "siren"], ["tide_guard", "storm_wisp", "tide_cultist"]]
+# the Peak: the Drowned Crown's own court, with a few of the first three regions' enemies come ashore
+GROUPS["peak"] = [["drowned_knight"], ["brine_wraith", "brine_wraith"], ["tide_guard", "crown_herald"],
+                  ["abyss_angler", "eel"], ["drowned_knight", "brine_wraith"], ["coral_colossus"],
+                  ["tide_guard", "abyss_angler", "siren"], ["drowned_knight", "crown_herald", "brine_wraith"],
+                  ["coral_colossus", "brine_golem", "crown_herald"], ["drowned_knight", "drowned_knight", "abyss_angler"]]
 
 LAIRS = {
-    "coral": [["crab", "crab", "siren"], ["deckhand", "deckhand", "barnacle_priest", "eel"]],
-    "keys": [["brine_golem", "powder_monkey", "tide_cultist"], ["cutthroat", "cutthroat", "corsair_captain"]],
-    "storm": [["crag_ram", "cliff_hermit", "thunder_wyvern"], ["lightning_totem", "harpy", "harpy", "storm_wisp"]],
+    "coral": [["crab", "crab", "siren"], ["deckhand", "deckhand", "barnacle_priest", "eel"],
+              ["kelp_strangler", "urchin", "pearl_diver"]],
+    "keys": [["brine_golem", "powder_monkey", "tide_cultist"], ["cutthroat", "cutthroat", "corsair_captain"],
+             ["quartermaster", "rum_runner", "rum_runner", "parrot"]],
+    "storm": [["crag_ram", "cliff_hermit", "thunder_wyvern"], ["lightning_totem", "harpy", "harpy", "storm_wisp"],
+              ["rockling", "rockling", "stormcaller"]],
 }
 LAIRS.update(_B.LAIRS)
 
@@ -300,24 +314,27 @@ LAIRS.update(_B.LAIRS)
 # enemy key, or {"k": key, "aff": affix} for an elite.
 DUNGEONS = {
     "coral": {"name": "The Sunken Chapel", "boss": "bell_warden",
-              "open": [["deckhand", "deckhand", "eel"], ["crab", "jelly", "jelly"], ["deckhand", "barnacle_priest", "eel"]],
+              "open": [["deckhand", "deckhand", "eel"], ["crab", "jelly", "jelly"], ["deckhand", "barnacle_priest", "eel"],
+                       ["urchin", "kelp_strangler", "pearl_diver"]],
               "mid": [["crab", "jelly", "barnacle_priest", "siren"], ["deckhand", "deckhand", "siren", "eel"],
-                      ["crab", "crab", "barnacle_priest"]],
+                      ["crab", "crab", "barnacle_priest"], ["kelp_strangler", "kelp_strangler", "pearl_diver", "siren"]],
               "champ": [["reef_maw"], [{"k": "crab", "aff": "hulking"}, "jelly"],
                         [{"k": "siren", "aff": "warlord"}, "deckhand", "deckhand"]],
               "escort": [["deckhand", "barnacle_priest"], ["deckhand", "eel"], ["barnacle_priest", "siren"]]},
     "keys": {"name": "The Black Fort", "boss": "gallows_admiral",
              "open": [["cutthroat", "deckhound", "powder_monkey"], ["deckhound", "deckhound", "cutthroat"],
-                      ["cutthroat", "tide_cultist", "powder_monkey"]],
+                      ["cutthroat", "tide_cultist", "powder_monkey"], ["rum_runner", "parrot", "quartermaster"]],
              "mid": [["brine_golem", "cutthroat", "tide_cultist", "powder_monkey"],
-                     ["cutthroat", "cutthroat", "powder_monkey", "deckhound"], ["brine_golem", "tide_cultist", "tide_cultist"]],
+                     ["cutthroat", "cutthroat", "powder_monkey", "deckhound"], ["brine_golem", "tide_cultist", "tide_cultist"],
+                     ["quartermaster", "rum_runner", "cutthroat", "parrot"]],
              "champ": [["iron_bosun"], [{"k": "corsair_captain", "aff": "frenzied"}, "deckhound"],
                        [{"k": "brine_golem", "aff": "ironclad"}, "powder_monkey"]],
              "escort": [["cutthroat", "cutthroat"], ["cutthroat", "powder_monkey"], ["deckhound", "tide_cultist"]]},
     "storm": {"name": "The Lighthouse", "boss": "lamp_keeper",
-              "open": [["crag_ram", "harpy", "storm_wisp"], ["harpy", "harpy", "cliff_hermit"], ["crag_ram", "storm_wisp", "storm_wisp"]],
+              "open": [["crag_ram", "harpy", "storm_wisp"], ["harpy", "harpy", "cliff_hermit"], ["crag_ram", "storm_wisp", "storm_wisp"],
+                       ["rockling", "gale_sprite", "gale_sprite"]],
               "mid": [["cliff_hermit", "crag_ram", "lightning_totem", "harpy"], ["harpy", "harpy", "storm_wisp", "lightning_totem"],
-                      ["crag_ram", "crag_ram", "cliff_hermit"]],
+                      ["crag_ram", "crag_ram", "cliff_hermit"], ["rockling", "stormcaller", "harpy", "gale_sprite"]],
               "champ": [["storm_roc"], [{"k": "thunder_wyvern", "aff": "vampiric"}, "storm_wisp"],
                         [{"k": "crag_ram", "aff": "hulking"}, "cliff_hermit"]],
               "escort": [["cliff_hermit", "storm_wisp"], ["harpy", "storm_wisp"], ["cliff_hermit", "lightning_totem"]]},
@@ -409,8 +426,12 @@ REFORGE_COST = {"uncommon": 30, "rare": 60, "legendary": 100}
 # on an item costs TEMPER_COST[rarity][0], the second TEMPER_COST[rarity][1] (rarer gear costs more to work,
 # as it does to reforge). A worked item sells for `WORK_RESALE`
 # more per work.
+# Edge raises its top number by `EDGE_UP`; Tune turns the lowest number into a Resonance face (at most
+# `TUNE_MAX` on a die); Scour grinds a skull face into the die's lowest number.
 WORK_CAP = 2
 HONE_UP = 3
+EDGE_UP = 1
+TUNE_MAX = 2
 TEMPER_COST = {"common": (15, 30), "uncommon": (20, 40), "rare": (30, 60), "legendary": (45, 90)}
 WORK_RESALE = 10
 FIGHT_MAT_CHANCE = 0.06  # a won fight's loot pool (not a guarded wreck's, which always has one) holds an enchant material

@@ -232,6 +232,8 @@ class Dice:
                 v, t = face(f2)
                 if t == "W":
                     v = top
+                elif t == "R":
+                    v = self.resonant(h)  # what it would copy if it rolled now
                 if "exploding" in d["dk"] and v == top and t != "W":
                     v += round(mean_face(d["faces"]))
                 base.append((v, t, 1 / len(faces)))

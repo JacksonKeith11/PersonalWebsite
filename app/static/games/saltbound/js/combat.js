@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=176';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=176';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=176';
-import { stageURL, stageKey } from './stage.js?v=176';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=176';
-import { render } from './main.js?v=176';
-import { skillCard, upDef, upText } from './hud.js?v=176';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=176';
-import * as sfx from './audio.js?v=176';
+import { S, send, mine, controllerName } from './store.js?v=177';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=177';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=177';
+import { stageURL, stageKey } from './stage.js?v=177';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=177';
+import { render } from './main.js?v=177';
+import { skillCard, upDef, upText } from './hud.js?v=177';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=177';
+import * as sfx from './audio.js?v=177';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -444,9 +444,10 @@ function foeState(fo, f) {
   return chips.length ? h('div.combo-hints', null, ...chips) : null;
 }
 function comboHints(fo, f) {
-  const x = C.tab;
-  if (x == null || !f.heroes.includes(x)) return null;
-  const by = fo.st_by || {}, chips = [];
+  const x = C.tab, hs = f.hs[x];
+  // only for a hero who could still answer it: in the fight, not readied, with a die to play
+  if (x == null || !f.heroes.includes(x) || !hs || hs.ready || !(hs.dice || []).some(d => !d.used && !d.locked)) return null;
+  const chips = [];
   const nums = chordNums(fo, f, x);
   if (nums) {
     const n = f.chord.bonus?.[x] ?? Math.min(f.chord.base, 15) * f.chord.hs.length;
@@ -810,7 +811,7 @@ function doneChip(p, i, f) {
   const rolled = (p.vals || []).length ? `Rolled ${p.vals.join(', ')}. ` : '';
   return h('span.plan-chip' + (p.hit === false ? '.missed' : ''), { style: { '--seat': `var(--hero-${p.h})` },
     tip: `${g.heroes[p.h].name}: ${a.name}${p.plus ? '+' : ''}${tgt ? ' → ' + tgt : ''}\n${rolled}${p.hit === false ? 'Missed. ' : ''}${what || 'No visible effect.'}\n${a.text}` },
-    h('span.muted', null, `${i + 1}.`), h('span.who', null, mine().includes(p.h) ? g.heroes[p.h].name : controllerName(p.h)), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
+    h('span.muted', null, `${i + 1}.`), h('span.who', null, stripWho(p.h)), h('b', null, a.name + (p.plus ? '+' : '')), tgt ? h('span.muted', null, '→ ' + tgt) : null, res,
     ...nums, h('span', { style: { width: '6px' } }));
 }
 // What the enemies' last turn did (`f.last`, recorded by the server): a chip per enemy action, with
@@ -884,7 +885,7 @@ function stripChips(done, f) {
     const sum = k => list.reduce((a, [p]) => a + ((p.out || {})[k] || 0), 0);
     const tip = list.map(([p, i]) => `${i + 1}. ${S.static.actions[p.a].name}${p.hit === false ? ' (missed)' : ''}: ${outcomeText(p.out || {}) || 'no visible effect'}`).join('\n');
     out.push(h('span.plan-chip.folded', { style: { '--seat': `var(--hero-${x})` }, tip: `${heroWho(x)}, earlier this round\n${tip}` },
-      h('span.who', null, mine().includes(x) ? S.game.heroes[x].name : controllerName(x)), h('span.muted', null, `×${list.length}`),
+      h('span.who', null, stripWho(x)), h('span.muted', null, `×${list.length}`),
       sum('dmg') ? h('span.o-dmg', null, icon('sword'), sum('dmg')) : null,
       sum('heal') ? h('span.o-heal', null, icon('plus'), sum('heal')) : null,
       sum('armor') ? h('span.o-armor', null, icon('shield'), sum('armor')) : null,
@@ -1733,6 +1734,13 @@ function makeCaption(f, ad, d, rolling) {
     what: (ad.short && ad.short[1]) || ad.text };
 }
 // A hero as the table knows them: "Alice · Vanguard" when someone else plays it, else the hero's name.
+// Who played a move, short, for the round strip: the hero's name, or for another player's one hero
+// that player's name. A bot, or a player with several heroes, is named by the hero ("Bot" said nothing).
+function stripWho(x) {
+  const hero = S.game.heroes[x], c = S.room?.ctl?.[x];
+  if (mine().includes(x) || c === 'bot' || !c || S.room.ctl.filter(y => y === c).length > 1) return hero.name;
+  return controllerName(x);
+}
 export function heroWho(x) {
   const hero = S.game.heroes[x];
   if (mine().includes(x)) return hero.name;

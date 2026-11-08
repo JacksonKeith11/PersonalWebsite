@@ -1859,10 +1859,10 @@ COMBOS = {
     "fracture": {"name": "Fracture", "text": "Freeze meets another hero's Shock: the ice cracks for 12 + 3 per Shock, "
                                              "through Armor, and it's Weak for 2 rounds."},
     "conduction": {"name": "Conduction", "text": "Shock meets another hero's Poison: the Poison doubles, and every other "
-                                                 "enemy gets half that much Poison."},
+                                                 "enemy is Poisoned for half what it had."},
     "frostlock": {"name": "Frostlock", "text": "Root meets another hero's Freeze: it's frozen fast and Stunned. Once a "
-                                               "fight per enemy; a boss (or one locked before) takes 15 instead."},
-    "kindling": {"name": "Kindling", "text": "Root meets another hero's Burn: the roots catch and the Burn doubles (to 10)."},
+                                               "fight per enemy; a boss (or one locked before, or Steeled) takes 15 instead."},
+    "kindling": {"name": "Tinder", "text": "Root meets another hero's Burn: the roots catch and the Burn doubles (to 10; never less than it was)."},
     "break": {"name": "Break", "text": "Some bosses' big moves show a Break bar. Deal that much to the boss, from at least two "
                                        "heroes, before it acts, and the move is broken: it does nothing."},
 }

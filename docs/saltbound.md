@@ -913,9 +913,9 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     Armor, its Armor gone, Vulnerable 2), **Blightfire** (Burn + Poison: 2 per Burn and Poison, half the
     Poison spreads to the rest), **Fracture** (Freeze + Shock: 12 + 3 per Shock through Armor, Weak 2),
     **Conduction** (Shock + Poison: the Poison doubles and every other enemy gets half as much),
-    **Kindling** (Root + Burn: the Burn doubles, to 10) and **Frostlock** (Root + Freeze), the only one that Stuns:
-    once a fight per enemy, Steeled bosses resist it, and a boss (or an enemy locked before) takes 15
-    instead. The enemy shows which statuses would set its status off.
+    **Tinder** (key `kindling`; Root + Burn: the Burn doubles, to 10, and never drops) and **Frostlock** (Root + Freeze), the only one that Stuns:
+    once a fight per enemy, and a boss (or an enemy locked before, or a Steeled one) takes 15 instead.
+    The enemy's statuses glow when another hero's element would set them off.
   - **Break**: some bosses' biggest move carries `brk` (a share of its health): the intent shows a
     Break bar, and that much damage from at least two heroes before it acts breaks the move (it does
     nothing; the boss is Steeled for the next round, so it can't be broken twice running).

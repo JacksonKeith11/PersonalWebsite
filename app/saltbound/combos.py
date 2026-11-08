@@ -125,13 +125,13 @@ class Combos:
         elif kind == "conduction":
             st["poison"] = 2 * poison + up
         elif kind == "frostlock":
-            if self.boss_like(fo) or fo.get("locked"):
-                n = FROSTLOCK_BOSS + up  # a boss (or one locked before) takes the cold instead
-            elif not self.resist(fo):
+            if self.boss_like(fo) or fo.get("locked") or self.resist(fo):
+                n = FROSTLOCK_BOSS + up  # a boss (or one locked before, or Steeled) takes the cold instead
+            else:
                 fo["locked"] = True
                 st["stun"] = 1
         elif kind == "kindling":
-            st["burn"] = min(REACT_KINDLE_CAP, burn * REACT_KINDLE) + up
+            st["burn"] = max(burn, min(REACT_KINDLE_CAP, burn * REACT_KINDLE)) + up  # never less than it was
         self.fx("combo", to=f"f{fo['id']}", c=kind, n=n)
         self.say(f"{self.static_combo(kind)} on {fo['name']}!")
         if n:
@@ -166,8 +166,8 @@ class Combos:
                 "blightfire": REACT_BLIGHT * (burn + poison) + poison * others,
                 "fracture": REACT_FRACTURE + REACT_FRACTURE_EACH * shock + 4,
                 "conduction": poison * (2 + others),
-                "frostlock": FROSTLOCK_BOSS if self.boss_like(fo) or fo.get("locked") else 14,
-                "kindling": 2 * burn * (REACT_KINDLE - 1)}[kind]
+                "frostlock": FROSTLOCK_BOSS if self.boss_like(fo) or fo.get("locked") or self.steeled(fo) else 14,
+                "kindling": 2 * max(0, min(REACT_KINDLE_CAP, burn * REACT_KINDLE) - burn)}[kind]
 
     # ---------------------------------------------------------------- Break
     # A boss's big move (`brk` on the move: the share of its health) shows a Break bar. Enough damage

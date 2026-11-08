@@ -104,6 +104,7 @@ document.addEventListener('pointerover', e => {
   tipFor = el;
   const [title, ...rest] = el.dataset.tip.split('\n');
   tip().replaceChildren(h('b', null, title), ...rest.map(r => h('div', null, r)));
+  tip().classList.toggle('wide', el.dataset.tip.length > 500);  // a long list reads better wide than tall
   tip().hidden = false;
   place(el);
 });
@@ -114,6 +115,8 @@ function place(el) {
   const r = el.getBoundingClientRect(), t = tip(), tr = t.getBoundingClientRect();
   let x = r.left + r.width / 2 - tr.width / 2, y = r.top - tr.height - 8;
   if (y < 8) y = r.bottom + 8;
+  // a tall tip that fits neither above nor below stays on screen (covering its element if it must)
+  y = Math.max(8, Math.min(innerHeight - tr.height - 8, y));
   x = Math.max(8, Math.min(innerWidth - tr.width - 8, x));
   t.style.left = x + 'px'; t.style.top = y + 'px';
 }

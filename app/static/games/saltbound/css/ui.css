@@ -486,6 +486,7 @@ a:hover { color: var(--accent-hi); }
   padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: rgba(11, 16, 23, 0.98); border: var(--bw) solid var(--border-strong);
   box-shadow: var(--shadow-2); font-size: var(--fs-14); color: var(--text-2);
 }
+#tip.wide { max-width: min(560px, calc(100vw - 16px)); }
 #tip b { color: var(--text); display: block; font-weight: var(--fw-semibold); }
 #toasts { position: fixed; top: calc(var(--topbar-h) + var(--s-4)); left: 50%; transform: translateX(-50%); z-index: 70; display: grid; gap: var(--s-2); justify-items: center; pointer-events: none; }
 .toast { padding: var(--s-2) var(--s-4); border-radius: var(--r-md); background: var(--panel-3); border: var(--bw) solid var(--border-strong); box-shadow: var(--shadow-2); font-size: var(--fs-15); animation: fade-in var(--t-med) var(--ease); }

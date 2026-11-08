@@ -978,14 +978,14 @@ def evaluate(g, b, h, a, dice, tgt):
                     if n >= left:
                         val += share * stopv
                         bump(eff["stop"], tid, pr * share)
-                    elif brk is not None and n + b.dmg.get(tid, 0) >= brk:
-                        val += share * stopv  # Break: this hit stops the boss's big move
                         if op.get("carry") and n > left:
                             # Slash's follow-through: the damage past the kill carries on to the next enemy in reach
                             nxt = [o["hp"] - b.dmg.get(o["id"], 0) for o in foes if o is not t and (g.in_reach(o) or not melee)]
                             nxt = [z for z in nxt if z > 0]
                             if nxt:
                                 val += share * min(n - left, min(nxt)) * 0.8
+                    elif brk is not None and n + b.dmg.get(tid, 0) >= brk:
+                        val += share * stopv  # Break: this hit stops the boss's big move
                     elif n > 0 and spell_burn:
                         val += share * foe_status(g, b, "burn", 1, t, now, tb, top, eff, pr * share, h)
                     if 0 < n < left and bomb_poison:
@@ -1326,13 +1326,17 @@ def reaction_worth(g, t, s, h):
     if h is None or s not in ("burn", "freeze", "shock", "poison", "root"):
         return 0
     st = t["st"]
-    if not st.get(s):
-        st[s] = 1  # reaction_on asks whether the status has landed
-        try:
-            return g.reaction_worth(t, s, h)
-        finally:
+    if st.get(s):
+        return g.reaction_worth(t, s, h)
+    had, was = s in st, st.get(s)
+    st[s] = 1  # reaction_on asks whether the status has landed; put it back exactly as it was
+    try:
+        return g.reaction_worth(t, s, h)
+    finally:
+        if had:
+            st[s] = was
+        else:
             st.pop(s, None)
-    return g.reaction_worth(t, s, h)
 
 
 def status_worth(g, b, s, n, t, now, tb, top, eff, pr, left):

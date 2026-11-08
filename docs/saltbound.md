@@ -955,6 +955,9 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     combos; **53.0%** after toning those down (classes 41-65%, Herald and Arcanist lowest).
   - With the new jobs, Resonance faces and Break on 18 enemies (300 Hard runs): **54.0%** (classes
     46-70%; Vanguard and Duelist top, Alchemist and Berserker bottom).
+  - After the Nov 2026 audit (the bots value Slash's follow-through again, Tinder never lowers a Burn,
+    Frostlock hurts a Steeled enemy, freed towns reopen their boards; 300 Hard runs, seed 5000):
+    **56.7%**, within the noise of 54.0%.
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
   one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the

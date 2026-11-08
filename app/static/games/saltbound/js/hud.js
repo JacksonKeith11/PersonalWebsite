@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=180';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=180';
-import { spriteURL, placeURL } from './art.js?v=180';
-import { itemURL } from './itemart.js?v=180';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=180';
-import { MapView } from './hexmap.js?v=180';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=180';
-import { disconnect } from './main.js?v=180';
-import * as sfx from './audio.js?v=180';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=181';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=181';
+import { spriteURL, placeURL } from './art.js?v=181';
+import { itemURL } from './itemart.js?v=181';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=181';
+import { MapView } from './hexmap.js?v=181';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=181';
+import { disconnect } from './main.js?v=181';
+import * as sfx from './audio.js?v=181';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -1035,7 +1035,7 @@ function townDrawer(h0, town, d) {
         h('div.gains', null, h('span.chip.brass', null, cap(rewardText(j.reward)))),
         h('div', { style: { display: 'flex', gap: '8px' } },
           h('button.btn.primary', { disabled, onclick: () => send({ t: 'quest', h: h0, n }) }, 'Take this job'),
-          h('button.btn.ghost', { onclick: () => map?.centerOn(j.tile) }, icon('target'), 'Show on map')))),
+          j.tile !== hero.tile ? h('button.btn.ghost', { onclick: () => map?.centerOn(j.tile) }, icon('target'), 'Show on map') : null))),
       g.quests.length ? h('h3', null, 'Your jobs') : null,
       ...g.quests.slice().reverse().map(q2 => q2.kind === 'trail' ? h('div.item', { tip: q2.done ? null : `${questTip(q2)}\nClick to find it on the map`, onclick: () => !q2.done && q2.goal != null && map?.centerOn(q2.goal) },
         h('div.ico', null, icon(q2.done ? 'check' : 'star')),

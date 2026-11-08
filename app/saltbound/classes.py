@@ -1030,8 +1030,8 @@ ACTIONS.update({
              "ops": [{"op": "gaze"}, {"op": "resolve", "amt": "v"}],
              "text": "Any row: challenge an enemy: its attack this round turns on you, and the die adds to your Resolve."},
     "return_stroke": {"cd": 2, "name": "Return Stroke", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "drawn", "tags": ["bushido"],
-                      "ops": [{"op": "dmg", "amt": "v"}, {"op": "sheathe"}],
-                      "text": "Drawn: deal the die, and the blade goes back in its scabbard as it finishes: you're Sheathed."},
+                      "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "sheathe"}],
+                      "text": "Drawn: deal the die +3, and the blade goes back in its scabbard as it finishes: you're Sheathed."},
     "kiai": {"cd": 3, "name": "Kiai", "req": {"n": 1}, "tgt": "foes", "tags": ["bushido"],
              "ops": [{"op": "status", "s": "weak", "n": 1}, {"op": "resolve", "amt": "3", "to": "self"}],
              "text": "A shout before the cut: every enemy is Weak this round, and you gain 3 Resolve."},
@@ -1793,7 +1793,7 @@ SHORT.update({
     "scabbard_strike": ("sword", "die +1 · stay Sheathed", None), "kamae": ("shield", "½ die Armor · die to Resolve", None),
     "sheathe": ("shield", "½ die Armor · die to Resolve · Sheathed", None), "flash_draw": ("sword", "front row: die + ½ Resolve · Drawn", None),
     "waiting_stance": ("shield", "die +2 Armor · counter for all Resolve", None), "single_combat": ("target", "its attack → you · die to Resolve", None),
-    "return_stroke": ("sword", "die · Sheathed", None), "kiai": ("down", "all Weak · +3 Resolve", None),
+    "return_stroke": ("sword", "die +3 · Sheathed", None), "kiai": ("down", "all Weak · +3 Resolve", None),
     "kesa_cut": ("sword", "die · its row ½ die", None),
 })
 SHORT.update({

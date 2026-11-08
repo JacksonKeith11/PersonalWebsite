@@ -34,11 +34,6 @@ export function terrain(world, game, t) {
   return world.bio[t];
 }
 
-// Whether a hex is inside a squall (Game.in_squall).
-export function inSquall(game, t, r) {
-  return (game.squalls || []).some(q => dist(t, q.tile) <= r);
-}
-
 export function visibleTiles(game) {
   const out = new Set();
   game.heroes.forEach((hero, h) => {

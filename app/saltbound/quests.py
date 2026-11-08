@@ -101,6 +101,3 @@ class Quests:
         self.say(f"{Q['name']}: next, {Q['goals'][q['step'] - 1]}.")
         self.fx("quest", h=h, key=key, tile=q["tile"])
 
-    def quest_goal_text(self, q):
-        Q = A.QUESTS[q["key"]]
-        return Q["name"] if q["done"] else Q["goals"][min(q["step"], len(Q["goals"])) - 1]

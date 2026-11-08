@@ -28,6 +28,7 @@ from .rng import Rng
 from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, SURGE
 
 VERSION = 13
+BOOL_FIELDS = {"on", "equip", "all", "cancel"}  # message fields that are switches (Game.act)
 DIFFICULTY = {
     # `rise`: turns between Great Tides (owner, Nov 2026: rarer and bigger, each one RISE_STEPS rises of
     # enemy strength at once, with the garrisons growing on the same turn)
@@ -442,9 +443,6 @@ class Game(Combat, Biomes, Quests, Travel):
             return storm
         return self.vision(h) + (2 if C.map_key(self.hero(h)) == "tracker" else 0)
 
-    def in_squall(self, t):
-        return self.storm_sight(t) is not None
-
     def reveal_all(self):
         for h in self.living():
             self.reveal(self.hero(h)["tile"], self.vision(h))
@@ -698,6 +696,9 @@ class Game(Combat, Biomes, Quests, Travel):
             raise Invalid("The run is over.")
         if not (0 <= h < 3):
             raise Invalid("No such hero.")
+        # true/false only in the switches: anywhere else Python would take them for 1 and 0 (a hero, a die)
+        if any(isinstance(v, bool) for k, v in msg.items() if k not in BOOL_FIELDS):
+            raise Invalid("That doesn't make sense.")
         handler = {
             "path": self.do_path, "ready": self.do_ready, "rest": self.do_rest, "choose": self.do_choose,
             "buy": self.do_buy, "sell": self.do_sell, "inn": self.do_inn, "skiff": self.do_skiff,
@@ -1834,7 +1835,7 @@ class Game(Combat, Biomes, Quests, Travel):
         if out.get("hp"):
             if out["hp"] > 0:
                 n = self.heal(h, out["hp"])
-                bits.append(f"+{n} HP")
+                bits.append(f"+{n} HP" if n else "already at full HP")
             else:
                 hero["hp"] = max(1, hero["hp"] + out["hp"])
                 bits.append(f"{out['hp']} HP")
@@ -2166,7 +2167,7 @@ class Game(Combat, Biomes, Quests, Travel):
         return out
 
     def do_temper(self, h, msg):
-        p = self.town_spec(h, "smith")
+        self.town_spec(h, "smith")  # checks there is a smithy here
         hero = self.hero(h)
         slot = msg.get("slot")
         key = hero["equip"].get(slot) if slot in SLOTS else None

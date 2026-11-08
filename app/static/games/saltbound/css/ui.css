@@ -648,6 +648,8 @@ a:hover { color: var(--accent-hi); }
   .hero-card .hero-meta { font-size: 12px; gap: 6px; }
   .stats { justify-content: flex-start; overflow-x: auto; }
   .stats .stat { flex: none; }
+  .topbar { gap: var(--s-2); padding: 0 var(--s-2); }
+  .topbar .logo, .stat .wide-only, .stat .xpbar { display: none; }  /* room for the turn, the Great Tide and the level */
   .actionbar { left: 8px; right: 8px; transform: none; max-width: none; flex-wrap: wrap; justify-content: center; }
   .actionbar .hint { min-width: 0; flex-basis: 100%; }
   .actionbar .sep { display: none; }

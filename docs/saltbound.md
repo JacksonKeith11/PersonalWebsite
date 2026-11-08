@@ -2221,6 +2221,9 @@ clock anywhere: the run changes only when someone acts.
   `reroll` message did exactly that and was removed in the Nov 2026 audit (rerolls are automatic; nothing sent it).
   A hero's Fate die keeps its two faces as `[value, tag]` pairs (`fc`; read them with `fate_faces`, which also
   takes older saves' bare numbers), so a Fate armor die's shield faces still block.
+- **True and false only go in switch fields** (`BOOL_FIELDS` in `game.py`: `on`, `equip`, `all`, `cancel`):
+  `Game.act` refuses them anywhere else, since Python takes `True` for 1 (a hero, a die id), and `str(True)`
+  isn't a key. A new boolean message field belongs in that set.
 - **Build jobs need their site kept clear** (beacon and watchtower jobs): sites stand above the high tide
   (`BUILD_ABOVE_SEA`), tide wrecks and caches avoid taken job sites (`job_targets`), and a notice whose site was
   taken before anyone accepted it picks another (or comes down) in `do_quest`.

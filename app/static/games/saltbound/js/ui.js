@@ -145,4 +145,3 @@ export function modal(content, { wide = false, onClose = null, enter = true, bac
   return scrim;
 }
 
-export const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

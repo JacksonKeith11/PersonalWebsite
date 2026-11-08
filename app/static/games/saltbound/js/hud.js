@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=177';
-import { $, h, icon, toast, modal, hideTip, bigBanner } from './ui.js?v=177';
-import { spriteURL, placeURL } from './art.js?v=177';
-import { itemURL } from './itemart.js?v=177';
-import { reach, routeTo, terrain, seaMap, inSquall, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=177';
-import { MapView } from './hexmap.js?v=177';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=177';
-import { disconnect } from './main.js?v=177';
-import * as sfx from './audio.js?v=177';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=179';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=179';
+import { spriteURL, placeURL } from './art.js?v=179';
+import { itemURL } from './itemart.js?v=179';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=179';
+import { MapView } from './hexmap.js?v=179';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=179';
+import { disconnect } from './main.js?v=179';
+import * as sfx from './audio.js?v=179';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -333,7 +333,7 @@ function renderTopbar() {
       h('div.stat.opt', { tip: `${g.tide === 'low' ? 'Low' : 'High'} tide\n${g.tide === 'low' ? 'Sandbars and shallows are walkable.' : 'Shallows are under water: skiffs only.'}\nTurns in ${g.next_tide} turn${g.next_tide === 1 ? '' : 's'}.` },
         icon('moon'), h('b', null, g.tide === 'low' ? 'Low tide' : 'High tide'), h('span.lbl', null, `· ${g.next_tide}`)),
       h('div.stat' + (g.next_rise === 1 ? '.tide-soon' : g.rises >= g.grow_from ? '.warn' : ''), { tip: `The Great Tide\nRises every ${g.rise_every} turns, next in ${g.next_rise}. Each one makes every enemy stronger, brings two or three arrivals from the sea (wreckage and visitors early on, raiders, war-bands and worse later), and grows the garrisons of the objectives you haven’t cleared.${g.tides ? `\nRisen ${g.tides} time${g.tides === 1 ? '' : 's'}.` : ''}${(g.tidenews || []).length ? `\nLast time: ${g.tidenews.map(n => n.name).join('; ')}.` : ''}${g.rises >= g.grow_from ? '\nMore enemies come ashore now.' : ''}` },
-        icon('wave'), h('b', null, g.next_rise === 1 ? 'Great Tide next turn!' : `Great Tide in ${g.next_rise}`)),
+        icon('wave'), h('b', null, h('span.wide-only', null, 'Great Tide '), g.next_rise === 1 ? 'next turn!' : `in ${g.next_rise}`)),
       h('div.stat', { tip: `Party level ${g.level}\n${g.xp_next ? `${g.xp} / ${g.xp_next} XP` : 'Max level'}\nXP is shared: everyone levels together.` },
         icon('star'), h('b', null, `Level ${g.level}`), h('div.xpbar', null, h('i', { style: { width: xpPct + '%' } }))),
       h('div.stat', { tip: 'Revives\nShared by the party. A knocked-down hero who’s still down at the end of a fight uses one.' },
@@ -1591,8 +1591,6 @@ function renderHint() {
   el.replaceChildren(h('div.hint-card.panel', null, h('b', null, title), h('p', null, text),
     h('button.btn.sm', { onclick: () => { S.seenHints[key] = 1; saved.hints = S.seenHints; persist(); renderHint(); } }, 'Got it')));
 }
-export function seenHint(key) { return !!S.seenHints[key]; }
-export function markHint(key) { S.seenHints[key] = 1; saved.hints = S.seenHints; persist(); }
 
 // ------------------------------------------------------------------ effects
 export function handleFx(list, before) {

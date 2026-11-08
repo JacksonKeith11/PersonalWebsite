@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=177';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=177';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=177';
-import { stageURL, stageKey } from './stage.js?v=177';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=177';
-import { render } from './main.js?v=177';
-import { skillCard, upDef, upText } from './hud.js?v=177';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=177';
-import * as sfx from './audio.js?v=177';
+import { S, send, mine, controllerName } from './store.js?v=179';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=179';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=179';
+import { stageURL, stageKey } from './stage.js?v=179';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=179';
+import { render } from './main.js?v=179';
+import { skillCard, upDef, upText } from './hud.js?v=179';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=179';
+import * as sfx from './audio.js?v=179';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -1049,7 +1049,7 @@ function dieButton(d, i, ready) {
   let face, cls = '';
   const size = dieLabel(d.faces);
   if (d.v !== null && d.v !== undefined) {
-    face = d.tag === 'S' ? icon('shield') : d.tag === 'X' ? '☠' : d.tag === 'R' ? h('span.num', null, '♫') : h('span.num', null, String(d.v));
+    face = d.tag === 'S' ? icon('shield') : d.tag === 'X' ? '☠' : d.tag === 'R' ? h('span.num', null, d.rolled ? `♫${d.v}` : '♫') : h('span.num', null, String(d.v));
     cls = '.known';
   } else if (d.fc) {
     const [a, b] = fateFaces(d).map(fateText);

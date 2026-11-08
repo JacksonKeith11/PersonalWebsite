@@ -23,10 +23,6 @@ export function mine() {
   if (!r || !r.ctl) return [];
   return r.ctl.map((c, h) => (c === S.you ? h : -1)).filter(h => h >= 0);
 }
-export function heroName(h) {
-  const g = S.game;
-  return g ? g.heroes[h].name : '';
-}
 export function controllerName(h) {
   const r = S.room;
   const c = r?.ctl?.[h];

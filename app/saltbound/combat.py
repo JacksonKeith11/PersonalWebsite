@@ -285,10 +285,6 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
 
     # ------------------------------------------------------------------ lookups
 
-    def passive_mod(self, h, key):
-        return sum(C.PASSIVES[k.rstrip("+")]["mods"].get(key, 0) for k in self.hero(h)["skills"]
-                   if k.rstrip("+") in C.PASSIVES)
-
     def hs(self, h):
         return self.s["fight"]["hs"][str(h)]
 

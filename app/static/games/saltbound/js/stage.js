@@ -433,4 +433,3 @@ function woods(p) {
     for (let y = SH - h; y < SH; y++) if (edge < 120) p.set(x, y, leaf[(x + y) % 3]);
   }
 }
-export const STAGE_FLOOR = FLOOR / SH;

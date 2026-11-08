@@ -37,14 +37,17 @@ fs.mkdirSync(out, { recursive: true });
       await page.waitForSelector('.topbar, .combat, .endscreen, .end', { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(1800);
       await shot();
-      if (name === 'start') {
-        // the town (its button is named after the town), each of the hero sheet's tabs, and the menu
+      if (['start', 'smithy', 'board', 'trade'].includes(name)) {
+        // the town (its button is named after the town) and each of its tabs
         const town = page.locator('.actionbar button').filter({ hasNotText: /Rest|Hero|Ready/ });
         if (await town.count()) {
           await town.first().click(); await page.waitForTimeout(600); await shot('town');
           for (const tab of await page.locator('.drawer .tabs button').all()) { await tab.click(); await page.waitForTimeout(300); await shot('town-' + (await tab.innerText()).toLowerCase()); }
           await page.keyboard.press('Escape'); await page.waitForTimeout(300);
         }
+      }
+      if (name === 'start') {
+        // each of the hero sheet's tabs, and the menu
         const hero = page.locator('.actionbar button', { hasText: 'Hero' });
         if (await hero.count()) {
           await hero.first().click(); await page.waitForTimeout(600);

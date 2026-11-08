@@ -414,7 +414,7 @@ DARK_SHRINES = 2    # shrines that offer a stronger blessing at a price (the `da
 WRECK_GUARDS = {reg: GROUPS[reg][2:6] for reg in DUNGEONS}
 
 TOWN_SPECS = {
-    "smith": {"name": "Smithy", "text": "Reforges a piece of your gear into a random one a rarity better, for the same slot, or tempers it to keep: Hone raises its die's lowest number, Mark turns it into a special face. Each piece takes two works at most, tempering and enchanting together."},
+    "smith": {"name": "Smithy", "text": "Reforges a piece of your gear into a random one a rarity better, for the same slot, or tempers it to keep: Hone raises its die's lowest number, Edge its top one; Mark turns the lowest into a special face, Tune into a ♫ Resonance face; Scour grinds a skull off. Each piece takes two works at most, tempering and enchanting together."},
     "temple": {"name": "Temple", "text": "Lifts curses for free, and sells the party one revive."},
     "cartographer": {"name": "Cartographer", "text": "Sells charts that show a whole region: its places, lairs and wrecks."},
     "fence": {"name": "Fence", "text": "Pays half again as much for what you sell."},

@@ -186,7 +186,7 @@ class Room:
             del self.heroes[h.id]
             self.broadcast(self.lobby_wire())
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:
-            self.start_run()
+            self.start_run(msg.get("only") if self.debug and msg.get("only") in C.BOSSES else None)
         elif self.state == "bonfire" and h:
             self.bonfire(h, t, msg)
         elif t == "debugwin" and self.debug and self.fight:
@@ -245,7 +245,7 @@ class Room:
         self.broadcast(self.lobby_wire())
 
     # ------------------------------------------------------------------ the run
-    def start_run(self):
+    def start_run(self, only=None):
         self.stage = 0
         self.result = None
         self.coins = 0
@@ -257,6 +257,8 @@ class Room:
             if pool:
                 b = self.rng.choice(pool)
                 used.add(b); self.run.append(b)
+        if only:  # debug rooms can start at a chosen boss
+            self.run = [only] + [b for b in self.run if b != only]
         for h in self.heroes.values():
             h.level, h.points, h.picks, h.offer, h.ups, h.ready = 1, 0, 0, [], [], False
             h.attrs = {a: 0 for a in ATTRS}

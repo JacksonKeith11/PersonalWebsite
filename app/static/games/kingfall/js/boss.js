@@ -3,8 +3,8 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=1';
-import { LiveMove, placeHit, touches } from './moves.js?v=1';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=2';
+import { LiveMove, placeHit, touches } from './moves.js?v=2';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -37,7 +37,8 @@ class BodyView {
     this.phase = 1; this.state = 'intro'; this.cores = (def.cores || []).map(c => c.hp);
     this.walk = 0; this.flash = 0; this.staggerT = 0; this.z = 0;
     this.r = def.radius;
-    this.trail = [];  // the wyrm's path
+    this.trail = [];  // the wyrm's path: it starts coiled out behind it
+    for (let i = 0; i < 160; i++) this.trail.push([this.x - Math.sin(i / 14) * 24, this.y - i * 1.2]);
   }
 
   makeRig() {

@@ -1,13 +1,12 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=1';
-import { LocalHero, RemoteHero } from './hero.js?v=1';
-import { Boss } from './boss.js?v=1';
-import { drawChapel } from './arena.js?v=1';
-import { sfx } from './audio.js?v=1';
-import { deviceOfSlot } from './input.js?v=1';
+import { addFrames } from './rig.js?v=2';
+import { LocalHero, RemoteHero } from './hero.js?v=2';
+import { Boss } from './boss.js?v=2';
+import { drawArena } from './arenas.js?v=2';
+import { sfx } from './audio.js?v=2';
+import { deviceOfSlot } from './input.js?v=2';
 
-const ARENAS = { chapel: drawChapel };
 const INTERP = 0.1;
 
 export class FightScene extends Phaser.Scene {
@@ -22,7 +21,7 @@ export class FightScene extends Phaser.Scene {
     const [w, h] = fight.size;
     this.size = [w, h]; this.pad = fight.pad;
     if (this.textures.exists('arena')) this.textures.remove('arena');
-    const A = ARENAS[fight.arena](w, h, fight.pad);
+    const A = drawArena(fight.arena, w, h, fight.pad);
     this.textures.addCanvas('arena', A.canvas);
     this.add.image(0, 0, 'arena').setOrigin(0).setDepth(0);
     this.lights = [];
@@ -46,6 +45,10 @@ export class FightScene extends Phaser.Scene {
     }
 
     this.boss = new Boss(this, data, fight);
+    // darkness (the Briar Wolf's and the Moth Saint's second phase): black, but for light round the heroes
+    this.darkAt = this.boss.B.dark || 0;
+    this.dark = this.add.renderTexture(0, 0, w, h).setOrigin(0).setDepth(5500).setVisible(false);
+    this.darkness = 0;
     this.local = []; this.remote = {};
     for (const hh of heroes) {
       const at = fight.heroes[hh.id] || [w / 2, h * 0.75];
@@ -301,6 +304,17 @@ export class FightScene extends Phaser.Scene {
       L.glow.setDisplaySize(56 * f, 56 * f); L.flame.setScale(1, f);
     }
 
+    if (this.darkAt) {
+      const want = this.boss.bodies.some(b => b.phase >= this.darkAt && b.alive) ? 1 : 0;
+      this.darkness += (want - this.darkness) * Math.min(1, dtReal * 1.5);
+      this.dark.setVisible(this.darkness > 0.02);
+      if (this.darkness > 0.02) {
+        this.dark.clear().fill(0x05030a, 0.86 * this.darkness);
+        for (const l of [...this.local, ...Object.values(this.remote)]) if (!l.dead) this.dark.erase('glow', l.x - 70, l.y - 90, 1).erase('glow', l.x - 50, l.y - 70);
+        for (const b of this.boss.bodies) if (b.alive) this.dark.erase('glow', b.x - 32 + Math.cos(b.face) * 10, b.y - 70, 1);
+        for (const L of this.lights) L.glow.setVisible(false);
+      }
+    }
     // camera: this browser's heroes, nudged toward the boss
     const live = this.local.filter(l => !l.dead);
     const focus = live.length ? live : this.local;

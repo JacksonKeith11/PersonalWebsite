@@ -1,13 +1,14 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=1';
-import { Input, slotOf, padName } from './input.js?v=1';
-import { Net, ME } from './net.js?v=1';
-import { FightScene } from './fight.js?v=1';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=1';
-import { unlock, sfx } from './audio.js?v=1';
+import { setAtlas } from './rig.js?v=2';
+import { Input, slotOf, padName } from './input.js?v=2';
+import { Net, ME } from './net.js?v=2';
+import { FightScene } from './fight.js?v=2';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=2';
+import { unlock, sfx } from './audio.js?v=2';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
-const DEBUG = new URLSearchParams(location.search).has('debug');  // ?debug: window.kf, and the host may skip a fight
+const DEBUG = new URLSearchParams(location.search).has('debug');
+const ONLY = DEBUG ? new URLSearchParams(location.search).get('boss') : null;  // ?debug&boss=mire starts the run there  // ?debug: window.kf, and the host may skip a fight
 const BASE = '/static/games/kingfall/';
 const LOOKS = ['knight', 'pilgrim', 'hunter', 'sellsword'];
 
@@ -73,7 +74,7 @@ function addHero(slot) {
   sfx.ui();
 }
 
-function start() { if (S.lobby && S.lobby.heroes.length) net.send({ t: 'start' }); }
+function start() { if (S.lobby && S.lobby.heroes.length) net.send({ t: 'start', only: ONLY || undefined }); }
 
 // ------------------------------------------------------------------ screens
 function render() {

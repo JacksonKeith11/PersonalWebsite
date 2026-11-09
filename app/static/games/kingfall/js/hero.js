@@ -1,8 +1,8 @@
 // Heroes in a fight. LocalHero is one this browser drives (its device's inputs, predicted at once and
 // reported to the server 20 times a second); RemoteHero draws someone else's from the snapshots, 100 ms
 // in the past. Both draw with heroPose(), from an animation name and the time into it.
-import { Rig, sample, runCycle, rigDefaults } from './rig.js?v=1';
-import { placeAttack, touches, wrap } from './moves.js?v=1';
+import { Rig, sample, runCycle, rigDefaults } from './rig.js?v=2';
+import { placeAttack, touches, wrap } from './moves.js?v=2';
 
 
 export function heroFrames(h, W) {

@@ -17,28 +17,28 @@ MOVES = {
         "range": (40, 220), "weight": 4, "cd": 1.4, "phase": (1,), "dur": 1.3, "locks": [0.0, 0.32],
         "motion": [(0.4, 0.58, ("target", 10, 40, 190))],
         "hits": [rect(0.44, 0.62, 0, 74, 9, 26)],
-        "anim": [(0, pose()), (0.3, pose(arm_f=-100, weapon=-50, torso=-10, lean=-3)), (0.45, pose(arm_f=-90, weapon=0, torso=14, lean=8)), (1.3, pose())],
+        "anim": [(0, pose()), (0.3, pose(arm_f=-100, weapon=130, torso=-10, lean=-3)), (0.45, pose(arm_f=-90, weapon=180, torso=14, lean=8)), (1.3, pose())],
     },
     "flourish": {
         "range": (0, 80), "weight": 4, "cd": 1.5, "phase": (1,), "dur": 2.0, "locks": [0.0, 0.5, 0.85, 1.2],
         "motion": [(0.3, 0.38, 10), (0.65, 0.72, 10), (1.0, 1.07, 10), (1.38, 1.48, 18)],
         "hits": [arc(0.34, 0.42, 60, -60, 60, 18), arc(0.68, 0.76, 60, -60, 60, 18), arc(1.03, 1.11, 60, -60, 60, 18), rect(1.42, 1.54, 0, 86, 10, 28)],
-        "anim": [(0, pose()), (0.28, pose(arm_f=-150, weapon=40)), (0.4, pose(arm_f=-20, weapon=100)), (0.62, pose(arm_f=-140, weapon=-50)),
-                 (0.72, pose(arm_f=10, weapon=70)), (0.98, pose(arm_f=-160, weapon=20)), (1.08, pose(arm_f=-30, weapon=100)),
-                 (1.35, pose(arm_f=-100, weapon=-60, torso=-8)), (1.46, pose(arm_f=-90, weapon=0, torso=14, lean=6)), (2.0, pose())],
+        "anim": [(0, pose()), (0.28, pose(arm_f=-150, weapon=40)), (0.4, pose(arm_f=-20, weapon=100)), (0.62, pose(arm_f=-140, weapon=130)),
+                 (0.72, pose(arm_f=10, weapon=70)), (0.98, pose(arm_f=-160, weapon=200)), (1.08, pose(arm_f=-30, weapon=100)),
+                 (1.35, pose(arm_f=-100, weapon=120, torso=-8)), (1.46, pose(arm_f=-90, weapon=180, torso=14, lean=6)), (2.0, pose())],
     },
     "riposte": {
         "range": (0, 120), "weight": 2, "cd": 6.0, "phase": (1,), "dur": 2.0, "locks": [0.0, 1.25], "guard": (0.2, 1.3),
         "motion": [(1.35, 1.48, 30)],
         "hits": [rect(1.38, 1.52, 0, 90, 12, 34)],
-        "anim": [(0, pose()), (0.2, pose(arm_f=-120, weapon=-100, torso=-8)), (1.3, pose(arm_f=-125, weapon=-105)),
-                 (1.42, pose(arm_f=-90, weapon=0, torso=16, lean=8)), (2.0, pose())],
+        "anim": [(0, pose()), (0.2, pose(arm_f=-120, weapon=80, torso=-8)), (1.3, pose(arm_f=-125, weapon=75)),
+                 (1.42, pose(arm_f=-90, weapon=180, torso=16, lean=8)), (2.0, pose())],
     },
     "backstep": {
         "range": (0, 60), "weight": 2, "cd": 4.0, "phase": (1,), "dur": 1.6, "locks": [0.0, 0.7],
         "motion": [(0.2, 0.42, -70), (0.85, 1.05, ("target", 10, 40, 200))],
         "hits": [rect(0.9, 1.08, 0, 70, 10, 26)],
-        "anim": [(0, pose()), (0.3, pose(torso=-10, lean=-4)), (0.8, pose(arm_f=-100, weapon=-50)), (0.95, pose(arm_f=-90, weapon=0, torso=14, lean=8)),
+        "anim": [(0, pose()), (0.3, pose(torso=-10, lean=-4)), (0.8, pose(arm_f=-100, weapon=130)), (0.95, pose(arm_f=-90, weapon=180, torso=14, lean=8)),
                  (1.6, pose())],
     },
     # phases 2-3, the hollow giant -----------------------------------------------------
@@ -46,21 +46,21 @@ MOVES = {
         "range": (0, 120), "weight": 4, "cd": 1.6, "phase": (2, 3), "dur": 2.0, "locks": [0.0, 0.65],
         "motion": [(0.85, 0.95, 16)],
         "hits": [arc(0.9, 1.04, 104, -100, 100, 40, VOID)],
-        "anim": [(0, pose()), (0.7, pose(arm_f=-150, weapon=-60, torso=-12)), (0.92, pose(arm_f=-20, weapon=110, torso=16, lean=4)), (2.0, pose())],
+        "anim": [(0, pose()), (0.7, pose(arm_f=-150, weapon=120, torso=-12)), (0.92, pose(arm_f=-20, weapon=110, torso=16, lean=4)), (2.0, pose())],
     },
     "crash": {
         "range": (60, 300), "weight": 3, "cd": 4.0, "phase": (2, 3), "dur": 2.6, "locks": [0.0, 0.5], "air": (0.6, 1.3),
         "motion": [(0.6, 1.35, ("target", 0, 40, 260))],
         "hits": [circle(1.35, 1.48, 70, 0, 0, 44, VOID, mark=0.7), ring(1.4, 2.0, 50, 170, 14, 16, VOID), zone(1.45, 6.0, 40, 0, 0, 8, "void")],
-        "anim": [(0, pose()), (0.5, pose(dy=4, torso=-10)), (0.95, pose(z=60, arm_f=-170, weapon=0, torso=-14)), (1.35, pose(z=0, arm_f=-30, weapon=110, dy=4)),
+        "anim": [(0, pose()), (0.5, pose(dy=4, torso=-10)), (0.95, pose(z=60, arm_f=-170, weapon=180, torso=-14)), (1.35, pose(z=0, arm_f=-30, weapon=110, dy=4)),
                  (2.6, pose())],
     },
     "sweep2": {
         "range": (0, 140), "weight": 3, "cd": 3.0, "phase": (2, 3), "dur": 2.4, "locks": [0.0, 0.6, 1.25],
         "motion": [(0.8, 0.9, 14), (1.45, 1.55, 14)],
         "hits": [arc(0.85, 0.98, 100, -110, 60, 34, VOID), arc(1.5, 1.63, 100, -60, 110, 34, VOID)],
-        "anim": [(0, pose()), (0.7, pose(arm_f=-150, weapon=-60)), (0.9, pose(arm_f=-20, weapon=110, torso=12)), (1.35, pose(arm_f=-10, weapon=120)),
-                 (1.55, pose(arm_f=-160, weapon=-50, torso=-10)), (2.4, pose())],
+        "anim": [(0, pose()), (0.7, pose(arm_f=-150, weapon=120)), (0.9, pose(arm_f=-20, weapon=110, torso=12)), (1.35, pose(arm_f=-10, weapon=120)),
+                 (1.55, pose(arm_f=-160, weapon=130, torso=-10)), (2.4, pose())],
     },
     "voidbolts": {
         "range": (100, 500), "weight": 3, "cd": 4.0, "phase": (2, 3), "dur": 1.8, "locks": [0.0, 0.5, 0.9],
@@ -74,7 +74,7 @@ MOVES = {
         "motion": [],
         "hits": [circle(1.0 + i * 0.18, 1.12 + i * 0.18, 34, s, f, 32, {"col": "#fff0c0"}, mark=0.9, tx=True)
                  for i, (s, f) in enumerate(((0, 0), (-80, 40), (80, 40), (0, -90), (-120, -40), (120, -40), (0, 110), (-60, -120), (60, -120)))],
-        "anim": [(0, pose()), (0.4, pose(arm_f=-170, weapon=0, head=-20)), (2.4, pose(arm_f=-170, weapon=0)), (3.0, pose())],
+        "anim": [(0, pose()), (0.4, pose(arm_f=-170, weapon=180, head=-20)), (2.4, pose(arm_f=-170, weapon=180)), (3.0, pose())],
     },
 }
 
@@ -93,7 +93,7 @@ MOVES.update({
         "hits": [*[circle(1.1, 1.22, 22, round(math.sin(math.radians(a)) * 58), round(math.cos(math.radians(a)) * 58), 22, {"col": "#fff0c0"}, mark=0.6, tx=True)
                    for a in range(0, 360, 72)],
                  circle(1.5, 1.62, 40, 0, 0, 30, {"col": "#fff0c0"}, mark=0.6, tx=True)],
-        "anim": [(0, pose()), (0.5, pose(arm_f=-170, weapon=0, head=-12)), (1.4, pose(arm_f=-170, weapon=0)), (1.55, pose(arm_f=-60, weapon=90, torso=10)),
+        "anim": [(0, pose()), (0.5, pose(arm_f=-170, weapon=180, head=-12)), (1.4, pose(arm_f=-170, weapon=180)), (1.55, pose(arm_f=-60, weapon=90, torso=10)),
                  (2.2, pose())],
     },
 })

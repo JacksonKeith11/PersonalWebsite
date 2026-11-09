@@ -13,6 +13,7 @@ import secrets
 from . import save as SAVE
 from .build import ATTRS, Build
 from .content.upgrades import UPGRADES, offer as draw_offer
+from .content.skills import MAX_SKILLS, offer as skill_offer
 from .fight import TICK, Fight
 
 log = logging.getLogger("kingfall")
@@ -47,6 +48,8 @@ class Hero:
         self.picks = 0          # upgrades still to choose
         self.ready = False
         self.swap = False       # may change weapon at this Bonfire
+        self.skills = []        # skill ids, at most MAX_SKILLS
+        self.skill_offer = []   # skills on offer at this Bonfire (learn one, or none)
         self._build = None
         self.flasks = self.build().stats["flasks"]
         self.hp = self.mhp()
@@ -70,6 +73,7 @@ class Hero:
                 "weapon": self.weapon, "colour": self.colour, "level": self.level, "attrs": self.attrs,
                 "hp": self.hp, "mhp": self.mhp(), "flasks": self.flasks, "maxflasks": self.max_flasks(), "ups": self.ups,
                 "points": self.points, "offer": self.offer, "picks": self.picks, "ready": self.ready, "swap": self.swap,
+                "skills": self.skills, "skill_offer": self.skill_offer,
                 "stats": self.build().client()}
 
 
@@ -218,6 +222,7 @@ class Room:
             elif t == "dodge": f.dodged(h.id, msg, now)
             elif t == "perfect": f.perfect(h.id, now)
             elif t == "hitadd": f.hit_add(h.id, msg, now)
+            elif t == "skill": f.use_skill(h.id, msg, now)
             elif t == "shot":  # a projectile or area hit, so other browsers can draw it
                 out = {"t": "fx", "k": "shot", "h": h.id}
                 for k in ("x", "y", "a", "v", "r", "life"):
@@ -259,6 +264,17 @@ class Room:
             h.weapon = msg["weapon"]
             h.ups = [(u, r) for u, r in h.ups if not UPGRADES[u]["weapon"]]  # the old weapon's Arts go with it
             h.changed(); h.swap = False
+        elif t == "learn" and h.skill_offer:
+            # learn one of the offered skills (into slot `at` when both are full), or pass
+            i, at = msg.get("i"), msg.get("at")
+            if isinstance(i, int) and 0 <= i < len(h.skill_offer):
+                sk = h.skill_offer[i]
+                if len(h.skills) < MAX_SKILLS: h.skills.append(sk)
+                elif isinstance(at, int) and 0 <= at < len(h.skills): h.skills[at] = sk
+                else: return
+            elif not msg.get("skip"):
+                return
+            h.skill_offer = []
         elif t == "ready":
             h.ready = bool(msg.get("on", True))
         else:
@@ -286,6 +302,7 @@ class Room:
             self.run = [only] + [b for b in self.run if b != only]
         for h in self.heroes.values():
             h.level, h.points, h.picks, h.offer, h.ups, h.ready = 1, 0, 0, [], [], False
+            h.skills, h.skill_offer = [], []
             h.attrs = {a: 0 for a in ATTRS}
             h.changed()
             h.flasks = h.max_flasks()
@@ -338,6 +355,7 @@ class Room:
                 h.picks += 1
                 h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
                 h.swap = self.stage in SWAP_AFTER
+                h.skill_offer = skill_offer(h.skills, self.rng)
                 h.ready = False
         else:
             self.state = "over"
@@ -354,7 +372,7 @@ class Room:
         """Save the run at the Bonfire: the bosses, the party's builds and coins."""
         heroes = [{"token": h.conn.token.split(":")[0], "slot": h.slot, "name": h.name, "look": h.look, "weapon": h.weapon, "colour": h.colour,
                    "level": h.level, "attrs": h.attrs, "ups": h.ups, "points": h.points, "offer": h.offer, "picks": h.picks, "swap": h.swap,
-                   "wind": h.second_wind} for h in self.heroes.values()]
+                   "skills": h.skills, "skill_offer": h.skill_offer, "wind": h.second_wind} for h in self.heroes.values()]
         state = {"run": self.run, "stage": self.stage, "coins": self.coins, "bought": self.bought, "diff": self.diff, "heroes": heroes}
         boss = C.BOSSES[self.run[self.stage]]["name"] if self.stage < len(self.run) else ""
         summary = f"{', '.join(h['name'] for h in heroes)} · fight {self.stage + 1} of {len(self.run)}, {boss} next · {DIFFS[self.diff]['name']}"

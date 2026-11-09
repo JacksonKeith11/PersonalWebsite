@@ -26,5 +26,6 @@ def client():
     from ..build import ATTR_NAMES, ATTR_TEXT
     ups = {u["id"]: {"name": u["name"], "vow": u["vow"], "slot": u["slot"], "pact": u["pact"], "weapon": u["weapon"],
                      "duo": bool(u["needs"]), "text": {r: describe(u["id"], r) for r in ("common", "rare", "epic")}} for u in UPGRADES.values()}
-    return {"bosses": BOSSES, "weapons": WEAPONS, "hero": HERO, "upgrades": ups, "vows": VOWS,
+    from .skills import SKILLS, MAX_SKILLS
+    return {"bosses": BOSSES, "weapons": WEAPONS, "hero": HERO, "upgrades": ups, "vows": VOWS, "skills": SKILLS, "max_skills": MAX_SKILLS,
             "attrs": [[k, ATTR_NAMES[k], ATTR_TEXT[k]] for k in ATTR_NAMES]}

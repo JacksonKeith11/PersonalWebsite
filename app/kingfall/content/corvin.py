@@ -20,8 +20,8 @@ MOVES = {
         "hits": [arc(0.5, 0.62, 72, -75, 75, 24), arc(1.05, 1.16, 72, -75, 75, 24),
                  rect(1.72, 1.84, 0, 92, 16, 34)],
         "anim": [(0, pose()), (0.4, pose(arm_f=-150, weapon=60, torso=-10)), (0.55, pose(arm_f=-20, weapon=110, torso=8)),
-                 (0.9, pose(arm_f=-130, weapon=120, torso=10)), (1.08, pose(arm_f=-170, weapon=-80, torso=-6)),
-                 (1.5, pose(arm_f=-175, weapon=10, torso=-12, head=-6)), (1.75, pose(arm_f=-60, weapon=60, torso=12, lean=4)),
+                 (0.9, pose(arm_f=-130, weapon=120, torso=10)), (1.08, pose(arm_f=-170, weapon=100, torso=-6)),
+                 (1.5, pose(arm_f=-175, weapon=190, torso=-12, head=-6)), (1.75, pose(arm_f=-60, weapon=60, torso=12, lean=4)),
                  (2.6, pose())],
     },
     "combo2": {  # phase 2: the same three, then a burning slam whose ring spreads across the floor
@@ -31,9 +31,9 @@ MOVES = {
                  rect(1.56, 1.68, 0, 92, 16, 32, BURN), circle(2.38, 2.5, 36, 0, 40, 34, BURN, mark=0.4),
                  ring(2.55, 3.1, 36, 170, 12, 22, BURN, at=36)],
         "anim": [(0, pose()), (0.35, pose(arm_f=-150, weapon=60, torso=-10)), (0.5, pose(arm_f=-20, weapon=110, torso=8)),
-                 (0.8, pose(arm_f=-130, weapon=120, torso=10)), (0.98, pose(arm_f=-170, weapon=-80, torso=-6)),
-                 (1.35, pose(arm_f=-175, weapon=10, torso=-12)), (1.6, pose(arm_f=-60, weapon=60, torso=12, lean=4)),
-                 (2.05, pose(arm_f=-180, weapon=0, torso=-14, head=-8, dy=-3)), (2.4, pose(arm_f=-40, weapon=110, torso=16, lean=6, dy=2)),
+                 (0.8, pose(arm_f=-130, weapon=120, torso=10)), (0.98, pose(arm_f=-170, weapon=100, torso=-6)),
+                 (1.35, pose(arm_f=-175, weapon=190, torso=-12)), (1.6, pose(arm_f=-60, weapon=60, torso=12, lean=4)),
+                 (2.05, pose(arm_f=-180, weapon=180, torso=-14, head=-8, dy=-3)), (2.4, pose(arm_f=-40, weapon=110, torso=16, lean=6, dy=2)),
                  (3.4, pose())],
     },
     # the shield charge: he lowers his head, then runs at you, through you if you don't move
@@ -51,8 +51,8 @@ MOVES = {
         "range": (0, 95), "weight": 3, "cd": 3.0, "phase": (1, 2), "dur": 2.5, "locks": [0.0, 1.1],
         "motion": [(1.3, 1.42, 18)],
         "hits": [rect(1.34, 1.46, 0, 100, 18, 44), circle(1.42, 1.54, 30, 0, 96, 16)],
-        "anim": [(0, pose()), (0.5, pose(arm_f=-175, weapon=0, torso=-14, head=-8, dy=-2)),
-                 (1.25, pose(arm_f=-185, weapon=-10, torso=-18, head=-10, dy=-3)), (1.38, pose(arm_f=-50, weapon=100, torso=18, lean=6, dy=2)),
+        "anim": [(0, pose()), (0.5, pose(arm_f=-175, weapon=180, torso=-14, head=-8, dy=-2)),
+                 (1.25, pose(arm_f=-185, weapon=170, torso=-18, head=-10, dy=-3)), (1.38, pose(arm_f=-50, weapon=100, torso=18, lean=6, dy=2)),
                  (2.0, pose(arm_f=-50, weapon=100, torso=16, lean=5)), (2.5, pose())],
     },
     # the lunging thrust from mid-range
@@ -60,8 +60,8 @@ MOVES = {
         "range": (60, 190), "weight": 3, "cd": 2.0, "phase": (1, 2), "dur": 1.8, "locks": [0.0, 0.38],
         "motion": [(0.55, 0.78, ("target", 10, 40, 160))],
         "hits": [rect(0.58, 0.8, 0, 66, 13, 30)],
-        "anim": [(0, pose()), (0.45, pose(arm_f=-100, weapon=-50, torso=-10, lean=-3)),
-                 (0.6, pose(arm_f=-90, weapon=0, torso=14, lean=8)), (1.2, pose(arm_f=-90, weapon=0, torso=10, lean=5)), (1.8, pose())],
+        "anim": [(0, pose()), (0.45, pose(arm_f=-100, weapon=130, torso=-10, lean=-3)),
+                 (0.6, pose(arm_f=-90, weapon=180, torso=14, lean=8)), (1.2, pose(arm_f=-90, weapon=180, torso=10, lean=5)), (1.8, pose())],
     },
     # he turtles behind the shield (hits from the front glance off), then bashes whoever's in front
     "guard": {
@@ -76,7 +76,7 @@ MOVES = {
         "range": (100, 400), "weight": 3, "cd": 5.0, "phase": (2,), "dur": 2.0, "locks": [0.0, 0.6],
         "motion": [],
         "hits": [proj(0.85, 0, 30, a, 190, 11, 1.8, 24, BURN) for a in (-24, 0, 24)],
-        "anim": [(0, pose()), (0.6, pose(arm_f=-180, weapon=0, torso=-14, dy=-2)), (0.85, pose(arm_f=-30, weapon=120, torso=18, lean=6)),
+        "anim": [(0, pose()), (0.6, pose(arm_f=-180, weapon=180, torso=-14, dy=-2)), (0.85, pose(arm_f=-30, weapon=120, torso=18, lean=6)),
                  (2.0, pose())],
     },
 }
@@ -98,7 +98,7 @@ MOVES.update({
         "hits": [circle(1.2, 1.32, 30, 0, 0, 26, BURN, mark=0.7, tx=True), zone(1.3, 4.0, 30, 0, 0, 6, "fire", tx=True),
                  *[circle(1.25, 1.37, 26, s, f, 22, BURN, mark=0.75) for s, f in ((0, 72), (0, -72), (72, 0), (-72, 0))],
                  *[zone(1.35, 3.0, 26, s, f, 6, "fire") for s, f in ((0, 72), (0, -72), (72, 0), (-72, 0))]],
-        "anim": [(0, pose()), (0.5, pose(arm_f=-180, weapon=0, torso=-12, dy=-2)), (0.85, pose(arm_f=-20, weapon=170, torso=18, lean=4, dy=3)),
+        "anim": [(0, pose()), (0.5, pose(arm_f=-180, weapon=180, torso=-12, dy=-2)), (0.85, pose(arm_f=-20, weapon=170, torso=18, lean=4, dy=3)),
                  (2.0, pose(arm_f=-20, weapon=170, torso=16, dy=3)), (2.4, pose())],
     },
 })
@@ -106,7 +106,7 @@ MOVES.update({
 PHASE2 = {
     "dur": 2.4, "locks": [0.0], "motion": [], "invuln": True,
     "hits": [ring(1.0, 1.5, 10, 160, 14, 8, {"kb": 120}, at=0)],
-    "anim": [(0, pose()), (0.6, pose(arm_f=-90, weapon=180, torso=10, head=10)), (1.0, pose(arm_f=-170, weapon=0, torso=-16, head=-12, dy=-2)),
+    "anim": [(0, pose()), (0.6, pose(arm_f=-90, weapon=180, torso=10, head=10)), (1.0, pose(arm_f=-170, weapon=180, torso=-16, head=-12, dy=-2)),
              (2.4, pose())],
 }
 

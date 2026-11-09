@@ -24,4 +24,6 @@ run "Saltbound: 12 bot runs, saves"  python3 tools/saltbound-sim.py 12 normal --
 run "Board Brawl: bot games"         python3 tools/brawl-check.py
 run "Frag Arena: server checks"      python3 tools/arena-check.py
 run "Song Guesser: arrangements"     node tools/song-guesser-check.js
+run "Kingfall: geometry parity"      node tools/kingfall-parity.mjs
+run "Kingfall: bot fights"           python3 tools/kingfall-sim.py --fast
 exit $fail

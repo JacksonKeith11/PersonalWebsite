@@ -78,13 +78,25 @@ export class HeroView {
 
 let swingSeq = Math.floor(Math.random() * 1e6);
 
+// an attack shape stretched by the hero's reach
+function reach(shape, k) {
+  if (k === 1) return shape;
+  const s = { ...shape };
+  for (const key of ['r', 'x1', 'x']) if (s[key] != null) s[key] *= k;
+  return s;
+}
+
 export class LocalHero {
   constructor(scene, h, dev, data, x, y) {
     this.h = h; this.id = h.id; this.dev = dev;
     this.W = data.weapons[h.weapon]; this.HERO = data.hero;
+    this.S = h.stats || {};   // the hero's build: see app/kingfall/build.py, Build.client
+    const S = this.S;
+    this.maxSt = S.stamina || this.HERO.stamina;
     this.view = new HeroView(scene, h, this.W, this.HERO);
     this.x = x; this.y = y; this.aim = -Math.PI / 2;
-    this.st = this.HERO.stamina; this.stWait = 0;
+    this.st = this.maxSt; this.stWait = 0;
+    this.perfects = new Set();
     this.focus = 40;
     this.state = 'idle'; this.t = 0; this.anT = 0;
     this.combo = 0; this.comboWait = 0; this.queued = null;
@@ -114,8 +126,9 @@ export class LocalHero {
   invulnerable() {
     if (this.state !== 'roll') return false;
     const [a, b] = this.HERO.roll.iframes;
-    return this.t >= a && this.t <= b;
+    return this.t >= a && this.t <= b + (this.S.iframes || 0);
   }
+  specialCost() { return this.W.special.focus * (this.S.special_cost || 1); }
 
   spend(n) {
     if (this.st <= 0) return false;
@@ -129,7 +142,7 @@ export class LocalHero {
     const H = this.HERO, W = this.W;
     this.t += dt; this.anT += dt;
     this.flash = Math.max(0, this.flash - dt);
-    if (this.stWait > 0) this.stWait -= dt; else this.st = Math.min(H.stamina, this.st + H.st_regen * dt);
+    if (this.stWait > 0) this.stWait -= dt; else this.st = Math.min(this.maxSt, this.st + H.st_regen * (this.S.st_regen || 1) * dt);
     if (this.down || this.dead) { this.state = this.dead ? 'dead' : 'down'; this.vx = this.vy = 0; return; }
     if (!d) { this.vx = this.vy = 0; if (!['idle', 'run'].includes(this.state)) this.state = 'idle'; return; }
 
@@ -152,7 +165,7 @@ export class LocalHero {
     if (want !== null && !busy) this.aim = want;
 
     const move = d.move;
-    let speed = H.speed;
+    let speed = H.speed * (this.S.speed || 1);
     const setState = s => { this.state = s; this.t = 0; this.anT = 0; };
 
     // knockback slides you whatever you're doing
@@ -171,7 +184,10 @@ export class LocalHero {
         const R = H.roll, u = this.t / R.dur;
         const sp = R.dist / R.dur * (u < 0.75 ? 1.15 : 0.45);
         this.x += Math.cos(this.rollDir) * sp * dt; this.y += Math.sin(this.rollDir) * sp * dt;
-        if (this.t >= R.dur) setState('idle');
+        if (this.t >= R.dur) {
+          setState('idle');
+          if (this.S.dodge) ctx.send({ t: 'dodge', h: this.id, x0: Math.round(this.rollFrom[0]), y0: Math.round(this.rollFrom[1]), x1: Math.round(this.x), y1: Math.round(this.y) });
+        }
         speed = 0;
         break;
       }
@@ -203,19 +219,19 @@ export class LocalHero {
       }
       case 'charge':
         this.charge = Math.min(W.heavy.charge, this.charge + dt);
-        speed = H.speed * 0.25;
+        speed = H.speed * (this.S.speed || 1) * 0.25;
         if (!d.held('heavy')) {
           if (this.spend(W.heavy.st)) { this.chargeU = this.charge / W.heavy.charge; this.startAttack('heavy'); }
           else setState('idle');
         } else if (d.pressed('dodge')) this.tryRoll(move);
         break;
       case 'drink':
-        speed = H.speed * H.flask.speed;
+        speed = H.speed * (this.S.speed || 1) * H.flask.speed;
         if (this.t >= H.flask.dur) setState('idle');
         if (d.pressed('dodge')) this.tryRoll(move);
         break;
       case 'block':
-        speed = H.speed * W.guard.speed;
+        speed = H.speed * (this.S.speed || 1) * W.guard.speed;
         if (!d.held('block')) setState('idle');
         else if (d.pressed('dodge')) this.tryRoll(move);
         break;
@@ -226,7 +242,7 @@ export class LocalHero {
         if (d.pressed('dodge')) { this.tryRoll(move); break; }
         if (d.pressed('light')) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (d.pressed('heavy') && this.st > 0) { setState('charge'); this.charge = 0; break; }
-        if (d.pressed('special') && this.focus >= W.special.focus) { this.focus -= W.special.focus; this.startAttack('special'); break; }
+        if (d.pressed('special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special'); break; }
         if (d.held('block') && W.guard.kind === 'block') { setState('block'); this.blockT = 0; break; }
         if (d.pressed('heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
       }
@@ -237,7 +253,7 @@ export class LocalHero {
     const fallen = ctx.allies.find(a => a.down && !a.dead && Math.hypot(a.x - this.x, a.y - this.y) < 30);
     if (fallen && d.held('interact') && ['idle', 'run'].includes(this.state)) {
       this.reviving = fallen.id; this.reviveT += dt; speed = 0;
-      if (this.reviveT >= H.down.revive) { ctx.send({ t: 'revive', h: this.id, who: fallen.id }); this.reviveT = 0; }
+      if (this.reviveT >= H.down.revive * (this.S.revive_time || 1)) { ctx.send({ t: 'revive', h: this.id, who: fallen.id }); this.reviveT = 0; }
     } else { this.reviving = null; this.reviveT = 0; }
 
     this.vx = move.x * speed; this.vy = move.y * speed;
@@ -247,7 +263,8 @@ export class LocalHero {
   }
 
   tryRoll(move) {
-    if (!this.spend(this.HERO.roll.st)) return;
+    if (!this.spend(this.HERO.roll.st * (this.S.roll_st || 1))) return;
+    this.rollFrom = [this.x, this.y];
     this.rollDir = move.x || move.y ? Math.atan2(move.y, move.x) : this.aim;
     if (move.x || move.y) this.aim = this.rollDir;
     this.state = 'roll'; this.t = 0; this.anT = 0; this.queued = null;
@@ -268,7 +285,7 @@ export class LocalHero {
   checkHit(atk, ctx) {
     const b = ctx.boss;
     if (!b.alive || this.swing.hit || this.t < atk.hit[0] || this.t > atk.hit[1]) return;
-    const s = placeAttack(atk.shape, this.x, this.y, this.aim);
+    const s = placeAttack(reach(atk.shape, this.S.reach || 1), this.x, this.y, this.aim);
     if (!touches(s, b.x, b.y, b.r)) return;
     this.swing.hit = true;
     const kind = this.state === 'atk' ? 'light' : this.state;
@@ -282,9 +299,9 @@ export class LocalHero {
     const W = this.W;
     if (this.state === 'block' && !h.unblock) {
       const toBoss = Math.atan2(bossY - this.y, bossX - this.x);
-      if (Math.abs(wrap(toBoss - this.aim)) <= W.guard.arc * Math.PI / 180) {
+      if (Math.abs(wrap(toBoss - this.aim)) <= W.guard.arc * (this.S.guard_arc || 1) * Math.PI / 180) {
         if (this.blockT <= W.guard.parry && !h.noparry) return 'parry';
-        const cost = h.dmg * W.guard.st_per_dmg;
+        const cost = h.dmg * W.guard.st_per_dmg * (this.S.block_st || 1);
         if (this.st >= cost * 0.5) { this.st -= cost; this.stWait = this.HERO.st_delay; return 'block'; }
       }
     }

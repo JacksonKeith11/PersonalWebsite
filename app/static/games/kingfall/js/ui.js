@@ -12,11 +12,16 @@ export { esc };
 const ui = () => document.getElementById('ui');
 let focused = null;
 
+// a stable name for a focusable element, so a redraw can put the focus back where it was
+const keyOf = e => e.id ? '#' + e.id : [...e.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-nav' && a.name !== 'data-lr').map(a => `${a.name}=${a.value}`).join('&');
+
 export function show(html) {
   const el = ui();
+  const was = focused && el.contains(focused) ? keyOf(focused) : null;
   el.innerHTML = html;
   focused = null;
-  const first = el.querySelector('[data-autofocus]') || el.querySelector('[data-nav]');
+  const again = was && [...el.querySelectorAll('[data-nav]')].find(e => keyOf(e) === was);
+  const first = again || el.querySelector('[data-autofocus]') || el.querySelector('[data-nav]');
   if (first) setFocus(first, false);
   return el;
 }
@@ -128,7 +133,7 @@ export function updateHud(scene) {
     const c = document.getElementById('card-' + l.id);
     if (!c) continue;
     const st = c.querySelector('.bar.st i'), fo = c.querySelector('.bar.fo i');
-    if (st) st.style.width = pct(l.st, l.HERO.stamina);
+    if (st) st.style.width = pct(l.st, l.maxSt);
     if (fo) fo.style.width = pct(l.focus, l.HERO.focus);
   }
   const lh = document.querySelector('.lockhint');

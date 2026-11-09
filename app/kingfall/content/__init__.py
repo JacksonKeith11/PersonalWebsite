@@ -21,4 +21,9 @@ SCALE_POISE = (1.0, 1.4, 1.8, 2.2)
 
 
 def client():
-    return {"bosses": BOSSES, "weapons": WEAPONS, "hero": HERO}
+    from .upgrades import UPGRADES, VOWS, describe
+    from ..build import ATTR_NAMES, ATTR_TEXT
+    ups = {u["id"]: {"name": u["name"], "vow": u["vow"], "slot": u["slot"], "pact": u["pact"], "weapon": u["weapon"],
+                     "duo": bool(u["needs"]), "text": {r: describe(u["id"], r) for r in ("common", "rare", "epic")}} for u in UPGRADES.values()}
+    return {"bosses": BOSSES, "weapons": WEAPONS, "hero": HERO, "upgrades": ups, "vows": VOWS,
+            "attrs": [[k, ATTR_NAMES[k], ATTR_TEXT[k]] for k in ATTR_NAMES]}

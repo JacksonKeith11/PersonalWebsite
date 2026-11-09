@@ -22,7 +22,7 @@ def page():
 def enter(hello, queue):
     if str(hello.get("v")) != VERSION:
         raise Refused({"t": "reload"})
-    room = R.ROOMS.new(R.Room) if hello.get("create") else R.ROOMS.find(hello.get("room"))
+    room = R.ROOMS.new(lambda code: R.Room(code, bool(hello.get("debug")))) if hello.get("create") else R.ROOMS.find(hello.get("room"))
     if room is None:
         raise Refused({"t": "error", "msg": "There's no room with that code."})
     return room, room.join(queue, hello.get("token"), hello.get("tab"))

@@ -2,18 +2,27 @@
 run (fights, then the Bonfire between them). Rooms by four-letter code (app/rooms.py)."""
 
 import asyncio
+import random
 import logging
 import time
 
 from ..rooms import Codes, clean, push
 from . import content as C
+from .build import ATTRS, Build
+from .content.upgrades import UPGRADES, offer as draw_offer
 from .fight import TICK, Fight
 
 log = logging.getLogger("kingfall")
 ROOMS = Codes(keep=30 * 60)
 MAX_HEROES = 4
 LOOKS = ("knight", "pilgrim", "hunter", "sellsword")
-RUN = ["corvin"]  # the bosses a run fights, in order (the full game draws them by tier)
+# A run: two bosses from each tier, then a final. Only bosses that exist (content.BOSSES) are drawn,
+# so tiers with none yet are skipped.
+POOLS = {1: ["corvin", "mire", "bellwarden"], 2: ["headsmen", "wolf", "alchemist", "wyrm"], 3: ["mirror", "bastion", "moth"],
+         4: ["king", "drake"]}
+TIERS = [1, 1, 2, 2, 3, 3, 4]
+SHOP = {"reroll": 30, "flask": 120, "ember": 150}
+SWAP_AFTER = (2, 4)  # the weapon shrine is lit at the Bonfires after these fights
 
 
 class Hero:
@@ -24,24 +33,36 @@ class Hero:
         self.name, self.look, self.weapon, self.colour = name, look, weapon, colour
         self.level = 1
         self.attrs = {"vig": 0, "end": 0, "mig": 0, "fin": 0, "arc": 0}
-        self.ups = []
-        self.flasks = C.HERO["flask"]["charges"]
+        self.ups = []           # [(upgrade id, rarity)]
+        self.points = 0         # attribute points to spend
+        self.offer = []         # upgrade cards on offer at the Bonfire
+        self.picks = 0          # upgrades still to choose
+        self.ready = False
+        self.swap = False       # may change weapon at this Bonfire
+        self._build = None
+        self.flasks = self.build().stats["flasks"]
         self.hp = self.mhp()
         self.second_wind = True
 
+    def build(self):
+        if self._build is None: self._build = Build(self.attrs, self.ups)
+        return self._build
+
+    def changed(self):
+        self._build = None
+
     def mhp(self):
-        return C.HERO["hp"] + 12 * self.attrs["vig"]
+        return max(20, round(self.build().stats["mhp"]))
 
-    def might(self):
-        return 1.0 + 0.06 * self.attrs["mig"]
-
-    def guard_mult(self):
-        return 1.0
+    def max_flasks(self):
+        return self.build().stats["flasks"]
 
     def wire(self):
         return {"id": self.id, "conn": self.conn.id, "slot": self.slot, "name": self.name, "look": self.look,
                 "weapon": self.weapon, "colour": self.colour, "level": self.level, "attrs": self.attrs,
-                "hp": self.hp, "mhp": self.mhp(), "flasks": self.flasks}
+                "hp": self.hp, "mhp": self.mhp(), "flasks": self.flasks, "maxflasks": self.max_flasks(), "ups": self.ups,
+                "points": self.points, "offer": self.offer, "picks": self.picks, "ready": self.ready, "swap": self.swap,
+                "stats": self.build().client()}
 
 
 class Conn:
@@ -55,8 +76,9 @@ class Conn:
 
 
 class Room:
-    def __init__(self, code):
+    def __init__(self, code, debug=False):
         self.code = code
+        self.debug = debug
         self.epoch = time.monotonic()
         self.conns = {}
         self.heroes = {}
@@ -68,6 +90,10 @@ class Room:
         self.task = None
         self.empty_since = None
         self.result = None
+        self.run = []
+        self.coins = 0
+        self.bought = {}
+        self.rng = random.Random()
 
     def now(self):
         return time.monotonic() - self.epoch
@@ -124,7 +150,8 @@ class Room:
             self.send(c, msg)
 
     def lobby_wire(self):
-        return {"t": "lobby", "state": self.state, "host": self.host, "stage": self.stage, "of": len(RUN),
+        return {"t": "lobby", "state": self.state, "host": self.host, "stage": self.stage, "of": len(self.run), "run": self.run,
+                "coins": self.coins, "prices": self.prices(),
                 "heroes": [h.wire() for h in sorted(self.heroes.values(), key=lambda h: h.id)],
                 "conns": [c.id for c in self.conns.values() if c.connected], "result": self.result}
 
@@ -159,6 +186,10 @@ class Room:
             self.broadcast(self.lobby_wire())
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:
             self.start_run()
+        elif self.state == "bonfire" and h:
+            self.bonfire(h, t, msg)
+        elif t == "debugwin" and self.debug and self.fight:
+            self.fight.hp = 0; self.fight.die(now)
         elif self.fight and h:
             f = self.fight
             if t == "st": f.report(h.id, msg)
@@ -166,20 +197,77 @@ class Room:
             elif t == "hurt": f.hurt(h.id, msg, now)
             elif t == "drink": f.drink(h.id, now)
             elif t == "revive": f.revive(h.id, msg.get("who"), now)
+            elif t == "dodge": f.dodged(h.id, msg, now)
+            elif t == "perfect": f.perfect(h.id, now)
+
+    # ------------------------------------------------------------------ the Bonfire
+    def prices(self):
+        return {k: v + (60 * self.bought.get(k, 0) if k != "reroll" else 0) for k, v in SHOP.items()}
+
+    def bonfire(self, h, t, msg):
+        if t == "attr" and h.points > 0 and msg.get("a") in ATTRS:
+            h.attrs[msg["a"]] += 1; h.points -= 1; h.changed()
+            h.hp = h.mhp()
+        elif t == "pick" and h.offer and isinstance(msg.get("i"), int) and 0 <= msg["i"] < len(h.offer):
+            uid, rarity = h.offer[msg["i"]]
+            slot = UPGRADES[uid]["slot"]
+            if slot: h.ups = [(u, r) for u, r in h.ups if UPGRADES[u]["slot"] != slot]
+            h.ups.append((uid, rarity))
+            h.picks -= 1
+            h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage) if h.picks > 0 else []
+            h.changed(); h.hp = h.mhp(); h.flasks = h.max_flasks()
+        elif t == "buy" and msg.get("item") in SHOP:
+            item, price = msg["item"], self.prices()[msg["item"]]
+            if self.coins < price: return
+            if item == "reroll":
+                if not h.offer: return
+                h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
+            elif item == "flask":
+                h.ups.append(("any_flask", "common")); h.changed(); h.flasks = h.max_flasks()
+            elif item == "ember":
+                h.picks += 1
+                if not h.offer: h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
+            self.coins -= price
+            if item != "reroll": self.bought[item] = self.bought.get(item, 0) + 1
+        elif t == "weapon" and h.swap and msg.get("weapon") in C.WEAPONS and msg["weapon"] != h.weapon:
+            h.weapon = msg["weapon"]
+            h.ups = [(u, r) for u, r in h.ups if not UPGRADES[u]["weapon"]]  # the old weapon's Arts go with it
+            h.changed(); h.swap = False
+        elif t == "ready":
+            h.ready = bool(msg.get("on", True))
+        else:
+            return
+        if all(x.ready for x in self.heroes.values()):
+            self.start_fight()
+            return
+        self.broadcast(self.lobby_wire())
 
     # ------------------------------------------------------------------ the run
     def start_run(self):
         self.stage = 0
         self.result = None
+        self.coins = 0
+        self.bought = {}
+        used = set()
+        self.run = []
+        for tier in TIERS:
+            pool = [b for b in POOLS[tier] if b in C.BOSSES and b not in used]
+            if pool:
+                b = self.rng.choice(pool)
+                used.add(b); self.run.append(b)
         for h in self.heroes.values():
-            h.flasks = C.HERO["flask"]["charges"]
+            h.level, h.points, h.picks, h.offer, h.ups, h.ready = 1, 0, 0, [], [], False
+            h.attrs = {a: 0 for a in ATTRS}
+            h.changed()
+            h.flasks = h.max_flasks()
             h.hp = h.mhp()
             h.second_wind = True
         self.start_fight()
 
     def start_fight(self):
         self.state = "fight"
-        self.fight = Fight(self, RUN[self.stage], list(self.heroes.values()), self.now())
+        for h in self.heroes.values(): h.ready = False
+        self.fight = Fight(self, self.run[self.stage], list(self.heroes.values()), self.now())
         self.broadcast(self.lobby_wire())
         self.broadcast(self.fight.start_wire())
         if not self.task:
@@ -209,14 +297,23 @@ class Room:
             self.task = None
 
     def end_fight(self, won):
+        tier = C.BOSSES[self.run[self.stage]]["tier"]
         self.fight = None
-        if won and self.stage + 1 < len(RUN):
+        if won and self.stage + 1 < len(self.run):
             self.stage += 1
             self.state = "bonfire"
+            self.coins += 60 + 40 * tier
+            for h in self.heroes.values():
+                h.level += 1
+                h.points += 1
+                h.picks += 1
+                h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
+                h.swap = self.stage in SWAP_AFTER
+                h.ready = False
         else:
             self.state = "over"
             self.result = "won" if won else "lost"
         for h in self.heroes.values():
             h.hp = h.mhp()
-            h.flasks = C.HERO["flask"]["charges"]
+            h.flasks = h.max_flasks()
         self.broadcast(self.lobby_wire())

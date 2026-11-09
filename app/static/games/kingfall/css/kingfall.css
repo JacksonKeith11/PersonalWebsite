@@ -83,3 +83,25 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 
 #status { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); background: #2a1a1ae0; border: 1px solid #6a2a2a; padding: 6px 14px; font-size: 13px; z-index: 10; }
 @media (max-width: 600px) { .controls { grid-template-columns: 1fr; } .screen { padding: 20px 16px; } .card { width: 170px; } }
+
+/* the Bonfire */
+.screen.bonfire { width: min(1180px, 100%); }
+.coins { font: 700 26px var(--serif); color: var(--gold2); } .coins small { font: 500 12px var(--sans); color: var(--dim); }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-top: 14px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--c); padding: 12px 14px; border-radius: 3px; }
+.pname { font: 700 18px var(--serif); margin-right: 8px; }
+.attrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.btn.attr { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 7px 10px; }
+.btn.attr small { color: var(--dim); font-weight: 400; font-size: 11px; }
+.cards-up { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 760px) { .cards-up { grid-template-columns: 1fr; } }
+.card-up { display: flex; flex-direction: column; gap: 4px; text-align: left; background: #120f17; border: 1px solid var(--line); border-top: 3px solid var(--v);
+  padding: 9px 10px; border-radius: 3px; cursor: pointer; min-height: 120px; }
+.card-up:hover, .card-up.focus { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; outline: none; }
+.up-top { display: flex; justify-content: space-between; gap: 6px; } .up-top b { font: 700 14px var(--serif); }
+.up-top i { font-style: normal; font-size: 11px; color: var(--r); text-transform: uppercase; letter-spacing: .08em; }
+.up-kind { font-size: 11px; color: var(--v); text-transform: uppercase; letter-spacing: .08em; }
+.up-text { font-size: 13px; color: var(--text); }
+.up-rep { font-size: 11px; color: #e0a070; margin-top: auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--r); border-radius: 10px; color: var(--text); }

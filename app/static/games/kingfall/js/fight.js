@@ -136,7 +136,7 @@ export class FightScene extends Phaser.Scene {
       case 'hit': case 'crit':
         B.flash = 0.07;
         this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : '#f4f0e0', m.k === 'crit');
-        if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg);
+        if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg * (mine.S.focus_gain || 1) + (mine.state === 'special' ? mine.S.focusback || 0 : 0));
         if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); }
         else if (!mine) sfx.hit(this.pan(B.x));
         break;
@@ -144,6 +144,17 @@ export class FightScene extends Phaser.Scene {
         sfx.guarded(this.pan(B.x)); this.burst(B.x + Math.cos(B.face) * 18, B.y - 30, 0xffffff, 8);
         if (mine) mine.h && (mine.flash = 0);
         this.number(B.x, B.y - 74, 'Guarded', '#a8b0bc');
+        break;
+      case 'status': {
+        const col = { burn: '#ff8a3a', frost: '#7fe3ff', bleed: '#e04a5a', rot: '#8be04e' }[m.kind];
+        this.number(B.x, B.y - 92, m.kind.toUpperCase() + (m.dmg ? ' ' + m.dmg : ''), col, true);
+        this.burst(B.x, B.y - 40, Phaser.Display.Color.HexStringToColor(col).color, 22);
+        sfx.fire(this.pan(B.x));
+        break;
+      }
+      case 'dot': this.number(B.x + 14, B.y - 60, m.dmg, '#8be04e'); break;
+      case 'chain':
+        this.bolt(B.x, B.y - 40); sfx.clang(this.pan(B.x));
         break;
       case 'immune': this.number(B.x, B.y - 74, 'Immune', '#a8b0bc'); break;
       case 'stagger':
@@ -180,6 +191,16 @@ export class FightScene extends Phaser.Scene {
       stroke: '#120e16', strokeThickness: 3, resolution: this.cfg.zoom(),
     }).setOrigin(0.5).setDepth(7000);
     this.texts.push({ t, life: 0.9, vy: -28 });
+  }
+
+  bolt(x, y) {
+    const g = this.add.graphics().setDepth(6500);
+    g.lineStyle(2, 0xd8ccff, 1);
+    let px = x + (Math.random() - 0.5) * 20, py = y - 60;
+    g.beginPath(); g.moveTo(px, py);
+    for (let i = 0; i < 6; i++) { px = x + (Math.random() - 0.5) * 16; py += 10; g.lineTo(px, py); }
+    g.strokePath();
+    this.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
   }
 
   burst(x, y, colour, n) {
@@ -223,6 +244,11 @@ export class FightScene extends Phaser.Scene {
     // the boss's hits against this browser's heroes (the dodger decides)
     for (const l of this.local) {
       B.checkHero(now, l, (h, id, bx, by) => {
+        if (l.invulnerable() && !l.perfects.has(id)) {  // rolled clean through it
+          l.perfects.add(id);
+          if (l.S.perfect_st) { l.st = Math.min(l.maxSt, l.st + l.S.perfect_st); this.number(l.x, l.y - 50, 'Perfect', '#fff0c0'); }
+          this.net.send({ t: 'perfect', h: l.id });
+        }
         const r = l.takeHit(h, bx, by);
         if (!r) return false;
         this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' ? 1 : 0, parry: r === 'parry' ? 1 : 0 });

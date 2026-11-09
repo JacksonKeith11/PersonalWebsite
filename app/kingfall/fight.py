@@ -18,6 +18,8 @@ TICK = 1 / 30
 STAGGER = 2.6        # seconds a broken-poise boss reels
 POISE_REGEN = (3.0, 25.0)  # after this long without poise damage, it refills at this rate
 INTRO = 2.2
+STATUSES = ("burn", "frost", "bleed", "rot")
+STATUS_LIVE = 4.0    # a burst marks the boss as burning/frozen/... for this long
 ARENAS = {"chapel": {"w": 800, "h": 480, "pad": (48, 70, 48, 40)}}  # left, top, right, bottom walls
 
 
@@ -58,6 +60,10 @@ class FHero:
         self.threat = 0.0      # recent damage dealt, for the boss's choice of target
         self.last_targeted = 0.0
         self.second_wind = None
+        self.lights = 0
+        self.empowered = None       # (damage mult, until) for the next hit
+        self.vengeance = (1.0, 0.0)
+        self.shield = 0
 
 
 class Fight:
@@ -85,6 +91,15 @@ class Fight:
         self.started = now
         self.over = None          # "won" / "lost"
         self.solo = len(heroes) == 1
+        self.meter = {k: 0.0 for k in STATUSES}   # status buildup on the boss
+        self.procs = {k: 0 for k in STATUSES}
+        self.marked = {k: -99.0 for k in STATUSES}  # when each status last burst
+        self.rot_until = 0.0
+        self.rot_dps = 0.0
+        self.slow_until = 0.0
+        self.tier = self.boss.get("tier", 1)
+        self.rot_blocks_poise = False
+        self.dmg_scale = 1.0     # the difficulty's boss damage
         self.heroes = {}
         for i, h in enumerate(heroes):
             x = self.arena["w"] * (0.5 + (i - (len(heroes) - 1) / 2) * 0.08)
@@ -140,24 +155,124 @@ class Fight:
             if abs(_wrap(ang - aim_at(self.move.aims, now - self.move.start))) < math.radians(75):
                 self.room.broadcast({"t": "fx", "k": "guarded", "x": round(self.x), "y": round(self.y), "h": hid})
                 return
+        b = fh.hero.build()
+        slot = kind
         crit = self.state == "stagger" and kind in ("heavy", "special")
-        dmg = w["base"] * mult * fh.hero.might() * (3.0 if crit else 1.0)
-        dmg = round(dmg)
-        self.hp = max(0, self.hp - dmg)
+        mult *= b.dmg_mult(slot)
+        poise *= b.poise_mult(slot)
+        h = fh.hero
+        if h.hp < h.mhp() * 0.5:
+            for e in b.get("lowhp"): mult *= e["mult"]
+        for e in b.get("vsstatus"):
+            if now - self.marked[e["kind"]] < STATUS_LIVE: mult *= e["mult"]
+        if fh.empowered and now < fh.empowered[1]:
+            mult *= fh.empowered[0]; fh.empowered = None
+        if now < fh.vengeance[1]: mult *= fh.vengeance[0]
+        if any(math.hypot(o.x - fh.x, o.y - fh.y) < 90 for o in self.alive_heroes() if o is not fh):
+            for e in b.get("near"): mult *= e["mult"]
+        if crit:
+            mult *= 3.0
+            for e in b.get("crit"): mult *= e["mult"]
+        dmg = round(w["base"] * mult * C.HERO.get("dmg_scale", 1.0))
+        extra = 0
+        if kind == "light":
+            fh.lights += 1
+            for e in b.get("chain"):
+                if fh.lights % e["every"] == 0:
+                    extra += round(e["dmg"])
+                    for s in b.get("chainstatus"): self.build_status(s["kind"], s["amt"] * b.buildup, now, fh)
+                    for s in b.get("chainheal"): self.heal(fh, s["amt"])
+                    self.room.broadcast({"t": "fx", "k": "chain", "x": round(self.x), "y": round(self.y)})
+        if kind == "special":
+            for e in b.get("specialheal"): self.heal(fh, e["amt"])
+        self.hp = max(0, self.hp - dmg - extra)
         fh.threat += dmg
+        for e in b.get("steal"):
+            if e["slot"] in (slot, "all"): self.heal(fh, dmg * e["frac"])
         if crit:
             self.state, self.until = "idle", now + 0.6  # the critical ends the stagger
             self.poise = self.mpoise
+            for e in b.get("critstatus"):
+                self.build_status("burn", e["amt"], now, fh); self.build_status("rot", e["amt"], now, fh)
         elif self.state != "stagger":
             self.damage_poise(poise, now)
-        self.room.broadcast({"t": "fx", "k": "crit" if crit else "hit", "h": hid, "dmg": dmg, "x": round(self.x), "y": round(self.y)})
+        self.room.broadcast({"t": "fx", "k": "crit" if crit else "hit", "h": hid, "dmg": dmg + extra, "x": round(self.x), "y": round(self.y)})
+        for s in b.status[slot]: self.build_status(s[0], s[1] * b.buildup, now, fh)
         if self.hp <= 0:
             self.die(now)
         elif self.phase == 1 and self.hp <= self.mhp * self.boss["phase2"]:
             self.phase = 2
             self.start_move("phase2", self.boss["phase2_move"], now, cancel=True)
 
+    def heal(self, fh, amt):
+        h = fh.hero
+        if fh.down or fh.dead or amt <= 0: return
+        h.hp = min(h.mhp(), h.hp + max(1, round(amt)))
+
+    def build_status(self, kind, amt, now, fh):
+        """Add buildup; a full meter bursts (and the next takes longer to fill)."""
+        if self.state == "dead" or amt <= 0: return
+        self.meter[kind] += amt
+        need = 100 * 1.4 ** self.procs[kind]
+        if self.meter[kind] < need:
+            return
+        self.meter[kind] = 0
+        self.procs[kind] += 1
+        self.marked[kind] = now
+        b = fh.hero.build()
+        mult = 1.0
+        for e in b.get("statusmult"):
+            if e["kind"] == kind: mult *= e["mult"]
+        for e in b.get("combo"):
+            if e["a"] == kind and now - self.marked[e["b"]] < STATUS_LIVE: mult *= e["mult"]
+        scale = 1 + 0.25 * (self.tier - 1)
+        dmg = 0
+        if kind == "burn":
+            dmg = round(70 * scale * mult)
+        elif kind == "bleed":
+            dmg = round(95 * scale * mult)
+        elif kind == "frost":
+            self.slow_until = now + STATUS_LIVE
+            if any(True for _ in b.get("frostbreak")) and self.hp < self.mhp * 0.5:
+                self.damage_poise(self.poise + 1, now)
+            else:
+                self.damage_poise(50 * mult * (self.mpoise / self.boss["poise"]) ** 0.5, now)
+            dmg = round(20 * scale)
+        elif kind == "rot":
+            self.rot_until = now + 5.0
+            self.rot_dps = 26 * scale * mult
+            self.rot_blocks_poise = any(True for _ in b.get("vsstatus_poise"))
+        for e in b.get("procbuild"):
+            if e["on"] == kind: self.build_status(e["kind"], e["amt"], now, fh)
+        if dmg:
+            self.hp = max(1 if self.hp > 0 else 0, self.hp - dmg)
+        self.room.broadcast({"t": "fx", "k": "status", "kind": kind, "dmg": dmg, "x": round(self.x), "y": round(self.y)})
+
+    def dodged(self, hid, msg, now):
+        """A hero rolled; if they rolled past the boss, their dodge upgrades build statuses."""
+        fh = self.heroes.get(hid)
+        if not fh or fh.down or fh.dead: return
+        try:
+            x0, y0, x1, y1 = (float(msg.get(k)) for k in ("x0", "y0", "x1", "y1"))
+        except (TypeError, ValueError):
+            return
+        dx, dy = x1 - x0, y1 - y0
+        L = max(1e-6, dx * dx + dy * dy)
+        u = max(0.0, min(1.0, ((self.x - x0) * dx + (self.y - y0) * dy) / L))
+        if math.hypot(x0 + dx * u - self.x, y0 + dy * u - self.y) > 50 + self.boss["radius"]: return
+        b = fh.hero.build()
+        for e in b.get("dodge"): self.build_status(e["kind"], e["amt"] * b.buildup, now, fh)
+
+    def perfect(self, hid, now):
+        """A hero's roll carried them through a hit (their browser says)."""
+        fh = self.heroes.get(hid)
+        if not fh: return
+        for e in fh.hero.build().get("perfect"):
+            fh.empowered = (e["dmg"], now + 2.0)
+            if e.get("heal"): self.heal(fh, e["heal"])
+
     def damage_poise(self, amount, now):
+        if self.rot_until > now and self.rot_blocks_poise: amount *= 1.25
         self.poise -= amount
         self.poise_hit = now
         if self.poise <= 0 and self.state != "stagger" and not (self.move and self.move.data.get("invuln")):
@@ -178,14 +293,26 @@ class Fight:
         if not (hit["t0"] - 0.6 <= t <= hit["t1"] + 0.8): return
         fh.hits_taken.add(key)
         if len(fh.hits_taken) > 300: fh.hits_taken = set(list(fh.hits_taken)[-150:])
+        b = fh.hero.build()
+        if msg.get("parry") or msg.get("block"):
+            for e in b.get("guard_status"): self.build_status(e["kind"], e["amt"] * b.buildup, now, fh)
         if msg.get("parry"):
             self.damage_poise(60 * (self.mpoise / self.boss["poise"]) ** 0.5, now)
+            for e in b.get("parry"): fh.empowered = (e["mult"], now + 3.0)
+            for e in b.get("parryheal"): self.heal(fh, e["amt"])
+            for e in b.get("parrybolt"):
+                self.hp = max(1, self.hp - round(e["dmg"]))
+                self.room.broadcast({"t": "fx", "k": "chain", "x": round(self.x), "y": round(self.y)})
+            for o in self.heroes.values():
+                for e in o.hero.build().get("allyparry"): o.empowered = (e["mult"], now + 3.0)
             self.room.broadcast({"t": "fx", "k": "parry", "h": hid, "x": round(fh.x), "y": round(fh.y)})
             return
-        dmg = hit["dmg"] * fh.hero.guard_mult()
         if msg.get("block"):
             self.room.broadcast({"t": "fx", "k": "block", "h": hid, "x": round(fh.x), "y": round(fh.y)})
             return
+        dmg = hit["dmg"] * self.dmg_scale
+        if fh.shield:
+            soak = min(fh.shield, dmg); fh.shield -= soak; dmg -= soak
         fh.heal_at = None  # a hit spills the drink
         h = fh.hero
         h.hp = max(0, h.hp - round(dmg))
@@ -208,6 +335,9 @@ class Fight:
     def knock_down(self, fh, now):
         fh.down = True
         fh.heal_at = None
+        for o in self.heroes.values():
+            if o is not fh:
+                for e in o.hero.build().get("ondown"): o.vengeance = (e["mult"], now + e["dur"])
         if self.solo and fh.hero.second_wind:
             fh.hero.second_wind = False
             fh.second_wind = now + 2.0
@@ -227,9 +357,12 @@ class Fight:
         if not fh or not other or fh is other or fh.down or fh.dead or not other.down or other.dead: return
         if math.hypot(fh.x - other.x, fh.y - other.y) > 40: return
         d = C.HERO["down"]
-        fh.hero.hp = max(1, fh.hero.hp - round(fh.hero.mhp() * d["cost"]))
+        pacts = fh.hero.build().get("revive")
+        if not any(e.get("free") for e in pacts):
+            fh.hero.hp = max(1, fh.hero.hp - round(fh.hero.mhp() * d["cost"]))
         other.down = False
         other.hero.hp = max(1, round(other.hero.mhp() * d["rise"]))
+        other.shield = round(sum(e.get("shield", 0) for e in pacts))
         self.room.broadcast({"t": "fx", "k": "revive", "h": who, "by": hid, "x": round(other.x), "y": round(other.y)})
 
     # ------------------------------------------------------------------ the boss
@@ -310,8 +443,13 @@ class Fight:
             if f.heal_at and now >= f.heal_at:
                 f.heal_at = None
                 h = f.hero
-                h.hp = min(h.mhp(), h.hp + round(h.mhp() * C.HERO["flask"]["heal"]))
+                amt = h.mhp() * h.build().stats["heal"]
+                h.hp = min(h.mhp(), h.hp + round(amt))
                 self.room.broadcast({"t": "fx", "k": "heal", "h": h.id, "x": round(f.x), "y": round(f.y)})
+                for e in h.build().get("flaskall"):
+                    for o in self.alive_heroes():
+                        if o is not f and math.hypot(o.x - f.x, o.y - f.y) < 70:
+                            self.heal(o, amt * e["frac"])
             if f.down and f.second_wind and now >= f.second_wind:
                 f.second_wind, f.down = None, False
                 f.hero.hp = round(f.hero.mhp() * 0.5)
@@ -326,7 +464,13 @@ class Fight:
             self.room.broadcast({"t": "fx", "k": "wipe"})
             return
         if self.state == "dead": return
-        if self.state != "stagger" and now - self.poise_hit > POISE_REGEN[0]:
+        if self.rot_until > now and self.state != "dead":
+            self.rot_acc = getattr(self, "rot_acc", 0.0) + self.rot_dps * TICK
+            if self.rot_acc >= 10:
+                n = int(self.rot_acc); self.rot_acc -= n
+                self.hp = max(1, self.hp - n)
+                self.room.broadcast({"t": "fx", "k": "dot", "kind": "rot", "dmg": n, "x": round(self.x), "y": round(self.y)})
+        if self.state != "stagger" and now - self.poise_hit > POISE_REGEN[0] and not (self.rot_until > now and self.rot_blocks_poise):
             self.poise = min(self.mpoise, self.poise + POISE_REGEN[1] * TICK)
         if self.state in ("intro", "stagger"):
             if now >= self.until:
@@ -370,7 +514,7 @@ class Fight:
         d = math.hypot(dx, dy)
         self.face = math.atan2(dy, dx)
         if d > 46:
-            sp = self.boss["speed"] * (1.15 if self.phase == 2 else 1.0)
+            sp = self.boss["speed"] * (1.15 if self.phase == 2 else 1.0) * (0.55 if now < self.slow_until else 1.0)
             self.vx, self.vy = dx / d * sp, dy / d * sp
             self.x, self.y = self.clamp(self.x + self.vx * TICK, self.y + self.vy * TICK)
         else:

@@ -7,6 +7,7 @@ import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHu
 import { unlock, sfx } from './audio.js?v=1';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
+const DEBUG = new URLSearchParams(location.search).has('debug');  // ?debug: window.kf, and the host may skip a fight
 const BASE = '/static/games/kingfall/';
 const LOOKS = ['knight', 'pilgrim', 'hunter', 'sellsword'];
 
@@ -48,6 +49,7 @@ function frame() {
   if (!S.scene) navFrame(input);
   if (S.screen === 'lobby') lobbyDevices();
   requestAnimationFrame(frame);
+if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), get net() { return net; } };
 }
 
 function lobbyDevices() {
@@ -67,7 +69,7 @@ function addHero(slot) {
   const used = new Set(S.lobby.heroes.map(h => h.look));
   const look = (slot === 0 && ME.saved.look) || LOOKS.find(l => !used.has(l)) || LOOKS[slot % 4];
   const name = slot === 0 ? (ME.saved.name || 'Wanderer') : `${ME.saved.name || 'Wanderer'} ${slot + 1}`;
-  net.send({ t: 'add', slot, name, look, weapon: 'sword' });
+  net.send({ t: 'add', slot, name, look, weapon: (slot === 0 && ME.saved.weapon) || 'sword' });
   sfx.ui();
 }
 
@@ -77,7 +79,65 @@ function start() { if (S.lobby && S.lobby.heroes.length) net.send({ t: 'start' }
 function render() {
   if (S.scene) return;
   if (S.screen === 'title') return title();
-  if (S.screen === 'lobby') return lobby();
+  if (S.screen === 'lobby') return S.lobby && S.lobby.state === 'bonfire' ? bonfire() : lobby();
+}
+
+// ------------------------------------------------------------------ the Bonfire, between fights
+const RARE_COL = { common: '#b8b0a0', rare: '#4a9ae0', epic: '#c060ff' };
+const SLOT_NAME = { light: 'Light', heavy: 'Heavy', special: 'Special', dodge: 'Dodge', guard: 'Guard' };
+
+function upgradeCard(uid, rarity, i, h) {
+  const U = S.data.upgrades[uid], V = U.vow ? S.data.vows[U.vow] : null;
+  const held = U.slot && h.ups.find(([x]) => S.data.upgrades[x].slot === U.slot);
+  const kind = U.duo ? 'Duo' : U.pact ? 'Pact' : U.weapon ? 'Weapon Art' : U.slot ? SLOT_NAME[U.slot] : 'Passive';
+  return `<button class="card-up" data-nav data-pick="${h.id}:${i}" style="--v:${V ? V.colour : '#c8a040'};--r:${RARE_COL[rarity]}">
+    <span class="up-top"><b>${esc(U.name)}</b><i>${rarity}</i></span>
+    <span class="up-kind">${V ? esc(V.name) + ' · ' : ''}${kind}</span>
+    <span class="up-text">${esc(U.text[rarity])}</span>
+    ${held ? `<span class="up-rep">Replaces ${esc(S.data.upgrades[held[0]].name)}</span>` : ''}
+  </button>`;
+}
+
+function bonfire() {
+  const L = S.lobby, D = S.data, mine = myHeroes();
+  const next = D.bosses[L.run[L.stage]];
+  const others = L.heroes.filter(h => h.conn !== S.me);
+  const el = show(`<div class="screen bonfire">
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div><h2 style="margin:0">The Bonfire</h2><div class="hint">Fight ${L.stage + 1} of ${L.of} next: <b style="color:var(--text)">${esc(next ? next.name : '')}</b></div></div>
+      <div class="coins">${L.coins} <small>coins</small></div>
+    </div>
+    <div class="panels">${mine.map(h => panel(h)).join('')}</div>
+    ${others.length ? `<div class="hint" style="margin-top:12px">${others.map(h => `${esc(h.name)}: ${h.ready ? 'ready' : 'choosing…'}`).join(' · ')}</div>` : ''}
+  </div>`);
+  const send = (t, h, extra = {}) => net.send({ t, h, ...extra });
+  el.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const [h, i] = b.dataset.pick.split(':').map(Number); send('pick', h, { i }); sfx.ui(); });
+  el.querySelectorAll('[data-attr]').forEach(b => b.onclick = () => { const [h, a] = b.dataset.attr.split(':'); send('attr', +h, { a }); });
+  el.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const [h, item] = b.dataset.buy.split(':'); send('buy', +h, { item }); });
+  el.querySelectorAll('[data-weapon]').forEach(b => b.onclick = () => { const [h, w] = b.dataset.weapon.split(':'); send('weapon', +h, { weapon: w }); });
+  el.querySelectorAll('[data-ready]').forEach(b => b.onclick = () => { const h = L.heroes.find(x => x.id === +b.dataset.ready); send('ready', h.id, { on: !h.ready }); });
+}
+
+function panel(h) {
+  const L = S.lobby, D = S.data, W = D.weapons[h.weapon], P = L.prices;
+  const ups = h.ups.map(([u, r]) => `<span class="chip" style="--r:${RARE_COL[r]}" title="${esc(D.upgrades[u].text[r])}">${esc(D.upgrades[u].name)}</span>`).join('');
+  return `<div class="panel" style="--c:${D.colours[h.colour]}">
+    <div class="row"><b class="pname">${esc(h.name)}</b><span class="hint">Level ${h.level} · ${esc(W.name)} · ${h.mhp} health · ${h.maxflasks} flasks</span></div>
+    ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><div class="attrs">${D.attrs.map(([k, name, text]) =>
+      `<button class="btn attr" data-nav data-attr="${h.id}:${k}"><b>${name} ${h.attrs[k]}</b><small>${text}</small></button>`).join('')}</div>` : ''}
+    ${h.offer.length ? `<h3>Choose a blessing${h.picks > 1 ? ` (${h.picks})` : ''}</h3><div class="cards-up">${h.offer.map(([u, r], i) => upgradeCard(u, r, i, h)).join('')}</div>` : ''}
+    ${h.swap ? `<h3>The weapon shrine</h3><div class="row">${Object.values(D.weapons).map(w =>
+      `<button class="btn" data-nav data-weapon="${h.id}:${w.id}" ${w.id === h.weapon ? 'disabled' : ''}>${esc(w.name)}</button>`).join('')}</div><div class="hint">Changing weapon keeps your blessings but loses your Weapon Arts.</div>` : ''}
+    <h3>Shop</h3><div class="row">
+      ${h.offer.length ? `<button class="btn" data-nav data-buy="${h.id}:reroll" ${L.coins < P.reroll ? 'disabled' : ''}>Reroll (${P.reroll})</button>` : ''}
+      <button class="btn" data-nav data-buy="${h.id}:flask" ${L.coins < P.flask ? 'disabled' : ''}>+1 flask (${P.flask})</button>
+      <button class="btn" data-nav data-buy="${h.id}:ember" ${L.coins < P.ember ? 'disabled' : ''}>Extra blessing (${P.ember})</button>
+    </div>
+    ${ups ? `<h3>Blessings</h3><div class="chips">${ups}</div>` : ''}
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ${h.ready ? '' : 'primary'}" data-nav data-ready="${h.id}" ${!h.ready && (h.points || h.offer.length) ? 'title="You can still spend points and choose a blessing"' : ''}>${h.ready ? 'Not ready' : 'Ready'}</button>
+    </div>
+  </div>`;
 }
 
 function title() {
@@ -103,7 +163,7 @@ function title() {
     </div>
   </div>`);
   const name = () => { const n = $('#name').value.trim().slice(0, 16); ME.saved.name = n; ME.save(); return n; };
-  $('#create').onclick = () => { unlock(); name(); connect({ create: 1 }); };
+  $('#create').onclick = () => { unlock(); name(); connect({ create: 1, debug: DEBUG ? 1 : 0 }); };
   $('#join').onclick = () => {
     unlock(); name();
     const code = $('#code').value.trim().toUpperCase();
@@ -146,7 +206,9 @@ function lobby() {
     const info = document.createElement('div');
     info.innerHTML = `<div class="name">${esc(h.name)}</div>
       <div class="sub">${own ? (h.slot === 0 ? 'Keyboard & mouse' : padName('pad' + (h.slot - 1))) : 'Online'} · ${esc(LOOK_NAMES[h.look])} · ${esc(W.name)}</div>
-      ${own && !over ? `<div style="margin-top:6px"><span class="pick"><button class="btn" data-nav data-lr data-look="${h.id}">◀ ${esc(LOOK_NAMES[h.look])} ▶</button></span></div>` : ''}`;
+      ${own && !over ? `<div style="margin-top:6px"><span class="pick"><button class="btn" data-nav data-lr data-look="${h.id}">◀ ${esc(LOOK_NAMES[h.look])} ▶</button></span>
+        <span class="pick"><button class="btn" data-nav data-lr data-weap="${h.id}">◀ ${esc(W.name)} ▶</button></span></div>
+        <div class="hint" style="margin-top:4px">${esc(W.blurb || '')}</div>` : ''}`;
     row.appendChild(info);
     const right = document.createElement('div');
     if (own && !over) right.innerHTML = `<button class="btn" data-nav data-drop="${h.id}">Remove</button>`;
@@ -159,6 +221,17 @@ function lobby() {
       const next = LOOKS[(LOOKS.indexOf(h.look) + dir + 4) % 4];
       if (h.slot === 0) { ME.saved.look = next; ME.save(); }
       net.send({ t: 'set', h: h.id, look: next });
+    };
+    b.onclick = () => cycle(1);
+    b.addEventListener('lr', e => cycle(e.detail));
+  });
+  el.querySelectorAll('[data-weap]').forEach(b => {
+    const ids = Object.keys(data.weapons);
+    const cycle = dir => {
+      const h = L.heroes.find(x => x.id === +b.dataset.weap);
+      const next = ids[(ids.indexOf(h.weapon) + dir + ids.length) % ids.length];
+      if (h.slot === 0) { ME.saved.weapon = next; ME.save(); }
+      net.send({ t: 'set', h: h.id, weapon: next });
     };
     b.onclick = () => cycle(1);
     b.addEventListener('lr', e => cycle(e.detail));
@@ -234,3 +307,4 @@ function endFight() {
 }
 
 requestAnimationFrame(frame);
+if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), get net() { return net; } };

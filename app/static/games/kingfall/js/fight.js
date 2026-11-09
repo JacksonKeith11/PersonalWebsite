@@ -1,12 +1,13 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=4';
-import { LocalHero, RemoteHero } from './hero.js?v=4';
-import { Boss } from './boss.js?v=4';
-import { drawArena } from './arenas.js?v=4';
-import { sfx } from './audio.js?v=4';
-import { music } from './music.js?v=4';
-import { deviceOfSlot } from './input.js?v=4';
+import { addFrames } from './rig.js?v=5';
+import { LocalHero, RemoteHero } from './hero.js?v=5';
+import { Boss } from './boss.js?v=5';
+import { drawArena } from './arenas.js?v=5';
+import { sfx } from './audio.js?v=5';
+import { music } from './music.js?v=5';
+import { deviceOfSlot } from './input.js?v=5';
+import { orb, arrow, impact } from './fx.js?v=5';
 
 const INTERP = 0.1;
 
@@ -68,13 +69,16 @@ export class FightScene extends Phaser.Scene {
     Object.assign(this.byId, this.remote);
     this.heroRows = {};
     this.texts = [];
-    this.sparks = this.add.graphics().setDepth(6000);
-    this.shotG = this.add.graphics().setDepth(5600);
+    this.sparks = this.add.graphics().setDepth(6000).setBlendMode(Phaser.BlendModes.ADD);
+    this.shotG = this.add.graphics().setDepth(5600);                                         // arrows' shafts, area rims
+    this.shotGlow = this.add.graphics().setDepth(5601).setBlendMode(Phaser.BlendModes.ADD);  // everything that glows
+    this.shotFloor = this.add.graphics().setDepth(2.5);                                      // their shadows
     this.remoteShots = []; this.rings = [];
     this.sparkList = [];
     this.impacts = [];     // where a hero's hit landed: a flash and a cut across it
     this.reviveG = this.add.graphics().setDepth(6001);
     const cam = this.cameras.main;
+    cam.setZoom(this.cfg.zoom());  // the canvas is at screen resolution; the camera does the magnifying
     cam.setBounds(0, 0, w, h);
     cam.setBackgroundColor('#0c0a10');
     this.camX = w / 2; this.camY = h / 2;
@@ -89,7 +93,8 @@ export class FightScene extends Phaser.Scene {
   world(screen) {
     const cam = this.cameras.main, canvas = this.game.canvas, r = canvas.getBoundingClientRect();
     const sx = (screen.x - r.left) / r.width * this.scale.width, sy = (screen.y - r.top) / r.height * this.scale.height;
-    return { x: cam.scrollX + sx, y: cam.scrollY + sy };
+    const p = cam.getWorldPoint(sx, sy);
+    return { x: p.x, y: p.y };
   }
 
   collide(hero) {
@@ -107,7 +112,7 @@ export class FightScene extends Phaser.Scene {
     hero.y = Math.max(t + R, Math.min(h - b - R, hero.y));
   }
 
-  pan(x) { const hw = this.scale.width / 2; return Math.max(-0.8, Math.min(0.8, (x - this.cameras.main.scrollX - hw) / hw)); }
+  pan(x) { const v = this.cameras.main.worldView, hw = v.width / 2 || 320; return Math.max(-0.8, Math.min(0.8, (x - v.centerX) / hw)); }
 
   // ------------------------------------------------------------------ server messages
   onMsg(m) {
@@ -143,7 +148,7 @@ export class FightScene extends Phaser.Scene {
     const B = this.boss.bodies[m.e || 0] || this.boss.bodies[0], mine = this.local.find(l => l.id === m.h);
     switch (m.k) {
       case 'hit': case 'crit':
-        B.flash = 0.07;
+        B.flash = 0.04;
         this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : '#f4f0e0', m.k === 'crit');
         if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg * (mine.S.focus_gain || 1) + (mine.state === 'special' ? mine.S.focusback || 0 : 0));
         if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); }
@@ -177,6 +182,7 @@ export class FightScene extends Phaser.Scene {
       case 'immune': this.number(B.x, B.y - 74, 'Immune', '#a8b0bc'); break;
       case 'stagger':
         sfx.stagger(this.pan(B.x)); this.number(B.x, B.y - 86, 'STAGGERED', '#ffd23f', true);
+        B.staggerDur = m.dur || 5; B.staggerT = 0; this.burst(B.x, B.y - 40, 0xffd23f, 24); this.cameras.main.shake(160, 0.006);
         this.cameras.main.shake(140, 0.006);
         break;
       case 'parry':
@@ -234,22 +240,20 @@ export class FightScene extends Phaser.Scene {
     this.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
   }
 
-  drawShot(g, x, y, a, r, col) {
-    const c = col ? Phaser.Display.Color.HexStringToColor(col).color : 0xe8dcc0;
-    // a fading streak behind it, so its path reads at a glance
-    g.lineStyle(col ? r * 1.4 : 1, c, 0.25).lineBetween(x - Math.cos(a) * 26, y - 14 - Math.sin(a) * 26, x - Math.cos(a) * 6, y - 14 - Math.sin(a) * 6);
-    if (col) { g.fillStyle(c, 0.45).fillCircle(x, y - 14, r + 2); g.fillStyle(0xffffff, 0.9).fillCircle(x, y - 14, r * 0.5); return; }
-    g.lineStyle(2, c, 1).lineBetween(x - Math.cos(a) * 10, y - 14 - Math.sin(a) * 10, x, y - 14);  // an arrow
-    g.fillStyle(0xa8b0bc, 1).fillRect(x - 1, y - 15, 2, 2);
+  // a hero's projectile: a glowing bolt (it has a colour) or an arrow
+  drawShot(x, y, a, r, col) {
+    if (col) orb(this.shotGlow, this.shotFloor, x, y, a, r + 1, Phaser.Display.Color.HexStringToColor(col).color, { lift: 14 });
+    else arrow(this.shotGlow, this.shotG, this.shotFloor, x, y, a);
   }
 
   // a cut across the spot a hit landed: a white flash, a slash line across the aim and a ring
-  impact(x, y, a, big, colour) { this.impacts.push({ x, y, a: a + Math.PI / 2 + (Math.random() - 0.5) * 0.6, big, colour, life: 0.18 }); }
+  impact(x, y, a, big, colour) { this.impacts.push({ x, y, a: a + Math.PI / 2 + (Math.random() - 0.5) * 0.6, big, colour, life: 0.2 }); }
 
   burst(x, y, colour, n) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 120;
-      this.sparkList.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 30, life: 0.25 + Math.random() * 0.3, colour });
+      const life = 0.25 + Math.random() * 0.3;
+      this.sparkList.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 30, life, max: life, colour });
     }
   }
 
@@ -259,7 +263,7 @@ export class FightScene extends Phaser.Scene {
     const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.kind === 'body' && !tg.seg ? 30 : 10);
     this.burst(ix, iy, 0xfff0c0, kind === 'light' ? 6 : 12);
     this.impact(ix, iy, hero.aim, kind !== 'light', hero.view ? hero.view.colour : 0xffffff);
-    if (tg.b) tg.b.flash = 0.06;
+    if (tg.b) tg.b.flash = 0.04;
     this.stop = kind === 'light' ? 0.045 : 0.08;
     this.cfg.input.rumble(hero.dev, kind === 'light' ? 0.25 : 0.5, 70);
   }
@@ -320,32 +324,40 @@ export class FightScene extends Phaser.Scene {
 
     // projectiles and area hits: this browser's, and others' (relayed by the server)
     const sg = this.shotG;
-    sg.clear();
+    sg.clear(); this.shotGlow.clear(); this.shotFloor.clear();
+    const cam0 = this.cameras.main, z = this.cfg.zoom();
+    if (cam0.zoom !== z) cam0.setZoom(z);
     for (const l of this.local) {
-      for (const s of l.shots) this.drawShot(sg, s.x, s.y, s.a, s.r, s.col);
+      for (const s of l.shots) this.drawShot(s.x, s.y, s.a, s.r, s.col);
       for (const A of l.aoes) { const p = 0.5 + 0.5 * Math.sin(time / 60); sg.fillStyle(0xffd23f, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, 0xffd23f, 0.7).strokeCircle(A.x, A.y, A.r); }
     }
     this.remoteShots = this.remoteShots.filter(s => {
       s.life -= dtReal;
-      if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(sg, s.x, s.y, s.a, s.r, s.col); }
+      if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(s.x, s.y, s.a, s.r, s.col); }
       else { sg.fillStyle(0xffd23f, 0.12).fillCircle(s.x, s.y, s.r); sg.lineStyle(2, 0xffd23f, 0.6).strokeCircle(s.x, s.y, s.r); }
       return s.life > 0;
     });
-    this.rings = this.rings.filter(r => { r.life -= dtReal; sg.lineStyle(3, 0xc080ff, r.life * 3).strokeCircle(r.x, r.y, r.r * (1.3 - r.life)); return r.life > 0; });
+    this.rings = this.rings.filter(r => {
+      r.life -= dtReal;
+      const u = 1 - r.life / 0.3, gl = this.shotGlow;
+      gl.fillStyle(0xc080ff, 0.3 * (1 - u)).fillCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
+      gl.lineStyle(1 + 4 * (1 - u), 0xc080ff, 0.9 * (1 - u)).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
+      gl.lineStyle(1, 0xffffff, 1 - u).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u) - 1);
+      return r.life > 0;
+    });
 
     // effects
     this.sparks.clear();
     this.sparkList = this.sparkList.filter(s => {
       s.life -= dtReal; s.x += s.vx * dtReal; s.y += s.vy * dtReal; s.vy += 220 * dtReal;
-      this.sparks.fillStyle(s.colour, Math.min(1, s.life * 4)); this.sparks.fillRect(Math.round(s.x), Math.round(s.y), 2, 2);
+      // a short streak along its flight, thinning as it dies
+      const k = Math.min(1, s.life / (s.max || 0.4) * 1.6);
+      this.sparks.lineStyle(1.6 * k + 0.4, s.colour, k); this.sparks.lineBetween(s.x, s.y, s.x - s.vx * 0.035, s.y - s.vy * 0.035);
       return s.life > 0;
     });
     this.impacts = this.impacts.filter(o => {
       o.life -= dtReal;
-      const u = 1 - o.life / 0.18, L = (o.big ? 22 : 14) * (0.6 + u * 0.6), c = Math.cos(o.a), n = Math.sin(o.a), sp = this.sparks;
-      sp.fillStyle(0xffffff, 0.8 * (1 - u)).fillCircle(o.x, o.y, (o.big ? 7 : 4) * (1 - u * 0.5));
-      sp.lineStyle(o.big ? 3 : 2, 0xffffff, 1 - u).lineBetween(o.x - c * L, o.y - n * L, o.x + c * L, o.y + n * L);
-      sp.lineStyle(1, o.colour, 1 - u).strokeCircle(o.x, o.y, (o.big ? 10 : 6) + u * 10);
+      impact(this.sparks, o.x, o.y, o.a, 1 - o.life / 0.2, o.big, o.colour);
       return o.life > 0;
     });
     this.texts = this.texts.filter(o => {
@@ -377,7 +389,7 @@ export class FightScene extends Phaser.Scene {
       const nb = B.nearest(x, y);
       x += (nb.x - x) * 0.3; y += (nb.y - nb.z * 0.5 - y) * 0.3 - 16;
       this.camX += (x - this.camX) * Math.min(1, dtReal * 5); this.camY += (y - this.camY) * Math.min(1, dtReal * 5);
-      this.cameras.main.centerOn(Math.round(this.camX), Math.round(this.camY));
+      this.cameras.main.centerOn(Math.round(this.camX * z) / z, Math.round(this.camY * z) / z);
     }
 
     // tell the server where this browser's heroes are, 20 times a second

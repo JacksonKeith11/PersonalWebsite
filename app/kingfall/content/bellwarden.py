@@ -6,7 +6,7 @@ a sweeping arc.
 
 from .moves import DMG, arc, circle, rect, ring, zone, spawn, pose
 
-DMG[0] = 0.85
+DMG[0] = 0.75
 SOUND = {"col": "#c8a8ff", "unblock": True}  # sound passes through shields
 SIDES = [(55, 95), (-95, -55)]
 BACK = [(150, 180), (-180, -150)]
@@ -93,7 +93,7 @@ PHASE2 = {
 
 BOSS = {
     "id": "bellwarden", "name": "The Bellwarden", "tier": 1, "rig": "bellwarden", "art": "bellwarden", "arena": "belfry",
-    "hp": 1600, "poise": 110, "radius": 18, "speed": 56,
+    "hp": 1450, "poise": 110, "radius": 18, "speed": 56,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"ghost": {"hp": 40, "speed": 32, "radius": 10, "dmg": 7, "art": "bellwarden.ghost", "life": 30, "float": 8, "alpha": 0.85}},
     "stagger_pose": {"torso": 50, "head": -40, "arm_f": 20, "arm_b": 20, "dy": 4}, "dead_pose": {"torso": 70, "head": -50, "arm_f": 30, "dy": 8},

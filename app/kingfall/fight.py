@@ -20,9 +20,11 @@ from .content.moves import aim_at, n_dists, offset, resolve
 
 LEAD = 0.14          # a move is announced this long before it starts
 TICK = 1 / 30
-STAGGER = 2.6        # seconds a broken-poise boss reels
+STAGGER = 5.0        # seconds a broken-poise boss reels
+POISE_K = 1.8        # every boss's written poise, multiplied: staggers are rare and worth it
+POISE_GROW = 0.25    # each stagger makes the next need this much more
 TOPPLE = 7.0         # seconds a boss reels when its last core breaks
-POISE_REGEN = (3.0, 25.0)  # after this long without poise damage, it refills at this rate
+POISE_REGEN = (3.0, 0.12)  # after this long without poise damage, it refills by this share a second
 INTRO = 2.2
 STATUSES = ("burn", "frost", "bleed", "rot")
 STATUS_LIVE = 4.0    # a burst marks the boss as burning/frozen/... for this long
@@ -97,7 +99,10 @@ class Body:
         self.mhp = round(d["hp"] * C.SCALE_HP[n - 1])
         self.hp = self.mhp
         self.base_poise = d["poise"]
-        self.mpoise = round(d["poise"] * C.SCALE_POISE[n - 1])
+        self.mpoise = round(d["poise"] * POISE_K * C.SCALE_POISE[n - 1])
+        self.poise0 = self.mpoise
+        self.staggers = 0
+        self.crit_by = set()   # heroes who have landed their critical on this stagger
         self.poise = self.mpoise
         self.poise_hit = 0.0
         self.phase = 1
@@ -251,7 +256,8 @@ class Fight:
                 return
         core = msg.get("core")
         build = fh.hero.build()
-        crit = b.state == "stagger" and slot in ("heavy", "special")
+        crit = b.state == "stagger" and slot in ("heavy", "special") and hid not in b.crit_by
+        if crit: b.crit_by.add(hid)  # one critical each per stagger; the stagger runs its full length
         mult *= build.dmg_mult(slot)
         poise *= build.poise_mult(slot)
         h = fh.hero
@@ -294,8 +300,6 @@ class Fight:
         for x in build.get("steal"):
             if x["slot"] in (slot, "all"): self.heal(fh, dmg * x["frac"])
         if crit:
-            b.state, b.until = "idle", now + 0.6  # the critical ends the stagger
-            b.poise = b.mpoise
             for x in build.get("critstatus"):
                 self.build_status(b, "burn", x["amt"], now, fh); self.build_status(b, "rot", x["amt"], now, fh)
         elif b.state != "stagger":
@@ -407,6 +411,7 @@ class Fight:
             if x.get("heal"): self.heal(fh, x["heal"])
 
     def damage_poise(self, b, amount, now):
+        if b.state == "stagger": return  # it's already reeling; poise is whole again when it recovers
         if b.rot_until > now and b.rot_blocks_poise: amount *= 1.25
         b.poise -= amount
         b.poise_hit = now
@@ -414,10 +419,16 @@ class Fight:
             self.stagger(b, now, STAGGER, "stagger")
 
     def stagger(self, b, now, dur, kind):
+        """The boss reels for `dur` seconds, open to one critical from each hero. Each stagger makes
+        the next one harder to earn."""
         self.cancel(b, now)
         b.state, b.until = "stagger", now + dur
+        b.crit_by = set()
+        if kind == "stagger":
+            b.staggers += 1
+            b.mpoise = round(b.poise0 * (1 + POISE_GROW * b.staggers))
         b.poise = b.mpoise
-        self.room.broadcast({"t": "fx", "k": kind, "e": b.e, "x": round(b.x), "y": round(b.y)})
+        self.room.broadcast({"t": "fx", "k": kind, "e": b.e, "x": round(b.x), "y": round(b.y), "dur": dur})
 
     def hurt(self, hid, msg, now):
         """A hero took a hit (their browser decided). Applies the damage."""
@@ -701,7 +712,7 @@ class Fight:
                 self.check_hp(b, now)
                 if not b.alive: return
         if b.state != "stagger" and now - b.poise_hit > POISE_REGEN[0] and not (b.rot_until > now and b.rot_blocks_poise):
-            b.poise = min(b.mpoise, b.poise + POISE_REGEN[1] * TICK)
+            b.poise = min(b.mpoise, b.poise + b.mpoise * POISE_REGEN[1] * TICK)
         if b.state in ("intro", "stagger"):
             if now >= b.until:
                 if b.state == "stagger" and b.cores:

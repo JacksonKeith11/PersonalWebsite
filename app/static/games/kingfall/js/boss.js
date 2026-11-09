@@ -3,8 +3,9 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=4';
-import { LiveMove, placeHit, touches } from './moves.js?v=4';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=5';
+import { LiveMove, placeHit, touches } from './moves.js?v=5';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=5';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -81,7 +82,8 @@ export class Boss {
     this.defs = bodiesOf(this.B);
     this.bodies = this.defs.map((d, e) => new BodyView(scene, d, e, fight.bodies[e]));
     this.marks = scene.add.graphics().setDepth(2);     // on the floor, under everyone
-    this.fx = scene.add.graphics().setDepth(5000);     // swings and projectiles, over everyone
+    this.fx = scene.add.graphics().setDepth(5000);     // markers and glints, over everyone
+    this.glow = scene.add.graphics().setDepth(4990).setBlendMode(Phaser.BlendModes.ADD);  // swings, projectiles, shockwaves
     this.moves = [];          // live and recent moves (projectiles and pools outlive their move)
     this.adds = {};           // id -> {view, buf, kind}
   }
@@ -219,7 +221,19 @@ export class Boss {
     }
     const sh = Math.max(0.4, 1 - b.z / 120);
     b.shadow.setPosition(b.x, b.y + 1).setScale(sh).setVisible(!under);
-    b.rig.setTint(b.flash > 0 ? 0xffffff : null);
+    // a flash of white when struck; a flash of warning red in the instant before its strike lands
+    const lead = mv && mv.first != null ? mv.first - (now - mv.start) : 9;
+    b.rig.setTint(b.flash > 0 ? 0xffffff : lead > 0.02 && lead < 0.09 && now < mv.cancelAt ? (mv.unblock ? 0xff5030 : 0xffd0c0) : null);
+    // staggered: stars wheel over its head and a ring counts the stagger down
+    if (b.state === 'stagger' && !mv) {
+      const f = this.fx, left = Math.max(0, 1 - b.staggerT / (b.staggerDur || 5)), hy = b.y - b.z - Math.max(46, b.r * 2.6);
+      f.lineStyle(3, 0x120e16, 0.7); f.beginPath(); f.arc(b.x, hy, 9, 0, Math.PI * 2); f.strokePath();
+      f.lineStyle(2, 0xffd23f, 1); f.beginPath(); f.arc(b.x, hy, 9, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2); f.strokePath();
+      for (let k = 0; k < 3; k++) {
+        const a = now * 4 + k * 2.094, sx = b.x + Math.cos(a) * 16, sy = hy + 14 + Math.sin(a) * 5;
+        f.fillStyle(0xffe680, 0.9); f.fillTriangle(sx - 3, sy, sx + 3, sy, sx, sy - 4); f.fillTriangle(sx - 3, sy - 1.5, sx + 3, sy - 1.5, sx, sy + 2.5);
+      }
+    }
     if (b.state === 'dead') { b.rig.c.alpha = Math.max(0, b.rig.c.alpha - dt * 0.35); b.shadow.alpha = b.rig.c.alpha * 0.4; if (b.segs) b.segs.forEach(s => s.alpha = b.rig.c.alpha); }
     // weak points glow until broken
     b.coreG.clear();
@@ -281,49 +295,48 @@ export class Boss {
 
   // ground marks, swing arcs, rings, projectiles and pools
   drawDanger(now) {
-    const g = this.marks, f = this.fx;
-    g.clear(); f.clear();
+    const g = this.marks, f = this.fx, gl = this.glow;
+    g.clear(); f.clear(); gl.clear();
     for (const mv of this.moves) {
       const t = now - mv.start;
       if (now > mv.last + 0.2) continue;
       this.drawTell(mv, t, now);
       mv.data.hits.forEach(h => {
         if (h.mark == null && t < h.t0) { this.drawWindup(mv, h, t); return; }
+        const fire = !!h.fire, col = fire ? FIRE : h.col ? Phaser.Display.Color.HexStringToColor(h.col).color : STEEL;
+        // a swing's trail lingers a moment after it can no longer hurt
+        const AFTER = 0.2, melee = h.k === 'arc' || h.k === 'rect' || h.k === 'circle';
+        if (melee && t > h.t1 && t < h.t1 + AFTER && mv.start + h.t1 <= mv.cancelAt) {
+          const s = placeHit(mv, h, h.t1);
+          if (s) this.drawStrike(gl, s, 1 + (t - h.t1) / AFTER, col);
+          return;
+        }
         const s = placeHit(mv, h, t, h.mark ?? 0);
         if (!s) return;
-        const fire = !!h.fire, col = fire ? FIRE : h.col ? Phaser.Display.Color.HexStringToColor(h.col).color : STEEL;
-        if (!s.live) { // the warning before it lands
+        if (!s.live) { // the warning before it lands: it fills from the middle as the moment comes
           const u = 1 - (h.t0 - t) / Math.max(0.05, h.mark);
-          g.fillStyle(DANGER, 0.12 + 0.22 * u); shape(g, s, true);
-          g.lineStyle(1, DANGER, 0.5 + 0.4 * u); shape(g, s, false);
+          g.fillStyle(DANGER, 0.1 + 0.12 * u); shape(g, s, true);
+          if (s.k === 'circle') { g.fillStyle(DANGER, 0.22); g.fillCircle(s.cx, s.cy, s.r * Math.max(0, u)); }
+          g.lineStyle(1.5, DANGER, 0.55 + 0.4 * u); shape(g, s, false);
           return;
         }
         const life = (t - h.t0) / Math.max(0.05, h.t1 - h.t0);
         if (s.k === 'zone') {
-          const pc = POOL[s.pool] || 0x6a8a2a, fade = Math.min(1, (h.t1 - t) * 2, (t - h.t0) * 4);
-          g.fillStyle(pc, 0.32 * fade); g.fillCircle(s.cx, s.cy, s.r);
-          g.lineStyle(1, pc, 0.7 * fade); g.strokeCircle(s.cx, s.cy, s.r);
-          for (let k = 0; k < 3; k++) {
-            const a = now * 1.3 + k * 2.1, rr = s.r * 0.6;
-            g.fillStyle(pc, 0.5 * fade); g.fillCircle(s.cx + Math.cos(a) * rr, s.cy + Math.sin(a * 1.3) * rr * 0.6, 2);
-          }
+          pool(g, gl, s, POOL[s.pool] || 0x6a8a2a, Math.min(1, (h.t1 - t) * 2, (t - h.t0) * 4), now);
         } else if (s.k === 'proj') {
-          f.fillStyle(fire ? 0xffd23f : 0xe8ecff, 1); f.fillCircle(s.cx, s.cy - 6, s.r * 0.55);
-          f.fillStyle(col, 0.55); f.fillCircle(s.cx, s.cy - 6, s.r);
-          g.fillStyle(0x000000, 0.25); g.fillEllipse(s.cx, s.cy + 2, s.r * 2, s.r * 0.7);
+          orb(gl, g, s.cx, s.cy, s.a, s.r, col, { lift: 8, core: fire ? 0xffe9a0 : 0xffffff });
         } else if (s.k === 'ring') {
-          f.lineStyle(s.th, col, 0.65 * (1 - life * 0.6)); f.strokeCircle(s.cx, s.cy, s.r);
-          f.lineStyle(2, 0xfff0c0, 0.8 * (1 - life)); f.strokeCircle(s.cx, s.cy, s.r);
-        } else if (s.k === 'arc') {
-          slash(f, s, life, col);
-        } else if (s.k === 'rect') {
-          thrust(f, s, life, col);
-        } else if (s.k === 'circle') {
-          f.fillStyle(col, 0.35 * (1 - life)); f.fillCircle(s.cx, s.cy, s.r);
-          f.lineStyle(2, col, 0.8 * (1 - life)); f.strokeCircle(s.cx, s.cy, s.r);
-        }
+          shockwave(gl, s, life, col);
+        } else this.drawStrike(gl, s, life, col);
       });
     }
+  }
+
+  // a boss's swing, thrust or slam: p 0..1 while it can hurt, on to 2 as it fades
+  drawStrike(gl, s, p, col) {
+    if (s.k === 'arc') crescent(gl, s, p, col, { lift: 14, thick: 0.34 });
+    else if (s.k === 'rect') lance(gl, s, p, col, { lift: 14 });
+    else if (s.k === 'circle') burst(gl, s, p, col);
   }
 
   // Before an unmarked hit lands, its shape is outlined on the floor: from the moment its aim is final
@@ -443,32 +456,4 @@ function poly(g, pts, fill) {
   for (const p of pts.slice(1)) g.lineTo(p[0], p[1]);
   g.closePath();
   fill ? g.fillPath() : g.strokePath();
-}
-
-// a crescent sweeping across the arc as the hit plays
-export function slash(f, s, life, col) {
-  const sweep = Math.min(1, life * 1.6), fade = 1 - Math.max(0, life - 0.4) / 0.6;
-  const a0 = s.a0, a1 = s.a0 + (s.a1 - s.a0) * sweep;
-  for (let k = 0; k < 3; k++) {
-    const rr = s.r * (0.72 + k * 0.13);
-    f.lineStyle(3 - k, k === 2 ? 0xffffff : col, (0.35 + k * 0.25) * fade);
-    f.beginPath();
-    for (let d = a0; d <= a1; d += 6) {
-      const a = s.a + d * Math.PI / 180, x = s.cx + Math.cos(a) * rr, y = s.cy - 12 + Math.sin(a) * rr;
-      d === a0 ? f.moveTo(x, y) : f.lineTo(x, y);
-    }
-    f.strokePath();
-  }
-}
-
-export function thrust(f, s, life, col) {
-  const c = Math.cos(s.a), n = Math.sin(s.a), fade = 1 - life;
-  const L = s.x0 + (s.x1 - s.x0) * Math.min(1, life * 2);
-  for (let k = 0; k < 3; k++) {
-    const w = s.w * (1 - k * 0.35);
-    f.fillStyle(k === 2 ? 0xffffff : col, (0.2 + k * 0.2) * fade);
-    const P = (fx, fy) => [s.cx + c * fx - n * fy, s.cy - 12 + (n * fx + c * fy)];
-    const pts = [P(s.x0, -w * 0.3), P(L * 0.8, -w), P(L, 0), P(L * 0.8, w), P(s.x0, w * 0.3)];
-    f.beginPath(); f.moveTo(...pts[0]); for (const p of pts.slice(1)) f.lineTo(...p); f.closePath(); f.fillPath();
-  }
 }

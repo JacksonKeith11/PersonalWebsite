@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=4';
-import { Input, slotOf, padName } from './input.js?v=4';
-import { Net, ME } from './net.js?v=4';
-import { FightScene } from './fight.js?v=4';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=4';
-import { unlock, sfx, setVolume } from './audio.js?v=4';
-import { music } from './music.js?v=4';
+import { setAtlas } from './rig.js?v=5';
+import { Input, slotOf, padName } from './input.js?v=5';
+import { Net, ME } from './net.js?v=5';
+import { FightScene } from './fight.js?v=5';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=5';
+import { unlock, sfx, setVolume } from './audio.js?v=5';
+import { music } from './music.js?v=5';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -32,15 +32,17 @@ class Boot extends Phaser.Scene {
   }
 }
 const game = new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', width: 640, height: 360, zoom: zoom(), pixelArt: true, roundPixels: true,
+  type: Phaser.AUTO, parent: 'game', width: 640, height: 360, zoom: 1, pixelArt: true, roundPixels: false,
   backgroundColor: '#0c0a10', scene: [Boot, FightScene], scale: { mode: Phaser.Scale.NONE },
   input: { mouse: { preventDefaultWheel: false } }, banner: false,
 });
 // fill the window at that zoom (wider screens see a little more of the arena)
 function fit() {
+  // The canvas is at screen resolution and the fight's camera magnifies by z: sprites stay crisp pixel
+  // art, while drawn effects (slashes, bolts, ground marks) and rotated parts are smooth.
   const z = zoom();
-  game.scale.resize(Math.min(800, Math.ceil(innerWidth / z)), Math.min(450, Math.ceil(innerHeight / z)));
-  game.scale.setZoom(z);
+  game.scale.resize(Math.min(800, Math.ceil(innerWidth / z)) * z, Math.min(450, Math.ceil(innerHeight / z)) * z);
+  game.scale.setZoom(1);
 }
 addEventListener('resize', fit);
 fit();

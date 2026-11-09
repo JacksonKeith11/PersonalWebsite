@@ -111,7 +111,8 @@ export function sample(keys, t, defaults = {}) {
     if (t <= t1) {
       const [t0, p0] = keys[i - 1];
       const u = (t - t0) / Math.max(1e-6, t1 - t0);
-      const k = u * u * (3 - 2 * u);
+      // a quick key (a strike) snaps out and settles; a slow one (a wind-up, a recovery) eases both ways
+      const k = t1 - t0 < 0.2 ? 1 - (1 - u) * (1 - u) * (1 - u) : u * u * (3 - 2 * u);
       const out = {};
       for (const key of new Set([...Object.keys(p0), ...Object.keys(p1)])) {
         if (key === 'front' || key === 'run') { out[key] = u < 0.5 ? p0[key] : p1[key]; continue; }

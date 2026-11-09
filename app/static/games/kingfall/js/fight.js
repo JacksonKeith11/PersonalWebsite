@@ -1,13 +1,13 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=6';
-import { LocalHero, RemoteHero } from './hero.js?v=6';
-import { Boss } from './boss.js?v=6';
-import { drawArena } from './arenas.js?v=6';
-import { sfx } from './audio.js?v=6';
-import { music } from './music.js?v=6';
-import { deviceOfSlot } from './input.js?v=6';
-import { orb, arrow, impact, pillar } from './fx.js?v=6';
+import { addFrames } from './rig.js?v=8';
+import { LocalHero, RemoteHero } from './hero.js?v=8';
+import { Boss } from './boss.js?v=8';
+import { drawArena } from './arenas.js?v=8';
+import { sfx } from './audio.js?v=8';
+import { music } from './music.js?v=8';
+import { deviceOfSlot } from './input.js?v=8';
+import { orb, arrow, impact, pillar } from './fx.js?v=8';
 
 const INTERP = 0.1;
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
@@ -124,7 +124,8 @@ export class FightScene extends Phaser.Scene {
         B.onSnap(m.st, m.b, m.a);
         for (const row of m.h) {
           const [id, x, y, , , , hp, mhp, flasks, down, bleed] = row;
-          this.heroRows[id] = { hp, mhp, flasks, down, bleed };
+          this.heroRows[id] = { hp, mhp, flasks, down, bleed, shield: row[12] || 0, rally: row[13] || 0, emp: row[14] || 0 };
+          if (this.byId[id]) this.byId[id].view.st = down ? null : this.heroRows[id];
           const r = this.remote[id];
           if (r) { r.push(m.st, row); r.down = down === 1; r.dead = down === 2; r.x = x; r.y = y; }
           const l = this.local.find(v => v.id === id);
@@ -202,6 +203,7 @@ export class FightScene extends Phaser.Scene {
         this.stop = 0.12;
         break;
       case 'block': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xe8ecf2, 8); break;
+      case 'warded': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xa8b0bc, 10); this.number(m.x, m.y - 46, 'Warded', '#a8b0bc'); break;
       case 'hurt':
         sfx.hurt(this.pan(m.x));
         this.number(m.x, m.y - 46, m.dmg, '#e05050');
@@ -298,6 +300,7 @@ export class FightScene extends Phaser.Scene {
       input: this.cfg.input, boss: B, now, world: s => this.world(s), send: m => this.net.send(m),
       collide: h => this.collide(h), onHit: (h, k, tg) => this.onHit(h, k, tg), allies,
       onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
+      onDenied: () => sfx.uiBack(),
       onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
       onBoom: (x, y, r) => { this.burst(x, y - 8, 0xc080ff, 20); this.rings.push({ x, y, r, life: 0.3 }); sfx.slam(this.pan(x)); },
     };

@@ -13,7 +13,7 @@ import secrets
 from . import save as SAVE
 from .build import ATTRS, Build
 from .content.upgrades import UPGRADES, offer as draw_offer
-from .content.skills import MAX_SKILLS, SKILLS, offer as skill_offer
+from .content.skills import MAX_SKILLS, SKILLS, START, offer as skill_offer
 from .fight import TICK, Fight
 
 log = logging.getLogger("kingfall")
@@ -25,7 +25,8 @@ LOOKS = ("knight", "pilgrim", "hunter", "sellsword")
 POOLS = {1: ["corvin", "mire", "bellwarden"], 2: ["headsmen", "wolf", "alchemist", "wyrm"], 3: ["mirror", "bastion", "moth"],
          4: ["king", "drake"]}
 TIERS = [1, 1, 2, 2, 3, 3, 4]
-SHOP = {"reroll": 30, "flask": 120, "ember": 150}
+SHOP = {"reroll": 30, "skills": 30, "flask": 120, "ember": 150}  # "skills" redraws the skills on offer
+FLAT = ("reroll", "skills")  # these never get dearer
 SWAP_AFTER = (2, 4)  # the weapon shrine is lit at the Bonfires after these fights
 # Difficulty: the host's choice. Only numbers change: boss health, boss damage, how fast bosses move
 # and recover, and whether a lone hero gets their Second Wind.
@@ -48,6 +49,7 @@ class Hero:
         self.picks = 0          # upgrades still to choose
         self.ready = False
         self.swap = False       # may change weapon at this Bonfire
+        self.start_skill = START  # the one they begin a run with (chosen in the lobby)
         self.skills = []        # skill ids, at most MAX_SKILLS
         self.skill_offer = []   # skills on offer at this Bonfire (learn one, or none)
         self._build = None
@@ -73,7 +75,7 @@ class Hero:
                 "weapon": self.weapon, "colour": self.colour, "level": self.level, "attrs": self.attrs,
                 "hp": self.hp, "mhp": self.mhp(), "flasks": self.flasks, "maxflasks": self.max_flasks(), "ups": self.ups,
                 "points": self.points, "offer": self.offer, "picks": self.picks, "ready": self.ready, "swap": self.swap,
-                "skills": self.skills, "skill_offer": self.skill_offer,
+                "skills": self.skills, "skill_offer": self.skill_offer, "start_skill": self.start_skill,
                 "stats": self.build().client()}
 
 
@@ -191,11 +193,13 @@ class Room:
             weapon = msg.get("weapon") if msg.get("weapon") in C.WEAPONS else "sword"
             hero = Hero(self.next_id, c, slot, clean(msg.get("name"), 16) or f"Hero {colour + 1}", look, weapon, colour)
             self.next_id += 1
+            if msg.get("skill") in SKILLS: hero.start_skill = msg["skill"]
             self.heroes[hero.id] = hero
             self.broadcast(self.lobby_wire())
         elif t == "set" and h and self.state == "lobby":
             if msg.get("look") in LOOKS: h.look = msg["look"]
             if msg.get("weapon") in C.WEAPONS: h.weapon = msg["weapon"]
+            if msg.get("skill") in SKILLS: h.start_skill = msg["skill"]
             if msg.get("name") is not None: h.name = clean(msg.get("name"), 16) or h.name
             self.broadcast(self.lobby_wire())
         elif t == "drop" and h and self.state == "lobby":
@@ -233,7 +237,7 @@ class Room:
 
     # ------------------------------------------------------------------ the Bonfire
     def prices(self):
-        return {k: v + (60 * self.bought.get(k, 0) if k != "reroll" else 0) for k, v in SHOP.items()}
+        return {k: v + (60 * self.bought.get(k, 0) if k not in FLAT else 0) for k, v in SHOP.items()}
 
     def bonfire(self, h, t, msg):
         if t == "attr" and h.points > 0 and msg.get("a") in ATTRS:
@@ -253,13 +257,16 @@ class Room:
             if item == "reroll":
                 if not h.offer: return
                 h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
+            elif item == "skills":
+                if not h.skill_offer: return
+                h.skill_offer = skill_offer(h.skills, self.rng, avoid=h.skill_offer)
             elif item == "flask":
                 h.ups.append(("any_flask", "common")); h.changed(); h.flasks = h.max_flasks()
             elif item == "ember":
                 h.picks += 1
                 if not h.offer: h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
             self.coins -= price
-            if item != "reroll": self.bought[item] = self.bought.get(item, 0) + 1
+            if item not in FLAT: self.bought[item] = self.bought.get(item, 0) + 1
         elif t == "weapon" and h.swap and msg.get("weapon") in C.WEAPONS and msg["weapon"] != h.weapon:
             h.weapon = msg["weapon"]
             h.ups = [(u, r) for u, r in h.ups if not UPGRADES[u]["weapon"]]  # the old weapon's Arts go with it
@@ -302,7 +309,7 @@ class Room:
             self.run = [only] + [b for b in self.run if b != only]
         for h in self.heroes.values():
             h.level, h.points, h.picks, h.offer, h.ups, h.ready = 1, 0, 0, [], [], False
-            h.skills, h.skill_offer = [], []
+            h.skills, h.skill_offer = [h.start_skill], []
             h.attrs = {a: 0 for a in ATTRS}
             h.changed()
             h.flasks = h.max_flasks()

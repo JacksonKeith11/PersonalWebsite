@@ -63,7 +63,9 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   `python3 tools/bump-version.py --check` lists any file linked with two different versions.
 - **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about a minute): the app
   imports, cache versions agree, every browser JS file parses (`tools/check-js.sh`), and each game's
-  own checks. Browser smoke tests need a running server and live in each area's doc.
+  own checks. Browser smoke tests need a running server and live in each area's doc, except Kingfall's
+  (`tools/kingfall-smoke.js --serve`), which starts its own and is in `check-all.sh`; a check that exits
+  77 is reported as `skip` (Playwright isn't installed), not a failure.
 - **`node --check file.js` doesn't catch syntax errors in the games' ES modules**: here a `.js` file
   isn't parsed as a module, and broken code passes. `tools/check-js.sh` checks a `.mjs` copy of each.
 - **The serials route is registered at import time.** It's only registered if `SERIALS_PATH` was

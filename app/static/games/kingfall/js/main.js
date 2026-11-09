@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=6';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=6';
-import { Net, ME } from './net.js?v=6';
-import { FightScene } from './fight.js?v=6';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=6';
-import { unlock, sfx, setVolume } from './audio.js?v=6';
-import { music } from './music.js?v=6';
+import { setAtlas } from './rig.js?v=8';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=8';
+import { Net, ME } from './net.js?v=8';
+import { FightScene } from './fight.js?v=8';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=8';
+import { unlock, sfx, setVolume } from './audio.js?v=8';
+import { music } from './music.js?v=8';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -74,7 +74,7 @@ function addHero(slot) {
   const used = new Set(S.lobby.heroes.map(h => h.look));
   const look = (slot === 0 && ME.saved.look) || LOOKS.find(l => !used.has(l)) || LOOKS[slot % 4];
   const name = slot === 0 ? (ME.saved.name || 'Wanderer') : `${ME.saved.name || 'Wanderer'} ${slot + 1}`;
-  net.send({ t: 'add', slot, name, look, weapon: (slot === 0 && ME.saved.weapon) || 'sword' });
+  net.send({ t: 'add', slot, name, look, weapon: (slot === 0 && ME.saved.weapon) || 'sword', skill: (slot === 0 && ME.saved.skill) || undefined });
   sfx.ui();
 }
 
@@ -157,6 +157,7 @@ function panel(h) {
       `<button class="btn" data-nav data-weapon="${h.id}:${w.id}" ${w.id === h.weapon ? 'disabled' : ''}>${esc(w.name)}</button>`).join('')}</div><div class="hint">Changing weapon keeps your blessings but loses your Weapon Arts.</div>` : ''}
     <h3>Shop</h3><div class="row">
       ${h.offer.length ? `<button class="btn" data-nav data-buy="${h.id}:reroll" ${L.coins < P.reroll ? 'disabled' : ''}>Reroll (${P.reroll})</button>` : ''}
+      ${h.skill_offer.length ? `<button class="btn" data-nav data-buy="${h.id}:skills" ${L.coins < P.skills ? 'disabled' : ''}>Other skills (${P.skills})</button>` : ''}
       <button class="btn" data-nav data-buy="${h.id}:flask" ${L.coins < P.flask ? 'disabled' : ''}>+1 flask (${P.flask})</button>
       <button class="btn" data-nav data-buy="${h.id}:ember" ${L.coins < P.ember ? 'disabled' : ''}>Extra blessing (${P.ember})</button>
     </div>
@@ -191,8 +192,8 @@ function title() {
       <div><kbd>LMB</kbd> light · hold <kbd>RMB</kbd> heavy</div><div><kbd>RB</kbd> light · hold <kbd>RT</kbd> heavy</div>
       <div><kbd>Space</kbd> roll · <kbd>Shift</kbd> block</div><div><kbd>B</kbd> roll · <kbd>LB</kbd> block</div>
       <div><kbd>Q</kbd> special · <kbd>R</kbd> flask</div><div><kbd>Y</kbd> special · <kbd>X</kbd> flask</div>
-      <div><kbd>E</kbd> revive · <kbd>Tab</kbd> lock on</div><div><kbd>A</kbd> revive · <kbd>R3</kbd> lock on</div>
-      <div><kbd>Z</kbd> <kbd>X</kbd> skills (or <kbd>1</kbd> <kbd>2</kbd>)</div><div><kbd>LT</kbd> · <kbd>D-pad</kbd> skills</div>
+      <div>hold <kbd>E</kbd> to revive · <kbd>Tab</kbd> lock on</div><div>hold <kbd>A</kbd> by a fallen ally to revive · <kbd>R3</kbd> lock on</div>
+      <div><kbd>Z</kbd> <kbd>X</kbd> skills (or <kbd>1</kbd> <kbd>2</kbd>)</div><div><kbd>LT</kbd> · <kbd>A</kbd> skills</div>
     </div>
   </div>`);
   const name = () => { const n = $('#name').value.trim().slice(0, 16); ME.saved.name = n; ME.save(); return n; };
@@ -247,10 +248,12 @@ function lobby() {
     row.appendChild(portrait(h, W));
     const info = document.createElement('div');
     info.innerHTML = `<div class="name">${esc(h.name)}</div>
-      <div class="sub">${own ? (h.slot === 0 ? 'Keyboard & mouse' : padName('pad' + (h.slot - 1))) : 'Online'} · ${esc(LOOK_NAMES[h.look])} · ${esc(W.name)}</div>
+      <div class="sub">${own ? (h.slot === 0 ? 'Keyboard & mouse' : padName('pad' + (h.slot - 1))) : 'Online'} · ${esc(LOOK_NAMES[h.look])} · ${esc(W.name)} · ${esc(data.skills[h.start_skill].name)}</div>
       ${own && !over ? `<div style="margin-top:6px"><span class="pick"><button class="btn" data-nav data-lr data-look="${h.id}">◀ ${esc(LOOK_NAMES[h.look])} ▶</button></span>
-        <span class="pick"><button class="btn" data-nav data-lr data-weap="${h.id}">◀ ${esc(W.name)} ▶</button></span></div>
-        <div class="hint" style="margin-top:4px">${esc(W.blurb || '')}</div>` : ''}`;
+        <span class="pick"><button class="btn" data-nav data-lr data-weap="${h.id}">◀ ${esc(W.name)} ▶</button></span>
+        <span class="pick"><button class="btn" data-nav data-lr data-skill="${h.id}" style="border-color:${data.skills[h.start_skill].col}">◀ ${esc(data.skills[h.start_skill].name)} ▶</button></span></div>
+        <div class="hint" style="margin-top:4px">${esc(W.blurb || '')}</div>
+        <div class="hint">Starting skill: ${esc(data.skills[h.start_skill].text)}</div>` : ''}`;
     row.appendChild(info);
     const right = document.createElement('div');
     if (own && !over) right.innerHTML = `<button class="btn" data-nav data-drop="${h.id}">Remove</button>`;
@@ -274,6 +277,17 @@ function lobby() {
       const next = ids[(ids.indexOf(h.weapon) + dir + ids.length) % ids.length];
       if (h.slot === 0) { ME.saved.weapon = next; ME.save(); }
       net.send({ t: 'set', h: h.id, weapon: next });
+    };
+    b.onclick = () => cycle(1);
+    b.addEventListener('lr', e => cycle(e.detail));
+  });
+  el.querySelectorAll('[data-skill]').forEach(b => {
+    const ids = Object.keys(data.skills);
+    const cycle = dir => {
+      const h = L.heroes.find(x => x.id === +b.dataset.skill);
+      const next = ids[(ids.indexOf(h.start_skill) + dir + ids.length) % ids.length];
+      if (h.slot === 0) { ME.saved.skill = next; ME.save(); }
+      net.send({ t: 'set', h: h.id, skill: next });
     };
     b.onclick = () => cycle(1);
     b.addEventListener('lr', e => cycle(e.detail));

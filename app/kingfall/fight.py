@@ -22,7 +22,7 @@ from .content.skills import BASE as SKILL_BASE, SKILLS
 LEAD = 0.14          # a move is announced this long before it starts
 TICK = 1 / 30
 STAGGER = 5.0        # seconds a broken-poise boss reels
-POISE_K = 1.8        # every boss's written poise, multiplied: staggers are rare and worth it
+POISE_K = 2.6        # every boss's written poise, multiplied: staggers are rare and worth it
 POISE_GROW = 0.25    # each stagger makes the next need this much more
 TOPPLE = 7.0         # seconds a boss reels when its last core breaks
 POISE_REGEN = (3.0, 0.12)  # after this long without poise damage, it refills by this share a second
@@ -268,6 +268,7 @@ class Fight:
         crit = b.state == "stagger" and slot in ("heavy", "special") and hid not in b.crit_by
         if crit: b.crit_by.add(hid)  # one critical each per stagger; the stagger runs its full length
         mult *= build.dmg_mult(slot)
+        if msg.get("atk") == "skill": mult *= build.dmg["skill"]
         poise *= build.poise_mult(slot)
         h = fh.hero
         if h.hp < h.mhp() * 0.5:
@@ -356,8 +357,11 @@ class Fight:
         fh = self.heroes.get(hid)
         s = SKILLS.get(msg.get("sk"))
         if not fh or not s or fh.down or fh.dead or self.over or s["id"] not in fh.hero.skills: return
-        if now - fh.skill_used.get(s["id"], -99.0) < s["cd"] - SKILL_SLACK: return
+        build = fh.hero.build()
+        if now - fh.skill_used.get(s["id"], -99.0) < s["cd"] * build.stats["skill_cd"] - SKILL_SLACK: return
         fh.skill_used[s["id"]] = now
+        for x in build.get("skillheal"): self.heal(fh, x["amt"])
+        for x in build.get("skillward"): fh.shield = max(fh.shield, round(x["amt"]))
         near = [o for o in self.alive_heroes() if o is fh or math.hypot(o.x - fh.x, o.y - fh.y) <= s.get("radius", 0)]
         if "empower" in s: fh.empowered = (s["empower"], now + 5.0)
         if "rally" in s:
@@ -503,6 +507,9 @@ class Fight:
         dmg = dmg * self.dmg_scale
         if fh.shield:
             soak = min(fh.shield, dmg); fh.shield -= soak; dmg -= soak
+            if round(dmg) <= 0:  # the ward took all of it: no flinch from the drink, no damage number
+                self.room.broadcast({"t": "fx", "k": "warded", "h": hid, "x": round(fh.x), "y": round(fh.y)})
+                return
         fh.heal_at = None  # a hit spills the drink
         h = fh.hero
         h.hp = max(0, h.hp - round(dmg))
@@ -810,7 +817,10 @@ class Fight:
                 "a": [[a["id"], a["kind"], round(a["x"], 1), round(a["y"], 1), round(a["hp"]), round(a["mhp"])] for a in self.adds.values()],
                 "h": [[f.hero.id, round(f.x, 1), round(f.y, 1), round(f.face, 2), f.anim, round(f.at, 2), f.hero.hp, f.hero.mhp(),
                        f.hero.flasks, 1 if f.down else (2 if f.dead else 0),
-                       round(max(0, f.bleed - now), 1) if f.down and f.bleed else 0, 1 if f.heal_at else 0]
+                       round(max(0, f.bleed - now), 1) if f.down and f.bleed else 0, 1 if f.heal_at else 0,
+                       # what's on them: ward left, seconds of extra damage left, a charged next hit
+                       round(f.shield), round(max(0.0, f.vengeance[1] - now), 1) if f.vengeance[0] > 1 else 0,
+                       1 if f.empowered and now < f.empowered[1] else 0]
                       for f in self.heroes.values()]}
 
     def start_wire(self):

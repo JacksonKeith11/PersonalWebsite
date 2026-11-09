@@ -22,7 +22,7 @@ class Build:
         a = attrs
         self.stats = {"mhp": H["hp"] + 12 * a["vig"], "stamina": H["stamina"] + 10 * a["end"], "st_regen": 1 + 0.06 * a["end"],
                       "speed": 1.0, "roll_st": 1.0, "focus_gain": 1.0, "special_cost": 1.0, "reach": 1.0, "flasks": H["flask"]["charges"],
-                      "heal": H["flask"]["heal"], "block_st": 1.0, "iframes": 0.0, "revive_time": 1.0, "guard_arc": 1.0, "dash_charges": 0}
+                      "heal": H["flask"]["heal"], "block_st": 1.0, "iframes": 0.0, "revive_time": 1.0, "guard_arc": 1.0, "dash_charges": 0, "skill_cd": 1.0, "skill_focus": 0}
         self.dmg = defaultdict(lambda: 1.0)
         self.dmg["light"] *= 1 + 0.06 * a["fin"]
         self.dmg["heavy"] *= 1 + 0.07 * a["mig"]
@@ -69,4 +69,4 @@ class Build:
                 "block_st": round(s["block_st"], 3), "iframes": round(s["iframes"], 3), "revive_time": round(s["revive_time"], 3),
                 "guard_arc": round(s["guard_arc"], 3), "perfect_st": round(sum(f["st"] for f in perfect)),
                 "focusback": round(sum(f["amt"] for f in self.get("focusback"))), "dodge": bool(self.get("dodge")),
-                "dash_charges": round(s["dash_charges"])}
+                "dash_charges": round(s["dash_charges"]), "skill_cd": round(s["skill_cd"], 3), "skill_focus": round(s["skill_focus"])}

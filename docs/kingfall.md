@@ -3,7 +3,7 @@
 Read this before changing anything in `app/kingfall/`, `app/static/games/kingfall/`, `tools/kingfall-*`
 or `tools/kingfall-art/`.
 
-**Status: built.** All twelve bosses, six weapons, eight skills, 95 upgrades, the Bonfire, saves, difficulty and music
+**Status: built.** All twelve bosses, six weapons, twelve skills, 100 upgrades, the Bonfire, saves, difficulty and music
 are in. The first half of this doc is what the owner decided; "How it plays now" is the game as it is.
 When a change alters how the game works, update "How it plays now" (not a new section at the end) in
 the same commit.
@@ -72,7 +72,7 @@ A run draws two bosses from each tier, then a final (`POOLS`, `TIERS` in `room.p
 | Final | the Hollow King · the Eclipse Drake |
 
 After each win: everyone heals and refills flasks, gains a level (one attribute point), one upgrade pick
-from three cards, the offer of a skill (below), and the party gets shared coins (60 + 40 x tier). The shop sells rerolls (30), an
+from three cards, the offer of a skill (below), and the party gets shared coins (60 + 40 x tier). The shop sells rerolls (30), a redraw of the skills on offer (30), an
 extra flask (120, +60 each time) and an extra blessing (150). The weapon shrine is lit at the Bonfires
 after fights 2 and 4 (changing weapon drops that weapon's Arts). The next fight starts when everyone is
 ready. The run is saved at every Bonfire (`save.py`, `data/kingfall.db`) and the save deleted when the
@@ -85,14 +85,14 @@ run ends.
   0.75 s of a 1 s drink, spilled if hit. Downed: 15 s to be revived (hold interact 2 s next to them; costs
   the reviver 25% of their health; they rise at 30%). Solo heroes get one Second Wind a run (not on Hard).
 - **Poise and stagger** (the owner asked for staggers to be rarer and longer). Every hit wears a boss's
-  poise (its written poise x `POISE_K` 1.8 x the party scale); at zero it staggers for 5 s, shown by a
+  poise (its written poise x `POISE_K` 2.6 x the party scale); at zero it staggers for 5 s, shown by a
   ring counting down over its head. During a stagger each hero's first heavy or special is a
   **critical** (x3); the stagger runs its full length and takes no poise damage. Each stagger makes the
-  next need 25% more. Poise refills (12% a second) after 3 s without poise damage. About one to three
+  next need 25% more. Poise refills (12% a second) after 3 s without poise damage. About two to four (see Testing)
   staggers a fight.
 - **Statuses** on bosses: Burn and Bleed burst for damage, Frost slows the boss and breaks poise, Rot
   poisons over 5 s. Each meter needs 100 x 1.4^(bursts so far).
-- **Boss health** scales x0.9, x1.8, x2.7, x3.6 with party size; poise x1, x1.4, x1.8, x2.2. Solo, bosses rest
+- **Boss health** scales x1.05, x2.05, x3.1, x4.1 with party size; poise x1, x1.4, x1.8, x2.2. Solo, bosses rest
   longer between moves; two-bodied bosses rest longer still.
 - **Targeting** (`pick_target`, `choose`, `target_weight` in `fight.py`): each attack picks a move *and*
   a hero together, from every hero in that move's range, favouring the one it's walking toward, anyone it
@@ -143,11 +143,21 @@ don't matter.
 
 ### Skills (`content/skills.py`)
 
-Abilities on a cooldown that work with any weapon. After every won fight each hero is offered three
-they don't know and may learn one or pass; a hero carries two (`MAX_SKILLS`), so with two already each
-card offers "Replace <skill>" for either slot. Skills are kept in the save. Slot 1 is Z or 1 (LT on a
-controller), slot 2 is X or 2 (the D-pad, or a click of the left stick); they're used from standing or
-running. Cooldowns start afresh each fight and show on the hero's HUD card.
+Abilities on a cooldown that work with any weapon. Each hero picks one in the lobby to start the run
+with (Ember Lance unless they change it; the keyboard player's choice is remembered). After every won
+fight each hero is offered three they don't know and may learn one or pass; a hero carries two
+(`MAX_SKILLS`), so with two already each card offers "Replace <skill>" for either slot. The shop
+redraws the offer for 30 coins. Skills are kept in the save. Cooldowns start afresh each fight and show
+on the hero's HUD card.
+
+- **Keys.** Slot 1 is Z or 1 (LT on a controller), slot 2 is X or 2 (A on a controller, or the D-pad).
+  A is also revive: beside a fallen ally, holding it only revives. There's no rebinding.
+- **Presses are buffered.** A skill pressed mid-swing, mid-roll or while reeling fires as soon as the hero
+  is free (within 0.4 s). Pressed while cooling down, its HUD chip shakes red with a sound.
+- **What's on a hero shows** (the snapshot's last three hero fields: ward left, seconds of extra damage,
+  a charged next hit): a pale shell for a ward, embers circling the feet for extra damage, a violet spark
+  for a charged hit, on every screen, and as chips on that hero's HUD card ("Ward 23", "Damage up 4s",
+  "Next hit charged"). A hit a ward soaks whole says "Warded" and doesn't spill a drink.
 
 | Skill | Cooldown | What it does |
 |---|---|---|
@@ -159,6 +169,10 @@ running. Cooldowns start afresh each fight and show on the hero's HUD card.
 | Rallying Cry | 22 s | you and allies within 150 px deal 30% more for 6 s |
 | Litany of Mending | 30 s | heals you and allies within 120 px for a fifth of your health |
 | Stone Ward | 20 s | soaks the next 45 damage you take |
+| Fan of Knives | 7 s | five knives in a fan, x0.9 each, each builds Bleed |
+| Plague Censer | 16 s | a cloud where you aim (up to 200 px) for 3 s: six ticks of x0.7, building Rot |
+| Hammerfall | 11 s | a slam just ahead of you, x1.6, the most poise damage of any skill |
+| Second Breath | 24 s | stamina refills at once, +40 Focus |
 
 A skill's damage is `BASE` (20) x its multiplier whatever weapon is held; it counts as a special for
 build bonuses and for the critical on a staggered boss, but builds only its own status (not the
@@ -171,8 +185,9 @@ slot to replace when full) or `{t: 'learn', h, skip: 1}`.
 
 ### Upgrades (`content/upgrades.py`, applied in `build.py`)
 
-95 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
-special, dodge, guard; and four passives), five plain passives, six Pacts (only offered to parties of two
+100 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
+special, dodge, guard; and four passives), ten plain passives (five of them for skills: quicker cooldowns, more damage, a heal, a ward or Focus on
+use), six Pacts (only offered to parties of two
 or more), six Duos (offered once you hold both Vows), and 24 Weapon Arts. A slot holds one upgrade; taking
 another replaces it. Rarity (common, rare x1.5, epic x2) scales the numbers. Offers lean toward Vows you
 already follow. Attributes: Vigor +12 health; Endurance +10 stamina and quicker recovery; Might +7% heavy
@@ -239,7 +254,7 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 | `app/kingfall/save.py` | Saved runs in SQLite |
 | `app/kingfall/content/` | `moves.py` (shape builders, motion), one file per boss, `weapons.py`, `skills.py`, `upgrades.py`, `__init__.py` (hero numbers, scaling, what the browser gets) |
 | `app/static/games/kingfall/js/main.js` | Boot (Phaser at a whole-number zoom), menus, lobby, Bonfire, the connection |
-| `js/input.js` | Keyboard/mouse and up to four gamepads as one set of actions (LT is skill 1, so only LB blocks) |
+| `js/input.js` | Keyboard/mouse and up to four gamepads as one set of actions (LT and A are the skills, so only LB blocks) |
 | `js/fight.js` | The fight scene: arena, lights, darkness, heroes, boss, hit checks, effects, camera |
 | `js/hero.js` | Local heroes (every weapon's behaviour), remote heroes, poses |
 | `js/boss.js` | Boss bodies, adds, the wyrm's trail, danger drawing, hit checks against heroes |
@@ -250,19 +265,32 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 ## Testing
 
 - `tools/check-all.sh` runs `node tools/kingfall-parity.mjs` (the JS and Python move maths agree on every
-  move of every boss) and `python3 tools/kingfall-sim.py --fast`.
+  move of every boss), `python3 tools/kingfall-sim.py --fast` and the browser smoke test below.
 - **The balance sim** (`tools/kingfall-sim.py`): bot parties fight on the real server code in simulated
   time. Bots see hits coming and roll with probability `skill`, step out of pools, fight adds, break
   cores, drink and revive; they get the levels and random blessings a run gives before that boss's tier.
   `python3 tools/kingfall-sim.py "" 10 --skill 0.85` runs every boss at every party size in about a minute.
-  Bots never block, parry or use specials or skills (so real parties hit a little harder than these numbers), and are poor at rings and slow projectiles, so treat their
-  numbers as a rough guide. Latest (Nov 2026, after rarer, longer staggers and boss health x0.9; skill
-  0.85, 6 fights each; win % solo / 2 / 3 / 4): Corvin 66/33/100/100, Mire 83/83/100/100, Bellwarden
-  75/58/92/83 (12 fights, after damage 0.85 to 0.75 and health 1600 to 1450), Headsmen 50/16/66/100, Wolf
-  83/66/100/83, Alchemist 16/33/50/66, Wyrm 100/100/100/100, Mirror 33/50/83/100, Bastion 50/66/100/83,
-  Moth 66/100/100/100, King 66/83/100/100, Drake 66/33/83/83. Samples this small swing by 20 points either way.
-- Skills were checked in a headless browser (learn, replace, pass, every skill cast) and by calling
-  `Fight.use_skill` / `hit_boss` on a stubbed room; there's no standing test for them.
+  Bots carry the skills a run gives by then (a starting one, a second from the first Bonfire) and use
+  them and the sword's special when they'd do some good; how many of a skill's hits land is an
+  estimate (`use_skill` in the sim). They never block or parry and are poor at rings and slow
+  projectiles, so treat their numbers as a rough guide.
+  Latest (Nov 2026, 12 fights each at skill 0.85; win % solo / 2 / 3 / 4): Corvin 67/67/92/100, Mire
+  100/100/92/100, Bellwarden 100/83/100/100, Headsmen 67/75/92/100, Wolf 92/92/100/100, Alchemist
+  67/100/100/100, Wyrm 100/100/100/100, Mirror 75/100/100/100, Bastion 92/92/100/100, Moth 92/83/100/100,
+  King 83/92/100/100, Drake 100/92/92/92. Middling bots (skill 0.6, 6 fights each): Corvin 33/17/17/83,
+  Mire 83/100/100/100, Bellwarden 67/100/100/100, Headsmen 33/33/17/50, Wolf 67/83/100/100, Alchemist
+  50/67/100/100, Wyrm 33/17/50/50, Mirror 33/67/100/100, Bastion 33/33/33/83, Moth 83/100/100/100, King
+  50/17/17/33, Drake 50/33/50/33. Samples this small swing by 20 points either way. Fights run 1 to 2.5
+  minutes and bosses stagger two to four times (five for the Headsmen and the finals with a full party):
+  more than the one to three the owner asked for, so poise is the next thing to raise if it feels cheap.
+- **Why these numbers moved** (Nov 2026): until bots used skills and specials they won 16-66% of the
+  hard fights; once they did, with the old numbers, they won about 95% of everything. One tuning pass
+  brought it back: `POISE_K` 1.8 to 2.6, boss health scale 0.9/1.8/2.7/3.6 to 1.05/2.05/3.1/4.1, and the
+  skills' poise damage cut by about a third.
+- **The browser smoke test** (`node tools/kingfall-smoke.js --serve`, about 15 s, in `check-all.sh`):
+  starts its own server, makes a debug room, picks a starting skill, uses it in a fight, wins, learns a
+  second at the Bonfire and uses that; fails on any page error. Skipped (not failed) where Playwright
+  isn't installed. Without `--serve` it runs against a server you started.
 - `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the fight.
 - `python3 tools/kingfall-art/anim.py <boss|weapon> <move> out.png` draws a move's keyframes as a strip;
   `sheet.py` reviews bosses beside a hero at game size; `preview.py` the heroes.
@@ -288,5 +316,5 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   CSS. The atlas is loaded with the page's version, so a rebuilt atlas also needs a bump.
 - **A new skill** needs only an entry in `content/skills.py` if it's built from the existing pieces
   (`shape`, `proj`, `aoe`, `blink`, `empower`, `rally`, `heal`, `ward`, `status`; poses `cast` and
-  `raise`). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.
+  `raise`; `stamina` and `focus` are applied by the browser). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.
 - The fight lives in one process's memory; a deploy drops it (the run resumes from the last Bonfire).

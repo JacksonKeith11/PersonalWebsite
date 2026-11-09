@@ -17,7 +17,7 @@ HERO = {
 }
 
 # Boss health and poise by party size (1-4).
-SCALE_HP = (0.9, 1.8, 2.7, 3.6)
+SCALE_HP = (1.05, 2.05, 3.1, 4.1)
 SCALE_POISE = (1.0, 1.4, 1.8, 2.2)
 
 

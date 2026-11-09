@@ -13,9 +13,10 @@ const KEYS = {
   up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'],
 };
 // standard gamepad buttons
-// (skills: LT, and the D-pad or a click of the left stick; the D-pad only steers menus otherwise)
+// (skills: LT and A. A also revives: beside a fallen ally it does only that. The D-pad is a second
+// way to skill 2; otherwise it only steers menus.)
 const PAD = { light: [5], heavy: [7], special: [3], dodge: [1], block: [4], heal: [2], interact: [0], lock: [11],
-  skill1: [6], skill2: [12, 13, 14, 15, 10],
+  skill1: [6], skill2: [0, 12, 13, 14, 15],
   start: [9], back: [1, 8], up: [12], down: [13], left: [14], right: [15], confirm: [0] };
 const DEAD = 0.22;
 
@@ -115,5 +116,5 @@ export class Input {
 export const slotOf = id => id === 'kb' ? 0 : 1 + Number(id.slice(3));
 export const deviceOfSlot = slot => slot === 0 ? 'kb' : 'pad' + (slot - 1);
 // what to press for skill slot i (0 or 1) on a device
-export const skillKey = (id, i) => id === 'kb' ? ['Z', 'X'][i] : ['LT', 'D-pad'][i];
+export const skillKey = (id, i) => id === 'kb' ? ['Z', 'X'][i] : ['LT', 'A'][i];
 export const padName = id => id === 'kb' ? 'Keyboard & mouse' : 'Controller ' + (Number(id.slice(3)) + 1);

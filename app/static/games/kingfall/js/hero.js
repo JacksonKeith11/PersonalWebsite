@@ -9,20 +9,20 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=6';
-import { placeAttack, touches, wrap } from './moves.js?v=6';
-import { crescent, lance, burst } from './fx.js?v=6';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=8';
+import { placeAttack, touches, wrap } from './moves.js?v=8';
+import { crescent, lance, burst } from './fx.js?v=8';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
 
-// A skill's casting pose: 'cast' thrusts the off hand forward, 'raise' lifts both arms, each reaching
+// A skill's casting pose: 'cast' draws the weapon hand back and thrusts it out, the weapon held upright, 'raise' lifts both arms, each reaching
 // its height as the skill's hit begins (or a third of the way in) and easing back at the end.
 function skillPose(S, at, D) {
   const t0 = S.hit ? S.hit[0] : S.dur * 0.3, t1 = Math.max(t0 + 0.12, S.hit ? S.hit[1] : S.dur * 0.6);
   const keys = S.pose === 'cast'
-    ? [[0, { arm_b: -20, shield: 40, torso: -10, lean: -2 }], [t0, { arm_b: -95, shield: 95, front: 1, torso: 12, lean: 5 }],
-       [t1, { arm_b: -95, shield: 95, front: 1, torso: 12, lean: 5 }], [S.dur, {}]]
+    ? [[0, { arm_f: 30, weapon: 60, arm_b: -20, torso: -14, lean: -3 }], [t0, { arm_f: -95, weapon: 150, arm_b: 30, torso: 16, lean: 6, head: 4 }],
+       [t1, { arm_f: -95, weapon: 150, arm_b: 30, torso: 16, lean: 6, head: 4 }], [S.dur, {}]]
     : [[0, { arm_f: -60, arm_b: -60, torso: 6, dy: 2 }], [t0, { arm_f: -170, weapon: 170, arm_b: -170, shield: 170, torso: -8, head: -8 }],
        [t1, { arm_f: -170, weapon: 170, arm_b: -170, shield: 170, torso: -8, head: -8 }], [S.dur, {}]];
   return sample(keys, Math.min(at, S.dur), D);
@@ -98,7 +98,10 @@ export class HeroView {
   }
   draw(x, y, an, at, aim, flash) {
     this.drawSwing(x, y, an, at, aim);
-    const left = Math.cos(aim) < -0.05;
+    this.drawStatus(x, y);
+    let left = Math.cos(aim) < -0.05;
+    const A = an[0] === 'k' && SKILLS[an.slice(2)] && SKILLS[an.slice(2)].aoe;
+    if (A && !A.at && at > 0.06) left = Math.floor((at - 0.06) / (A.every / 2)) % 2 === 1 ? !left : left;  // a whirl: the hero turns about with each strike
     const { p, spin, z } = heroPose(this.W, this.HERO, an, at);
     this.rig.pose(p, left);
     placeRig(this.rig, x, y - z, spin, left);
@@ -109,6 +112,26 @@ export class HeroView {
     this.rig.c.alpha = an === 'roll' || an === 'dash' ? 0.85 : an === 'blink' || (K && K.blink) ? 0.4 : 1;
   }
   destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); }
+
+  // What's on the hero (this.st, from the server's snapshot): a ward is a pale shell round them, extra
+  // damage a ring of embers turning at their feet, a charged next hit a violet spark circling the weapon hand.
+  drawStatus(x, y) {
+    const st = this.st, g = this.swingG, t = performance.now() / 1000;
+    if (!st) return;
+    if (st.shield > 0) {
+      g.lineStyle(1.5, 0xa8b0bc, 0.55 + 0.2 * Math.sin(t * 4)); g.strokeEllipse(x, y - 16, 26, 38);
+      g.fillStyle(0xa8b0bc, 0.07); g.fillEllipse(x, y - 16, 26, 38);
+    }
+    if (st.rally > 0) {
+      g.lineStyle(1.5, 0xffb040, 0.6); g.strokeEllipse(x, y, 30, 12);
+      for (let k = 0; k < 3; k++) { const a = t * 3 + k * 2.094; g.fillStyle(0xffb040, 0.9); g.fillCircle(x + Math.cos(a) * 15, y + Math.sin(a) * 6, 1.6); }
+    }
+    if (st.emp) {
+      const a = t * 7;
+      g.fillStyle(0xc8b4ff, 0.9); g.fillCircle(x + Math.cos(a) * 9, y - 20 + Math.sin(a) * 9, 2);
+      g.fillStyle(0xffffff, 0.9); g.fillCircle(x + Math.cos(a) * 9, y - 20 + Math.sin(a) * 9, 1);
+    }
+  }
 
   // The swing's real hitbox, drawn as it plays (fx.js): a crescent sweeping across an arc, a spearhead
   // along a thrust, a burst for a slam, in the player's colour with a white-hot core, so you can see
@@ -164,6 +187,8 @@ export class LocalHero {
     this.skills = (h.skills || []).map(id => SKILLS[id]).filter(Boolean);  // slot 0 is skill1, slot 1 skill2
     this.skillCd = {};        // skill id -> seconds until it can be used again
     this.skill = null;        // the one being cast
+    this.skillBuf = null;     // a skill pressed while busy: it fires as soon as the hero is free (within 0.4 s)
+    this.denied = null;       // {id, until}: a skill pressed while cooling down (the HUD chip shakes)
     this.aimDist = null;      // how far away the thing aimed at is (the cursor, a locked-on boss), if known
     this.maxSt = this.S.stamina || this.HERO.stamina;
     this.view = new HeroView(scene, h, this.W, this.HERO);
@@ -263,6 +288,16 @@ export class LocalHero {
     let speed = H.speed * speedK;
     const setState = s => { this.state = s; this.t = 0; this.anT = 0; };
 
+    // skills: a press while busy is held for a moment and fires when the hero is free; a press while
+    // cooling down is refused aloud. On a controller A is also revive: beside a fallen ally it's only that.
+    const reviving = d.id !== 'kb' && ctx.allies.some(a => a.down && !a.dead && Math.hypot(a.x - this.x, a.y - this.y) < 30);
+    this.skills.forEach((S, i) => {
+      if (!d.pressed('skill' + (i + 1)) || (reviving && d.held('interact'))) return;
+      if (this.skillCd[S.id] > 0.4) { this.denied = { id: S.id, until: performance.now() + 350 }; ctx.onDenied(this); }
+      else this.skillBuf = { S, t: 0.4 };
+    });
+    if (this.skillBuf && (this.skillBuf.t -= dt) < 0) this.skillBuf = null;
+
     // knockback slides you whatever you're doing
     if (this.kb) {
       this.kb.t -= dt;
@@ -348,8 +383,7 @@ export class LocalHero {
         if (d.pressed('light')) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (d.pressed('heavy') && this.st > 0) { setState('charge'); this.charge = 0; break; }
         if (d.pressed('special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
-        const sk = this.skills.find((S, i) => d.pressed('skill' + (i + 1)) && !(this.skillCd[S.id] > 0));
-        if (sk) { this.useSkill(sk, move, ctx); break; }
+        if (this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0)) { const S = this.skillBuf.S; this.skillBuf = null; this.useSkill(S, move, ctx); break; }
         if (G.kind === 'block' && d.held('block')) { setState('block'); this.blockT = 0; break; }
         if (G.kind === 'counter' && d.pressed('block') && this.spend(G.st)) { setState('cnt'); break; }
         if (d.pressed('heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
@@ -407,7 +441,9 @@ export class LocalHero {
   // Start a skill: its cooldown begins, the server is told (it applies cries, wards and heals, and shows
   // everyone), and a blink carries you off at once, the way you're walking or else the way you aim.
   useSkill(S, move, ctx) {
-    this.skill = S; this.skillCd[S.id] = S.cd;
+    this.skill = S; this.skillCd[S.id] = S.cd * (this.S.skill_cd || 1);
+    if (S.stamina) { this.st = this.maxSt; this.stWait = 0; }
+    this.focus = Math.min(this.HERO.focus, this.focus + (S.focus || 0) + (this.S.skill_focus || 0));
     this.state = 'skill'; this.t = 0; this.anT = 0; this.queued = null;
     this.swing = { seq: ++swingSeq, struck: new Set(), fired: false };
     if (S.blink) {

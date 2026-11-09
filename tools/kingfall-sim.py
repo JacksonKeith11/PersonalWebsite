@@ -24,6 +24,7 @@ from app.kingfall import content as C  # noqa: E402
 from app.kingfall.fight import TICK, Fight  # noqa: E402
 from app.kingfall.geom import place_attack, place_hit, touches  # noqa: E402
 from app.kingfall.room import Hero  # noqa: E402
+from app.kingfall.content.skills import MAX_SKILLS, SKILLS  # noqa: E402
 
 
 class Stub:
@@ -46,6 +47,8 @@ class Bot:
         self.decided = set()
         self.revive_t = 0.0
         self.W = C.WEAPONS[fh.hero.weapon]
+        self.cd = {}       # skill id -> when it's ready again
+        self.focus = 40.0
 
     def iframes(self):
         a, b = C.HERO["roll"]["iframes"]
@@ -152,6 +155,7 @@ def step_bot(b, f, now, dt, bots):
                     f.hit_add(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "a": near_add["id"]}, now)
                 else:
                     f.hit_boss(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "e": body.e, "core": core_i}, now)
+                    b.focus = min(100.0, b.focus + b.W["base"] * atk["mult"] * H["focus_per_dmg"])
                 b.landed = True
         if b.t >= atk["dur"]:
             b.combo = (b.combo + 1) % len(b.W["light"])
@@ -175,11 +179,58 @@ def step_bot(b, f, now, dt, bots):
         f.drink(fh.hero.id, now); b.state, b.t = "drink", 0.0
         return
     busy = body.move is not None and now - body.move.start < body.move.data["dur"] * 0.6
+    if b.state == "idle" and use_skill(b, f, now, d, body, target, bots): return
+    if b.state == "idle" and target[0] == "body" and not busy and b.focus >= b.W["special"]["focus"] and "shape" in b.W["special"] and d < 40:
+        b.focus -= b.W["special"]["focus"]; b.swing += 1   # the weapon's special, when there's the Focus for it
+        f.hit_boss(fh.hero.id, {"atk": "special", "sw": b.swing, "e": body.e, "core": core_i}, now)
+        b.state, b.t, b.landed, b.combo = "atk", 0.0, True, 0
+        return
     if d > (22 if core_i is not None else 34):
         fh.x += math.cos(toward) * H["speed"] * dt; fh.y += math.sin(toward) * H["speed"] * dt
     elif (target[0] == "add" or not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
         b.state, b.t, b.landed = "atk", 0.0, False
     fh.x, fh.y = f.clamp(fh.x, fh.y)
+
+
+def use_skill(b, f, now, d, body, target, bots):
+    """A bot uses a skill that's ready when it would do some good, roughly as a player would: damage
+    skills when the boss is in their reach (how many of a skill's hits land is an estimate), a heal when
+    hurt, a ward or a cry as the fight is joined. True if one was used (the bot stands a moment)."""
+    fh = b.fh
+    reach = body.d["radius"]
+    for sid in fh.hero.skills:
+        if b.cd.get(sid, 0) > now: continue
+        s = SKILLS[sid]
+        hits = 0
+        if "mult" in s:
+            if target[0] != "body" or body.untouchable(now): continue
+            if "proj" in s:
+                if d > 220: continue
+                hits = 1 if s["proj"].get("n", 1) == 1 else (3 if d < 60 else 2)
+            elif "shape" in s:
+                if d > s["shape"]["r"] + s["shape"].get("x", 0) + reach - 6: continue
+                hits = 1
+            else:
+                A = s["aoe"]
+                if d > (A.get("range") or A["at"]) + A["r"] + reach - 10: continue
+                hits = A["ticks"] if A["ticks"] <= 3 else A["ticks"] // 2   # a lingering cloud: the boss walks out of it
+                if A["delay"] > 0.4 and body.move is None and b.rng.random() > b.skill: hits = 0  # a slow pillar can miss a walking boss
+        elif "heal" in s:
+            if not any(o.fh.hero.hp < o.fh.hero.mhp() * 0.6 for o in bots if not o.fh.down and math.hypot(o.fh.x - fh.x, o.fh.y - fh.y) <= s["radius"]): continue
+        elif "ward" in s:
+            if fh.shield or d > 120: continue
+        elif "stamina" in s:
+            if b.focus > 55: continue
+            b.focus = min(100.0, b.focus + s["focus"])
+        elif d > 90: continue   # a cry or a charged hit: as the fight is joined
+        f.use_skill(fh.hero.id, {"sk": sid}, now)
+        b.cd[sid] = now + s["cd"] * fh.hero.build().stats["skill_cd"]
+        for _ in range(hits):
+            b.swing += 1
+            f.hit_boss(fh.hero.id, {"atk": "skill", "sk": sid, "sw": b.swing, "e": body.e}, now)
+        b.state, b.t, b.landed, b.combo = "atk", 0.0, True, 0   # the cast takes about as long as a swing
+        return True
+    return False
 
 
 # how many Bonfires a run has passed before meeting a boss of each tier (two bosses a tier)
@@ -189,7 +240,9 @@ STAGE = {1: 1, 2: 3, 3: 5, 4: 6}
 def level_up(h, n, rng, size):
     """Give a bot hero the levels and blessings a run gives by then: a point and a pick a Bonfire."""
     from app.kingfall.content.upgrades import UPGRADES, offer
+    h.skills = [rng.choice(list(SKILLS))]   # the starting skill, then one learned at each Bonfire up to two
     for k in range(n):
+        if len(h.skills) < MAX_SKILLS: h.skills.append(rng.choice([x for x in SKILLS if x not in h.skills]))
         h.level += 1
         h.attrs[rng.choice(("vig", "vig", "end", "mig", "fin"))] += 1
         cards = offer(h, size, rng, k + 1)

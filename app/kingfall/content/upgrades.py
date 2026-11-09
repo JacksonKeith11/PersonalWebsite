@@ -8,11 +8,14 @@ An upgrade is a list of effects (`fx`), each a dict with a type `t`. The server 
 Numbers marked in `scale` grow with rarity (rare x1.5, epic x2). `{v}` in the text is the first one.
 
 Effect types:
-  dmg      {slot, mult}            damage of that slot ('all' for every attack) x mult
+  dmg      {slot, mult}            damage of that slot ('all' for every attack, 'skill' for skills) x mult
   poise    {slot, mult}
   status   {slot, kind, amt}       build a status on the boss per hit (burn, frost, bleed, rot)
   stat     {key, add|mult}         mhp, stamina, st_regen, speed, roll_st, focus_gain, special_cost,
-                                   reach, flasks, heal, block_st, iframes, revive_time
+                                   reach, flasks, heal, block_st, iframes, revive_time, skill_cd
+                                   (cooldowns x mult), skill_focus (Focus gained on using a skill)
+  skillheal {amt}                  using a skill heals you amt
+  skillward {amt}                  using a skill wards you against the next amt damage
   lowhp    {mult}                  all damage x mult while below half health
   steal    {slot, frac}            heal by frac of that slot's damage
   chain    {every, dmg}            every Nth light hit adds dmg (lightning)
@@ -118,6 +121,11 @@ U("any_reach", "Long Reach", None, None, "Your attacks reach {v}% further.", [{"
 U("any_focus", "Meditation", None, None, "Specials cost {v}% less Focus.", [{"t": "stat", "key": "special_cost", "mult": 0.8}], ["mult"])
 U("any_all", "Whetstone", None, None, "All attacks deal {v}% more.", [{"t": "dmg", "slot": "all", "mult": 1.08}], ["mult"])
 U("any_vigour", "Vigour", None, None, "+{v} maximum health.", [{"t": "stat", "key": "mhp", "add": 15}], ["add"])
+U("any_skillcd", "Quick Study", None, None, "Your skills come back {v}% sooner.", [{"t": "stat", "key": "skill_cd", "mult": 0.85}], ["mult"])
+U("any_skilldmg", "Battle Hymn", None, None, "Your skills deal {v}% more.", [{"t": "dmg", "slot": "skill", "mult": 1.2}], ["mult"])
+U("any_skillheal", "Second Nature", None, None, "Using a skill heals you {v}.", [{"t": "skillheal", "amt": 6}], ["amt"])
+U("any_skillward", "Stoneskin", None, None, "Using a skill wards you against the next {v} damage.", [{"t": "skillward", "amt": 10}], ["amt"])
+U("any_skillfocus", "Resonance", None, None, "Using a skill gives you {v} Focus.", [{"t": "stat", "key": "skill_focus", "add": 15}], ["add"])
 
 # ------------------------------------------------------------------ Pacts (two or more heroes)
 U("pact_revive", "Pact of Mercy", None, None, "Reviving costs you no health, and the one you raise rises with a {v}-point shield.",

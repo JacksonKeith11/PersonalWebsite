@@ -117,3 +117,7 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); box-shadow: none; }
 .sk-rep { display: grid; gap: 4px; margin-top: auto; } .sk-rep .btn { padding: 5px 8px; font-size: 12px; }
 .chip kbd { margin-right: 2px; }
+.sk.no { animation: sk-no .3s; border-color: #e05050; }
+@keyframes sk-no { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.buffs { display: flex; flex-wrap: wrap; gap: 4px; }
+.buffs span { font-size: 10px; font-weight: 600; color: var(--k); border: 1px solid var(--k); border-radius: 8px; padding: 0 6px; margin-top: 4px; background: #0008; }

@@ -981,6 +981,11 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
     seed 5000): **56.0%**. The Peak's court is the hardest new group (Drowned Knight 10.5 damage a fight,
     Coral Colossus 21.8 in its few fights; the median enemy deals 3.3); the first regions' additions sit
     with their neighbours (Spine Urchin 2.3, Rum Runner 2.1, Lookout Parrot 0.3).
+  - With the new events, fork rooms, regional shop items, three final bosses and seven affixes (300 Hard
+    runs, seed 5000): **60.3%**, from 56.0%, at the edge of the noise (more loot, gold and consumables come
+    in than threats). The finals as fought: the Drowned Crown won by the party 78% of the time (77 damage a
+    fight), the Abyssal Leviathan 68% (88) and the Storm Queen 68% (68), so the new two are a little harder.
+    Not re-tuned: the owner reviews balance.
 - **Summons** (the Warden's Sprout, Call Bear, Swarm, Ancient Guardian) stand with the heroes, soak
   attacks, act after the heroes and last only for the fight; two per Warden (Pack Leader +1), a new
   one replacing the oldest. Enemies pick targets when they choose their intents, at the start of the

@@ -26,6 +26,13 @@ export class FightScene extends Phaser.Scene {
     this.textures.addCanvas('arena', A.canvas);
     this.add.image(0, 0, 'arena').setOrigin(0).setDepth(0);
     this.lights = [];
+    if (!this.textures.exists('glow')) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+      const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      this.textures.addCanvas('glow', cv);
+    }
     for (const [x, y] of A.windows) {
       const shaft = this.add.graphics().setDepth(3).setBlendMode(Phaser.BlendModes.ADD);
       shaft.fillStyle(0xa8b8ff, 0.05);
@@ -34,7 +41,7 @@ export class FightScene extends Phaser.Scene {
     for (const [x, y] of A.candles) {
       this.add.rectangle(x, y - 2, 2, 5, 0xd8d0c0).setDepth(y);
       const flame = this.add.rectangle(x, y - 6, 2, 3, 0xffd23f).setDepth(y + 0.1);
-      const glow = this.add.circle(x, y - 6, 18, 0xff9a3a, 0.12).setDepth(4).setBlendMode(Phaser.BlendModes.ADD);
+      const glow = this.add.image(x, y - 6, 'glow').setTint(0xff9a3a).setAlpha(0.35).setDisplaySize(56, 56).setDepth(4).setBlendMode(Phaser.BlendModes.ADD);
       this.lights.push({ flame, glow, seed: Math.random() * 10 });
     }
 
@@ -251,7 +258,7 @@ export class FightScene extends Phaser.Scene {
     });
     for (const L of this.lights) {
       const f = 0.85 + Math.sin(time / 90 + L.seed) * 0.08 + Math.sin(time / 37 + L.seed * 3) * 0.06;
-      L.glow.setScale(f); L.flame.setScale(1, f);
+      L.glow.setDisplaySize(56 * f, 56 * f); L.flame.setScale(1, f);
     }
 
     // camera: this browser's heroes, nudged toward the boss

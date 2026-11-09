@@ -17,6 +17,7 @@ import random
 
 from . import content as C
 from .content.moves import aim_at, n_dists, offset, resolve
+from .content.skills import BASE as SKILL_BASE, SKILLS
 
 LEAD = 0.14          # a move is announced this long before it starts
 TICK = 1 / 30
@@ -29,6 +30,8 @@ INTRO = 2.2
 STATUSES = ("burn", "frost", "bleed", "rot")
 STATUS_LIVE = 4.0    # a burst marks the boss as burning/frozen/... for this long
 ARENA = {"w": 800, "h": 480, "pad": (48, 70, 48, 40)}  # left, top, right, bottom walls
+SKILL_SLACK = 0.3   # a browser's cooldown may run this far ahead of the server's
+SKILL_LIVE = 4.0    # a skill's hits count for this long after it's used (a lance in flight, a pillar falling)
 RECENT = 12          # finished moves kept for late hit reports and lingering hazards
 
 
@@ -89,6 +92,7 @@ class FHero:
         self.empowered = None       # (damage mult, until) for the next hit
         self.vengeance = (1.0, 0.0)
         self.shield = 0
+        self.skill_used = {}        # skill id -> when it was last used (cooldowns start afresh each fight)
 
 
 class Body:
@@ -207,7 +211,7 @@ class Fight:
         fh.anim = str(msg.get("an") or "idle")[:12]
         fh.at = float(msg.get("at") or 0)
 
-    def attack(self, fh, msg):
+    def attack(self, fh, msg, now):
         """(mult, poise, slot) of a hero's attack from its message, or None."""
         w = C.WEAPONS.get(fh.hero.weapon)
         kind = msg.get("atk")
@@ -222,6 +226,11 @@ class Fight:
         if kind == "special":
             atk = w["special"]
             return atk["mult"], atk["poise"], kind
+        if kind == "skill":  # damage from the skill alone, whatever the weapon (hit_boss multiplies by the weapon's base)
+            s = SKILLS.get(msg.get("sk"))
+            if not s or "mult" not in s or s["id"] not in fh.hero.skills: return None
+            if now - fh.skill_used.get(s["id"], -99.0) > SKILL_LIVE: return None
+            return s["mult"] * SKILL_BASE / w["base"], s["poise"], "special"
         if kind == "guard" and "mult" in w["guard"]:  # the halberd's counter, the bow's roll-shot
             return w["guard"]["mult"], w["guard"].get("poise", 8), kind
         return None
@@ -242,7 +251,7 @@ class Fight:
         if not 0 <= e < len(self.bodies): return
         b = self.bodies[e]
         if b.state in ("intro", "dead") or not self.new_swing(fh, msg): return
-        a = self.attack(fh, msg)
+        a = self.attack(fh, msg, now)
         if not a: return
         mult, poise, slot = a
         if b.untouchable(now):
@@ -293,7 +302,7 @@ class Fight:
                     for s in build.get("chainstatus"): self.build_status(b, s["kind"], s["amt"] * build.buildup, now, fh)
                     for s in build.get("chainheal"): self.heal(fh, s["amt"])
                     self.room.broadcast({"t": "fx", "k": "chain", "e": e, "x": round(b.x), "y": round(b.y)})
-        if slot == "special":
+        if slot == "special" and msg.get("atk") != "skill":
             for x in build.get("specialheal"): self.heal(fh, x["amt"])
         b.hp = max(0, b.hp - dmg - extra)
         fh.threat += dmg
@@ -305,7 +314,11 @@ class Fight:
         elif b.state != "stagger":
             self.damage_poise(b, poise, now)
         self.room.broadcast({"t": "fx", "k": "crit" if crit else "hit", "e": e, "h": hid, "dmg": dmg + extra, "x": round(b.x), "y": round(b.y)})
-        for s in build.status[slot]: self.build_status(b, s[0], s[1] * build.buildup, now, fh)
+        if msg.get("atk") == "skill":  # a skill builds its own status, not the special's
+            st = SKILLS[msg["sk"]].get("status")
+            if st: self.build_status(b, st[0], st[1] * build.buildup, now, fh)
+        else:
+            for s in build.status[slot]: self.build_status(b, s[0], s[1] * build.buildup, now, fh)
         self.check_hp(b, now)
 
     def check_hp(self, b, now):
@@ -327,7 +340,7 @@ class Fight:
         a = self.adds.get(msg.get("a"))
         if not fh or not a or fh.down or fh.dead or not self.new_swing(fh, msg): return
         if math.hypot(a["x"] - fh.x, a["y"] - fh.y) > 140: return
-        at = self.attack(fh, msg)
+        at = self.attack(fh, msg, now)
         if not at: return
         mult, _, slot = at
         dmg = round(C.WEAPONS[fh.hero.weapon]["base"] * mult * fh.hero.build().dmg_mult(slot))
@@ -336,6 +349,25 @@ class Fight:
         if a["hp"] <= 0:
             del self.adds[a["id"]]
             self.room.broadcast({"t": "fx", "k": "adddie", "a": a["id"], "kind": a["kind"], "x": round(a["x"]), "y": round(a["y"])})
+
+    def use_skill(self, hid, msg, now):
+        """A hero used a skill (their browser plays it and reports its hits). Starts its cooldown and
+        applies what acts at once: empower, rally, heal, ward."""
+        fh = self.heroes.get(hid)
+        s = SKILLS.get(msg.get("sk"))
+        if not fh or not s or fh.down or fh.dead or self.over or s["id"] not in fh.hero.skills: return
+        if now - fh.skill_used.get(s["id"], -99.0) < s["cd"] - SKILL_SLACK: return
+        fh.skill_used[s["id"]] = now
+        near = [o for o in self.alive_heroes() if o is fh or math.hypot(o.x - fh.x, o.y - fh.y) <= s.get("radius", 0)]
+        if "empower" in s: fh.empowered = (s["empower"], now + 5.0)
+        if "rally" in s:
+            for o in near: o.vengeance = (max(s["rally"], o.vengeance[0] if now < o.vengeance[1] else 1.0), now + s["secs"])
+        if "heal" in s:
+            for o in near:
+                self.heal(o, fh.hero.mhp() * s["heal"])
+                self.room.broadcast({"t": "fx", "k": "heal", "h": o.hero.id, "x": round(o.x), "y": round(o.y)})
+        if "ward" in s: fh.shield = max(fh.shield, s["ward"])
+        self.room.broadcast({"t": "fx", "k": "skill", "h": hid, "sk": s["id"], "x": round(fh.x), "y": round(fh.y)})
 
     def heal(self, fh, amt):
         h = fh.hero

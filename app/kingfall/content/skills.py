@@ -6,9 +6,10 @@ A skill is played by the browser like a weapon attack (dur, hit, and one of shap
 weapons.py) and the server works out its damage: BASE x mult, with the hero's special-damage bonuses.
 `pose` picks the casting animation ("cast": a hand thrust forward; "raise": both arms up). Skills
 without a hit act the moment they're used: `blink` (px, untouchable for `iframes` s), `empower` (the
-next hit's multiplier), `rally` (damage multiplier for `secs`, to allies within `radius` too), `heal`
+next hit's multiplier, within 5 s), `rally` (damage multiplier for `secs`, to allies within `radius` too), `heal`
 (share of max health, allies within `radius` too), `ward` (damage soaked). `status`: (kind, amount)
-built on what it hits.
+built on what it hits. An `aoe` with a `range` lands on what the hero aims at (the cursor, or the boss
+they're locked on to), up to that far away; otherwise `at` px ahead.
 """
 
 BASE = 20         # a skill's damage is BASE x mult: the same whatever weapon you hold
@@ -25,7 +26,7 @@ SKILLS = {s["id"]: s for s in [
      "mult": 2.2, "poise": 50, "status": ("frost", 60)},
     {"id": "smite", "name": "Judgement", "cd": 12, "col": "#ffe680", "pose": "raise",
      "text": "Call a pillar of light down where you aim. It lands after a moment and hits very hard.",
-     "dur": 0.5, "hit": (0.2, 0.21), "aoe": {"at": 110, "r": 44, "delay": 0.55, "ticks": 1, "every": 0.2},
+     "dur": 0.5, "hit": (0.2, 0.21), "aoe": {"at": 110, "range": 220, "r": 44, "delay": 0.55, "ticks": 1, "every": 0.2},
      "mult": 4.5, "poise": 60},
     {"id": "whirl", "name": "Reaping Whirl", "cd": 9, "col": "#e8ecf2", "pose": "raise",
      "text": "Spin, striking everything around you three times.",

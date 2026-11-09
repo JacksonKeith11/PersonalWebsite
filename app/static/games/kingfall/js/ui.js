@@ -1,9 +1,10 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=5';
-import { heroFrames } from './hero.js?v=5';
-import { sfx } from './audio.js?v=5';
+import { paintRig, atlas } from './rig.js?v=6';
+import { heroFrames } from './hero.js?v=6';
+import { sfx } from './audio.js?v=6';
+import { skillKey, deviceOfSlot } from './input.js?v=6';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -90,7 +91,7 @@ export function portrait(h, W, size = 72) {
 export const LOOK_NAMES = { knight: 'Knight', pilgrim: 'Pilgrim', hunter: 'Witch Hunter', sellsword: 'Sellsword' };
 
 // ------------------------------------------------------------------ HUD
-export function buildHud(boss, heroes, colours, mineIds) {
+export function buildHud(boss, heroes, colours, mineIds, skills = {}) {
   const el = document.getElementById('hud');
   el.hidden = false;
   el.innerHTML = `
@@ -99,6 +100,8 @@ export function buildHud(boss, heroes, colours, mineIds) {
         <div class="top"><b>${esc(h.name)}</b><span class="flasks"></span></div>
         <div class="bar hp"><i class="lag"></i><i class="v"></i></div>
         ${mineIds.includes(h.id) ? '<div class="bar st"><i></i></div><div class="bar fo"><i></i></div>' : ''}
+        ${mineIds.includes(h.id) && (h.skills || []).length ? `<div class="skills">${h.skills.map((id, i) => skills[id] ? `<span class="sk" data-sk="${id}" style="--k:${skills[id].col}">
+          <kbd>${skillKey(deviceOfSlot(h.slot), i)}</kbd><b>${esc(skills[id].name)}</b><i></i></span>` : '').join('')}</div>` : ''}
         <div class="downtxt"></div>
       </div>`).join('')}</div>
     <div class="bossbar">${(boss.bodies || [boss]).map((b, e) => `<div class="bbody" id="bb-${e}"><div class="bname">${esc(b.name || boss.name)}</div>
@@ -136,6 +139,12 @@ export function updateHud(scene) {
     const st = c.querySelector('.bar.st i'), fo = c.querySelector('.bar.fo i');
     if (st) st.style.width = pct(l.st, l.maxSt);
     if (fo) fo.style.width = pct(l.focus, l.HERO.focus);
+    for (const chip of c.querySelectorAll('.sk')) {  // greyed, with the seconds left, while it cools down
+      const left = l.skillCd[chip.dataset.sk] || 0, txt = left > 0 ? String(Math.ceil(left)) : '';
+      chip.classList.toggle('cool', left > 0);
+      const n = chip.lastElementChild;
+      if (n.textContent !== txt) n.textContent = txt;
+    }
   }
   const lh = document.querySelector('.lockhint');
   if (lh) lh.textContent = scene.local.some(l => l.locked) ? 'Locked on' : '';

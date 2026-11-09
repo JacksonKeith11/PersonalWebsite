@@ -3,7 +3,7 @@
 Read this before changing anything in `app/kingfall/`, `app/static/games/kingfall/`, `tools/kingfall-*`
 or `tools/kingfall-art/`.
 
-**Status: built.** All twelve bosses, six weapons, 95 upgrades, the Bonfire, saves, difficulty and music
+**Status: built.** All twelve bosses, six weapons, eight skills, 95 upgrades, the Bonfire, saves, difficulty and music
 are in. The first half of this doc is what the owner decided; "How it plays now" is the game as it is.
 When a change alters how the game works, update "How it plays now" (not a new section at the end) in
 the same commit.
@@ -49,6 +49,11 @@ Keep to these. They came from the owner directly.
   archers and casters at the back; every boss has ranged attacks and attacks whose areas you must keep
   out of. (This replaced the earlier default of reading melee from animation alone.)
 
+- **Weapons must be seen to swing** (Nov 2026): sword and staff attacks show the weapon really swinging
+  outward, never held awkwardly or thrust into the hero's own body.
+- **Skills** (Nov 2026): abilities on cooldowns, shared across all weapons, chosen after each fight; a
+  hero carries at most two and swaps one out when over the limit.
+
 ## How it plays now
 
 ### A run
@@ -67,7 +72,7 @@ A run draws two bosses from each tier, then a final (`POOLS`, `TIERS` in `room.p
 | Final | the Hollow King · the Eclipse Drake |
 
 After each win: everyone heals and refills flasks, gains a level (one attribute point), one upgrade pick
-from three cards, and the party gets shared coins (60 + 40 x tier). The shop sells rerolls (30), an
+from three cards, the offer of a skill (below), and the party gets shared coins (60 + 40 x tier). The shop sells rerolls (30), an
 extra flask (120, +60 each time) and an extra blessing (150). The weapon shrine is lit at the Bonfires
 after fights 2 and 4 (changing weapon drops that weapon's Arts). The next fight starts when everyone is
 ready. The run is saved at every Bonfire (`save.py`, `data/kingfall.db`) and the save deleted when the
@@ -128,6 +133,41 @@ run ends.
 | Catalyst | bolts, a 3-bolt fan | charged orb that explodes | Nova round you | blink instead of a roll |
 
 Focus fills as you deal damage. Each weapon has four Arts (weapon-only upgrades).
+
+**Write swings with `sw(arm, blade)`, `off()` and `both()`, never raw `weapon=` angles.** On the hero rig
+a weapon at angle 0 lies back along the arm, so a raw angle that looks outward points into the body. The
+helpers take the blade's real direction (0 forward, 90 up, 180 back, -90 down). The knight bosses that
+hold a hero-style blade (Corvin, the Headsmen, the Mirror Knight, the King) had 180 added to every
+`weapon=` of 30 or less for the same reason; the Alchemist's "weapon" is a round flask, so its angles
+don't matter.
+
+### Skills (`content/skills.py`)
+
+Abilities on a cooldown that work with any weapon. After every won fight each hero is offered three
+they don't know and may learn one or pass; a hero carries two (`MAX_SKILLS`), so with two already each
+card offers "Replace <skill>" for either slot. Skills are kept in the save. Slot 1 is Z or 1 (LT on a
+controller), slot 2 is X or 2 (the D-pad, or a click of the left stick); they're used from standing or
+running. Cooldowns start afresh each fight and show on the hero's HUD card.
+
+| Skill | Cooldown | What it does |
+|---|---|---|
+| Ember Lance | 8 s | a piercing lance of fire, x3.2, builds Burn |
+| Frost Nova | 12 s | a ring of ice round you (72 px), x2.2, builds Frost, heavy on poise |
+| Judgement | 12 s | a pillar of light where you aim (the cursor or the boss you're locked on to, up to 220 px; else 110 px ahead), landing after 0.55 s, x4.5 |
+| Reaping Whirl | 9 s | three strikes all round you (58 px), x1.3 each |
+| Phase Step | 8 s | blink 120 px the way you're walking (or aiming), untouchable for 0.28 s; your next hit within 5 s deals 60% more |
+| Rallying Cry | 22 s | you and allies within 150 px deal 30% more for 6 s |
+| Litany of Mending | 30 s | heals you and allies within 120 px for a fifth of your health |
+| Stone Ward | 20 s | soaks the next 45 damage you take |
+
+A skill's damage is `BASE` (20) x its multiplier whatever weapon is held; it counts as a special for
+build bonuses and for the critical on a staggered boss, but builds only its own status (not the
+special slot's) and doesn't trigger heal-on-special. The browser plays a skill like an attack (state
+`skill`, animation `k_<id>`, hits reported as `atk: 'skill', sk`) and tells the server `{t: 'skill'}`
+when it starts: the server keeps the cooldown (0.3 s of slack), applies what acts at once (empower,
+rally, heal, ward), broadcasts fx `skill` (everyone sees a ring in the skill's colour and its name) and
+only counts that skill's hits for 4 s after. Bonfire message: `{t: 'learn', h, i, at}` (`at` = the
+slot to replace when full) or `{t: 'learn', h, skip: 1}`.
 
 ### Upgrades (`content/upgrades.py`, applied in `build.py`)
 
@@ -197,9 +237,9 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 | `app/kingfall/build.py` | A hero's attributes and upgrades folded into numbers (`Build`); `client()` is what the browser needs |
 | `app/kingfall/geom.py` | Hit shapes in Python (for the sim; twin of `js/moves.js`) |
 | `app/kingfall/save.py` | Saved runs in SQLite |
-| `app/kingfall/content/` | `moves.py` (shape builders, motion), one file per boss, `weapons.py`, `upgrades.py`, `__init__.py` (hero numbers, scaling, what the browser gets) |
+| `app/kingfall/content/` | `moves.py` (shape builders, motion), one file per boss, `weapons.py`, `skills.py`, `upgrades.py`, `__init__.py` (hero numbers, scaling, what the browser gets) |
 | `app/static/games/kingfall/js/main.js` | Boot (Phaser at a whole-number zoom), menus, lobby, Bonfire, the connection |
-| `js/input.js` | Keyboard/mouse and up to four gamepads as one set of actions |
+| `js/input.js` | Keyboard/mouse and up to four gamepads as one set of actions (LT is skill 1, so only LB blocks) |
 | `js/fight.js` | The fight scene: arena, lights, darkness, heroes, boss, hit checks, effects, camera |
 | `js/hero.js` | Local heroes (every weapon's behaviour), remote heroes, poses |
 | `js/boss.js` | Boss bodies, adds, the wyrm's trail, danger drawing, hit checks against heroes |
@@ -215,12 +255,14 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   time. Bots see hits coming and roll with probability `skill`, step out of pools, fight adds, break
   cores, drink and revive; they get the levels and random blessings a run gives before that boss's tier.
   `python3 tools/kingfall-sim.py "" 10 --skill 0.85` runs every boss at every party size in about a minute.
-  Bots never block, parry or use specials, and are poor at rings and slow projectiles, so treat their
+  Bots never block, parry or use specials or skills (so real parties hit a little harder than these numbers), and are poor at rings and slow projectiles, so treat their
   numbers as a rough guide. Latest (Nov 2026, after rarer, longer staggers and boss health x0.9; skill
   0.85, 6 fights each; win % solo / 2 / 3 / 4): Corvin 66/33/100/100, Mire 83/83/100/100, Bellwarden
   75/58/92/83 (12 fights, after damage 0.85 to 0.75 and health 1600 to 1450), Headsmen 50/16/66/100, Wolf
   83/66/100/83, Alchemist 16/33/50/66, Wyrm 100/100/100/100, Mirror 33/50/83/100, Bastion 50/66/100/83,
   Moth 66/100/100/100, King 66/83/100/100, Drake 66/33/83/83. Samples this small swing by 20 points either way.
+- Skills were checked in a headless browser (learn, replace, pass, every skill cast) and by calling
+  `Fight.use_skill` / `hit_boss` on a stubbed room; there's no standing test for them.
 - `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the fight.
 - `python3 tools/kingfall-art/anim.py <boss|weapon> <move> out.png` draws a move's keyframes as a strip;
   `sheet.py` reviews bosses beside a hero at game size; `preview.py` the heroes.
@@ -244,4 +286,7 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   `BOSS_RIG`), then `build.py`, then a content file registered in `content/__init__.py` and `POOLS`.
 - **Cache versions**: `python3 tools/bump-version.py app/static/games/kingfall` after changing its JS or
   CSS. The atlas is loaded with the page's version, so a rebuilt atlas also needs a bump.
+- **A new skill** needs only an entry in `content/skills.py` if it's built from the existing pieces
+  (`shape`, `proj`, `aoe`, `blink`, `empower`, `rally`, `heal`, `ward`, `status`; poses `cast` and
+  `raise`). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.
 - The fight lives in one process's memory; a deploy drops it (the run resumes from the last Bonfire).

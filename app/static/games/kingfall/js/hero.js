@@ -5,9 +5,28 @@
 // Weapons (app/kingfall/content/weapons.py) swing shapes, fire projectiles (`proj`), drop delayed
 // area hits (`aoe`), blink, leap (`air`: untouchable) or shrug off hits (`hyper`). Each has its own
 // defensive move: block, dash, counter, blink or rollshot.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=5';
-import { placeAttack, touches, wrap } from './moves.js?v=5';
-import { crescent, lance, burst } from './fx.js?v=5';
+//
+// Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
+// 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
+// (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=6';
+import { placeAttack, touches, wrap } from './moves.js?v=6';
+import { crescent, lance, burst } from './fx.js?v=6';
+
+let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
+const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
+
+// A skill's casting pose: 'cast' thrusts the off hand forward, 'raise' lifts both arms, each reaching
+// its height as the skill's hit begins (or a third of the way in) and easing back at the end.
+function skillPose(S, at, D) {
+  const t0 = S.hit ? S.hit[0] : S.dur * 0.3, t1 = Math.max(t0 + 0.12, S.hit ? S.hit[1] : S.dur * 0.6);
+  const keys = S.pose === 'cast'
+    ? [[0, { arm_b: -20, shield: 40, torso: -10, lean: -2 }], [t0, { arm_b: -95, shield: 95, front: 1, torso: 12, lean: 5 }],
+       [t1, { arm_b: -95, shield: 95, front: 1, torso: 12, lean: 5 }], [S.dur, {}]]
+    : [[0, { arm_f: -60, arm_b: -60, torso: 6, dy: 2 }], [t0, { arm_f: -170, weapon: 170, arm_b: -170, shield: 170, torso: -8, head: -8 }],
+       [t1, { arm_f: -170, weapon: 170, arm_b: -170, shield: 170, torso: -8, head: -8 }], [S.dur, {}]];
+  return sample(keys, Math.min(at, S.dur), D);
+}
 
 export function heroFrames(h, W) {
   const p = `${h.look}.${h.colour}.`;
@@ -28,6 +47,7 @@ const leapZ = (atk, at) => (atk && atk.air && at >= atk.air[0] && at <= atk.air[
 export function heroPose(W, HERO, an, at) {
   let p, spin = 0, z = 0;
   const D = rigDefaults('hero');
+  if (an[0] === 'k' && an[1] === '_') { const S = SKILLS[an.slice(2)]; return { p: S ? skillPose(S, at, D) : {}, spin, z }; }
   if (an[0] === 'l' && /^l\d+$/.test(an)) return { p: sample(W.light[Math.min(+an.slice(1), W.light.length - 1)].anim, at, D), spin, z };
   switch (an) {
     case 'run': p = runCycle(at * 13); break;
@@ -85,7 +105,8 @@ export class HeroView {
     this.shadow.setPosition(x, y).setScale(1 - z / 80); this.ring.setPosition(x, y);
     this.rig.c.setDepth(y); this.shadow.setDepth(1); this.ring.setDepth(1.1);
     this.rig.setTint(flash ? 0xffffff : null);
-    this.rig.c.alpha = an === 'roll' || an === 'dash' ? 0.85 : an === 'blink' ? 0.4 : 1;
+    const K = an[0] === 'k' && SKILLS[an.slice(2)];
+    this.rig.c.alpha = an === 'roll' || an === 'dash' ? 0.85 : an === 'blink' || (K && K.blink) ? 0.4 : 1;
   }
   destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); }
 
@@ -96,7 +117,18 @@ export class HeroView {
     const g = this.swingG;
     g.clear();
     const W = this.W;
-    let atk = null, rev = false;
+    let atk = null, rev = false, colour = this.colour, k = this.reachK;
+    if (an[0] === 'k' && an[1] === '_') {  // a skill: its own colour, and never stretched by the weapon's reach
+      const S = SKILLS[an.slice(2)];
+      if (!S) return;
+      colour = hex(S.col); k = 1;
+      if (S.shape) atk = S;
+      else if (S.aoe && !S.aoe.at) {  // a whirl: one full turn of the blade for each strike
+        const A = S.aoe, u = (at - S.hit[0] - A.delay) / A.every + 0.5, n = Math.min(Math.floor(u), A.ticks - 1);
+        if (u >= 0 && u < A.ticks + 0.5) crescent(g, { cx: x, cy: y, a: aim, r: A.r, a0: -180, a1: 180 }, u < A.ticks ? u - n : 1 + (u - A.ticks) * 2, colour, { rev: n % 2 === 1 });
+        return;
+      } else return;
+    }
     if (/^l\d+$/.test(an)) { const i = Math.min(+an.slice(1), W.light.length - 1); atk = W.light[i]; rev = i % 2 === 1; }
     else if (an === 'hv') atk = W.heavy;
     else if (an === 'sp') atk = W.special;
@@ -106,10 +138,10 @@ export class HeroView {
     if (at < h0 - pre || at > h1 + after) return;
     // 0..1 across the strike, on to 2 as the trail dies away
     const p = at <= h1 ? (at - h0 + pre) / (h1 - h0 + pre) : 1 + (at - h1) / after;
-    const s = placeAttack(reach(atk.shape, this.reachK), x, y, aim);
-    if (s.k === 'arc') crescent(g, s, p, this.colour, { rev });
-    else if (s.k === 'rect') lance(g, s, p, this.colour);
-    else if (s.k === 'circle') burst(g, s, p, this.colour);
+    const s = placeAttack(reach(atk.shape, k), x, y, aim);
+    if (s.k === 'arc') crescent(g, s, p, colour, { rev });
+    else if (s.k === 'rect') lance(g, s, p, colour);
+    else if (s.k === 'circle') burst(g, s, p, colour);
   }
 }
 
@@ -128,6 +160,11 @@ export class LocalHero {
     this.h = h; this.id = h.id; this.dev = dev;
     this.W = data.weapons[h.weapon]; this.HERO = data.hero;
     this.S = h.stats || {};   // the hero's build: see app/kingfall/build.py, Build.client
+    SKILLS = data.skills || {};
+    this.skills = (h.skills || []).map(id => SKILLS[id]).filter(Boolean);  // slot 0 is skill1, slot 1 skill2
+    this.skillCd = {};        // skill id -> seconds until it can be used again
+    this.skill = null;        // the one being cast
+    this.aimDist = null;      // how far away the thing aimed at is (the cursor, a locked-on boss), if known
     this.maxSt = this.S.stamina || this.HERO.stamina;
     this.view = new HeroView(scene, h, this.W, this.HERO);
     this.x = x; this.y = y; this.aim = -Math.PI / 2;
@@ -158,6 +195,7 @@ export class LocalHero {
       case 'charge': return 'hc';
       case 'special': return 'sp';
       case 'cstrike': return 'cs';
+      case 'skill': return 'k_' + this.skill.id;
       case 'block': return Math.hypot(this.vx, this.vy) > 5 ? 'blkw' : 'blk';
       default: return this.state;
     }
@@ -171,6 +209,7 @@ export class LocalHero {
     }
     if (this.state === 'dash') return this.t <= this.W.guard.dur - 0.04 + (this.S.iframes || 0);
     if (this.state === 'blink') return true;
+    if (this.state === 'skill' && this.skill.iframes) return this.t <= this.skill.iframes;
     if (this.state === 'special' && this.W.special.air) return this.t >= this.W.special.air[0] && this.t <= this.W.special.air[1];
     return false;
   }
@@ -190,6 +229,7 @@ export class LocalHero {
     if (this.stWait > 0) this.stWait -= dt; else this.st = Math.min(this.maxSt, this.st + H.st_regen * (this.S.st_regen || 1) * dt);
     const maxDash = (G.charges || 0) + (this.S.dash_charges || 0);
     if (this.dashes < maxDash && (this.dashT += dt) >= G.recharge) { this.dashes++; this.dashT = 0; }
+    for (const k in this.skillCd) if (this.skillCd[k] > 0) this.skillCd[k] -= dt;
     this.stepShots(dt, ctx);
     if (this.down || this.dead) { this.state = this.dead ? 'dead' : 'down'; this.vx = this.vy = 0; return; }
     if (!d) { this.vx = this.vy = 0; if (!['idle', 'run'].includes(this.state)) this.state = 'idle'; return; }
@@ -209,8 +249,14 @@ export class LocalHero {
       const tb = Math.atan2(boss.y - this.y, boss.x - this.x);
       if (Math.abs(wrap(want - tb)) < 0.44) want = tb;
     }
-    const busy = ['atk', 'heavy', 'special', 'roll', 'dash', 'hurt', 'cstrike'].includes(this.state) && !(this.state === 'atk' && this.t < 0.05);
-    if (want !== null && !busy) this.aim = want;
+    const busy = ['atk', 'heavy', 'special', 'skill', 'roll', 'dash', 'hurt', 'cstrike'].includes(this.state) && !(this.state === 'atk' && this.t < 0.05);
+    if (want !== null && !busy) {
+      this.aim = want;
+      const aimsAtBoss = boss.alive && Math.abs(wrap(want - Math.atan2(boss.y - this.y, boss.x - this.x))) < 0.01;
+      if (aimsAtBoss) this.aimDist = Math.hypot(boss.x - this.x, boss.y - this.y);
+      else if (d.id === 'kb' && d.mouse && ctx.world) { const w = ctx.world(d.mouse); this.aimDist = Math.hypot(w.x - this.x, w.y - (this.y - 14)); }
+      else this.aimDist = null;
+    }
 
     const move = d.move;
     const speedK = this.S.speed || 1;
@@ -244,9 +290,9 @@ export class LocalHero {
         speed = 0;
         break;
       }
-      case 'atk': case 'heavy': case 'special': case 'cstrike': {
+      case 'atk': case 'heavy': case 'special': case 'cstrike': case 'skill': {
         const atk = this.attackData();
-        if (this.t < atk.hit[1] && atk.step) { // a step as you swing (back, for some)
+        if (atk.hit && this.t < atk.hit[1] && atk.step) { // a step as you swing (back, for some)
           const s = atk.step / atk.hit[1];
           this.x += Math.cos(this.aim) * s * dt; this.y += Math.sin(this.aim) * s * dt;
         }
@@ -302,6 +348,8 @@ export class LocalHero {
         if (d.pressed('light')) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (d.pressed('heavy') && this.st > 0) { setState('charge'); this.charge = 0; break; }
         if (d.pressed('special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
+        const sk = this.skills.find((S, i) => d.pressed('skill' + (i + 1)) && !(this.skillCd[S.id] > 0));
+        if (sk) { this.useSkill(sk, move, ctx); break; }
         if (G.kind === 'block' && d.held('block')) { setState('block'); this.blockT = 0; break; }
         if (G.kind === 'counter' && d.pressed('block') && this.spend(G.st)) { setState('cnt'); break; }
         if (d.pressed('heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
@@ -328,6 +376,7 @@ export class LocalHero {
       case 'atk': return W.light[this.combo];
       case 'heavy': return W.heavy;
       case 'special': return W.special;
+      case 'skill': return this.skill;
       default: return { ...W.guard, dur: 0.45, hit: [0.08, 0.16], step: 14 };  // the counter-strike
     }
   }
@@ -355,6 +404,20 @@ export class LocalHero {
     this.t = 0; this.anT = 0; this.queued = null;
   }
 
+  // Start a skill: its cooldown begins, the server is told (it applies cries, wards and heals, and shows
+  // everyone), and a blink carries you off at once, the way you're walking or else the way you aim.
+  useSkill(S, move, ctx) {
+    this.skill = S; this.skillCd[S.id] = S.cd;
+    this.state = 'skill'; this.t = 0; this.anT = 0; this.queued = null;
+    this.swing = { seq: ++swingSeq, struck: new Set(), fired: false };
+    if (S.blink) {
+      const dir = move.x || move.y ? Math.atan2(move.y, move.x) : this.aim;
+      this.x += Math.cos(dir) * S.blink; this.y += Math.sin(dir) * S.blink;
+      ctx.collide(this); ctx.onBlink(this);
+    }
+    ctx.send({ t: 'skill', h: this.id, sk: S.id, x: Math.round(this.x), y: Math.round(this.y), a: Math.round(this.aim * 100) / 100 });
+  }
+
   startLight(i) {
     if (!this.spend(this.W.light[i].st)) { this.state = 'idle'; return; }
     this.combo = i;
@@ -371,30 +434,36 @@ export class LocalHero {
     }
   }
 
-  slot() { return { atk: 'light', heavy: 'heavy', special: 'special', cstrike: 'guard' }[this.state] || 'light'; }
+  // which attack a hit is reported as; a skill's is 'skill:<id>'
+  slot() { return this.state === 'skill' ? 'skill:' + this.skill.id : { atk: 'light', heavy: 'heavy', special: 'special', cstrike: 'guard' }[this.state] || 'light'; }
 
   // one swing strikes each thing it touches once: a body (or one of its weak points), adds.
   // Ranged attacks fire their projectiles or call down their area hit instead.
   checkHit(atk, ctx) {
-    if (this.t < atk.hit[0] || this.t > atk.hit[1]) return;
+    if (!atk.hit || this.t < atk.hit[0] || this.t > atk.hit[1]) return;
     const kind = this.slot();
     if (atk.proj) { if (!this.swing.fired) { this.swing.fired = true; this.fire(atk.proj, kind, ctx); } return; }
     if (atk.aoe) {
       if (!this.swing.fired) {
         this.swing.fired = true;
         const A = atk.aoe;
-        this.aoes.push({ x: this.x + Math.cos(this.aim) * A.at, y: this.y + Math.sin(this.aim) * A.at, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind });
-        ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(this.aoes.at(-1).x), y: Math.round(this.aoes.at(-1).y), r: A.r, life: A.delay + A.ticks * A.every });
+        // `range`: it lands on what you aim at (the cursor, the boss you're locked on to), up to that far
+        const at = A.range && this.aimDist != null ? Math.min(A.range, this.aimDist) : A.at;
+        this.aoes.push({ x: this.x + Math.cos(this.aim) * at, y: this.y + Math.sin(this.aim) * at, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind,
+          col: atk.col, pillar: !!A.range });
+        ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(this.aoes.at(-1).x), y: Math.round(this.aoes.at(-1).y), r: A.r,
+          life: A.range ? A.delay : A.delay + A.ticks * A.every, col: atk.col, p: A.range ? 1 : 0 });
       }
       return;
     }
-    const s = placeAttack(reach(atk.shape, this.S.reach || 1), this.x, this.y, this.aim);
+    const s = placeAttack(reach(atk.shape, this.state === 'skill' ? 1 : this.S.reach || 1), this.x, this.y, this.aim);
     this.strike(s, kind, this.swing, ctx);
   }
 
   // send a hit for everything shape s touches that this swing hasn't struck yet
   strike(s, kind, swing, ctx) {
-    const base = { h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: swing.seq };
+    const base = kind.startsWith('skill:') ? { h: this.id, atk: 'skill', sk: kind.slice(6), sw: swing.seq }
+      : { h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: swing.seq };
     let any = false;
     for (const tg of ctx.boss.targets(ctx.now)) {
       const key = tg.kind === 'add' ? 'a' + tg.a : 'b' + tg.e;
@@ -438,6 +507,7 @@ export class LocalHero {
       A.wait -= dt;
       if (A.wait <= 0 && A.ticks > 0) {
         A.ticks--; A.wait = A.every;
+        if (A.pillar) ctx.onPillar(A.x, A.y, A.r, A.col);
         this.strike({ k: 'circle', cx: A.x, cy: A.y, r: A.r }, A.kind, { seq: ++swingSeq, struck: new Set() }, ctx);
       }
     }
@@ -478,6 +548,7 @@ export class RemoteHero {
   constructor(scene, h, data) {
     this.h = h; this.id = h.id;
     this.W = data.weapons[h.weapon]; this.HERO = data.hero;
+    SKILLS = data.skills || {};
     this.view = new HeroView(scene, h, this.W, this.HERO);
     this.buf = [];
     this.x = 0; this.y = 0; this.down = false; this.dead = false;

@@ -120,6 +120,16 @@ export function impact(g, x, y, a, p, big, col) {
   g.lineStyle(1.5 * k + 0.5, col, 0.8 * k); g.strokeCircle(x, y, (big ? 8 : 5) + easeOut(p) * (big ? 16 : 10));
 }
 
+// A pillar of light landing on a circle (Judgement): a beam from above that narrows and fades, and a
+// flash on the floor. p runs 0..1.
+export function pillar(g, x, y, r, p, col) {
+  const k = 1 - clamp(p), w = r * (0.25 + 0.75 * k * k), top = y - 260;
+  fill(g, [[x - w, y], [x - w * 0.5, top], [x + w * 0.5, top], [x + w, y]], col, 0.4 * k);
+  fill(g, [[x - w * 0.45, y], [x - w * 0.2, top], [x + w * 0.2, top], [x + w * 0.45, y]], 0xffffff, 0.8 * k);
+  g.fillStyle(col, 0.45 * k); g.fillEllipse(x, y, r * 2, r * 1.1);
+  g.fillStyle(0xffffff, 0.6 * k * k); g.fillEllipse(x, y, r * 1.3, r * 0.7);
+}
+
 // A pool on the floor (poison, fire, void...): a soft body, a bright rim that breathes, drifting motes.
 export function pool(floor, g, s, col, fade, now) {
   const breathe = 0.5 + 0.5 * Math.sin(now * 3 + s.cx * 0.1);

@@ -1,15 +1,17 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=5';
-import { LocalHero, RemoteHero } from './hero.js?v=5';
-import { Boss } from './boss.js?v=5';
-import { drawArena } from './arenas.js?v=5';
-import { sfx } from './audio.js?v=5';
-import { music } from './music.js?v=5';
-import { deviceOfSlot } from './input.js?v=5';
-import { orb, arrow, impact } from './fx.js?v=5';
+import { addFrames } from './rig.js?v=6';
+import { LocalHero, RemoteHero } from './hero.js?v=6';
+import { Boss } from './boss.js?v=6';
+import { drawArena } from './arenas.js?v=6';
+import { sfx } from './audio.js?v=6';
+import { music } from './music.js?v=6';
+import { deviceOfSlot } from './input.js?v=6';
+import { orb, arrow, impact, pillar } from './fx.js?v=6';
 
 const INTERP = 0.1;
+// an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
+const aoeCol = col => col ? Phaser.Display.Color.HexStringToColor(col).color : 0xffd23f;
 
 export class FightScene extends Phaser.Scene {
   constructor() { super('fight'); }
@@ -73,7 +75,7 @@ export class FightScene extends Phaser.Scene {
     this.shotG = this.add.graphics().setDepth(5600);                                         // arrows' shafts, area rims
     this.shotGlow = this.add.graphics().setDepth(5601).setBlendMode(Phaser.BlendModes.ADD);  // everything that glows
     this.shotFloor = this.add.graphics().setDepth(2.5);                                      // their shadows
-    this.remoteShots = []; this.rings = [];
+    this.remoteShots = []; this.rings = []; this.pillars = [];
     this.sparkList = [];
     this.impacts = [];     // where a hero's hit landed: a flash and a cut across it
     this.reviveG = this.add.graphics().setDepth(6001);
@@ -168,6 +170,15 @@ export class FightScene extends Phaser.Scene {
         this.remoteShots.push({ ...m, k: m.k2 });
         if (m.k === 'proj') sfx.swing(this.pan(m.x));
         break;
+      case 'skill': {  // someone used a skill: a ring in its colour (as wide as its reach to allies) and its name
+        const K = this.data.skills[m.sk];
+        if (!K) break;
+        this.rings.push({ x: m.x, y: m.y, r: K.radius || 26, life: 0.3, col: Phaser.Display.Color.HexStringToColor(K.col).color });
+        this.number(m.x, m.y - 58, K.name, K.col, true);
+        if (K.heal) break;  // the heal has its own sound
+        K.ward ? sfx.clang(this.pan(m.x)) : K.rally ? sfx.parry(this.pan(m.x)) : K.blink ? 0 : sfx.heavySwing(this.pan(m.x));
+        break;
+      }
       case 'status': {
         const col = { burn: '#ff8a3a', frost: '#7fe3ff', bleed: '#e04a5a', rot: '#8be04e' }[m.kind];
         this.number(B.x, B.y - 92, m.kind.toUpperCase() + (m.dmg ? ' ' + m.dmg : ''), col, true);
@@ -249,6 +260,13 @@ export class FightScene extends Phaser.Scene {
   // a cut across the spot a hit landed: a white flash, a slash line across the aim and a ring
   impact(x, y, a, big, colour) { this.impacts.push({ x, y, a: a + Math.PI / 2 + (Math.random() - 0.5) * 0.6, big, colour, life: 0.2 }); }
 
+  // a called-down area hit lands (Judgement): the beam, sparks and a thump
+  pillarAt(x, y, r, col) {
+    const c = aoeCol(col);
+    this.pillars.push({ x, y, r, col: c, life: 0.35 });
+    this.burst(x, y - 6, c, 18); sfx.slam(this.pan(x)); this.cameras.main.shake(120, 0.005);
+  }
+
   burst(x, y, colour, n) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 120;
@@ -280,6 +298,7 @@ export class FightScene extends Phaser.Scene {
       input: this.cfg.input, boss: B, now, world: s => this.world(s), send: m => this.net.send(m),
       collide: h => this.collide(h), onHit: (h, k, tg) => this.onHit(h, k, tg), allies,
       onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
+      onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
       onBoom: (x, y, r) => { this.burst(x, y - 8, 0xc080ff, 20); this.rings.push({ x, y, r, life: 0.3 }); sfx.slam(this.pan(x)); },
     };
     for (const l of this.local) {
@@ -287,7 +306,7 @@ export class FightScene extends Phaser.Scene {
       l.update(dt, ctx);
       if (l.state !== before) {
         if (l.state === 'roll') sfx.roll(this.pan(l.x));
-        else if (l.state === 'atk' || l.state === 'special') sfx.swing(this.pan(l.x));
+        else if (l.state === 'atk' || l.state === 'special' || l.state === 'skill') sfx.swing(this.pan(l.x));
         else if (l.state === 'heavy') sfx.heavySwing(this.pan(l.x));
       } else if (l.state === 'atk' && l.t < dt * 1.5 && l.t > 0) sfx.swing(this.pan(l.x));
     }
@@ -329,21 +348,31 @@ export class FightScene extends Phaser.Scene {
     if (cam0.zoom !== z) cam0.setZoom(z);
     for (const l of this.local) {
       for (const s of l.shots) this.drawShot(s.x, s.y, s.a, s.r, s.col);
-      for (const A of l.aoes) { const p = 0.5 + 0.5 * Math.sin(time / 60); sg.fillStyle(0xffd23f, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, 0xffd23f, 0.7).strokeCircle(A.x, A.y, A.r); }
+      for (const A of l.aoes) { const p = 0.5 + 0.5 * Math.sin(time / 60), c = aoeCol(A.col); sg.fillStyle(c, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, c, 0.7).strokeCircle(A.x, A.y, A.r); }
     }
     this.remoteShots = this.remoteShots.filter(s => {
       s.life -= dtReal;
       if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(s.x, s.y, s.a, s.r, s.col); }
-      else { sg.fillStyle(0xffd23f, 0.12).fillCircle(s.x, s.y, s.r); sg.lineStyle(2, 0xffd23f, 0.6).strokeCircle(s.x, s.y, s.r); }
+      else {
+        const c = aoeCol(s.col);
+        sg.fillStyle(c, 0.12).fillCircle(s.x, s.y, s.r); sg.lineStyle(2, c, 0.6).strokeCircle(s.x, s.y, s.r);
+        if (s.p && s.life <= 0) this.pillarAt(s.x, s.y, s.r, s.col);
+      }
       return s.life > 0;
     });
     this.rings = this.rings.filter(r => {
       r.life -= dtReal;
-      const u = 1 - r.life / 0.3, gl = this.shotGlow;
-      gl.fillStyle(0xc080ff, 0.3 * (1 - u)).fillCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
-      gl.lineStyle(1 + 4 * (1 - u), 0xc080ff, 0.9 * (1 - u)).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
+      const u = 1 - r.life / 0.3, gl = this.shotGlow, c = r.col ?? 0xc080ff;
+      gl.fillStyle(c, 0.3 * (1 - u)).fillCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
+      gl.lineStyle(1 + 4 * (1 - u), c, 0.9 * (1 - u)).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
       gl.lineStyle(1, 0xffffff, 1 - u).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u) - 1);
       return r.life > 0;
+    });
+
+    this.pillars = this.pillars.filter(o => {
+      o.life -= dtReal;
+      pillar(this.shotGlow, o.x, o.y, o.r, 1 - o.life / 0.35, o.col);
+      return o.life > 0;
     });
 
     // effects

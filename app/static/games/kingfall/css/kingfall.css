@@ -105,3 +105,15 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 .up-rep { font-size: 11px; color: #e0a070; margin-top: auto; }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--r); border-radius: 10px; color: var(--text); }
+
+/* skills: the chips on a hero's HUD card, and the "replace" buttons on a Bonfire skill card */
+.card .skills { display: flex; gap: 4px; margin-top: 5px; }
+.sk { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 10px; padding: 2px 4px; background: #0008; border: 1px solid var(--k);
+  border-radius: 2px; white-space: nowrap; }
+.sk b { flex: 1; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--k); }
+.sk kbd { font-size: 9px; padding: 0 3px; }
+.sk i { font-style: normal; font-weight: 700; color: var(--text); }
+.sk.cool { border-color: #4a3e52; } .sk.cool b { color: var(--dim); } .sk.cool kbd { opacity: 0.5; }
+div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); box-shadow: none; }
+.sk-rep { display: grid; gap: 4px; margin-top: auto; } .sk-rep .btn { padding: 5px 8px; font-size: 12px; }
+.chip kbd { margin-right: 2px; }

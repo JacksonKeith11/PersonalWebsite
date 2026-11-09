@@ -4,16 +4,18 @@
 //
 //   move    {x, y}            left stick / WASD
 //   aim     {x, y} or null    right stick (null when centred); the mouse gives `mouse` instead
-//   buttons light heavy special dodge block heal interact lock start back, plus up/down/left/right
+//   buttons light heavy special skill1 skill2 dodge block heal interact lock start back, plus up/down/left/right
 //           for menus. `held(b)` and `pressed(b)` (this frame only).
 
 const KEYS = {
   dodge: ['Space'], block: ['ShiftLeft', 'ShiftRight'], special: ['KeyQ'], heal: ['KeyR'], interact: ['KeyE', 'KeyF'],
-  lock: ['Tab'], start: ['Enter'], back: ['Escape'],
+  lock: ['Tab'], start: ['Enter'], back: ['Escape'], skill1: ['KeyZ', 'Digit1'], skill2: ['KeyX', 'Digit2'],
   up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'],
 };
 // standard gamepad buttons
-const PAD = { light: [5], heavy: [7], special: [3], dodge: [1], block: [4, 6], heal: [2], interact: [0], lock: [11],
+// (skills: LT, and the D-pad or a click of the left stick; the D-pad only steers menus otherwise)
+const PAD = { light: [5], heavy: [7], special: [3], dodge: [1], block: [4], heal: [2], interact: [0], lock: [11],
+  skill1: [6], skill2: [12, 13, 14, 15, 10],
   start: [9], back: [1, 8], up: [12], down: [13], left: [14], right: [15], confirm: [0] };
 const DEAD = 0.22;
 
@@ -112,4 +114,6 @@ export class Input {
 // which slot (0-3) a device's hero uses on this browser: the keyboard is 0, controllers 1-4
 export const slotOf = id => id === 'kb' ? 0 : 1 + Number(id.slice(3));
 export const deviceOfSlot = slot => slot === 0 ? 'kb' : 'pad' + (slot - 1);
+// what to press for skill slot i (0 or 1) on a device
+export const skillKey = (id, i) => id === 'kb' ? ['Z', 'X'][i] : ['LT', 'D-pad'][i];
 export const padName = id => id === 'kb' ? 'Keyboard & mouse' : 'Controller ' + (Number(id.slice(3)) + 1);

@@ -13,7 +13,7 @@ import secrets
 from . import save as SAVE
 from .build import ATTRS, Build
 from .content.upgrades import UPGRADES, offer as draw_offer
-from .content.skills import MAX_SKILLS, offer as skill_offer
+from .content.skills import MAX_SKILLS, SKILLS, offer as skill_offer
 from .fight import TICK, Fight
 
 log = logging.getLogger("kingfall")
@@ -225,7 +225,7 @@ class Room:
             elif t == "skill": f.use_skill(h.id, msg, now)
             elif t == "shot":  # a projectile or area hit, so other browsers can draw it
                 out = {"t": "fx", "k": "shot", "h": h.id}
-                for k in ("x", "y", "a", "v", "r", "life"):
+                for k in ("x", "y", "a", "v", "r", "life", "p"):
                     if isinstance(msg.get(k), (int, float)): out[k] = msg[k]
                 out["k2"] = "aoe" if msg.get("k") == "aoe" else "proj"
                 if isinstance(msg.get("col"), str): out["col"] = msg["col"][:9]
@@ -397,6 +397,8 @@ class Room:
             self.next_id += 1
             h.level, h.attrs, h.ups, h.points = x["level"], x["attrs"], [tuple(u) for u in x["ups"]], x["points"]
             h.offer, h.picks, h.swap, h.second_wind = [tuple(o) for o in x["offer"]], x["picks"], x["swap"], x["wind"]
+            h.skills = [k for k in x.get("skills", []) if k in SKILLS][:MAX_SKILLS]  # .get: saves from before skills
+            h.skill_offer = [k for k in x.get("skill_offer", []) if k in SKILLS]
             h.changed(); h.hp = h.mhp(); h.flasks = h.max_flasks()
             self.heroes[h.id] = h
         self.run, self.stage, self.coins, self.bought, self.diff = st["run"], st["stage"], st["coins"], st["bought"], st["diff"]

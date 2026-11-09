@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=5';
-import { Input, slotOf, padName } from './input.js?v=5';
-import { Net, ME } from './net.js?v=5';
-import { FightScene } from './fight.js?v=5';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=5';
-import { unlock, sfx, setVolume } from './audio.js?v=5';
-import { music } from './music.js?v=5';
+import { setAtlas } from './rig.js?v=6';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=6';
+import { Net, ME } from './net.js?v=6';
+import { FightScene } from './fight.js?v=6';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=6';
+import { unlock, sfx, setVolume } from './audio.js?v=6';
+import { music } from './music.js?v=6';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -103,6 +103,17 @@ function upgradeCard(uid, rarity, i, h) {
   </button>`;
 }
 
+// A skill on offer. With a free slot the card itself learns it; with both full it holds a button for
+// each skill it could replace.
+function skillCard(id, i, h) {
+  const K = S.data.skills[id], full = h.skills.length >= S.data.max_skills;
+  const body = `<span class="up-top"><b>${esc(K.name)}</b><i>${K.cd}s cooldown</i></span>
+    <span class="up-kind">Skill</span><span class="up-text">${esc(K.text)}</span>`;
+  if (!full) return `<button class="card-up" data-nav data-learn="${h.id}:${i}" style="--v:${K.col};--r:var(--dim)">${body}</button>`;
+  return `<div class="card-up" style="--v:${K.col};--r:var(--dim)">${body}<span class="sk-rep">${h.skills.map((old, at) =>
+    `<button class="btn" data-nav data-learn="${h.id}:${i}:${at}">Replace ${esc(S.data.skills[old].name)}</button>`).join('')}</span></div>`;
+}
+
 function bonfire() {
   music.play('bonfire');
   const L = S.lobby, D = S.data, mine = myHeroes();
@@ -118,6 +129,10 @@ function bonfire() {
   </div>`);
   const send = (t, h, extra = {}) => net.send({ t, h, ...extra });
   el.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const [h, i] = b.dataset.pick.split(':').map(Number); send('pick', h, { i }); sfx.ui(); });
+  el.querySelectorAll('[data-learn]').forEach(b => b.onclick = () => {
+    const [h, i, at] = b.dataset.learn.split(':');
+    send('learn', +h, i === 'skip' ? { skip: 1 } : { i: +i, at: at === undefined ? undefined : +at }); sfx.ui();
+  });
   el.querySelectorAll('[data-attr]').forEach(b => b.onclick = () => { const [h, a] = b.dataset.attr.split(':'); send('attr', +h, { a }); });
   el.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const [h, item] = b.dataset.buy.split(':'); send('buy', +h, { item }); });
   el.querySelectorAll('[data-weapon]').forEach(b => b.onclick = () => { const [h, w] = b.dataset.weapon.split(':'); send('weapon', +h, { weapon: w }); });
@@ -126,12 +141,18 @@ function bonfire() {
 
 function panel(h) {
   const L = S.lobby, D = S.data, W = D.weapons[h.weapon], P = L.prices;
+  const dev = deviceOfSlot(h.slot);
+  const known = h.skills.map((id, i) => `<span class="chip" style="--r:${D.skills[id].col}" title="${esc(D.skills[id].text)}"><kbd>${skillKey(dev, i)}</kbd> ${esc(D.skills[id].name)} · ${D.skills[id].cd}s</span>`).join('');
   const ups = h.ups.map(([u, r]) => `<span class="chip" style="--r:${RARE_COL[r]}" title="${esc(D.upgrades[u].text[r])}">${esc(D.upgrades[u].name)}</span>`).join('');
   return `<div class="panel" style="--c:${D.colours[h.colour]}">
     <div class="row"><b class="pname">${esc(h.name)}</b><span class="hint">Level ${h.level} · ${esc(W.name)} · ${h.mhp} health · ${h.maxflasks} flasks</span></div>
     ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><div class="attrs">${D.attrs.map(([k, name, text]) =>
       `<button class="btn attr" data-nav data-attr="${h.id}:${k}"><b>${name} ${h.attrs[k]}</b><small>${text}</small></button>`).join('')}</div>` : ''}
     ${h.offer.length ? `<h3>Choose a blessing${h.picks > 1 ? ` (${h.picks})` : ''}</h3><div class="cards-up">${h.offer.map(([u, r], i) => upgradeCard(u, r, i, h)).join('')}</div>` : ''}
+    ${h.skill_offer.length ? `<h3>Learn a skill${h.skills.length >= D.max_skills ? ' (you carry two: one must go)' : ''}</h3>
+      <div class="cards-up">${h.skill_offer.map((id, i) => skillCard(id, i, h)).join('')}</div>
+      <div class="row" style="margin-top:8px"><button class="btn" data-nav data-learn="${h.id}:skip">Pass</button>
+        <span class="hint">Skills work with any weapon and come back on a cooldown.</span></div>` : ''}
     ${h.swap ? `<h3>The weapon shrine</h3><div class="row">${Object.values(D.weapons).map(w =>
       `<button class="btn" data-nav data-weapon="${h.id}:${w.id}" ${w.id === h.weapon ? 'disabled' : ''}>${esc(w.name)}</button>`).join('')}</div><div class="hint">Changing weapon keeps your blessings but loses your Weapon Arts.</div>` : ''}
     <h3>Shop</h3><div class="row">
@@ -139,9 +160,10 @@ function panel(h) {
       <button class="btn" data-nav data-buy="${h.id}:flask" ${L.coins < P.flask ? 'disabled' : ''}>+1 flask (${P.flask})</button>
       <button class="btn" data-nav data-buy="${h.id}:ember" ${L.coins < P.ember ? 'disabled' : ''}>Extra blessing (${P.ember})</button>
     </div>
+    ${known ? `<h3>Skills</h3><div class="chips">${known}</div>` : ''}
     ${ups ? `<h3>Blessings</h3><div class="chips">${ups}</div>` : ''}
     <div class="row" style="margin-top:14px;justify-content:flex-end">
-      <button class="btn ${h.ready ? '' : 'primary'}" data-nav data-ready="${h.id}" ${!h.ready && (h.points || h.offer.length) ? 'title="You can still spend points and choose a blessing"' : ''}>${h.ready ? 'Not ready' : 'Ready'}</button>
+      <button class="btn ${h.ready ? '' : 'primary'}" data-nav data-ready="${h.id}" ${!h.ready && (h.points || h.offer.length || h.skill_offer.length) ? 'title="You can still spend points, choose a blessing and learn a skill"' : ''}>${h.ready ? 'Not ready' : 'Ready'}</button>
     </div>
   </div>`;
 }
@@ -170,6 +192,7 @@ function title() {
       <div><kbd>Space</kbd> roll · <kbd>Shift</kbd> block</div><div><kbd>B</kbd> roll · <kbd>LB</kbd> block</div>
       <div><kbd>Q</kbd> special · <kbd>R</kbd> flask</div><div><kbd>Y</kbd> special · <kbd>X</kbd> flask</div>
       <div><kbd>E</kbd> revive · <kbd>Tab</kbd> lock on</div><div><kbd>A</kbd> revive · <kbd>R3</kbd> lock on</div>
+      <div><kbd>Z</kbd> <kbd>X</kbd> skills (or <kbd>1</kbd> <kbd>2</kbd>)</div><div><kbd>LT</kbd> · <kbd>D-pad</kbd> skills</div>
     </div>
   </div>`);
   const name = () => { const n = $('#name').value.trim().slice(0, 16); ME.saved.name = n; ME.save(); return n; };
@@ -310,7 +333,7 @@ function startFight(m) {
   S.starting = true; S.pending = [];
   const heroes = S.lobby.heroes;
   const boss = S.data.bosses[m.boss];
-  buildHud(boss, heroes, S.data.colours, heroes.filter(h => h.conn === S.me).map(h => h.id));
+  buildHud(boss, heroes, S.data.colours, heroes.filter(h => h.conn === S.me).map(h => h.id), S.data.skills);
   game.scene.start('fight', {
     net, input, data: S.data, fight: m, heroes, me: S.me, zoom,
     onReady: sc => { S.scene = sc; S.starting = false; for (const p of S.pending) sc.onMsg(p); S.pending = []; },

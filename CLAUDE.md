@@ -33,7 +33,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/saltbound/` and `app/static/games/saltbound/`: Saltbound, a 1-3 player co-op strategy RPG (hex overworld,
   dice combat, a rising sea as the clock; FastAPI WebSocket server, Phaser map) at `/games/saltbound`
 - `app/kingfall/` and `app/static/games/kingfall/`: Kingfall, a 2D co-op boss rush for 1-4 players (online and couch,
-  keyboard/mouse and controllers; twelve bosses, six weapons, upgrades between fights) at `/games/kingfall`
+  keyboard/mouse and controllers; twelve bosses, six weapons, skills on cooldowns, upgrades between fights) at `/games/kingfall`
 - `app/rooms.py` and `app/static/games/shared/net.js`: what the four multiplayer games share (the WebSocket loop,
   sending, room codes; the browser's identity and reconnecting socket)
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its

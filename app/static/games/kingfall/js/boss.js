@@ -109,7 +109,7 @@ export class Boss {
     for (const [id, kind, x, y, hp, mhp] of adds || []) {
       seen.add(id);
       let a = this.adds[id];
-      if (!a) a = this.adds[id] = this.makeAdd(id, kind, x, y);
+      if (!a) { a = this.adds[id] = this.makeAdd(id, kind, x, y); a.seen = st; }
       a.buf.push([st, x, y]); if (a.buf.length > 20) a.buf.shift();
       a.hp = hp; a.mhp = mhp;
     }
@@ -337,8 +337,8 @@ export class Boss {
       });
     }
     for (const a of Object.values(this.adds)) {
-      if (Math.hypot(a.x - hero.x, a.y - hero.y) > a.r + hero.HERO.radius) continue;
-      const id = `a${a.id}:${Math.floor(now / 1.5)}`;  // an add bites at most every 1.5 s
+      if (now - a.seen < 1.0 || Math.hypot(a.x - hero.x, a.y - hero.y) > a.r + hero.HERO.radius) continue;  // a moment's grace when it appears
+      const id = `a${a.id}:${Math.floor(now / 2)}`;  // an add bites at most every 2 s
       if (hero.taken.has(id)) continue;
       if (cb({ dmg: a.A.dmg, kb: 30 }, id, a.x, a.y)) hero.taken.add(id);
     }

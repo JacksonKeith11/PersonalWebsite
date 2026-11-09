@@ -1,9 +1,9 @@
 """Kingfall's data: bosses, weapons and the heroes' numbers. `client()` is what the browser gets."""
 
-from . import bellwarden, corvin, mire
+from . import alchemist, bellwarden, corvin, headsmen, mire, wolf, wyrm
 from .weapons import WEAPONS
 
-BOSSES = {b["id"]: b for b in (corvin.BOSS, mire.BOSS, bellwarden.BOSS)}
+BOSSES = {b["id"]: b for b in (corvin.BOSS, mire.BOSS, bellwarden.BOSS, headsmen.BOSS, wolf.BOSS, alchemist.BOSS, wyrm.BOSS)}
 
 # A hero's base numbers. Seconds and world pixels.
 HERO = {

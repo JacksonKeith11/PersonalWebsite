@@ -66,7 +66,7 @@ def danger(f, x, y, ahead):
           if dt > ahead: break
           s = place_hit(m, h, ht)
           if s and touches(s, x, y, C.HERO["radius"] + 6):
-              out.append((f"{m.seq}:{i}", dt)); break
+              out.append((f"{m.seq}:{i}", dt, h["t1"] - h["t0"] > 0.35)); break
     return out
 
 
@@ -91,8 +91,8 @@ def step_bot(b, f, now, dt, bots):
                 f.hurt(fh.hero.id, {"id": key}, now)
                 b.state, b.t = "hurt", 0.0
     for a in list(f.adds.values()):  # adds bite once a second while touching
-        if math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
-            key = f"a{a['id']}:{int(now / 1.5)}"
+        if now - a["born"] > 1.0 and math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
+            key = f"a{a['id']}:{int(now / 2)}"
             if key not in b.taken:
                 b.taken.add(key); b.hits += 1; f.hurt(fh.hero.id, {"id": key}, now)
     body = f.nearest_body(fh.x, fh.y)
@@ -115,15 +115,26 @@ def step_bot(b, f, now, dt, bots):
         if b.t > H["flask"]["dur"]: b.state = "idle"
         return
     # see a hit coming: roll through it (or away), as a player would
-    for key, until in danger(f, fh.x, fh.y, b.react + 0.15):
+    for key, until, long in danger(f, fh.x, fh.y, b.react + 0.15):
         if key in b.decided: continue
         if (until <= 0.12 + b.rng.uniform(-0.05, 0.05) * (1 - b.skill) or until <= 0.05) and b.state in ("idle", "atk"):
             b.decided.add(key)
             if b.rng.random() < b.skill:
                 b.state, b.t = "roll", 0.0
                 side = b.rng.choice((-1, 1))
-                b.roll_dir = toward + side * math.pi / 2 if d < 70 else toward + math.pi
+                b.roll_dir = toward + math.pi if long else (toward + side * math.pi / 2 if d < 70 else toward + math.pi)
                 return
+    if b.state == "idle":  # step out of any pool you're standing in, as a player would
+        for m in f.moves():
+            t = now - m.start
+            for h in m.data["hits"]:
+                if h["k"] != "zone" or not (h["t0"] - 0.3 <= t <= h["t1"]): continue
+                s = place_hit(m, h, max(t, h["t0"]))
+                if s and math.hypot(s["cx"] - fh.x, s["cy"] - fh.y) < s["r"] + H["radius"] + 4:
+                    a = math.atan2(fh.y - s["cy"], fh.x - s["cx"])
+                    fh.x += math.cos(a) * H["speed"] * dt; fh.y += math.sin(a) * H["speed"] * dt
+                    fh.x, fh.y = f.clamp(fh.x, fh.y)
+                    return
     if b.state == "atk":
         atk = b.W["light"][b.combo]
         if atk["hit"][0] <= b.t and not getattr(b, "landed", False):

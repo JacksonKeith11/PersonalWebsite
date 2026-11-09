@@ -52,9 +52,9 @@ MOVES = {
     },
     # she croaks up a brood of tadpoles
     "brood": {
-        "range": (0, 500), "weight": 2, "cd": 12.0, "phase": (1, 2), "dur": 1.6, "locks": [0.0], "adds": "tadpole", "max_adds": 5,
+        "range": (0, 500), "weight": 2, "cd": 16.0, "phase": (1, 2), "dur": 1.6, "locks": [0.0], "adds": "tadpole", "max_adds": 4,
         "motion": [],
-        "hits": [spawn(0.9, "tadpole", 3, 40, 70)],
+        "hits": [spawn(0.9, "tadpole", 2, 50, 70)],
         "anim": [(0, pose()), (0.6, pose(dy=-3, body=-6, jaw=24, head=-10)), (0.9, pose(dy=2, jaw=6)), (1.6, pose())],
     },
     # phase 2: she sinks into the mire, slides under the floor and bursts up under you
@@ -68,7 +68,7 @@ MOVES = {
 
 PHASE2 = {
     "dur": 2.4, "locks": [0.0], "motion": [], "invuln": True,
-    "hits": [ring(0.9, 1.5, 20, 190, 14, 10, {"kb": 120}), spawn(1.2, "tadpole", 4, 50, 80),
+    "hits": [ring(0.9, 1.5, 20, 190, 14, 10, {"kb": 120}), spawn(1.2, "tadpole", 3, 60, 80),
              zone(1.0, 7.0, 40, -90, 30, 8, "poison"), zone(1.0, 7.0, 40, 90, 30, 8, "poison")],
     "anim": [(0, pose()), (0.6, pose(dy=-4, jaw=36, head=-16, body=-8)), (1.4, pose(dy=-4, jaw=36, head=-12)), (2.4, pose())],
 }

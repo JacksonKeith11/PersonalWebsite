@@ -570,6 +570,18 @@ the run's seed with a generator of its own, after the islands and places); their
   stand on its hex, so walking in is a fight), and the objective's garrison grows at once. Freeing it
   pays `FREE_GOLD` each and restocks its shop (`restock`). A hero standing in the town when the raid
   arrives fights it there. No merchant ship docks at an occupied town.
+- **Taking a town back** (owner's request, Nov 2026: another way to free one, and it gets harder the
+  longer you wait). **The raiders dig in** (`tick_occupied`): every `OCCUPY_DIG` (5) turns after they
+  took it (`held` on the group; old saves start counting when loaded) another of their region's
+  escorts joins them, up to `OCCUPY_MAX` (5). **Fight** them as before (walk in), or **rally the
+  townsfolk** (`do_rally`, `rally`, `uprising`): a map action like resting, offered to a hero standing
+  next to an occupied town (`rally_town`; the plan's `rally` holds the town). Each rally adds a point
+  to the town's `rally` (Herald and Scoundrel two, `RALLY_CLASSES`), and at the band's size +
+  `RALLY_BASE` (1) the town rises: the band is gone, the shop restocks, no gold (`FREE_GOLD` is the
+  fight's reward). Each rally has a `RALLY_SPOT` (30%) chance the raiders spot the hero, for
+  `RALLY_HURT` (15%) of max HP (never below 1). Rallies happen at the start of the turn, after resting.
+  The town's tooltip gives both ways and the count; a Rally button sits beside Rest. **The bots** rally
+  when healthy (60%+) and next to a town whose band has grown to 4 or more.
 - **Squalls** (`squalls` in the state; `tick_squalls`, `in_squall`): from turn `SQUALL_FROM` (4),
   every `SQUALL_EVERY` (6) turns while fewer than `SQUALL_MAX` (2) are about, a squall gathers over
   Stormcrag's waters and drifts a hex a turn toward the middle of the map for `SQUALL_TURNS` (7). A

@@ -761,7 +761,7 @@ class Game(Combat, Biomes, Quests, Travel):
         if any(isinstance(v, bool) for k, v in msg.items() if k not in BOOL_FIELDS):
             raise Invalid("That doesn't make sense.")
         handler = {
-            "path": self.do_path, "ready": self.do_ready, "rest": self.do_rest, "choose": self.do_choose,
+            "path": self.do_path, "ready": self.do_ready, "rest": self.do_rest, "rally": self.do_rally, "choose": self.do_choose,
             "buy": self.do_buy, "sell": self.do_sell, "inn": self.do_inn, "skiff": self.do_skiff,
             "quest": self.do_quest, "equip": self.do_equip, "unequip": self.do_unequip, "use": self.do_use, "temper": self.do_temper, "beacon": self.do_beacon, "mbuy": self.do_mbuy,
             "give": self.do_give, "drop": self.do_drop,
@@ -804,13 +804,78 @@ class Game(Combat, Biomes, Quests, Travel):
                 raise Invalid("You can't go that way.")
             if cost > self.moves(h):
                 raise Invalid("That's too far for one turn.")
-        p["path"], p["rest"], p["ready"], p["warp"] = path, False, False, None
+        p["path"], p["rest"], p["ready"], p["warp"], p["rally"] = path, False, False, None, None
 
     def do_rest(self, h, msg):
         if not self.can_plan(h):
             raise Invalid("Not now.")
         p = self.plan(h)
-        p["rest"], p["path"], p["ready"], p["warp"] = bool(msg.get("on", True)), [], False, None
+        p["rest"], p["path"], p["ready"], p["warp"], p["rally"] = bool(msg.get("on", True)), [], False, None, None
+
+    def do_rally(self, h, msg):
+        """Spend the turn stirring up an occupied town next to you (`rally`)."""
+        if not self.can_plan(h):
+            raise Invalid("Not now.")
+        p = self.plan(h)
+        if not msg.get("on", True):
+            p["rally"] = None
+            return
+        t = self.rally_town(h)
+        if t is None:
+            raise Invalid("There's no occupied town next to you.")
+        p["rally"], p["rest"], p["path"], p["ready"], p["warp"] = t, False, [], False, None
+
+    def rally_town(self, h):
+        """The occupied town next to a hero (the lowest-numbered, if two), or None."""
+        at = self.hero(h)["tile"]
+        towns = [int(t) for t, q in self.s["world"]["places"].items()
+                 if q["kind"] == "town" and q.get("occupied") is not None and Wd.dist(at, int(t)) == 1]
+        return min(towns, default=None)
+
+    def rally_need(self, g):
+        return len(g["foes"]) + A.RALLY_BASE
+
+    def rally(self, h, t):
+        """A hero stirs up an occupied town: a point (two for `RALLY_CLASSES`), perhaps a wound, and an
+        uprising once there are enough."""
+        hero, town = self.hero(h), self.place(t)
+        if not hero["alive"] or not town or town.get("occupied") is None or Wd.dist(hero["tile"], t) != 1:
+            return
+        g = next((x for x in self.s["groups"] if x["id"] == town["occupied"]), None)
+        if g is None:
+            town.pop("occupied", None)
+            return
+        town["rally"] = town.get("rally", 0) + (2 if hero["cls"] in A.RALLY_CLASSES else 1)
+        need = self.rally_need(g)
+        self.say(f"{hero['name']} stirs up the people of {town['name']} ({min(town['rally'], need)}/{need}).")
+        if self.rng.random() < A.RALLY_SPOT:
+            hurt = min(hero["hp"] - 1, max(1, round(self.maxhp(h) * A.RALLY_HURT)))
+            if hurt > 0:
+                hero["hp"] -= hurt
+                self.say(f"The raiders spot {hero['name']}: -{hurt} HP.")
+                self.fx("spotted", h=h, tile=hero["tile"], dmg=hurt)
+        if town["rally"] >= need:
+            self.uprising(g)
+
+    def uprising(self, g):
+        """An occupied town rises: the raiders are driven off, and its shop restocks (no gold)."""
+        town = self.place(g["tile"])
+        self.s["groups"].remove(g)
+        town.pop("occupied", None)
+        town.pop("rally", None)
+        self.restock(g["tile"])
+        self.say(f"{town['name']} rises! Its people drive the raiders out and open a better-stocked shop.")
+        self.fx("uprising", tile=g["tile"])
+
+    def tick_occupied(self):
+        """Raiders holding a town dig in: another of their region's escorts every `OCCUPY_DIG` turns."""
+        s = self.s
+        for g in [g for g in s["groups"] if g.get("occupy")]:
+            held = g.setdefault("held", s["turn"])
+            if s["turn"] > held and (s["turn"] - held) % A.OCCUPY_DIG == 0 and len(g["foes"]) < A.OCCUPY_MAX:
+                k = self.rng.choice([k for e in A.DUNGEONS[g["raid"]["reg"]]["escort"] for k in e])
+                g["foes"].append({"k": k})
+                self.say(f"The raiders in {self.place(g['tile'])['name']} dig in: a {A.FOES[k]['name']} joins them.")
 
     def do_ready(self, h, msg):
         if self.s["phase"] != "plan":
@@ -836,6 +901,9 @@ class Game(Combat, Biomes, Quests, Travel):
         for h, p in plans.items():
             if p["rest"]:
                 self.rest(h)
+        for h, p in plans.items():
+            if p.get("rally") is not None:
+                self.rally(h, p["rally"])
         # Everyone moves at once, a step at a time; walking into enemies or a dungeon stops you.
         encounters = []  # (tile, who triggered it)
         for h, p in plans.items():  # beacon journeys happen in one go, before anyone walks
@@ -1127,6 +1195,7 @@ class Game(Combat, Biomes, Quests, Travel):
         self.tick_chains()
         self.tick_jobs()
         self.tick_squalls()
+        self.tick_occupied()
         self.tick_biomes()
         self.ensure_travel(self.rng)
         self.tick_merchants()
@@ -1453,6 +1522,7 @@ class Game(Combat, Biomes, Quests, Travel):
         reg = g["raid"]["reg"]
         g["occupy"] = True
         g["lair"] = True
+        g["held"] = s["turn"]
         town["occupied"] = g["id"]
         town.pop("jobs", None)
         for q in s["quests"]:
@@ -1474,6 +1544,7 @@ class Game(Combat, Biomes, Quests, Travel):
             if g.get("occupy"):
                 town = self.place(g["tile"])
                 town.pop("occupied", None)
+                town.pop("rally", None)
                 for h in winners:
                     self.hero(h)["gold"] += A.FREE_GOLD
                 self.restock(g["tile"])
@@ -2981,4 +3052,6 @@ def static():
                   "fossil_xp": A.FOSSIL_XP, "jungle": Wd.JUNGLE_COST, "sink": Wd.SINK_COST},
         "sea": {"cove_gold": A.COVE_GOLD, "flotsam_gold": A.FLOTSAM_GOLD, "hunt": A.SEA_HUNT, "grotto_gold": A.GROTTO_GOLD,
                 "raid_bounty": A.RAID_BOUNTY, "free_gold": A.FREE_GOLD},
+        "rally": {"base": A.RALLY_BASE, "classes": list(A.RALLY_CLASSES), "spot": round(A.RALLY_SPOT * 100),
+                  "hurt": round(A.RALLY_HURT * 100), "dig": A.OCCUPY_DIG, "max": A.OCCUPY_MAX},
     }

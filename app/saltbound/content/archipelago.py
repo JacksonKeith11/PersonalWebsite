@@ -608,6 +608,17 @@ RAID_MAX = 2
 RAID_RANGE = (6, 14)  # turns of road from the objective to the town it marches on
 RAID_BOUNTY = 10      # gold each for stopping one on the road
 FREE_GOLD = 15        # gold each for freeing an occupied town, and its shop restocks
+# Taking a town back. The raiders in an occupied town dig in: every `OCCUPY_DIG` turns another of their
+# region's escorts joins them, up to `OCCUPY_MAX`. Instead of fighting, heroes next to the town can
+# rally its people (a map action, like resting): each rally adds a point (`RALLY_CLASSES` add two),
+# and at `RALLY_BASE` + the band's size the town rises and drives the raiders out (no gold, but the
+# shop restocks). Each rally risks being spotted: `RALLY_SPOT` chance of losing `RALLY_HURT` of max HP.
+OCCUPY_DIG = 5
+OCCUPY_MAX = 5
+RALLY_BASE = 1
+RALLY_CLASSES = ("herald", "scoundrel")
+RALLY_SPOT = 0.3
+RALLY_HURT = 0.15
 
 # Squalls: storms that drift across the map a hex a turn. A hero inside one sees only `SQUALL_SIGHT`
 # hexes around them. They form over Stormcrag's waters from turn `SQUALL_FROM`, every `SQUALL_EVERY`

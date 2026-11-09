@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.saltbound.content import archipelago as A  # noqa: E402
+from app.saltbound import world as Wd  # noqa: E402
 from app.saltbound import bot, game  # noqa: E402
 from app.saltbound import save as S  # noqa: E402
 from app.saltbound.combat import Invalid  # noqa: E402
@@ -35,6 +36,7 @@ SCENARIOS = {
     "fight": lambda g: g.s["phase"] == "fight" and 0 in g.s["fight"]["heroes"] and g.s["fight"]["round"] >= 2
     and not g.s["pending"]["0"],
     "boss": lambda g: g.s["phase"] == "fight" and g.s["fight"]["kind"] == "boss",
+    "rally": lambda g: True,
     "fork": lambda g: g.s["phase"] == "fork" and 0 in g.s["fork"]["heroes"],
     # the overworld's choices
     "opp": lambda g: g.s["phase"] == "plan" and g.s.get("opps") and not g.s["pending"]["0"] and g.s["turn"] > 5,
@@ -227,6 +229,22 @@ def main():
             g.s["merchants"][0]["tile"] = beacons[0]
             hero["gold"] = 300
             hero["bag"] += ["starmetal", "powder_salt", "fate_feather"]
+        if name == "rally":
+            # a town the raiders hold, its band dug in, the party next to it with one rally done
+            near = sorted((int(t) for t, p in g.s["world"]["places"].items() if p["kind"] == "town"),
+                          key=lambda t: Wd.dist(t, g.hero(0)["tile"]))
+            t = next(t for t in near[1:] if any(g.terrain(n) in Wd.COST and g.terrain(n) != "town" and not g.place(n)
+                                                and not g.group_at(n) for n in Wd.neighbors(t)))
+            adj = next(n for n in Wd.neighbors(t) if g.terrain(n) in Wd.COST and g.terrain(n) != "town"
+                       and not g.place(n) and not g.group_at(n))
+            reg = g.regions()[0]
+            band = g.add_group(t, [k for e in A.DUNGEONS[reg]["escort"] for k in e][:4])
+            band["raid"] = {"reg": reg, "to": t}
+            g.occupy(band)
+            g.place(t)["rally"] = 2
+            for y in range(3):
+                g.hero(y)["tile"], g.hero(y)["afloat"] = adj, False
+            g.reveal(t, 3)
         if name == "partyevent":
             # everyone on one hex, and hero 1 (the second player's) at an event with a party check
             for y in (0, 2):

@@ -39,7 +39,7 @@ fs.mkdirSync(out, { recursive: true });
       await shot();
       if (['start', 'smithy', 'board', 'trade'].includes(name)) {
         // the town (its button is named after the town) and each of its tabs
-        const town = page.locator('.actionbar button').filter({ hasNotText: /Rest|Hero|Ready/ });
+        const town = page.locator('.actionbar button').filter({ hasNotText: /Rest|Rally|Hero|Ready/ });
         if (await town.count()) {
           await town.first().click(); await page.waitForTimeout(600); await shot('town');
           for (const tab of await page.locator('.drawer .tabs button').all()) { await tab.click(); await page.waitForTimeout(300); await shot('town-' + (await tab.innerText()).toLowerCase()); }

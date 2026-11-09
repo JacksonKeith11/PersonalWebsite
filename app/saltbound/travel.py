@@ -77,7 +77,7 @@ class Travel:
             raise Invalid("You need to be standing on a lit beacon.")
         if to not in self.lit_beacons() or to == hero["tile"]:
             raise Invalid("Travel to another lit beacon.")
-        p.update(warp=to, path=[], rest=False, ready=False)
+        p.update(warp=to, path=[], rest=False, ready=False, rally=None)
 
     def warp(self, h, to, encounters):
         """A planned beacon journey: there in one go, before anyone walks."""

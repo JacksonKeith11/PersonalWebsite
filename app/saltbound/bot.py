@@ -356,6 +356,14 @@ def plan_move(g, h):
         if not p["rest"]:
             return {"t": "rest"}
         return {"t": "ready"}
+    # next to an occupied town whose band has grown big: stir its people up rather than fight them
+    rt = g.rally_town(h)
+    if rt is not None and hero["hp"] >= mx * 0.6 and not p["path"]:
+        band = next((x for x in g.s["groups"] if x["id"] == g.place(rt)["occupied"]), None)
+        if band and len(band["foes"]) >= 4:
+            if p.get("rally") is None:
+                return {"t": "rally"}
+            return {"t": "ready"}
     goal = party_goal(g)
     if goal is not None and not p["path"]:
         goal, fight = keep_together(g, h, goal)

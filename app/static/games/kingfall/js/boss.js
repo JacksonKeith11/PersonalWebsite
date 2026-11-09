@@ -2,7 +2,7 @@
 // pose come from the move's timeline (the same for every browser); between moves it's extrapolated
 // from the snapshots. Also draws each move's danger: ground marks before area hits, slashes, thrusts,
 // shockwave rings and projectiles, and checks every hit against this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults } from './rig.js?v=1';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=1';
 import { LiveMove, placeHit, touches } from './moves.js?v=1';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
@@ -13,7 +13,7 @@ export class Boss {
     this.B = data.bosses[fight.boss];
     this.def = rigDefaults(this.B.rig);
     const f = {};
-    for (const k of ['cape', 'arm_b', 'leg_b', 'leg_f', 'torso', 'head', 'shield', 'weapon', 'arm_f']) f[k] = `${this.B.art}.${k}`;
+    for (const k of Object.keys(atlas().rigs[this.B.rig].parts)) f[k] = `${this.B.art}.${k}`;
     this.rig = new Rig(scene, this.B.rig, f);
     this.shadow = scene.add.ellipse(0, 0, 54, 16, 0x000000, 0.4).setDepth(1);
     this.marks = scene.add.graphics().setDepth(2);     // on the floor, under everyone

@@ -4,7 +4,7 @@ import sys
 from PIL import Image, ImageDraw
 from pix import compose, PLAYERS
 from heroes import LOOKS, RIG, ORDER, HAND
-import weapons, math
+import weapons, math, rigs
 
 POSES = {
     'idle': {'weapon': 40},
@@ -14,24 +14,8 @@ POSES = {
 
 
 def pose(parts, name, weapon='sword'):
-    a = POSES[name]
-    bob = a.get('bob', 0)
-    placed = []
-    w = weapons.ALL[weapon]()
-    for key in ORDER:
-        if key == 'weapon':
-            continue
-        x, y = RIG[key]
-        placed.append((key, parts[key], (x, y + (bob if key != 'leg_f' and key != 'leg_b' else 0)), a.get(key, 0)))
-    out = []
-    for key, part, xy, ang in placed:
-        if key == 'arm_f':
-            r = math.radians(ang)
-            hx = xy[0] + HAND[0] * math.cos(r) - HAND[1] * math.sin(r)
-            hy = xy[1] + HAND[0] * math.sin(r) + HAND[1] * math.cos(r)
-            out.append((w, (round(hx), round(hy)), ang + a.get('weapon', 0)))
-        out.append((part, xy, ang))
-    return compose(out)
+    images = {**parts, 'weapon': weapons.ALL[weapon]()}
+    return rigs.paint(images, rigs.RIGS['hero'], POSES[name], (64, 64), (32, 56))
 
 
 def main(path):

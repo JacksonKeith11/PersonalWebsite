@@ -1,10 +1,8 @@
 // Cutout rigs: a character is a Phaser container of part images from the atlas, posed by rotating
-// each part around its pivot. The rig tables (where each pivot sits, the drawing order, where the
-// hand grips) come from atlas.json, written by tools/kingfall-art/build.py. Everything is drawn
-// facing right; facing left flips the container. Angles are degrees, clockwise.
-//
-// Hierarchy: legs and torso hang off the body (which leans and bobs); head, arms and cape off the
-// torso; the weapon off the front hand, the shield off the back hand.
+// each part around its pivot. The rig tables come from atlas.json (tools/kingfall-art/rigs.py): each
+// part has a parent and its pivot's rest position, relative to the feet. 'ground' parts stay put,
+// 'body' parts move with the pose's lean/dy, and other parts are carried round by their parent.
+// Everything is drawn facing right; facing left flips the container. Angles are degrees, clockwise.
 
 let ATLAS = null;
 export function setAtlas(a) { ATLAS = a; }
@@ -18,35 +16,61 @@ export function addFrames(scene) {
   }
 }
 
-const DEFAULTS = {
-  hero: { weapon: 40, arm_b: 8, shield: -8 },
-  knight: { weapon: 35, arm_b: 10, shield: -10 },
-};
-
 const rot = (x, y, deg) => {
   const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
   return [x * c - y * s, x * s + y * c];
 };
 
+// {part: [x, y, angle]} for a pose (part angles; lean, dy; <part>_x/_y nudges along the parent's frame)
+export function solve(R, p) {
+  const d = R.defaults, g = k => (p[k] ?? d[k] ?? 0), out = {};
+  const place = k => {
+    if (out[k]) return out[k];
+    const [parent, x, y] = R.parts[k], nx = g(k + '_x'), ny = g(k + '_y');
+    if (parent === 'ground') out[k] = [x + nx, y + ny, g(k)];
+    else if (parent === 'body') out[k] = [x + Math.round(g('lean')) + nx, y + Math.round(g('dy')) + ny, g(k)];
+    else {
+      const [px, py, pa] = place(parent), [, ax, ay] = R.parts[parent];
+      const [ox, oy] = rot(x - ax + nx, y - ay + ny, pa);
+      out[k] = [px + ox, py + oy, pa + g(k)];
+    }
+    return out[k];
+  };
+  for (const k of Object.keys(R.parts)) place(k);
+  return out;
+}
+
+export function drawOrder(R, p, has) {
+  const o = R.order.slice();
+  for (const [k, [back, front]] of Object.entries(R.front || {})) {
+    const i = o.indexOf(k);
+    if (i < 0) continue;
+    o.splice(i, 1);
+    const before = p.front ? front : back, j = o.indexOf(before);
+    o.splice(j < 0 ? o.length : j, 0, k);
+  }
+  return o.filter(has);
+}
+
 export class Rig {
-  // kind: 'hero' or 'knight' (the rig table); frames: {part: atlas frame name}
+  // kind: a rig table's name; frames: {part: atlas frame name}
   constructor(scene, kind, frames, x = 0, y = 0) {
-    const R = ATLAS.rigs[kind];
+    this.R = ATLAS.rigs[kind];
     this.kind = kind;
-    this.at = R.at; this.hand = R.hand; this.order = R.order.filter(k => frames[k]);
-    this.defaults = DEFAULTS[kind] || {};
     this.c = scene.add.container(x, y);
     this.parts = {};
-    for (const key of this.order) {
+    for (const key of this.R.order) {
       const name = frames[key];
+      if (!name || !ATLAS.frames[name]) continue;
       const [, , w, h, px, py] = ATLAS.frames[name];
       const im = scene.add.image(0, 0, 'atlas', name).setOrigin(px / w, py / h);
       this.parts[key] = im;
       this.c.add(im);
     }
-    this.front = false;
-    this.flash = 0;
+    this.orderKey = '';
   }
+
+  get defaults() { return this.R.defaults; }
 
   setFrame(key, name) {
     const im = this.parts[key];
@@ -55,39 +79,22 @@ export class Rig {
     im.setFrame(name).setOrigin(px / w, py / h);
   }
 
-  // p: a pose (part angles, lean, dy, front); left: face left
+  // p: a pose; left: face left
   pose(p, left) {
-    const d = this.defaults, g = k => (p[k] ?? d[k] ?? 0);
-    const at = this.at, P = this.parts;
-    const bx = Math.round(g('lean')), by = Math.round(g('dy'));
-    const torsoA = g('torso');
-    const tp = [at.torso[0] + bx, at.torso[1] + by];
-    const place = (key, x, y, a) => { const im = P[key]; if (im) { im.x = Math.round(x); im.y = Math.round(y); im.angle = a; } };
-    place('leg_b', at.leg_b[0], at.leg_b[1], g('leg_b'));
-    place('leg_f', at.leg_f[0], at.leg_f[1], g('leg_f'));
-    place('torso', tp[0], tp[1], torsoA);
-    const off = key => { const [ox, oy] = rot(at[key][0] - at.torso[0], at[key][1] - at.torso[1], torsoA); return [tp[0] + ox, tp[1] + oy]; };
-    const head = off('head'); place('head', head[0], head[1] + (p.headDy || 0), torsoA + g('head'));
-    const cape = off('cape'); place('cape', cape[0], cape[1], torsoA + g('cape'));
-    const af = off('arm_f'), afA = torsoA + g('arm_f');
-    const ab = off('arm_b'), abA = torsoA + g('arm_b');
-    place('arm_f', af[0], af[1], afA);
-    place('arm_b', ab[0], ab[1], abA);
-    const [hx, hy] = rot(this.hand[0], this.hand[1], afA);
-    place('weapon', af[0] + hx, af[1] + hy, afA + g('weapon'));
-    const [sx, sy] = rot(this.hand[0], this.hand[1], abA);
-    place('shield', ab[0] + sx, ab[1] + sy, abA + g('shield'));
-    if (P.shield && !!p.front !== this.front) {
-      this.front = !!p.front;
-      this.c.remove(P.shield);
-      const before = this.front ? 'weapon' : 'arm_b';
-      const idx = P[before] ? this.c.getIndex(P[before]) : this.c.length;
-      this.c.addAt(P.shield, Math.max(0, idx));
+    const at = solve(this.R, p);
+    for (const [k, im] of Object.entries(this.parts)) {
+      const [x, y, a] = at[k];
+      im.x = Math.round(x); im.y = Math.round(y); im.angle = a;
+      im.visible = !p[k + '_hide'];
+    }
+    const key = p.front ? 'f' : 'b';
+    if (key !== this.orderKey) {
+      this.orderKey = key;
+      drawOrder(this.R, p, k => this.parts[k]).forEach((k, i) => this.c.moveTo(this.parts[k], i));
     }
     this.c.scaleX = left ? -1 : 1;
   }
 
-  // world position of the weapon's tip (for trails), given the container's state
   setTint(colour) {
     for (const im of Object.values(this.parts)) colour == null ? im.clearTint() : im.setTintFill(colour);
   }
@@ -122,25 +129,14 @@ export function runCycle(phase, amp = 1) {
   return { leg_f: 32 * s * amp, leg_b: -32 * s * amp, arm_b: -22 * s * amp, dy: -Math.abs(Math.cos(phase)) * 1.5 * amp, cape: 14 * amp + 6 * s * amp, torso: 4 * amp };
 }
 
-export const rigDefaults = kind => DEFAULTS[kind] || {};
+export const rigDefaults = kind => (ATLAS.rigs[kind] || {}).defaults || {};
 
-// Draws a rig into a 2D canvas (lobby portraits), with the same hierarchy as Rig.pose.
+// Draws a rig into a 2D canvas (lobby portraits), posed as Rig.pose does.
 export function paintRig(g, img, kind, frames, p, ox, oy) {
-  const R = ATLAS.rigs[kind], at = R.at, d = DEFAULTS[kind] || {}, val = k => (p[k] ?? d[k] ?? 0);
-  const tA = val('torso'), tp = [at.torso[0], at.torso[1]];
-  const off = k => { const [x, y] = rot(at[k][0] - at.torso[0], at[k][1] - at.torso[1], tA); return [tp[0] + x, tp[1] + y]; };
-  const af = off('arm_f'), afA = tA + val('arm_f'), ab = off('arm_b'), abA = tA + val('arm_b');
-  const [hx, hy] = rot(R.hand[0], R.hand[1], afA), [sx, sy] = rot(R.hand[0], R.hand[1], abA);
-  const place = {
-    leg_b: [at.leg_b, val('leg_b')], leg_f: [at.leg_f, val('leg_f')], torso: [tp, tA], head: [off('head'), tA + val('head')],
-    cape: [off('cape'), tA + val('cape')], arm_f: [af, afA], arm_b: [ab, abA],
-    weapon: [[af[0] + hx, af[1] + hy], afA + val('weapon')], shield: [[ab[0] + sx, ab[1] + sy], abA + val('shield')],
-  };
-  for (const key of R.order) {
-    const name = frames[key];
-    if (!name || !ATLAS.frames[name]) continue;
-    const [fx, fy, w, h, px, py] = ATLAS.frames[name];
-    const [[x, y], a] = place[key];
+  const R = ATLAS.rigs[kind], at = solve(R, p);
+  for (const key of drawOrder(R, p, k => frames[k] && ATLAS.frames[frames[k]])) {
+    const [fx, fy, w, h, px, py] = ATLAS.frames[frames[key]];
+    const [x, y, a] = at[key];
     g.save(); g.translate(ox + Math.round(x), oy + Math.round(y)); g.rotate(a * Math.PI / 180);
     g.drawImage(img, fx, fy, w, h, -px, -py, w, h);
     g.restore();

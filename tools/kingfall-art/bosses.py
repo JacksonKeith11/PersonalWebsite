@@ -109,4 +109,6 @@ def corvin():
             'cape': _cape(p), 'weapon': _greatsword(p), 'shield': _tower(p)}
 
 
+RIGS = {}  # the non-humanoid bosses' rigs (see rigs.py); humanoids use 'knight'
 BOSSES = {'corvin': corvin}
+BOSS_RIG = {'corvin': 'knight'}

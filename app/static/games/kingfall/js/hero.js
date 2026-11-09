@@ -4,7 +4,6 @@
 import { Rig, sample, runCycle, rigDefaults } from './rig.js?v=1';
 import { placeAttack, touches, wrap } from './moves.js?v=1';
 
-const D = rigDefaults('hero');
 
 export function heroFrames(h, W) {
   const p = `${h.look}.${h.colour}.`;
@@ -19,6 +18,7 @@ export function heroFrames(h, W) {
 // falling down).
 export function heroPose(W, HERO, an, at) {
   let p, spin = 0;
+  const D = rigDefaults('hero');
   switch (an) {
     case 'run': p = runCycle(at * 13); break;
     case 'walk': p = runCycle(at * 9, 0.55); break;

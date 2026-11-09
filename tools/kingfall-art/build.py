@@ -5,7 +5,7 @@ import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
 from pix import PLAYERS
-import heroes, weapons, bosses
+import heroes, weapons, bosses, rigs
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'app', 'static', 'games', 'kingfall', 'art')
 
@@ -52,8 +52,7 @@ def main():
     for name, im in imgs:
         sheet.paste(im, at[name])
         meta['frames'][name] = [*at[name], im.width, im.height, *pivots[name]]
-    meta['rigs']['hero'] = {'at': heroes.RIG, 'order': heroes.ORDER, 'hand': heroes.HAND}
-    meta['rigs']['knight'] = {'at': bosses.KNIGHT_RIG, 'order': bosses.KNIGHT_ORDER, 'hand': bosses.KNIGHT_HAND}
+    meta['rigs'] = rigs.RIGS
     meta['looks'] = list(heroes.LOOKS)
     meta['colours'] = [c[0] for c in PLAYERS]
     sheet.save(os.path.join(OUT, 'atlas.png'), optimize=True)

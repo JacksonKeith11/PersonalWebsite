@@ -36,8 +36,9 @@ def bodies_of(boss):
 
 
 class Move:
-    def __init__(self, seq, e, mid, data, start, origin, aim, dists):
+    def __init__(self, seq, e, mid, data, start, origin, aim, dists, target=None):
         self.seq, self.e, self.id, self.data, self.start = seq, e, mid, data, start
+        self.target = target   # the hero id it was aimed at (browsers mark them)
         self.origin = origin
         self.aims = [(0.0, aim)]
         self.dists = dists
@@ -59,6 +60,7 @@ class Move:
     def wire(self, extra=None):
         m = {"t": "mv", "seq": self.seq, "e": self.e, "id": self.id, "at": round(self.start, 3), "x": round(self.origin[0], 1),
              "y": round(self.origin[1], 1), "a": round(self.aims[0][1], 4), "d": [round(d, 1) for d in self.dists]}
+        if self.target is not None: m["tg"] = self.target
         if extra: m.update(extra)
         return m
 
@@ -79,6 +81,7 @@ class FHero:
         self.swings = set()
         self.threat = 0.0      # recent damage dealt, for the boss's choice of target
         self.last_targeted = 0.0
+        self.far = 0.0         # seconds spent keeping away from the boss (archers, casters): it comes for them
         self.second_wind = None
         self.lights = 0
         self.empowered = None       # (damage mult, until) for the next hit
@@ -556,13 +559,25 @@ class Fight:
         return [f for f in self.heroes.values() if not f.down and not f.dead]
 
     def pick_target(self, b, now):
+        """Who a body walks toward between attacks: whoever is near, has hurt it lately, hasn't been
+        chased for a while, or has been keeping their distance (so archers and casters get hunted)."""
         best, score = None, -1e9
         for f in self.alive_heroes():
             d = math.hypot(f.x - b.x, f.y - b.y)
-            s = -d / 90 + f.threat * 0.01 + min(6.0, now - f.last_targeted) * 0.35 + random.random() * 0.6
+            s = (-d / 160 + f.threat * 0.01 + min(8.0, now - f.last_targeted) * 0.3 + min(4.0, f.far) * 0.35
+                 + random.random() * 0.6)
             if len(self.bodies) > 1 and any(o.target is f for o in self.bodies if o is not b): s -= 1.0  # the two split up
             if s > score: best, score = f, s
         return best
+
+    def target_weight(self, b, f, m, now):
+        """How much a body wants to spend move m on hero f. Its walking target is favoured; anyone it
+        hasn't attacked for a while, or who has kept their distance, draws its ranged moves."""
+        w = 1.0 if f is b.target else 0.45
+        w *= 1 + min(6.0, now - f.last_targeted) / 6
+        if m["range"][0] >= 60: w *= 1 + min(4.0, f.far) * 0.3
+        if any(o is not b and o.move and o.move.target == f.hero.id for o in self.bodies): w *= 0.4  # the two split up
+        return w
 
     def start_move(self, b, mid, data, now, cancel=False):
         if cancel: self.cancel(b, now)
@@ -571,7 +586,7 @@ class Fight:
         dist = math.hypot(t.x - b.x, t.y - b.y) if t else 80
         dists = resolve(data, 0.0, dist, [0.0] * n_dists(data))
         self.seq += 1
-        b.move = Move(self.seq, b.e, mid, data, now + LEAD, (b.x, b.y), aim, dists)
+        b.move = Move(self.seq, b.e, mid, data, now + LEAD, (b.x, b.y), aim, dists, t.hero.id if t else None)
         self.fit(b.move)
         b.face = aim
         b.state = "move"
@@ -582,23 +597,24 @@ class Fight:
         self.room.broadcast(b.move.wire(extra))
 
     def choose(self, b, now):
-        t = b.target
-        if not t: return None
-        d = math.hypot(t.x - b.x, t.y - b.y)
+        """A move and who it's for: any hero in that move's range, so a boss fighting the swords up
+        close will turn its ranged moves on the archer at the back."""
+        if not b.target: return None
         opts = []
         for mid, m in b.d["moves"].items():
             if b.phase not in m["phase"] or b.cool.get(mid, 0) > now: continue
             if m.get("enraged") and not b.enraged: continue
             if m.get("adds") and sum(1 for a in self.adds.values() if a["kind"] == m["adds"]) >= m.get("max_adds", 4): continue
             lo, hi = m["range"]
-            if lo <= d <= hi:
-                opts.append((mid, m["weight"] * (0.35 if mid == b.last_move else 1.0)))
+            for f in self.alive_heroes():
+                if lo <= math.hypot(f.x - b.x, f.y - b.y) <= hi:
+                    opts.append((mid, f, m["weight"] * (0.35 if mid == b.last_move else 1.0) * self.target_weight(b, f, m, now)))
         if not opts: return None
-        r = random.random() * sum(w for _, w in opts)
-        for mid, w in opts:
+        r = random.random() * sum(w for _, _, w in opts)
+        for mid, f, w in opts:
             r -= w
-            if r <= 0: return mid
-        return opts[-1][0]
+            if r <= 0: return mid, f
+        return opts[-1][:2]
 
     def fit(self, move, after=0.0):
         """Shorten a move's steps so it never carries the boss through a wall (browsers draw the
@@ -662,6 +678,8 @@ class Fight:
                 f.dead = True
                 self.room.broadcast({"t": "fx", "k": "dead", "h": f.hero.id})
             f.threat *= 0.995
+            near = min((math.hypot(f.x - b.x, f.y - b.y) for b in self.bodies if b.alive), default=0)
+            f.far = f.far + TICK if near > 120 else max(0.0, f.far - 2 * TICK)
         if not self.alive_heroes() and not any(f.second_wind for f in self.heroes.values()) and self.over != "won":
             self.over = "lost"
             for b in self.bodies: self.cancel(b, now)
@@ -713,7 +731,8 @@ class Fight:
             if now >= m.end():
                 self.recent = ([m] + self.recent)[:RECENT]
                 b.move = None
-                rest = (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7)) * ((2.2 if self.solo else 1.6) if len(self.bodies) > 1 else 1)
+                b.target = self.pick_target(b, now)  # a new look round after every attack
+                rest = (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7)) * ((2.2 if self.solo else 1.9) if len(self.bodies) > 1 else 1)
                 b.state, b.until = "idle", now + rest / self.diff["speed"]
             return
         if not b.target or b.target not in self.alive_heroes() or random.random() < 0.01:
@@ -723,9 +742,10 @@ class Fight:
             b.vx = b.vy = 0
             return
         if now >= b.until:
-            mid = self.choose(b, now)
-            if mid:
-                t.last_targeted = now
+            pick = self.choose(b, now)
+            if pick:
+                mid, b.target = pick
+                b.target.last_targeted = now
                 self.start_move(b, mid, b.d["moves"][mid], now)
                 return
         dx, dy = t.x - b.x, t.y - b.y

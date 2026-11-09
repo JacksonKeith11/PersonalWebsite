@@ -5,7 +5,7 @@ sets the blade alight: a fourth combo hit and fire waves along the ground.
 Times are seconds from the move's start, distances world pixels; see docs/kingfall.md, "Boss moves".
 """
 
-from .moves import DMG, arc, circle, rect, ring, proj, pose
+from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
 
 DMG[0] = 0.85  # tier 1: hits a little softer than written
 
@@ -82,6 +82,27 @@ MOVES = {
 }
 
 # Between phases he plants the sword, and the blade catches fire; anyone close is thrown back.
+MOVES.update({
+    # a cut that throws a crescent of dark steel down the hall: roll through it or step aside
+    "crescent": {
+        "range": (110, 420), "weight": 3, "cd": 4.5, "phase": (1, 2), "dur": 1.7, "locks": [0.0, 0.55],
+        "motion": [],
+        "hits": [proj(0.72, 0, 24, 0, 250, 13, 1.8, 26, {"col": "#c8c0e0"})],
+        "anim": [(0, pose()), (0.55, pose(arm_f=-160, weapon=40, torso=-12)), (0.72, pose(arm_f=-10, weapon=110, torso=14, lean=5)), (1.7, pose())],
+    },
+    # he drives the blade into the floor: brands flare in a cross round him and under whoever he
+    # looked at, and burn on for a few seconds
+    "brand": {
+        "range": (0, 320), "weight": 2, "cd": 9.0, "phase": (1, 2), "dur": 2.4, "locks": [0.0, 0.5], "reach": ("target", 0, 0, 280),
+        "motion": [],
+        "hits": [circle(1.2, 1.32, 30, 0, 0, 26, BURN, mark=0.7, tx=True), zone(1.3, 4.0, 30, 0, 0, 6, "fire", tx=True),
+                 *[circle(1.25, 1.37, 26, s, f, 22, BURN, mark=0.75) for s, f in ((0, 72), (0, -72), (72, 0), (-72, 0))],
+                 *[zone(1.35, 3.0, 26, s, f, 6, "fire") for s, f in ((0, 72), (0, -72), (72, 0), (-72, 0))]],
+        "anim": [(0, pose()), (0.5, pose(arm_f=-180, weapon=0, torso=-12, dy=-2)), (0.85, pose(arm_f=-20, weapon=170, torso=18, lean=4, dy=3)),
+                 (2.0, pose(arm_f=-20, weapon=170, torso=16, dy=3)), (2.4, pose())],
+    },
+})
+
 PHASE2 = {
     "dur": 2.4, "locks": [0.0], "motion": [], "invuln": True,
     "hits": [ring(1.0, 1.5, 10, 160, 14, 8, {"kb": 120}, at=0)],

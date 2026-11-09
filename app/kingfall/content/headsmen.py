@@ -4,9 +4,9 @@ try to split the party. When one falls, the other takes up their power: the Hook
 execution, the Axe learns to spin the chain.
 """
 
-from .moves import DMG, arc, circle, rect, ring, pose
+from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
 
-DMG[0] = 0.9
+DMG[0] = 0.8
 CHAIN = {"col": "#a8b0bc"}
 
 HOOK_MOVES = {
@@ -91,6 +91,31 @@ AXE_MOVES = {
         "anim": [(0, pose()), (0.5, pose(arm_f=-90, arm_b=-90, weapon=-90)), (1.0, pose(arm_f=-90, arm_b=-90, weapon=90, run=1)),
                  (1.5, pose(arm_f=-90, arm_b=-90, weapon=-90, run=1)), (2.2, pose(arm_f=-90, arm_b=-90, weapon=90)), (3.0, pose())],
     },
+}
+
+HOOK_MOVES.update({
+    # three throwing hooks, fanned
+    "hooks": {
+        "range": (100, 380), "weight": 1, "cd": 8.0, "phase": (1, 3), "dur": 1.5, "locks": [0.0, 0.45],
+        "motion": [],
+        "hits": [proj(0.6 + i * 0.08, 0, 16, a, 240, 7, 1.6, 18, CHAIN) for i, a in enumerate((-18, 0, 18))],
+        "anim": [(0, pose()), (0.45, pose(arm_f=-160, weapon=20, torso=-10)), (0.62, pose(arm_f=-40, weapon=90, torso=10, lean=3)), (1.5, pose())],
+    },
+    # chains flung across the ground round you: they bleed whoever stands in them for a while
+    "snare": {
+        "range": (60, 360), "weight": 1, "cd": 12.0, "phase": (1, 3), "dur": 1.8, "locks": [0.0, 0.5], "reach": ("target", 0, 0, 320),
+        "motion": [],
+        "hits": [circle(1.0, 1.12, 26, 0, 0, 18, CHAIN, mark=0.5, tx=True),
+                 *[zone(1.05, 5.0, 24, s, f, 6, "blood", tx=True, mark=0.5) for s, f in ((0, 44), (38, -22), (-38, -22))]],
+        "anim": [(0, pose()), (0.5, pose(arm_f=-170, weapon=-20, torso=-12)), (0.95, pose(arm_f=-60, weapon=100, torso=12, lean=4)), (1.8, pose())],
+    },
+})
+AXE_MOVES["hurl"] = {  # it throws the axe: slow, big, and back to its hand after
+    "range": (120, 420), "weight": 1, "cd": 9.0, "phase": (1, 3), "dur": 2.0, "locks": [0.0, 0.7],
+    "motion": [],
+    "hits": [proj(0.95, 0, 20, 0, 200, 16, 1.8, 34, {"col": "#c8c0b0", "kb": 80})],
+    "anim": [(0, pose()), (0.7, pose(arm_f=-190, arm_b=-190, weapon=-30, torso=-16, dy=-2)), (0.95, pose(arm_f=-40, arm_b=-40, weapon=90, torso=16, lean=5)),
+             (2.0, pose())],
 }
 
 RAGE = {  # the survivor's roar when the other falls

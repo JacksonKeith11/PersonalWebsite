@@ -42,9 +42,12 @@ Keep to these. They came from the owner directly.
 - **Stamina** for rolling, heavy attacks and blocking.
 - **Full launch:** everything built before it's listed.
 - **Controller and keyboard plus mouse**, both first-class, including every menu.
-- Defaults the owner accepted: no friendly fire; melee read from animation while area attacks also mark
-  the ground; optional lock-on; difficulty presets that change only numbers; one Second Wind a run when
-  solo; a checkpoint at every Bonfire.
+- Defaults the owner accepted: no friendly fire; optional lock-on; difficulty presets that change only
+  numbers; one Second Wind a run when solo; a checkpoint at every Bonfire.
+- **Clear hits both ways** (Nov 2026, after watching bots play): clear animations and visible hitboxes
+  for heroes and bosses; every player attack shows exactly where it hits; bosses switch targets to the
+  archers and casters at the back; every boss has ranged attacks and attacks whose areas you must keep
+  out of. (This replaced the earlier default of reading melee from animation alone.)
 
 ## How it plays now
 
@@ -80,9 +83,21 @@ run ends.
   a stagger is a **critical** (x3) that ends it. Poise refills after 3 s without poise damage.
 - **Statuses** on bosses: Burn and Bleed burst for damage, Frost slows the boss and breaks poise, Rot
   poisons over 5 s. Each meter needs 100 x 1.4^(bursts so far).
-- **Boss health** scales x1, x2, x3, x4 with party size; poise x1, x1.4, x1.8, x2.2. Bosses pick their
-  target by distance, recent damage and how long since they last went for each hero. Solo, they rest
+- **Boss health** scales x1, x2, x3, x4 with party size; poise x1, x1.4, x1.8, x2.2. Solo, bosses rest
   longer between moves; two-bodied bosses rest longer still.
+- **Targeting** (`pick_target`, `choose`, `target_weight` in `fight.py`): each attack picks a move *and*
+  a hero together, from every hero in that move's range, favouring the one it's walking toward, anyone it
+  hasn't attacked for a while, and (for moves reaching 60 px or more) anyone who has kept over 120 px
+  away (`far`). So a boss brawling with the swords turns its ranged moves on the archer. After every move
+  it looks round again and may walk toward someone else.
+- **What you see** (`drawWindup`, `drawTell` in `js/boss.js`; `drawSwing` in `js/hero.js`): every boss
+  hit is outlined in red on the floor before it lands, from the moment its aim is final (its last lock)
+  or 0.6 s before; projectiles show a dashed path, rings a faint circle; area hits (`mark`) fill in.
+  A glint flashes on the boss just before its first strike (red if it can't be blocked), and a red
+  marker hangs over the hero the move is aimed at. Every hero swing draws its real hitbox as it plays
+  (a crescent across the arc, a lance along a thrust, a burst for a slam) in that player's colour; a
+  hit lands with a white cut, sparks and a short hit-stop. Projectiles leave a streak, called-down areas
+  fill.
 - **Difficulty** (`DIFFS` in `room.py`): Squire 0.75 health, 0.7 damage, 0.9 speed; Knight as designed;
   Hard 1.15 health, 1.25 damage, 1.12 speed, no Second Wind.
 
@@ -113,22 +128,22 @@ special damage.
 
 Every boss has 5-7 moves and a second phase (the finals have three) whose transition is an invulnerable
 roar with a shockwave. Every move has a readable wind-up (and a distinct sound); area attacks mark the
-ground first.
+ground first. Every boss has ranged attacks and areas to keep out of from its first phase.
 
 | Boss | What it does |
 |---|---|
-| Ser Corvin | 3-hit combo that re-aims each swing, shield charge, delayed overhead, lunge, guard stance (front hits glance off). Phase 2: a fourth burning slam with a spreading ring; fire waves. |
-| Mire Mother | tongue lash that pulls you in, belly-flop leap (lands where its shadow is), poison pools, slap, tadpoles. Phase 2: submerges and erupts under you; double flop. |
-| Bellwarden | tolls send rings with gaps at the sides (sound can't be blocked), rakes, bell-slam, lurch, ghost choir. Phase 2: three tolls with different gaps; drags the bell round. |
-| Twin Headsmen | two bodies: the Hook (chain pull, flurry, chain whirl, dash) and the Axe (execution, sweep, stomp, charge). When one falls the other roars, heals a quarter and learns the other's signature. |
-| Briar Wolf | pounces, a feint that hops back then pounces, bites, tail lash, howl raising a wall of thorns. Phase 2: the clearing goes dark; double pounces. |
+| Ser Corvin | 3-hit combo that re-aims each swing, shield charge, delayed overhead, lunge, guard stance (front hits glance off), a thrown steel crescent, the brand (sword planted: burning brands in a cross round him and under you). Phase 2: a fourth burning slam with a spreading ring; fire waves. |
+| Mire Mother | tongue lash that pulls you in, belly-flop leap (lands where its shadow is), poison pools, a fan of bile globs, slap, tadpoles. Phase 2: submerges and erupts under you; double flop. |
+| Bellwarden | tolls send rings with gaps at the sides (sound can't be blocked), rakes, bell-slam, lurch, ghost choir, the knell (three ghost bells fall on you, each re-aimed). Phase 2: three tolls with different gaps; drags the bell round. |
+| Twin Headsmen | two bodies: the Hook (chain pull, flurry, chain whirl, dash, thrown hooks, a snare of chains that bleed whoever stands in them) and the Axe (execution, sweep, stomp, charge, a thrown axe). When one falls the other roars, heals a quarter and learns the other's signature. |
+| Briar Wolf | pounces, a feint that hops back then pounces, bites, tail lash, a spray of thorns, briars (roots burst under you and leave a thicket round the spot), howl raising a wall of thorns. Phase 2: the clearing goes dark; double pounces. |
 | Ashen Alchemist | keeps its distance; lobbed fire flasks, three-colour volleys, stilt stamp, vaults away leaving poison, homunculi. Phase 2: transmutes the floor; the great mixture; burning spray. |
 | Gravewyrm | burrows and erupts under you, lunging bite, bone shards, thrash, a ring that closes in. Its vertebrae can be struck too. Phase 2: burrows twice. |
-| Mirror Knight | the heroes' own combo, glide, shard fan, a parrying stance, glass reflections. Phase 2: shards rain in marked circles. |
-| Bastion | rocket fist, stomp, a sweeping furnace beam, two-fist hammer. Armoured (half damage) until both knee cores and the back core are broken; then it topples for 7 s. Phase 2: two fists, the beam both ways. |
+| Mirror Knight | the heroes' own combo, glide, shard fan, a parrying stance, glass reflections, shards raining in marked circles. Phase 2: the mirrors shatter. |
+| Bastion | rocket fist, stomp, a sweeping furnace beam, two-fist hammer, mortar shells lobbed from its back that leave fire. Armoured (half damage) until both knee cores and the back core are broken; then it topples for 7 s. Phase 2: two fists, the beam both ways. |
 | Moth Saint | hovers at range; dust spirals, pillars of light, wing gust, dust streams, mothlings. Phase 2: snuffs the candles (darkness); double spirals. |
-| Hollow King | phase 1 a duellist (lunges, a four-cut flourish, riposte stance, backstep); phase 2 swells into the hollow giant (cleave, leaping crash, sweeps, void bolts, pools of void); phase 3 the sky falls. |
-| Eclipse Drake | fire breath that sweeps and leaves the bridge burning, claws, tail, wing gust. Phase 2: dives along the bridge and rains fire from the air. Phase 3: the bridge's edges burn for the rest of the fight. |
+| Hollow King | phase 1 a duellist (lunges, a four-cut flourish, riposte stance, backstep, thrown knives, the decree: a crown of sigils round you, then its centre); phase 2 swells into the hollow giant (cleave, leaping crash, sweeps, void bolts, pools of void); phase 3 the sky falls. |
+| Eclipse Drake | fire breath that sweeps and leaves the bridge burning, lobbed fireballs, claws, tail, wing gust. Phase 2: dives along the bridge and rains fire from the air. Phase 3: the bridge's edges burn for the rest of the fight. |
 
 ### Netcode
 
@@ -185,10 +200,12 @@ ground first.
   cores, drink and revive; they get the levels and random blessings a run gives before that boss's tier.
   `python3 tools/kingfall-sim.py "" 10 --skill 0.85` runs every boss at every party size in about a minute.
   Bots never block, parry or use specials, and are poor at rings and slow projectiles, so treat their
-  numbers as a rough guide. Latest (Nov 2026, skill 0.85, win % solo / 2 / 3 / 4): Corvin 40/70/100/100,
-  Mire 90/100/100/100, Bellwarden 50/0/50/90, Headsmen 40/40/60/70, Wolf 80/90/90/100, Alchemist
-  10/30/80/100, Wyrm 100/80/90/100 (after a damage buff), Mirror 20/80/100/100, Bastion 30/10/60/70, Moth
-  50/50/80/80, King 10/60/90/90, Drake 100/60/30/90.
+  numbers as a rough guide. Latest (Nov 2026, after per-attack targeting and the new ranged and area
+  moves; skill 0.85, 6 fights each, 12 for the two retuned; win % solo / 2 / 3 / 4): Corvin 33/100/100/100,
+  Mire 83/100/100/100, Bellwarden 50/17/33/100, Headsmen 58/42/75/58 (after damage 0.9 to 0.8 and more
+  rest between the twins' moves), Wolf 100/100/100/100, Alchemist 17/25/58/67 (after damage 1.0 to 0.92),
+  Wyrm 83/83/100/100, Mirror 33/50/100/100, Bastion 50/50/83/83, Moth 67/50/83/83, King 33/67/100/83,
+  Drake 67/33/67/50. Samples this small swing by 20 points either way.
 - `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the fight.
 - `python3 tools/kingfall-art/anim.py <boss|weapon> <move> out.png` draws a move's keyframes as a strip;
   `sheet.py` reviews bosses beside a hero at game size; `preview.py` the heroes.
@@ -200,6 +217,10 @@ ground first.
 - **The server never clamps a move's motion after the fact**: browsers draw it as sent. `Fight.fit`
   shortens steps so a move can't carry the boss through a wall; a move whose steps come after a lock is
   only shortened from that lock on (or the boss would jump on screen).
+- **A move has one reach** (`tx` hits are placed by the move's last resolved distance, shared by all its
+  hits). In a move that re-aims more than once, a lingering `tx` zone or ring would slide when it re-aims,
+  so such moves use only short `tx` circles (the Bellwarden's knell); pools at the target belong in
+  moves with a single aim.
 - **Hit ids**: `seq:i` for a move's hit, `seq:i:n` for a pool's nth tick, `a<id>:<n>` for an add's bite
   (every 2 s, not in its first second). The server keeps the last 12 finished moves for late reports and
   lingering pools; a pool that outlives that won't hurt.

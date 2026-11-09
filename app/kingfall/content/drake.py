@@ -60,6 +60,14 @@ MOVES = {
     },
 }
 
+# a fireball lobbed at whoever hangs back; it marks where it'll land and leaves the stones burning
+MOVES["fireball"] = {
+    "range": (120, 560), "weight": 3, "cd": 5.0, "phase": (1, 2, 3), "dur": 2.0, "locks": [0.0, 0.5], "reach": ("target", 0, 0, 500),
+    "motion": [],
+    "hits": [circle(1.3, 1.42, 40, 0, 0, 34, FIRE, mark=0.8, tx=True), zone(1.36, 4.0, 32, 0, 0, 7, "fire", tx=True)],
+    "anim": [(0, pose()), (0.5, pose(neck=-30, head=-20, jaw=10, body=-6)), (0.8, pose(neck=14, head=4, jaw=40)), (1.2, pose(jaw=20)), (2.0, pose())],
+}
+
 PHASE2 = {
     "dur": 2.6, "locks": [0.0], "motion": [], "invuln": True,
     "hits": [ring(1.0, 1.8, 30, 200, 16, 14, {**FIRE, "kb": 130})],

@@ -3,7 +3,7 @@ belly-flop's shadow marks where she'll land, her poison pools shrink the safe fl
 pulls you into her reach. Phase 2: she sinks into the mire and bursts up beneath you, and flops twice.
 """
 
-from .moves import DMG, arc, circle, rect, ring, zone, spawn, pose
+from .moves import DMG, arc, circle, rect, ring, zone, spawn, proj, pose
 
 DMG[0] = 0.85
 TONGUE = {"col": "#c86a7a"}
@@ -64,6 +64,13 @@ MOVES = {
         "hits": [circle(1.75, 1.88, 52, 0, 0, 36, mark=0.55), zone(1.8, 6.0, 34, 0, 0, 8, "poison")],
         "anim": [(0, pose()), (0.5, pose(dy=10)), (1.7, pose(dy=10)), (1.8, pose(z=34, jaw=30, head=-10)), (2.1, pose(z=0, jaw=10)), (2.8, pose())],
     },
+}
+
+MOVES["bile"] = {  # a spray of bile globs, fanned at whoever hangs back
+    "range": (100, 400), "weight": 2, "cd": 5.0, "phase": (1, 2), "dur": 1.8, "locks": [0.0, 0.6],
+    "motion": [],
+    "hits": [proj(0.8 + abs(a) / 400, 0, 22, a, 170, 9, 2.2, 18, {"col": "#9ab83a"}) for a in (-40, -20, 0, 20, 40)],
+    "anim": [(0, pose()), (0.6, pose(head=-18, body=-8, jaw=10)), (0.8, pose(head=8, jaw=40, body=4)), (1.2, pose(jaw=30)), (1.8, pose())],
 }
 
 PHASE2 = {

@@ -5,8 +5,8 @@
 // Weapons (app/kingfall/content/weapons.py) swing shapes, fire projectiles (`proj`), drop delayed
 // area hits (`aoe`), blink, leap (`air`: untouchable) or shrug off hits (`hyper`). Each has its own
 // defensive move: block, dash, counter, blink or rollshot.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=3';
-import { placeAttack, touches, wrap } from './moves.js?v=3';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=4';
+import { placeAttack, touches, wrap } from './moves.js?v=4';
 
 export function heroFrames(h, W) {
   const p = `${h.look}.${h.colour}.`;
@@ -72,8 +72,11 @@ export class HeroView {
     this.shadow = scene.add.ellipse(0, 0, 18, 6, 0x000000, 0.35);
     this.ring = scene.add.ellipse(0, 0, 22, 9).setStrokeStyle(1, Phaser.Display.Color.HexStringToColor(h.colourHex).color, 0.85);
     this.colour = Phaser.Display.Color.HexStringToColor(h.colourHex).color;
+    this.swingG = scene.add.graphics().setDepth(5100);
+    this.reachK = 1;
   }
   draw(x, y, an, at, aim, flash) {
+    this.drawSwing(x, y, an, at, aim);
     const left = Math.cos(aim) < -0.05;
     const { p, spin, z } = heroPose(this.W, this.HERO, an, at);
     this.rig.pose(p, left);
@@ -83,7 +86,71 @@ export class HeroView {
     this.rig.setTint(flash ? 0xffffff : null);
     this.rig.c.alpha = an === 'roll' || an === 'dash' ? 0.85 : an === 'blink' ? 0.4 : 1;
   }
-  destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); }
+  destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); }
+
+  // The swing's real hitbox, drawn as it plays: a crescent sweeping across an arc, a lance along a
+  // thrust, a burst for a slam, each in the player's colour with a white edge, so you can see exactly
+  // what a swing covers. Projectiles and called-down areas are drawn by the fight scene instead.
+  drawSwing(x, y, an, at, aim) {
+    const g = this.swingG;
+    g.clear();
+    const W = this.W;
+    let atk = null, flip = false;
+    if (/^l\d+$/.test(an)) { const i = Math.min(+an.slice(1), W.light.length - 1); atk = W.light[i]; flip = i % 2 === 1; }
+    else if (an === 'hv') atk = W.heavy;
+    else if (an === 'sp') atk = W.special;
+    else if (an === 'cs') atk = { shape: W.guard.shape, hit: [0.08, 0.16] };
+    if (!atk || !atk.shape || atk.proj || atk.aoe) return;
+    const [h0, h1] = atk.hit, pre = 0.04, post = 0.16;
+    if (at < h0 - pre || at > h1 + post) return;
+    const u = (at - h0 + pre) / (h1 - h0 + pre + post);       // 0..1 over the whole trail
+    const live = at >= h0 && at <= h1;
+    const s = placeAttack(reach(atk.shape, this.reachK), x, y, aim);
+    const col = this.colour, fade = Math.min(1, (1 - u) * 2.2);
+    const lift = 12;  // drawn at waist height
+    if (s.k === 'arc') {
+      const sweep = Math.min(1, u * 1.7);
+      const from = flip ? s.a1 : s.a0, to = flip ? s.a1 - (s.a1 - s.a0) * sweep : s.a0 + (s.a1 - s.a0) * sweep;
+      const lo = Math.min(from, to), hi = Math.max(from, to);
+      // the area it covers, faintly, while it can land
+      if (live) {
+        g.fillStyle(col, 0.16);
+        g.beginPath(); g.moveTo(s.cx, s.cy - lift);
+        for (let d = s.a0; d <= s.a1 + 0.1; d += 8) { const a = s.a + d * Math.PI / 180; g.lineTo(s.cx + Math.cos(a) * s.r, s.cy - lift + Math.sin(a) * s.r); }
+        g.closePath(); g.fillPath();
+      }
+      // the crescent: thick at the blade's edge, thinning inward, brightest at its leading tip
+      for (let k = 0; k < 4; k++) {
+        const rr = s.r * (0.62 + k * 0.12);
+        g.lineStyle(k === 3 ? 2 : 3, k === 3 ? 0xffffff : col, (0.25 + k * 0.2) * fade);
+        g.beginPath();
+        let first = true;
+        for (let d = lo; d <= hi + 0.1; d += 5) {
+          const a = s.a + d * Math.PI / 180, px = s.cx + Math.cos(a) * rr, py = s.cy - lift + Math.sin(a) * rr;
+          if (first) { g.moveTo(px, py); first = false; } else g.lineTo(px, py);
+        }
+        g.strokePath();
+      }
+      const ta = s.a + to * Math.PI / 180;
+      g.fillStyle(0xffffff, 0.9 * fade); g.fillCircle(s.cx + Math.cos(ta) * s.r * 0.98, s.cy - lift + Math.sin(ta) * s.r * 0.98, 2.5);
+    } else if (s.k === 'rect') {
+      const c = Math.cos(s.a), n = Math.sin(s.a);
+      const L = s.x0 + (s.x1 - s.x0) * Math.min(1, u * 2.2);
+      const P = (fx, fy) => [s.cx + c * fx - n * fy, s.cy - lift + n * fx + c * fy];
+      if (live) { g.fillStyle(col, 0.16); const q = [P(s.x0, -s.w), P(s.x1, -s.w), P(s.x1, s.w), P(s.x0, s.w)]; g.fillPoints(q.map(([a, b]) => ({ x: a, y: b })), true); }
+      for (let k = 0; k < 3; k++) {
+        const w = s.w * (0.9 - k * 0.3);
+        g.fillStyle(k === 2 ? 0xffffff : col, (0.3 + k * 0.25) * fade);
+        const pts = [P(s.x0, -w * 0.3), P(L * 0.75, -w), P(L, 0), P(L * 0.75, w), P(s.x0, w * 0.3)];
+        g.fillPoints(pts.map(([a, b]) => ({ x: a, y: b })), true);
+      }
+    } else if (s.k === 'circle') {
+      const r = s.r * (0.5 + 0.6 * Math.min(1, u * 1.8));
+      if (live) { g.fillStyle(col, 0.22); g.fillCircle(s.cx, s.cy, s.r); }
+      g.lineStyle(3, col, 0.8 * fade); g.strokeCircle(s.cx, s.cy, r);
+      g.lineStyle(1, 0xffffff, 0.9 * fade); g.strokeCircle(s.cx, s.cy, r * 0.92);
+    }
+  }
 }
 
 let swingSeq = Math.floor(Math.random() * 1e6);
@@ -443,7 +510,7 @@ export class LocalHero {
     return 'hurt';
   }
 
-  draw() { this.view.draw(this.x, this.y, this.an(), this.anT, this.aim, this.flash > 0); }
+  draw() { this.view.reachK = this.S.reach || 1; this.view.draw(this.x, this.y, this.an(), this.anT, this.aim, this.flash > 0); }
   report() { return { t: 'st', h: this.id, x: Math.round(this.x * 10) / 10, y: Math.round(this.y * 10) / 10, f: Math.round(this.aim * 100) / 100, an: this.an(), at: Math.round(this.anT * 100) / 100 }; }
 }
 

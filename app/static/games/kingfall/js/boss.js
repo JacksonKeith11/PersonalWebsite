@@ -3,8 +3,8 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=3';
-import { LiveMove, placeHit, touches } from './moves.js?v=3';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=4';
+import { LiveMove, placeHit, touches } from './moves.js?v=4';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -147,6 +147,11 @@ export class Boss {
     if (m.art && m.art !== b.art) { b.art = m.art; b.makeRig(); }
     const mv = new LiveMove(m, data);
     mv.e = m.e || 0;
+    mv.tg = m.tg;
+    // the move's first strike (for the glint and the target marker)
+    const strikes = data.hits.filter(h => h.k !== 'spawn' && h.k !== 'zone');
+    mv.first = strikes.length ? Math.min(...strikes.map(h => h.t0)) : null;
+    mv.unblock = data.hits.some(h => h.unblock);
     mv.last = mv.start + Math.max(data.dur, ...data.hits.map(h => h.t1));
     this.moves.push(mv);
     if (this.moves.length > 16) this.moves.shift();
@@ -281,7 +286,9 @@ export class Boss {
     for (const mv of this.moves) {
       const t = now - mv.start;
       if (now > mv.last + 0.2) continue;
+      this.drawTell(mv, t, now);
       mv.data.hits.forEach(h => {
+        if (h.mark == null && t < h.t0) { this.drawWindup(mv, h, t); return; }
         const s = placeHit(mv, h, t, h.mark ?? 0);
         if (!s) return;
         const fire = !!h.fire, col = fire ? FIRE : h.col ? Phaser.Display.Color.HexStringToColor(h.col).color : STEEL;
@@ -317,6 +324,56 @@ export class Boss {
         }
       });
     }
+  }
+
+  // Before an unmarked hit lands, its shape is outlined on the floor: from the moment its aim is final
+  // (its last lock has arrived) or 0.6 s before, whichever is later, brightening as it comes. Thrusts
+  // and swings get a thin outline, projectiles a dashed line along their path, rings a faint circle.
+  drawWindup(mv, h, t) {
+    if (h.k === 'spawn' || h.k === 'zone' || mv.start + h.t0 > mv.cancelAt) return;
+    const locks = (mv.data.locks || [0]).filter(l => l <= h.t0);
+    const L = locks.length ? Math.max(...locks) : 0;
+    if (L > 0 && !mv.aims.some(([at]) => Math.abs(at - L) < 1e-6)) return;  // its aim isn't known yet
+    const lead = Math.min(0.6, h.t0 - L);
+    if (t < h.t0 - lead || lead <= 0.02) return;
+    const s = placeHit(mv, h, h.t0);
+    if (!s) return;
+    const u = 1 - (h.t0 - t) / lead, g = this.marks;
+    const col = h.unblock ? 0xff3a20 : DANGER;
+    if (s.k === 'proj') {
+      const L2 = Math.min(140, h.v * 0.5), c = Math.cos(s.a), n = Math.sin(s.a);
+      g.lineStyle(1, col, 0.25 + 0.5 * u);
+      for (let d = 0; d < L2; d += 10) g.lineBetween(s.cx + c * d, s.cy + n * d, s.cx + c * (d + 5), s.cy + n * (d + 5));
+      return;
+    }
+    if (s.k === 'ring') { g.lineStyle(1, col, 0.2 + 0.4 * u); g.strokeCircle(s.cx, s.cy, h.r0 + 10); return; }
+    g.fillStyle(col, 0.1 + 0.2 * u * u); shape(g, s, true);
+    g.lineStyle(u > 0.7 ? 2 : 1, col, 0.45 + 0.5 * u); shape(g, s, false);
+  }
+
+  // the tell: a glint on the boss just before its first strike (red if it can't be blocked), and a
+  // marker over the hero the move is aimed at
+  drawTell(mv, t, now) {
+    if (mv.first == null || t > mv.first || now > mv.cancelAt) return;
+    const b = this.bodies[mv.e], f = this.fx;
+    if (!b || !b.alive) return;
+    const hero = mv.tg != null && this.scene.byId && this.scene.byId[mv.tg];
+    if (hero && t > -0.1 && !hero.down) {
+      const hx = hero.x, hy = hero.y - 56 + Math.sin(now * 10) * 1.5;
+      f.fillStyle(0xe03a2a, 0.95); f.fillTriangle(hx - 6, hy - 7, hx + 6, hy - 7, hx, hy + 2);
+      f.lineStyle(1, 0x000000, 0.7); f.strokeTriangle(hx - 6, hy - 7, hx + 6, hy - 7, hx, hy + 2);
+      this.marks.lineStyle(1, 0xe03a2a, 0.8); this.marks.strokeEllipse(hero.x, hero.y, 30, 12);
+    }
+    const lead = mv.first - t;
+    if (lead > 0.32 || lead < 0) return;
+    const u = 1 - lead / 0.32, k = Math.sin(u * Math.PI);
+    const x = b.x + Math.cos(b.face) * (b.r * 0.9), y = b.y - b.z - Math.max(30, b.r * 1.6);
+    const col = mv.unblock ? 0xff4020 : 0xfff6d0, L = 4 + 9 * k;
+    f.fillStyle(col, 0.35 * k); f.fillCircle(x, y, 3 + 5 * k);
+    f.lineStyle(2, col, 0.95 * k);
+    f.lineBetween(x - L, y, x + L, y); f.lineBetween(x, y - L, x, y + L);
+    f.lineStyle(1, col, 0.7 * k);
+    f.lineBetween(x - L * 0.45, y - L * 0.45, x + L * 0.45, y + L * 0.45); f.lineBetween(x - L * 0.45, y + L * 0.45, x + L * 0.45, y - L * 0.45);
   }
 
   // test every live hit (and every add) against a hero; calls back once per hit id that touches it

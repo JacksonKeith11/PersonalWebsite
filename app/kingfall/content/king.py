@@ -4,6 +4,8 @@ giant (his art changes): a bone blade, slams, pools of void. Last, the roof give
 marked circles while he fights on, faster.
 """
 
+import math
+
 from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
 
 DMG[0] = 1.2
@@ -75,6 +77,26 @@ MOVES = {
         "anim": [(0, pose()), (0.4, pose(arm_f=-170, weapon=0, head=-20)), (2.4, pose(arm_f=-170, weapon=0)), (3.0, pose())],
     },
 }
+
+MOVES.update({
+    # phase 1: a flick of three thrown knives
+    "daggers": {
+        "range": (110, 420), "weight": 3, "cd": 4.0, "phase": (1,), "dur": 1.4, "locks": [0.0, 0.42],
+        "motion": [],
+        "hits": [proj(0.55 + i * 0.07, 0, 16, a, 280, 6, 1.5, 20, {"col": "#e8dcc0"}) for i, a in enumerate((-14, 0, 14))],
+        "anim": [(0, pose()), (0.42, pose(arm_b=-175, arm_f=-40, weapon=40, torso=-16, head=-6, lean=-3)), (0.58, pose(arm_b=-20, arm_f=-60, torso=16, lean=6)), (1.4, pose())],
+    },
+    # phase 1: the royal decree; a crown of sigils lands round you, then its centre: step out between them
+    "decree": {
+        "range": (0, 420), "weight": 2, "cd": 8.0, "phase": (1,), "dur": 2.2, "locks": [0.0, 0.5], "reach": ("target", 0, 0, 380),
+        "motion": [],
+        "hits": [*[circle(1.1, 1.22, 22, round(math.sin(math.radians(a)) * 58), round(math.cos(math.radians(a)) * 58), 22, {"col": "#fff0c0"}, mark=0.6, tx=True)
+                   for a in range(0, 360, 72)],
+                 circle(1.5, 1.62, 40, 0, 0, 30, {"col": "#fff0c0"}, mark=0.6, tx=True)],
+        "anim": [(0, pose()), (0.5, pose(arm_f=-170, weapon=0, head=-12)), (1.4, pose(arm_f=-170, weapon=0)), (1.55, pose(arm_f=-60, weapon=90, torso=10)),
+                 (2.2, pose())],
+    },
+})
 
 PHASE2 = {  # the crown swells him into the hollow giant
     "dur": 3.0, "locks": [0.0], "motion": [], "invuln": True,

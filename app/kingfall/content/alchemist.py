@@ -6,7 +6,7 @@ across the room, and its mixtures explode where they meet.
 
 from .moves import DMG, arc, circle, rect, ring, zone, spawn, proj, pose
 
-DMG[0] = 1.0
+DMG[0] = 0.92
 FIRE = {"fire": 1}
 
 THROW = [(0, pose()), (0.45, pose(arm_f=-170, weapon=0, torso=-10)), (0.62, pose(arm_f=-40, weapon=60, torso=10)), (1.4, pose())]

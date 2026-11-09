@@ -5,7 +5,7 @@ and it topples for a long while, open to criticals; then the cores glow again. P
 fists and the beam sweeps both ways.
 """
 
-from .moves import DMG, arc, circle, rect, ring, pose
+from .moves import DMG, arc, circle, rect, ring, zone, pose
 
 DMG[0] = 1.15
 STONE = {"col": "#a8a0b0"}
@@ -57,6 +57,17 @@ MOVES = {
         + [rect(2.0 + i * 0.14, 2.16 + i * 0.14, 30, 330, 10, 20, BEAM, rot=60 - i * 20) for i in range(7)],
         "anim": [(0, pose()), (0.7, pose(head=-14)), (2.0, pose(head=8)), (3.0, pose(head=-8)), (3.6, pose())],
     },
+}
+
+# the back core lobs shells over the wall at whoever it looks at; each leaves fire behind
+MOVES["mortar"] = {
+    "range": (100, 520), "weight": 3, "cd": 6.0, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 0.6], "reach": ("target", 0, 0, 460),
+    "motion": [],
+    "hits": [h for i, (s, f) in enumerate(((0, 0), (-56, 36), (56, -36)))
+             for h in (circle(1.3 + i * 0.22, 1.42 + i * 0.22, 32, s, f, 28, {"col": "#ffb040", "fire": 1}, mark=0.9, tx=True),
+                       zone(1.36 + i * 0.22, 3.0, 28, s, f, 6, "fire", tx=True))],
+    "anim": [(0, pose()), (0.6, pose(torso=-14, head=-16, dy=-3)), (0.9, pose(torso=8, head=4, dy=2)), (1.1, pose(torso=-10, head=-12)),
+             (1.3, pose(torso=6)), (2.6, pose())],
 }
 
 PHASE2 = {

@@ -47,9 +47,9 @@ MOVES = {
         "hits": [spawn(1.0, "reflection", 2, 70, 160)],
         "anim": [(0, pose()), (0.6, pose(arm_f=-170, weapon=0, arm_b=-170, head=-10)), (1.2, pose(arm_f=-170, arm_b=-170)), (1.8, pose())],
     },
-    # phase 2: shards rain on the hall in marked circles
+    # shards rain on the hall in marked circles
     "rain": {
-        "range": (0, 500), "weight": 3, "cd": 6.0, "phase": (2,), "dur": 2.6, "locks": [0.0, 0.3], "reach": ("target", 0, 0, 300),
+        "range": (0, 500), "weight": 3, "cd": 6.0, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 0.3], "reach": ("target", 0, 0, 300),
         "motion": [],
         "hits": [circle(1.2 + i * 0.15, 1.32 + i * 0.15, 30, s, f, 24, GLASS, mark=0.8, tx=True)
                  for i, (s, f) in enumerate(((0, 0), (-60, -30), (60, -30), (-40, 60), (40, 60), (0, -90), (-110, 20), (110, 20)))],

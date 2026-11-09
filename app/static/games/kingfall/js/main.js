@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=3';
-import { Input, slotOf, padName } from './input.js?v=3';
-import { Net, ME } from './net.js?v=3';
-import { FightScene } from './fight.js?v=3';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=3';
-import { unlock, sfx, setVolume } from './audio.js?v=3';
-import { music } from './music.js?v=3';
+import { setAtlas } from './rig.js?v=4';
+import { Input, slotOf, padName } from './input.js?v=4';
+import { Net, ME } from './net.js?v=4';
+import { FightScene } from './fight.js?v=4';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=4';
+import { unlock, sfx, setVolume } from './audio.js?v=4';
+import { music } from './music.js?v=4';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');

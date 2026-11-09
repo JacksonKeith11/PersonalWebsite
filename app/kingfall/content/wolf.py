@@ -4,7 +4,7 @@ thorn that split the party. Phase 2: the forest goes dark; only its eyes and a g
 strike show, and it pounces twice.
 """
 
-from .moves import DMG, arc, circle, rect, ring, zone, pose
+from .moves import DMG, arc, circle, rect, ring, zone, proj, pose
 
 DMG[0] = 1.0
 THORN = {"col": "#6a8a3a"}
@@ -60,6 +60,24 @@ MOVES = {
                  (1.8, pose(z=0, jaw=30)), (2.6, pose())],
     },
 }
+
+MOVES.update({
+    # it flicks a spray of thorns from its tail
+    "thorns": {
+        "range": (100, 380), "weight": 2, "cd": 5.0, "phase": (1, 2), "dur": 1.5, "locks": [0.0, 0.45],
+        "motion": [],
+        "hits": [proj(0.65, 0, -6, a, 210, 7, 1.8, 16, THORN) for a in (-30, -15, 0, 15, 30)],
+        "anim": [(0, pose()), (0.45, pose(tail=-70, body=-8, neck=-10)), (0.65, pose(tail=60, body=6, neck=6)), (1.5, pose())],
+    },
+    # roots burst under you and leave a thicket round the spot: get out before it closes
+    "briar": {
+        "range": (60, 400), "weight": 2, "cd": 8.0, "phase": (1, 2), "dur": 1.8, "locks": [0.0, 0.4], "reach": ("target", 0, 0, 360),
+        "motion": [],
+        "hits": [circle(1.05, 1.18, 34, 0, 0, 22, THORN, mark=0.65, tx=True),
+                 *[zone(1.15, 5.0, 18, s, f, 8, "thorn", tick=0.7, tx=True, mark=0.65) for s, f in ((0, 52), (0, -52), (52, 0), (-52, 0))]],
+        "anim": [(0, pose()), (0.4, pose(neck=-20, head=-14, jaw=20, body=-6, dy=2)), (1.0, pose(neck=14, jaw=30, leg_ff=-20, dy=3)), (1.8, pose())],
+    },
+})
 
 PHASE2 = {
     "dur": 2.4, "locks": [0.0], "motion": [], "invuln": True,

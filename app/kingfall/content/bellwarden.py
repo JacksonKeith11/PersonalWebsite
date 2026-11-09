@@ -75,6 +75,15 @@ MOVES = {
     },
 }
 
+# ghost bells fall on whoever it looks at, three in a row, each one re-aimed (marked, so step aside)
+MOVES["knell"] = {
+    "range": (80, 460), "weight": 3, "cd": 6.0, "phase": (1, 2), "dur": 2.8, "locks": [0.0, 0.5, 1.0, 1.5], "reach": ("target", 0, 0, 380),
+    "motion": [],
+    "hits": [circle(1.1 + i * 0.5, 1.22 + i * 0.5, 34, 0, 0, 24, {"col": "#c8a8ff"}, mark=0.6, tx=True) for i in range(3)],
+    "anim": [(0, pose()), (0.4, pose(bell=-100, front=1, arm_f=-140, arm_b=-140)), (0.9, pose(bell=-60, front=1, arm_f=-110)),
+             (1.4, pose(bell=-100, front=1, arm_f=-140)), (1.9, pose(bell=-60, front=1, arm_f=-110)), (2.8, pose())],
+}
+
 PHASE2 = {
     "dur": 2.6, "locks": [0.0], "motion": [], "invuln": True,
     "hits": [ring(1.0, 2.2, 20, 200, 16, 14, {**SOUND, "kb": 100}), spawn(1.4, "ghost", 2, 70, 140)],

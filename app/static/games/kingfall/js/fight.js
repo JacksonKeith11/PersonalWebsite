@@ -1,12 +1,12 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=3';
-import { LocalHero, RemoteHero } from './hero.js?v=3';
-import { Boss } from './boss.js?v=3';
-import { drawArena } from './arenas.js?v=3';
-import { sfx } from './audio.js?v=3';
-import { music } from './music.js?v=3';
-import { deviceOfSlot } from './input.js?v=3';
+import { addFrames } from './rig.js?v=4';
+import { LocalHero, RemoteHero } from './hero.js?v=4';
+import { Boss } from './boss.js?v=4';
+import { drawArena } from './arenas.js?v=4';
+import { sfx } from './audio.js?v=4';
+import { music } from './music.js?v=4';
+import { deviceOfSlot } from './input.js?v=4';
 
 const INTERP = 0.1;
 
@@ -72,6 +72,7 @@ export class FightScene extends Phaser.Scene {
     this.shotG = this.add.graphics().setDepth(5600);
     this.remoteShots = []; this.rings = [];
     this.sparkList = [];
+    this.impacts = [];     // where a hero's hit landed: a flash and a cut across it
     this.reviveG = this.add.graphics().setDepth(6001);
     const cam = this.cameras.main;
     cam.setBounds(0, 0, w, h);
@@ -147,6 +148,10 @@ export class FightScene extends Phaser.Scene {
         if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg * (mine.S.focus_gain || 1) + (mine.state === 'special' ? mine.S.focusback || 0 : 0));
         if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); }
         else if (!mine) sfx.hit(this.pan(B.x));
+        if (!mine && this.remote[m.h]) {  // someone else's hit: the cut where it landed, facing from them
+          const r = this.remote[m.h], a = Math.atan2(B.y - r.y, B.x - r.x);
+          this.impact(B.x - Math.cos(a) * Math.min(B.r, 14), B.y - 30, a, m.k === 'crit', r.view.colour);
+        }
         break;
       case 'guarded':
         sfx.guarded(this.pan(B.x)); this.burst(B.x + Math.cos(B.face) * 18, B.y - 30, 0xffffff, 8);
@@ -231,10 +236,15 @@ export class FightScene extends Phaser.Scene {
 
   drawShot(g, x, y, a, r, col) {
     const c = col ? Phaser.Display.Color.HexStringToColor(col).color : 0xe8dcc0;
+    // a fading streak behind it, so its path reads at a glance
+    g.lineStyle(col ? r * 1.4 : 1, c, 0.25).lineBetween(x - Math.cos(a) * 26, y - 14 - Math.sin(a) * 26, x - Math.cos(a) * 6, y - 14 - Math.sin(a) * 6);
     if (col) { g.fillStyle(c, 0.45).fillCircle(x, y - 14, r + 2); g.fillStyle(0xffffff, 0.9).fillCircle(x, y - 14, r * 0.5); return; }
     g.lineStyle(2, c, 1).lineBetween(x - Math.cos(a) * 10, y - 14 - Math.sin(a) * 10, x, y - 14);  // an arrow
     g.fillStyle(0xa8b0bc, 1).fillRect(x - 1, y - 15, 2, 2);
   }
+
+  // a cut across the spot a hit landed: a white flash, a slash line across the aim and a ring
+  impact(x, y, a, big, colour) { this.impacts.push({ x, y, a: a + Math.PI / 2 + (Math.random() - 0.5) * 0.6, big, colour, life: 0.18 }); }
 
   burst(x, y, colour, n) {
     for (let i = 0; i < n; i++) {
@@ -246,7 +256,9 @@ export class FightScene extends Phaser.Scene {
   // a local hero's attack connected (before the server's word, so it feels instant)
   onHit(hero, kind, tg) {
     sfx.hit(this.pan(tg.x));
-    this.burst(tg.x - Math.cos(hero.aim) * 8, tg.y - (tg.kind === 'body' && !tg.seg ? 30 : 10), 0xfff0c0, kind === 'light' ? 6 : 12);
+    const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.kind === 'body' && !tg.seg ? 30 : 10);
+    this.burst(ix, iy, 0xfff0c0, kind === 'light' ? 6 : 12);
+    this.impact(ix, iy, hero.aim, kind !== 'light', hero.view ? hero.view.colour : 0xffffff);
     if (tg.b) tg.b.flash = 0.06;
     this.stop = kind === 'light' ? 0.045 : 0.08;
     this.cfg.input.rumble(hero.dev, kind === 'light' ? 0.25 : 0.5, 70);
@@ -311,12 +323,12 @@ export class FightScene extends Phaser.Scene {
     sg.clear();
     for (const l of this.local) {
       for (const s of l.shots) this.drawShot(sg, s.x, s.y, s.a, s.r, s.col);
-      for (const A of l.aoes) { sg.lineStyle(1, 0xffd23f, 0.6).strokeCircle(A.x, A.y, A.r); }
+      for (const A of l.aoes) { const p = 0.5 + 0.5 * Math.sin(time / 60); sg.fillStyle(0xffd23f, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, 0xffd23f, 0.7).strokeCircle(A.x, A.y, A.r); }
     }
     this.remoteShots = this.remoteShots.filter(s => {
       s.life -= dtReal;
       if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(sg, s.x, s.y, s.a, s.r, s.col); }
-      else sg.lineStyle(1, 0xffd23f, 0.5).strokeCircle(s.x, s.y, s.r);
+      else { sg.fillStyle(0xffd23f, 0.12).fillCircle(s.x, s.y, s.r); sg.lineStyle(2, 0xffd23f, 0.6).strokeCircle(s.x, s.y, s.r); }
       return s.life > 0;
     });
     this.rings = this.rings.filter(r => { r.life -= dtReal; sg.lineStyle(3, 0xc080ff, r.life * 3).strokeCircle(r.x, r.y, r.r * (1.3 - r.life)); return r.life > 0; });
@@ -327,6 +339,14 @@ export class FightScene extends Phaser.Scene {
       s.life -= dtReal; s.x += s.vx * dtReal; s.y += s.vy * dtReal; s.vy += 220 * dtReal;
       this.sparks.fillStyle(s.colour, Math.min(1, s.life * 4)); this.sparks.fillRect(Math.round(s.x), Math.round(s.y), 2, 2);
       return s.life > 0;
+    });
+    this.impacts = this.impacts.filter(o => {
+      o.life -= dtReal;
+      const u = 1 - o.life / 0.18, L = (o.big ? 22 : 14) * (0.6 + u * 0.6), c = Math.cos(o.a), n = Math.sin(o.a), sp = this.sparks;
+      sp.fillStyle(0xffffff, 0.8 * (1 - u)).fillCircle(o.x, o.y, (o.big ? 7 : 4) * (1 - u * 0.5));
+      sp.lineStyle(o.big ? 3 : 2, 0xffffff, 1 - u).lineBetween(o.x - c * L, o.y - n * L, o.x + c * L, o.y + n * L);
+      sp.lineStyle(1, o.colour, 1 - u).strokeCircle(o.x, o.y, (o.big ? 10 : 6) + u * 10);
+      return o.life > 0;
     });
     this.texts = this.texts.filter(o => {
       o.life -= dtReal; o.t.y += o.vy * dtReal; o.vy *= 0.94; o.t.alpha = Math.min(1, o.life * 3);

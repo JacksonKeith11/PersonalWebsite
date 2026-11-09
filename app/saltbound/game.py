@@ -43,6 +43,41 @@ DIFFICULTY = {
     # `surge2` times the square of how far past (Game.surge).
     "hard": {"rise": 9, "revives": 2, "foe_hp": 2.35, "foe_dmg": 2.95, "surge": 0.0065, "surge2": 0.0006, "surge_from": 20},
 }
+# Custom difficulty (owner's request, Nov 2026): a base preset plus sliders, kept as `s["custom"]` and applied in
+# `Game.diff`. Each slider: (lowest, highest, default); `hp`, `dmg` and `surge` are percentages of the preset's,
+# `elite` the percent chance a roaming group is led by an elite, `rise` the turns between Great Tides.
+CUSTOM = {"hp": (25, 300, 100), "dmg": (25, 300, 100), "elite": (0, 100, 25), "surge": (0, 300, 100),
+          "rise": (4, 20, None), "revives": (0, 9, None), "gold": (0, 200, None)}
+ELITE_CHANCE = 25  # percent: a roaming group spawned from the first objective on is led by an elite
+
+
+def clean_custom(c):
+    """The sliders a lobby sent, clamped to their ranges (unknown keys and non-numbers dropped)."""
+    out = {}
+    for k, (lo, hi, _) in CUSTOM.items():
+        v = (c or {}).get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            out[k] = int(max(lo, min(hi, round(v))))
+    return out
+
+
+def merged_diff(name, custom):
+    """A preset with custom sliders applied: health and damage scaled, the tide's pace and strength, revives, gold."""
+    d = dict(DIFFICULTY[name], elite=ELITE_CHANCE)
+    c = custom or {}
+    if "hp" in c:
+        d["foe_hp"] = d["foe_hp"] * c["hp"] / 100
+    if "dmg" in c:
+        d["foe_dmg"] = d["foe_dmg"] * c["dmg"] / 100
+    if "surge" in c:
+        d["surge"] = d.get("surge", SURGE) * c["surge"] / 100
+        d["surge2"] = d.get("surge2", 0) * c["surge"] / 100
+    for k, to in (("elite", "elite"), ("rise", "rise"), ("revives", "revives"), ("gold", "gold")):
+        if k in c:
+            d[to] = c[k]
+    return d
+
+
 MOVES = 4
 PATH_MAX = 20  # hexes in one turn's route at most (a current carries a skiff a long way)
 VISION = 5  # land seen around a hero: more than a turn's walk, so a move's result is in view
@@ -76,21 +111,22 @@ class Game(Combat, Biomes, Quests, Travel):
     # ------------------------------------------------------------------ making a run
 
     @classmethod
-    def new(cls, seed, classes, difficulty="normal", names=None):
+    def new(cls, seed, classes, difficulty="normal", names=None, custom=None):
         assert len(classes) == 3 and len(set(classes)) == 3
         w = Wd.generate(seed, A.REGION_POOL)
-        diff = DIFFICULTY[difficulty]
+        custom = clean_custom(custom) if custom else None
+        diff = merged_diff(difficulty, custom)
         heroes = []
         for i, k in enumerate(classes):
             c = C.CLASSES[k]
             heroes.append({
-                "cls": k, "name": (names or [None] * 3)[i] or c["name"], "hp": 0, "gold": START_GOLD,
+                "cls": k, "name": (names or [None] * 3)[i] or c["name"], "hp": 0, "gold": diff.get("gold", START_GOLD),
                 "skills": list(c["start"]), "equip": {"weapon": c["weapon"], "armor": c["armor"], "trinket": None},
                 "bag": ["potion"], "tile": w["start"], "prev": w["start"], "afloat": False, "skiff": False,
                 "alive": True, "buffs": {}, "shrines": [], "dieup": 0, "tags": {},
             })
         s = {
-            "v": VERSION, "seed": seed, "rng": seed * 7919 + 17, "diff": difficulty, "turn": 1, "sea": Wd.SEA0,
+            "v": VERSION, "seed": seed, "rng": seed * 7919 + 17, "diff": difficulty, "custom": custom, "turn": 1, "sea": Wd.SEA0,
             "rises": 0, "tides": 0, "phase": "plan", "result": None, "world": w, "seen": [0] * (Wd.W * Wd.H), "cleared": [],
             "dungeon": {}, "heroes": heroes, "xp": 0, "level": 1, "revives": diff["revives"], "miracle": False,
             "groups": [], "gid": 1, "plans": {}, "pending": {"0": [], "1": [], "2": []}, "pools": {}, "poolid": 0, "fights": [],
@@ -117,10 +153,11 @@ class Game(Combat, Biomes, Quests, Travel):
         g.place_quests(g.rng)
         g.ensure_travel(g.rng)
         g.town_jobs(w["start"])
+        g.s["final"] = g.rng.choice(A.FINALS)  # who waits at the Peak this run
         g.reset_plans()
         names = [f"{A.DUNGEONS[r]['name']} in {A.REGION_NAMES[r]}" for r in g.regions()]
         g.say("The party sets out from " + w["places"][str(w["start"])]["name"] + ". This time the objectives are "
-              + ", ".join(names[:-1]) + " and " + names[-1] + ".")
+              + ", ".join(names[:-1]) + " and " + names[-1] + f", and {A.FOES[g.s['final']]['name']} waits at the Peak.")
         g.sync()
         return g
 
@@ -154,7 +191,7 @@ class Game(Combat, Biomes, Quests, Travel):
                     reg = self.near_region(t)
                     foes = list(rng.choice(A.WRECK_GUARDS[reg]))
                     i = max(range(len(foes)), key=lambda n: A.FOES[foes[n]]["hp"])
-                    foes[i] = {"k": foes[i], "aff": rng.choice(A.ROAM_ELITES)}
+                    foes[i] = {"k": foes[i], "aff": self.elite_affix(reg, rng)}
                     self.add_group(t, foes, lair=True)
                 else:
                     p["rarity"] = rng.weighted(A.WRECK_RARITY)
@@ -169,6 +206,22 @@ class Game(Combat, Biomes, Quests, Travel):
                 j += 1
 
     # ------------------------------------------------------------------ small helpers
+
+    def elite_affix(self, reg, rng=None):
+        """An elite's affix: now and then the kind its region breeds (`A.REGION_AFFIXES`), else any roaming one."""
+        rng = rng or self.rng
+        own = A.REGION_AFFIXES.get(reg)
+        if own and rng.chance(A.REGION_AFFIX_CHANCE):
+            return rng.choice(own)
+        return rng.choice(A.ROAM_ELITES)
+
+    def final_key(self):
+        """This run's final boss (`A.FINALS`; saves from before there were three have the Drowned Crown)."""
+        return self.s.get("final") or "drowned_crown"
+
+    def final_lineup(self):
+        d = A.FOES[self.final_key()]
+        return [d["court"], d["court"], self.final_key()]
 
     def regions(self):
         """This run's three objective regions (drawn per world; older saves have the original three)."""
@@ -207,7 +260,12 @@ class Game(Combat, Biomes, Quests, Travel):
             self.recap(f, kind_, kw)
 
     def diff(self):
-        return DIFFICULTY[self.s["diff"]]
+        """The run's difficulty: its preset, with any custom sliders applied (`CUSTOM`)."""
+        key = (self.s["diff"], str(self.s.get("custom")))
+        c = getattr(self, "_diff", None)
+        if c is None or c[0] != key:
+            self._diff = c = (key, merged_diff(self.s["diff"], self.s.get("custom")))
+        return c[1]
 
     def place(self, tile):
         return self.s["world"]["places"].get(str(tile))
@@ -494,10 +552,10 @@ class Game(Combat, Biomes, Quests, Travel):
         if tier >= 2 and self.rng.chance(0.15):
             # a big single threat, alone
             foes = [self.big_for(reg)]
-        elif tier >= 1 and self.rng.chance(0.25):
+        elif (tier >= 1 or "elite" in (self.s.get("custom") or {})) and self.rng.chance(self.diff()["elite"] / 100):
             # an elite leads the group
             i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
-            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            foes[i] = {"k": foes[i], "aff": self.elite_affix(reg)}
         self.add_group(t, foes)
 
     def land_groups(self):
@@ -630,7 +688,7 @@ class Game(Combat, Biomes, Quests, Travel):
             p = self.place(tile)
             fight = {"tile": tile, "heroes": heroes, "by": by}
             if p and p["kind"] == "peak":
-                fight.update(kind="boss", foes=list(A.FINAL), boss_grow=-A.CROWN_CUT * s.get("crown_cut", 0))
+                fight.update(kind="boss", foes=self.final_lineup(), boss_grow=-A.CROWN_CUT * s.get("crown_cut", 0))
             elif p and p["kind"] == "dungeon" and p["region"] not in s["cleared"]:
                 fight.update(self.dungeon_spec(p["region"]))
             else:
@@ -833,7 +891,7 @@ class Game(Combat, Biomes, Quests, Travel):
         engaged.update(heroes)
         p = self.place(tile)
         if p and p["kind"] == "peak" and len(self.s["cleared"]) >= 3:
-            return {"kind": "boss", "tile": tile, "heroes": heroes, "foes": list(A.FINAL), "by": by,
+            return {"kind": "boss", "tile": tile, "heroes": heroes, "foes": self.final_lineup(), "by": by,
                     "boss_grow": -A.CROWN_CUT * self.s.get("crown_cut", 0)}
         if p and p["kind"] == "dungeon" and p["region"] not in self.s["cleared"]:
             return dict(self.dungeon_spec(p["region"]), tile=tile, heroes=heroes, by=by)
@@ -891,17 +949,21 @@ class Game(Combat, Biomes, Quests, Travel):
         D = A.DUNGEONS[reg]
         if path == "open":
             return list(self.rng.choice(D["open"]))
-        if path == "passage":
+        if path in ("passage", "captive", "armory"):
             return list(self.rng.choice(D["mid"]))
+        if path in ("trap", "altar"):
+            return []
         if path == "champion":
             return list(self.rng.choice(D["champ"]))
         if path == "vault":
             foes = list(self.rng.choice(D["mid"]))
             i = self.rng.randint(0, len(foes) - 1)
-            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            foes[i] = {"k": foes[i], "aff": self.elite_affix(reg)}
             return foes
         if path == "shrine":
             return []
+        if path == "wall":
+            return [D["boss"]]  # the escort never hears (the garrison still comes: dungeon_spec)
         esc = list(self.rng.choice(D["escort"]))
         foes = esc[:1] + [D["boss"]] + esc[1:]
         if path == "rest":
@@ -995,8 +1057,22 @@ class Game(Combat, Biomes, Quests, Travel):
             if path == "shrine":
                 for b in [b for b in hero["buffs"] if A.BUFFS.get(b, {}).get("curse")]:
                     del hero["buffs"][b]
+            if path in ("trap", "wall"):
+                lost = min(hero["hp"] - 1, round(self.maxhp(y) * A.FORK_HURT))
+                if lost > 0:
+                    hero["hp"] -= lost
+                    self.fx("dmg", to=f"h{y}", n=lost, block=0)
+            if path == "trap":
+                self.offer_loot(y, 2, tier_bonus=1)
+            if path == "altar":
+                self.buff(y, "dark_might")
+                self.buff(y, self.rng.choice(A.FORK_CURSES))
+        if path == "trap":
+            self.say(f"Darts and blades from the walls (-{round(A.FORK_HURT * 100)}% HP each), but the treasure room is untouched.")
+        if path == "altar":
+            self.say("The altar drinks, and gives: Drowned Strength for everyone, and a curse each.")
         s["dungeon"][reg] = fk["step"]
-        if path == "shrine":
+        if path in ("shrine", "trap", "altar"):
             self.make_fork(reg, fk["step"] + 1, fk["tile"], fk["heroes"])
             return
         s["dnext"][reg] = {"path": path, "foes": opt["foes"]}
@@ -1287,7 +1363,7 @@ class Game(Combat, Biomes, Quests, Travel):
         elif k == "warband":
             foes = self.group_foes(reg)
             i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
-            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            foes[i] = {"k": foes[i], "aff": self.elite_affix(reg)}
             g = self.add_group(t, foes)
             g["sighted"] = s["turn"] + A.TIDE_SIGHTED - 1
             g["prize"] = self.rng.choice([x for x in self.gear() if self.item(x)["rarity"] == "rare"])
@@ -1359,7 +1435,7 @@ class Game(Combat, Biomes, Quests, Travel):
         reg, st, town, road = self.rng.choice(opts)
         foes = self.group_foes(reg)
         i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
-        foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+        foes[i] = {"k": foes[i], "aff": self.elite_affix(reg)}
         g = self.add_group(st, foes)
         g["raid"] = {"reg": reg, "to": town}
         self.reveal(st, 1)
@@ -1419,7 +1495,7 @@ class Game(Combat, Biomes, Quests, Travel):
             rr = self.rarity_for(2)
             pool = [k for k in self.gear() if self.item(k)["rarity"] == rr and k not in stock] or self.gear()
             stock.append(self.rng.choice(pool))
-        self.s["shops"][str(t)] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
+        self.s["shops"][str(t)] = stock + self.shop_consumables(t)
 
     # ------------------------------------------------------------------ the weather, grottos and lookouts
 
@@ -1861,6 +1937,16 @@ class Game(Combat, Biomes, Quests, Travel):
             # one particular piece, offered as a pick (so it can be handed to an ally, or left)
             self.push(h, {"type": "loot", "opts": [out["give"]]})
             bits.append(self.item(out["give"])["name"])
+        if out.get("temper"):
+            # a free work on the weapon, past its limit (as Starmetal is), else the first piece that can take it
+            what = out["temper"]
+            for sl in ("weapon", "armor", "trinket"):
+                k = hero["equip"].get(sl)
+                opts = self.temper_options(k, free=True) if k else {}
+                if what in opts:
+                    hero["equip"][sl] = self.rework(k, opts[what][0], list(self.item(k).get("dk", [])), "star:" + what)
+                    bits.append(f"{self.item(k)['name']} {TEMPER_DONE[what].split(':')[0]}")
+                    break
         if out.get("mat"):
             mat = self.rng.choice(I.MATERIALS) if out["mat"] == "random" else out["mat"]
             self.gain_item(h, mat)
@@ -2043,8 +2129,15 @@ class Game(Combat, Biomes, Quests, Travel):
                 r = self.rarity_for(1)
                 pool = [k for k in self.gear() if self.item(k)["rarity"] == r and k not in stock] or self.gear()
                 stock.append(self.rng.choice(pool))
-            self.s["shops"][key] = stock + ["potion", "big_potion", "bomb", "ward_scroll", "smelling_salts"]
+            self.s["shops"][key] = stock + self.shop_consumables(t)
         return self.s["shops"][key]
+
+    def shop_consumables(self, t):
+        """What a town's shop always has on its shelves: the basics, two of the general extras (each town its
+        own two), and the flask or pot its region is known for."""
+        extras = sorted(self.rng.sample(I.SHOP_EXTRAS, 2), key=I.SHOP_EXTRAS.index)
+        own = I.SHOP_REGIONAL.get(self.near_region(t))
+        return I.SHOP_BASICS + extras + ([own] if own else [])
 
     def price_for(self, h, key):
         p = self.price(key)
@@ -2535,7 +2628,7 @@ class Game(Combat, Biomes, Quests, Travel):
             reg = self.near_region(spot)
             foes = list(self.rng.choice(A.GROUPS[reg][3:7]))
             i = max(range(len(foes)), key=lambda k: A.FOES[foes[k]]["hp"])
-            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            foes[i] = {"k": foes[i], "aff": self.elite_affix(reg)}
             g = self.add_group(spot, foes)
             g["bounty"], g["crew"] = q["id"], q["crew"]
             q["group"], q["tile"] = g["id"], spot
@@ -2548,7 +2641,7 @@ class Game(Combat, Biomes, Quests, Travel):
             reg = min(open_regs, key=lambda r: min(Wd.dist(st, k) for k, r2 in regs if r2 == r))
             foes = self.group_foes(self.near_region(st))
             i = max(range(len(foes)), key=lambda j: A.FOES[foes[j]]["hp"])
-            foes[i] = {"k": foes[i], "aff": self.rng.choice(A.ROAM_ELITES)}
+            foes[i] = {"k": foes[i], "aff": self.elite_affix(reg)}
             g = self.add_group(st, foes)
             g["raid"] = {"reg": reg, "to": t, "job": q["id"]}
             q["group"], q["until"] = g["id"], s["turn"] + len(road) + A.JOB_SLACK["defend"]
@@ -2833,7 +2926,7 @@ class Game(Combat, Biomes, Quests, Travel):
                 places[t] = q
         return {
             "turn": s["turn"], "sea": s["sea"], "rises": s["rises"], "tide": self.tide(), "phase": s["phase"],
-            "result": s["result"], "diff": s["diff"], "rise_every": self.diff()["rise"],
+            "result": s["result"], "diff": s["diff"], "custom": s.get("custom"), "rise_every": self.diff()["rise"],
             "grow_from": GROW_FROM, "tidenews": s.get("tidenews", []), "next_tide": TIDE_EVERY - (s["turn"] - 1) % TIDE_EVERY,
             "next_rise": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"], "tides": s.get("tides", 0),
             "seen": "".join(map(str, s["seen"])), "places": places, "groups": groups, "heroes": heroes,
@@ -2854,6 +2947,7 @@ class Game(Combat, Biomes, Quests, Travel):
                              "dmg": round(100 * DUNGEON_STEP_DMG[min(self.tier(), 2)] * (1 + 0.1 * self.tier()))},
             "garrison_next": self.diff()["rise"] - (s["turn"] - 1) % self.diff()["rise"],  # with the Great Tide
             "crown_cut": round(A.CROWN_CUT * s.get("crown_cut", 0) * 100),
+            "final": self.final_key(), "final_name": A.FOES[self.final_key()]["name"], "final_drag": A.FOES[self.final_key()]["drag"],
             "reforge": {k: self.reforge_cost(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
             "temper": {k: self.temper_options(k) for h in self.living() for k in self.hero(h)["equip"].values() if k},
             "forged": {k: {**self.item(k), "price": self.price(k)} for k in s.get("forged", {})},

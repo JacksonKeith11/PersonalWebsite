@@ -432,6 +432,8 @@ const LOOK = {
   abyss_angler: { m: 'pounce', hit: 'bite', c: '#7ae0d0' },
   brine_wraith: { shot: 'orb', hit: 'splash', c: C.water },
   coral_colossus: { m: 'slam', hit: 'slam', c: '#ff9a8a' },
+  leviathan: { m: 'slam', hit: 'bite', c: '#7ae0d0' },
+  storm_queen: { bolt: true, hit: 'zap', c: C.storm },
   // the other regions' enemies
   cinder_imp: { shot: 'orb', hit: 'fireburst', c: C.fire },
   magma_crawler: { m: 'pounce', hit: 'bite', c: C.fire },

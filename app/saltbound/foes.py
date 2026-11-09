@@ -32,6 +32,7 @@ from .content import archipelago as A
 from .tuning import SWALLOW_GUT
 
 ELEMENT = {"F": "burn", "I": "freeze", "P": "poison"}
+AFFIX_HIT = {"venomous": ("poison", 2), "searing": ("burn", 2), "frostbound": ("freeze", 1), "shocking": ("shock", 1)}
 
 # Enemy crits, the same rule as the heroes': an attack whose die lands on its top face (a d10 or
 # bigger: its top two) also does its kind's crit. ("half", None): the hit deals half again (the bosses
@@ -143,6 +144,8 @@ class Foes:
             fo["max"] = max(1, round(old * e["hp"]))
             if fo["hp"] >= old:
                 fo["hp"] = fo["max"]
+            if aff == "thorned":
+                fo["thorns_x"] = fo.get("thorns_x", 0) + A.AFFIX_THORNS
 
     def foe_bloodied(self, fo):
         """A big enemy at half health: once, it gains might and its bloodied moves."""
@@ -522,8 +525,10 @@ class Foes:
                     self.hero_status(y, s, sn)
                 for e in elems:
                     self.hero_status(y, e, 2 if e != "freeze" else 1)
-            if fo.get("aff") == "venomous" and n and u.startswith("h") and self.active(int(u[1:])):
-                self.hero_status(int(u[1:]), "poison", 2)
+            if n and u.startswith("h") and self.active(int(u[1:])):
+                rider = AFFIX_HIT.get(fo.get("aff"))
+                if rider:
+                    self.hero_status(int(u[1:]), *rider)  # Venomous, Searing, Frostbound, Shocking
             if self.foe_leech(fo) and n and fo["hp"] > 0:
                 got = min((n + 1) // 2, fo["max"] - fo["hp"])
                 if got:

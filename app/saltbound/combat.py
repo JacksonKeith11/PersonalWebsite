@@ -22,7 +22,7 @@ from .foes import Foes
 from .crits import is_crit
 from .actions import element_of
 from .tuning import SWELL, ECHO_FACES, AIM_CAP
-from .tuning import DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
+from .tuning import DEBUFFS, DUNGEON_STEP_DMG, DUNGEON_STEP_HP, ROLL_MODS, CURSED_DIE, ENRAGE_FROM, EVENT_DMG, EVENT_HP, ONE_SHOT, ROAM_DMG, ROAM_HP, ROUND_ONLY, TICKING
 
 
 class Invalid(Exception):
@@ -480,6 +480,10 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             if fo.get("aff") == "ironclad":
                 fo["st"]["armor"] = fo["st"].get("armor", 0) + 4
                 self.fx("armor", to=f"f{fo['id']}", n=4)
+            if fo.get("aff") == "regenerating" and fo["hp"] < fo["max"] and f["round"] > 1:
+                got = min(A.AFFIX_REGEN, fo["max"] - fo["hp"])
+                fo["hp"] += got
+                self.fx("heal", to=f"f{fo['id']}", n=got)
             d = A.FOES[fo["k"]]
             if d.get("armor_round"):
                 fo["st"]["armor"] = fo["st"].get("armor", 0) + d["armor_round"]
@@ -948,7 +952,35 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         hero = self.hero(h)
         key = hero["bag"][i]
         u = self.item(key)["use"]
-        if "heal" in u:
+        if "throw" in u:
+            th = u["throw"]
+            if th.get("all"):
+                targets = self.foes()
+            else:
+                fo = self.foe(int(tgt[1:])) if isinstance(tgt, str) and tgt.startswith("f") and tgt[1:].isdigit() else None
+                if not fo or fo["hp"] <= 0:
+                    raise Invalid("Throw it at whom?")
+                targets = [fo]
+            hero["bag"].pop(i)
+            for fo in targets:
+                if th.get("dmg"):
+                    self.hurt_foe(fo, th["dmg"], h)
+                if th.get("st") and fo["hp"] > 0:
+                    fo["st"][th["st"]] = fo["st"].get(th["st"], 0) + th["n"]
+                    self.fx("st", to=f"f{fo['id']}", s=th["st"])
+                    self.foe_status_by(fo, th["st"], h)  # the thrower's status: it can set off a reaction
+        elif "cleanse" in u:
+            hid = int(tgt[1:]) if isinstance(tgt, str) and tgt.startswith("h") and tgt[1:].isdigit() else h
+            if hid not in self.s["fight"]["heroes"] or not self.active(hid):
+                raise Invalid("Use it on whom?")
+            hero["bag"].pop(i)
+            st = self.hs(hid)["st"]
+            for d in DEBUFFS:
+                st.pop(d, None)
+            self.fx("st", to=f"h{hid}", s="cleansed")
+            if u.get("heal"):
+                self.fight_heal(hid, int(u["heal"]), h)
+        elif "heal" in u:
             hid = int(tgt[1:]) if isinstance(tgt, str) and tgt.startswith("h") and tgt[1:].isdigit() else h
             if not self.active(hid):
                 raise Invalid("Use it on whom?")
@@ -971,6 +1003,8 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 raise Invalid("Use it on a knocked-down ally.")
             hero["bag"].pop(i)
             self.lift(hid, u["lift"])
+        else:
+            raise Invalid("That's no use here.")
         self.say(f"{hero['name']} uses {self.item(key)['name']}.")
         self.maybe_resolve()
 
@@ -1509,10 +1543,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.fx("st", to=f"f{o['id']}", s="enraged")
         if d.get("keg") and h is not None:
             self.keg_broken(fo, h)
-        if d.get("volatile"):
+        burst = d.get("volatile") or (A.AFFIX_BURST if fo.get("aff") == "explosive" else 0)
+        if burst:
             self.fx("st", to=f"f{fo['id']}", s="explodes")
             for y in self.actives():
-                self.hurt_hero(y, d["volatile"], None, pure=True)
+                self.hurt_hero(y, burst, None, pure=True)
         if d.get("ember"):
             # it goes up in embers: every hero standing is Burned
             self.fx("st", to=f"f{fo['id']}", s="embers")
@@ -1520,9 +1555,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
                 self.hero_status(y, "burn", d["ember"])
         if d.get("boss") and not d.get("final"):
             self.say(f"{d['name']} falls!")
-        if fo["k"] == "tide_guard":
-            crown = next((o for o in self.foes() if A.FOES[o["k"]].get("final")), None)
-            if crown and not self.crown_warded(crown) and crown["st"].pop("warded", None):
+        crown = next((o for o in self.foes() if A.FOES[o["k"]].get("final")), None)
+        if crown and fo["k"] == A.FOES[crown["k"]]["court"]:
+            if not self.crown_warded(crown) and crown["st"].pop("warded", None):
                 self.fx("st", to=f"f{crown['id']}", s="unwarded")
 
     def fight_heal(self, h, n, by):
@@ -1876,7 +1911,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             g.pop("busy", None)
         if result == "won":
             if f["kind"] == "boss":
-                self.say("The Drowned Crown sinks into the sea it raised. The isles are saved!")
+                self.say(A.FOES[self.final_key()]["win_text"])
                 self.end("won")
                 return
             self.fight_won(f)
@@ -1930,7 +1965,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         # one shared pool of loot for the winners: its size and claims are fixed, the fight sets the rarity
         n, bonus = 0, 0
         if f["kind"] == "dungeon":
-            n, bonus = (2 if path == "sneak" else 3, 2) if final else (3, 2) if path == "champion" else (2, 1)
+            n, bonus = (2 if path in ("sneak", "wall") else 3, 2) if final else (3, 2) if path == "champion" else (2, 1)
             if path == "vault":
                 for h in winners:
                     self.hero(h)["gold"] += 12
@@ -1947,6 +1982,17 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.offer_pool(winners, tier_bonus=bonus + (1 if n >= 3 else 0), extra=prizes[:1] + mat)
         if path == "vault" and winners:
             self.say("The vault gives up its gold: +12 each.")
+        if path == "captive" and winners:
+            s["revives"] += 1
+            self.say("The prisoner is free: a healer, who'll bring one of you back (+1 revive).")
+        if path == "armory" and winners:
+            for h in winners:  # each winner's weapon honed at the armory's whetstones, free of its work limit
+                hero = self.hero(h)
+                k = hero["equip"].get("weapon")
+                opts = self.temper_options(k, free=True) if k else {}
+                if "hone" in opts:
+                    hero["equip"]["weapon"] = self.rework(k, opts["hone"][0], list(self.item(k).get("dk", [])), "star:hone")
+            self.say("The armory's whetstones hone every winner's weapon.")
         if f["kind"] == "dungeon":
             self.dungeon_advance(f)
         if f.get("win") and winners:
@@ -1966,7 +2012,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             self.say(f"{A.DUNGEONS[reg]['name']} is cleared! ({len(s['cleared'])} of 3)")
             if not s.get("garrison", {}).get(reg):
                 s["crown_cut"] = s.get("crown_cut", 0) + 1
-                self.say("Cleared before its garrison grew: the Drowned Crown is weakened.")
+                self.say(f"Cleared before its garrison grew: {A.FOES[self.final_key()]['name']} is weakened.")
             self.fx("cleared", region=reg)
             if len(s["cleared"]) == 3:
                 self.say("All three are cleared. The way to the peak is open.")

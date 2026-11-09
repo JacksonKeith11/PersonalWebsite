@@ -510,6 +510,15 @@ a:hover { color: var(--accent-hi); }
   .action { min-height: 76px; }
 }
 
+/* the lobby's custom difficulty sliders (screens.js customPanel) */
+.custom-toggle { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--s-2); font-size: var(--fs-14); cursor: pointer; }
+.custom-panel { display: grid; gap: 6px; margin-top: var(--s-1); }
+.custom-panel .slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: var(--fs-14); }
+.custom-panel .slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.custom-panel .sl-name { color: var(--muted); }
+.custom-panel .sl-val { color: var(--text); font-variant-numeric: tabular-nums; }
+.custom-panel .btn { justify-self: start; }
+
 /* ------------------------------------------------------------------ smaller screens: keep it working, no extra effort */
 @media (max-width: 900px) {
   .lobby-grid, .slots { grid-template-columns: 1fr; }

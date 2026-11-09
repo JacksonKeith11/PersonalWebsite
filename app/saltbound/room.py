@@ -54,6 +54,7 @@ class Room:
         self.host = None
         self.slots = [{"cls": None, "pid": None} for _ in range(3)]
         self.diff = "normal"
+        self.custom = None  # the host's custom sliders (G.CUSTOM), or None for the preset as it is
         self.game: G.Game | None = None
         self.run_id = None
         self.resume = None  # a loaded save waiting in the lobby: its state
@@ -77,7 +78,11 @@ class Room:
 
     def room_view(self):
         return {
-            "code": self.code, "host": self.host, "debug": self.debug, "diff": self.diff,
+            "code": self.code, "host": self.host, "debug": self.debug, "diff": self.diff, "custom": self.custom,
+            # each slider's range and its default under the preset chosen (the lobby's Custom panel)
+            "sliders": {k: [lo, hi, d if d is not None else {"rise": G.DIFFICULTY[self.diff]["rise"], "gold": G.START_GOLD,
+                                                              "revives": G.DIFFICULTY[self.diff]["revives"]}[k]]
+                        for k, (lo, hi, d) in G.CUSTOM.items()},
             "people": [{"id": p.id, "name": p.name, "on": p.connected} for p in self.people.values()],
             "slots": self.slots, "ctl": self.ctl, "playing": self.game is not None,
             "resume": self.resume_view(),
@@ -87,7 +92,7 @@ class Room:
         if not self.resume:
             return None
         st = self.resume
-        return {"turn": st["turn"], "diff": st["diff"], "level": st["level"], "cleared": st["cleared"],
+        return {"turn": st["turn"], "diff": st["diff"], "custom": st.get("custom"), "level": st["level"], "cleared": st["cleared"],
                 "classes": [h["cls"] for h in st["heroes"]]}
 
     def broadcast(self):
@@ -232,6 +237,13 @@ class Room:
             if msg.get("d") not in G.DIFFICULTY or self.resume:
                 raise Invalid("Pick a difficulty.")
             self.diff = msg["d"]
+        elif t == "custom":
+            # the custom sliders on top of the preset: {} or None turns them off
+            self.host_only(p)
+            if self.resume:
+                raise Invalid("A saved voyage keeps its own difficulty.")
+            c = msg.get("c")
+            self.custom = G.clean_custom(c) if isinstance(c, dict) and c else None
         elif t == "resume":
             self.host_only(p)
             rid = clean(msg.get("id"), 40)
@@ -267,7 +279,7 @@ class Room:
         else:
             seed = secrets.randbits(32)
             names = [self.people[c].name if c in self.people and self.ctl.count(c) == 1 else None for c in self.ctl]
-            self.game = G.Game.new(seed, classes, self.diff, names)
+            self.game = G.Game.new(seed, classes, self.diff, names, custom=self.custom)
             self.run_id = secrets.token_hex(8)
         self.saved_key = None
         self.everyone(self.world_msg())
@@ -327,7 +339,7 @@ class Room:
             st = g.s
             classes = ", ".join(CLASSES[h["cls"]]["name"] for h in st["heroes"])
             where = " · mid-fight" if f else ""
-            S.save(self.run_id, self.tokens(), g, f"{classes} · {st['diff'].title()} · turn {st['turn']}, level {st['level']}, "
+            S.save(self.run_id, self.tokens(), g, f"{classes} · {st['diff'].title()}{' (custom)' if st.get('custom') else ''} · turn {st['turn']}, level {st['level']}, "
                                                     f"{len(st['cleared'])} of 3 cleared{where}")
         except Exception:
             log.exception("saltbound: saving run %s failed", self.run_id)

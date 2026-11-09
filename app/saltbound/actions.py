@@ -312,7 +312,7 @@ class Actions:
     def foe_soak(self, fo, n, h, pure=False, pierce=False):
         """What an enemy's crust and Armor take off a hit (no changes made):
         (damage that lands, Armor used, whether the crust shrugged it off)."""
-        shell = A.FOES[fo["k"]].get("shell_min")
+        shell = A.FOES[fo["k"]].get("shell_min") or (A.AFFIX_STONESKIN if fo.get("aff") == "stoneskin" else 0)
         shrugs = bool(not pure and h is not None and shell and 0 < n < shell)
         if shrugs:
             n = 0

@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=183';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=183';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=183';
-import { stageURL, stageKey } from './stage.js?v=183';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=183';
-import { render } from './main.js?v=183';
-import { skillCard, upDef, upText } from './hud.js?v=183';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=183';
-import * as sfx from './audio.js?v=183';
+import { S, send, mine, controllerName } from './store.js?v=184';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=184';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=184';
+import { stageURL, stageKey } from './stage.js?v=184';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=184';
+import { render } from './main.js?v=184';
+import { skillCard, upDef, upText } from './hud.js?v=184';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=184';
+import * as sfx from './audio.js?v=184';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -75,7 +75,7 @@ function groundChip(f) {
 }
 function fightTitle(f) {
   const st = S.static;
-  if (f.kind === 'boss') return 'The Drowned Crown';
+  if (f.kind === 'boss') return S.game.final_name || 'The Drowned Crown';
   if (f.kind === 'dungeon') return `${st.dungeons[f.region]} · fight ${f.step + 1} of 3`;
   if (f.raid === 'free') return `Freeing ${S.game.places[f.tile]?.name || 'the town'}`;
   if (f.raid === 'stop') return 'Raiders on the road';
@@ -134,7 +134,7 @@ export function renderCombat(el) {
         ...hs.dice.map(dd => allyDie(x, dd))) : null,
       hs?.swallowed ? h('div.covered-chip.undertow', { tip: 'Swallowed: no dice, and you take damage each round until the Reef Maw spits you out.' }, 'Swallowed!') : null,
       hs?.static ? h('div.covered-chip.undertow', { tip: 'Static: any of your dice that rolls 1 or 2 shocks you for 3 this round.' }, 'Static: 1–2 shocks you') : null,
-      hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `Undertow\n${STATUS.undertow.text}` }, `Undertow: ${hs.st.undertow} at round end`) : null,
+      hs?.st?.undertow ? h('div.covered-chip.undertow', { tip: `${S.game.final_drag || 'Undertow'}\nThe final boss’s blow lands on you at the end of the round for this much. Armor blocks it; an ally’s Guard takes it for you.` }, `${S.game.final_drag || 'Undertow'}: ${hs.st.undertow} at round end`) : null,
       hs?.st?.infuse ? infusedChip(hs) : null,
       hs && hs.heat != null ? heatGauge(hs) : null,
       hs && hs.impact != null ? impactGauge(hs, hero) : null,
@@ -1236,7 +1236,8 @@ function useItem(x, k, i) {
   const u = it.use;
   const msg = { t: 'use', h: x, bag: i };
   let opts = null;
-  if (u.heal) opts = f.heroes.filter(y => heroActive(f, y)).map(y => 'h' + y);
+  if (u.throw) opts = u.throw.all ? null : f.foes.filter(fo => fo.hp > 0).map(fo => 'f' + fo.id);
+  else if (u.heal || u.cleanse) opts = f.heroes.filter(y => heroActive(f, y)).map(y => 'h' + y);
   else if (u.bomb) opts = f.foes.filter(fo => fo.hp > 0).map(fo => 'f' + fo.id);
   else if (u.lift) opts = f.heroes.filter(y => f.hs[y].down).map(y => 'h' + y);
   if (opts && !opts.length) { toast('There’s no one to use that on.'); return; }

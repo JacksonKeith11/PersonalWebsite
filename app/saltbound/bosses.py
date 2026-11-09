@@ -35,7 +35,7 @@ class Bosses:
         """The Drowned Crown behind its Tide Guards, or a bloodied boss with a `ward` rule behind its `by`."""
         d = A.FOES[fo["k"]]
         if d.get("final"):
-            return any(o is not fo and o["k"] == "tide_guard" for o in self.foes())
+            return any(o is not fo and o["k"] == d["court"] for o in self.foes())
         b = d.get("bloodied") or {}
         return bool(fo.get("bl")) and b.get("rule") == "ward" and any(o is not fo and o["k"] == b["by"] for o in self.foes())
 
@@ -81,11 +81,11 @@ class Bosses:
         if not crown:
             return
         frac = crown["hp"] / crown["max"]
+        d = A.FOES[crown["k"]]
         if f["phase"] == 1 and frac <= 0.66:
             f["phase"] = 2
-            crown["force"] = "deluge"
-            self.say("The sea pours over the peak: each round the Undertow drags someone under. Armor or a Guard stops it. "
-                     "Next round the Deluge hits everyone.")
+            crown["force"] = d["deluge"]
+            self.say(d["phase_text"][0])
             self.fx("phase", n=2)
         elif f["phase"] == 2 and frac <= 0.33:
             f["phase"] = 3
@@ -94,8 +94,8 @@ class Bosses:
                     fo["hp"] = 0
                     self.fx("die", to=f"f{fo['id']}")
             crown["fury"] = True
-            crown["force"] = "deluge"
-            self.say("The Drowned Crown stands alone: exposed, and furious. Next round the Deluge hits everyone.")
+            crown["force"] = d["deluge"]
+            self.say(d["phase_text"][1])
             self.fx("phase", n=3)
 
     def foe_round(self):

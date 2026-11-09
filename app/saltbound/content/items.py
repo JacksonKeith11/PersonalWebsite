@@ -356,6 +356,36 @@ ITEMS = {
                     "fight": True, "text": "In a fight: the party gains 6 Armor."},
     "smelling_salts": {"name": "Smelling Salts", "slot": "use", "rarity": "uncommon", "price": 14, "use": {"lift": 6},
                        "fight": True, "text": "In a fight: pick up a knocked-down ally with 6 HP."},
+    # Nov 2026 (owner's request: more varied shops). `throw`: a status (`st`, `n`) and/or damage (`dmg`) on an
+    # enemy, or on every enemy with `all`; it counts as the thrower's, so it can set off an elemental
+    # reaction. `cleanse`: an ally's debuffs lifted, and `heal`. Each town sells two of the general ones
+    # (`SHOP_EXTRAS`) and its region's own (`SHOP_REGIONAL`).
+    "pepper_pouch": {"name": "Pepper Pouch", "slot": "use", "rarity": "uncommon", "price": 14, "fight": True,
+                     "use": {"throw": {"st": "weak", "n": 1, "all": True}}, "text": "In a fight: every enemy is Weak 1."},
+    "herbal_tonic": {"name": "Herbal Tonic", "slot": "use", "rarity": "common", "price": 9, "fight": True,
+                     "use": {"cleanse": True, "heal": 4}, "text": "In a fight: an ally's debuffs are lifted, and they heal 4."},
+    "urchin_spines": {"name": "Urchin Spines", "slot": "use", "rarity": "common", "price": 10, "fight": True,
+                      "use": {"throw": {"st": "poison", "n": 3}}, "text": "In a fight: an enemy is Poisoned 3."},
+    "grapeshot_pouch": {"name": "Grapeshot Pouch", "slot": "use", "rarity": "uncommon", "price": 15, "fight": True,
+                        "use": {"throw": {"dmg": 4, "all": True}}, "text": "In a fight: deal 4 to every enemy."},
+    "storm_jar": {"name": "Storm in a Jar", "slot": "use", "rarity": "uncommon", "price": 14, "fight": True,
+                  "use": {"throw": {"st": "shock", "n": 1, "all": True}}, "text": "In a fight: every enemy is Shocked 1."},
+    "firepot": {"name": "Firepot", "slot": "use", "rarity": "common", "price": 10, "fight": True,
+                "use": {"throw": {"st": "burn", "n": 3}}, "text": "In a fight: an enemy Burns 3."},
+    "sand_pouch": {"name": "Pouch of Sand", "slot": "use", "rarity": "common", "price": 10, "fight": True,
+                   "use": {"throw": {"st": "weak", "n": 2}}, "text": "In a fight: an enemy is Weak 2."},
+    "basilisk_eye": {"name": "Basilisk Eye", "slot": "use", "rarity": "uncommon", "price": 13, "fight": True,
+                     "use": {"throw": {"st": "root", "n": 1, "dmg": 3}}, "text": "In a fight: deal 3 to an enemy, and it's Rooted."},
+    "dart_venom": {"name": "Dart Frog Venom", "slot": "use", "rarity": "common", "price": 11, "fight": True,
+                   "use": {"throw": {"st": "poison", "n": 4}}, "text": "In a fight: an enemy is Poisoned 4."},
+    "holy_water": {"name": "Holy Water", "slot": "use", "rarity": "uncommon", "price": 14, "fight": True,
+                   "use": {"cleanse": True, "heal": 10}, "text": "In a fight: an ally's debuffs are lifted, and they heal 10."},
+    "prism_dust": {"name": "Prism Dust", "slot": "use", "rarity": "uncommon", "price": 14, "fight": True,
+                    "use": {"throw": {"dmg": 11}}, "text": "In a fight: deal 11 to an enemy."},
+    "nightmare_powder": {"name": "Nightmare Powder", "slot": "use", "rarity": "uncommon", "price": 13, "fight": True,
+                         "use": {"throw": {"st": "vuln", "n": 2}}, "text": "In a fight: an enemy is Vulnerable 2."},
+    "rime_flask": {"name": "Rime Flask", "slot": "use", "rarity": "common", "price": 11, "fight": True,
+                    "use": {"throw": {"st": "freeze", "n": 2}}, "text": "In a fight: an enemy is Frozen 2."},
 
     # ---- enchant materials: rubbed into a piece of gear you wear (out of fights), they give its die a kind for good.
     # Found, not sold: the sea shrine, a grotto's hoard and a guarded wreck's pool each hold one.
@@ -575,6 +605,11 @@ def slots_for(item_slot):
 
 CONSUMABLES = [k for k, v in ITEMS.items() if v["slot"] == "use" and not v.get("enchant") and not v.get("forge")]
 # found at random (shrines, grottos, wrecks, fights): the enchants, and the one forge material that isn't a quest's
+SHOP_BASICS = ["potion", "big_potion", "bomb"]
+SHOP_EXTRAS = ["ward_scroll", "smelling_salts", "pepper_pouch", "herbal_tonic"]
+SHOP_REGIONAL = {"coral": "urchin_spines", "keys": "grapeshot_pouch", "storm": "storm_jar", "ash": "firepot",
+                 "dunes": "sand_pouch", "petrified": "basilisk_eye", "jungle": "dart_venom", "heaven": "holy_water",
+                 "crystal": "prism_dust", "dream": "nightmare_powder", "frost": "rime_flask"}
 MATERIALS = [k for k, v in ITEMS.items() if v.get("enchant") or v.get("found")]
 FORGE_MATS = list(_G.FORGE_MATS)  # Starmetal and Wyrm's Ember: only quests and events hand them out
 RELICS = list(_G.RELICS)          # each region's quest reward, never in the loot

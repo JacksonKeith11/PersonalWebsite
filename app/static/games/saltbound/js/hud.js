@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=183';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=183';
-import { spriteURL, placeURL } from './art.js?v=183';
-import { itemURL } from './itemart.js?v=183';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=183';
-import { MapView } from './hexmap.js?v=183';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=183';
-import { disconnect } from './main.js?v=183';
-import * as sfx from './audio.js?v=183';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=184';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=184';
+import { spriteURL, placeURL } from './art.js?v=184';
+import { itemURL } from './itemart.js?v=184';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=184';
+import { MapView } from './hexmap.js?v=184';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=184';
+import { disconnect } from './main.js?v=184';
+import * as sfx from './audio.js?v=184';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -282,7 +282,7 @@ function garrisonText(reg) {
   const g = S.game, gs = g.garrison?.[reg];
   if (!gs) return '';
   const now = gs.n ? `Garrison: ${gs.foes.map(k => foeName(k)).join(', ')} join the boss fight${gs.boss ? `, and the boss has ${gs.boss}% more health` : ''}.`
-    : 'Garrison: none yet. Clear it before it grows to weaken the Drowned Crown.';
+    : `Garrison: none yet. Clear it before it grows to weaken ${finalName()}.`;
   return `${now} Grows in ${g.garrison_next} turn${g.garrison_next === 1 ? '' : 's'}${gs.n >= 6 ? ' (at its largest)' : ''}.`;
 }
 function placeText(p) {
@@ -303,7 +303,7 @@ function placeText(p) {
       + `(${S.static.sea.free_gold} gold each, and a better-stocked shop).`
       : 'Shop, inn and notice board' + (p.docks ? ', with docks for skiffs.' : '.') + (p.spec ? ` ${S.static.town_specs[p.spec].text}` : '');
     case 'dungeon': return g.cleared.includes(p.region) ? 'Cleared.' : `An objective: ${3 - (g.dungeon[p.region] || 0)} fights deep, the way forking between them. No retreat.`;
-    case 'peak': return g.cleared.length >= 3 ? 'The Drowned Crown waits at the top.' : `Sealed until all three objectives are cleared (${g.cleared.length} of 3).`;
+    case 'peak': return g.cleared.length >= 3 ? `${cap(finalName())} waits at the top.` : `Sealed until all three objectives are cleared (${g.cleared.length} of 3).`;
     case 'shrine': return p.dark ? 'A stronger blessing than a shrine’s, at a price. Once for each hero.'
       : p.sea && p.buff ? `Out at sea, by skiff only. ${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns), once for each hero.${p.mat_taken ? '' : ' The first to come also finds an enchant material.'}`
       : `${p.buff ? `${S.static.buffs[p.buff].name} (${S.static.buffs[p.buff].text.replace(/\.$/, '')}, ${S.static.buffs[p.buff].turns} turns)` : 'A blessing'}, once for each hero.`;
@@ -322,6 +322,9 @@ function placeText(p) {
   return '';
 }
 
+// This run's final boss, as a sentence names it ("the Storm Queen").
+const finalName = () => (S.game.final_name || 'The Drowned Crown').replace(/^The /, 'the ');
+
 // ------------------------------------------------------------------ top bar
 function tideTip(g) {
   const lines = [`The Great Tide`, `Rises every ${g.rise_every} turns, next in ${g.next_rise}. Each one makes every enemy stronger, brings two or three arrivals from the sea (wreckage and visitors early on, raiders, war-bands and worse later), and grows the garrisons of the objectives you haven’t cleared.`];
@@ -339,7 +342,7 @@ function objectivesTip(g) {
   }
   lines.push(`Each Great Tide (every ${g.rise_every} turns) the garrisons of those not yet cleared grow (next in ${g.garrison_next}).`);
   lines.push(`Each objective you clear makes the ones left harder: their enemies now have ${g.dungeon_step?.hp ?? 100}% health and deal ${g.dungeon_step?.dmg ?? 100}% damage.`);
-  if (g.crown_cut) lines.push(`The Drowned Crown is ${g.crown_cut}% weaker for objectives cleared early.`);
+  if (g.crown_cut) lines.push(`${cap(finalName())} is ${g.crown_cut}% weaker for objectives cleared early.`);
   return lines.join('\n');
 }
 function renderTopbar() {
@@ -571,7 +574,7 @@ function fightLine(f) {
   const counts = {};
   f.foes.forEach((k, i) => { const n = foeName(k, f.aff?.[i]); counts[n] = (counts[n] || 0) + 1; });
   const foes = Object.entries(counts).map(([n, c]) => n + (c > 1 ? ` ×${c}` : '')).join(', ');
-  const where = f.kind === 'dungeon' ? `${st.dungeons[f.region]} (fight ${f.step + 1} of 3)` : f.kind === 'boss' ? 'the Drowned Crown' : f.kind === 'lair' ? `a lair: ${foes}` : foes;
+  const where = f.kind === 'dungeon' ? `${st.dungeons[f.region]} (fight ${f.step + 1} of 3)` : f.kind === 'boss' ? finalName() : f.kind === 'lair' ? `a lair: ${foes}` : foes;
   return { where: where + (f.job ? ' (a job)' : ''), with: f.heroes.map(x => g.heroes[x].name) };
 }
 // The last rise's arrivals still on the map: an unlooted wreck, a group not yet beaten (where it is now).
@@ -1295,6 +1298,8 @@ function outcomeSummary(o) {
   for (const b of [].concat(o.buff || [])) parts.push(`${st.buffs[b].name}${st.buffs[b].curse ? ' (a curse)' : st.buffs[b].perm ? ' (a boon, for good)' : ''}`);
   if (o.give) parts.push(`${st.items[o.give].name} (${st.items[o.give].rarity} ${st.items[o.give].slot === 'use' ? 'material' : st.items[o.give].slot})`);
   if (o.mat) parts.push(o.mat === 'random' ? 'an enchant material' : st.items[o.mat].name);
+  if (o.temper) parts.push({ hone: 'your weapon honed', edge: 'your weapon edged' }[o.temper] + ' (free of its work limit)');
+  if (o.chain === 'cache') parts.push('a hidden cache to find');
   if (o.quest === 'start') parts.push('a quest');
   else if (o.quest === 'next' && !o.win) parts.push('the quest moves on');
   if (o.win) parts.push('if you win: ' + outcomeSummary({ ...o.win, all: false }));
@@ -1573,7 +1578,7 @@ function forkView(fk) {
     // what waits down this path, drawn: the enemies facing you, or the shrine where nothing does
     const stage = h('div.fork-stage' + (foes.length ? '' : '.calm'), null, ...(foes.length
       ? foes.slice(0, 6).map(x => h('img.pix.fork-foe' + (st.foes[x.k]?.boss || st.foes[x.k]?.big ? '.big' : x.aff ? '.elite' : ''), { src: spriteURL(x.k), alt: '', tip: foeName(x.k, x.aff) }))
-      : [h('img.pix.fork-place', { src: placeURL(o.path === 'shrine' ? 'shrine' : 'camp'), alt: '' })]));
+      : [h('img.pix.fork-place', { src: placeURL({ shrine: 'shrine', altar: 'shrine', trap: 'cache' }[o.path] || 'camp'), alt: '' })]));
     return h('button.pick.fork' + (mine_ ? '.chosen' : ''), { style: { '--i': i }, onclick: () => vote(i) },
       stage,
       h('span.kbd.pick-key', null, i + 1),

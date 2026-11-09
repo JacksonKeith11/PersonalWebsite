@@ -1,14 +1,14 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=183';
-import { $, h, icon, toast } from './ui.js?v=183';
-import { spriteURL, hasSprite } from './art.js?v=183';
+import { S, saved, persist, send } from './store.js?v=184';
+import { $, h, icon, toast } from './ui.js?v=184';
+import { spriteURL, hasSprite } from './art.js?v=184';
 
 // the ten classes, for the title screen's roster (it shows before the server has sent any class data)
 const ROSTER = ['vanguard', 'duelist', 'berserker', 'ranger', 'arcanist', 'mender', 'scoundrel', 'herald', 'alchemist', 'warden', 'spellblade', 'emberknight', 'dragonborn', 'psion', 'gunslinger', 'samurai'];
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=183';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=183';
-import { connect, disconnect, debug } from './main.js?v=183';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=184';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=184';
+import { connect, disconnect, debug } from './main.js?v=184';
 
 const app = () => $('app');
 
@@ -163,7 +163,8 @@ export function renderLobby() {
             }, label))),
             h('p.muted', { style: { fontSize: '14px' } }, {
               story: 'More revives, softer enemies, a slower tide.', normal: 'The voyage as designed.', hard: 'Fewer revives, tougher enemies.',
-            }[r.diff])),
+            }[r.diff]),
+            customPanel(r, host)),
           h('div.card', null,
             h('div.eyebrow', null, 'Crew'),
             h('div.people', null, ...r.people.map(p => h('div.person', null, h('span.dot' + (p.on ? '' : '.off')), p.name,
@@ -272,7 +273,7 @@ export function renderEnd() {
       won ? h('div.end-rays') : null,
       h('div.eyebrow', null, won ? 'Victory' : 'Defeat'),
       h('h1', null, won ? 'The isles are saved' : 'Lost at sea'),
-      h('p.muted', null, `Turn ${g.turn} · party level ${g.level} · ${g.cleared.length} of 3 objectives cleared · ${g.diff[0].toUpperCase() + g.diff.slice(1)}`),
+      h('p.muted', null, `Turn ${g.turn} · party level ${g.level} · ${g.cleared.length} of 3 objectives cleared · ${g.diff[0].toUpperCase() + g.diff.slice(1)}${g.custom ? ' (custom)' : ''}`),
       won ? null : h('p.cause', null, endCause(g)),
       lineup,
       h('table.summary', null,
@@ -287,4 +288,31 @@ export function renderEnd() {
         h('button.btn.lg', { onclick: disconnect }, 'Leave')),
       h('p.faint', { style: { fontSize: '14px' } }, `Seed ${S.world?.seed ?? ''}`)),
   );
+}
+
+// The lobby's custom difficulty: sliders on top of the chosen preset (the server clamps them: game.CUSTOM).
+// Health, damage and tide strength are percentages of the preset's; the rest are counts.
+const SLIDERS = [['hp', 'Enemy health', '%', 5], ['dmg', 'Enemy damage', '%', 5], ['elite', 'Elite chance', '%', 5],
+  ['surge', 'Tide strength', '%', 10], ['rise', 'Great Tide every', ' turns', 1], ['revives', 'Revives', '', 1], ['gold', 'Starting gold', '', 5]];
+const SLIDER_TIP = { hp: 'Every enemy’s health, as a share of this difficulty’s', dmg: 'Every enemy’s damage, as a share of this difficulty’s',
+  elite: 'The chance a roaming group is led by an elite (from the start, once you change it)', surge: 'How much stronger each Great Tide makes enemies, as a share of this difficulty’s',
+  rise: 'Turns between Great Tides', revives: 'The party’s shared revives', gold: 'Each hero’s gold at the start' };
+function customPanel(r, host) {
+  const sl = r.sliders || {}, on = !!r.custom;
+  const val = k => (r.custom && r.custom[k] != null ? r.custom[k] : sl[k]?.[2]);
+  const setAll = c => send({ t: 'custom', c });
+  const current = () => Object.fromEntries(SLIDERS.map(([k]) => [k, val(k)]));
+  const toggle = h('label.custom-toggle', { tip: 'Change enemy health, damage, elites, the tide and more' },
+    h('input', { type: 'checkbox', checked: on, disabled: !host || !!r.resume, onchange: e => setAll(e.target.checked ? current() : {}) }), ' Custom');
+  if (!on) return toggle;
+  return h('div.custom-panel', null, toggle,
+    ...SLIDERS.map(([k, label, unit, step]) => {
+      const [lo, hi] = sl[k] || [0, 100];
+      const v = val(k);
+      return h('label.slider', { tip: SLIDER_TIP[k] }, h('span.sl-name', null, label), h('b.sl-val', null, `${v}${unit}`),
+        h('input', { type: 'range', min: lo, max: hi, step, value: v, disabled: !host || !!r.resume,
+          oninput: e => { e.target.previousSibling.textContent = `${e.target.value}${unit}`; },
+          onchange: e => setAll({ ...current(), [k]: +e.target.value }) }));
+    }),
+    host ? h('button.btn.sm.ghost', { onclick: () => setAll(Object.fromEntries(SLIDERS.map(([k]) => [k, sl[k][2]]))) }, 'Reset sliders') : null);
 }

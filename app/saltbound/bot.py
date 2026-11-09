@@ -15,7 +15,7 @@ from .combat import Invalid
 from .crits import crit_floor
 from .dice import amt, check_hit, top_face
 from .dice import face as face_of
-from .tuning import ROLL_MODS
+from .tuning import DEBUFFS, ROLL_MODS
 from .content import archipelago as A
 
 # The bots' map style (the simulator's --style): "all" plays everything (jobs, quests, every place); "rush"
@@ -88,7 +88,8 @@ def decide(g, h):
     return None
 
 
-FORK_PREF = {"champion": 3, "vault": 2, "passage": 1, "shrine": 0, "gate": 2, "sneak": 3, "rest": 1}
+FORK_PREF = {"champion": 3, "vault": 2, "passage": 1, "shrine": 0, "gate": 2, "sneak": 3, "rest": 1,
+             "captive": 2.5, "armory": 2.5, "altar": 1.5, "trap": 2, "wall": 2}
 
 
 def fork_pick(g, fk):
@@ -99,6 +100,8 @@ def fork_pick(g, fk):
         p = fk["opts"][i]["path"]
         if p in ("shrine", "rest"):
             return 5 if hp < 0.55 else 0
+        if p in ("trap", "wall") and hp < 0.6:
+            return -1  # they cost health the party doesn't have
         return FORK_PREF.get(p, 1)
     return max(range(len(fk["opts"])), key=score)
 
@@ -343,6 +346,10 @@ def plan_move(g, h):
                 return {"t": "buy", "item": key}
         if hero["gold"] >= 30 and hero["bag"].count("potion") < 2:
             return {"t": "buy", "item": "potion"}
+        # one of the town's own flasks or pots, with gold to spare
+        own = next((k for k in stock if k in I.SHOP_REGIONAL.values()), None)
+        if own and hero["gold"] >= 45 and not any(g.item(k).get("use", {}).get("throw") for k in hero["bag"]):
+            return {"t": "buy", "item": own}
     if hero["hp"] < mx * 0.45 and "potion" in hero["bag"]:
         return {"t": "use", "bag": hero["bag"].index("potion")}
     if hero["hp"] < mx * 0.35 and not (place and place["kind"] == "town"):
@@ -1963,6 +1970,24 @@ def consumable(g, h, b):
     tr = trinket_move(g, h, b, inc) or hawk_move(g, h, b)
     if tr:
         return tr
+    # a cleansing draught for a hero carrying two debuffs or a big Burn or Poison
+    i = next((j for j, k in enumerate(bag) if g.item(k).get("use", {}).get("cleanse")), None)
+    if i is not None:
+        for y in g.actives():
+            st = g.hs(y)["st"]
+            if sum(1 for d in DEBUFFS if st.get(d)) >= 2 or st.get("burn", 0) + st.get("poison", 0) >= 5:
+                return {"t": "use", "bag": i, "tgt": f"h{y}"}
+    # a throw: the ones that hit everyone when there are three or more, else at the biggest threat
+    i = next((j for j, k in enumerate(bag) if g.item(k).get("use", {}).get("throw")), None)
+    if i is not None:
+        th = g.item(bag[i])["use"]["throw"]
+        live = [fo for fo in g.foes() if fo["hp"] > b.dmg.get(fo["id"], 0)]
+        if th.get("all") and len(live) >= 3:
+            return {"t": "use", "bag": i}
+        if not th.get("all") and live:
+            top = max(live, key=lambda o: threat_now(g, b, o))
+            if threat_now(g, b, top) >= 6 or A.FOES[top["k"]].get("boss"):
+                return {"t": "use", "bag": i, "tgt": f"f{top['id']}"}
     i = find("bomb")
     if i is not None:
         dmg = g.item("bomb")["use"]["bomb"] + g.mods(h).get("bomb_bonus", 0)

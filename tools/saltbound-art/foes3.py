@@ -176,5 +176,36 @@ def coral_colossus():  # coral colossus: a hulking giant grown from red and pink
     return g
 
 
+# ================================================================ final bosses
+def leviathan():  # the Abyssal Leviathan: a vast dark sea-serpent head rising from the water, glowing lures, rows of teeth
+    pal = {'D': '#1e2a3e', 'd': '#141c2c', 'B': '#2e4258', 'b': '#3a5a78', 'w': '#f0f0e0', 'Y': '#e8ff7a', 'e': '#ff6a5a',
+           'W': '#3a88a8', 'f': '#cfe8f0'}
+    g = G(pal)
+    g.rows(0, 24, [(0, 31), (0, 31), (0, 31), (0, 31), (0, 31), (0, 31), (0, 31), (0, 31)], 'W')
+    g.line(4, 26, 8, 25, 'f'); g.line(20, 27, 25, 26, 'f'); g.line(12, 29, 16, 28, 'f')
+    g.ell(4, 22, 3.5, 4, 'D'); g.ell(27, 23, 3, 3.5, 'D')  # coils breaking the surface
+    g.line(9, 26, 12, 12, 'D', 5); g.ell(15, 10, 9, 6.5, 'D'); g.ell(14, 8, 6, 3.5, 'B')
+    g.rect(16, 11, 26, 16, 'd'); g.text(16, 11, ['w w w w w w']); g.text(17, 16, ['w w w w w'])
+    g.px(14, 8, 'e'); g.px(15, 8, 'e'); g.px(10, 7, 'b'); g.px(12, 5, 'b')
+    g.line(9, 4, 6, 0, 'B'); g.ell(6, 1, 1.6, 1.6, 'Y'); g.line(18, 4, 22, 0, 'B'); g.ell(23, 1, 1.6, 1.6, 'Y')
+    for x, y in ((8, 14), (10, 18), (7, 20)): g.px(x, y, 'b')
+    return g
+
+def storm_queen():  # the Storm Queen: a tall regal figure in a cloak of storm-cloud, a crown of lightning, a forked staff
+    pal = {**PALE, 'C': '#4a5468', 'c': '#3a4256', 'G': '#8fa8c8', 'Y': '#fff27a', 'y': '#9fd8ff', 'W': '#c8ccd4', 'H': '#e0e8f0',
+           'e': '#9fd8ff', 'k': '#1a1420'}
+    g = G(pal)
+    g.rows(8, 12, [(1, 10), (0, 11), (0, 11), (-1, 12), (-1, 12), (-2, 13), (-2, 13), (-3, 14), (-3, 14), (-4, 15), (-4, 15),
+                   (-5, 16), (-5, 16), (-5, 17), (-6, 17), (-6, 18), (-6, 18), (-6, 18)], 'C')
+    g.rect(12, 13, 15, 29, 'c'); g.rect(10, 16, 17, 17, 'G'); g.px(13, 20, 'y'); g.px(14, 24, 'y')
+    for x, y in ((4, 26), (8, 28), (19, 27), (22, 29)): g.px(x, y, 'G')
+    g.rect(21, 3, 22, 30, 'W'); g.text(19, 0, ['Y   Y', ' Y Y ', '  Y  ']); g.line(23, 6, 27, 3, 'y'); g.px(28, 2, 'Y')
+    g.rect(19, 13, 21, 15, 'C'); g.rect(20, 15, 21, 16, 's')
+    face(g, 10, 5, 8, 7, eyes=False); g.px(12, 8, 'e'); g.px(15, 8, 'e'); g.rect(13, 10, 14, 10, 'S')
+    g.rect(9, 4, 9, 13, 'H'); g.rect(18, 4, 18, 12, 'H'); g.rect(10, 4, 17, 4, 'H'); g.rect(8, 8, 8, 15, 'H')
+    g.text(9, 0, ['Y  Y  Y', 'YY YY YY'[:8], 'YYYYYYYY'[:8]])
+    return g
+
+
 ALL = [urchin, kelp_strangler, pearl_diver, rum_runner, parrot, quartermaster, rockling, gale_sprite, stormcaller,
-       drowned_knight, crown_herald, abyss_angler, brine_wraith, coral_colossus]
+       drowned_knight, crown_herald, abyss_angler, brine_wraith, coral_colossus, leviathan, storm_queen]

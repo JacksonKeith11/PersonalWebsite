@@ -123,6 +123,11 @@ const ICON = {
   rum_flask: ['bottle', 'leather', 'tan'], anchor_pendant: ['anchor', 'iron'],
   potion: ['flask', 'grey', 'red', 'kelp'], big_potion: ['bottle', 'green', 'tan'], bomb: ['keg', 'wood', 'iron', 'ember'], ward_scroll: ['scroll', 'tan', 'blue'],
   smelling_salts: ['jar', 'glass', 'leather', 'white'],
+  pepper_pouch: ['pouch', 'leather', 'red'], herbal_tonic: ['flask', 'glass', 'kelp', 'green'], urchin_spines: ['pouch', 'tan', 'purple'],
+  grapeshot_pouch: ['pouch', 'leather', 'iron'], storm_jar: ['jar', 'glass', 'iron', 'blue'], firepot: ['jar', 'wood', 'iron', 'ember'],
+  sand_pouch: ['pouch', 'tan', 'sand'], basilisk_eye: ['orb', 'stone', 'amber'], dart_venom: ['flask', 'glass', 'jade', 'green'],
+  holy_water: ['bottle', 'holy', 'gold'], prism_dust: ['pouch', 'crystal', 'crystal'], nightmare_powder: ['pouch', 'dream', 'purple'],
+  rime_flask: ['flask', 'glass', 'ice', 'frost'],
   powder_salt: ['jar', 'iron', 'ember', 'ember'], still_pearl: ['orb', 'pearl', 'gold'], seer_glass: ['globe', 'glass', 'gold', 'glass'],
   // Cinderreach
   obsidian_cleaver: ['axe', 'obsidian', 'magma', 'magma'], magma_maul: ['hammer', 'magma', 'obsidian'], ashen_wand: ['wand', 'grey', 'magma', 'ember'],

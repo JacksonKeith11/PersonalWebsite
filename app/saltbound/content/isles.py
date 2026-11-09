@@ -85,6 +85,45 @@ FOES = {
                                  "grow": {"name": "Grow Coral", "k": "block", "use": [0, 1]}}},
 }
 
+# ---------------------------------------------------------------- the final bosses (one is drawn per run: FINALS)
+# Each final works like the Drowned Crown (bosses.py): warded while its `court` stands, then at two thirds of its
+# health the `drag` (a blow marked on a hero, landing at the round's end) and its `deluge`, and at a third alone,
+# exposed and furious. `phase_text` is what's said at each change, `win_text` when it falls.
+FINAL_FOES = {
+    "leviathan": {"name": "The Abyssal Leviathan", "hp": 110, "row": "back", "speed": 3, "boss": True, "final": True,
+                  "beast": True, "xp": 0, "gold": 0,
+                  "dice": [_d(10), _d(10), _d(8), _d(6)],
+                  "seq": ["slam", "ink", "lure", "coil", "roar"],
+                  "moves": {"slam": {"name": "Tail Slam", "k": "attack", "use": [0, 1], "tgt": "strongest", "brk": 0.3},
+                            "ink": {"name": "Ink Cloud", "k": "all", "use": [3], "st": "weak", "sn": 1, "st_min": 4},
+                            "lure": {"name": "Lights in the Deep", "k": "summon", "f": "abyss_angler"},
+                            "coil": {"name": "Coil", "k": "attack", "use": [2], "tgt": "weakest", "st": "root", "sn": 1},
+                            "roar": {"name": "Abyssal Roar", "k": "all", "use": [2]},
+                            "breach": {"name": "The Breach", "k": "all", "use": [0, 1, 2, 3], "brk": 0.3}},
+                  "court": "abyss_angler", "drag": "Crushing Coils", "deluge": "breach",
+                  "phase_text": ["The Leviathan rises from the deep: each round its coils crush someone. Armor or a Guard stops "
+                                 "it. Next round it breaches.",
+                                 "The Leviathan's lures go dark: it fights alone, exposed, and furious. Next round it breaches."],
+                  "win_text": "The Abyssal Leviathan sinks back into the dark it came from. The isles are saved!"},
+    "storm_queen": {"name": "The Storm Queen", "hp": 95, "row": "back", "speed": 5, "boss": True, "final": True,
+                    "xp": 0, "gold": 0,
+                    "dice": [_d(10, "exploding"), _d(8), _d(8), _d(6)],
+                    "seq": ["bolt", "thunder", "call", "gale", "brand"],
+                    "moves": {"bolt": {"name": "Chain Lightning", "k": "attack", "use": [0], "chain": True, "st": "shock", "sn": 1},
+                              "thunder": {"name": "Thunderclap", "k": "all", "use": [3], "st": "stun", "sn": 1, "st_min": 6},
+                              "call": {"name": "Call the Faithful", "k": "summon", "f": "stormcaller"},
+                              "gale": {"name": "Gale Wall", "k": "guard", "use": [1], "all": True},
+                              "brand": {"name": "Storm Brand", "k": "debuff", "use": [3], "st": "mark", "sn": 1, "tgt": "strongest"},
+                              "tempest": {"name": "The Tempest", "k": "all", "use": [0, 1, 2, 3], "brk": 0.3}},
+                    "court": "stormcaller", "drag": "Lightning Strike", "deluge": "tempest",
+                    "phase_text": ["The sky breaks open: each round lightning picks someone out. Armor or a Guard stops it. "
+                                   "Next round the Tempest hits everyone.",
+                                   "Her acolytes burn out: the Storm Queen fights alone, exposed, and furious. Next round the "
+                                   "Tempest hits everyone."],
+                    "win_text": "The Storm Queen's crown cracks, and the sky clears over the isles. The isles are saved!"},
+}
+FOES.update(FINAL_FOES)
+
 POOLS = {
     "urchin": {"needle": {"name": "Needle Burst", "k": "all", "n": 1, "st": "poison", "sn": 1, "st_min": 5},
                "anchor": {"name": "Cling Fast", "k": "guard", "n": 1}},
@@ -112,6 +151,10 @@ POOLS = {
                      "gulp": {"name": "Gulp", "k": "attack", "use": [0], "tgt": "weakest", "st": "root", "sn": 1}},
     "brine_wraith": {"wail": {"name": "Deep Wail", "k": "all", "n": 1, "st": "weak", "sn": 1, "st_min": 6},
                      "fade": {"name": "Fade", "k": "block", "n": 1}},
+    "leviathan": {"swallow": {"name": "Swallow the Light", "k": "heal", "use": [1], "self": True},
+                  "wake": {"name": "Wake", "k": "attack", "use": [0, 1], "sweep": 2}},
+    "storm_queen": {"hail": {"name": "Hailstorm", "k": "all", "use": [2], "st": "weak", "sn": 1, "st_min": 6},
+                    "eye": {"name": "Eye of the Storm", "k": "attack", "use": [0, 1], "tgt": "weakest", "st": "shock", "sn": 2}},
     "coral_colossus": {"reef": {"name": "Reef Wall", "k": "guard", "use": [1], "all": True},
                        "shards": {"name": "Coral Shards", "k": "attack", "use": [0], "sweep": 2}},
 }
@@ -122,5 +165,5 @@ CRITS = {
     "rum_runner": ("burn", 2), "parrot": ("mark", 1), "quartermaster": ("half", None),
     "rockling": ("weak", 1), "gale_sprite": ("weak", 1), "stormcaller": ("shock", 1),
     "drowned_knight": ("half", None), "crown_herald": ("hex", 1), "abyss_angler": ("vuln", 1),
-    "brine_wraith": ("freeze", 1), "coral_colossus": ("half", None),
+    "brine_wraith": ("freeze", 1), "coral_colossus": ("half", None), "leviathan": ("half", None), "storm_queen": ("half", None),
 }

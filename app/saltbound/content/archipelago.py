@@ -194,6 +194,11 @@ FOES = {
                              "brace": {"name": "Shield the Crown", "k": "guard", "n": 2}}},
     "drowned_crown": {"name": "The Drowned Crown", "hp": 100, "row": "back", "speed": 4, "boss": True, "final": True,
                       "xp": 0, "gold": 0, "leech": True,
+                      "court": "tide_guard", "drag": "Undertow", "deluge": "deluge",
+                      "phase_text": ["The sea pours over the peak: each round the Undertow drags someone under. Armor or a "
+                                     "Guard stops it. Next round the Deluge hits everyone.",
+                                     "The Drowned Crown stands alone: exposed, and furious. Next round the Deluge hits everyone."],
+                      "win_text": "The Drowned Crown sinks into the sea it raised. The isles are saved!",
                       "dice": [FROST, _d(10), _d(8), _d(6)],
                       "seq": ["wave", "depths", "rise", "surge", "curse"],
                       "moves": {"wave": {"name": "Tidal Wave", "k": "all", "use": [3]},
@@ -359,9 +364,25 @@ PATHS = {
              "reward": "Heal 30% first, but one more enemy. Three to choose from."},
     "sneak": {"name": "The Back Way", "step": 2, "text": "Slip in behind them: they're caught off guard for a round.",
               "reward": "An ambush, but the hoard is half buried: two to choose from."},
+    # Nov 2026 (owner's request: more kinds of room)
+    "trap": {"name": "The Trapped Corridor", "step": 1, "text": "No fight, but the floor is all pressure plates and the walls "
+             "have holes in them. The treasure room beyond hasn't been looted.",
+             "reward": "Everyone loses 15% of their max HP, then picks loot a rarity up (two to choose)."},
+    "altar": {"name": "The Cursed Altar", "step": 1, "text": "No fight: a black altar offers strength to anyone who'll "
+              "bleed on it. It always takes something back.",
+              "reward": "Everyone gains Drowned Strength (+2 damage, 8 turns) and a random curse."},
+    "captive": {"name": "The Captive", "step": 1, "text": "Guards over a chained prisoner, a healer by the look of her robes.",
+                "reward": "Loot, and free her: +1 revive for the party."},
+    "armory": {"name": "The Old Armory", "step": 1, "text": "Guards in a room full of whetstones and racks of old blades.",
+               "reward": "Loot, and every winner's weapon is honed (free of its work limit)."},
+    "wall": {"name": "Through the Wall", "step": 2, "text": "Climb the outer wall and drop in on the boss alone: its escort "
+             "never hears. The climb is hard on everyone.",
+             "reward": "No escort (the garrison still comes), but everyone loses 15% HP first. Two to choose from."},
 }
-MID_PATHS = ["passage", "champion", "vault", "shrine"]
-BOSS_PATHS = ["gate", "rest", "sneak"]
+MID_PATHS = ["passage", "champion", "vault", "shrine", "trap", "altar", "captive", "armory"]
+BOSS_PATHS = ["gate", "rest", "sneak", "wall"]
+FORK_HURT = 0.15  # the Trapped Corridor and Through the Wall: this share of max HP lost, never below 1
+FORK_CURSES = ["soggy", "jinx", "frail"]  # the Cursed Altar's price
 
 # Elite affixes: more health, a twist, and double the XP and gold.
 ELITES = {
@@ -373,11 +394,31 @@ ELITES = {
     "vampiric": {"name": "Vampiric", "hp": 1.6, "text": "Heals half the damage it deals."},
     "spiteful": {"name": "Spiteful", "hp": 1.6, "text": "Gains +1 might whenever a hero buffs, heals or shields."},
     "splitting": {"name": "Splitting", "hp": 1.6, "text": "Hit by two different heroes in one round, it splits in two (once)."},
+    # Nov 2026 (owner's request: more affixes; some lean toward their regions, REGION_AFFIXES)
+    "searing": {"name": "Searing", "hp": 1.6, "text": "Its hits Burn 2."},
+    "frostbound": {"name": "Frostbound", "hp": 1.6, "text": "Its hits Freeze 1 (a die frozen next round)."},
+    "shocking": {"name": "Shocking", "hp": 1.6, "text": "Its hits Shock 1."},
+    "thorned": {"name": "Thorned", "hp": 1.6, "text": "Whoever damages it takes 3."},
+    "regenerating": {"name": "Regenerating", "hp": 1.5, "text": "Heals 4 at the start of every round."},
+    "stoneskin": {"name": "Stoneskin", "hp": 1.4, "text": "Hits of less than 4 do nothing to it."},
+    "explosive": {"name": "Explosive", "hp": 1.5, "text": "When it dies it bursts for 6 on every hero."},
 }
+AFFIX_THORNS = 3
+AFFIX_REGEN = 4
+AFFIX_STONESKIN = 4
+AFFIX_BURST = 6
 BIG = {"coral": "reef_maw", "keys": "iron_bosun", "storm": "storm_roc", **_B.BIG}
-ROAM_ELITES = ["hulking", "frenzied", "ironclad", "venomous", "vampiric", "spiteful", "splitting"]
+ROAM_ELITES = ["hulking", "frenzied", "ironclad", "venomous", "vampiric", "spiteful", "splitting",
+               "searing", "frostbound", "shocking", "thorned", "regenerating", "stoneskin", "explosive"]
+# an elite in these regions takes one of its region's affixes this often (Game.elite_affix)
+REGION_AFFIX_CHANCE = 0.4
+REGION_AFFIXES = {"coral": ["thorned", "venomous"], "keys": ["explosive", "frenzied"], "storm": ["shocking"],
+                  "ash": ["searing", "explosive"], "dunes": ["vampiric", "regenerating"], "petrified": ["stoneskin", "ironclad"],
+                  "jungle": ["venomous", "thorned"], "heaven": ["regenerating", "warlord"], "crystal": ["stoneskin", "splitting"],
+                  "dream": ["spiteful", "splitting"], "frost": ["frostbound", "hulking"], "peak": ["regenerating", "frostbound"]}
 
-FINAL = ["tide_guard", "tide_guard", "drowned_crown"]
+FINAL = ["tide_guard", "tide_guard", "drowned_crown"]  # the Drowned Crown's lineup (saves from before FINALS)
+FINALS = ["drowned_crown", "leviathan", "storm_queen"]  # one is drawn per run (`s["final"]`): its court twice, then it
 
 REGION_NAMES = {"coral": "Coral Shallows", "keys": "Smugglers' Keys", "storm": "Stormcrag", "peak": "the Peak", **_B.REGION_NAMES}
 # Every region a run can draw its three objectives from (Wd.generate picks three per world).
@@ -852,6 +893,8 @@ EVENTS = [
 ]
 EVENTS += _B.EVENTS
 EVENTS += _Q.EVENTS
+from . import tales as _T  # noqa: E402  (more events: the first three regions' own, and shared ones)
+EVENTS += _T.EVENTS
 QUESTS = _Q.QUESTS      # each newer region's quest (quests.py)
 QUEST_OF = _Q.QUEST_OF  # event key -> its quest
 

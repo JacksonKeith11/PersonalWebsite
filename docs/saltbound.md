@@ -43,7 +43,12 @@ Keep to these. They came from the owner directly.
 - **No progress between runs.** Everything (all classes, items, events) is available from the
   first run.
 - **Difficulty**, set by the host: Story, Normal, Hard. Changes enemy HP and damage, the revive
-  pool size and how often the tide rises. Nothing structural.
+  pool size and how often the tide rises. Nothing structural. **Custom** (owner's request, Nov 2026): a
+  lobby toggle opens sliders on top of the preset (`CUSTOM` in `game.py`, clamped by `clean_custom`, kept
+  as `s["custom"]` and applied in `merged_diff`/`Game.diff`): enemy health, damage and tide strength as
+  percentages of the preset's, the elite chance (`ELITE_CHANCE` 25% by default; a roaming group from the
+  first objective on, or from the start once it's set), turns between Great Tides, revives and starting
+  gold. The save title and end screen say "(custom)".
 
 ### The world
 
@@ -211,7 +216,17 @@ Keep to these. They came from the owner directly.
 - **Items**: weapon, armor and trinket slots (`I.SLOTS`; each gives a die and maybe an action or
   passive) plus
   a bag with no limit (owner's request; Deep Pockets became +1 reroll and +3 gold a win). 4 rarities (common, uncommon, rare, legendary). No durability. Consumables: potions,
-  bombs, scrolls.
+  bombs, scrolls, and (Nov 2026, owner's request: more varied shops) throws and draughts: each shop has
+  the basics (`SHOP_BASICS`), two of `SHOP_EXTRAS` (Ward Scroll, Smelling Salts, Pepper Pouch, Herbal
+  Tonic) and its region's own (`SHOP_REGIONAL`: Urchin Spines, Grapeshot Pouch, Storm in a Jar, Firepot,
+  Pouch of Sand, Basilisk Eye, Dart Frog Venom, Holy Water, Prism Dust, Nightmare Powder, Rime Flask;
+  `shop_consumables`). A `throw` puts a status or damage on an enemy (or all of them, `all`) as the
+  thrower's, so it can set off an elemental reaction; `cleanse` lifts an ally's debuffs. The bots buy one
+  of the town's own when they have 45 gold, and use them on big threats or debuffed allies.
+- **Events** (Nov 2026): the first three regions have five of their own each (`content/tales.py`; before,
+  their event hexes all drew from the shared pool), and there are eight more shared ones. Several
+  choices belong to classes no event served before (Gunslinger, Samurai, Psion, Spellblade, Dragonborn,
+  Emberknight). An outcome's `temper` ("hone" or "edge") works the hero's weapon free of its limit.
 - **Healing**: HP carries over between fights. Heal at inns (gold), at camps (spend the turn, heal
   half), with potions, or from the Mender. Wearing the party down is part of the time pressure.
 
@@ -1373,7 +1388,11 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   theirs to the end of their `seq`).
 - **Elites** (`ELITES`): one affix on one enemy: Hulking, Frenzied, Ironclad, Venomous, Warlord,
   Vampiric, Spiteful (+1 might whenever a hero buffs, heals or shields) and Splitting (splits when two
-  different heroes hit it in one round). 1.6× health (Hulking 2×), double XP and gold, and loot. They
+  different heroes hit it in one round); and since Nov 2026 Searing, Frostbound and Shocking (hits Burn 2,
+  Freeze 1, Shock 1: `AFFIX_HIT` in `foes.py`), Thorned (`AFFIX_THORNS`), Regenerating (`AFFIX_REGEN` a round),
+  Stoneskin (ignores hits under `AFFIX_STONESKIN`) and Explosive (bursts for `AFFIX_BURST` on death). An
+  elite takes one of its region's affixes `REGION_AFFIX_CHANCE` (40%) of the time (`REGION_AFFIXES`,
+  `Game.elite_affix`). 1.6× health (Hulking 2×), double XP and gold, and loot. They
   lead some roaming groups from the first objective on, sit in vaults and champion halls, and read
   "Hulking Crabfolk Brute".
 - **Big single threats**: the Reef Maw, the Iron Bosun and the Storm Roc. Three dice, a pool move, and
@@ -1413,6 +1432,13 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   an action (Stunned, cancelled by Cacophony or Requiem, distracted at nobody, robbed of every die) is
   Steeled for the next round, when Stuns and cancels don't take, so it acts at least every other
   round. Intents set by heroes (and an ambush's free first round) carry `by_hero`, which is what Steels.
+- **Three final bosses** (owner's request, Nov 2026): one is drawn per run (`A.FINALS`, `s["final"]`,
+  `Game.final_key`; older saves have the Drowned Crown) and named in the opening log line, the Peak's
+  tooltip and the objectives tooltip. The rules below are data on each: its `court` (the guards that ward
+  it, two in its lineup, `final_lineup`), its `drag` (the Undertow's name), its `deluge` move, `phase_text`
+  and `win_text`. The others are the Abyssal Leviathan (110 HP, Abyssal Anglers, Crushing Coils, the
+  Breach) and the Storm Queen (95 HP, Stormcaller Acolytes, Lightning Strike, the Tempest), in
+  `content/isles.py` with sprites in `foes3.py`.
 - **The Drowned Crown** (100 HP; it won 2% of its fights until the Deluge, and 39% with 120 HP too): phase 1, **warded** (half damage, `CROWN_WARD`) while a Tide Guard
   stands; it summons guards only in this phase. Phase 2 (two thirds health): the **Undertow** marks
   one hero each round, who takes 3× the fight's damage multiplier (`UNDERTOW`) at round end unless
@@ -1426,6 +1452,11 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   the Main Passage (`mid`), the Champion's Hall (`champ`: one big threat or an elite; loot a rarity up), the Flooded Vault (a `mid` lineup with an elite; +12 gold each), a Quiet Shrine (no
   fight: heal 35%, curses lifted); and before the boss, Storm the Hall (boss and `escort`), Rest at
   the Threshold (heal 30%, one more escort) or the Back Way (enemies caught off guard; two picks).
+  **More rooms** (owner's request, Nov 2026): the Trapped Corridor (no fight: everyone loses `FORK_HURT`,
+  15% of max HP, then picks loot a rarity up), the Cursed Altar (no fight: Drowned Strength and one of
+  `FORK_CURSES` each), the Captive (a `mid` fight; +1 revive), the Old Armory (a `mid` fight; each winner's
+  weapon honed free of its work limit), and before the boss Through the Wall (the boss alone, but the
+  garrison still comes; 15% HP first; two picks). The bots skip the HP-costing rooms below 60% health.
   Everyone in the dungeon votes (`{"t": "fork", "n"}`); most votes wins, a tie is a coin toss. The
   next lineup is stored per dungeon in `s["dnext"]`, so the forecast can show it and a party that
   loses meets the same enemies.
@@ -1627,7 +1658,7 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
 - **Enchant materials** (`MATERIALS` in `items.py`: Powder Salt for Exploding, Still Pearl for Steady,
   Seer's Glass for Seer, Fate Feather for Fate, Augur's Bone for Augur (Nov 2026), and the Tidebell Shard,
   a forge material marked `found` that Tunes for free past the work limit, as Starmetal Hones). A die
-  shows its roll one way only: Seer, Augur and Fate refuse each other. rare consumables that are never sold or dropped at random. The sea shrine
+  shows its roll one way only: Seer, Augur and Fate refuse each other. They're rare, never sold or dropped at random. The sea shrine
   gives one to the first hero there (`mat_taken`), a grotto's hoard holds one, and a guarded wreck's
   pool has one beside its rare gear. Any other won fight's loot pool holds one `FIGHT_MAT_CHANCE` (6%)
   of the time (owner's request: rarely from fights too), about 0.6 a run on Normal from ~11 pools. From the bag, "Into <item>" rubs it into a piece of gear you

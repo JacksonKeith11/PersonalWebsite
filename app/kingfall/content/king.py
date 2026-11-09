@@ -6,7 +6,7 @@ marked circles while he fights on, faster.
 
 from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
 
-DMG[0] = 1.3
+DMG[0] = 1.2
 VOID = {"col": "#c060ff"}
 
 MOVES = {
@@ -90,7 +90,7 @@ PHASE3 = {  # the roof gives way
 
 BOSS = {
     "id": "king", "name": "The Hollow King", "tier": 4, "rig": "king", "art": "king", "arena": "throne",
-    "hp": 4600, "poise": 180, "radius": 18, "speed": 78,
+    "hp": 4200, "poise": 170, "radius": 18, "speed": 78,
     "moves": MOVES, "phases": [0.66, 0.33], "phase_moves": {2: PHASE2, 3: PHASE3},
     "phase_art": {2: "hollow"}, "phase_rig": {"hollow": "hollow"}, "adds": {},
 }

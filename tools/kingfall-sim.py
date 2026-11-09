@@ -29,7 +29,8 @@ from app.kingfall.room import Hero  # noqa: E402
 class Stub:
     def __init__(self): self.events = []
     def broadcast(self, m):
-        if m.get("t") == "fx" and m.get("k") in ("down", "dead", "stagger", "parry", "crit"): self.events.append(m["k"])
+        if m.get("t") == "fx" and m.get("k") in ("down", "dead", "stagger", "topple", "parry", "crit"):
+            self.events.append("stagger" if m["k"] == "topple" else m["k"])
 
 
 class Bot:
@@ -99,6 +100,11 @@ def step_bot(b, f, now, dt, bots):
     near_add = min(f.adds.values(), key=lambda a: math.hypot(a["x"] - fh.x, a["y"] - fh.y), default=None)
     target = ("add", near_add) if near_add and math.hypot(near_add["x"] - fh.x, near_add["y"] - fh.y) < 120 else ("body", body)
     bx, by = (near_add["x"], near_add["y"]) if target[0] == "add" else (body.x, body.y)
+    core_i = None
+    if target[0] == "body" and body.armored():  # an armoured boss: go for its glowing cores
+        live = [i for i, hp in enumerate(body.cores) if hp > 0]
+        core_i = min(live, key=lambda i: math.hypot(body.core_pos(i)[0] - fh.x, body.core_pos(i)[1] - fh.y))
+        bx, by = body.core_pos(core_i)
     d = math.hypot(bx - fh.x, by - fh.y)
     toward = math.atan2(by - fh.y, bx - fh.x)
     if b.state == "roll":
@@ -139,14 +145,13 @@ def step_bot(b, f, now, dt, bots):
         atk = b.W["light"][b.combo]
         if atk["hit"][0] <= b.t and not getattr(b, "landed", False):
             s = place_attack(atk["shape"], fh.x, fh.y, toward)
-            r = near_add["r"] if target[0] == "add" else body.d["radius"]
+            r = near_add["r"] if target[0] == "add" else body.d["cores"][core_i]["r"] if core_i is not None else body.d["radius"]
             if touches(s, bx, by, r):
                 b.swing += 1
                 if target[0] == "add":
                     f.hit_add(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "a": near_add["id"]}, now)
                 else:
-                    core = next((i for i, hp in enumerate(body.cores) if hp > 0 and math.hypot(body.core_pos(i)[0] - fh.x, body.core_pos(i)[1] - fh.y) < 50), None)
-                    f.hit_boss(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "e": body.e, "core": core}, now)
+                    f.hit_boss(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "e": body.e, "core": core_i}, now)
                 b.landed = True
         if b.t >= atk["dur"]:
             b.combo = (b.combo + 1) % len(b.W["light"])
@@ -170,17 +175,37 @@ def step_bot(b, f, now, dt, bots):
         f.drink(fh.hero.id, now); b.state, b.t = "drink", 0.0
         return
     busy = body.move is not None and now - body.move.start < body.move.data["dur"] * 0.6
-    if d > 34:
+    if d > (22 if core_i is not None else 34):
         fh.x += math.cos(toward) * H["speed"] * dt; fh.y += math.sin(toward) * H["speed"] * dt
     elif (target[0] == "add" or not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
         b.state, b.t, b.landed = "atk", 0.0, False
     fh.x, fh.y = f.clamp(fh.x, fh.y)
 
 
+# how many Bonfires a run has passed before meeting a boss of each tier (two bosses a tier)
+STAGE = {1: 1, 2: 3, 3: 5, 4: 6}
+
+
+def level_up(h, n, rng, size):
+    """Give a bot hero the levels and blessings a run gives by then: a point and a pick a Bonfire."""
+    from app.kingfall.content.upgrades import UPGRADES, offer
+    for k in range(n):
+        h.level += 1
+        h.attrs[rng.choice(("vig", "vig", "end", "mig", "fin"))] += 1
+        cards = offer(h, size, rng, k + 1)
+        if cards:
+            uid, rarity = cards[0]
+            slot = UPGRADES[uid]["slot"]
+            if slot: h.ups = [(u, r) for u, r in h.ups if UPGRADES[u]["slot"] != slot]
+            h.ups.append((uid, rarity))
+    h.changed(); h.hp = h.mhp(); h.flasks = h.max_flasks()
+
+
 def fight_once(boss, size, skill, seed, limit=900):
     rng = random.Random(seed)
     random.seed(seed)
     heroes = [Hero(i + 1, None, i, f"Bot{i + 1}", "knight", "sword", i) for i in range(size)]
+    for h in heroes: level_up(h, STAGE[C.BOSSES[boss].get("tier", 1)] - 1 + rng.randint(0, 1), rng, size)
     st = Stub()
     f = Fight(st, boss, heroes, 0.0)
     bots = [Bot(fh, skill, rng) for fh in f.heroes.values()]

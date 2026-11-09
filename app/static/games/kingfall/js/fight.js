@@ -1,11 +1,12 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=2';
-import { LocalHero, RemoteHero } from './hero.js?v=2';
-import { Boss } from './boss.js?v=2';
-import { drawArena } from './arenas.js?v=2';
-import { sfx } from './audio.js?v=2';
-import { deviceOfSlot } from './input.js?v=2';
+import { addFrames } from './rig.js?v=3';
+import { LocalHero, RemoteHero } from './hero.js?v=3';
+import { Boss } from './boss.js?v=3';
+import { drawArena } from './arenas.js?v=3';
+import { sfx } from './audio.js?v=3';
+import { music } from './music.js?v=3';
+import { deviceOfSlot } from './input.js?v=3';
 
 const INTERP = 0.1;
 
@@ -80,6 +81,7 @@ export class FightScene extends Phaser.Scene {
     this.stop = 0;
     this.started = this.net.now();
     this.ended = false;
+    music.play(fight.boss, 1);
     this.cfg.onReady && this.cfg.onReady(this);
   }
 
@@ -363,6 +365,7 @@ export class FightScene extends Phaser.Scene {
       this.lastReport = now;
       for (const l of this.local) this.net.send(l.report());
     }
+    music.setLevel(this.boss.bodies.reduce((m, b) => Math.max(m, b.alive ? b.phase : 0), 1));
     this.cfg.onFrame && this.cfg.onFrame(this);
   }
 }

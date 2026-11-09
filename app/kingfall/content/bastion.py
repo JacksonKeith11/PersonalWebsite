@@ -23,7 +23,7 @@ MOVES = {
     "stomp": {
         "range": (0, 120), "weight": 4, "cd": 3.0, "phase": (1, 2), "dur": 2.0, "locks": [0.0],
         "motion": [],
-        "hits": [circle(0.95, 1.08, 74, 0, 0, 36, STONE, mark=0.55), ring(1.0, 1.6, 60, 170, 12, 16, STONE)],
+        "hits": [circle(0.95, 1.08, 74, 0, 0, 36, STONE, mark=0.55), ring(1.0, 1.6, 60, 170, 12, 9, STONE)],
         "anim": [(0, pose()), (0.75, pose(leg_f=-40, torso=-6, dy=-4)), (0.98, pose(leg_f=6, torso=6, dy=3)), (2.0, pose())],
     },
     # the furnace eye: a beam that sweeps across from one side to the other
@@ -37,7 +37,7 @@ MOVES = {
     "hammer": {
         "range": (0, 130), "weight": 3, "cd": 3.5, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 1.1],
         "motion": [(1.3, 1.4, 16)],
-        "hits": [rect(1.36, 1.5, 0, 120, 34, 50, STONE), ring(1.42, 2.0, 40, 150, 12, 16, STONE, at=90)],
+        "hits": [rect(1.36, 1.5, 0, 120, 34, 50, STONE), ring(1.42, 2.0, 40, 150, 12, 8, STONE, at=90)],
         "anim": [(0, pose()), (0.9, pose(arm_f=-170, arm_b=-170, torso=-10, dy=-4)), (1.3, pose(arm_f=-175, arm_b=-175, torso=-12)),
                  (1.42, pose(arm_f=-20, arm_b=-20, torso=16, lean=6, dy=3)), (2.6, pose())],
     },
@@ -67,9 +67,9 @@ PHASE2 = {
 
 BOSS = {
     "id": "bastion", "name": "The Bastion", "tier": 3, "rig": "golem", "art": "bastion", "arena": "wall",
-    "hp": 3400, "poise": 400, "radius": 34, "speed": 26, "armor": 0.3,
-    "cores": [{"dx": -18, "dy": 6, "r": 13, "hp": 200, "h": 22}, {"dx": 18, "dy": 6, "r": 13, "hp": 200, "h": 22},
-              {"dx": -40, "dy": -10, "r": 14, "hp": 260, "h": 96}],
+    "hp": 2300, "poise": 400, "radius": 34, "speed": 26, "armor": 0.5,
+    "cores": [{"dx": -18, "dy": 6, "r": 13, "hp": 140, "h": 22}, {"dx": 18, "dy": 6, "r": 13, "hp": 140, "h": 22},
+              {"dx": -40, "dy": -10, "r": 14, "hp": 180, "h": 96}],
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2}, "adds": {},
     "stagger_pose": {"torso": 14, "head": 12, "arm_f": 20, "arm_b": 20, "dy": 8}, "dead_pose": {"torso": 24, "head": 20, "dy": 14},
 }

@@ -75,7 +75,7 @@ PHASE2 = {
 
 BOSS = {
     "id": "mire", "name": "The Mire Mother", "tier": 1, "rig": "toad", "art": "mire", "arena": "bog",
-    "hp": 1700, "poise": 110, "radius": 30, "speed": 40,
+    "hp": 1900, "poise": 120, "radius": 30, "speed": 44,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"tadpole": {"hp": 34, "speed": 62, "radius": 9, "dmg": 7, "art": "mire.tadpole", "life": 25}},
     "stagger_pose": {"body": 10, "head": 14, "jaw": 20, "dy": 4}, "dead_pose": {"body": 12, "head": 20, "jaw": 30, "dy": 8},

@@ -21,7 +21,7 @@ from .content.moves import aim_at, n_dists, offset, resolve
 LEAD = 0.14          # a move is announced this long before it starts
 TICK = 1 / 30
 STAGGER = 2.6        # seconds a broken-poise boss reels
-TOPPLE = 6.0         # seconds a boss reels when its last core breaks
+TOPPLE = 7.0         # seconds a boss reels when its last core breaks
 POISE_REGEN = (3.0, 25.0)  # after this long without poise damage, it refills at this rate
 INTRO = 2.2
 STATUSES = ("burn", "frost", "bleed", "rot")
@@ -138,7 +138,7 @@ class Fight:
         self.room = room
         self.boss = C.BOSSES[boss_id]
         self.arena = ARENA
-        self.diff = diff or {"hp": 1.0, "dmg": 1.0, "speed": 1.0}
+        self.diff = diff or {"hp": 1.0, "dmg": 1.0, "speed": 1.0, "wind": True}
         n = max(1, min(4, len(heroes)))
         defs = bodies_of(self.boss)
         self.bodies = []
@@ -492,7 +492,7 @@ class Fight:
         for o in self.heroes.values():
             if o is not fh:
                 for x in o.hero.build().get("ondown"): o.vengeance = (x["mult"], now + x["dur"])
-        if self.solo and fh.hero.second_wind:
+        if self.solo and fh.hero.second_wind and self.diff.get("wind", True):
             fh.hero.second_wind = False
             fh.second_wind = now + 2.0
             self.room.broadcast({"t": "fx", "k": "secondwind", "h": fh.hero.id})
@@ -713,7 +713,7 @@ class Fight:
             if now >= m.end():
                 self.recent = ([m] + self.recent)[:RECENT]
                 b.move = None
-                rest = (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7)) * (1.6 if len(self.bodies) > 1 else 1)
+                rest = (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7)) * ((2.2 if self.solo else 1.6) if len(self.bodies) > 1 else 1)
                 b.state, b.until = "idle", now + rest / self.diff["speed"]
             return
         if not b.target or b.target not in self.alive_heroes() or random.random() < 0.01:
@@ -732,7 +732,7 @@ class Fight:
         d = math.hypot(dx, dy)
         b.face = math.atan2(dy, dx)
         keep = b.d.get("keep", 46)  # ranged bosses keep their distance
-        if d > keep + 6 or (b.d.get("keep") and d < keep * 0.5):
+        if d > 0.5 and (d > keep + 6 or (b.d.get("keep") and d < keep * 0.5)):
             sp = b.d["speed"] * (1.15 if b.phase >= 2 else 1.0) * (0.55 if now < b.slow_until else 1.0) * self.diff["speed"]
             sgn = 1 if d > keep else -1
             b.vx, b.vy = dx / d * sp * sgn, dy / d * sp * sgn

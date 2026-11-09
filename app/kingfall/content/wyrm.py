@@ -6,15 +6,15 @@ the ring closes faster.
 
 from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
 
-DMG[0] = 1.0
+DMG[0] = 1.25
 BONE = {"col": "#d8ccb0"}
 
 MOVES = {
     # it dives, slides under the floor and bursts up beneath you
     "burrow": {
-        "range": (80, 420), "weight": 4, "cd": 4.0, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 0.9], "under": (0.5, 1.6),
+        "range": (80, 420), "weight": 4, "cd": 3.0, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 0.9], "under": (0.5, 1.6),
         "motion": [(0.6, 1.5, ("target", 0, 60, 320))],
-        "hits": [circle(1.62, 1.76, 46, 0, 0, 32, mark=0.5)],
+        "hits": [circle(1.62, 1.76, 50, 0, 0, 38, mark=0.45)],
         "anim": [(0, pose()), (0.45, pose(head=30, z=-8)), (1.6, pose(head=-40, z=30, jaw=40)), (1.9, pose(head=-10, z=8, jaw=20)), (2.6, pose())],
     },
     # a lunging bite
@@ -40,7 +40,7 @@ MOVES = {
     },
     # the coil: a ring of bone closes in round you; roll through it before it meets
     "coil": {
-        "range": (40, 260), "weight": 2, "cd": 8.0, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 0.6], "reach": ("target", 0, 40, 240),
+        "range": (40, 260), "weight": 3, "cd": 6.0, "phase": (1, 2), "dur": 2.6, "locks": [0.0, 0.6], "reach": ("target", 0, 40, 240),
         "motion": [],
         "hits": [ring(0.9, 2.3, 130, -85, 12, 22, BONE, at=0, tx=True), circle(2.3, 2.45, 26, 0, 0, 30, BONE, tx=True, mark=0.5)],
         "anim": [(0, pose()), (0.6, pose(head=-20, jaw=30)), (2.3, pose(head=10, jaw=0)), (2.6, pose())],
@@ -62,7 +62,7 @@ PHASE2 = {
 
 BOSS = {
     "id": "wyrm", "name": "The Gravewyrm", "tier": 2, "rig": "wyrm", "art": "wyrm", "arena": "boneyard", "render": "wyrm",
-    "hp": 2700, "poise": 260, "radius": 18, "speed": 80,
+    "hp": 3000, "poise": 260, "radius": 18, "speed": 84,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2}, "adds": {},
     "stagger_pose": {"head": 30, "jaw": 30, "z": -4}, "dead_pose": {"head": 40, "jaw": 40, "z": -6},
 }

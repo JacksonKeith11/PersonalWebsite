@@ -25,8 +25,8 @@ MOVES = {
     "toll3": {
         "range": (0, 320), "weight": 4, "cd": 5.0, "phase": (2,), "dur": 3.3, "locks": [0.0, 1.0, 1.8],
         "motion": [],
-        "hits": [ring(0.9, 2.0, 30, 160, 12, 14, SOUND, at=26, gaps=SIDES), ring(1.6, 2.7, 30, 160, 12, 14, SOUND, at=26, gaps=BACK),
-                 ring(2.3, 3.3, 30, 170, 12, 15, SOUND, at=26, gaps=SIDES), circle(0.85, 0.95, 34, 0, 26, 22, mark=0.4)],
+        "hits": [ring(0.9, 2.0, 30, 150, 12, 11, SOUND, at=26, gaps=SIDES), ring(1.6, 2.7, 30, 150, 12, 11, SOUND, at=26, gaps=BACK),
+                 ring(2.3, 3.3, 30, 160, 12, 12, SOUND, at=26, gaps=SIDES), circle(0.85, 0.95, 34, 0, 26, 22, mark=0.4)],
         "anim": [(0, pose()), (0.5, pose(bell=-120, front=1, torso=0, arm_f=-150, arm_b=-150)), (0.85, pose(bell=-200, front=1, torso=40, arm_f=-40)),
                  (1.25, pose(bell=-140, front=1, torso=10, arm_f=-140)), (1.55, pose(bell=-200, front=1, torso=40, arm_f=-40)),
                  (1.95, pose(bell=-140, front=1, torso=10, arm_f=-140)), (2.25, pose(bell=-200, front=1, torso=40, arm_f=-40)), (3.3, pose())],
@@ -43,7 +43,7 @@ MOVES = {
     "slam": {
         "range": (0, 110), "weight": 3, "cd": 3.0, "phase": (1, 2), "dur": 2.4, "locks": [0.0, 0.95],
         "motion": [(1.15, 1.25, 14)],
-        "hits": [rect(1.2, 1.3, 0, 92, 24, 40), ring(1.25, 1.8, 20, 120, 10, 12, SOUND, at=70)],
+        "hits": [rect(1.2, 1.3, 0, 92, 24, 40), ring(1.25, 1.8, 20, 120, 10, 8, SOUND, at=70)],
         "anim": [(0, pose()), (0.7, pose(bell=-150, front=1, torso=-10, head=-6, arm_f=-170, arm_b=-170, dy=-3)),
                  (1.15, pose(bell=-160, front=1, torso=-14, arm_f=-175, arm_b=-175, dy=-4)),
                  (1.25, pose(bell=-215, front=1, torso=50, head=-36, arm_f=-30, arm_b=-30, dy=3)), (1.9, pose(bell=-210, front=1, torso=46)),
@@ -69,7 +69,7 @@ MOVES = {
         "range": (0, 120), "weight": 3, "cd": 4.0, "phase": (2,), "dur": 2.2, "locks": [0.0],
         "motion": [],
         "hits": [arc(0.8, 0.95, 84, -90, -30, 24), arc(0.95, 1.1, 84, -30, 30, 24), arc(1.1, 1.25, 84, 30, 90, 24),
-                 arc(1.25, 1.4, 84, 90, 150, 24), zone(1.3, 4.0, 30, 0, 60, 6, "void")],
+                 arc(1.25, 1.4, 84, 90, 150, 24), zone(1.3, 3.0, 26, 0, 60, 4, "void")],
         "anim": [(0, pose()), (0.6, pose(bell=-120, front=1, arm_f=-120, arm_b=-120, torso=10)),
                  (0.8, pose(bell=-200, front=1, torso=50, arm_f=-40, arm_b=-40)), (1.4, pose(bell=-200, front=1, torso=40, lean=-6)), (2.2, pose())],
     },
@@ -86,6 +86,6 @@ BOSS = {
     "id": "bellwarden", "name": "The Bellwarden", "tier": 1, "rig": "bellwarden", "art": "bellwarden", "arena": "belfry",
     "hp": 1600, "poise": 110, "radius": 18, "speed": 56,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
-    "adds": {"ghost": {"hp": 48, "speed": 34, "radius": 10, "dmg": 9, "art": "bellwarden.ghost", "life": 30, "float": 8, "alpha": 0.85}},
+    "adds": {"ghost": {"hp": 40, "speed": 32, "radius": 10, "dmg": 7, "art": "bellwarden.ghost", "life": 30, "float": 8, "alpha": 0.85}},
     "stagger_pose": {"torso": 50, "head": -40, "arm_f": 20, "arm_b": 20, "dy": 4}, "dead_pose": {"torso": 70, "head": -50, "arm_f": 30, "dy": 8},
 }

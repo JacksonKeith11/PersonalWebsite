@@ -1,10 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=2';
-import { Input, slotOf, padName } from './input.js?v=2';
-import { Net, ME } from './net.js?v=2';
-import { FightScene } from './fight.js?v=2';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=2';
-import { unlock, sfx } from './audio.js?v=2';
+import { setAtlas } from './rig.js?v=3';
+import { Input, slotOf, padName } from './input.js?v=3';
+import { Net, ME } from './net.js?v=3';
+import { FightScene } from './fight.js?v=3';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=3';
+import { unlock, sfx, setVolume } from './audio.js?v=3';
+import { music } from './music.js?v=3';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -49,7 +50,8 @@ function frame() {
   input.poll();
   if (!S.scene) navFrame(input);
   if (S.screen === 'lobby') lobbyDevices();
-  requestAnimationFrame(frame);
+  setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
+requestAnimationFrame(frame);
 if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), get net() { return net; } };
 }
 
@@ -100,6 +102,7 @@ function upgradeCard(uid, rarity, i, h) {
 }
 
 function bonfire() {
+  music.play('bonfire');
   const L = S.lobby, D = S.data, mine = myHeroes();
   const next = D.bosses[L.run[L.stage]];
   const others = L.heroes.filter(h => h.conn !== S.me);
@@ -154,6 +157,10 @@ function title() {
       <button class="btn" id="join" data-nav ${room ? 'data-autofocus' : ''}>Join</button>
     </div>
     <div class="err">${esc(S.error)}</div>
+    <div class="row center" style="gap:18px;margin-top:6px">
+      <label class="hint">Sound <input type="range" id="vsfx" min="0" max="1" step="0.05" value="${ME.saved.sfx ?? 0.6}" data-nav></label>
+      <label class="hint">Music <input type="range" id="vmus" min="0" max="1" step="0.05" value="${ME.saved.music ?? 0.5}" data-nav></label>
+    </div>
     <div class="controls">
       <div><b>Keyboard & mouse</b></div><div><b>Controller</b></div>
       <div><kbd>WASD</kbd> move · mouse aim</div><div>Left stick move · right stick aim</div>
@@ -172,6 +179,8 @@ function title() {
     connect({ room: code });
   };
   $('#code').onkeydown = e => { if (e.key === 'Enter') $('#join').click(); };
+  $('#vsfx').oninput = e => { ME.saved.sfx = +e.target.value; ME.save(); setVolume(+e.target.value); };
+  $('#vmus').oninput = e => { ME.saved.music = +e.target.value; ME.save(); music.setVolume(+e.target.value); };
   $('#name').onkeydown = e => { if (e.key === 'Enter') (room ? $('#join') : $('#create')).click(); };
 }
 
@@ -191,6 +200,13 @@ function lobby() {
     <div class="heroes" id="heroes"></div>
     ${L.heroes.length < 4 ? `<div class="slot-empty">${mine.some(h => h.slot === 0) ? '' : '<button class="btn" id="joinkb" data-nav>Join with keyboard & mouse</button><br>'}
       Press <kbd>Start</kbd> on a controller to add a couch player · friends join with the code</div>` : ''}
+    <h3>Difficulty</h3>
+    <div class="row">${Object.entries(S.diffs || {}).map(([k, n]) => host
+      ? `<button class="btn ${L.diff === k ? 'primary' : ''}" data-nav data-diff="${k}">${esc(n)}</button>`
+      : `<span class="chip" style="--r:${L.diff === k ? 'var(--gold)' : 'var(--line)'}">${esc(n)}</span>`).join('')}
+      <span class="hint">${{ squire: 'Gentler bosses, for a relaxed night.', knight: 'As designed: souls-hard.', hard: 'Faster, meaner bosses; no Second Wind.' }[L.diff] || ''}</span></div>
+    ${host && (S.saves || []).length ? `<h3>Saved runs</h3><div class="heroes">${S.saves.map(s =>
+      `<div class="row" style="justify-content:space-between"><span class="hint">${esc(s.summary)}</span><button class="btn" data-nav data-resume="${esc(s.id)}">Resume</button></div>`).join('')}</div>` : ''}
     <div class="row" style="margin-top:20px;justify-content:space-between">
       <button class="btn" id="leave" data-nav data-back>Leave</button>
       ${host ? `<button class="btn primary" id="start" data-nav ${L.heroes.length ? 'data-autofocus' : 'disabled'}>${over ? 'Fight again' : 'Begin'}</button>`
@@ -237,6 +253,8 @@ function lobby() {
     b.onclick = () => cycle(1);
     b.addEventListener('lr', e => cycle(e.detail));
   });
+  el.querySelectorAll('[data-diff]').forEach(b => { b.onclick = () => net.send({ t: 'diff', d: b.dataset.diff }); });
+  el.querySelectorAll('[data-resume]').forEach(b => { b.onclick = () => net.send({ t: 'resume', id: b.dataset.resume }); });
   el.querySelectorAll('[data-drop]').forEach(b => { b.onclick = () => net.send({ t: 'drop', h: +b.dataset.drop }); });
   $('#copy').onclick = () => { navigator.clipboard && navigator.clipboard.writeText(link); $('#copy').textContent = 'Copied'; };
   if ($('#joinkb')) $('#joinkb').onclick = () => addHero(0);
@@ -257,11 +275,15 @@ function connect(hello) {
 function onMessage(m) {
   switch (m.t) {
     case 'reload': location.reload(); return;
-    case 'error': S.error = m.msg; net.sock.stop(); S.screen = 'title'; render(); return;
+    case 'error':
+      S.error = m.msg;
+      if (m.soft) { render(); return; }
+      net.sock.stop(); S.screen = 'title'; render(); return;
+    case 'saves': S.saves = m.list; if (!S.scene) render(); return;
     case 'replaced': S.error = 'This room was opened in another tab.'; net.sock.stop(); S.screen = 'title'; render(); return;
     case 'welcome':
       document.getElementById('status').hidden = true;
-      S.me = m.you; S.code = m.code; S.data = m.data;
+      S.me = m.you; S.code = m.code; S.data = m.data; S.diffs = m.diffs;
       S.data.colours = ['#a83030', '#3a5aa8', '#c8a040', '#3a7a5a'];
       history.replaceState(null, '', `${location.pathname}?room=${m.code}`);
       S.screen = 'lobby';
@@ -302,10 +324,12 @@ function endFight() {
     game.scene.stop('fight');
     S.scene = null;
     hideHud();
+    music.play('bonfire');
     S.screen = 'lobby';
     render();
   }, 600);
 }
 
+setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
 if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), get net() { return net; } };

@@ -5,8 +5,8 @@
 // Weapons (app/kingfall/content/weapons.py) swing shapes, fire projectiles (`proj`), drop delayed
 // area hits (`aoe`), blink, leap (`air`: untouchable) or shrug off hits (`hyper`). Each has its own
 // defensive move: block, dash, counter, blink or rollshot.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=2';
-import { placeAttack, touches, wrap } from './moves.js?v=2';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=3';
+import { placeAttack, touches, wrap } from './moves.js?v=3';
 
 export function heroFrames(h, W) {
   const p = `${h.look}.${h.colour}.`;

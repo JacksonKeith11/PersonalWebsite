@@ -5,7 +5,7 @@ copies that hunt whoever they mirror. Phase 2: it shatters the mirrors and shard
 
 from .moves import DMG, arc, circle, rect, ring, proj, spawn, pose
 
-DMG[0] = 1.15
+DMG[0] = 1.05
 GLASS = {"col": "#a0d8f0"}
 
 MOVES = {
@@ -65,7 +65,7 @@ PHASE2 = {
 
 BOSS = {
     "id": "mirror", "name": "The Mirror Knight", "tier": 3, "rig": "mirror", "art": "mirror", "arena": "glass",
-    "hp": 2700, "poise": 150, "radius": 20, "speed": 64,
+    "hp": 2400, "poise": 140, "radius": 20, "speed": 64,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
-    "adds": {"reflection": {"hp": 70, "speed": 58, "radius": 10, "dmg": 12, "art": "mirror.reflection", "life": 22, "alpha": 0.8}},
+    "adds": {"reflection": {"hp": 45, "speed": 52, "radius": 10, "dmg": 8, "art": "mirror.reflection", "life": 22, "alpha": 0.8}},
 }

@@ -16,7 +16,7 @@ MOVES = {
     "fireflask": {
         "range": (60, 400), "weight": 4, "cd": 2.5, "phase": (1, 2), "dur": 1.4, "locks": [0.0, 0.45], "reach": ("target", 0, 50, 320),
         "motion": [],
-        "hits": [circle(0.95, 1.05, 34, 0, 0, 24, FIRE, mark=0.4, tx=True), zone(1.0, 4.5, 28, 0, 0, 6, "fire", tx=True)],
+        "hits": [circle(0.95, 1.05, 34, 0, 0, 24, FIRE, mark=0.4, tx=True), zone(1.0, 4.0, 26, 0, 0, 4, "fire", tx=True)],
         "anim": THROW,
     },
     # three flasks at once, fanned around you
@@ -24,7 +24,7 @@ MOVES = {
         "range": (80, 400), "weight": 3, "cd": 4.0, "phase": (1, 2), "dur": 1.8, "locks": [0.0, 0.5], "reach": ("target", 0, 60, 300),
         "motion": [],
         "hits": [circle(1.05, 1.15, 30, s, f, 20, {"col": c}, mark=0.45, tx=True) for s, f, c in ((-60, 0, "#7fe3ff"), (0, 30, "#8be04e"), (60, 0, "#ff8a3a"))]
-        + [zone(1.1, 5.0, 26, -60, 0, 5, "ice", tx=True), zone(1.1, 5.0, 26, 0, 30, 6, "poison", tx=True), zone(1.1, 4.5, 24, 60, 0, 6, "fire", tx=True)],
+        + [zone(1.1, 4.0, 24, -60, 0, 3, "ice", tx=True), zone(1.1, 4.0, 24, 0, 30, 4, "poison", tx=True), zone(1.1, 3.5, 22, 60, 0, 4, "fire", tx=True)],
         "anim": [(0, pose()), (0.5, pose(arm_f=-170, arm_b=-170, weapon=0, torso=-12)), (0.7, pose(arm_f=-30, arm_b=-30, weapon=60, torso=12)), (1.8, pose())],
     },
     # a stamp of the stilts when you're under it
@@ -76,8 +76,8 @@ PHASE2 = {  # it transmutes the floor: pools bloom all over the laboratory
 
 BOSS = {
     "id": "alchemist", "name": "The Ashen Alchemist", "tier": 2, "rig": "alchemist", "art": "alchemist", "arena": "lab",
-    "hp": 1900, "poise": 110, "radius": 16, "speed": 58, "keep": 160,
+    "hp": 1550, "poise": 105, "radius": 16, "speed": 58, "keep": 160,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
-    "adds": {"homunculus": {"hp": 50, "speed": 44, "radius": 9, "dmg": 9, "art": "alchemist.homunculus", "life": 25}},
+    "adds": {"homunculus": {"hp": 36, "speed": 40, "radius": 9, "dmg": 6, "art": "alchemist.homunculus", "life": 25}},
     "stagger_pose": {"torso": 20, "head": 14, "arm_f": 30, "arm_b": 30, "dy": 4}, "dead_pose": {"torso": 34, "head": 20, "dy": 10},
 }

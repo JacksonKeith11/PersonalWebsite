@@ -8,6 +8,9 @@ import time
 
 from ..rooms import Codes, clean, push
 from . import content as C
+import secrets
+
+from . import save as SAVE
 from .build import ATTRS, Build
 from .content.upgrades import UPGRADES, offer as draw_offer
 from .fight import TICK, Fight
@@ -23,6 +26,11 @@ POOLS = {1: ["corvin", "mire", "bellwarden"], 2: ["headsmen", "wolf", "alchemist
 TIERS = [1, 1, 2, 2, 3, 3, 4]
 SHOP = {"reroll": 30, "flask": 120, "ember": 150}
 SWAP_AFTER = (2, 4)  # the weapon shrine is lit at the Bonfires after these fights
+# Difficulty: the host's choice. Only numbers change: boss health, boss damage, how fast bosses move
+# and recover, and whether a lone hero gets their Second Wind.
+DIFFS = {"squire": {"name": "Squire", "hp": 0.75, "dmg": 0.7, "speed": 0.9, "wind": True},
+         "knight": {"name": "Knight", "hp": 1.0, "dmg": 1.0, "speed": 1.0, "wind": True},
+         "hard": {"name": "Hard", "hp": 1.15, "dmg": 1.25, "speed": 1.12, "wind": False}}
 
 
 class Hero:
@@ -91,6 +99,8 @@ class Room:
         self.empty_since = None
         self.result = None
         self.run = []
+        self.run_id = None
+        self.diff = "knight"
         self.coins = 0
         self.bought = {}
         self.rng = random.Random()
@@ -116,7 +126,9 @@ class Room:
         if self.host is None or self.host not in self.conns or not self.conns[self.host].connected:
             self.host = c.id
         self.empty_since = None
-        self.send(c, {"t": "welcome", "you": c.id, "code": self.code, "data": C.client(), "st": round(self.now(), 3)})
+        self.send(c, {"t": "welcome", "you": c.id, "code": self.code, "data": C.client(), "st": round(self.now(), 3),
+                      "diffs": {k: v["name"] for k, v in DIFFS.items()}})
+        self.send(c, {"t": "saves", "list": SAVE.list_for(c.token.split(":")[0])})
         self.send(c, self.lobby_wire())
         if self.fight:
             self.send(c, self.fight.start_wire())
@@ -152,7 +164,7 @@ class Room:
 
     def lobby_wire(self):
         return {"t": "lobby", "state": self.state, "host": self.host, "stage": self.stage, "of": len(self.run), "run": self.run,
-                "coins": self.coins, "prices": self.prices(),
+                "coins": self.coins, "prices": self.prices(), "diff": self.diff,
                 "heroes": [h.wire() for h in sorted(self.heroes.values(), key=lambda h: h.id)],
                 "conns": [c.id for c in self.conns.values() if c.connected], "result": self.result}
 
@@ -185,6 +197,11 @@ class Room:
         elif t == "drop" and h and self.state == "lobby":
             del self.heroes[h.id]
             self.broadcast(self.lobby_wire())
+        elif t == "diff" and c.id == self.host and self.state in ("lobby", "over") and msg.get("d") in DIFFS:
+            self.diff = msg["d"]
+            self.broadcast(self.lobby_wire())
+        elif t == "resume" and c.id == self.host and self.state in ("lobby", "over"):
+            self.resume(c, str(msg.get("id"))[:40])
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:
             self.start_run(msg.get("only") if self.debug and msg.get("only") in C.BOSSES else None)
         elif self.state == "bonfire" and h:
@@ -253,6 +270,7 @@ class Room:
 
     # ------------------------------------------------------------------ the run
     def start_run(self, only=None):
+        self.run_id = secrets.token_hex(8)
         self.stage = 0
         self.result = None
         self.coins = 0
@@ -278,7 +296,7 @@ class Room:
     def start_fight(self):
         self.state = "fight"
         for h in self.heroes.values(): h.ready = False
-        self.fight = Fight(self, self.run[self.stage], list(self.heroes.values()), self.now())
+        self.fight = Fight(self, self.run[self.stage], list(self.heroes.values()), self.now(), DIFFS[self.diff])
         self.broadcast(self.lobby_wire())
         self.broadcast(self.fight.start_wire())
         if not self.task:
@@ -324,7 +342,45 @@ class Room:
         else:
             self.state = "over"
             self.result = "won" if won else "lost"
+            if self.run_id: SAVE.delete(self.run_id)
         for h in self.heroes.values():
             h.hp = h.mhp()
             h.flasks = h.max_flasks()
+        if self.state == "bonfire": self.checkpoint()
+        self.broadcast(self.lobby_wire())
+
+    # ------------------------------------------------------------------ checkpoints
+    def checkpoint(self):
+        """Save the run at the Bonfire: the bosses, the party's builds and coins."""
+        heroes = [{"token": h.conn.token.split(":")[0], "slot": h.slot, "name": h.name, "look": h.look, "weapon": h.weapon, "colour": h.colour,
+                   "level": h.level, "attrs": h.attrs, "ups": h.ups, "points": h.points, "offer": h.offer, "picks": h.picks, "swap": h.swap,
+                   "wind": h.second_wind} for h in self.heroes.values()]
+        state = {"run": self.run, "stage": self.stage, "coins": self.coins, "bought": self.bought, "diff": self.diff, "heroes": heroes}
+        boss = C.BOSSES[self.run[self.stage]]["name"] if self.stage < len(self.run) else ""
+        summary = f"{', '.join(h['name'] for h in heroes)} · fight {self.stage + 1} of {len(self.run)}, {boss} next · {DIFFS[self.diff]['name']}"
+        try:
+            SAVE.save(self.run_id, {x["token"] for x in heroes}, state, summary)
+        except Exception:
+            log.exception("kingfall save")
+
+    def resume(self, c, run_id):
+        st = SAVE.load(run_id, c.token.split(":")[0])
+        if not st:
+            self.send(c, {"t": "error", "msg": "That saved run can't be loaded.", "soft": True})
+            return
+        self.heroes = {}
+        taken = {}
+        for x in st["heroes"]:
+            owner = next((q for q in self.conns.values() if q.connected and q.token.split(":")[0] == x["token"]), None) or c
+            slot = x["slot"]
+            while (owner.id, slot) in taken: slot += 1
+            taken[(owner.id, slot)] = True
+            h = Hero(self.next_id, owner, slot, x["name"], x["look"], x["weapon"], x["colour"])
+            self.next_id += 1
+            h.level, h.attrs, h.ups, h.points = x["level"], x["attrs"], [tuple(u) for u in x["ups"]], x["points"]
+            h.offer, h.picks, h.swap, h.second_wind = [tuple(o) for o in x["offer"]], x["picks"], x["swap"], x["wind"]
+            h.changed(); h.hp = h.mhp(); h.flasks = h.max_flasks()
+            self.heroes[h.id] = h
+        self.run, self.stage, self.coins, self.bought, self.diff = st["run"], st["stage"], st["coins"], st["bought"], st["diff"]
+        self.run_id, self.result, self.state = run_id, None, "bonfire"
         self.broadcast(self.lobby_wire())

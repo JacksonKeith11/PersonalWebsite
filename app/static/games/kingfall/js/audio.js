@@ -13,6 +13,7 @@ function ac() {
   return ctx;
 }
 export function setVolume(v) { volume = v; if (master) master.gain.value = v; }
+export function audioOut() { return ac() ? { ctx, master } : null; }
 export function unlock() { ac(); }
 
 let noiseBuf = null;

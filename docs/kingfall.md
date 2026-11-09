@@ -91,7 +91,10 @@ run ends.
   next need 25% more. Poise refills (12% a second) after 3 s without poise damage. About two to four (see Testing)
   staggers a fight.
 - **Statuses** on bosses: Burn and Bleed burst for damage, Frost slows the boss and breaks poise, Rot
-  poisons over 5 s. Each meter needs 100 x 1.4^(bursts so far).
+  poisons over 5 s. Each meter needs 100 x 1.4^(bursts so far). A meter shows under the boss's bars
+  once someone has built some of that status, fills toward its burst, and glows while the status is in
+  force (4 s after a burst; Rot while it eats). The snapshot's last two boss fields carry them: percent
+  full and in-force flags, in `STATUSES` order.
 - **Boss health** scales x1.05, x2.05, x3.1, x4.1 with party size; poise x1, x1.4, x1.8, x2.2. Solo, bosses rest
   longer between moves; two-bodied bosses rest longer still.
 - **Targeting** (`pick_target`, `choose`, `target_weight` in `fight.py`): each attack picks a move *and*
@@ -265,33 +268,70 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 ## Testing
 
 - `tools/check-all.sh` runs `node tools/kingfall-parity.mjs` (the JS and Python move maths agree on every
-  move of every boss), `python3 tools/kingfall-sim.py --fast` and the browser smoke test below.
+  move of every boss), `python3 tools/kingfall-sim.py --fast` (two fights a boss and party size, and two for each weapon) and
+  the browser smoke test below.
 - **The balance sim** (`tools/kingfall-sim.py`): bot parties fight on the real server code in simulated
   time. Bots see hits coming and roll with probability `skill`, step out of pools, fight adds, break
   cores, drink and revive; they get the levels and random blessings a run gives before that boss's tier.
   `python3 tools/kingfall-sim.py "" 10 --skill 0.85` runs every boss at every party size in about a minute.
   Bots carry the skills a run gives by then (a starting one, a second from the first Bonfire) and use
-  them and the sword's special when they'd do some good; how many of a skill's hits land is an
-  estimate (`use_skill` in the sim). They never block or parry and are poor at rings and slow
-  projectiles, so treat their numbers as a rough guide.
-  Latest (Nov 2026, 12 fights each at skill 0.85; win % solo / 2 / 3 / 4): Corvin 67/67/92/100, Mire
-  100/100/92/100, Bellwarden 100/83/100/100, Headsmen 67/75/92/100, Wolf 92/92/100/100, Alchemist
-  67/100/100/100, Wyrm 100/100/100/100, Mirror 75/100/100/100, Bastion 92/92/100/100, Moth 92/83/100/100,
-  King 83/92/100/100, Drake 100/92/92/92. Middling bots (skill 0.6, 6 fights each): Corvin 33/17/17/83,
-  Mire 83/100/100/100, Bellwarden 67/100/100/100, Headsmen 33/33/17/50, Wolf 67/83/100/100, Alchemist
-  50/67/100/100, Wyrm 33/17/50/50, Mirror 33/67/100/100, Bastion 33/33/33/83, Moth 83/100/100/100, King
-  50/17/17/33, Drake 50/33/50/33. Samples this small swing by 20 points either way. Fights run 1 to 2.5
-  minutes and bosses stagger two to four times (five for the Headsmen and the finals with a full party):
-  more than the one to three the owner asked for, so poise is the next thing to raise if it feels cheap.
-- **Why these numbers moved** (Nov 2026): until bots used skills and specials they won 16-66% of the
+  them when they'd do some good; how many of a skill's hits land is an estimate (`use_skill` in the sim).
+- **Bots fight with every weapon** (`--weapon bow`, or `mixed`; the default is the sword). They stand
+  inside a melee weapon's reach or well back with a bow or catalyst (backing off when the boss closes),
+  run the light combo, use the special when there's Focus and it reaches, and wind up the charged heavy
+  on a staggered boss for the critical. The daggers dodge with their dash (two charges), the catalyst
+  with its blink (to a spot nothing is about to hit). Lights are checked against their real shapes;
+  heavies and specials by reach; arrows and bolts hit what's in range, ignoring flight time. Bots never
+  block, parry or counter, have endless stamina (so rolls are free where dashes are counted), and are
+  poor at rings and slow projectiles: treat the numbers as a rough guide.
+- **The weapons table** (`python3 tools/kingfall-sim.py "" 8 --weapons --skill 0.85`, about five
+  minutes): each weapon alone / in a pair of the same, then mixed parties of 3 / 4. Latest (Nov 2026,
+  8 fights a cell, win %):
+
+  | Boss | Sword | Greatsword | Daggers | Halberd | Bow | Catalyst | Mixed 3/4 |
+  |---|---|---|---|---|---|---|---|
+  | Corvin | 62/88 | 75/100 | 50/62 | 75/100 | 62/88 | 100/100 | 100/100 |
+  | Mire | 88/100 | 100/100 | 100/88 | 88/100 | 62/75 | 100/100 | 100/100 |
+  | Bellwarden | 100/75 | 100/88 | 88/88 | 100/100 | 100/100 | 100/100 | 100/100 |
+  | Headsmen | 88/50 | 100/88 | 50/38 | 75/100 | 50/88 | 100/100 | 100/100 |
+  | Wolf | 100/100 | 100/100 | 100/75 | 100/88 | 75/100 | 100/100 | 88/100 |
+  | Alchemist | 62/88 | 75/75 | 50/88 | 75/100 | 62/88 | 88/100 | 100/100 |
+  | Wyrm | 88/75 | 75/100 | 12/0 | 75/88 | 100/88 | 100/88 | 100/100 |
+  | Mirror | 88/100 | 75/100 | 75/88 | 88/100 | 100/100 | 100/100 | 100/100 |
+  | Bastion | 88/88 | 100/100 | 38/12 | 100/100 | 75/88 | 100/100 | 100/100 |
+  | Moth | 100/88 | 100/100 | 100/75 | 100/88 | 12/62 | 0/88 | 88/100 |
+  | King | 88/100 | 100/75 | 0/0 | 88/88 | 50/38 | 25/25 | 100/100 |
+  | Drake | 100/100 | 75/75 | 75/38 | 88/75 | 75/25 | 62/75 | 100/62 |
+  | All | 88 | 91 | 58 | 91 | 73 | 85 | 97 |
+
+  Fights average 1.2 to 1.7 minutes and 1.4 to 2.6 staggers. With 8 fights a cell, one cell swings by
+  25 points; read the columns. **Daggers are the weakest**, and all but hopeless against the Wyrm, the
+  Bastion and the King. Before this pass they won 35% (base 13 to 16, dash recharge 1.2 s to 0.8 s,
+  more poise on every attack, Shadowstep x2.2 to x2.6): part of what's left is the sim (dashes are
+  counted, rolls aren't), part is real (two dashes don't cover a four-hit flourish, and without
+  staggers there are no free hits). The catalyst's first 49% was the bots blinking into the next hit,
+  not the weapon; its base went 17 to 18. Parties of three and four win nearly everything.
+- **Earlier numbers** (Nov 2026, sword parties before bots used heavies; 12 fights each at skill 0.85;
+  solo / 2 / 3 / 4): Corvin 67/67/92/100, Headsmen 67/75/92/100, Alchemist 67/100/100/100, the rest
+  83-100. Middling bots (skill 0.6) won a third to a half of Corvin, the Headsmen, the Wyrm, the
+  Bastion and the finals. Bosses staggered two to four times (five for the Headsmen and the finals with
+  a full party): more than the one to three the owner asked for, so poise is the next thing to raise
+  if it feels cheap.
+- **Why the boss numbers moved** (Nov 2026): until bots used skills and specials they won 16-66% of the
   hard fights; once they did, with the old numbers, they won about 95% of everything. One tuning pass
   brought it back: `POISE_K` 1.8 to 2.6, boss health scale 0.9/1.8/2.7/3.6 to 1.05/2.05/3.1/4.1, and the
   skills' poise damage cut by about a third.
-- **The browser smoke test** (`node tools/kingfall-smoke.js --serve`, about 15 s, in `check-all.sh`):
-  starts its own server, makes a debug room, picks a starting skill, uses it in a fight, wins, learns a
-  second at the Bonfire and uses that; fails on any page error. Skipped (not failed) where Playwright
-  isn't installed. Without `--serve` it runs against a server you started.
-- `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the fight.
+- **The browser smoke test** (`node tools/kingfall-smoke.js --serve`, about 40 s, in `check-all.sh`):
+  starts its own server. One player: picks a starting skill, uses it, wins, learns a second at the
+  Bonfire, uses that. Then two players in one room (two browser contexts): each must see the other's
+  skill announced and animated, a ward on the other's hero and HUD card, a lance in flight, the boss
+  hurt and its Burn meter showing; both go through the Bonfire into the second fight. Fails on any page
+  error. Skipped (not failed) where Playwright isn't installed. Without `--serve` it runs against a
+  server you started. It doesn't cover going down and being revived, couch players, or a reconnect.
+  (The game reuses one fight scene object across fights: anything a test hangs on it outlives the fight.)
+- `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the
+  fight, `window.kf.safe()` makes this fight's boss walk about without ever attacking (for tests that
+  stand and look).
 - `python3 tools/kingfall-art/anim.py <boss|weapon> <move> out.png` draws a move's keyframes as a strip;
   `sheet.py` reviews bosses beside a hero at game size; `preview.py` the heroes.
 
@@ -314,6 +354,11 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   `BOSS_RIG`), then `build.py`, then a content file registered in `content/__init__.py` and `POOLS`.
 - **Cache versions**: `python3 tools/bump-version.py app/static/games/kingfall` after changing its JS or
   CSS. The atlas is loaded with the page's version, so a rebuilt atlas also needs a bump.
+- **A shot's `hit` window is a moment, not a span.** Projectiles and called-down areas have 10 ms
+  windows, narrower than a frame, so `checkHit` looses them on the first frame at or after `hit[0]`.
+  (Until Nov 2026 it required a frame inside the window, and about four shots in ten never left the
+  hero: every bow and catalyst attack, and the thrown skills. The two-player smoke test found it.)
+  Melee shapes still need a frame inside their window; keep those 60 ms or wider.
 - **A new skill** needs only an entry in `content/skills.py` if it's built from the existing pieces
   (`shape`, `proj`, `aoe`, `blink`, `empower`, `rally`, `heal`, `ward`, `status`; poses `cast` and
   `raise`; `stamina` and `focus` are applied by the browser). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.

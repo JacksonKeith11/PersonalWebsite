@@ -167,6 +167,7 @@ class Fight:
         self.solo = len(heroes) == 1
         self.tier = self.boss.get("tier", 1)
         self.dmg_scale = self.diff["dmg"]
+        self.calm = False         # debug rooms: the boss only walks about, never attacks (browser tests)
         self.adds = {}
         self.add_seq = 0
         self.heroes = {}
@@ -791,7 +792,7 @@ class Fight:
         if not t:
             b.vx = b.vy = 0
             return
-        if now >= b.until:
+        if now >= b.until and not self.calm:
             pick = self.choose(b, now)
             if pick:
                 mid, b.target = pick
@@ -813,7 +814,11 @@ class Fight:
     def snapshot(self, now):
         return {"t": "s", "st": round(now, 3),
                 "b": [[round(b.x, 1), round(b.y, 1), round(b.vx, 1), round(b.vy, 1), round(b.face, 3), b.hp, b.mhp,
-                       round(b.poise), b.mpoise, b.phase, b.state, [round(c) for c in b.cores]] for b in self.bodies],
+                       round(b.poise), b.mpoise, b.phase, b.state, [round(c) for c in b.cores],
+                       # each status: how full its meter is (%), and whether it's in force (burst lately; rot still eating)
+                       [min(100, round(100 * b.meter[k] / (100 * 1.4 ** b.procs[k]))) for k in STATUSES],
+                       [1 if now - b.marked[k] < STATUS_LIVE or (k == "rot" and b.rot_until > now) else 0 for k in STATUSES]]
+                      for b in self.bodies],
                 "a": [[a["id"], a["kind"], round(a["x"], 1), round(a["y"], 1), round(a["hp"]), round(a["mhp"])] for a in self.adds.values()],
                 "h": [[f.hero.id, round(f.x, 1), round(f.y, 1), round(f.face, 2), f.anim, round(f.at, 2), f.hero.hp, f.hero.mhp(),
                        f.hero.flasks, 1 if f.down else (2 if f.dead else 0),

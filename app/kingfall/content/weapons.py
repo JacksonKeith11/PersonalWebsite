@@ -84,28 +84,28 @@ GREATSWORD = {
 }
 
 DAGGERS = {
-    "id": "daggers", "name": "Twin Daggers", "art": "dagger", "base": 13, "blurb": "Fast and slippery. A dash instead of a roll; build bleed.",
+    "id": "daggers", "name": "Twin Daggers", "art": "dagger", "base": 16, "blurb": "Fast and slippery. A dash instead of a roll; build bleed.",
     "light": [
-        {"dur": 0.22, "hit": (0.05, 0.11), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.0, "poise": 5, "st": 7, "step": 6, "next": 0.12,
+        {"dur": 0.22, "hit": (0.05, 0.11), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.0, "poise": 7, "st": 7, "step": 6, "next": 0.12,
          "anim": [(0, sw(-170, 120)), (0.05, sw(-100, 30, torso=4)), (0.11, sw(-40, -30, torso=8)), (0.22, sw(-40, -20))]},
-        {"dur": 0.22, "hit": (0.05, 0.11), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.0, "poise": 5, "st": 7, "step": 6, "next": 0.12,
+        {"dur": 0.22, "hit": (0.05, 0.11), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.0, "poise": 7, "st": 7, "step": 6, "next": 0.12,
          "anim": [(0, off(-170, 120)), (0.05, off(-100, 30, torso=4, front=1)), (0.11, off(-40, -30, torso=8, front=1)), (0.22, off(-40, -20, front=1))]},
-        {"dur": 0.24, "hit": (0.06, 0.12), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.1, "poise": 6, "st": 7, "step": 6, "next": 0.13,
+        {"dur": 0.24, "hit": (0.06, 0.12), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.1, "poise": 8, "st": 7, "step": 6, "next": 0.13,
          "anim": [(0, sw(-20, -40)), (0.06, sw(-90, 20, torso=4)), (0.12, sw(-160, 100, torso=-4)), (0.24, sw(-150, 100))]},
-        {"dur": 0.24, "hit": (0.06, 0.12), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.1, "poise": 6, "st": 7, "step": 6, "next": 0.13,
+        {"dur": 0.24, "hit": (0.06, 0.12), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.1, "poise": 8, "st": 7, "step": 6, "next": 0.13,
          "anim": [(0, off(-20, -40)), (0.06, off(-90, 20, torso=4, front=1)), (0.12, off(-160, 100, torso=-4, front=1)), (0.24, off(-150, 100, front=1))]},
-        {"dur": 0.4, "hit": (0.1, 0.18), "shape": {"k": "rect", "x0": 0, "x1": 50, "w": 10}, "mult": 1.8, "poise": 12, "st": 10, "step": 18, "next": 0.3,
+        {"dur": 0.4, "hit": (0.1, 0.18), "shape": {"k": "rect", "x0": 0, "x1": 50, "w": 10}, "mult": 1.8, "poise": 16, "st": 10, "step": 18, "next": 0.3,
          "anim": [(0, both(10, 0, torso=-8)), (0.1, both(-90, 0, torso=14, lean=6, front=1)), (0.2, both(-90, 0, torso=14, lean=6, front=1)),
                   (0.4, both(-60, 20))]},
     ],
     "heavy": {"charge": 0.6, "dur": 0.45, "hit": (0.14, 0.22), "shape": {"k": "arc", "r": 44, "a0": -70, "a1": 70},
-              "mult": (1.6, 2.4), "poise": (14, 24), "st": 18, "step": -30,
+              "mult": (1.6, 2.4), "poise": (20, 34), "st": 18, "step": -30,
               "hold": both(-120, 150, torso=-6, front=1),
               "anim": [(0, both(-120, 150, torso=-8, front=1)), (0.14, both(-70, 10, torso=4, front=1)), (0.22, both(-20, -50, torso=10, front=1)), (0.45, pose())]},
     "special": {"name": "Shadowstep", "focus": 30, "dur": 0.45, "hit": (0.08, 0.16), "shape": {"k": "arc", "r": 44, "a0": -90, "a1": 90}, "blink": 70,
-                "mult": 2.2, "poise": 20, "step": 0,
+                "mult": 2.6, "poise": 30, "step": 0,
                 "anim": [(0, both(-190, 120, torso=-10)), (0.08, both(-100, 20, torso=6, front=1)), (0.16, both(-30, -40, torso=12, front=1)), (0.45, pose())]},
-    "guard": {"kind": "dash", "charges": 2, "recharge": 1.2, "dist": 70, "dur": 0.24, "st": 15, "anim": pose()},
+    "guard": {"kind": "dash", "charges": 2, "recharge": 0.8, "dist": 70, "dur": 0.24, "st": 15, "anim": pose()},
     "offhand": "dagger",
 }
 
@@ -152,7 +152,7 @@ BOW = {
 }
 
 CATALYST = {
-    "id": "catalyst", "name": "Catalyst", "art": "staff", "base": 17, "blurb": "Spells. Bolts and a charged orb; a blink instead of a roll.",
+    "id": "catalyst", "name": "Catalyst", "art": "staff", "base": 18, "blurb": "Spells. Bolts and a charged orb; a blink instead of a roll.",
     "light": [
         {"dur": 0.4, "hit": (0.14, 0.15), "proj": {"v": 280, "r": 6, "life": 1.2, "col": "#a0c0ff"}, "mult": 1.0, "poise": 7, "st": 10, "step": 0, "next": 0.24,
          "anim": [(0, sw(-70, 80)), (0.07, sw(-110, 70, torso=-4)), (0.14, sw(-95, 10, torso=8, lean=3)), (0.4, sw(-70, 50))]},

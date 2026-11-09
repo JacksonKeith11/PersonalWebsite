@@ -7,6 +7,8 @@ drink when low and revive the fallen.
     python3 tools/kingfall-sim.py                     all bosses, parties of 1-4, 20 fights each
     python3 tools/kingfall-sim.py corvin 40 --size 2   one boss, 40 fights, parties of 2
     python3 tools/kingfall-sim.py --skill 0.6         weaker bots (default 0.8)
+    python3 tools/kingfall-sim.py --weapon bow        every bot carries a bow (default sword; or 'mixed')
+    python3 tools/kingfall-sim.py "" 8 --weapons      the weapons table: each weapon alone and paired, mixed 3s and 4s
 
 Prints win rate, average fight length and hits taken per hero. A fight about two to four minutes
 long that skilled bots win most of the time and middling ones about half the time is the target
@@ -46,12 +48,23 @@ class Bot:
         self.swing = 0
         self.decided = set()
         self.revive_t = 0.0
-        self.W = C.WEAPONS[fh.hero.weapon]
+        self.W = W = C.WEAPONS[fh.hero.weapon]
+        first = W["light"][0]
+        self.ranged = "proj" in first
+        # how close it stands to fight: inside its first light attack's reach, or well back with a bow or catalyst
+        self.stand = 150 if self.ranged else (first["shape"]["r"] if first["shape"]["k"] == "arc" else first["shape"]["x1"] * 0.9) * 0.8
+        # its dodge: a roll, the daggers' dash (two charges) or the catalyst's blink
+        G, R = W["guard"], C.HERO["roll"]
+        self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"] - 0.04)} if G["kind"] == "dash"
+                      else {"dur": 0.16, "dist": G["dist"], "if": (0.0, 0.16), "blink": True} if G["kind"] == "blink"
+                      else {"dur": R["dur"], "dist": R["dist"], "if": R["iframes"]})
+        self.dashes, self.dash_t = G.get("charges", 0), 0.0
+        self.act = None    # the attack being made: (kind, its data, when it lands, when it ends)
         self.cd = {}       # skill id -> when it's ready again
         self.focus = 40.0
 
     def iframes(self):
-        a, b = C.HERO["roll"]["iframes"]
+        a, b = self.dodge["if"]
         return self.state == "roll" and a <= self.t <= b
 
 
@@ -110,11 +123,16 @@ def step_bot(b, f, now, dt, bots):
         bx, by = body.core_pos(core_i)
     d = math.hypot(bx - fh.x, by - fh.y)
     toward = math.atan2(by - fh.y, bx - fh.x)
+    G = b.W["guard"]
+    if G["kind"] == "dash" and b.dashes < G["charges"]:
+        b.dash_t += dt
+        if b.dash_t >= G["recharge"]: b.dashes += 1; b.dash_t = 0.0
     if b.state == "roll":
-        R = H["roll"]
-        sp = R["dist"] / R["dur"]
-        fh.x += math.cos(b.roll_dir) * sp * dt; fh.y += math.sin(b.roll_dir) * sp * dt
-        fh.x, fh.y = f.clamp(fh.x, fh.y)
+        R = b.dodge
+        if not R.get("blink"):
+            sp = R["dist"] / R["dur"]
+            fh.x += math.cos(b.roll_dir) * sp * dt; fh.y += math.sin(b.roll_dir) * sp * dt
+            fh.x, fh.y = f.clamp(fh.x, fh.y)
         if b.t >= R["dur"]: b.state, b.t = "idle", 0.0
         return
     if b.state == "hurt":
@@ -129,9 +147,16 @@ def step_bot(b, f, now, dt, bots):
         if (until <= 0.12 + b.rng.uniform(-0.05, 0.05) * (1 - b.skill) or until <= 0.05) and b.state in ("idle", "atk"):
             b.decided.add(key)
             if b.rng.random() < b.skill:
-                b.state, b.t = "roll", 0.0
+                if G["kind"] == "dash":
+                    if b.dashes <= 0: continue   # out of dashes: it takes the hit
+                    b.dashes -= 1
+                b.state, b.t, b.act = "roll", 0.0, None
                 side = b.rng.choice((-1, 1))
                 b.roll_dir = toward + math.pi if long else (toward + side * math.pi / 2 if d < 70 else toward + math.pi)
+                if b.dodge.get("blink"):   # a blink is there at once: go where nothing is about to land, as a player would
+                    spots = [f.clamp(fh.x + math.cos(a) * b.dodge["dist"], fh.y + math.sin(a) * b.dodge["dist"])
+                             for a in (b.roll_dir, toward + math.pi, toward + math.pi / 2, toward - math.pi / 2, toward + 2.4, toward - 2.4)]
+                    fh.x, fh.y = next((p for p in spots if not danger(f, p[0], p[1], 0.6)), spots[0])
                 return
     if b.state == "idle":  # step out of any pool you're standing in, as a player would
         for m in f.moves():
@@ -145,21 +170,12 @@ def step_bot(b, f, now, dt, bots):
                     fh.x, fh.y = f.clamp(fh.x, fh.y)
                     return
     if b.state == "atk":
-        atk = b.W["light"][b.combo]
-        if atk["hit"][0] <= b.t and not getattr(b, "landed", False):
-            s = place_attack(atk["shape"], fh.x, fh.y, toward)
-            r = near_add["r"] if target[0] == "add" else body.d["cores"][core_i]["r"] if core_i is not None else body.d["radius"]
-            if touches(s, bx, by, r):
-                b.swing += 1
-                if target[0] == "add":
-                    f.hit_add(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "a": near_add["id"]}, now)
-                else:
-                    f.hit_boss(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "e": body.e, "core": core_i}, now)
-                    b.focus = min(100.0, b.focus + b.W["base"] * atk["mult"] * H["focus_per_dmg"])
-                b.landed = True
-        if b.t >= atk["dur"]:
-            b.combo = (b.combo + 1) % len(b.W["light"])
-            b.state, b.t = "idle", 0.0
+        if b.act and not b.landed and b.t >= b.act[2]:
+            b.landed = True
+            land(b, f, now, target, body, near_add, core_i, bx, by, d, toward)
+        if b.t >= (b.act[3] if b.act else 0.4):
+            if b.act and b.act[0] == "light": b.combo = (b.combo + 1) % len(b.W["light"])
+            b.state, b.t, b.act = "idle", 0.0, None
         return
     # revive a fallen friend close by
     fallen = [o.fh for o in bots if o.fh.down and not o.fh.dead and o is not b]
@@ -180,16 +196,63 @@ def step_bot(b, f, now, dt, bots):
         return
     busy = body.move is not None and now - body.move.start < body.move.data["dur"] * 0.6
     if b.state == "idle" and use_skill(b, f, now, d, body, target, bots): return
-    if b.state == "idle" and target[0] == "body" and not busy and b.focus >= b.W["special"]["focus"] and "shape" in b.W["special"] and d < 40:
-        b.focus -= b.W["special"]["focus"]; b.swing += 1   # the weapon's special, when there's the Focus for it
-        f.hit_boss(fh.hero.id, {"atk": "special", "sw": b.swing, "e": body.e, "core": core_i}, now)
-        b.state, b.t, b.landed, b.combo = "atk", 0.0, True, 0
-        return
-    if d > (22 if core_i is not None else 34):
+    stand = min(b.stand, 22) if core_i is not None and not b.ranged else b.stand
+    if b.ranged and d < 80 and target[0] == "body":   # archers and casters back away
+        fh.x -= math.cos(toward) * H["speed"] * dt; fh.y -= math.sin(toward) * H["speed"] * dt
+    elif d > stand + (20 if b.ranged else 0):
         fh.x += math.cos(toward) * H["speed"] * dt; fh.y += math.sin(toward) * H["speed"] * dt
-    elif (target[0] == "add" or not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
+    elif (target[0] == "add" or b.ranged or not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
+        W, sp, hv = b.W, b.W["special"], b.W["heavy"]
+        kind, atk, at = "light", W["light"][b.combo], 0.0
+        if target[0] == "body":
+            left = body.until - now if body.state == "stagger" else 0.0
+            if left > hv["charge"] + hv["hit"][0] + 0.1 and fh.hero.id not in body.crit_by and reach(hv) + body.d["radius"] >= d:
+                kind, atk, at = "heavy", hv, hv["charge"]   # a staggered boss: wind up the charged heavy for the critical
+            elif b.focus >= sp["focus"] and reach(sp) + body.d["radius"] >= d and (not b.ranged or d > 90):
+                kind, atk = "special", sp
+                b.focus -= sp["focus"]
+        b.act = (kind, atk, at + atk["hit"][0], at + atk["dur"])
         b.state, b.t, b.landed = "atk", 0.0, False
     fh.x, fh.y = f.clamp(fh.x, fh.y)
+
+
+def reach(atk):
+    """How far an attack reaches from where the hero stands, counting its lunge, leap or blink."""
+    far = max(0, atk.get("step", 0)) + atk.get("blink", 0)
+    if "proj" in atk: return atk["proj"]["v"] * atk["proj"]["life"] * 0.8
+    if "aoe" in atk: return atk["aoe"]["at"] + atk["aoe"]["r"]
+    sh = atk["shape"]
+    return far + (sh["x1"] if sh["k"] == "rect" else sh["r"] + sh.get("x", 0))
+
+
+def land(b, f, now, target, body, near_add, core_i, bx, by, d, toward):
+    """A bot's attack reaches its moment: report what it hit, as a browser would. Lights are checked
+    against their real shape; a heavy or special by its reach; arrows and bolts hit what's in range (a
+    volley lands more of its shots up close); a called-down area lands about half its ticks."""
+    fh = b.fh
+    kind, atk = b.act[0], b.act[1]
+    r = near_add["r"] if target[0] == "add" else body.d["cores"][core_i]["r"] if core_i is not None else body.d["radius"]
+    if "proj" in atk:
+        n = atk["proj"].get("n", 1)
+        hits = 0 if d > reach(atk) + r else 1 if n == 1 or d > 90 else 2 if d > 45 else n
+    elif "aoe" in atk:
+        hits = (atk["aoe"]["ticks"] + 1) // 2 if abs(d - atk["aoe"]["at"]) < atk["aoe"]["r"] + r else 0
+    elif kind == "light":
+        hits = 1 if touches(place_attack(atk["shape"], fh.x, fh.y, toward), bx, by, r) else 0
+    else:
+        hits = 1 if d <= reach(atk) + r else 0
+        if hits and (atk.get("step", 0) > 40 or atk.get("blink")):   # a leap or a blink carries the hero to the target
+            k = max(0.0, d - 30)
+            fh.x, fh.y = f.clamp(fh.x + math.cos(toward) * k, fh.y + math.sin(toward) * k)
+    for _ in range(hits):
+        b.swing += 1
+        msg = {"atk": kind, "i": b.combo, "c": 1.0, "sw": b.swing}
+        if target[0] == "add":
+            f.hit_add(fh.hero.id, {**msg, "a": near_add["id"]}, now)
+        else:
+            f.hit_boss(fh.hero.id, {**msg, "e": body.e, "core": core_i}, now)
+            mult = atk["mult"][1] if isinstance(atk["mult"], tuple) else atk["mult"]
+            if kind != "special": b.focus = min(100.0, b.focus + b.W["base"] * mult * C.HERO["focus_per_dmg"])
 
 
 def use_skill(b, f, now, d, body, target, bots):
@@ -228,7 +291,7 @@ def use_skill(b, f, now, d, body, target, bots):
         for _ in range(hits):
             b.swing += 1
             f.hit_boss(fh.hero.id, {"atk": "skill", "sk": sid, "sw": b.swing, "e": body.e}, now)
-        b.state, b.t, b.landed, b.combo = "atk", 0.0, True, 0   # the cast takes about as long as a swing
+        b.state, b.t, b.landed, b.combo, b.act = "atk", 0.0, True, 0, None   # the cast takes about as long as a swing
         return True
     return False
 
@@ -254,10 +317,16 @@ def level_up(h, n, rng, size):
     h.changed(); h.hp = h.mhp(); h.flasks = h.max_flasks()
 
 
-def fight_once(boss, size, skill, seed, limit=900):
+WEAPONS = list(C.WEAPONS)
+
+
+def fight_once(boss, size, skill, seed, limit=900, weapon="sword"):
+    """One fight. `weapon`: every bot carries it, or "mixed" for a different weapon each (which ones
+    turns with the seed)."""
     rng = random.Random(seed)
     random.seed(seed)
-    heroes = [Hero(i + 1, None, i, f"Bot{i + 1}", "knight", "sword", i) for i in range(size)]
+    carry = [WEAPONS[(seed + i * 5) % len(WEAPONS)] if weapon == "mixed" else weapon for i in range(size)]
+    heroes = [Hero(i + 1, None, i, f"Bot{i + 1}", "knight", carry[i], i) for i in range(size)]
     for h in heroes: level_up(h, STAGE[C.BOSSES[boss].get("tier", 1)] - 1 + rng.randint(0, 1), rng, size)
     st = Stub()
     f = Fight(st, boss, heroes, 0.0)
@@ -279,22 +348,54 @@ def main():
     ap.add_argument("--size", type=int, default=0)
     ap.add_argument("--skill", type=float, default=0.8)
     ap.add_argument("--fast", action="store_true", help="a quick run for tools/check-all.sh")
+    ap.add_argument("--weapon", default="sword", help="what the bots carry: a weapon's id, or 'mixed'")
+    ap.add_argument("--weapons", action="store_true", help="the weapons table: each weapon alone and in a pair, and mixed parties of 3 and 4")
     a = ap.parse_args()
+    if a.weapons: return weapons_table(a)
     bosses = [a.boss] if a.boss else list(C.BOSSES)
     sizes = [a.size] if a.size else [1, 2, 3, 4]
     n = 2 if a.fast else a.n
     bad = False
     for boss in bosses:
         for size in sizes:
-            rs = [fight_once(boss, size, a.skill, s) for s in range(n)]
+            rs = [fight_once(boss, size, a.skill, s, weapon=a.weapon) for s in range(n)]
             w = sum(r["won"] for r in rs) / n
             t = sum(r["time"] for r in rs) / n
             print(f"{boss:12} party {size}  won {w * 100:5.1f}%  {t / 60:4.1f} min  hits/hero {sum(r['hits'] for r in rs) / n:5.1f}  "
                   f"downs {sum(r['downs'] for r in rs) / n:4.1f}  staggers {sum(r['staggers'] for r in rs) / n:4.1f}  "
                   f"boss hp left {sum(r['hp'] for r in rs) / n * 100:4.0f}%  reached phase 2 {sum(r['phase'] == 2 for r in rs)}/{n}")
             if any(r["time"] >= 899 for r in rs): bad = True
+    if a.fast:  # every weapon gets a fight or two, so none can break unnoticed
+        for i, w in enumerate(WEAPONS):
+            for boss in (list(C.BOSSES)[i], list(C.BOSSES)[i + 6]):
+                r = fight_once(boss, 1 + i % 2, a.skill, i, weapon=w)
+                print(f"{boss:12} {w:10} party {1 + i % 2}  {'won' if r['won'] else 'lost'}  {r['time'] / 60:4.1f} min")
+                if r["time"] >= 899: bad = True
     if bad:
         print("a fight hit the time limit: the boss or the bots are stuck"); sys.exit(1)
+
+
+def weapons_table(a):
+    """Win % for each weapon (every bot carrying it) alone / in a pair, then mixed parties of 3 / 4,
+    against each boss; then each weapon's averages. `n` fights a cell."""
+    bosses = [a.boss] if a.boss else list(C.BOSSES)
+    cols = [(w, (1, 2)) for w in WEAPONS] + [("mixed", (3, 4))]
+    tot = {w: [0, 0, 0.0, 0.0] for w, _ in cols}   # wins, fights, minutes, staggers
+    print(f"{'':12}" + "".join(f"{w:>12}" for w, _ in cols))
+    for boss in bosses:
+        row = f"{boss:12}"
+        for w, sizes in cols:
+            cell = []
+            for size in sizes:
+                rs = [fight_once(boss, size, a.skill, s, weapon=w) for s in range(a.n)]
+                cell.append(round(100 * sum(r["won"] for r in rs) / a.n))
+                t = tot[w]
+                t[0] += sum(r["won"] for r in rs); t[1] += a.n; t[2] += sum(r["time"] for r in rs) / 60; t[3] += sum(r["staggers"] for r in rs)
+            row += f"{'/'.join(map(str, cell)):>12}"
+        print(row, flush=True)
+    print(f"{'won %':12}" + "".join(f"{100 * tot[w][0] / tot[w][1]:>12.0f}" for w, _ in cols))
+    print(f"{'minutes':12}" + "".join(f"{tot[w][2] / tot[w][1]:>12.1f}" for w, _ in cols))
+    print(f"{'staggers':12}" + "".join(f"{tot[w][3] / tot[w][1]:>12.1f}" for w, _ in cols))
 
 
 if __name__ == "__main__":

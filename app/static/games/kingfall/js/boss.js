@@ -3,9 +3,9 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=8';
-import { LiveMove, placeHit, touches } from './moves.js?v=8';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=8';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=11';
+import { LiveMove, placeHit, touches } from './moves.js?v=11';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=11';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -103,10 +103,10 @@ export class Boss {
     rows.forEach((row, e) => {
       const b = this.bodies[e];
       if (!b) return;
-      const [x, y, vx, vy, face, hp, mhp, po, mpo, ph, state, cores] = row;
+      const [x, y, vx, vy, face, hp, mhp, po, mpo, ph, state, cores, meters, live] = row;
       if (state === 'stagger' && b.state !== 'stagger') b.staggerT = 0;
       b.snap = { st, x, y, vx, vy };
-      Object.assign(b, { face, hp, mhp, poise: po, mpoise: mpo, phase: ph, state, cores });
+      Object.assign(b, { face, hp, mhp, poise: po, mpoise: mpo, phase: ph, state, cores, meters: meters || [], live: live || [] });
     });
     const seen = new Set();
     for (const [id, kind, x, y, hp, mhp] of adds || []) {

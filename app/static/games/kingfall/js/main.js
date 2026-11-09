@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=8';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=8';
-import { Net, ME } from './net.js?v=8';
-import { FightScene } from './fight.js?v=8';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=8';
-import { unlock, sfx, setVolume } from './audio.js?v=8';
-import { music } from './music.js?v=8';
+import { setAtlas } from './rig.js?v=11';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=11';
+import { Net, ME } from './net.js?v=11';
+import { FightScene } from './fight.js?v=11';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=11';
+import { unlock, sfx, setVolume } from './audio.js?v=11';
+import { music } from './music.js?v=11';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -54,7 +54,7 @@ function frame() {
   if (S.screen === 'lobby') lobbyDevices();
   setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
-if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), get net() { return net; } };
+if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
 }
 
 function lobbyDevices() {
@@ -371,4 +371,4 @@ function endFight() {
 
 setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
-if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), get net() { return net; } };
+if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };

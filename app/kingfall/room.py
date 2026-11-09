@@ -216,6 +216,8 @@ class Room:
             self.bonfire(h, t, msg)
         elif t == "debugwin" and self.debug and self.fight:
             self.fight.die(now)
+        elif t == "debugsafe" and self.debug and self.fight:  # this fight's boss never attacks (tests that stand about)
+            self.fight.calm = True
         elif self.fight and h:
             f = self.fight
             if t == "st": f.report(h.id, msg)

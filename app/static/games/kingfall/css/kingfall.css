@@ -121,3 +121,12 @@ div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); 
 @keyframes sk-no { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 .buffs { display: flex; flex-wrap: wrap; gap: 4px; }
 .buffs span { font-size: 10px; font-weight: 600; color: var(--k); border: 1px solid var(--k); border-radius: 8px; padding: 0 6px; margin-top: 4px; background: #0008; }
+/* status meters under a boss's bars: one per status someone is building */
+.statuses { display: flex; justify-content: center; gap: 10px; min-height: 14px; margin-top: 4px; }
+.stm { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; }
+.stm[hidden] { display: none; }
+.stm b { color: var(--k); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 1px 2px #000; }
+.stm .bar { display: block; width: 64px; height: 4px; }
+.stm .bar > i { background: var(--k); }
+.stm.live b { text-shadow: 0 0 6px var(--k), 0 1px 2px #000; }
+.stm.live .bar { box-shadow: 0 0 0 1px var(--k), 0 0 6px var(--k); }

@@ -1,13 +1,13 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=8';
-import { LocalHero, RemoteHero } from './hero.js?v=8';
-import { Boss } from './boss.js?v=8';
-import { drawArena } from './arenas.js?v=8';
-import { sfx } from './audio.js?v=8';
-import { music } from './music.js?v=8';
-import { deviceOfSlot } from './input.js?v=8';
-import { orb, arrow, impact, pillar } from './fx.js?v=8';
+import { addFrames } from './rig.js?v=11';
+import { LocalHero, RemoteHero } from './hero.js?v=11';
+import { Boss } from './boss.js?v=11';
+import { drawArena } from './arenas.js?v=11';
+import { sfx } from './audio.js?v=11';
+import { music } from './music.js?v=11';
+import { deviceOfSlot } from './input.js?v=11';
+import { orb, arrow, impact, pillar } from './fx.js?v=11';
 
 const INTERP = 0.1;
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)

@@ -1,10 +1,10 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=8';
-import { heroFrames } from './hero.js?v=8';
-import { sfx } from './audio.js?v=8';
-import { skillKey, deviceOfSlot } from './input.js?v=8';
+import { paintRig, atlas } from './rig.js?v=11';
+import { heroFrames } from './hero.js?v=11';
+import { sfx } from './audio.js?v=11';
+import { skillKey, deviceOfSlot } from './input.js?v=11';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -106,10 +106,14 @@ export function buildHud(boss, heroes, colours, mineIds, skills = {}) {
         <div class="downtxt"></div>
       </div>`).join('')}</div>
     <div class="bossbar">${(boss.bodies || [boss]).map((b, e) => `<div class="bbody" id="bb-${e}"><div class="bname">${esc(b.name || boss.name)}</div>
-      <div class="bar"><i class="lag"></i><i class="v"></i></div><div class="bar poise"><i></i></div></div>`).join('')}</div>
+      <div class="bar"><i class="lag"></i><i class="v"></i></div><div class="bar poise"><i></i></div>
+      <div class="statuses">${STATUS.map(([k, name, col]) => `<span class="stm" data-st="${k}" style="--k:${col}" hidden><b>${name}</b><span class="bar"><i></i></span></span>`).join('')}</div></div>`).join('')}</div>
     <div class="lockhint"></div>`;
   return el;
 }
+
+// the statuses heroes build on a boss, in the server's order (STATUSES in fight.py)
+const STATUS = [['burn', 'Burn', '#ff8a3a'], ['frost', 'Frost', '#7fe3ff'], ['bleed', 'Bleed', '#e04a5a'], ['rot', 'Rot', '#8be04e']];
 
 const pct = (a, b) => `${Math.max(0, Math.min(100, (a / Math.max(1, b)) * 100))}%`;
 function setBar(bar, v) {
@@ -125,6 +129,14 @@ export function updateHud(scene) {
     setBar(bb.querySelector('.bar:not(.poise)'), pct(B.hp, B.mhp));
     bb.querySelector('.poise i').style.width = pct(B.poise, B.mpoise);
     bb.style.opacity = B.hp > 0 ? 1 : 0.4;
+    // a meter appears once someone has built some of that status, fills toward its burst, and glows
+    // while the status is in force (the 4 s after a burst; Rot while it's eating)
+    bb.querySelectorAll('.stm').forEach((el, i) => {
+      const v = (B.meters || [])[i] || 0, on = !!(B.live || [])[i];
+      el.hidden = !(v > 0 || on) || B.hp <= 0;
+      el.classList.toggle('live', on);
+      el.querySelector('i').style.width = v + '%';
+    });
   });
   for (const [id, row] of Object.entries(scene.heroRows)) {
     const c = document.getElementById('card-' + id);

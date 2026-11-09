@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=8';
-import { placeAttack, touches, wrap } from './moves.js?v=8';
-import { crescent, lance, burst } from './fx.js?v=8';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=11';
+import { placeAttack, touches, wrap } from './moves.js?v=11';
+import { crescent, lance, burst } from './fx.js?v=11';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -476,8 +476,10 @@ export class LocalHero {
   // one swing strikes each thing it touches once: a body (or one of its weak points), adds.
   // Ranged attacks fire their projectiles or call down their area hit instead.
   checkHit(atk, ctx) {
-    if (!atk.hit || this.t < atk.hit[0] || this.t > atk.hit[1]) return;
+    if (!atk.hit || this.t < atk.hit[0]) return;
     const kind = this.slot();
+    // A shot or a called-down area is loosed once, on the first frame at or after its moment: its
+    // window is only 10 ms wide, and a frame (17 ms at 60 a second) can step clean over it.
     if (atk.proj) { if (!this.swing.fired) { this.swing.fired = true; this.fire(atk.proj, kind, ctx); } return; }
     if (atk.aoe) {
       if (!this.swing.fired) {
@@ -492,6 +494,7 @@ export class LocalHero {
       }
       return;
     }
+    if (this.t > atk.hit[1]) return;
     const s = placeAttack(reach(atk.shape, this.state === 'skill' ? 1 : this.S.reach || 1), this.x, this.y, this.aim);
     this.strike(s, kind, this.swing, ctx);
   }

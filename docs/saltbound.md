@@ -755,6 +755,26 @@ sections of the results screen in `hud.js`.
 - **The bots** chip in while they have half their health or more, and a bot at an event waits for its
   huddle to be answered.
 
+### Music
+
+Synthesized in `js/audio.js` (no files). The owner asked for music per region (Nov 2026):
+
+- **Each region has a style** (`STYLES`): its chords, tempo, pad and lead instruments, and touches of
+  its own: the Keys a swung shanty with a squeezebox, Stormcrag wind and thunder, Cinderreach a drone
+  and crackling embers, the Sands hand drums over a hijaz scale, the Stillwood sparse and slow, the
+  Verdant Deep a marimba over toms, Aetherhold, the Prism Wood and the Frostpeaks bells, the Drowsing
+  Vale drifting out of tune, the Peak a dark drone. The Coral Shallows keep the old sea song, which
+  also plays in the menus.
+- **Each style plays two ways**: calm on the map (pads, an arpeggio, the region's ambience) and
+  driving in fights (the old fight pattern in the region's chords, lead and drums). A dungeon's last
+  fight (its boss) is faster with brass stabs; each final boss (`FINALS`) has its own theme.
+- **Which plays** (`musicKey` in `main.js`): on the map, the region of the hex your selected hero
+  stands on; in a fight, the fight's region (`f.region`, else its hex's). A change of region waits for
+  the next bar so walking a border doesn't stutter; map to fight switches at once. Selecting another
+  hero changes it at the next state update, not on the click.
+- Levels were matched by rendering each song offline in Chromium (maps ~0.01 RMS before the bus
+  volume, fights ~0.018, bosses ~0.02); keep a new style near those.
+
 ### Animation and feedback
 
 The owner asked for every idea of a review of the UI's graphics and animation (Nov 2026). Everything
@@ -2083,7 +2103,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/hexmap.js` | `MapView` (Phaser): painted terrain (with two surf frames), currents and whirlpools, places, units, fog, reach, routes; above the fog the squalls, raid roads, landmarks and region names; the minimap. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`, the world's `cur`/`reef`/`pool` via `seaMap`), and how to describe requirements, dice and statuses. |
 | `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
-| `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound and music. |
+| `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound and music (a style per region, boss and final themes). |
 
 ## Testing
 

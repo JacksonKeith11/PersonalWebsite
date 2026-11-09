@@ -1,11 +1,11 @@
 // Saltbound in the browser: the connection, and choosing which screen to show from the room
 // state the server sends whenever anything changes.
-import { S, saved, tab, setSender, send, mine } from './store.js?v=184';
-import { $, toast } from './ui.js?v=184';
-import { renderTitle, renderLobby, renderEnd } from './screens.js?v=184';
-import { renderGame, handleFx, teardownGame } from './hud.js?v=184';
-import { combatBusy } from './combat.js?v=184';
-import * as sfx from './audio.js?v=184';
+import { S, saved, tab, setSender, send, mine } from './store.js?v=185';
+import { $, toast } from './ui.js?v=185';
+import { renderTitle, renderLobby, renderEnd } from './screens.js?v=185';
+import { renderGame, handleFx, teardownGame } from './hud.js?v=185';
+import { combatBusy } from './combat.js?v=185';
+import * as sfx from './audio.js?v=185';
 import { GameSocket } from '../../shared/net.js?v=1';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
@@ -77,9 +77,28 @@ function receive(m) {
 let shown = null;
 export function render() {
   renderScreen();
-  sfx.music(shown === 'game' && combatOpenNow() ? 'fight' : shown === 'end' ? null : 'map');
+  sfx.music(musicKey());
 }
 function combatOpenNow() { return !!document.querySelector('.combat'); }
+// Which song plays (audio.js `music`): the selected hero's region on the map, the fight's region
+// (a dungeon's last fight is its boss), the final boss's own theme, or the Coral Shallows' sea song
+// in the menus. While a finished fight still plays out, the fight's song carries on.
+let fightSong = 'fight:coral';
+function musicKey() {
+  if (shown === 'end') return null;
+  if (shown !== 'game') return 'map:coral';
+  const g = S.game, reg = S.world?.reg || [];
+  if (combatOpenNow()) {
+    const f = g.fight;
+    if (f) {
+      const r = f.region || reg[f.tile] || reg[g.heroes[f.heroes?.[0]]?.tile] || 'coral';
+      fightSong = f.kind === 'boss' ? `final:${g.final || 'drowned_crown'}`
+        : `${f.kind === 'dungeon' && f.step === 2 ? 'boss' : 'fight'}:${r}`;
+    }
+    return fightSong;
+  }
+  return `map:${reg[g.heroes[S.sel]?.tile] || 'coral'}`;
+}
 function renderScreen() {
   const r = S.room, g = S.game;
   if (!S.code || !r) { if (shown !== 'title') teardownGame(); shown = 'title'; renderTitle(); return; }

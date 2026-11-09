@@ -16,7 +16,7 @@ MOVES = {
     "toll": {
         "range": (0, 300), "weight": 4, "cd": 3.5, "phase": (1,), "dur": 2.4, "locks": [0.0],
         "motion": [],
-        "hits": [circle(0.95, 1.05, 34, 0, 26, 24, mark=0.45), ring(1.0, 2.2, 30, 150, 12, 20, SOUND, at=26, gaps=SIDES)],
+        "hits": [circle(0.95, 1.05, 34, 0, 26, 24, mark=0.45), ring(1.0, 2.2, 30, 150, 12, 15, SOUND, at=26, gaps=SIDES)],
         "anim": [(0, pose()), (0.6, pose(bell=-120, front=1, torso=0, head=-10, arm_f=-150, arm_b=-150)),
                  (0.95, pose(bell=-200, front=1, torso=40, head=-30, arm_f=-40, arm_b=-40, dy=2)), (1.6, pose(bell=-190, front=1, torso=36)),
                  (2.4, pose())],
@@ -25,8 +25,8 @@ MOVES = {
     "toll3": {
         "range": (0, 320), "weight": 4, "cd": 5.0, "phase": (2,), "dur": 3.3, "locks": [0.0, 1.0, 1.8],
         "motion": [],
-        "hits": [ring(0.9, 2.0, 30, 160, 12, 18, SOUND, at=26, gaps=SIDES), ring(1.6, 2.7, 30, 160, 12, 18, SOUND, at=26, gaps=BACK),
-                 ring(2.3, 3.3, 30, 170, 12, 20, SOUND, at=26, gaps=SIDES), circle(0.85, 0.95, 34, 0, 26, 22, mark=0.4)],
+        "hits": [ring(0.9, 2.0, 30, 160, 12, 14, SOUND, at=26, gaps=SIDES), ring(1.6, 2.7, 30, 160, 12, 14, SOUND, at=26, gaps=BACK),
+                 ring(2.3, 3.3, 30, 170, 12, 15, SOUND, at=26, gaps=SIDES), circle(0.85, 0.95, 34, 0, 26, 22, mark=0.4)],
         "anim": [(0, pose()), (0.5, pose(bell=-120, front=1, torso=0, arm_f=-150, arm_b=-150)), (0.85, pose(bell=-200, front=1, torso=40, arm_f=-40)),
                  (1.25, pose(bell=-140, front=1, torso=10, arm_f=-140)), (1.55, pose(bell=-200, front=1, torso=40, arm_f=-40)),
                  (1.95, pose(bell=-140, front=1, torso=10, arm_f=-140)), (2.25, pose(bell=-200, front=1, torso=40, arm_f=-40)), (3.3, pose())],
@@ -84,7 +84,7 @@ PHASE2 = {
 
 BOSS = {
     "id": "bellwarden", "name": "The Bellwarden", "tier": 1, "rig": "bellwarden", "art": "bellwarden", "arena": "belfry",
-    "hp": 1800, "poise": 120, "radius": 18, "speed": 56,
+    "hp": 1600, "poise": 110, "radius": 18, "speed": 56,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"ghost": {"hp": 48, "speed": 34, "radius": 10, "dmg": 9, "art": "bellwarden.ghost", "life": 30, "float": 8, "alpha": 0.85}},
     "stagger_pose": {"torso": 50, "head": -40, "arm_f": 20, "arm_b": 20, "dy": 4}, "dead_pose": {"torso": 70, "head": -50, "arm_f": 30, "dy": 8},

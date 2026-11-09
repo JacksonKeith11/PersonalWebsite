@@ -201,6 +201,13 @@ class Room:
             elif t == "dodge": f.dodged(h.id, msg, now)
             elif t == "perfect": f.perfect(h.id, now)
             elif t == "hitadd": f.hit_add(h.id, msg, now)
+            elif t == "shot":  # a projectile or area hit, so other browsers can draw it
+                out = {"t": "fx", "k": "shot", "h": h.id}
+                for k in ("x", "y", "a", "v", "r", "life"):
+                    if isinstance(msg.get(k), (int, float)): out[k] = msg[k]
+                out["k2"] = "aoe" if msg.get("k") == "aoe" else "proj"
+                if isinstance(msg.get("col"), str): out["col"] = msg["col"][:9]
+                self.broadcast(out)
 
     # ------------------------------------------------------------------ the Bonfire
     def prices(self):

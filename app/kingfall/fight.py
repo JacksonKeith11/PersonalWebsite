@@ -214,6 +214,8 @@ class Fight:
         if kind == "special":
             atk = w["special"]
             return atk["mult"], atk["poise"], kind
+        if kind == "guard" and "mult" in w["guard"]:  # the halberd's counter, the bow's roll-shot
+            return w["guard"]["mult"], w["guard"].get("poise", 8), kind
         return None
 
     def new_swing(self, fh, msg):
@@ -446,9 +448,12 @@ class Fight:
                 for x in o.hero.build().get("allyparry"): o.empowered = (x["mult"], now + 3.0)
             self.room.broadcast({"t": "fx", "k": "parry", "h": hid, "x": round(fh.x), "y": round(fh.y)})
             return
+        chip = C.WEAPONS[fh.hero.weapon]["guard"].get("chip", 0)
         if msg.get("block"):
-            self.room.broadcast({"t": "fx", "k": "block", "h": hid, "x": round(fh.x), "y": round(fh.y)})
-            return
+            if not msg.get("counter"):
+                self.room.broadcast({"t": "fx", "k": "block", "h": hid, "x": round(fh.x), "y": round(fh.y)})
+            if not chip or msg.get("counter"): return
+            dmg = dmg * chip  # a heavy weapon's block lets some through
         dmg = dmg * self.dmg_scale
         if fh.shield:
             soak = min(fh.shield, dmg); fh.shield -= soak; dmg -= soak

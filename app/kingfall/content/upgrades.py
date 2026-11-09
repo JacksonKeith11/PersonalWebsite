@@ -143,6 +143,28 @@ U("art_sword_oath", "Oathblade", None, None, "Your shield bash heals you {v}.", 
 U("art_sword_flurry", "Flurry", None, None, "Light attacks deal {v}% more.", [{"t": "dmg", "slot": "light", "mult": 1.18}], ["mult"], weapon="sword")
 
 
+U("art_gs_titan", "Titan's Grip", None, None, "Charged heavies deal {v}% more.", [{"t": "dmg", "slot": "heavy", "mult": 1.25}], ["mult"], weapon="greatsword")
+U("art_gs_quake", "Earthsplitter", None, None, "Your Leaping Slam breaks {v}% more poise.", [{"t": "poise", "slot": "special", "mult": 1.4}], ["mult"], weapon="greatsword")
+U("art_gs_wall", "Living Wall", None, None, "Blocking costs {v}% less stamina.", [{"t": "stat", "key": "block_st", "mult": 0.65}], ["mult"], weapon="greatsword")
+U("art_gs_cleave", "Wide Cleave", None, None, "Your swings reach {v}% further.", [{"t": "stat", "key": "reach", "mult": 1.15}], ["mult"], weapon="greatsword")
+U("art_dg_venom", "Serrated Edges", None, None, "Light attacks build {v} Bleed.", [{"t": "status", "slot": "light", "kind": "bleed", "amt": 9}], ["amt"], weapon="daggers")
+U("art_dg_shadow", "Umbral Step", None, None, "Shadowstep deals {v}% more and costs less Focus.", [{"t": "dmg", "slot": "special", "mult": 1.3}, {"t": "stat", "key": "special_cost", "mult": 0.8}], ["mult"], weapon="daggers")
+U("art_dg_third", "Third Dash", None, None, "Your dash has one more charge.", [{"t": "stat", "key": "dash_charges", "add": 1}], [], weapon="daggers")
+U("art_dg_flurry", "Thousand Cuts", None, None, "Light attacks deal {v}% more.", [{"t": "dmg", "slot": "light", "mult": 1.15}], ["mult"], weapon="daggers")
+U("art_hb_reach", "Long Haft", None, None, "Your thrusts and sweeps reach {v}% further.", [{"t": "stat", "key": "reach", "mult": 1.15}], ["mult"], weapon="halberd")
+U("art_hb_counter", "Answering Blade", None, None, "Your counter deals {v}% more.", [{"t": "dmg", "slot": "guard", "mult": 1.4}], ["mult"], weapon="halberd")
+U("art_hb_vault", "High Vault", None, None, "Pole Vault breaks {v}% more poise.", [{"t": "poise", "slot": "special", "mult": 1.5}], ["mult"], weapon="halberd")
+U("art_hb_sweep", "Reaper's Arc", None, None, "Heavy sweeps deal {v}% more.", [{"t": "dmg", "slot": "heavy", "mult": 1.2}], ["mult"], weapon="halberd")
+U("art_bw_pierce", "Piercing Shafts", None, None, "Light arrows deal {v}% more.", [{"t": "dmg", "slot": "light", "mult": 1.15}], ["mult"], weapon="bow")
+U("art_bw_rain", "Storm of Arrows", None, None, "Arrow Rain deals {v}% more.", [{"t": "dmg", "slot": "special", "mult": 1.35}], ["mult"], weapon="bow")
+U("art_bw_draw", "Heavy Draw", None, None, "Charged shots break {v}% more poise.", [{"t": "poise", "slot": "heavy", "mult": 1.4}], ["mult"], weapon="bow")
+U("art_bw_roll", "Skirmisher", None, None, "Your roll-shot deals {v}% more.", [{"t": "dmg", "slot": "guard", "mult": 1.5}], ["mult"], weapon="bow")
+U("art_ct_orb", "Greater Orb", None, None, "Your charged orb deals {v}% more.", [{"t": "dmg", "slot": "heavy", "mult": 1.25}], ["mult"], weapon="catalyst")
+U("art_ct_nova", "Starburst", None, None, "Nova deals {v}% more.", [{"t": "dmg", "slot": "special", "mult": 1.3}], ["mult"], weapon="catalyst")
+U("art_ct_bolt", "Focused Bolts", None, None, "Bolts deal {v}% more.", [{"t": "dmg", "slot": "light", "mult": 1.15}], ["mult"], weapon="catalyst")
+U("art_ct_blink", "Far Blink", None, None, "Your blink costs {v}% less stamina.", [{"t": "stat", "key": "roll_st", "mult": 0.7}], ["mult"], weapon="catalyst")
+
+
 def offer(hero, n_heroes, rng, stage):
     """Three upgrade cards for a hero: [(id, rarity)]. Leans toward the Vows they already follow."""
     held = {u for u, _ in hero.ups}

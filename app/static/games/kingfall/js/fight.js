@@ -68,6 +68,8 @@ export class FightScene extends Phaser.Scene {
     this.heroRows = {};
     this.texts = [];
     this.sparks = this.add.graphics().setDepth(6000);
+    this.shotG = this.add.graphics().setDepth(5600);
+    this.remoteShots = []; this.rings = [];
     this.sparkList = [];
     this.reviveG = this.add.graphics().setDepth(6001);
     const cam = this.cameras.main;
@@ -149,6 +151,11 @@ export class FightScene extends Phaser.Scene {
         if (mine) mine.h && (mine.flash = 0);
         this.number(B.x, B.y - 74, 'Guarded', '#a8b0bc');
         break;
+      case 'shot':
+        if (this.local.some(l => l.id === m.h)) break;  // ours are drawn already
+        this.remoteShots.push({ ...m, k: m.k2 });
+        if (m.k === 'proj') sfx.swing(this.pan(m.x));
+        break;
       case 'status': {
         const col = { burn: '#ff8a3a', frost: '#7fe3ff', bleed: '#e04a5a', rot: '#8be04e' }[m.kind];
         this.number(B.x, B.y - 92, m.kind.toUpperCase() + (m.dmg ? ' ' + m.dmg : ''), col, true);
@@ -220,6 +227,13 @@ export class FightScene extends Phaser.Scene {
     this.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
   }
 
+  drawShot(g, x, y, a, r, col) {
+    const c = col ? Phaser.Display.Color.HexStringToColor(col).color : 0xe8dcc0;
+    if (col) { g.fillStyle(c, 0.45).fillCircle(x, y - 14, r + 2); g.fillStyle(0xffffff, 0.9).fillCircle(x, y - 14, r * 0.5); return; }
+    g.lineStyle(2, c, 1).lineBetween(x - Math.cos(a) * 10, y - 14 - Math.sin(a) * 10, x, y - 14);  // an arrow
+    g.fillStyle(0xa8b0bc, 1).fillRect(x - 1, y - 15, 2, 2);
+  }
+
   burst(x, y, colour, n) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 120;
@@ -246,7 +260,9 @@ export class FightScene extends Phaser.Scene {
     const allies = [...this.local, ...Object.values(this.remote)];
     const ctx = {
       input: this.cfg.input, boss: B, now, world: s => this.world(s), send: m => this.net.send(m),
-      collide: h => this.collide(h), onHit: (h, k) => this.onHit(h, k), allies,
+      collide: h => this.collide(h), onHit: (h, k, tg) => this.onHit(h, k, tg), allies,
+      onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
+      onBoom: (x, y, r) => { this.burst(x, y - 8, 0xc080ff, 20); this.rings.push({ x, y, r, life: 0.3 }); sfx.slam(this.pan(x)); },
     };
     for (const l of this.local) {
       const before = l.state;
@@ -268,7 +284,8 @@ export class FightScene extends Phaser.Scene {
         }
         const r = l.takeHit(h, bx, by);
         if (!r) return false;
-        this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' ? 1 : 0, parry: r === 'parry' ? 1 : 0 });
+        this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' || r === 'counter' ? 1 : 0, parry: r === 'parry' ? 1 : 0, counter: r === 'counter' ? 1 : 0 });
+        if (r === 'counter') { sfx.parry(this.pan(l.x)); this.number(l.x, l.y - 46, 'Counter!', '#fff0c0', true); }
         if (r === 'parry') this.stop = 0.12;
         return true;
       });
@@ -286,6 +303,21 @@ export class FightScene extends Phaser.Scene {
       this.reviveG.lineStyle(3, 0x120e16, 0.8).beginPath().arc(t.x, t.y - 30, 9, 0, Math.PI * 2).strokePath();
       this.reviveG.lineStyle(2, 0xffd23f, 1).beginPath().arc(t.x, t.y - 30, 9, -Math.PI / 2, -Math.PI / 2 + u * Math.PI * 2).strokePath();
     }
+
+    // projectiles and area hits: this browser's, and others' (relayed by the server)
+    const sg = this.shotG;
+    sg.clear();
+    for (const l of this.local) {
+      for (const s of l.shots) this.drawShot(sg, s.x, s.y, s.a, s.r, s.col);
+      for (const A of l.aoes) { sg.lineStyle(1, 0xffd23f, 0.6).strokeCircle(A.x, A.y, A.r); }
+    }
+    this.remoteShots = this.remoteShots.filter(s => {
+      s.life -= dtReal;
+      if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(sg, s.x, s.y, s.a, s.r, s.col); }
+      else sg.lineStyle(1, 0xffd23f, 0.5).strokeCircle(s.x, s.y, s.r);
+      return s.life > 0;
+    });
+    this.rings = this.rings.filter(r => { r.life -= dtReal; sg.lineStyle(3, 0xc080ff, r.life * 3).strokeCircle(r.x, r.y, r.r * (1.3 - r.life)); return r.life > 0; });
 
     // effects
     this.sparks.clear();

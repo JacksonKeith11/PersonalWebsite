@@ -1,4 +1,4 @@
-// What the multiplayer games (Frag Arena, Board Brawl, Saltbound) share in the browser: who this
+// What the multiplayer games (Frag Arena, Board Brawl, Saltbound, Kingfall) share in the browser: who this
 // browser is, and a WebSocket to the game that reconnects on its own. The server side is
 // app/rooms.py.
 

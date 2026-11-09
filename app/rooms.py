@@ -1,4 +1,4 @@
-"""What the multiplayer games (Frag Arena, Board Brawl, Saltbound) share on the server: the
+"""What the multiplayer games (Frag Arena, Board Brawl, Saltbound, Kingfall) share on the server: the
 WebSocket loop, sending to one connection, and rooms looked up by a short code.
 
 Each connection gets an outgoing queue drained by its own writer task, so a slow browser never

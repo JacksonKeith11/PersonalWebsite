@@ -16,9 +16,9 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   (a username, no password; see `docs/books.md`).
 - `app/arena/routes.py` adds Frag Arena's page and WebSocket (`docs/arena.md`),
   `app/brawl/routes.py` Board Brawl's (`docs/brawl.md`) and `app/saltbound/routes.py` Saltbound's
-  (`docs/saltbound.md`). Their games live in the web process's memory, so uvicorn must keep running
+  (`docs/saltbound.md`), and `app/kingfall/routes.py` Kingfall's (`docs/kingfall.md`). Their games live in the web process's memory, so uvicorn must keep running
   a single worker.
-- `app/rooms.py` is what the three multiplayer games share on the server: the WebSocket loop
+- `app/rooms.py` is what the four multiplayer games share on the server: the WebSocket loop
   (`serve(ws, enter)`: a first `hello`, then each message to `room.handle`, `room.leave` on close),
   sending to one connection through its own queue (`push`, hanging up a connection too far behind),
   `Refused` to turn a browser away with a message, rooms by four-letter code (`Codes`), `clean` for

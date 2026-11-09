@@ -16,7 +16,7 @@ import math
 import random
 
 from . import content as C
-from .content.moves import aim_at, offset, resolve
+from .content.moves import aim_at, n_dists, offset, resolve
 
 LEAD = 0.14          # a move is announced this long before it starts
 TICK = 1 / 30
@@ -564,7 +564,7 @@ class Fight:
         t = b.target if b.target in self.alive_heroes() else self.pick_target(b, now)
         aim = math.atan2(t.y - b.y, t.x - b.x) if t else b.face
         dist = math.hypot(t.x - b.x, t.y - b.y) if t else 80
-        dists = resolve(data, 0.0, dist, [0.0] * len(data["motion"]))
+        dists = resolve(data, 0.0, dist, [0.0] * n_dists(data))
         self.seq += 1
         b.move = Move(self.seq, b.e, mid, data, now + LEAD, (b.x, b.y), aim, dists)
         self.fit(b.move)

@@ -338,7 +338,7 @@ export class Boss {
     }
     for (const a of Object.values(this.adds)) {
       if (Math.hypot(a.x - hero.x, a.y - hero.y) > a.r + hero.HERO.radius) continue;
-      const id = `a${a.id}:${Math.floor(now)}`;
+      const id = `a${a.id}:${Math.floor(now / 1.5)}`;  // an add bites at most every 1.5 s
       if (hero.taken.has(id)) continue;
       if (cb({ dmg: a.A.dmg, kb: 30 }, id, a.x, a.y)) hero.taken.add(id);
     }

@@ -48,11 +48,13 @@ export function placeHit(mv, h, t, lead = 0) {
   if (t < h.t0 - lead || t > h.t1 || mv.start + t > mv.cancelAt) return null;
   const k = h.k;
   if (k === 'spawn') return null;
+  const rot = (h.rot || 0) * D2R;
+  const fx = (h.x || 0) + (h.tx ? mv.dists[mv.data.motion.length] || 0 : 0);
   if (k === 'proj' || k === 'ring' || k === 'zone') {
     // anchored where the boss stood when it was fired
-    const [bx, by] = mv.pos(h.t0), a = mv.aim(h.t0);
-    const ox = bx + Math.cos(a) * (h.x || 0) - Math.sin(a) * (h.y || 0);
-    const oy = by + Math.sin(a) * (h.x || 0) + Math.cos(a) * (h.y || 0);
+    const [bx, by] = mv.pos(h.t0), a = mv.aim(h.t0) + rot;
+    const ox = bx + Math.cos(a) * fx - Math.sin(a) * (h.y || 0);
+    const oy = by + Math.sin(a) * fx + Math.cos(a) * (h.y || 0);
     const dt = Math.max(0, t - h.t0);
     if (k === 'proj') {
       const pa = a + (h.a || 0) * D2R;
@@ -62,9 +64,9 @@ export function placeHit(mv, h, t, lead = 0) {
     return { k, cx: ox, cy: oy, a, r: h.r0 + h.v * dt, th: h.th, gaps: h.gaps, live: t >= h.t0 };
   }
   const tt = Math.max(t, h.t0);
-  const [bx, by] = mv.pos(tt), a = mv.aim(tt);
+  const [bx, by] = mv.pos(tt), a = mv.aim(tt) + rot;
   if (k === 'circle') {
-    return { k, cx: bx + Math.cos(a) * h.x - Math.sin(a) * h.y, cy: by + Math.sin(a) * h.x + Math.cos(a) * h.y, a, r: h.r, live: t >= h.t0 };
+    return { k, cx: bx + Math.cos(a) * fx - Math.sin(a) * h.y, cy: by + Math.sin(a) * fx + Math.cos(a) * h.y, a, r: h.r, live: t >= h.t0 };
   }
   return { ...h, k, cx: bx, cy: by, a, live: t >= h.t0 };
 }

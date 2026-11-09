@@ -223,6 +223,11 @@ def wyrm():
     return {'head': head, 'jaw': jaw, 'seg': seg, 'tail': tail}
 
 
+WYRM_GAME_RIG = {  # in the game the rig is just the head; js/boss.js lays the vertebrae along its path
+    'parts': {'jaw': ('body', -6, -14), 'head': ('body', 0, -16)},
+    'order': ['jaw', 'head'],
+    'defaults': {},
+}
 WYRM_RIG = {  # for the review sheet only; the game strings the segments along its path
     'parts': {'tail': ('ground', -66, -20), 'seg3': ('ground', -48, -26), 'seg2': ('ground', -32, -30), 'seg1': ('ground', -16, -34),
               'seg0': ('ground', 0, -36), 'jaw': ('body', 14, -42), 'head': ('body', 12, -44)},

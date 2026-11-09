@@ -5,7 +5,7 @@ import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
 from pix import PLAYERS
-import heroes, weapons, bosses, rigs
+import heroes, weapons, bosses, rigs, adds
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'app', 'static', 'games', 'kingfall', 'art')
 
@@ -24,6 +24,8 @@ def frames():
     for name, fn in bosses.BOSSES.items():
         for key, part in fn().items():
             yield f'{name}.{key}', part
+    for name, fn in adds.ADDS.items():
+        yield name, fn()
 
 
 def pack(items, width=1024):

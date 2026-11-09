@@ -113,7 +113,7 @@ def corvin():
 RIGS = {  # bosses' own rigs (see rigs.py); 'knight' is defined there
     'toad': tier1.MIRE_RIG,
     'bellwarden': tier1.BELL_RIG,
-    'hook': tier2.HOOK_RIG, 'axe': tier2.AXE_RIG, 'wolf': tier2.WOLF_RIG, 'alchemist': tier2.ALCH_RIG, 'wyrmsheet': tier2.WYRM_RIG,
+    'hook': tier2.HOOK_RIG, 'axe': tier2.AXE_RIG, 'wolf': tier2.WOLF_RIG, 'alchemist': tier2.ALCH_RIG, 'wyrmsheet': tier2.WYRM_RIG, 'wyrm': tier2.WYRM_GAME_RIG,
     'mirror': tier3.MIRROR_RIG, 'golem': tier3.GOLEM_RIG, 'moth': tier3.MOTH_RIG, 'king': tier3.KING_RIG, 'hollow': tier3.HOLLOW_RIG,
     'drake': tier3.DRAKE_RIG,
 }

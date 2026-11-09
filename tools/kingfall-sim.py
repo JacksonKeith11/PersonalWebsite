@@ -92,12 +92,12 @@ def step_bot(b, f, now, dt, bots):
                 b.state, b.t = "hurt", 0.0
     for a in list(f.adds.values()):  # adds bite once a second while touching
         if math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
-            key = f"a{a['id']}:{int(now)}"
+            key = f"a{a['id']}:{int(now / 1.5)}"
             if key not in b.taken:
                 b.taken.add(key); b.hits += 1; f.hurt(fh.hero.id, {"id": key}, now)
     body = f.nearest_body(fh.x, fh.y)
     near_add = min(f.adds.values(), key=lambda a: math.hypot(a["x"] - fh.x, a["y"] - fh.y), default=None)
-    target = ("add", near_add) if near_add and math.hypot(near_add["x"] - fh.x, near_add["y"] - fh.y) < 60 else ("body", body)
+    target = ("add", near_add) if near_add and math.hypot(near_add["x"] - fh.x, near_add["y"] - fh.y) < 120 else ("body", body)
     bx, by = (near_add["x"], near_add["y"]) if target[0] == "add" else (body.x, body.y)
     d = math.hypot(bx - fh.x, by - fh.y)
     toward = math.atan2(by - fh.y, bx - fh.x)
@@ -161,7 +161,7 @@ def step_bot(b, f, now, dt, bots):
     busy = body.move is not None and now - body.move.start < body.move.data["dur"] * 0.6
     if d > 34:
         fh.x += math.cos(toward) * H["speed"] * dt; fh.y += math.sin(toward) * H["speed"] * dt
-    elif (not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
+    elif (target[0] == "add" or not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
         b.state, b.t, b.landed = "atk", 0.0, False
     fh.x, fh.y = f.clamp(fh.x, fh.y)
 

@@ -18,11 +18,13 @@ def place_hit(move, h, t, lead=0.0):
     if t < h["t0"] - lead or t > h["t1"]: return None
     k = h["k"]
     pos = lambda tt: _pos(move, tt)
+    rot = h.get("rot", 0) * D2R
+    fx = h.get("x", 0) + (move.dists[len(move.data["motion"])] if h.get("tx") else 0)
     if k == "spawn": return None
     if k in ("proj", "ring", "zone"):
-        bx, by = pos(h["t0"]); a = aim_at(move.aims, h["t0"])
-        ox = bx + math.cos(a) * h.get("x", 0) - math.sin(a) * h.get("y", 0)
-        oy = by + math.sin(a) * h.get("x", 0) + math.cos(a) * h.get("y", 0)
+        bx, by = pos(h["t0"]); a = aim_at(move.aims, h["t0"]) + rot
+        ox = bx + math.cos(a) * fx - math.sin(a) * h.get("y", 0)
+        oy = by + math.sin(a) * fx + math.cos(a) * h.get("y", 0)
         dt = max(0.0, t - h["t0"])
         if k == "proj":
             pa = a + h.get("a", 0) * D2R
@@ -31,9 +33,9 @@ def place_hit(move, h, t, lead=0.0):
             return {"k": k, "cx": ox, "cy": oy, "a": a, "r": h["r"], "live": t >= h["t0"]}
         return {"k": k, "cx": ox, "cy": oy, "a": a, "r": h["r0"] + h["v"] * dt, "th": h["th"], "gaps": h.get("gaps", []), "live": t >= h["t0"]}
     tt = max(t, h["t0"])
-    bx, by = pos(tt); a = aim_at(move.aims, tt)
+    bx, by = pos(tt); a = aim_at(move.aims, tt) + rot
     if k == "circle":
-        return {"k": k, "cx": bx + math.cos(a) * h["x"] - math.sin(a) * h["y"], "cy": by + math.sin(a) * h["x"] + math.cos(a) * h["y"],
+        return {"k": k, "cx": bx + math.cos(a) * fx - math.sin(a) * h["y"], "cy": by + math.sin(a) * fx + math.cos(a) * h["y"],
                 "a": a, "r": h["r"], "live": t >= h["t0"]}
     return {**h, "cx": bx, "cy": by, "a": a, "live": t >= h["t0"]}
 

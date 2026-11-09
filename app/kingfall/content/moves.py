@@ -48,6 +48,17 @@ def proj(t, side, fwd, a, v, r, life, dmg, extra=None):
     return _hit("proj", t, t + life, dmg, extra, None, x=fwd, y=side, a=a, v=v, r=r)
 
 
+def zone(t0, life, r, side, fwd, dmg, pool, tick=0.6, extra=None, mark=None):
+    """A lingering hazard (a pool of poison, a patch of fire) placed at t0 where the boss stood, for
+    `life` seconds; it hurts whoever stands in it every `tick` seconds."""
+    return _hit("zone", t0, t0 + life, dmg, extra, mark, r=r, x=fwd, y=side, pool=pool, tick=tick)
+
+
+def spawn(t, kind, n=1, dist=30, spread=0):
+    """Call adds at time t: n of `kind` (the boss's 'adds' table), dist ahead, fanned by spread degrees."""
+    return {"k": "spawn", "t0": t, "t1": t, "dmg": 0, "kind": kind, "n": n, "x": dist, "spread": spread}
+
+
 def pose(**kw):
     """Rig keyframe: part angles in degrees (arm_f, arm_b, weapon, shield, torso, head, leg_f, leg_b,
     cape), lean/dy (body offset), front=1 (shield in front), run=1 (legs cycle)."""

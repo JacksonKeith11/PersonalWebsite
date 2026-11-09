@@ -54,19 +54,19 @@ class Bot:
 def danger(f, x, y, ahead):
     """Hits about to land on (x, y) within `ahead` seconds: [(key, seconds until)]."""
     out = []
-    m = f.move
-    if not m: return out
-    t = f_now[0] - m.start
-    for i, h in enumerate(m.data["hits"]):
+    for m in f.moves():
+      t = f_now[0] - m.start
+      for i, h in enumerate(m.data["hits"]):
+        if h["k"] == "spawn": continue
         # sample the hit across its life (charges, rings and projectiles move): when does it first reach us?
         for k in range(8):
-            ht = h["t0"] + (h["t1"] - h["t0"]) * k / 7
-            dt = ht - t
-            if dt < 0: continue
-            if dt > ahead: break
-            s = place_hit(m, h, ht)
-            if s and touches(s, x, y, C.HERO["radius"] + 6):
-                out.append((f"{m.seq}:{i}", dt)); break
+          ht = h["t0"] + (h["t1"] - h["t0"]) * k / 7
+          dt = ht - t
+          if dt < 0: continue
+          if dt > ahead: break
+          s = place_hit(m, h, ht)
+          if s and touches(s, x, y, C.HERO["radius"] + 6):
+              out.append((f"{m.seq}:{i}", dt)); break
     return out
 
 
@@ -79,18 +79,26 @@ def step_bot(b, f, now, dt, bots):
     if fh.down or fh.dead:
         b.state = "idle"; return
     # hits landing on us now (the browser's job in the real game)
-    for m in [f.move] + f.recent if f.move else f.recent:
-        if not m: continue
+    for m in f.moves():
         t = now - m.start
         for i, h in enumerate(m.data["hits"]):
-            key = f"{m.seq}:{i}"
+            if h["k"] == "spawn": continue
+            key = f"{m.seq}:{i}" + (f":{int((t - h['t0']) / h['tick'])}" if h.get("tick") else "")
             if key in b.taken: continue
             s = place_hit(m, h, t)
             if s and s["live"] and touches(s, fh.x, fh.y, H["radius"]) and not b.iframes():
                 b.taken.add(key); b.hits += 1
                 f.hurt(fh.hero.id, {"id": key}, now)
                 b.state, b.t = "hurt", 0.0
-    bx, by = f.x, f.y
+    for a in list(f.adds.values()):  # adds bite once a second while touching
+        if math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
+            key = f"a{a['id']}:{int(now)}"
+            if key not in b.taken:
+                b.taken.add(key); b.hits += 1; f.hurt(fh.hero.id, {"id": key}, now)
+    body = f.nearest_body(fh.x, fh.y)
+    near_add = min(f.adds.values(), key=lambda a: math.hypot(a["x"] - fh.x, a["y"] - fh.y), default=None)
+    target = ("add", near_add) if near_add and math.hypot(near_add["x"] - fh.x, near_add["y"] - fh.y) < 60 else ("body", body)
+    bx, by = (near_add["x"], near_add["y"]) if target[0] == "add" else (body.x, body.y)
     d = math.hypot(bx - fh.x, by - fh.y)
     toward = math.atan2(by - fh.y, bx - fh.x)
     if b.state == "roll":
@@ -120,9 +128,14 @@ def step_bot(b, f, now, dt, bots):
         atk = b.W["light"][b.combo]
         if atk["hit"][0] <= b.t and not getattr(b, "landed", False):
             s = place_attack(atk["shape"], fh.x, fh.y, toward)
-            if touches(s, bx, by, f.boss["radius"]):
+            r = near_add["r"] if target[0] == "add" else body.d["radius"]
+            if touches(s, bx, by, r):
                 b.swing += 1
-                f.hit_boss(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing}, now)
+                if target[0] == "add":
+                    f.hit_add(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "a": near_add["id"]}, now)
+                else:
+                    core = next((i for i, hp in enumerate(body.cores) if hp > 0 and math.hypot(body.core_pos(i)[0] - fh.x, body.core_pos(i)[1] - fh.y) < 50), None)
+                    f.hit_boss(fh.hero.id, {"atk": "light", "i": b.combo, "sw": b.swing, "e": body.e, "core": core}, now)
                 b.landed = True
         if b.t >= atk["dur"]:
             b.combo = (b.combo + 1) % len(b.W["light"])
@@ -142,10 +155,10 @@ def step_bot(b, f, now, dt, bots):
             a = math.atan2(o.y - fh.y, o.x - fh.x)
             fh.x += math.cos(a) * H["speed"] * dt; fh.y += math.sin(a) * H["speed"] * dt
             return
-    if fh.hero.hp < fh.hero.mhp() * 0.4 and fh.hero.flasks > 0 and (d > 90 or not f.move):
+    if fh.hero.hp < fh.hero.mhp() * 0.4 and fh.hero.flasks > 0 and (d > 90 or not body.move):
         f.drink(fh.hero.id, now); b.state, b.t = "drink", 0.0
         return
-    busy = f.move is not None and now - f.move.start < f.move.data["dur"] * 0.6
+    busy = body.move is not None and now - body.move.start < body.move.data["dur"] * 0.6
     if d > 34:
         fh.x += math.cos(toward) * H["speed"] * dt; fh.y += math.sin(toward) * H["speed"] * dt
     elif (not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":

@@ -86,16 +86,17 @@ export class FightScene extends Phaser.Scene {
 
   collide(hero) {
     const [w, h] = this.size, [l, t, r, b] = this.pad, R = hero.HERO.radius;
-    hero.x = Math.max(l + R, Math.min(w - r - R, hero.x));
-    hero.y = Math.max(t + R, Math.min(h - b - R, hero.y));
-    const B = this.boss;
-    if (B.alive) {
+    const now = this.net.now();
+    for (const B of this.boss.bodies) {
+      if (!B.alive || B.untouchable(now, B.mv) || B.z > 10) continue;
       const dx = hero.x - B.x, dy = hero.y - B.y, d = Math.hypot(dx, dy), min = B.r + R - 2;
       if (d < min && hero.state !== 'roll') {
         const k = d > 0.01 ? (min - d) / d : 1;
         hero.x += dx * k; hero.y += (d > 0.01 ? dy : 1) * k;
       }
     }
+    hero.x = Math.max(l + R, Math.min(w - r - R, hero.x));
+    hero.y = Math.max(t + R, Math.min(h - b - R, hero.y));
   }
 
   pan(x) { const hw = this.scale.width / 2; return Math.max(-0.8, Math.min(0.8, (x - this.cameras.main.scrollX - hw) / hw)); }
@@ -105,7 +106,7 @@ export class FightScene extends Phaser.Scene {
     const B = this.boss;
     switch (m.t) {
       case 's': {
-        B.onSnap(m.st, m.b);
+        B.onSnap(m.st, m.b, m.a);
         for (const row of m.h) {
           const [id, x, y, , , , hp, mhp, flasks, down, bleed] = row;
           this.heroRows[id] = { hp, mhp, flasks, down, bleed };
@@ -131,7 +132,7 @@ export class FightScene extends Phaser.Scene {
   }
 
   fx(m) {
-    const B = this.boss, mine = this.local.find(l => l.id === m.h);
+    const B = this.boss.bodies[m.e || 0] || this.boss.bodies[0], mine = this.local.find(l => l.id === m.h);
     switch (m.k) {
       case 'hit': case 'crit':
         B.flash = 0.07;
@@ -177,6 +178,19 @@ export class FightScene extends Phaser.Scene {
       case 'down': sfx.down(); this.number(m.x, m.y - 46, 'Down!', '#e05050', true); break;
       case 'secondwind': this.number(this.byId[m.h]?.x || 0, (this.byId[m.h]?.y || 0) - 56, 'Second Wind', '#ffd23f', true); break;
       case 'revive': sfx.revive(); this.burst(m.x, m.y - 20, 0xffd23f, 16); break;
+      case 'core':
+        this.burst(m.x, m.y - 10, 0xa0e0ff, 10); sfx.clang(this.pan(m.x));
+        this.number(m.x, m.y - 30, m.left > 0 ? m.dmg : 'Broken!', '#a0e0ff', m.left <= 0);
+        if (m.left <= 0) this.cameras.main.shake(160, 0.006);
+        break;
+      case 'topple':
+        sfx.slam(this.pan(B.x)); this.number(B.x, B.y - 96, 'TOPPLED', '#ffd23f', true); this.cameras.main.shake(400, 0.012);
+        break;
+      case 'addhit': { const a = this.boss.adds[m.a]; if (a) a.flash = 0.08; this.number(m.x, m.y - 24, m.dmg, '#f4f0e0'); break; }
+      case 'adddie': this.burst(m.x, m.y - 10, 0xc8c0b0, 10); break;
+      case 'bodydown':
+        if (this.boss.bodies.length > 1) { sfx.slam(this.pan(m.x)); this.number(m.x, m.y - 90, 'FELLED', '#ffd23f', true); }
+        break;
       case 'bossdown':
         sfx.bossDown(); this.cameras.main.shake(400, 0.01); this.burst(m.x, m.y - 40, 0xff7a1a, 40);
         this.cfg.onBanner && this.cfg.onBanner('won');
@@ -211,10 +225,10 @@ export class FightScene extends Phaser.Scene {
   }
 
   // a local hero's attack connected (before the server's word, so it feels instant)
-  onHit(hero, kind) {
-    const B = this.boss;
-    sfx.hit(this.pan(B.x));
-    this.burst(B.x - Math.cos(hero.aim) * 8, B.y - 30, 0xfff0c0, kind === 'light' ? 6 : 12);
+  onHit(hero, kind, tg) {
+    sfx.hit(this.pan(tg.x));
+    this.burst(tg.x - Math.cos(hero.aim) * 8, tg.y - (tg.kind === 'body' && !tg.seg ? 30 : 10), 0xfff0c0, kind === 'light' ? 6 : 12);
+    if (tg.b) tg.b.flash = 0.06;
     this.stop = kind === 'light' ? 0.045 : 0.08;
     this.cfg.input.rumble(hero.dev, kind === 'light' ? 0.25 : 0.5, 70);
   }
@@ -228,7 +242,7 @@ export class FightScene extends Phaser.Scene {
     const B = this.boss;
     const allies = [...this.local, ...Object.values(this.remote)];
     const ctx = {
-      input: this.cfg.input, boss: B, world: s => this.world(s), send: m => this.net.send(m),
+      input: this.cfg.input, boss: B, now, world: s => this.world(s), send: m => this.net.send(m),
       collide: h => this.collide(h), onHit: (h, k) => this.onHit(h, k), allies,
     };
     for (const l of this.local) {
@@ -292,7 +306,8 @@ export class FightScene extends Phaser.Scene {
     const focus = live.length ? live : this.local;
     if (focus.length) {
       let x = focus.reduce((s, l) => s + l.x, 0) / focus.length, y = focus.reduce((s, l) => s + l.y, 0) / focus.length;
-      x += (B.x - x) * 0.3; y += (B.y - y) * 0.3 - 16;
+      const nb = B.nearest(x, y);
+      x += (nb.x - x) * 0.3; y += (nb.y - nb.z * 0.5 - y) * 0.3 - 16;
       this.camX += (x - this.camX) * Math.min(1, dtReal * 5); this.camY += (y - this.camY) * Math.min(1, dtReal * 5);
       this.cameras.main.centerOn(Math.round(this.camX), Math.round(this.camY));
     }

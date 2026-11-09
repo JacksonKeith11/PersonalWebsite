@@ -47,7 +47,8 @@ export class LiveMove {
 export function placeHit(mv, h, t, lead = 0) {
   if (t < h.t0 - lead || t > h.t1 || mv.start + t > mv.cancelAt) return null;
   const k = h.k;
-  if (k === 'proj' || k === 'ring') {
+  if (k === 'spawn') return null;
+  if (k === 'proj' || k === 'ring' || k === 'zone') {
     // anchored where the boss stood when it was fired
     const [bx, by] = mv.pos(h.t0), a = mv.aim(h.t0);
     const ox = bx + Math.cos(a) * (h.x || 0) - Math.sin(a) * (h.y || 0);
@@ -57,6 +58,7 @@ export function placeHit(mv, h, t, lead = 0) {
       const pa = a + (h.a || 0) * D2R;
       return { k, cx: ox + Math.cos(pa) * h.v * dt, cy: oy + Math.sin(pa) * h.v * dt, a: pa, r: h.r, live: t >= h.t0 };
     }
+    if (k === 'zone') return { k, cx: ox, cy: oy, a, r: h.r, live: t >= h.t0, pool: h.pool };
     return { k, cx: ox, cy: oy, a, r: h.r0 + h.v * dt, th: h.th, gaps: h.gaps, live: t >= h.t0 };
   }
   const tt = Math.max(t, h.t0);
@@ -72,7 +74,7 @@ export function touches(s, px, py, pr) {
   const dx = px - s.cx, dy = py - s.cy;
   const d = Math.hypot(dx, dy);
   switch (s.k) {
-    case 'circle': case 'proj': return d < s.r + pr;
+    case 'circle': case 'proj': case 'zone': return d < s.r + pr;
     case 'arc': {
       if (d > s.r + pr) return false;
       if (d < pr + 6) return true;

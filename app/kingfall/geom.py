@@ -18,7 +18,8 @@ def place_hit(move, h, t, lead=0.0):
     if t < h["t0"] - lead or t > h["t1"]: return None
     k = h["k"]
     pos = lambda tt: _pos(move, tt)
-    if k in ("proj", "ring"):
+    if k == "spawn": return None
+    if k in ("proj", "ring", "zone"):
         bx, by = pos(h["t0"]); a = aim_at(move.aims, h["t0"])
         ox = bx + math.cos(a) * h.get("x", 0) - math.sin(a) * h.get("y", 0)
         oy = by + math.sin(a) * h.get("x", 0) + math.cos(a) * h.get("y", 0)
@@ -26,6 +27,8 @@ def place_hit(move, h, t, lead=0.0):
         if k == "proj":
             pa = a + h.get("a", 0) * D2R
             return {"k": k, "cx": ox + math.cos(pa) * h["v"] * dt, "cy": oy + math.sin(pa) * h["v"] * dt, "a": pa, "r": h["r"], "live": t >= h["t0"]}
+        if k == "zone":
+            return {"k": k, "cx": ox, "cy": oy, "a": a, "r": h["r"], "live": t >= h["t0"]}
         return {"k": k, "cx": ox, "cy": oy, "a": a, "r": h["r0"] + h["v"] * dt, "th": h["th"], "gaps": h.get("gaps", []), "live": t >= h["t0"]}
     tt = max(t, h["t0"])
     bx, by = pos(tt); a = aim_at(move.aims, tt)
@@ -43,7 +46,7 @@ def touches(s, px, py, pr):
     dx, dy = px - s["cx"], py - s["cy"]
     d = math.hypot(dx, dy)
     k = s["k"]
-    if k in ("circle", "proj"): return d < s["r"] + pr
+    if k in ("circle", "proj", "zone"): return d < s["r"] + pr
     if k == "arc":
         if d > s["r"] + pr: return False
         if d < pr + 6: return True

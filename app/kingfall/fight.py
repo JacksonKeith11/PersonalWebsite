@@ -1,10 +1,15 @@
-"""One boss fight: the boss's AI and moves, health, poise, downed heroes. Runs at 30 Hz on the server.
+"""One boss fight: the bosses' AI and moves, health, poise, statuses, adds, downed heroes. Runs at 30 Hz.
 
 The netcode (docs/kingfall.md, "Netcode"): each browser moves its own heroes and reports where they
 are; the server picks the boss's moves and announces each one `LEAD` seconds before it starts, with
 its origin, aim and step lengths, so every browser draws it, and checks it against its own heroes,
 at the same server time. A browser reports its heroes' hits on the boss and the hits they took;
 the server applies the damage.
+
+A boss is one or more bodies (the Twin Headsmen are two), each with its own moves, health, poise and
+statuses. Bosses can also call adds (small enemies the server moves), leave lingering ground hazards
+('zone' hits, which hurt every `tick` seconds), leap or fly ('air' windows: no one can hit them),
+burrow ('under') and have weak points ('cores') that must be broken before the body takes full damage.
 """
 
 import math
@@ -16,20 +21,29 @@ from .content.moves import aim_at, offset, resolve
 LEAD = 0.14          # a move is announced this long before it starts
 TICK = 1 / 30
 STAGGER = 2.6        # seconds a broken-poise boss reels
+TOPPLE = 6.0         # seconds a boss reels when its last core breaks
 POISE_REGEN = (3.0, 25.0)  # after this long without poise damage, it refills at this rate
 INTRO = 2.2
 STATUSES = ("burn", "frost", "bleed", "rot")
 STATUS_LIVE = 4.0    # a burst marks the boss as burning/frozen/... for this long
-ARENAS = {"chapel": {"w": 800, "h": 480, "pad": (48, 70, 48, 40)}}  # left, top, right, bottom walls
+ARENA = {"w": 800, "h": 480, "pad": (48, 70, 48, 40)}  # left, top, right, bottom walls
+RECENT = 12          # finished moves kept for late hit reports and lingering hazards
+
+
+def bodies_of(boss):
+    """A boss's bodies: its 'bodies' list, or the boss itself as its only body."""
+    return boss.get("bodies") or [boss]
 
 
 class Move:
-    def __init__(self, seq, mid, data, start, origin, aim, dists):
-        self.seq, self.id, self.data, self.start = seq, mid, data, start
+    def __init__(self, seq, e, mid, data, start, origin, aim, dists):
+        self.seq, self.e, self.id, self.data, self.start = seq, e, mid, data, start
         self.origin = origin
         self.aims = [(0.0, aim)]
         self.dists = dists
         self.locked = {0.0}
+        self.spawned = set()
+        self.last = start + max([data["dur"]] + [h["t1"] for h in data["hits"]])  # when its last hazard ends
 
     def pos(self, now):
         dx, dy = offset(self.data, self.aims, self.dists, now - self.start)
@@ -38,9 +52,15 @@ class Move:
     def end(self):
         return self.start + self.data["dur"]
 
-    def wire(self):
-        return {"t": "mv", "seq": self.seq, "id": self.id, "at": round(self.start, 3), "x": round(self.origin[0], 1),
-                "y": round(self.origin[1], 1), "a": round(self.aims[0][1], 4), "d": [round(d, 1) for d in self.dists]}
+    def window(self, key, now):
+        w = self.data.get(key)
+        return bool(w) and self.start + w[0] <= now <= self.start + w[1]
+
+    def wire(self, extra=None):
+        m = {"t": "mv", "seq": self.seq, "e": self.e, "id": self.id, "at": round(self.start, 3), "x": round(self.origin[0], 1),
+             "y": round(self.origin[1], 1), "a": round(self.aims[0][1], 4), "d": [round(d, 1) for d in self.dists]}
+        if extra: m.update(extra)
+        return m
 
 
 class FHero:
@@ -66,46 +86,103 @@ class FHero:
         self.shield = 0
 
 
-class Fight:
-    def __init__(self, room, boss_id, heroes, now):
-        self.room = room
-        self.boss = C.BOSSES[boss_id]
-        self.arena = ARENAS[self.boss["arena"]]
-        n = max(1, min(4, len(heroes)))
-        self.mhp = round(self.boss["hp"] * C.SCALE_HP[n - 1])
+class Body:
+    """One of a boss's bodies."""
+
+    def __init__(self, fight, e, d, n, now, x, y):
+        self.f, self.e, self.d = fight, e, d
+        self.mhp = round(d["hp"] * C.SCALE_HP[n - 1])
         self.hp = self.mhp
-        self.mpoise = round(self.boss["poise"] * C.SCALE_POISE[n - 1])
+        self.base_poise = d["poise"]
+        self.mpoise = round(d["poise"] * C.SCALE_POISE[n - 1])
         self.poise = self.mpoise
         self.poise_hit = 0.0
         self.phase = 1
-        self.x, self.y = self.arena["w"] * 0.5, self.arena["h"] * 0.36
+        self.x, self.y = x, y
         self.face = math.pi / 2
         self.state, self.until = "intro", now + INTRO
         self.move = None
-        self.recent = []          # recent moves, for late hit reports
-        self.seq = 0
         self.cool = {}
         self.last_move = None
         self.target = None
         self.vx = self.vy = 0.0
+        self.meter = {k: 0.0 for k in STATUSES}
+        self.procs = {k: 0 for k in STATUSES}
+        self.marked = {k: -99.0 for k in STATUSES}
+        self.rot_until = self.rot_dps = self.rot_acc = 0.0
+        self.rot_blocks_poise = False
+        self.slow_until = 0.0
+        self.cores = [c["hp"] * C.SCALE_HP[n - 1] for c in d.get("cores", [])]
+        self.enraged = False
+        self.art = d["art"]
+
+    @property
+    def alive(self):
+        return self.state != "dead"
+
+    def untouchable(self, now):
+        m = self.move
+        return bool(m) and now >= m.start and (m.data.get("invuln") or m.window("air", now) or m.window("under", now))
+
+    def core_pos(self, i):
+        c = self.d["cores"][i]
+        side = -1 if math.cos(self.face) < -0.05 else 1
+        return self.x + c["dx"] * side, self.y + c["dy"]
+
+    def armored(self):
+        return any(hp > 0 for hp in self.cores) and self.state != "stagger"
+
+
+class Fight:
+    def __init__(self, room, boss_id, heroes, now, diff=None):
+        self.room = room
+        self.boss = C.BOSSES[boss_id]
+        self.arena = ARENA
+        self.diff = diff or {"hp": 1.0, "dmg": 1.0, "speed": 1.0}
+        n = max(1, min(4, len(heroes)))
+        defs = bodies_of(self.boss)
+        self.bodies = []
+        for e, d in enumerate(defs):
+            x = self.arena["w"] * (0.5 + (e - (len(defs) - 1) / 2) * 0.22)
+            b = Body(self, e, d, n, now, x, self.arena["h"] * 0.36)
+            b.mhp = b.hp = round(b.mhp * self.diff["hp"])
+            self.bodies.append(b)
+        self.recent = []
+        self.seq = 0
         self.started = now
         self.over = None          # "won" / "lost"
+        self.until = 0.0
         self.solo = len(heroes) == 1
-        self.meter = {k: 0.0 for k in STATUSES}   # status buildup on the boss
-        self.procs = {k: 0 for k in STATUSES}
-        self.marked = {k: -99.0 for k in STATUSES}  # when each status last burst
-        self.rot_until = 0.0
-        self.rot_dps = 0.0
-        self.slow_until = 0.0
         self.tier = self.boss.get("tier", 1)
-        self.rot_blocks_poise = False
-        self.dmg_scale = 1.0     # the difficulty's boss damage
+        self.dmg_scale = self.diff["dmg"]
+        self.adds = {}
+        self.add_seq = 0
         self.heroes = {}
         for i, h in enumerate(heroes):
             x = self.arena["w"] * (0.5 + (i - (len(heroes) - 1) / 2) * 0.08)
             fh = FHero(h, x, self.arena["h"] * 0.78)
             fh.face = -math.pi / 2
             self.heroes[h.id] = fh
+
+    # compatibility for single-body code (tools, the sim): the first body
+    @property
+    def x(self): return self.bodies[0].x
+
+    @property
+    def y(self): return self.bodies[0].y
+
+    @property
+    def hp(self): return sum(b.hp for b in self.bodies)
+
+    @property
+    def mhp(self): return sum(b.mhp for b in self.bodies)
+
+    @property
+    def phase(self): return max(b.phase for b in self.bodies)
+
+    def moves(self):
+        """Every move still live or lingering."""
+        return [b.move for b in self.bodies if b.move] + self.recent
 
     # ------------------------------------------------------------------ messages from browsers
     def report(self, hid, msg):
@@ -122,109 +199,155 @@ class Fight:
         fh.anim = str(msg.get("an") or "idle")[:12]
         fh.at = float(msg.get("at") or 0)
 
-    def hit_boss(self, hid, msg, now):
-        """A hero's attack landed on the boss (the browser says so)."""
-        fh = self.heroes.get(hid)
-        if not fh or fh.down or fh.dead or self.state in ("intro", "dead") or self.over: return
-        sw = msg.get("sw")
-        if not isinstance(sw, int) or sw in fh.swings: return
-        fh.swings.add(sw)
-        if len(fh.swings) > 200: fh.swings = set(sorted(fh.swings)[-100:])
+    def attack(self, fh, msg):
+        """(mult, poise, slot) of a hero's attack from its message, or None."""
         w = C.WEAPONS.get(fh.hero.weapon)
         kind = msg.get("atk")
         if kind == "light":
             i = msg.get("i") if isinstance(msg.get("i"), int) else 0
             atk = w["light"][max(0, min(len(w["light"]) - 1, i))]
-            mult, poise = atk["mult"], atk["poise"]
-        elif kind == "heavy":
+            return atk["mult"], atk["poise"], kind
+        if kind == "heavy":
             c = max(0.0, min(1.0, float(msg.get("c") or 0)))
             atk = w["heavy"]
-            mult = atk["mult"][0] + (atk["mult"][1] - atk["mult"][0]) * c
-            poise = atk["poise"][0] + (atk["poise"][1] - atk["poise"][0]) * c
-        elif kind == "special":
+            return atk["mult"][0] + (atk["mult"][1] - atk["mult"][0]) * c, atk["poise"][0] + (atk["poise"][1] - atk["poise"][0]) * c, kind
+        if kind == "special":
             atk = w["special"]
-            mult, poise = atk["mult"], atk["poise"]
-        else:
+            return atk["mult"], atk["poise"], kind
+        return None
+
+    def new_swing(self, fh, msg):
+        sw = msg.get("sw")
+        key = (sw, msg.get("a"), msg.get("e"), msg.get("core"))
+        if not isinstance(sw, int) or key in fh.swings: return False
+        fh.swings.add(key)
+        if len(fh.swings) > 300: fh.swings = set(list(fh.swings)[-150:])
+        return True
+
+    def hit_boss(self, hid, msg, now):
+        """A hero's attack landed on a boss body, or one of its cores (the browser says so)."""
+        fh = self.heroes.get(hid)
+        if not fh or fh.down or fh.dead or self.over: return
+        e = msg.get("e") if isinstance(msg.get("e"), int) else 0
+        if not 0 <= e < len(self.bodies): return
+        b = self.bodies[e]
+        if b.state in ("intro", "dead") or not self.new_swing(fh, msg): return
+        a = self.attack(fh, msg)
+        if not a: return
+        mult, poise, slot = a
+        if b.untouchable(now):
+            self.room.broadcast({"t": "fx", "k": "immune", "e": e, "x": round(b.x), "y": round(b.y)})
             return
-        if self.move and self.move.data.get("invuln") and now >= self.move.start:
-            self.room.broadcast({"t": "fx", "k": "immune", "x": round(self.x), "y": round(self.y)})
-            return
-        g = self.move and self.move.data.get("guard")
-        if g and self.move.start + g[0] <= now <= self.move.start + g[1]:
-            ang = math.atan2(fh.y - self.y, fh.x - self.x)
-            if abs(_wrap(ang - aim_at(self.move.aims, now - self.move.start))) < math.radians(75):
-                self.room.broadcast({"t": "fx", "k": "guarded", "x": round(self.x), "y": round(self.y), "h": hid})
+        m = b.move
+        if m and m.window("guard", now):
+            ang = math.atan2(fh.y - b.y, fh.x - b.x)
+            if abs(_wrap(ang - aim_at(m.aims, now - m.start))) < math.radians(75):
+                self.room.broadcast({"t": "fx", "k": "guarded", "e": e, "x": round(b.x), "y": round(b.y), "h": hid})
                 return
-        b = fh.hero.build()
-        slot = kind
-        crit = self.state == "stagger" and kind in ("heavy", "special")
-        mult *= b.dmg_mult(slot)
-        poise *= b.poise_mult(slot)
+        core = msg.get("core")
+        build = fh.hero.build()
+        crit = b.state == "stagger" and slot in ("heavy", "special")
+        mult *= build.dmg_mult(slot)
+        poise *= build.poise_mult(slot)
         h = fh.hero
         if h.hp < h.mhp() * 0.5:
-            for e in b.get("lowhp"): mult *= e["mult"]
-        for e in b.get("vsstatus"):
-            if now - self.marked[e["kind"]] < STATUS_LIVE: mult *= e["mult"]
+            for x in build.get("lowhp"): mult *= x["mult"]
+        for x in build.get("vsstatus"):
+            if now - b.marked[x["kind"]] < STATUS_LIVE: mult *= x["mult"]
         if fh.empowered and now < fh.empowered[1]:
             mult *= fh.empowered[0]; fh.empowered = None
         if now < fh.vengeance[1]: mult *= fh.vengeance[0]
         if any(math.hypot(o.x - fh.x, o.y - fh.y) < 90 for o in self.alive_heroes() if o is not fh):
-            for e in b.get("near"): mult *= e["mult"]
+            for x in build.get("near"): mult *= x["mult"]
         if crit:
             mult *= 3.0
-            for e in b.get("crit"): mult *= e["mult"]
-        dmg = round(w["base"] * mult * C.HERO.get("dmg_scale", 1.0))
+            for x in build.get("crit"): mult *= x["mult"]
+        dmg = round(C.WEAPONS[h.weapon]["base"] * mult)
+        if isinstance(core, int) and 0 <= core < len(b.cores) and b.cores[core] > 0:
+            b.cores[core] = max(0, b.cores[core] - dmg)
+            cx, cy = b.core_pos(core)
+            self.room.broadcast({"t": "fx", "k": "core", "e": e, "i": core, "dmg": dmg, "left": round(b.cores[core]), "h": hid,
+                                 "x": round(cx), "y": round(cy)})
+            if all(c <= 0 for c in b.cores):
+                self.stagger(b, now, TOPPLE, "topple")
+            return
+        if b.armored():
+            dmg = max(1, round(dmg * b.d.get("armor", 0.35)))
         extra = 0
-        if kind == "light":
+        if slot == "light":
             fh.lights += 1
-            for e in b.get("chain"):
-                if fh.lights % e["every"] == 0:
-                    extra += round(e["dmg"])
-                    for s in b.get("chainstatus"): self.build_status(s["kind"], s["amt"] * b.buildup, now, fh)
-                    for s in b.get("chainheal"): self.heal(fh, s["amt"])
-                    self.room.broadcast({"t": "fx", "k": "chain", "x": round(self.x), "y": round(self.y)})
-        if kind == "special":
-            for e in b.get("specialheal"): self.heal(fh, e["amt"])
-        self.hp = max(0, self.hp - dmg - extra)
+            for x in build.get("chain"):
+                if fh.lights % x["every"] == 0:
+                    extra += round(x["dmg"])
+                    for s in build.get("chainstatus"): self.build_status(b, s["kind"], s["amt"] * build.buildup, now, fh)
+                    for s in build.get("chainheal"): self.heal(fh, s["amt"])
+                    self.room.broadcast({"t": "fx", "k": "chain", "e": e, "x": round(b.x), "y": round(b.y)})
+        if slot == "special":
+            for x in build.get("specialheal"): self.heal(fh, x["amt"])
+        b.hp = max(0, b.hp - dmg - extra)
         fh.threat += dmg
-        for e in b.get("steal"):
-            if e["slot"] in (slot, "all"): self.heal(fh, dmg * e["frac"])
+        for x in build.get("steal"):
+            if x["slot"] in (slot, "all"): self.heal(fh, dmg * x["frac"])
         if crit:
-            self.state, self.until = "idle", now + 0.6  # the critical ends the stagger
-            self.poise = self.mpoise
-            for e in b.get("critstatus"):
-                self.build_status("burn", e["amt"], now, fh); self.build_status("rot", e["amt"], now, fh)
-        elif self.state != "stagger":
-            self.damage_poise(poise, now)
-        self.room.broadcast({"t": "fx", "k": "crit" if crit else "hit", "h": hid, "dmg": dmg + extra, "x": round(self.x), "y": round(self.y)})
-        for s in b.status[slot]: self.build_status(s[0], s[1] * b.buildup, now, fh)
-        if self.hp <= 0:
-            self.die(now)
-        elif self.phase == 1 and self.hp <= self.mhp * self.boss["phase2"]:
-            self.phase = 2
-            self.start_move("phase2", self.boss["phase2_move"], now, cancel=True)
+            b.state, b.until = "idle", now + 0.6  # the critical ends the stagger
+            b.poise = b.mpoise
+            for x in build.get("critstatus"):
+                self.build_status(b, "burn", x["amt"], now, fh); self.build_status(b, "rot", x["amt"], now, fh)
+        elif b.state != "stagger":
+            self.damage_poise(b, poise, now)
+        self.room.broadcast({"t": "fx", "k": "crit" if crit else "hit", "e": e, "h": hid, "dmg": dmg + extra, "x": round(b.x), "y": round(b.y)})
+        for s in build.status[slot]: self.build_status(b, s[0], s[1] * build.buildup, now, fh)
+        self.check_hp(b, now)
+
+    def check_hp(self, b, now):
+        if b.hp <= 0 and b.alive:
+            self.body_down(b, now)
+            return
+        for i, th in enumerate(b.d.get("phases", [])):
+            ph = i + 2
+            if b.phase < ph and b.hp <= b.mhp * th:
+                b.phase = ph
+                mv = b.d.get("phase_moves", {}).get(ph)
+                art = b.d.get("phase_art", {}).get(ph)
+                if art: b.art = art
+                if mv: self.start_move(b, f"phase{ph}", mv, now, cancel=True)
+                break
+
+    def hit_add(self, hid, msg, now):
+        fh = self.heroes.get(hid)
+        a = self.adds.get(msg.get("a"))
+        if not fh or not a or fh.down or fh.dead or not self.new_swing(fh, msg): return
+        if math.hypot(a["x"] - fh.x, a["y"] - fh.y) > 140: return
+        at = self.attack(fh, msg)
+        if not at: return
+        mult, _, slot = at
+        dmg = round(C.WEAPONS[fh.hero.weapon]["base"] * mult * fh.hero.build().dmg_mult(slot))
+        a["hp"] -= dmg
+        self.room.broadcast({"t": "fx", "k": "addhit", "a": a["id"], "dmg": dmg, "x": round(a["x"]), "y": round(a["y"])})
+        if a["hp"] <= 0:
+            del self.adds[a["id"]]
+            self.room.broadcast({"t": "fx", "k": "adddie", "a": a["id"], "kind": a["kind"], "x": round(a["x"]), "y": round(a["y"])})
 
     def heal(self, fh, amt):
         h = fh.hero
         if fh.down or fh.dead or amt <= 0: return
         h.hp = min(h.mhp(), h.hp + max(1, round(amt)))
 
-    def build_status(self, kind, amt, now, fh):
-        """Add buildup; a full meter bursts (and the next takes longer to fill)."""
-        if self.state == "dead" or amt <= 0: return
-        self.meter[kind] += amt
-        need = 100 * 1.4 ** self.procs[kind]
-        if self.meter[kind] < need:
+    def build_status(self, b, kind, amt, now, fh):
+        """Add buildup on body b; a full meter bursts (and the next takes longer to fill)."""
+        if not b.alive or amt <= 0: return
+        b.meter[kind] += amt
+        if b.meter[kind] < 100 * 1.4 ** b.procs[kind]:
             return
-        self.meter[kind] = 0
-        self.procs[kind] += 1
-        self.marked[kind] = now
-        b = fh.hero.build()
+        b.meter[kind] = 0
+        b.procs[kind] += 1
+        b.marked[kind] = now
+        build = fh.hero.build()
         mult = 1.0
-        for e in b.get("statusmult"):
-            if e["kind"] == kind: mult *= e["mult"]
-        for e in b.get("combo"):
-            if e["a"] == kind and now - self.marked[e["b"]] < STATUS_LIVE: mult *= e["mult"]
+        for x in build.get("statusmult"):
+            if x["kind"] == kind: mult *= x["mult"]
+        for x in build.get("combo"):
+            if x["a"] == kind and now - b.marked[x["b"]] < STATUS_LIVE: mult *= x["mult"]
         scale = 1 + 0.25 * (self.tier - 1)
         dmg = 0
         if kind == "burn":
@@ -232,24 +355,29 @@ class Fight:
         elif kind == "bleed":
             dmg = round(95 * scale * mult)
         elif kind == "frost":
-            self.slow_until = now + STATUS_LIVE
-            if any(True for _ in b.get("frostbreak")) and self.hp < self.mhp * 0.5:
-                self.damage_poise(self.poise + 1, now)
+            b.slow_until = now + STATUS_LIVE
+            if build.get("frostbreak") and b.hp < b.mhp * 0.5:
+                self.damage_poise(b, b.poise + 1, now)
             else:
-                self.damage_poise(50 * mult * (self.mpoise / self.boss["poise"]) ** 0.5, now)
+                self.damage_poise(b, 50 * mult * (b.mpoise / b.base_poise) ** 0.5, now)
             dmg = round(20 * scale)
         elif kind == "rot":
-            self.rot_until = now + 5.0
-            self.rot_dps = 26 * scale * mult
-            self.rot_blocks_poise = any(True for _ in b.get("vsstatus_poise"))
-        for e in b.get("procbuild"):
-            if e["on"] == kind: self.build_status(e["kind"], e["amt"], now, fh)
+            b.rot_until = now + 5.0
+            b.rot_dps = 26 * scale * mult
+            b.rot_blocks_poise = bool(build.get("vsstatus_poise"))
+        for x in build.get("procbuild"):
+            if x["on"] == kind: self.build_status(b, x["kind"], x["amt"], now, fh)
         if dmg:
-            self.hp = max(1 if self.hp > 0 else 0, self.hp - dmg)
-        self.room.broadcast({"t": "fx", "k": "status", "kind": kind, "dmg": dmg, "x": round(self.x), "y": round(self.y)})
+            b.hp = max(0, b.hp - dmg)
+        self.room.broadcast({"t": "fx", "k": "status", "e": b.e, "kind": kind, "dmg": dmg, "x": round(b.x), "y": round(b.y)})
+        self.check_hp(b, now)
+
+    def nearest_body(self, x, y):
+        live = [b for b in self.bodies if b.alive] or self.bodies
+        return min(live, key=lambda b: math.hypot(b.x - x, b.y - y))
 
     def dodged(self, hid, msg, now):
-        """A hero rolled; if they rolled past the boss, their dodge upgrades build statuses."""
+        """A hero rolled; if they rolled past a boss, their dodge upgrades build statuses."""
         fh = self.heroes.get(hid)
         if not fh or fh.down or fh.dead: return
         try:
@@ -258,28 +386,33 @@ class Fight:
             return
         dx, dy = x1 - x0, y1 - y0
         L = max(1e-6, dx * dx + dy * dy)
-        u = max(0.0, min(1.0, ((self.x - x0) * dx + (self.y - y0) * dy) / L))
-        if math.hypot(x0 + dx * u - self.x, y0 + dy * u - self.y) > 50 + self.boss["radius"]: return
-        b = fh.hero.build()
-        for e in b.get("dodge"): self.build_status(e["kind"], e["amt"] * b.buildup, now, fh)
+        for b in self.bodies:
+            if not b.alive: continue
+            u = max(0.0, min(1.0, ((b.x - x0) * dx + (b.y - y0) * dy) / L))
+            if math.hypot(x0 + dx * u - b.x, y0 + dy * u - b.y) > 50 + b.d["radius"]: continue
+            build = fh.hero.build()
+            for x in build.get("dodge"): self.build_status(b, x["kind"], x["amt"] * build.buildup, now, fh)
 
     def perfect(self, hid, now):
         """A hero's roll carried them through a hit (their browser says)."""
         fh = self.heroes.get(hid)
         if not fh: return
-        for e in fh.hero.build().get("perfect"):
-            fh.empowered = (e["dmg"], now + 2.0)
-            if e.get("heal"): self.heal(fh, e["heal"])
+        for x in fh.hero.build().get("perfect"):
+            fh.empowered = (x["dmg"], now + 2.0)
+            if x.get("heal"): self.heal(fh, x["heal"])
 
-    def damage_poise(self, amount, now):
-        if self.rot_until > now and self.rot_blocks_poise: amount *= 1.25
-        self.poise -= amount
-        self.poise_hit = now
-        if self.poise <= 0 and self.state != "stagger" and not (self.move and self.move.data.get("invuln")):
-            self.cancel(now)
-            self.state, self.until = "stagger", now + STAGGER
-            self.poise = self.mpoise
-            self.room.broadcast({"t": "fx", "k": "stagger", "x": round(self.x), "y": round(self.y)})
+    def damage_poise(self, b, amount, now):
+        if b.rot_until > now and b.rot_blocks_poise: amount *= 1.25
+        b.poise -= amount
+        b.poise_hit = now
+        if b.poise <= 0 and b.state != "stagger" and not (b.move and b.move.data.get("invuln")):
+            self.stagger(b, now, STAGGER, "stagger")
+
+    def stagger(self, b, now, dur, kind):
+        self.cancel(b, now)
+        b.state, b.until = "stagger", now + dur
+        b.poise = b.mpoise
+        self.room.broadcast({"t": "fx", "k": kind, "e": b.e, "x": round(b.x), "y": round(b.y)})
 
     def hurt(self, hid, msg, now):
         """A hero took a hit (their browser decided). Applies the damage."""
@@ -287,30 +420,36 @@ class Fight:
         if not fh or fh.down or fh.dead or self.over: return
         key = str(msg.get("id"))[:24]
         if key in fh.hits_taken: return
-        hit, start = self.find_hit(key)
-        if hit is None: return
-        t = now - start
-        if not (hit["t0"] - 0.6 <= t <= hit["t1"] + 0.8): return
+        if key.startswith("a"):
+            dmg, src = self.add_hit(fh, key)
+            if dmg is None: return
+        else:
+            hit, start, mv = self.find_hit(key)
+            if hit is None: return
+            t = now - start
+            if not (hit["t0"] - 0.6 <= t <= hit["t1"] + 0.8): return
+            dmg, src = hit["dmg"], self.bodies[mv.e]
         fh.hits_taken.add(key)
-        if len(fh.hits_taken) > 300: fh.hits_taken = set(list(fh.hits_taken)[-150:])
-        b = fh.hero.build()
+        if len(fh.hits_taken) > 400: fh.hits_taken = set(list(fh.hits_taken)[-200:])
+        b = src or self.nearest_body(fh.x, fh.y)
+        build = fh.hero.build()
         if msg.get("parry") or msg.get("block"):
-            for e in b.get("guard_status"): self.build_status(e["kind"], e["amt"] * b.buildup, now, fh)
+            for x in build.get("guard_status"): self.build_status(b, x["kind"], x["amt"] * build.buildup, now, fh)
         if msg.get("parry"):
-            self.damage_poise(60 * (self.mpoise / self.boss["poise"]) ** 0.5, now)
-            for e in b.get("parry"): fh.empowered = (e["mult"], now + 3.0)
-            for e in b.get("parryheal"): self.heal(fh, e["amt"])
-            for e in b.get("parrybolt"):
-                self.hp = max(1, self.hp - round(e["dmg"]))
-                self.room.broadcast({"t": "fx", "k": "chain", "x": round(self.x), "y": round(self.y)})
+            self.damage_poise(b, 60 * (b.mpoise / b.base_poise) ** 0.5, now)
+            for x in build.get("parry"): fh.empowered = (x["mult"], now + 3.0)
+            for x in build.get("parryheal"): self.heal(fh, x["amt"])
+            for x in build.get("parrybolt"):
+                b.hp = max(1, b.hp - round(x["dmg"]))
+                self.room.broadcast({"t": "fx", "k": "chain", "e": b.e, "x": round(b.x), "y": round(b.y)})
             for o in self.heroes.values():
-                for e in o.hero.build().get("allyparry"): o.empowered = (e["mult"], now + 3.0)
+                for x in o.hero.build().get("allyparry"): o.empowered = (x["mult"], now + 3.0)
             self.room.broadcast({"t": "fx", "k": "parry", "h": hid, "x": round(fh.x), "y": round(fh.y)})
             return
         if msg.get("block"):
             self.room.broadcast({"t": "fx", "k": "block", "h": hid, "x": round(fh.x), "y": round(fh.y)})
             return
-        dmg = hit["dmg"] * self.dmg_scale
+        dmg = dmg * self.dmg_scale
         if fh.shield:
             soak = min(fh.shield, dmg); fh.shield -= soak; dmg -= soak
         fh.heal_at = None  # a hit spills the drink
@@ -320,24 +459,34 @@ class Fight:
         if h.hp <= 0:
             self.knock_down(fh, now)
 
+    def add_hit(self, fh, key):
+        """An add touched a hero: 'a<id>:<n>' (n counts seconds of contact)."""
+        try:
+            aid = int(key[1:].split(":")[0])
+        except ValueError:
+            return None, None
+        a = self.adds.get(aid)
+        if not a or math.hypot(a["x"] - fh.x, a["y"] - fh.y) > a["r"] + 40: return None, None
+        return a["dmg"], None
+
     def find_hit(self, key):
-        """'seq:i' or 'seq:i:n' (n for repeating hits) -> (hit, the move's start time)."""
+        """'seq:i' or 'seq:i:n' (n for repeating hits) -> (hit, the move's start time, the move)."""
         parts = key.split(":")
         try:
             seq, i = int(parts[0]), int(parts[1])
         except (ValueError, IndexError):
-            return None, 0
-        for m in ([self.move] if self.move else []) + self.recent:
-            if m.seq == seq and 0 <= i < len(m.data["hits"]):
-                return m.data["hits"][i], m.start
-        return None, 0
+            return None, 0, None
+        for m in self.moves():
+            if m.seq == seq and 0 <= i < len(m.data["hits"]) and m.data["hits"][i]["k"] != "spawn":
+                return m.data["hits"][i], m.start, m
+        return None, 0, None
 
     def knock_down(self, fh, now):
         fh.down = True
         fh.heal_at = None
         for o in self.heroes.values():
             if o is not fh:
-                for e in o.hero.build().get("ondown"): o.vengeance = (e["mult"], now + e["dur"])
+                for x in o.hero.build().get("ondown"): o.vengeance = (x["mult"], now + x["dur"])
         if self.solo and fh.hero.second_wind:
             fh.hero.second_wind = False
             fh.second_wind = now + 2.0
@@ -358,65 +507,87 @@ class Fight:
         if math.hypot(fh.x - other.x, fh.y - other.y) > 40: return
         d = C.HERO["down"]
         pacts = fh.hero.build().get("revive")
-        if not any(e.get("free") for e in pacts):
+        if not any(x.get("free") for x in pacts):
             fh.hero.hp = max(1, fh.hero.hp - round(fh.hero.mhp() * d["cost"]))
         other.down = False
         other.hero.hp = max(1, round(other.hero.mhp() * d["rise"]))
-        other.shield = round(sum(e.get("shield", 0) for e in pacts))
+        other.shield = round(sum(x.get("shield", 0) for x in pacts))
         self.room.broadcast({"t": "fx", "k": "revive", "h": who, "by": hid, "x": round(other.x), "y": round(other.y)})
 
     # ------------------------------------------------------------------ the boss
-    def cancel(self, now):
-        if self.move:
-            self.room.broadcast({"t": "cancel", "seq": self.move.seq, "at": round(now, 3)})
-            self.x, self.y = self.clamp(*self.move.pos(min(now, self.move.end())))
-            self.recent = ([self.move] + self.recent)[:4]
-            self.move = None
+    def cancel(self, b, now):
+        if b.move:
+            self.room.broadcast({"t": "cancel", "seq": b.move.seq, "at": round(now, 3)})
+            b.x, b.y = self.clamp(*b.move.pos(min(now, b.move.end())))
+            b.move.last = min(b.move.last, now)
+            self.recent = ([b.move] + self.recent)[:RECENT]
+            b.move = None
+
+    def body_down(self, b, now):
+        self.cancel(b, now)
+        b.state = "dead"
+        b.hp = 0
+        self.room.broadcast({"t": "fx", "k": "bodydown", "e": b.e, "x": round(b.x), "y": round(b.y)})
+        rest = [o for o in self.bodies if o.alive]
+        if not rest:
+            self.over = "won"
+            self.until = now + 3.5
+            self.adds.clear()
+            self.room.broadcast({"t": "fx", "k": "bossdown", "x": round(b.x), "y": round(b.y)})
+            return
+        for o in rest:  # the survivor takes up the fallen one's power (the Headsmen)
+            if o.d.get("avenge") and not o.enraged:
+                o.enraged = True
+                o.phase = max(o.phase, 3)
+                o.hp = min(o.mhp, o.hp + round(o.mhp * 0.25))
+                mv = o.d.get("phase_moves", {}).get(3)
+                if mv: self.start_move(o, "phase3", mv, now, cancel=True)
 
     def die(self, now):
-        self.cancel(now)
-        self.state = "dead"
-        self.over = "won"
-        self.until = now + 3.5
-        self.room.broadcast({"t": "fx", "k": "bossdown", "x": round(self.x), "y": round(self.y)})
+        for b in self.bodies:
+            if b.alive: self.body_down(b, now)
 
     def alive_heroes(self):
         return [f for f in self.heroes.values() if not f.down and not f.dead]
 
-    def pick_target(self, now):
+    def pick_target(self, b, now):
         best, score = None, -1e9
         for f in self.alive_heroes():
-            d = math.hypot(f.x - self.x, f.y - self.y)
+            d = math.hypot(f.x - b.x, f.y - b.y)
             s = -d / 90 + f.threat * 0.01 + min(6.0, now - f.last_targeted) * 0.35 + random.random() * 0.6
+            if len(self.bodies) > 1 and any(o.target is f for o in self.bodies if o is not b): s -= 1.0  # the two split up
             if s > score: best, score = f, s
         return best
 
-    def start_move(self, mid, data, now, cancel=False):
-        if cancel: self.cancel(now)
-        t = self.target
-        aim = math.atan2(t.y - self.y, t.x - self.x) if t else self.face
-        dist = math.hypot(t.x - self.x, t.y - self.y) if t else 80
+    def start_move(self, b, mid, data, now, cancel=False):
+        if cancel: self.cancel(b, now)
+        t = b.target if b.target in self.alive_heroes() else self.pick_target(b, now)
+        aim = math.atan2(t.y - b.y, t.x - b.x) if t else b.face
+        dist = math.hypot(t.x - b.x, t.y - b.y) if t else 80
         dists = resolve(data, 0.0, dist, [0.0] * len(data["motion"]))
         self.seq += 1
-        self.move = Move(self.seq, mid, data, now + LEAD, (self.x, self.y), aim, dists)
-        self.fit(self.move)
-        self.face = aim
-        self.state = "move"
-        self.vx = self.vy = 0
-        self.cool[mid] = now + LEAD + data["dur"] + data.get("cd", 0)
-        self.last_move = mid
-        self.room.broadcast(self.move.wire())
+        b.move = Move(self.seq, b.e, mid, data, now + LEAD, (b.x, b.y), aim, dists)
+        self.fit(b.move)
+        b.face = aim
+        b.state = "move"
+        b.vx = b.vy = 0
+        b.cool[mid] = now + LEAD + data["dur"] + data.get("cd", 0)
+        b.last_move = mid
+        extra = {"art": b.art} if mid.startswith("phase") else None
+        self.room.broadcast(b.move.wire(extra))
 
-    def choose(self, now):
-        t = self.target
+    def choose(self, b, now):
+        t = b.target
         if not t: return None
-        d = math.hypot(t.x - self.x, t.y - self.y)
+        d = math.hypot(t.x - b.x, t.y - b.y)
         opts = []
-        for mid, m in self.boss["moves"].items():
-            if self.phase not in m["phase"] or self.cool.get(mid, 0) > now: continue
+        for mid, m in b.d["moves"].items():
+            if b.phase not in m["phase"] or b.cool.get(mid, 0) > now: continue
+            if m.get("enraged") and not b.enraged: continue
+            if m.get("adds") and sum(1 for a in self.adds.values() if a["kind"] == m["adds"]) >= m.get("max_adds", 4): continue
             lo, hi = m["range"]
             if lo <= d <= hi:
-                opts.append((mid, m["weight"] * (0.35 if mid == self.last_move else 1.0)))
+                opts.append((mid, m["weight"] * (0.35 if mid == b.last_move else 1.0)))
         if not opts: return None
         r = random.random() * sum(w for _, w in opts)
         for mid, w in opts:
@@ -436,9 +607,37 @@ class Fight:
         l, t, r, b = self.arena["pad"]
         return max(l, min(self.arena["w"] - r, x)), max(t, min(self.arena["h"] - b, y))
 
+    # ------------------------------------------------------------------ adds
+    def spawn(self, b, h, now):
+        kind = self.boss["adds"][h["kind"]]
+        a = b.move.aims[-1][1] if b.move else b.face
+        n = h.get("n", 1)
+        for i in range(n):
+            if len(self.adds) >= 12: return
+            ang = a + math.radians(h.get("spread", 0) * (i - (n - 1) / 2))
+            x, y = self.clamp(b.x + math.cos(ang) * h.get("x", 30), b.y + math.sin(ang) * h.get("x", 30))
+            self.add_seq += 1
+            hp = kind["hp"] * (1 + 0.3 * (len(self.heroes) - 1))
+            self.adds[self.add_seq] = {"id": self.add_seq, "kind": h["kind"], "x": x, "y": y, "hp": hp, "mhp": hp, "r": kind["radius"],
+                                       "dmg": kind["dmg"], "speed": kind["speed"], "born": now, "life": kind.get("life", 30), "e": b.e}
+
+    def step_adds(self, now):
+        live = self.alive_heroes()
+        for a in list(self.adds.values()):
+            if now - a["born"] > a["life"]:
+                del self.adds[a["id"]]
+                self.room.broadcast({"t": "fx", "k": "adddie", "a": a["id"], "kind": a["kind"], "x": round(a["x"]), "y": round(a["y"])})
+                continue
+            if now - a["born"] < 0.6 or not live: continue
+            t = min(live, key=lambda f: math.hypot(f.x - a["x"], f.y - a["y"]))
+            dx, dy = t.x - a["x"], t.y - a["y"]
+            d = math.hypot(dx, dy)
+            if d > 4:
+                a["x"], a["y"] = self.clamp(a["x"] + dx / d * a["speed"] * TICK, a["y"] + dy / d * a["speed"] * TICK)
+
+    # ------------------------------------------------------------------ the tick
     def tick(self, now):
         if self.over == "lost": return
-        # heroes: drinks, bleeding out, second wind
         for f in self.heroes.values():
             if f.heal_at and now >= f.heal_at:
                 f.heal_at = None
@@ -446,10 +645,10 @@ class Fight:
                 amt = h.mhp() * h.build().stats["heal"]
                 h.hp = min(h.mhp(), h.hp + round(amt))
                 self.room.broadcast({"t": "fx", "k": "heal", "h": h.id, "x": round(f.x), "y": round(f.y)})
-                for e in h.build().get("flaskall"):
+                for x in h.build().get("flaskall"):
                     for o in self.alive_heroes():
                         if o is not f and math.hypot(o.x - f.x, o.y - f.y) < 70:
-                            self.heal(o, amt * e["frac"])
+                            self.heal(o, amt * x["frac"])
             if f.down and f.second_wind and now >= f.second_wind:
                 f.second_wind, f.down = None, False
                 f.hero.hp = round(f.hero.mhp() * 0.5)
@@ -460,70 +659,87 @@ class Fight:
             f.threat *= 0.995
         if not self.alive_heroes() and not any(f.second_wind for f in self.heroes.values()) and self.over != "won":
             self.over = "lost"
-            self.cancel(now)
+            for b in self.bodies: self.cancel(b, now)
             self.room.broadcast({"t": "fx", "k": "wipe"})
             return
-        if self.state == "dead": return
-        if self.rot_until > now and self.state != "dead":
-            self.rot_acc = getattr(self, "rot_acc", 0.0) + self.rot_dps * TICK
-            if self.rot_acc >= 10:
-                n = int(self.rot_acc); self.rot_acc -= n
-                self.hp = max(1, self.hp - n)
-                self.room.broadcast({"t": "fx", "k": "dot", "kind": "rot", "dmg": n, "x": round(self.x), "y": round(self.y)})
-        if self.state != "stagger" and now - self.poise_hit > POISE_REGEN[0] and not (self.rot_until > now and self.rot_blocks_poise):
-            self.poise = min(self.mpoise, self.poise + POISE_REGEN[1] * TICK)
-        if self.state in ("intro", "stagger"):
-            if now >= self.until:
-                self.state, self.until = "idle", now + 0.3
+        if self.over == "won": return
+        self.recent = [m for m in self.recent if m.last > now - 1.0]
+        self.step_adds(now)
+        for b in self.bodies:
+            if b.alive: self.tick_body(b, now)
+
+    def tick_body(self, b, now):
+        if b.rot_until > now:
+            b.rot_acc += b.rot_dps * TICK
+            if b.rot_acc >= 10:
+                n = int(b.rot_acc); b.rot_acc -= n
+                b.hp = max(0, b.hp - n)
+                self.room.broadcast({"t": "fx", "k": "dot", "e": b.e, "kind": "rot", "dmg": n, "x": round(b.x), "y": round(b.y)})
+                self.check_hp(b, now)
+                if not b.alive: return
+        if b.state != "stagger" and now - b.poise_hit > POISE_REGEN[0] and not (b.rot_until > now and b.rot_blocks_poise):
+            b.poise = min(b.mpoise, b.poise + POISE_REGEN[1] * TICK)
+        if b.state in ("intro", "stagger"):
+            if now >= b.until:
+                if b.state == "stagger" and b.cores:
+                    b.cores = [c["hp"] * C.SCALE_HP[len(self.heroes) - 1] for c in b.d["cores"]]  # the cores glow again
+                b.state, b.until = "idle", now + 0.3
             return
-        if self.move:
-            m = self.move
+        if b.move:
+            m = b.move
             t = now - m.start
             for lt in m.data.get("locks", []):
                 if lt not in m.locked and t >= lt:
                     m.locked.add(lt)
-                    tg = self.target if self.target in self.alive_heroes() else self.pick_target(now)
+                    tg = b.target if b.target in self.alive_heroes() else self.pick_target(b, now)
                     if tg:
                         bx, by = m.pos(now)
                         a = math.atan2(tg.y - by, tg.x - bx)
                         m.aims.append((lt, a))
                         m.dists = resolve(m.data, lt, math.hypot(tg.x - bx, tg.y - by), m.dists)
                         self.fit(m, lt)
-                        self.face = a
+                        b.face = a
                         self.room.broadcast({"t": "aim", "seq": m.seq, "lt": lt, "a": round(a, 4), "d": [round(d, 1) for d in m.dists]})
-            self.x, self.y = self.clamp(*m.pos(now))
+            for i, h in enumerate(m.data["hits"]):
+                if h["k"] == "spawn" and i not in m.spawned and t >= h["t0"]:
+                    m.spawned.add(i)
+                    self.spawn(b, h, now)
+            b.x, b.y = self.clamp(*m.pos(now))
             if now >= m.end():
-                self.recent = ([m] + self.recent)[:4]
-                self.move = None
-                self.state, self.until = "idle", now + (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7))
+                self.recent = ([m] + self.recent)[:RECENT]
+                b.move = None
+                rest = (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7)) * (1.6 if len(self.bodies) > 1 else 1)
+                b.state, b.until = "idle", now + rest / self.diff["speed"]
             return
-        # idle: pick a target, then a move in range, else walk closer
-        if not self.target or self.target not in self.alive_heroes() or random.random() < 0.01:
-            self.target = self.pick_target(now)
-        t = self.target
+        if not b.target or b.target not in self.alive_heroes() or random.random() < 0.01:
+            b.target = self.pick_target(b, now)
+        t = b.target
         if not t:
-            self.vx = self.vy = 0
+            b.vx = b.vy = 0
             return
-        if now >= self.until:
-            mid = self.choose(now)
+        if now >= b.until:
+            mid = self.choose(b, now)
             if mid:
                 t.last_targeted = now
-                self.start_move(mid, self.boss["moves"][mid], now)
+                self.start_move(b, mid, b.d["moves"][mid], now)
                 return
-        dx, dy = t.x - self.x, t.y - self.y
+        dx, dy = t.x - b.x, t.y - b.y
         d = math.hypot(dx, dy)
-        self.face = math.atan2(dy, dx)
-        if d > 46:
-            sp = self.boss["speed"] * (1.15 if self.phase == 2 else 1.0) * (0.55 if now < self.slow_until else 1.0)
-            self.vx, self.vy = dx / d * sp, dy / d * sp
-            self.x, self.y = self.clamp(self.x + self.vx * TICK, self.y + self.vy * TICK)
+        b.face = math.atan2(dy, dx)
+        keep = b.d.get("keep", 46)  # ranged bosses keep their distance
+        if d > keep + 6 or (b.d.get("keep") and d < keep * 0.5):
+            sp = b.d["speed"] * (1.15 if b.phase >= 2 else 1.0) * (0.55 if now < b.slow_until else 1.0) * self.diff["speed"]
+            sgn = 1 if d > keep else -1
+            b.vx, b.vy = dx / d * sp * sgn, dy / d * sp * sgn
+            b.x, b.y = self.clamp(b.x + b.vx * TICK, b.y + b.vy * TICK)
         else:
-            self.vx = self.vy = 0
+            b.vx = b.vy = 0
 
     def snapshot(self, now):
         return {"t": "s", "st": round(now, 3),
-                "b": [round(self.x, 1), round(self.y, 1), round(self.vx, 1), round(self.vy, 1), round(self.face, 3), self.hp, self.mhp,
-                      round(self.poise), self.mpoise, self.phase, self.state],
+                "b": [[round(b.x, 1), round(b.y, 1), round(b.vx, 1), round(b.vy, 1), round(b.face, 3), b.hp, b.mhp,
+                       round(b.poise), b.mpoise, b.phase, b.state, [round(c) for c in b.cores]] for b in self.bodies],
+                "a": [[a["id"], a["kind"], round(a["x"], 1), round(a["y"], 1), round(a["hp"]), round(a["mhp"])] for a in self.adds.values()],
                 "h": [[f.hero.id, round(f.x, 1), round(f.y, 1), round(f.face, 2), f.anim, round(f.at, 2), f.hero.hp, f.hero.mhp(),
                        f.hero.flasks, 1 if f.down else (2 if f.dead else 0),
                        round(max(0, f.bleed - now), 1) if f.down and f.bleed else 0, 1 if f.heal_at else 0]
@@ -531,7 +747,8 @@ class Fight:
 
     def start_wire(self):
         return {"t": "fight", "boss": self.boss["id"], "arena": self.boss["arena"], "size": [self.arena["w"], self.arena["h"]],
-                "pad": self.arena["pad"], "mhp": self.mhp, "mpoise": self.mpoise, "intro": INTRO, "started": round(self.started, 3),
+                "pad": self.arena["pad"], "intro": INTRO, "started": round(self.started, 3),
+                "bodies": [{"mhp": b.mhp, "mpoise": b.mpoise, "x": round(b.x), "y": round(b.y), "art": b.art} for b in self.bodies],
                 "heroes": {f.hero.id: [round(f.x), round(f.y)] for f in self.heroes.values()}}
 
 

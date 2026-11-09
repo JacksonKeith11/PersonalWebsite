@@ -148,7 +148,7 @@ export class LocalHero {
 
     // aim: the mouse, the right stick, or where you're walking; lock-on points at the boss
     if (d.pressed('lock')) this.locked = !this.locked;
-    const boss = ctx.boss;
+    const boss = ctx.boss.nearest(this.x, this.y);
     let want = null;
     if (this.locked && boss.alive) want = Math.atan2(boss.y - this.y, boss.x - this.x);
     else if (d.id === 'kb' && d.mouse && ctx.world) {
@@ -279,18 +279,23 @@ export class LocalHero {
 
   startAttack(kind) {
     this.state = kind; this.t = 0; this.anT = 0;
-    this.swing = { seq: ++swingSeq, hit: false };
+    this.swing = { seq: ++swingSeq, struck: new Set() };
   }
 
+  // one swing strikes each thing it touches once: a body (or one of its weak points), adds
   checkHit(atk, ctx) {
-    const b = ctx.boss;
-    if (!b.alive || this.swing.hit || this.t < atk.hit[0] || this.t > atk.hit[1]) return;
+    if (this.t < atk.hit[0] || this.t > atk.hit[1]) return;
     const s = placeAttack(reach(atk.shape, this.S.reach || 1), this.x, this.y, this.aim);
-    if (!touches(s, b.x, b.y, b.r)) return;
-    this.swing.hit = true;
     const kind = this.state === 'atk' ? 'light' : this.state;
-    ctx.send({ t: 'hit', h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: this.swing.seq });
-    ctx.onHit(this, kind);
+    const base = { h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: this.swing.seq };
+    for (const tg of ctx.boss.targets(ctx.now)) {
+      const key = tg.kind === 'add' ? 'a' + tg.a : 'b' + tg.e;
+      if (this.swing.struck.has(key) || !touches(s, tg.x, tg.y, tg.r)) continue;
+      this.swing.struck.add(key);
+      if (tg.kind === 'add') { ctx.send({ t: 'hitadd', a: tg.a, ...base }); tg.add.flash = 0.08; }
+      else ctx.send({ t: 'hit', e: tg.e, core: tg.kind === 'core' ? tg.i : undefined, ...base });
+      ctx.onHit(this, kind, tg);
+    }
   }
 
   // a boss hit reached this hero on this browser: returns 'parry', 'block' or 'hurt' (or null: no effect)

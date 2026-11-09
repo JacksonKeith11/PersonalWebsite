@@ -91,7 +91,7 @@ PHASE2 = {
 
 BOSS = {
     "id": "corvin", "name": "Ser Corvin, the Oathless", "tier": 1, "rig": "knight", "art": "corvin",
-    "hp": 1900, "poise": 120, "radius": 20, "speed": 52, "phase2": 0.5,
-    "moves": MOVES, "phase2_move": PHASE2, "weapon_fire_in": 2,  # the blade burns from phase 2
+    "hp": 1900, "poise": 120, "radius": 20, "speed": 52,
+    "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "arena": "chapel",
 }

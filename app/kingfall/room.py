@@ -120,7 +120,8 @@ class Room:
         self.send(c, self.lobby_wire())
         if self.fight:
             self.send(c, self.fight.start_wire())
-            if self.fight.move: self.send(c, self.fight.move.wire())
+            for b in self.fight.bodies:
+                if b.move: self.send(c, b.move.wire({"art": b.art}))
         return c
 
     def leave(self, c, queue):
@@ -189,7 +190,7 @@ class Room:
         elif self.state == "bonfire" and h:
             self.bonfire(h, t, msg)
         elif t == "debugwin" and self.debug and self.fight:
-            self.fight.hp = 0; self.fight.die(now)
+            self.fight.die(now)
         elif self.fight and h:
             f = self.fight
             if t == "st": f.report(h.id, msg)
@@ -199,6 +200,7 @@ class Room:
             elif t == "revive": f.revive(h.id, msg.get("who"), now)
             elif t == "dodge": f.dodged(h.id, msg, now)
             elif t == "perfect": f.perfect(h.id, now)
+            elif t == "hitadd": f.hit_add(h.id, msg, now)
 
     # ------------------------------------------------------------------ the Bonfire
     def prices(self):
@@ -281,7 +283,7 @@ class Room:
                 f = self.fight
                 f.tick(now)
                 n += 1
-                if n % 2 == 0 or f.move:
+                if n % 2 == 0 or any(b.move for b in f.bodies):
                     self.broadcast(f.snapshot(now))
                 if f.over == "won" and now >= f.until:
                     self.end_fight(True)

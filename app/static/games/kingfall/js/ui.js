@@ -101,8 +101,8 @@ export function buildHud(boss, heroes, colours, mineIds) {
         ${mineIds.includes(h.id) ? '<div class="bar st"><i></i></div><div class="bar fo"><i></i></div>' : ''}
         <div class="downtxt"></div>
       </div>`).join('')}</div>
-    <div class="bossbar"><div class="bname">${esc(boss.name)}</div>
-      <div class="bar"><i class="lag"></i><i class="v"></i></div><div class="bar poise"><i></i></div></div>
+    <div class="bossbar">${(boss.bodies || [boss]).map((b, e) => `<div class="bbody" id="bb-${e}"><div class="bname">${esc(b.name || boss.name)}</div>
+      <div class="bar"><i class="lag"></i><i class="v"></i></div><div class="bar poise"><i></i></div></div>`).join('')}</div>
     <div class="lockhint"></div>`;
   return el;
 }
@@ -115,12 +115,13 @@ function setBar(bar, v) {
 }
 
 export function updateHud(scene) {
-  const B = scene.boss;
-  const bb = document.querySelector('.bossbar');
-  if (bb) {
+  scene.boss.bodies.forEach((B, e) => {
+    const bb = document.getElementById('bb-' + e);
+    if (!bb) return;
     setBar(bb.querySelector('.bar:not(.poise)'), pct(B.hp, B.mhp));
     bb.querySelector('.poise i').style.width = pct(B.poise, B.mpoise);
-  }
+    bb.style.opacity = B.hp > 0 ? 1 : 0.4;
+  });
   for (const [id, row] of Object.entries(scene.heroRows)) {
     const c = document.getElementById('card-' + id);
     if (!c) continue;

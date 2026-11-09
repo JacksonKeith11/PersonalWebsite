@@ -5,16 +5,7 @@
 import math
 from PIL import Image
 import heroes, bosses
-
-
-def humanoid(at, hand, order, defaults):
-    p = {'leg_b': ('ground', *at['leg_b']), 'leg_f': ('ground', *at['leg_f']), 'torso': ('body', *at['torso']),
-         'head': ('torso', *at['head']), 'cape': ('torso', *at['cape']),
-         'arm_b': ('torso', *at['arm_b']), 'arm_f': ('torso', *at['arm_f']),
-         'weapon': ('arm_f', at['arm_f'][0] + hand[0], at['arm_f'][1] + hand[1]),
-         'shield': ('arm_b', at['arm_b'][0] + hand[0], at['arm_b'][1] + hand[1])}
-    # 'front': poses with front=1 draw the shield just before the weapon instead of before the back arm
-    return {'parts': p, 'order': order, 'defaults': defaults, 'front': {'shield': ['arm_b', 'weapon']}}
+from pix import humanoid
 
 
 RIGS = {

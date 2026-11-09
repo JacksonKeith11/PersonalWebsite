@@ -1,7 +1,7 @@
 # Kingfall's bosses, drawn as cutout parts like the heroes at the same pixel scale (heroes are about
 # 48 px tall, bosses about twice that). The owner picks each boss's look from options.
 from pix import P, E, humanoid
-import tier1, tier2
+import tier1, tier2, tier3
 
 # Humanoid boss rig: pivots relative to the feet. js/rig.js has the same table.
 KNIGHT_RIG = {'cape': (-9, -62), 'arm_b': (-15, -58), 'leg_b': (-7, -30), 'leg_f': (7, -30), 'torso': (0, -28),
@@ -114,9 +114,13 @@ RIGS = {  # bosses' own rigs (see rigs.py); 'knight' is defined there
     'toad': tier1.MIRE_RIG,
     'bellwarden': tier1.BELL_RIG,
     'hook': tier2.HOOK_RIG, 'axe': tier2.AXE_RIG, 'wolf': tier2.WOLF_RIG, 'alchemist': tier2.ALCH_RIG, 'wyrmsheet': tier2.WYRM_RIG,
+    'mirror': tier3.MIRROR_RIG, 'golem': tier3.GOLEM_RIG, 'moth': tier3.MOTH_RIG, 'king': tier3.KING_RIG, 'hollow': tier3.HOLLOW_RIG,
+    'drake': tier3.DRAKE_RIG,
 }
 BOSSES = {'corvin': corvin, 'mire': tier1.mire, 'bellwarden': tier1.bellwarden, 'hook': tier2.hook, 'axe': tier2.axe,
-          'wolf': tier2.wolf, 'alchemist': tier2.alchemist, 'wyrm': tier2.wyrm}
+          'wolf': tier2.wolf, 'alchemist': tier2.alchemist, 'wyrm': tier2.wyrm, 'mirror': tier3.mirror, 'bastion': tier3.bastion,
+          'moth': tier3.moth, 'king': tier3.king, 'hollow': tier3.hollow, 'drake': tier3.drake}
 SHEET_ONLY = {'wyrm': (tier2.wyrm_sheet, 'wyrmsheet')}
 BOSS_RIG = {'corvin': 'knight', 'mire': 'toad', 'bellwarden': 'bellwarden', 'hook': 'hook', 'axe': 'axe', 'wolf': 'wolf',
-            'alchemist': 'alchemist', 'wyrm': 'wyrm'}
+            'alchemist': 'alchemist', 'wyrm': 'wyrm', 'mirror': 'mirror', 'bastion': 'golem', 'moth': 'moth', 'king': 'king',
+            'hollow': 'hollow', 'drake': 'drake'}

@@ -11,7 +11,7 @@ def main(path, names):
     cells = []
     for n in names:
         fn, rig = bosses.SHEET_ONLY.get(n, (bosses.BOSSES[n], bosses.BOSS_RIG[n]))
-        cells.append((n, rigs.paint(fn(), rigs.RIGS[rig], {}, (200, 170), (100, 160))))
+        cells.append((n, rigs.paint(fn(), rigs.RIGS[rig], {}, (200, 170), (110 if n != 'drake' else 90, 160))))
     S = 3
     cols = min(3, len(cells))
     sheet = Image.new('RGBA', (cols * 230 * S, ((len(cells) + cols - 1) // cols) * 180 * S), (40, 36, 44, 255))

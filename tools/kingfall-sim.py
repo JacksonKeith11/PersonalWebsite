@@ -55,7 +55,7 @@ class Bot:
         self.stand = 150 if self.ranged else (first["shape"]["r"] if first["shape"]["k"] == "arc" else first["shape"]["x1"] * 0.9) * 0.8
         # its dodge: a roll, the daggers' dash (two charges) or the catalyst's blink
         G, R = W["guard"], C.HERO["roll"]
-        self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"] - 0.04)} if G["kind"] == "dash"
+        self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"])} if G["kind"] == "dash"
                       else {"dur": 0.16, "dist": G["dist"], "if": (0.0, 0.16), "blink": True} if G["kind"] == "blink"
                       else {"dur": R["dur"], "dist": R["dist"], "if": R["iframes"]})
         self.dashes, self.dash_t = G.get("charges", 0), 0.0

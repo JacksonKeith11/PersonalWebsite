@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=11';
-import { placeAttack, touches, wrap } from './moves.js?v=11';
-import { crescent, lance, burst } from './fx.js?v=11';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=12';
+import { placeAttack, touches, wrap } from './moves.js?v=12';
+import { crescent, lance, burst } from './fx.js?v=12';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -232,7 +232,7 @@ export class LocalHero {
       const [a, b] = this.HERO.roll.iframes;
       return this.t >= a && this.t <= b + (this.S.iframes || 0);
     }
-    if (this.state === 'dash') return this.t <= this.W.guard.dur - 0.04 + (this.S.iframes || 0);
+    if (this.state === 'dash') return true;  // untouchable for the whole dash (0.28 s: about a roll's worth)
     if (this.state === 'blink') return true;
     if (this.state === 'skill' && this.skill.iframes) return this.t <= this.skill.iframes;
     if (this.state === 'special' && this.W.special.air) return this.t >= this.W.special.air[0] && this.t <= this.W.special.air[1];

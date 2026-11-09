@@ -130,7 +130,7 @@ run ends.
 |---|---|---|---|---|
 | Sword & Shield | 3-hit combo | rising slash | Shield Bash | block, parry in the first 0.18 s |
 | Greatsword | 2 wide swings | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
-| Twin Daggers | 5-hit flurry | backstep cut | Shadowstep (blink and cut) | a dash with 2 charges instead of a roll |
+| Twin Daggers | 5-hit flurry, every cut building Bleed | backstep cut | Shadowstep (blink and cut) | a dash with 3 charges instead of a roll: 0.28 s, untouchable throughout, a charge back every 0.8 s |
 | Halberd | thrusts, a sweep | 270° sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
 | Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow |
 | Catalyst | bolts, a 3-bolt fan | charged orb that explodes | Nova round you | blink instead of a roll |
@@ -305,12 +305,16 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   | All | 88 | 91 | 58 | 91 | 73 | 85 | 97 |
 
   Fights average 1.2 to 1.7 minutes and 1.4 to 2.6 staggers. With 8 fights a cell, one cell swings by
-  25 points; read the columns. **Daggers are the weakest**, and all but hopeless against the Wyrm, the
-  Bastion and the King. Before this pass they won 35% (base 13 to 16, dash recharge 1.2 s to 0.8 s,
-  more poise on every attack, Shadowstep x2.2 to x2.6): part of what's left is the sim (dashes are
-  counted, rolls aren't), part is real (two dashes don't cover a four-hit flourish, and without
-  staggers there are no free hits). The catalyst's first 49% was the bots blinking into the next hit,
-  not the weapon; its base went 17 to 18. Parties of three and four win nearly everything.
+  25 points; read the columns. Parties of three and four win nearly everything. The catalyst's first
+  49% was the bots blinking into the next hit, not the weapon; its base went 17 to 18.
+- **The daggers column above is out of date**: it's from before their second pass. They began at 35%
+  (base 13, two dashes recharging in 1.2 s). Damage and poise (base 16, Shadowstep x2.6) and a quicker
+  recharge only reached 58%, and a third dash and built-in Bleed 62%, still 0% against the King. The
+  cause was the dash's invulnerability: 0.2 s against a roll's 0.29 s, too short for any hit that
+  lingers. Untouchable for the whole 0.28 s dash, they win 91% (solo / pair: Corvin 100/62, Mire
+  100/100, Bellwarden 88/75, Headsmen 100/88, Wolf 100/100, Alchemist 75/75, Wyrm 100/100, Mirror
+  88/100, Bastion 62/100, Moth 100/100, King 75/100, Drake 100/88), level with the sword, greatsword
+  and halberd. If they now feel too strong, take the base back toward 14 first.
 - **Earlier numbers** (Nov 2026, sword parties before bots used heavies; 12 fights each at skill 0.85;
   solo / 2 / 3 / 4): Corvin 67/67/92/100, Headsmen 67/75/92/100, Alchemist 67/100/100/100, the rest
   83-100. Middling bots (skill 0.6) won a third to a half of Corvin, the Headsmen, the Wyrm, the

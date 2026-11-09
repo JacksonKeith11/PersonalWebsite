@@ -157,7 +157,7 @@ U("art_gs_wall", "Living Wall", None, None, "Blocking costs {v}% less stamina.",
 U("art_gs_cleave", "Wide Cleave", None, None, "Your swings reach {v}% further.", [{"t": "stat", "key": "reach", "mult": 1.15}], ["mult"], weapon="greatsword")
 U("art_dg_venom", "Serrated Edges", None, None, "Light attacks build {v} Bleed.", [{"t": "status", "slot": "light", "kind": "bleed", "amt": 9}], ["amt"], weapon="daggers")
 U("art_dg_shadow", "Umbral Step", None, None, "Shadowstep deals {v}% more and costs less Focus.", [{"t": "dmg", "slot": "special", "mult": 1.3}, {"t": "stat", "key": "special_cost", "mult": 0.8}], ["mult"], weapon="daggers")
-U("art_dg_third", "Third Dash", None, None, "Your dash has one more charge.", [{"t": "stat", "key": "dash_charges", "add": 1}], [], weapon="daggers")
+U("art_dg_third", "Fourth Dash", None, None, "Your dash has one more charge.", [{"t": "stat", "key": "dash_charges", "add": 1}], [], weapon="daggers")
 U("art_dg_flurry", "Thousand Cuts", None, None, "Light attacks deal {v}% more.", [{"t": "dmg", "slot": "light", "mult": 1.15}], ["mult"], weapon="daggers")
 U("art_hb_reach", "Long Haft", None, None, "Your thrusts and sweeps reach {v}% further.", [{"t": "stat", "key": "reach", "mult": 1.15}], ["mult"], weapon="halberd")
 U("art_hb_counter", "Answering Blade", None, None, "Your counter deals {v}% more.", [{"t": "dmg", "slot": "guard", "mult": 1.4}], ["mult"], weapon="halberd")

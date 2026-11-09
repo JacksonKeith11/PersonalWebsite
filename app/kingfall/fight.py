@@ -320,7 +320,8 @@ class Fight:
             st = SKILLS[msg["sk"]].get("status")
             if st: self.build_status(b, st[0], st[1] * build.buildup, now, fh)
         else:
-            for s in build.status[slot]: self.build_status(b, s[0], s[1] * build.buildup, now, fh)
+            own = C.WEAPONS[h.weapon].get("status", {}).get(slot)   # the weapon's own (the daggers' Bleed)
+            for s in ([own] if own else []) + build.status[slot]: self.build_status(b, s[0], s[1] * build.buildup, now, fh)
         self.check_hp(b, now)
 
     def check_hp(self, b, now):

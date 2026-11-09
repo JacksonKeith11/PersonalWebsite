@@ -7,7 +7,8 @@ Per attack: dur (s), hit (t0, t1) when it can land, shape (as the bosses', in th
 may be queued), anim keyframes. Ranged attacks fire `proj` (v speed, r radius, life, n, spread
 degrees, pierce) instead of using a shape; `aoe` lands a circle `at` px ahead after `delay`, `ticks`
 times; `blink` teleports the hero `blink` px along the aim first; `air` makes them untouchable
-for that window (a leap); `hyper` keeps them from flinching when hit.
+for that window (a leap); `hyper` keeps them from flinching when hit. A weapon's own `status`
+({slot: (kind, amount)}) builds on every hit of that slot, on top of what upgrades add.
 
 The defensive move (`guard.kind`): block (hold: blocks from the front, parry at first), dash (the
 roll becomes a short dash with charges), counter (hold: a hit taken in the stance is absorbed and
@@ -84,7 +85,8 @@ GREATSWORD = {
 }
 
 DAGGERS = {
-    "id": "daggers", "name": "Twin Daggers", "art": "dagger", "base": 16, "blurb": "Fast and slippery. A dash instead of a roll; build bleed.",
+    "id": "daggers", "name": "Twin Daggers", "art": "dagger", "base": 16, "blurb": "Fast and slippery. Three quick dashes instead of a roll; every cut builds Bleed.",
+    "status": {"light": ("bleed", 4)},   # built on every light hit, before any upgrade
     "light": [
         {"dur": 0.22, "hit": (0.05, 0.11), "shape": {"k": "arc", "r": 36, "a0": -55, "a1": 55}, "mult": 1.0, "poise": 7, "st": 7, "step": 6, "next": 0.12,
          "anim": [(0, sw(-170, 120)), (0.05, sw(-100, 30, torso=4)), (0.11, sw(-40, -30, torso=8)), (0.22, sw(-40, -20))]},
@@ -105,7 +107,7 @@ DAGGERS = {
     "special": {"name": "Shadowstep", "focus": 30, "dur": 0.45, "hit": (0.08, 0.16), "shape": {"k": "arc", "r": 44, "a0": -90, "a1": 90}, "blink": 70,
                 "mult": 2.6, "poise": 30, "step": 0,
                 "anim": [(0, both(-190, 120, torso=-10)), (0.08, both(-100, 20, torso=6, front=1)), (0.16, both(-30, -40, torso=12, front=1)), (0.45, pose())]},
-    "guard": {"kind": "dash", "charges": 2, "recharge": 0.8, "dist": 70, "dur": 0.24, "st": 15, "anim": pose()},
+    "guard": {"kind": "dash", "charges": 3, "recharge": 0.8, "dist": 70, "dur": 0.28, "st": 15, "anim": pose()},
     "offhand": "dagger",
 }
 

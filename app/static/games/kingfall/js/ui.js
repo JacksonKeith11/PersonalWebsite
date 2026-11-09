@@ -1,10 +1,10 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=11';
-import { heroFrames } from './hero.js?v=11';
-import { sfx } from './audio.js?v=11';
-import { skillKey, deviceOfSlot } from './input.js?v=11';
+import { paintRig, atlas } from './rig.js?v=12';
+import { heroFrames } from './hero.js?v=12';
+import { sfx } from './audio.js?v=12';
+import { skillKey, deviceOfSlot } from './input.js?v=12';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

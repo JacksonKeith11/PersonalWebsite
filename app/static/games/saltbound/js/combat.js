@@ -1,15 +1,15 @@
 // The fight overlay: the party and the enemies (in their rows), enemy intents, the round so far, and your dice
 // tray and actions. When a round resolves, the server's effects are played back one at a time on
 // a copy of the fight as it was, then the new state is shown.
-import { S, send, mine, controllerName } from './store.js?v=187';
-import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=187';
-import { spriteURL, poseURL, warmPoses } from './art.js?v=187';
-import { stageURL, stageKey } from './stage.js?v=187';
-import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=187';
-import { render } from './main.js?v=187';
-import { skillCard, upDef, upText } from './hud.js?v=187';
-import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=187';
-import * as sfx from './audio.js?v=187';
+import { S, send, mine, controllerName } from './store.js?v=188';
+import { h, icon, toast, hideTip, bigBanner } from './ui.js?v=188';
+import { spriteURL, poseURL, warmPoses } from './art.js?v=188';
+import { stageURL, stageKey } from './stage.js?v=188';
+import { reqText, STATUS, dieLabel, dieTip, hitChance, countOk, expected, isRisky, faceText, foeTraits, fateFaces, fateText } from './rules.js?v=188';
+import { render } from './main.js?v=188';
+import { skillCard, upDef, upText } from './hud.js?v=188';
+import { SKILL_FX, CLASS_LOOK, foeFx } from './skillfx.js?v=188';
+import * as sfx from './audio.js?v=188';
 
 const C = { sel: new Set(), pending: null, tab: null, hidden: false, playing: false, display: null, hp: null, anim: {}, floats: {}, lastId: null, lastRound: null,
   trayEl: null, traySig: null, autoDone: new Set() };
@@ -70,8 +70,12 @@ function groundChip(f) {
   const G = S.static.grounds?.[f.ground.k];
   if (!G) return null;
   const good = f.ground.side === 'heroes';
-  const who = f.ground.k === 'high' ? (good ? 'You hold the slope' : 'They hold the slope') : (good ? 'They’re caught in the trees' : 'You’re caught in the trees');
-  return h('span.chip.ground' + (good ? '.good' : '.bad'), { tip: `${G.name} (${G.terrain})\n${G.text}` }, icon(f.ground.k === 'high' ? 'shield' : 'down'), `${G.name}: ${who}`);
+  const k = f.ground.k;
+  const who = k === 'high' ? (good ? 'You hold the slope' : 'They hold the slope')
+    : k === 'woods' ? (good ? 'They’re caught in the trees' : 'You’re caught in the trees')
+    : k === 'fortified' ? 'They hold the town'
+    : f.ground.side === 'both' ? 'It hits both sides' : k === 'statues' ? 'They start asleep' : good ? 'They walked into it' : 'You walked into it';
+  return h('span.chip.ground' + (good ? '.good' : '.bad'), { tip: `${G.name} (${G.terrain})\n${G.text}` }, icon(k === 'high' || k === 'fortified' ? 'shield' : 'down'), `${G.name}: ${who}`);
 }
 function fightTitle(f) {
   const st = S.static;

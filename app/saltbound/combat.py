@@ -55,6 +55,9 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         roam = spec["kind"] in ("roam", "lair")
         if roam:
             f["dmul"] *= ROAM_DMG
+        siege = A.SIEGE_HP - 1 if spec.get("raid") == "free" else 0  # raiders holding a town fight harder
+        if siege:
+            f["dmul"] *= A.SIEGE_DMG
         if spec["kind"] == "dungeon":
             # the objectives still standing grow with every one the party clears
             step = min(tier, len(DUNGEON_STEP_HP) - 1)
@@ -70,7 +73,7 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
             elif roam:
                 grow = 0
             boss = spec.get("boss_grow", 0) if A.FOES[key].get("boss") else 0
-            self.add_foe(key, hp, grow + boss, aff)
+            self.add_foe(key, hp, grow + boss + siege, aff)
         for h in f["heroes"]:
             m = self.mods(h)
             x = {"st": {}, "down": False, "fled": False,
@@ -145,6 +148,11 @@ class Combat(Dice, Actions, Combos, Bosses, Foes):
         if not gr:
             return
         G = A.GROUNDS[gr["k"]]
+        if gr["k"] == "fortified":
+            for fo in f["foes"]:
+                fo["st"]["armor"] = fo["st"].get("armor", 0) + max(3, round(fo["max"] * G["foe_armor"]))
+            self.say(f"{G['name']}: the raiders fight from behind the town's barricades.")
+            return
         if gr["k"] not in ("high", "woods"):
             self.apply_region_ground(gr, G)
             return

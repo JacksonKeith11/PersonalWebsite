@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=187';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=187';
-import { spriteURL, placeURL } from './art.js?v=187';
-import { itemURL } from './itemart.js?v=187';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=187';
-import { MapView } from './hexmap.js?v=187';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=187';
-import { disconnect } from './main.js?v=187';
-import * as sfx from './audio.js?v=187';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=188';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=188';
+import { spriteURL, placeURL } from './art.js?v=188';
+import { itemURL } from './itemart.js?v=188';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=188';
+import { MapView } from './hexmap.js?v=188';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=188';
+import { disconnect } from './main.js?v=188';
+import * as sfx from './audio.js?v=188';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -214,6 +214,7 @@ function groundLine(ter, t) {
 function groundSay(gr) {
   if (!gr) return '';
   const G = S.static.grounds[gr.k];
+  if (gr.k === 'fortified') return `${G.name}: they hold the town`;
   if (gr.k !== 'high' && gr.k !== 'woods') {
     const who = gr.side === 'both' ? 'it hits both sides' : gr.k === 'statues' ? 'they start asleep' : gr.side === 'heroes' ? 'they walked into it' : 'you walk into it';
     return `${G.name}: ${who}`;
@@ -530,9 +531,6 @@ function renderActionbar() {
   } else if (p?.rest) {
     title = `${hero.name} will rest`;
     sub = restText(h0);
-  } else if (p?.rally != null && g.places[p.rally]) {
-    title = `${hero.name} will rally ${g.places[p.rally].name}`;
-    sub = rallyText(h0, p.rally);
   } else if (p?.path.length) {
     title = `Route set · ${p.path.length} hex${p.path.length === 1 ? '' : 'es'}`; sub = 'Click another hex to change it, or your own to stay.';
   } else {
@@ -541,8 +539,6 @@ function renderActionbar() {
   if (hero.alive && !g.pending[h0]?.length && p) {
     if (g.phase === 'plan' || canPlan(h0)) {
       if (!p.ready) btns.push(h('button.btn' + (p.rest ? '.primary' : ''), { tip: `Rest\n${restText(h0)}`, onclick: () => send({ t: 'rest', h: h0, on: !p.rest }) }, icon('rest'), p.rest ? 'Resting' : 'Rest'));
-      const rt = rallyTown(h0);
-      if (rt != null) btns.push(h('button.btn' + (p.rally != null ? '.primary' : ''), { tip: `Rally ${g.places[rt].name}\n${rallyText(h0, rt)}`, onclick: () => send({ t: 'rally', h: h0, on: p.rally == null }) }, icon('flag'), p.rally != null ? 'Rallying' : 'Rally'));
       if (town) btns.push(h('button.btn', { onclick: () => openDrawer('town') }, icon('anchor'), town.name));
       const mer = merchantHere(h0);
       if (mer) btns.push(h('button.btn', { tip: `${cap(mer.name)}\nRare and legendary gear for sale`, onclick: () => openDrawer('merchant') }, icon('coin'), 'Merchant'));
@@ -616,7 +612,6 @@ export function renderForecast() {
       if (fight.raid) text += fight.raid === 'free' ? ' · freeing the town' : ' · stopping the raid';
     } else if (p.warp != null) text = `travels by beacon (${beaconName(p.warp).title.replace(/^Near /, 'near ')})`;
     else if (p.rest) text = 'rests';
-    else if (p.rally != null) text = `rallies ${g.places[p.rally]?.name || 'the town'}`;
     else if (fc.lands[x]) text = LAND[fc.lands[x]] || 'arrives';
     else if (p.path?.length) text = 'moves';
     else text = p.ready ? 'stays put' : 'hasn’t planned yet';
@@ -635,8 +630,7 @@ export function renderForecast() {
   // raids on the road, and towns they hold
   for (const r of g.raids || []) {
     const town = g.places[r.to]?.name || 'a town';
-    const ri = r.occupy && g.places[r.to] ? rallyInfo(g.places[r.to]) : null;
-    const text = r.occupy ? ` hold ${town}: fight them, or rally its people` + (ri ? ` (${Math.min(ri.have, ri.need)}/${ri.need})` : "") : ` march on ${town}: ${r.road.length} turn${r.road.length === 1 ? '' : 's'} away`;
+    const text = r.occupy ? ` hold ${town}: they dig in the longer they stay` : ` march on ${town}: ${r.road.length} turn${r.road.length === 1 ? '' : 's'} away`;
     lines.push(h('div.fc-line.opp.raid', { tip: `Raiders from ${S.static.dungeons[r.reg]}.${r.occupy ? '' : ' Beat them on the road and its garrison skips its next growth; if they reach the town with nobody in it, they take it.'}\nClick to find them on the map.`, onclick: () => map?.centerOn(r.tile) },
       icon('flag'), h('b', null, ' Raiders'), h('span', null, text)));
   }
@@ -731,29 +725,14 @@ function renderPartyEvents() {
   el.replaceChildren(...cards);
 }
 
-// Taking an occupied town back: the band's size, the rally it needs, and the occupied town next to a hero.
-function rallyInfo(p) {
-  const band = S.game.groups.find(x => x.id === p.occupied);
-  return { band, need: (band?.foes.length || 0) + S.static.rally.base, have: p.rally || 0 };
-}
-function rallyTown(h0) {
-  const at = S.game.heroes[h0].tile;
-  const t = Object.keys(S.game.places).map(Number).filter(x => S.game.places[x].kind === 'town' && S.game.places[x].occupied != null && hexDist(at, x) === 1);
-  return t.length ? Math.min(...t) : null;
-}
+// An occupied town's tooltip: how hard taking it back is, and what it pays.
 function occupiedText(p) {
-  const R = S.static.rally, { band, need, have } = rallyInfo(p);
-  return `Raiders hold it: its shop, inn, board and trade are shut, and every ${R.dig} turns they dig in (another joins, up to ${R.max}).`
-    + ` Fight: walk in to drive them out (${S.static.sea.free_gold} gold each, and a better-stocked shop).`
-    + ` Or rally: from a hex next to it, spend turns stirring up its people (${R.classes.map(k => cls(k).name).join(' and ')} count double). `
-    + `At ${need} the town rises and throws them out (a better-stocked shop, no gold). Rallied so far: ${Math.min(have, need)}/${need}`
-    + (band ? ` (${band.foes.length} raider${band.foes.length === 1 ? '' : 's'}).` : '.');
-}
-function rallyText(h0, t) {
-  const R = S.static.rally, p = S.game.places[t], { need, have } = rallyInfo(p);
-  const pts = R.classes.includes(S.game.heroes[h0].cls) ? 2 : 1;
-  return `Spend the turn stirring up ${p.name}: +${pts} (${Math.min(have, need)}/${need}; at ${need} it rises and drives the raiders out). `
-    + `${R.spot}% chance the raiders spot you: -${R.hurt}% of your max HP.`;
+  const O = S.static.occupy, band = S.game.groups.find(x => x.id === p.occupied);
+  const n = band?.foes.length || 0, el = band ? band.aff.filter(Boolean).length : 0;
+  return `Raiders hold it: its shop, inn, board and trade are shut. Walk in to fight them`
+    + (band ? ` (${n} raider${n === 1 ? '' : 's'}, ${el} elite${el === 1 ? '' : 's'})` : '')
+    + `. They fight from behind barricades (each starts with Armor of a quarter of its health), and every ${O.dig} turns they dig in:`
+    + ` another joins, up to ${O.max}, then one more turns elite (up to ${O.elites}). Freeing it pays ${S.static.sea.free_gold} gold each and restocks its shop.`;
 }
 
 function restText(h0) {
@@ -1700,8 +1679,6 @@ export function handleFx(list, before) {
       case 'opp': if (list.some(r => r.k === 'rise' && (r.news || []).some(n => n.tile === f.tile))) break; later.push(() => toast(`${S.static.opps[f.kind].name} sighted, for ${S.static.opps[f.kind].turns} turns`)); break;
       case 'garrison': if (list.some(r => r.k === 'rise')) break; later.push(() => toast('The garrisons grow: their bosses are harder to reach', 'big')); break;
       case 'raid': later.push(() => { bigBanner('Raiders march', `From ${S.static.dungeons[f.reg]} on ${S.game.places[f.to]?.name || 'a town'}, ${f.eta} turns away`, 'tide', 2600); if (mine().length) map?.centerOn(f.tile); sfx.play('rise'); }); break;
-      case 'uprising': later.push(() => { toast(`${S.game.places[f.tile]?.name || 'The town'} rises and drives the raiders out!`, 'big'); sfx.play('fanfare'); }); break;
-      case 'spotted': later.push(() => toast(`The raiders spot ${S.game.heroes[f.h]?.name}: -${f.dmg} HP`, 'err')); break;
       case 'occupied': later.push(() => toast(`Raiders take ${S.game.places[f.tile]?.name || 'a town'}: it’s shut until you drive them out`, 'big')); break;
       case 'freed': later.push(() => { toast(`${S.game.places[f.tile]?.name || 'The town'} is free: +${f.gold} gold each`, 'big'); sfx.play('coin'); }); break;
       case 'raidstop': later.push(() => toast(`Raid broken: +${f.gold} gold each, and ${S.static.dungeons[f.reg]}’s garrison skips its next growth`, 'big')); break;

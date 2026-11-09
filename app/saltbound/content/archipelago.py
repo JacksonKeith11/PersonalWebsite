@@ -568,6 +568,9 @@ GROUNDS = {
     "lulled": {"name": "Lulling flowers", "terrain": "the Drowsing Vale's lavender fields",
                "text": "Whoever walked into the flowers grows drowsy: heroes start Hexed (their best die turns cursed), "
                        "enemies Weak."},
+    "fortified": {"name": "Barricades", "terrain": "a town raiders hold", "foe_armor": 1 / 4,
+                  "text": "The raiders fight from behind the town's barricades: each starts the fight with Armor of a "
+                          "quarter of its health."},
     "snowdrift": {"name": "Snowdrift", "terrain": "the Frostpeaks' snowfields",
                   "text": "Whoever walked into the drifts is half buried: heroes lose a die to the cold in the first round, "
                           "enemies are Rooted."},
@@ -607,18 +610,17 @@ RAID_EVERY = 8
 RAID_MAX = 2
 RAID_RANGE = (6, 14)  # turns of road from the objective to the town it marches on
 RAID_BOUNTY = 10      # gold each for stopping one on the road
-FREE_GOLD = 15        # gold each for freeing an occupied town, and its shop restocks
-# Taking a town back. The raiders in an occupied town dig in: every `OCCUPY_DIG` turns another of their
-# region's escorts joins them, up to `OCCUPY_MAX`. Instead of fighting, heroes next to the town can
-# rally its people (a map action, like resting): each rally adds a point (`RALLY_CLASSES` add two),
-# and at `RALLY_BASE` + the band's size the town rises and drives the raiders out (no gold, but the
-# shop restocks). Each rally risks being spotted: `RALLY_SPOT` chance of losing `RALLY_HURT` of max HP.
+FREE_GOLD = 30        # gold each for freeing an occupied town, and its shop restocks
+# Taking a town back is a hard fight. Raiders who take a town fortify it: their band fills out to
+# `OCCUPY_START` with their region's escorts and a second elite. Every `OCCUPY_DIG` turns they dig in:
+# another escort, up to `OCCUPY_MAX`, and once full one more of them turns elite (up to `OCCUPY_ELITES`). Fighting in the town
+# is on the Barricades ground (`GROUNDS["fortified"]`): each raider starts with Armor.
+OCCUPY_START = 4
 OCCUPY_DIG = 5
 OCCUPY_MAX = 5
-RALLY_BASE = 1
-RALLY_CLASSES = ("herald", "scoundrel")
-RALLY_SPOT = 0.3
-RALLY_HURT = 0.15
+OCCUPY_ELITES = 3  # at most this many of them elite
+SIEGE_HP = 1.5     # the fight to free a town: the raiders' health and damage times these
+SIEGE_DMG = 1.25
 
 # Squalls: storms that drift across the map a hex a turn. A hero inside one sees only `SQUALL_SIGHT`
 # hexes around them. They form over Stormcrag's waters from turn `SQUALL_FROM`, every `SQUALL_EVERY`

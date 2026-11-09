@@ -90,6 +90,13 @@ run ends.
   **critical** (x3); the stagger runs its full length and takes no poise damage. Each stagger makes the
   next need 25% more. Poise refills (12% a second) after 3 s without poise damage. About two to four (see Testing)
   staggers a fight.
+- **Parrying** (sword and greatsword; `takeHit` in `js/hero.js`, `HERO["parry"]`): a hit that lands
+  from the front within the weapon's window (0.18 s, greatsword 0.12 s) of *pressing* block is parried:
+  no damage, no stamina, a chunk of the boss's poise. The window runs from the press, not from when
+  the guard comes up, so holding block through a swing earns nothing. As in Sekiro, tapping doesn't
+  work: pressing block again within 0.5 s of the last press halves the window, then quarters it, and
+  from the fourth quick press there's none; half a second without a press restores it. A shrunk or
+  missed parry is still a block.
 - **Statuses** on bosses: Burn and Bleed burst for damage, Frost slows the boss and breaks poise, Rot
   poisons over 5 s. Each meter needs 100 x 1.4^(bursts so far). A meter shows under the boss's bars
   once someone has built some of that status, fills toward its burst, and glows while the status is in

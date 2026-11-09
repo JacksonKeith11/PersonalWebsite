@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=12';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=12';
-import { Net, ME } from './net.js?v=12';
-import { FightScene } from './fight.js?v=12';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=12';
-import { unlock, sfx, setVolume } from './audio.js?v=12';
-import { music } from './music.js?v=12';
+import { setAtlas } from './rig.js?v=13';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=13';
+import { Net, ME } from './net.js?v=13';
+import { FightScene } from './fight.js?v=13';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=13';
+import { unlock, sfx, setVolume } from './audio.js?v=13';
+import { music } from './music.js?v=13';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -190,7 +190,7 @@ function title() {
       <div><b>Keyboard & mouse</b></div><div><b>Controller</b></div>
       <div><kbd>WASD</kbd> move · mouse aim</div><div>Left stick move · right stick aim</div>
       <div><kbd>LMB</kbd> light · hold <kbd>RMB</kbd> heavy</div><div><kbd>RB</kbd> light · hold <kbd>RT</kbd> heavy</div>
-      <div><kbd>Space</kbd> roll · <kbd>Shift</kbd> block</div><div><kbd>B</kbd> roll · <kbd>LB</kbd> block</div>
+      <div><kbd>Space</kbd> roll · <kbd>Shift</kbd> block (press just before a hit to parry)</div><div><kbd>B</kbd> roll · <kbd>LB</kbd> block</div>
       <div><kbd>Q</kbd> special · <kbd>R</kbd> flask</div><div><kbd>Y</kbd> special · <kbd>X</kbd> flask</div>
       <div>hold <kbd>E</kbd> to revive · <kbd>Tab</kbd> lock on</div><div>hold <kbd>A</kbd> by a fallen ally to revive · <kbd>R3</kbd> lock on</div>
       <div><kbd>Z</kbd> <kbd>X</kbd> skills (or <kbd>1</kbd> <kbd>2</kbd>)</div><div><kbd>LT</kbd> · <kbd>A</kbd> skills</div>

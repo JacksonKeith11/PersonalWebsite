@@ -13,6 +13,10 @@ HERO = {
     "roll": {"dur": 0.42, "dist": 74, "iframes": (0.03, 0.32), "st": 25},
     "flask": {"charges": 3, "dur": 1.0, "at": 0.75, "heal": 0.45, "speed": 0.4},
     "focus_per_dmg": 0.6,
+    # A parry is timed from the press of block, not from when the guard comes up. Pressing block again
+    # within `spam` s of the last press shrinks the window to the next share in `shrink` (none at all
+    # from the fourth quick press); it is whole again after `spam` s without a press. Blocking still works.
+    "parry": {"spam": 0.5, "shrink": (1.0, 0.5, 0.25, 0.0)},
     "down": {"bleed": 15.0, "revive": 2.0, "cost": 0.25, "rise": 0.3},
 }
 

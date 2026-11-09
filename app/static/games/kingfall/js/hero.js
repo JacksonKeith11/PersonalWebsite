@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=12';
-import { placeAttack, touches, wrap } from './moves.js?v=12';
-import { crescent, lance, burst } from './fx.js?v=12';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=13';
+import { placeAttack, touches, wrap } from './moves.js?v=13';
+import { crescent, lance, burst } from './fx.js?v=13';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -206,7 +206,9 @@ export class LocalHero {
     this.reviveT = 0; this.reviving = null;
     this.locked = false;
     this.swing = null;
-    this.blockT = 0;
+    this.blockAge = 9;        // seconds since block was last pressed: a parry is timed from the press
+    this.blockSpam = 0;       // quick presses in a row: each shrinks the parry window (HERO.parry)
+    this.parryWin = 0;        // this press's parry window, in seconds
     this.shots = [];      // this hero's projectiles in flight
     this.aoes = [];       // area hits waiting to land (arrow rain)
     const G = this.W.guard;
@@ -287,6 +289,17 @@ export class LocalHero {
     const speedK = this.S.speed || 1;
     let speed = H.speed * speedK;
     const setState = s => { this.state = s; this.t = 0; this.anT = 0; };
+
+    // The parry window opens at the press of block, wherever the hero is in an attack or a roll, so
+    // holding block through a swing earns nothing. Pressing again soon after the last press shrinks it
+    // (fishing for parries by tapping gets a narrower window each tap, then none); a pause restores it.
+    this.blockAge += dt;
+    if (G.kind === 'block' && d.pressed('block')) {
+      const P = H.parry;
+      this.blockSpam = this.blockAge < P.spam ? this.blockSpam + 1 : 0;
+      this.parryWin = G.parry * P.shrink[Math.min(this.blockSpam, P.shrink.length - 1)];
+      this.blockAge = 0;
+    }
 
     // skills: a press while busy is held for a moment and fires when the hero is free; a press while
     // cooling down is refused aloud. On a controller A is also revive: beside a fallen ally it's only that.
@@ -384,12 +397,11 @@ export class LocalHero {
         if (d.pressed('heavy') && this.st > 0) { setState('charge'); this.charge = 0; break; }
         if (d.pressed('special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
         if (this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0)) { const S = this.skillBuf.S; this.skillBuf = null; this.useSkill(S, move, ctx); break; }
-        if (G.kind === 'block' && d.held('block')) { setState('block'); this.blockT = 0; break; }
+        if (G.kind === 'block' && d.held('block')) { setState('block'); break; }
         if (G.kind === 'counter' && d.pressed('block') && this.spend(G.st)) { setState('cnt'); break; }
         if (d.pressed('heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
       }
     }
-    if (this.state === 'block') this.blockT += dt;
 
     // reviving a downed ally: stand by them and hold interact
     const fallen = ctx.allies.find(a => a.down && !a.dead && Math.hypot(a.x - this.x, a.y - this.y) < 30);
@@ -560,7 +572,7 @@ export class LocalHero {
     const toBoss = Math.atan2(bossY - this.y, bossX - this.x);
     if (this.state === 'block' && !h.unblock) {
       if (Math.abs(wrap(toBoss - this.aim)) <= G.arc * (this.S.guard_arc || 1) * Math.PI / 180) {
-        if (this.blockT <= G.parry && !h.noparry) return 'parry';
+        if (this.blockAge <= this.parryWin && !h.noparry) return 'parry';
         const cost = h.dmg * G.st_per_dmg * (this.S.block_st || 1);
         if (this.st >= cost * 0.5) { this.st -= cost; this.stWait = this.HERO.st_delay; return 'block'; }
       }

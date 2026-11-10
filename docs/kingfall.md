@@ -467,6 +467,16 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 
 ## Gotchas
 
+- **One error used to freeze a browser's fight for good.** Phaser asks for the next frame only after the
+  current one returns, so an error in the fight scene's `update` (or `create`) stopped that browser's loop:
+  the arena stayed drawn, nothing moved, and its heroes stood still and untouchable on everyone else's
+  screen (hits on a hero are decided by its own browser). `FightScene.update` and `create` now catch, and
+  so does the menu loop (`frame` in `js/main.js`). Any error, caught or not, shows a banner with a Reload
+  button (`oops`) and goes to the server as `{t: 'clienterr'}`, logged as `browser error, room ...` (at most
+  five per connection: `docker compose logs web | grep "browser error"` on the Mac). Reload, then Join (the
+  code stays in the address), puts the player back into a fight still going for the others; alone, the run
+  is gone, since a room with nobody connected returns to the lobby.
+
 - **The two halves of the move maths must agree.** After changing `js/moves.js`, `geom.py` or
   `content/moves.py` (or adding a shape kind), run `node tools/kingfall-parity.mjs`.
 - **The server never clamps a move's motion after the fact**: browsers draw it as sent. `Fight.fit`

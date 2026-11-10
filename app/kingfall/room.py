@@ -219,6 +219,11 @@ class Room:
             self.fight.die(now)
         elif t == "debugsafe" and self.debug and self.fight:  # this fight's boss never attacks (tests that stand about)
             self.fight.calm = True
+        elif t == "clienterr":  # a browser's script broke: into the server log, a few per connection
+            c.errs = getattr(c, "errs", 0) + 1
+            if c.errs <= 5:
+                log.warning("browser error, room %s conn %s (%s): %s | %s", self.code, c.id, self.state,
+                            clean(msg.get("msg"), 300), clean(msg.get("at"), 600))
         elif self.fight and h:
             f = self.fight
             if t == "st": f.report(h.id, msg)

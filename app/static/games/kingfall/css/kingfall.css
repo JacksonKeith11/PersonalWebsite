@@ -166,3 +166,9 @@ div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); 
 .hero .col { display: grid; gap: 6px; justify-items: end; }
 /* a short note over the fight, e.g. a controller with no hero was pressed */
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: #1a1622e8; border: 1px solid var(--line); padding: 8px 16px; font-size: 14px; z-index: 10; pointer-events: none; }
+/* a script error, shown so the player can reload and tell us what it said */
+#oops { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); max-width: min(720px, 92vw); background: #2a1418f0; border: 1px solid #a83a3a;
+  padding: 10px 14px; font-size: 13px; z-index: 20; display: flex; gap: 10px; align-items: center; }
+#oops span { color: var(--dim); overflow-wrap: anywhere; }
+#oops .btn { padding: 5px 12px; flex: none; }
+#oops[hidden] { display: none; }

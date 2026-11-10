@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=28';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=28';
-import { Net, ME } from './net.js?v=28';
-import { FightScene } from './fight.js?v=28';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=28';
-import { unlock, sfx, setVolume } from './audio.js?v=28';
-import { music } from './music.js?v=28';
+import { setAtlas } from './rig.js?v=30';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=30';
+import { Net, ME } from './net.js?v=30';
+import { FightScene } from './fight.js?v=30';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=30';
+import { unlock, sfx, setVolume } from './audio.js?v=30';
+import { music } from './music.js?v=30';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -50,7 +50,29 @@ addEventListener('resize', fit);
 fit();
 
 // ------------------------------------------------------------------ the loop for menus and joining
+// A broken script: say so on screen (with a way out) and tell the server, which logs it. Each distinct
+// message once. The menu loop and the fight's frame catch their own errors and come here, so one bad
+// frame doesn't freeze the page.
+const reported = new Set();
+function oops(e) {
+  const msg = String((e && e.message) || e).slice(0, 300), at = String((e && e.stack) || '').split('\n').slice(0, 4).join(' | ');
+  console.error(e);
+  if (reported.has(msg) || reported.size >= 5) return;
+  reported.add(msg);
+  try { if (net) net.send({ t: 'clienterr', msg, at }); } catch (_) { /* not connected */ }
+  const el = document.getElementById('oops');
+  el.innerHTML = `<b>Something broke on this screen.</b> <span>${esc(msg)}</span> <span>Reload, then press Join to get back into the room.</span> <button class="btn" id="oops-reload">Reload</button>`;
+  el.hidden = false;
+  document.getElementById('oops-reload').onclick = () => location.reload();
+}
+addEventListener('error', e => oops(e.error || e.message));
+addEventListener('unhandledrejection', e => oops(e.reason));
+
 function frame() {
+  try { frameBody(); } catch (e) { oops(e); }
+  requestAnimationFrame(frame);
+}
+function frameBody() {
   input.poll();
   // The menu during a run: Esc (Start on a controller) opens it over a fight or the Bonfire; Esc, B or
   // Start closes it. While it's up it takes the keys, and this browser's heroes stand idle.
@@ -63,7 +85,6 @@ function frame() {
   if (S.screen === 'lobby') lobbyDevices(bound);
   if (S.scene && !S.menu) strayPads();
   setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
-requestAnimationFrame(frame);
 if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
 }
 
@@ -475,6 +496,7 @@ function startFight(m) {
     onFrame: sc => updateHud(sc),
     onBanner: kind => banner(kind),
     menuOpen: () => !!S.menu,
+    onError: e => oops(e),
     p1pad: () => S.p1pad,
   });
 }

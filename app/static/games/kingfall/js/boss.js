@@ -3,10 +3,10 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=28';
-import { LiveMove, placeHit, touches } from './moves.js?v=28';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=28';
-import { sfx } from './audio.js?v=28';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=30';
+import { LiveMove, placeHit, touches } from './moves.js?v=30';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=30';
+import { sfx } from './audio.js?v=30';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };

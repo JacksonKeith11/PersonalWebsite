@@ -1,14 +1,14 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=28';
-import { LocalHero, RemoteHero } from './hero.js?v=28';
-import { Boss } from './boss.js?v=28';
-import { drawArena } from './arenas.js?v=28';
-import { sfx } from './audio.js?v=28';
-import { music } from './music.js?v=28';
-import { deviceOfSlot } from './input.js?v=28';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=28';
-import { hudKeys } from './ui.js?v=28';
+import { addFrames } from './rig.js?v=30';
+import { LocalHero, RemoteHero } from './hero.js?v=30';
+import { Boss } from './boss.js?v=30';
+import { drawArena } from './arenas.js?v=30';
+import { sfx } from './audio.js?v=30';
+import { music } from './music.js?v=30';
+import { deviceOfSlot } from './input.js?v=30';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=30';
+import { hudKeys } from './ui.js?v=30';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
@@ -21,6 +21,10 @@ export class FightScene extends Phaser.Scene {
   init(cfg) { this.cfg = cfg; }
 
   create() {
+    try { this.build(); } catch (e) { this.cfg.onError && this.cfg.onError(e); }
+  }
+
+  build() {
     const { net, data, fight, heroes, me } = this.cfg;
     this.net = net; this.data = data; this.fightMsg = fight;
     addFrames(this);
@@ -304,7 +308,14 @@ export class FightScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ the frame
+  // Phaser asks for the next frame only after this one returns, so an error here would freeze the fight
+  // for this browser for good (the arena still drawn, nothing moving, this browser's heroes never reported).
+  // Catch it, report it, and carry on with the next frame.
   update(time, deltaMs) {
+    try { this.step(time, deltaMs); } catch (e) { this.cfg.onError && this.cfg.onError(e); }
+  }
+
+  step(time, deltaMs) {
     const dtReal = Math.min(0.05, deltaMs / 1000);
     const now = this.net.now();
     let dt = dtReal;

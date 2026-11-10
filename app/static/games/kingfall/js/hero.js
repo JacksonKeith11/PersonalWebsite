@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=28';
-import { placeAttack, touches, wrap } from './moves.js?v=28';
-import { crescent, lance, burst } from './fx.js?v=28';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=30';
+import { placeAttack, touches, wrap } from './moves.js?v=30';
+import { crescent, lance, burst } from './fx.js?v=30';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;

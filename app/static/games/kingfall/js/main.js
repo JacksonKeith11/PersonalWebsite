@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=26';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=26';
-import { Net, ME } from './net.js?v=26';
-import { FightScene } from './fight.js?v=26';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=26';
-import { unlock, sfx, setVolume } from './audio.js?v=26';
-import { music } from './music.js?v=26';
+import { setAtlas } from './rig.js?v=28';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=28';
+import { Net, ME } from './net.js?v=28';
+import { FightScene } from './fight.js?v=28';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=28';
+import { unlock, sfx, setVolume } from './audio.js?v=28';
+import { music } from './music.js?v=28';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -61,6 +61,7 @@ function frame() {
   else if (!was && inRun && (input.kb.pressed('back') || start)) runMenu();
   const bound = bindP1();
   if (S.screen === 'lobby') lobbyDevices(bound);
+  if (S.scene && !S.menu) strayPads();
   setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
 if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
@@ -117,9 +118,16 @@ function runMenu(ask = null) {
 // Player one takes the first controller used (any button or the stick) that has no hero of its own,
 // while it has none: one player can pick up a controller and play. More controllers press Start for a
 // couch hero each; "Split off" in the lobby gives player one's controller its own hero instead.
+// When player one first appears, a controller used more recently than the keyboard and mouse (the one
+// that pressed Create or Join) is taken as theirs at once, so a friend's Start can't take player one.
 function bindP1() {
   const p1 = myHeroes().find(h => h.slot === 0);
   if (S.p1pad && (!p1 || !input.pads[S.p1pad])) { S.p1pad = null; if (!S.scene) render(); }   // unplugged, or player one gone
+  if (p1 && !S.p1pad && S.p1seen !== p1.id) {
+    S.p1seen = p1.id;
+    const last = Object.values(input.pads).filter(d => !heroOf(d.id)).sort((x, y) => y.lastUsed - x.lastUsed)[0];
+    if (last && last.lastUsed > input.kb.lastUsed) { S.p1pad = last.id; if (!S.scene && !S.menu) render(); return last.id; }
+  }
   if (!p1 || S.p1pad) return null;
   for (const d of Object.values(input.pads)) {
     if (heroOf(d.id)) continue;
@@ -130,6 +138,20 @@ function bindP1() {
     }
   }
   return null;
+}
+
+// In a fight, a controller with no hero here does nothing: say so, rather than leave its player wondering.
+let toastTimer = 0;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3500);
+}
+function strayPads() {
+  for (const d of Object.values(input.pads)) {
+    if (heroOf(d.id) || !Object.keys(d.now).some(b => b !== 'start' && d.pressed(b))) continue;
+    toast(`${padName(d.id)} has no hero in this fight. In the lobby, press Start on it to join` + (S.p1pad ? `, or Split off ${padName(S.p1pad)}.` : '.'));
+  }
 }
 
 function lobbyDevices(bound) {

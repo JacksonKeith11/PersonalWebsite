@@ -1,14 +1,14 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=26';
-import { LocalHero, RemoteHero } from './hero.js?v=26';
-import { Boss } from './boss.js?v=26';
-import { drawArena } from './arenas.js?v=26';
-import { sfx } from './audio.js?v=26';
-import { music } from './music.js?v=26';
-import { deviceOfSlot } from './input.js?v=26';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=26';
-import { hudKeys } from './ui.js?v=26';
+import { addFrames } from './rig.js?v=28';
+import { LocalHero, RemoteHero } from './hero.js?v=28';
+import { Boss } from './boss.js?v=28';
+import { drawArena } from './arenas.js?v=28';
+import { sfx } from './audio.js?v=28';
+import { music } from './music.js?v=28';
+import { deviceOfSlot } from './input.js?v=28';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=28';
+import { hudKeys } from './ui.js?v=28';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)

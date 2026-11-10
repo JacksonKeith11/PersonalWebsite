@@ -191,7 +191,7 @@ async function serve() {
     await ann.context().close(); await bea.context().close();
   };
 
-  // Couch: two controllers on one browser. The first used becomes player one's (beside the keyboard),
+  // Couch: two controllers on one browser. The one that makes the room becomes player one's (beside the keyboard),
   // the second presses Start for a hero of its own. Each steers only its own hero, and its own menu
   // cursor, which can't leave its own box or press the room's Leave.
   const couch = async () => {
@@ -201,10 +201,12 @@ async function serve() {
       await p.evaluate(([i, b]) => { pads[i].buttons[b].pressed = false; }, [i, b]); await p.waitForTimeout(120);
     };
     const START = 9, B = 1, DOWN = 13, RIGHT = 15;
-    await p.click('#create');
+    // the room is made with A on the first controller: that controller is player one's, before anyone else's Start
+    await p.waitForSelector('#create.focus');
+    await tap(0, 0);
     await p.waitForFunction(() => kf.S.lobby && kf.S.lobby.heroes.length === 1);
-    await tap(0, DOWN);
-    if (!await p.evaluate(() => kf.S.p1pad === 'pad0' && kf.S.lobby.heroes.length === 1)) throw new Error("the first controller used should become player one's");
+    await p.waitForTimeout(200);
+    if (!await p.evaluate(() => kf.S.p1pad === 'pad0' && kf.S.lobby.heroes.length === 1)) throw new Error("the controller that made the room should be player one's");
     await tap(1, START);
     await p.waitForFunction(() => kf.S.lobby.heroes.length === 2);
     const [one, two] = await p.evaluate(() => [0, 2].map(s => kf.S.lobby.heroes.find(h => h.slot === s).id));

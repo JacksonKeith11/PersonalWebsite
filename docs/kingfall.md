@@ -73,12 +73,15 @@ Keep to these. They came from the owner directly.
 The host makes a room; friends join by code. Every hero on a browser is driven by its own devices
 (`heroOf` in `js/main.js`):
 - **Player one** (made with the room, slot 0) is the keyboard and mouse, plus player one's controller
-  (`S.p1pad`): the first controller used (any button or the stick) that has no hero of its own, while player
-  one has none. In a fight whichever of the two was used last drives it (`pickDevices` in `js/fight.js`;
+  (`S.p1pad`). When player one appears, a controller used more recently than the keyboard and mouse (the one
+  that pressed Create or Join) becomes theirs at once; otherwise the first controller used (any button or
+  the stick) that has no hero of its own. Gotcha: without the first rule, the A that pressed Create came
+  before player one existed, so a friend's Start took player one and the room's maker had no hero. In a fight whichever of the two was used last drives it (`pickDevices` in `js/fight.js`;
   the HUD's key hints follow).
 - **Couch players**: any further controller presses Start for a hero of its own (slot = controller + 1).
   "Split off" on player one's row gives player one's controller its own hero instead.
 - Unplugging player one's controller frees it; the next controller used takes its place.
+- In a fight, pressing a controller that has no hero here shows a note saying how to join (`strayPads`).
 
 Each hero picks a
 look (knight, pilgrim, witch hunter, sellsword; tinted in their player colour) and a weapon. The host picks

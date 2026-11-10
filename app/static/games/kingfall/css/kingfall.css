@@ -164,3 +164,5 @@ div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); 
 /* buttons whose label changes keep their size */
 #copy { min-width: 11.5em; } [data-ready] { min-width: 7.5em; }
 .hero .col { display: grid; gap: 6px; justify-items: end; }
+/* a short note over the fight, e.g. a controller with no hero was pressed */
+#toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: #1a1622e8; border: 1px solid var(--line); padding: 8px 16px; font-size: 14px; z-index: 10; pointer-events: none; }

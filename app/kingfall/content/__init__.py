@@ -16,7 +16,7 @@ HERO = {
     # second toward the stick) and takes a queued attack or another roll the moment it ends.
     "roll": {"dur": 0.38, "dist": 92, "iframes": (0.02, 0.29), "turn": 200},
     "flask": {"charges": 3, "dur": 1.0, "at": 0.75, "heal": 0.45, "speed": 0.4},
-    "focus_per_dmg": 0.6,
+    "focus_per_dmg": 0.45,
     # A parry is timed from the press of block, not from when the guard comes up. Pressing block again
     # within `spam` s of the last press shrinks the window to the next share in `shrink` (none at all
     # from the fourth quick press); it is whole again after `spam` s without a press. Blocking still works.

@@ -227,7 +227,9 @@ microtask; without that every lobby update put the focus back on Begin.
 | Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow as it ends, at what you're aiming at (not the way you rolled) |
 | Catalyst | bolts, a 3-bolt fan | charged orb that explodes | Nova round you | blink instead of a roll |
 
-Focus fills as you deal damage. Each weapon has four Arts (weapon-only upgrades).
+Focus fills as you deal damage (0.45 Focus per point of damage; `HERO["focus_per_dmg"]`). Every special
+costs 50 of the 100, so a full bar holds two: they're meant to be rare and heavy (Nov 2026: costs went from
+30-40 to 50, Focus gain from 0.6 to 0.45, and special damage up about 1.9x, poise about 1.4x). Each weapon has four Arts (weapon-only upgrades).
 
 **Write swings with `sw(arm, blade)`, `off()` and `both()`, never raw `weapon=` angles.** On the hero rig
 a weapon at angle 0 lies back along the arm, so a raw angle that looks outward points into the body. The
@@ -403,25 +405,24 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 
   | Boss | Sword | Greatsword | Daggers | Halberd | Bow | Catalyst | Mixed 3/4 |
   |---|---|---|---|---|---|---|---|
-  | Corvin | 75/88 | 88/88 | 100/88 | 88/100 | 50/100 | 100/100 | 100/100 |
-  | Mire | 88/88 | 100/88 | 100/100 | 100/100 | 62/88 | 100/100 | 100/100 |
-  | Bellwarden | 62/75 | 100/88 | 88/88 | 100/100 | 75/100 | 100/100 | 100/100 |
-  | Headsmen | 75/88 | 88/88 | 75/88 | 88/100 | 88/88 | 100/100 | 100/100 |
-  | Wolf | 100/100 | 100/100 | 100/88 | 100/100 | 88/100 | 100/100 | 100/100 |
-  | Alchemist | 62/100 | 88/88 | 100/88 | 88/88 | 62/100 | 88/100 | 100/100 |
-  | Wyrm | 100/88 | 75/100 | 100/100 | 62/100 | 62/100 | 100/100 | 100/100 |
-  | Mirror | 88/88 | 88/100 | 88/88 | 75/100 | 75/100 | 100/100 | 100/100 |
-  | Bastion | 50/50 | 88/100 | 88/88 | 75/88 | 25/12 | 100/88 | 100/100 |
-  | Moth | 100/75 | 100/100 | 100/75 | 75/75 | 12/75 | 0/62 | 88/100 |
-  | King | 88/88 | 75/100 | 75/88 | 88/75 | 38/75 | 0/50 | 100/100 |
-  | Drake | 88/38 | 62/62 | 100/100 | 50/25 | 25/12 | 50/100 | 75/100 |
-  | All | 81 | 90 | 90 | 85 | 67 | 85 | 98 |
+  | Corvin | 75/100 | 100/100 | 88/75 | 88/88 | 75/88 | 100/100 | 100/100 |
+  | Mire | 88/100 | 100/100 | 100/100 | 100/100 | 62/88 | 100/100 | 100/100 |
+  | Bellwarden | 100/100 | 100/100 | 100/100 | 88/88 | 88/100 | 100/100 | 100/100 |
+  | Headsmen | 75/100 | 100/100 | 88/100 | 88/88 | 88/100 | 100/100 | 100/100 |
+  | Wolf | 100/100 | 100/100 | 100/100 | 100/100 | 88/100 | 100/100 | 100/100 |
+  | Alchemist | 50/75 | 88/100 | 88/100 | 88/75 | 50/100 | 88/100 | 100/100 |
+  | Wyrm | 88/100 | 100/88 | 100/100 | 75/75 | 75/100 | 100/100 | 100/100 |
+  | Mirror | 100/88 | 100/100 | 62/100 | 88/88 | 75/100 | 100/100 | 100/100 |
+  | Bastion | 88/75 | 88/100 | 100/88 | 75/75 | 12/75 | 88/88 | 100/100 |
+  | Moth | 88/100 | 88/100 | 100/100 | 88/88 | 12/62 | 0/62 | 88/75 |
+  | King | 75/88 | 75/100 | 88/100 | 75/100 | 62/38 | 0/50 | 100/100 |
+  | Drake | 88/62 | 75/88 | 100/100 | 75/38 | 12/75 | 62/88 | 88/100 |
+  | All | 88 | 95 | 95 | 84 | 72 | 84 | 98 |
 
-  This is the first table under dashes instead of stamina (bots used to roll for free). Fights average
-  1.1 to 1.7 minutes and 1.5 to 2.7 staggers. With 8 fights a cell, one cell swings by 25 points; read
-  the columns. The daggers column is from a second run after one adjustment (4 dashes a 0.7 s apiece
-  and base 16 won 97%; now 0.9 s and base 15); the bow's recharge went 1.0 s to 0.8 s after its
-  column was run and a rerun scored the same (55% alone, 79% in pairs). **The bow is the weakest**,
+  This table is from after specials became rare and heavy (50 Focus each, 1.9x damage). The run before
+  it (dashes, old specials) scored 81 / 90 / 90 / 85 / 67 / 85 / 98: everything within a few points, a
+  little easier for sword, greatsword, daggers and bow. Fights average 1.0 to 1.5 minutes and 1.4 to 2.5
+  staggers. With 8 fights a cell, one cell swings by 25 points; read the columns. **The bow is the weakest**,
   worst alone against the Bastion, the Moth and the Drake; the catalyst alone can't beat the Moth or
   the King. Parties of three and four win nearly everything.
 - **How the daggers got here** (Nov 2026): 35% at first (base 13, two dashes). The cause was the dash's

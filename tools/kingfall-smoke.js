@@ -2,8 +2,9 @@
 // starting skill in the lobby, uses it (and checks the server announced it), wins the fight, learns a
 // second at the Bonfire and uses that, then quits the run from the Esc menu. Then two players in one room: each must see what the other does
 // (a skill and its animation, a ward on the other's hero and HUD card, a projectile in flight, the boss
-// hurt and its Burn meter filling), and both must get through the Bonfire into the next fight. Fails if
-// a page throws or logs an error or any step doesn't happen in time. About forty seconds.
+// hurt and its Burn meter filling), and both must get through the Bonfire into the next fight. Then two
+// pretend controllers on one browser: each must steer only its own hero, in the lobby and the fight.
+// Fails if a page throws or logs an error or any step doesn't happen in time. About fifty seconds.
 //
 //     node tools/kingfall-smoke.js [http://localhost:8080]    against a running server
 //     node tools/kingfall-smoke.js --serve                    starts its own (tools/check-all.sh does this)
@@ -51,9 +52,14 @@ async function serve() {
   let code = 1;
   setTimeout(() => { console.log('FAILED: still running after three minutes'); if (server) server.kill(); process.exit(1); }, 180000).unref();
 
-  const open = async (who, query) => {
+  const open = async (who, query, pads = 0) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });  // its own storage: a separate player
     const p = await ctx.newPage();
+    if (pads) await p.addInitScript(n => {   // pretend controllers, steered through window.pads
+      const pad = i => ({ index: i, connected: true, id: 'smoke' + i, mapping: 'standard', buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })), axes: [0, 0, 0, 0] });
+      window.pads = Array.from({ length: n }, (_, i) => pad(i));
+      navigator.getGamepads = () => window.pads;
+    }, pads);
     p.on('pageerror', e => problems.push(`${who}: ${e.message}`));
     p.on('console', m => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) problems.push(`${who}: ${m.text()}`); });
     p.setDefaultTimeout(20000);
@@ -185,11 +191,46 @@ async function serve() {
     await ann.context().close(); await bea.context().close();
   };
 
+  // Couch: two controllers on one browser. The first used becomes player one's (beside the keyboard),
+  // the second presses Start for a hero of its own. Each steers only its own hero, and its own menu
+  // cursor, which can't leave its own box or press the room's Leave.
+  const couch = async () => {
+    const p = await open('couch', 'boss=corvin', 2);
+    const tap = async (i, b) => {
+      await p.evaluate(([i, b]) => { pads[i].buttons[b].pressed = true; }, [i, b]); await p.waitForTimeout(90);
+      await p.evaluate(([i, b]) => { pads[i].buttons[b].pressed = false; }, [i, b]); await p.waitForTimeout(120);
+    };
+    const START = 9, B = 1, DOWN = 13, RIGHT = 15;
+    await p.click('#create');
+    await p.waitForFunction(() => kf.S.lobby && kf.S.lobby.heroes.length === 1);
+    await tap(0, DOWN);
+    if (!await p.evaluate(() => kf.S.p1pad === 'pad0' && kf.S.lobby.heroes.length === 1)) throw new Error("the first controller used should become player one's");
+    await tap(1, START);
+    await p.waitForFunction(() => kf.S.lobby.heroes.length === 2);
+    const [one, two] = await p.evaluate(() => [0, 2].map(s => kf.S.lobby.heroes.find(h => h.slot === s).id));
+    for (const b of [DOWN, RIGHT, DOWN, RIGHT, B]) await tap(1, b);
+    const stray = await p.evaluate(() => [...document.querySelectorAll('[data-nav].focus')].filter(e => e.style.getPropertyValue('--fc')).map(e => (e.closest('[data-owner]') || { dataset: {} }).dataset.owner));
+    if (!stray.length || stray.some(o => o !== String(two))) throw new Error("the couch controller's cursor left its own row: " + stray);
+    if (await p.evaluate(() => kf.S.screen !== 'lobby')) throw new Error('B on a couch controller left the room');
+    await p.click('#start');
+    await fight(p, 0);
+    await p.evaluate(() => kf.safe());
+    await p.waitForTimeout(ENTRANCE);
+    const at = () => p.evaluate(() => Object.fromEntries(kf.S.scene.local.map(l => [l.id, [l.x, l.y]])));
+    const push = async (i, axis, v) => { await p.evaluate(([i, a, v]) => { pads[i].axes[a] = v; }, [i, axis, v]); await p.waitForTimeout(500); await p.evaluate(([i, a]) => { pads[i].axes[a] = 0; }, [i, axis]); await p.waitForTimeout(150); };
+    let a = await at(); await push(0, 0, 1); let b = await at();
+    if (!(b[one][0] > a[one][0] + 25 && Math.abs(b[two][0] - a[two][0]) < 3)) throw new Error("player one's controller should move player one only");
+    a = b; await push(1, 1, -1); b = await at();
+    if (!(b[two][1] < a[two][1] - 25 && Math.abs(b[one][1] - a[one][1]) < 3)) throw new Error("the couch controller should move its own hero only");
+    await p.context().close();
+  };
+
   try {
     await solo();
     await duo();
+    await couch();
     if (problems.length) throw new Error('a page reported: ' + problems.join(' | '));
-    console.log("ok: one player started with a skill, used it, learned and used a second; two players saw each other's skill, ward and shot, and the boss's Burn");
+    console.log("ok: one player started with a skill, used it, learned and used a second; two players saw each other's skill, ward and shot, and the boss's Burn; two controllers on one browser each steered their own hero");
     code = 0;
   } catch (e) {
     const where = (e.stack || '').split('\n').find(l => l.includes('kingfall-smoke.js')) || '';

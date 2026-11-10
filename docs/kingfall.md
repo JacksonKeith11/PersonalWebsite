@@ -70,9 +70,17 @@ Keep to these. They came from the owner directly.
 
 ### A run
 
-The host makes a room; friends join by code, couch players press Start on a controller. The hero made
-with the room belongs to the keyboard, but any controller without a hero of its own also drives it: whichever
-was used last (`pickDevices` in `js/fight.js`; the HUD's key hints follow). Each hero picks a
+The host makes a room; friends join by code. Every hero on a browser is driven by its own devices
+(`heroOf` in `js/main.js`):
+- **Player one** (made with the room, slot 0) is the keyboard and mouse, plus player one's controller
+  (`S.p1pad`): the first controller used (any button or the stick) that has no hero of its own, while player
+  one has none. In a fight whichever of the two was used last drives it (`pickDevices` in `js/fight.js`;
+  the HUD's key hints follow).
+- **Couch players**: any further controller presses Start for a hero of its own (slot = controller + 1).
+  "Split off" on player one's row gives player one's controller its own hero instead.
+- Unplugging player one's controller frees it; the next controller used takes its place.
+
+Each hero picks a
 look (knight, pilgrim, witch hunter, sellsword; tinted in their player colour) and a weapon. The host picks
 the difficulty (Squire, Knight, Hard) and begins, or resumes a saved run. When a run ends (lost or won) the room
 returns to the same lobby screen (`state` "over"), where everyone can change look, weapon and starting skill, join or
@@ -107,8 +115,15 @@ In the lobby, a "◀ name ▶" picker (look, weapon, starting skill) goes back w
 and on when clicked on its right (`side` in `js/main.js`). The three pickers are equal, fixed-size cells on one
 row; a long name is cut short with "…" rather than resizing or wrapping (buttons never wrap their text).
 
-A redraw puts the focus back on the element that had it (`keyOf` in `js/ui.js`), and a mouse click moves the
-focus too. Gotcha: the lobby appends its hero rows after `show()` returns, so `show()` looks again in a
+**Menu cursors.** Each couch player steers their own menu cursor, drawn in their player colour
+(`setOwners` and `reach` in `js/ui.js`). The `main` cursor (keyboard, mouse, player one's controller and any
+controller without a hero) reaches shared elements (no `data-owner`: Begin, difficulty, Leave) and player
+one's box; a couch cursor reaches only its own box (the lobby row or Bonfire panel marked
+`data-owner="<hero id>"`). Only `main` presses `data-back`, so a couch player's B can't leave the room. While
+the Esc menu is up, every device steers the one cursor in it.
+
+A redraw puts every cursor back on the element it was on (`keyOf` in `js/ui.js`), and a mouse click moves the
+main cursor. Gotcha: the lobby appends its hero rows after `show()` returns, so `show()` looks again in a
 microtask; without that every lobby update put the focus back on Begin.
 
 ### Combat
@@ -427,13 +442,15 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   hard fights; once they did, with the old numbers, they won about 95% of everything. One tuning pass
   brought it back: `POISE_K` 1.8 to 2.6, boss health scale 0.9/1.8/2.7/3.6 to 1.05/2.05/3.1/4.1, and the
   skills' poise damage cut by about a third.
-- **The browser smoke test** (`node tools/kingfall-smoke.js --serve`, about 40 s, in `check-all.sh`):
+- **The browser smoke test** (`node tools/kingfall-smoke.js --serve`, about 50 s, in `check-all.sh`):
   starts its own server. One player: picks a starting skill, uses it, wins, learns a second at the
   Bonfire, uses that. Then two players in one room (two browser contexts): each must see the other's
   skill announced and animated, a ward on the other's hero and HUD card, a lance in flight, the boss
-  hurt and its Burn meter showing; both go through the Bonfire into the second fight. Fails on any page
-  error. Skipped (not failed) where Playwright isn't installed. Without `--serve` it runs against a
-  server you started. It doesn't cover going down and being revived, couch players, or a reconnect.
+  hurt and its Burn meter showing; both go through the Bonfire into the second fight. Then couch: two
+  pretend controllers (`navigator.getGamepads` replaced) on one browser; the first used must become player
+  one's, the second gets a hero with Start, its cursor must stay in its own row, and in the fight each
+  stick must move only its own hero. Fails on any page error. Skipped (not failed) where Playwright isn't installed. Without `--serve` it runs against a
+  server you started. It doesn't cover going down and being revived, or a reconnect.
   (The game reuses one fight scene object across fights: anything a test hangs on it outlives the fight.)
 - In a debug room the start message takes `ups: [upgrade ids]`: every hero begins holding them (how the
   proc upgrades were checked in a browser). Sim bots count finisher and heavy procs roughly; roll, guard,

@@ -26,12 +26,12 @@ h3 { font: 600 13px var(--sans); text-transform: uppercase; letter-spacing: 0.12
 .center { justify-content: center; }
 .btn { background: var(--panel2); border: 1px solid var(--line); padding: 10px 18px; border-radius: 3px; cursor: pointer; font-weight: 600;
   letter-spacing: 0.03em; transition: background .12s, border-color .12s; white-space: nowrap; }
-.btn:hover, .btn:focus-visible, [data-nav].focus { border-color: var(--gold); outline: none; background: #2a2232; box-shadow: 0 0 0 1px var(--gold) inset; }
+.btn:hover, .btn:focus-visible, [data-nav].focus { border-color: var(--fc, var(--gold)); outline: none; background: #2a2232; box-shadow: 0 0 0 1px var(--fc, var(--gold)) inset; }
 .btn.primary { background: linear-gradient(#7a2a2a, #5a1e22); border-color: #a83a3a; color: #fff0e0; }
 .btn.primary:hover, .btn.primary.focus { border-color: var(--gold2); }
 .btn[disabled] { opacity: 0.45; cursor: default; }
 input.field { background: #0e0c12; border: 1px solid var(--line); padding: 10px 12px; border-radius: 3px; min-width: 0; }
-input.field:focus, input.field.focus { outline: none; border-color: var(--gold); }
+input.field:focus, input.field.focus { outline: none; border-color: var(--fc, var(--gold)); }
 input.code { width: 7.5em; text-transform: uppercase; letter-spacing: 0.25em; text-align: center; }
 .hint { color: var(--dim); font-size: 13px; }
 .err { color: #e07070; min-height: 1.4em; margin-top: 10px; }
@@ -98,7 +98,7 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 @media (max-width: 760px) { .cards-up { grid-template-columns: 1fr; } }
 .card-up { display: flex; flex-direction: column; gap: 4px; text-align: left; background: #120f17; border: 1px solid var(--line); border-top: 3px solid var(--v);
   padding: 9px 10px; border-radius: 3px; cursor: pointer; min-height: 120px; }
-.card-up:hover, .card-up.focus { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; outline: none; }
+.card-up:hover, .card-up.focus { border-color: var(--fc, var(--gold)); box-shadow: 0 0 0 1px var(--fc, var(--gold)) inset; outline: none; }
 .up-top { display: flex; justify-content: space-between; gap: 6px; } .up-top b { font: 700 14px var(--serif); }
 .up-top i { font-style: normal; font-size: 11px; color: var(--r); text-transform: uppercase; letter-spacing: .08em; }
 .up-kind { font-size: 11px; color: var(--v); text-transform: uppercase; letter-spacing: .08em; }
@@ -151,7 +151,7 @@ div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); 
 .stm.live .bar { box-shadow: 0 0 0 1px var(--k), 0 0 6px var(--k); }
 /* the tooltip over a blessing or skill a hero holds */
 .chip[data-tip] { cursor: help; }
-.chip[data-tip]:hover, .chip[data-tip].focus { background: #2a2232; box-shadow: 0 0 0 1px var(--r) inset; }
+.chip[data-tip]:hover, .chip[data-tip].focus { background: #2a2232; box-shadow: 0 0 0 1px var(--fc, var(--r)) inset; }
 #tip { position: fixed; z-index: 50; max-width: 280px; padding: 9px 11px; background: #120f17f8; border: 1px solid var(--line); border-top: 3px solid var(--r);
   border-radius: 3px; box-shadow: 0 8px 24px #000c; pointer-events: none; font-size: 13px; line-height: 1.4; color: var(--text); }
 #tip[hidden] { display: none; }
@@ -163,3 +163,4 @@ div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); 
 .menu-list { display: grid; gap: 8px; }
 /* buttons whose label changes keep their size */
 #copy { min-width: 11.5em; } [data-ready] { min-width: 7.5em; }
+.hero .col { display: grid; gap: 6px; justify-items: end; }

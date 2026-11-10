@@ -1,14 +1,14 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=23';
-import { LocalHero, RemoteHero } from './hero.js?v=23';
-import { Boss } from './boss.js?v=23';
-import { drawArena } from './arenas.js?v=23';
-import { sfx } from './audio.js?v=23';
-import { music } from './music.js?v=23';
-import { deviceOfSlot } from './input.js?v=23';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=23';
-import { hudKeys } from './ui.js?v=23';
+import { addFrames } from './rig.js?v=26';
+import { LocalHero, RemoteHero } from './hero.js?v=26';
+import { Boss } from './boss.js?v=26';
+import { drawArena } from './arenas.js?v=26';
+import { sfx } from './audio.js?v=26';
+import { music } from './music.js?v=26';
+import { deviceOfSlot } from './input.js?v=26';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=26';
+import { hudKeys } from './ui.js?v=26';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
@@ -293,14 +293,13 @@ export class FightScene extends Phaser.Scene {
     this.cfg.input.rumble(hero.dev, small ? 0.25 : 0.5, 70);
   }
 
-  // The keyboard's hero (the one made with the room) also answers to any controller that has no hero of
-  // its own here: whichever of them was used last drives it, so one player can pick up a controller.
+  // Player one (the keyboard's hero) also answers to player one's controller, if the lobby gave it one:
+  // whichever of the two was used last drives it. Other controllers drive only their own heroes.
   pickDevices() {
     const I = this.cfg.input, kh = this.local.find(l => l.home === 'kb');
     if (!kh) return;
-    const taken = new Set(this.local.map(l => l.home));
-    let best = I.kb;
-    for (const d of Object.values(I.pads)) if (!taken.has(d.id) && d.lastUsed > best.lastUsed) best = d;
+    const pad = this.cfg.p1pad && this.cfg.p1pad(), d = pad && I.pads[pad];
+    const best = d && d.lastUsed > I.kb.lastUsed ? d : I.kb;
     if (kh.dev !== best.id) { kh.dev = best.id; hudKeys(kh.id, best.id); }
   }
 

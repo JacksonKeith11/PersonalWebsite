@@ -1,63 +1,92 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=23';
-import { heroFrames } from './hero.js?v=23';
-import { sfx } from './audio.js?v=23';
-import { skillKey, deviceOfSlot } from './input.js?v=23';
+import { paintRig, atlas } from './rig.js?v=26';
+import { heroFrames } from './hero.js?v=26';
+import { sfx } from './audio.js?v=26';
+import { skillKey, deviceOfSlot } from './input.js?v=26';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export { esc };
 
 // Menus live in #ui. One more can be laid over it (the in-run menu, openMenu): while it is up it is the
-// one the controller and the keys steer, and #ui underneath can still be redrawn.
+// one the controllers and the keys steer, and #ui underneath can still be redrawn.
+//
+// Every couch player steers their own cursor. main.js says, per device, whose it is (setOwners): 'main'
+// is this browser's first player (the keyboard and mouse, that player's controller, and any controller
+// without a hero), or a couch hero's id. A cursor reaches only elements with no data-owner (shared:
+// Begin, difficulty) or inside its own hero's data-owner box; a couch cursor reaches only its own box.
+// Only 'main' presses data-back, and it alone takes the browser's real focus. While the overlay is up,
+// every device steers one cursor in it.
 const base = () => document.getElementById('ui');
-let overlay = null, under = null;   // the overlay's element; what was focused beneath it
+let overlay = null, under = {};   // the overlay's element; the cursors beneath it, by name
 const ui = () => overlay || base();
-let focused = null;
+let cursors = {};                 // cursor key -> element
+const cols = {};                  // a couch cursor's colour, by key
+let ownerOf = () => ({ key: 'main' });
+export function setOwners(fn) { ownerOf = fn; }
+const ownerFor = devId => overlay ? { key: 'main' } : ownerOf(devId);
+
+// a stable name for a focusable element, so a redraw can put the focus back where it was
+const keyOf = e => e.id ? '#' + e.id : [...e.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-nav' && a.name !== 'data-lr').map(a => `${a.name}=${a.value}`).join('&');
+const names = () => Object.fromEntries(Object.entries(cursors).filter(([, e]) => e && document.contains(e)).map(([k, e]) => [k, keyOf(e)]));
+const navs = el => [...el.querySelectorAll('[data-nav]')].filter(e => e.offsetParent !== null && !e.disabled);
+// may the cursor `key` (main's hero: `mainHero`) go to element e?
+function reach(e, key, mainHero) {
+  const box = e.closest('[data-owner]'), owner = box ? box.dataset.owner : null;
+  if (key === 'main') return !owner || owner === String(mainHero);
+  return owner === key;
+}
+
+// put each named cursor back on its element in `el`; a cursor whose element is gone goes to its default
+function restore(el, saved, quiet = true) {
+  for (const k of Object.keys(cursors)) { if (cursors[k]) cursors[k].classList.remove('focus'); }
+  cursors = {};
+  const all = navs(el);
+  for (const [k, name] of Object.entries(saved)) {
+    const e = all.find(x => keyOf(x) === name) || (k === 'main' ? null : all.find(x => reach(x, k)));
+    if (e) setFocus(k, e, false, quiet);
+  }
+  if (!cursors.main) {
+    const e = el.querySelector('[data-autofocus]') || all[0];
+    if (e) setFocus('main', e, false, quiet);
+  }
+}
 
 export function openMenu(html) {
   closeMenu();
-  under = focused; focused = null;
+  under = names();
+  for (const e of Object.values(cursors)) if (e) e.classList.remove('focus');
+  cursors = {};
   overlay = document.createElement('div');
   overlay.id = 'menu';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
   hideTip();
-  const first = overlay.querySelector('[data-autofocus]') || overlay.querySelector('[data-nav]');
-  if (first) setFocus(first, false);
+  restore(overlay, {});
   return overlay;
 }
 export function closeMenu() {
   if (!overlay) return;
   overlay.remove(); overlay = null;
   hideTip();
-  focused = under && document.contains(under) ? under : null;
-  under = null;
+  restore(base(), under);
+  under = {};
 }
-
-// a stable name for a focusable element, so a redraw can put the focus back where it was
-const keyOf = e => e.id ? '#' + e.id : [...e.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-nav' && a.name !== 'data-lr').map(a => `${a.name}=${a.value}`).join('&');
 
 export function show(html) {
   const el = base();
-  if (overlay) { el.innerHTML = html; under = null; return el; }   // redrawn beneath the menu: leave the focus with the menu
-  const was = focused && el.contains(focused) ? keyOf(focused) : null;
+  if (overlay) { el.innerHTML = html; return el; }   // redrawn beneath the menu: its cursors come back when it closes
+  const was = names();
   el.innerHTML = html;
-  focused = null;
   hideTip();
-  const again = was && [...el.querySelectorAll('[data-nav]')].find(e => keyOf(e) === was);
-  const first = again || el.querySelector('[data-autofocus]') || el.querySelector('[data-nav]');
-  if (first) setFocus(first, false);
+  restore(el, was);
   // some screens add parts after show() returns (the lobby's hero rows): look again once they're in
-  if (was && !again) queueMicrotask(() => {
-    const late = !overlay && focused === first && [...el.querySelectorAll('[data-nav]')].find(e => keyOf(e) === was);
-    if (late) setFocus(late, false);
-  });
+  queueMicrotask(() => { if (!overlay && document.contains(el)) restore(el, { ...names(), ...was }); });
   return el;
 }
-export function hide() { base().innerHTML = ''; if (overlay) under = null; else { focused = null; hideTip(); } }
+export function hide() { base().innerHTML = ''; if (overlay) under = {}; else { cursors = {}; hideTip(); } }
 
 // A tooltip for anything with data-tip (text), data-tip-h (a heading) and data-tip-k (a line under it):
 // the blessings and skills a hero holds. It shows on hover, and when a controller's focus lands on it.
@@ -78,55 +107,65 @@ function showTip(el) {
   t.style.top = (r.top - h - 8 >= 8 ? r.top - h - 8 : r.bottom + 8) + 'px';   // above it, or below when there's no room
 }
 function hideTip() { tipFor = null; const t = document.getElementById('tip'); if (t) t.hidden = true; }
-addEventListener('mouseover', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el); else if (tipFor && tipFor !== focused) hideTip(); });
+const onCursor = e => Object.values(cursors).includes(e);
+addEventListener('mouseover', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el); else if (tipFor && !onCursor(tipFor)) hideTip(); });
 addEventListener('scroll', () => { if (tipFor) hideTip(); }, true);
-// a click moves the focus too, so a redraw puts it back on what was clicked, not on the screen's default
-addEventListener('pointerdown', e => { const t = e.target.closest && e.target.closest('[data-nav]'); if (t && ui().contains(t)) setFocus(t, false); }, true);
+// a click moves the main cursor too, so a redraw puts it back on what was clicked, not on the screen's default
+addEventListener('pointerdown', e => { const t = e.target.closest && e.target.closest('[data-nav]'); if (t && ui().contains(t)) setFocus('main', t, false); }, true);
 
-function setFocus(el, sound = true) {
-  if (focused) focused.classList.remove('focus');
-  focused = el;
+// the cursor `key` onto el; `colour` marks a couch player's cursor
+function setFocus(key, el, sound = true, quiet = false, colour = null) {
+  const old = cursors[key];
+  cursors[key] = el;
+  if (old && old !== el && !onCursor(old)) { old.classList.remove('focus'); old.style.removeProperty('--fc'); }
   if (!el) return;
   el.classList.add('focus');
-  el.dataset.tip ? showTip(el) : hideTip();
-  if (document.activeElement !== el && (el.tagName === 'INPUT' || el.tagName === 'BUTTON')) el.focus({ preventScroll: true });
-  el.scrollIntoView({ block: 'nearest' });
+  if (colour) cols[key] = colour;
+  if (key === 'main') el.style.removeProperty('--fc'); else if (cols[key]) el.style.setProperty('--fc', cols[key]);
+  if (!quiet) el.dataset.tip ? showTip(el) : (tipFor === old && hideTip());
+  if (key === 'main' && document.activeElement !== el && (el.tagName === 'INPUT' || el.tagName === 'BUTTON')) el.focus({ preventScroll: true });
+  if (key === 'main' || !quiet) el.scrollIntoView({ block: 'nearest' });
   if (sound) sfx.ui();
 }
 
-function move(dx, dy) {
-  const all = [...ui().querySelectorAll('[data-nav]')].filter(e => e.offsetParent && !e.disabled);
+function move(o, dx, dy) {
+  const all = navs(ui()).filter(e => reach(e, o.key, o.hero));
   if (!all.length) return;
-  if (!focused || !all.includes(focused)) { setFocus(all[0]); return; }
-  const r = focused.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const cur = cursors[o.key];
+  if (!cur || !all.includes(cur)) { setFocus(o.key, all[0], true, false, o.colour); return; }
+  const r = cur.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
   let best = null, bestS = Infinity;
   for (const e of all) {
-    if (e === focused) continue;
+    if (e === cur) continue;
     const q = e.getBoundingClientRect(), x = q.left + q.width / 2 - cx, y = q.top + q.height / 2 - cy;
     const along = x * dx + y * dy, across = Math.abs(x * dy - y * dx);
     if (along <= 4) continue;
     const s = along + across * 2.5;
     if (s < bestS) { bestS = s; best = e; }
   }
-  if (best) setFocus(best);
+  if (best) setFocus(o.key, best, true, false, o.colour);
 }
 
 // call every frame while a menu is up
 export function navFrame(input) {
   const el = ui();
   if (!el.firstChild) return;
-  if (document.activeElement && document.activeElement !== focused && el.contains(document.activeElement) && document.activeElement.matches('[data-nav]')) {
-    setFocus(document.activeElement, false);
-  }
+  const act = document.activeElement;
+  if (act && act !== cursors.main && el.contains(act) && act.matches('[data-nav]')) setFocus('main', act, false);
   for (const d of input.devices()) {
-    const typing = d.id === 'kb' && document.activeElement && document.activeElement.tagName === 'INPUT';
-    const lr = focused && focused.hasAttribute('data-lr');
-    if (d.pressed('up')) !(typing && d.id === 'kb' && false) && move(0, -1);
-    if (d.pressed('down')) move(0, 1);
-    if (d.pressed('left') && !typing) lr ? focused.dispatchEvent(new CustomEvent('lr', { detail: -1 })) : move(-1, 0);
-    if (d.pressed('right') && !typing) lr ? focused.dispatchEvent(new CustomEvent('lr', { detail: 1 })) : move(1, 0);
-    if (d.id !== 'kb' && d.pressed('confirm') && focused) { focused.tagName === 'INPUT' ? focused.focus() : focused.click(); }
-    if (d.pressed('back')) { const b = el.querySelector('[data-back]'); if (b && (!typing || d.id !== 'kb')) { sfx.uiBack(); b.click(); } }
+    const o = ownerFor(d.id);
+    const typing = d.id === 'kb' && act && act.tagName === 'INPUT';
+    let cur = cursors[o.key];
+    if (cur && (!el.contains(cur) || !reach(cur, o.key, o.hero))) cur = null;
+    const any = ['up', 'down', 'left', 'right', 'confirm'].some(b => d.pressed(b));
+    if (!cur && any && o.key !== 'main') { move(o, 0, 1); continue; }   // a couch player's first press finds their box
+    const lr = cur && cur.hasAttribute('data-lr');
+    if (d.pressed('up')) move(o, 0, -1);
+    if (d.pressed('down')) move(o, 0, 1);
+    if (d.pressed('left') && !typing) lr ? cur.dispatchEvent(new CustomEvent('lr', { detail: -1 })) : move(o, -1, 0);
+    if (d.pressed('right') && !typing) lr ? cur.dispatchEvent(new CustomEvent('lr', { detail: 1 })) : move(o, 1, 0);
+    if (d.id !== 'kb' && d.pressed('confirm') && cur) { cur.tagName === 'INPUT' ? cur.focus() : cur.click(); }
+    if (d.pressed('back') && o.key === 'main') { const b = el.querySelector('[data-back]'); if (b && (!typing || d.id !== 'kb')) { sfx.uiBack(); b.click(); } }
   }
 }
 

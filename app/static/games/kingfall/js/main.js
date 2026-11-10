@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=23';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=23';
-import { Net, ME } from './net.js?v=23';
-import { FightScene } from './fight.js?v=23';
-import { show, hide, openMenu, closeMenu, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=23';
-import { unlock, sfx, setVolume } from './audio.js?v=23';
-import { music } from './music.js?v=23';
+import { setAtlas } from './rig.js?v=26';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=26';
+import { Net, ME } from './net.js?v=26';
+import { FightScene } from './fight.js?v=26';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=26';
+import { unlock, sfx, setVolume } from './audio.js?v=26';
+import { music } from './music.js?v=26';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -13,7 +13,9 @@ const ONLY = DEBUG ? new URLSearchParams(location.search).get('boss') : null;  /
 const BASE = '/static/games/kingfall/';
 const LOOKS = ['knight', 'pilgrim', 'hunter', 'sellsword'];
 
-const S = { me: null, code: null, data: null, lobby: null, scene: null, fightMsg: null, screen: 'title', error: '' };
+const S = { me: null, code: null, data: null, lobby: null, scene: null, fightMsg: null, screen: 'title', error: '', p1pad: null };
+// S.p1pad: the controller player one uses alongside the keyboard (the first controller to press Start
+// while player one has none). Every other controller that presses Start gets a couch hero of its own.
 const input = new Input();
 let net = null;
 
@@ -57,7 +59,8 @@ function frame() {
   if (!S.scene || S.menu) navFrame(input);
   if (was && S.menu && (start || !inRun)) closeRunMenu();
   else if (!was && inRun && (input.kb.pressed('back') || start)) runMenu();
-  if (S.screen === 'lobby') lobbyDevices();
+  const bound = bindP1();
+  if (S.screen === 'lobby') lobbyDevices(bound);
   setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
 if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
@@ -111,17 +114,48 @@ function runMenu(ask = null) {
   if ($('#m-mus', el)) $('#m-mus', el).oninput = e => { ME.saved.music = +e.target.value; ME.save(); music.setVolume(+e.target.value); };
 }
 
-function lobbyDevices() {
-  const mine = myHeroes();
+// Player one takes the first controller used (any button or the stick) that has no hero of its own,
+// while it has none: one player can pick up a controller and play. More controllers press Start for a
+// couch hero each; "Split off" in the lobby gives player one's controller its own hero instead.
+function bindP1() {
+  const p1 = myHeroes().find(h => h.slot === 0);
+  if (S.p1pad && (!p1 || !input.pads[S.p1pad])) { S.p1pad = null; if (!S.scene) render(); }   // unplugged, or player one gone
+  if (!p1 || S.p1pad) return null;
+  for (const d of Object.values(input.pads)) {
+    if (heroOf(d.id)) continue;
+    if (Object.keys(d.now).some(b => d.pressed(b)) || Math.hypot(d.move.x, d.move.y) > 0.5) {
+      S.p1pad = d.id;
+      if (!S.scene && !S.menu) render();
+      return d.id;
+    }
+  }
+  return null;
+}
+
+function lobbyDevices(bound) {
   for (const d of input.devices()) {
-    const slot = slotOf(d.id);
+    if (d.id === 'kb' || d.id === bound || !d.pressed('start')) continue;   // the press that bound a controller does nothing more
     const typing = document.activeElement && document.activeElement.tagName === 'INPUT';
-    if (d.id !== 'kb' && d.pressed('start') && !mine.some(h => h.slot === slot)) addHero(slot);
-    if (d.id !== 'kb' && d.pressed('start') && mine.some(h => h.slot === slot) && S.lobby.host === S.me && !typing) start();
+    if (heroOf(d.id)) { if (S.lobby.host === S.me && !typing) start(); }
+    else addHero(slotOf(d.id));
   }
 }
 
 const myHeroes = () => (S.lobby ? S.lobby.heroes.filter(h => h.conn === S.me) : []);
+// the hero a device drives on this browser: the keyboard and player one's controller drive player one,
+// any other controller the hero of its slot (or none)
+function heroOf(devId) {
+  const mine = myHeroes();
+  if (devId === 'kb' || devId === S.p1pad) return mine.find(h => h.slot === 0) || null;
+  return mine.find(h => h.slot === slotOf(devId)) || null;
+}
+// whose menu cursor a device steers (see the top of the navigation code in js/ui.js)
+setOwners(devId => {
+  const mine = myHeroes(), main = mine.find(h => h.slot === 0) || (mine.length === 1 ? mine[0] : null);
+  const h = heroOf(devId);
+  if (!h || h === main) return { key: 'main', hero: main ? main.id : null };
+  return { key: String(h.id), hero: h.id, colour: S.data.colours[h.colour] };
+});
 
 function addHero(slot) {
   if (!S.lobby || S.lobby.heroes.length >= 4) return;
@@ -203,7 +237,7 @@ function panel(h) {
     const kind = U.duo ? 'Duo' : U.pact ? 'Pact' : U.weapon ? 'Weapon Art' : U.slot ? SLOT_NAME[U.slot] : 'Passive';
     return `<span class="chip" data-nav data-chip="${h.id}:u:${u}" style="--r:${RARE_COL[r]}" data-tip-h="${esc(U.name)}" data-tip-k="${V ? esc(V.name) + ' · ' : ''}${kind} · ${r}"
       data-tip="${esc(U.text[r])}">${esc(U.name)}</span>`; }).join('');
-  return `<div class="panel" style="--c:${D.colours[h.colour]}">
+  return `<div class="panel" data-owner="${h.id}" style="--c:${D.colours[h.colour]}">
     <div class="row"><b class="pname">${esc(h.name)}</b><span class="hint">Level ${h.level} · ${esc(W.name)} · ${h.mhp} health · ${h.maxflasks} flasks</span></div>
     ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><div class="attrs">${D.attrs.map(([k, name, text]) =>
       `<button class="btn attr" data-nav data-attr="${h.id}:${k}"><b>${name} ${h.attrs[k]}</b><small>${text}</small></button>`).join('')}</div>` : ''}
@@ -288,7 +322,7 @@ function lobby() {
     <h3>Heroes (${L.heroes.length}/4)</h3>
     <div class="heroes" id="heroes"></div>
     ${L.heroes.length < 4 ? `<div class="slot-empty">${mine.some(h => h.slot === 0) ? '' : '<button class="btn" id="joinkb" data-nav>Join with keyboard & mouse</button><br>'}
-      Press <kbd>Start</kbd> on a controller to add a couch player · friends join with the code</div>` : ''}
+      ${mine.some(h => h.slot === 0) && !S.p1pad ? 'Pick up a controller to play player one with it; more controllers press <kbd>Start</kbd> to add couch players' : 'Press <kbd>Start</kbd> on a controller to add a couch player'} · friends join with the code</div>` : ''}
     <h3>Difficulty</h3>
     <div class="row">${Object.entries(S.diffs || {}).map(([k, n]) => host
       ? `<button class="btn ${L.diff === k ? 'primary' : ''}" data-nav data-diff="${k}">${esc(n)}</button>`
@@ -308,17 +342,19 @@ function lobby() {
     const own = h.conn === S.me, W = data.weapons[h.weapon];
     const row = document.createElement('div');
     row.className = 'hero'; row.style.setProperty('--c', data.colours[h.colour]);
+    if (own) row.dataset.owner = h.id;
     row.appendChild(portrait(h, W));
     const info = document.createElement('div');
     info.innerHTML = `<div class="name">${esc(h.name)}</div>
-      <div class="sub">${own ? (h.slot === 0 ? 'Keyboard or a spare controller' : padName('pad' + (h.slot - 1))) : 'Online'} · ${esc(LOOK_NAMES[h.look])} · ${esc(W.name)} · ${esc(data.skills[h.start_skill].name)}</div>
+      <div class="sub">${own ? (h.slot === 0 ? 'Keyboard & mouse' + (S.p1pad ? ' + ' + padName(S.p1pad) : '') : padName('pad' + (h.slot - 1))) : 'Online'} · ${esc(LOOK_NAMES[h.look])} · ${esc(W.name)} · ${esc(data.skills[h.start_skill].name)}</div>
       ${own ? `<div class="picks">${[['look', LOOK_NAMES[h.look], ''], ['weap', W.name, ''], ['skill', data.skills[h.start_skill].name, `style="border-color:${data.skills[h.start_skill].col}"`]]
         .map(([k, name, st]) => `<button class="btn pick" data-nav data-lr data-${k}="${h.id}" ${st}><i>◀</i><span>${esc(name)}</span><i>▶</i></button>`).join('')}</div>
         <div class="hint" style="margin-top:4px">${esc(W.blurb || '')}</div>
         <div class="hint">Starting skill: ${esc(data.skills[h.start_skill].text)}</div>` : ''}`;
     row.appendChild(info);
     const right = document.createElement('div');
-    if (own) right.innerHTML = `<button class="btn" data-nav data-drop="${h.id}">Remove</button>`;
+    if (own) right.innerHTML = `<div class="col"><button class="btn" data-nav data-drop="${h.id}">Remove</button>
+      ${h.slot === 0 && S.p1pad ? `<button class="btn" data-nav data-split title="${esc(padName(S.p1pad))} leaves player one and gets a couch hero of its own">Split off</button>` : ''}</div>`;
     row.appendChild(right);
     list.appendChild(row);
   }
@@ -357,6 +393,7 @@ function lobby() {
   el.querySelectorAll('[data-diff]').forEach(b => { b.onclick = () => net.send({ t: 'diff', d: b.dataset.diff }); });
   el.querySelectorAll('[data-resume]').forEach(b => { b.onclick = () => net.send({ t: 'resume', id: b.dataset.resume }); });
   el.querySelectorAll('[data-drop]').forEach(b => { b.onclick = () => net.send({ t: 'drop', h: +b.dataset.drop }); });
+  if ($('[data-split]', el)) $('[data-split]', el).onclick = () => { const pad = S.p1pad; S.p1pad = null; addHero(slotOf(pad)); };
   $('#copy').onclick = () => { navigator.clipboard && navigator.clipboard.writeText(link); $('#copy').textContent = 'Copied'; };
   if ($('#joinkb')) $('#joinkb').onclick = () => addHero(0);
   if ($('#start')) $('#start').onclick = start;
@@ -416,6 +453,7 @@ function startFight(m) {
     onFrame: sc => updateHud(sc),
     onBanner: kind => banner(kind),
     menuOpen: () => !!S.menu,
+    p1pad: () => S.p1pad,
   });
 }
 

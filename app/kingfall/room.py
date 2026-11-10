@@ -211,6 +211,8 @@ class Room:
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:
             self.start_run(msg.get("only") if self.debug and msg.get("only") in C.BOSSES else None,
                            [u for u in msg.get("ups") or [] if u in UPGRADES] if self.debug else None)
+        elif t == "quit" and c.id == self.host and self.state in ("fight", "bonfire"):
+            self.quit_run()
         elif self.state == "bonfire" and h:
             self.bonfire(h, t, msg)
         elif t == "debugwin" and self.debug and self.fight:
@@ -370,6 +372,17 @@ class Room:
             h.hp = h.mhp()
             h.flasks = h.max_flasks()
         if self.state == "bonfire": self.checkpoint()
+        self.broadcast(self.lobby_wire())
+
+    def quit_run(self):
+        """The host gives the run up from the menu: everyone is back in the lobby. The save from the last
+        Bonfire is kept, so the run can be resumed from there."""
+        self.fight = None      # the loop sees this and stops
+        self.state, self.result = "over", "quit"
+        for h in self.heroes.values():
+            h.hp = h.mhp(); h.flasks = h.max_flasks(); h.ready = False
+        for c in self.conns.values():
+            self.send(c, {"t": "saves", "list": SAVE.list_for(c.token.split(":")[0])})
         self.broadcast(self.lobby_wire())
 
     # ------------------------------------------------------------------ checkpoints

@@ -1,23 +1,48 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=19';
-import { heroFrames } from './hero.js?v=19';
-import { sfx } from './audio.js?v=19';
-import { skillKey, deviceOfSlot } from './input.js?v=19';
+import { paintRig, atlas } from './rig.js?v=22';
+import { heroFrames } from './hero.js?v=22';
+import { sfx } from './audio.js?v=22';
+import { skillKey, deviceOfSlot } from './input.js?v=22';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export { esc };
 
-const ui = () => document.getElementById('ui');
+// Menus live in #ui. One more can be laid over it (the in-run menu, openMenu): while it is up it is the
+// one the controller and the keys steer, and #ui underneath can still be redrawn.
+const base = () => document.getElementById('ui');
+let overlay = null, under = null;   // the overlay's element; what was focused beneath it
+const ui = () => overlay || base();
 let focused = null;
+
+export function openMenu(html) {
+  closeMenu();
+  under = focused; focused = null;
+  overlay = document.createElement('div');
+  overlay.id = 'menu';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+  hideTip();
+  const first = overlay.querySelector('[data-autofocus]') || overlay.querySelector('[data-nav]');
+  if (first) setFocus(first, false);
+  return overlay;
+}
+export function closeMenu() {
+  if (!overlay) return;
+  overlay.remove(); overlay = null;
+  hideTip();
+  focused = under && document.contains(under) ? under : null;
+  under = null;
+}
 
 // a stable name for a focusable element, so a redraw can put the focus back where it was
 const keyOf = e => e.id ? '#' + e.id : [...e.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-nav' && a.name !== 'data-lr').map(a => `${a.name}=${a.value}`).join('&');
 
 export function show(html) {
-  const el = ui();
+  const el = base();
+  if (overlay) { el.innerHTML = html; under = null; return el; }   // redrawn beneath the menu: leave the focus with the menu
   const was = focused && el.contains(focused) ? keyOf(focused) : null;
   el.innerHTML = html;
   focused = null;
@@ -27,7 +52,7 @@ export function show(html) {
   if (first) setFocus(first, false);
   return el;
 }
-export function hide() { ui().innerHTML = ''; focused = null; hideTip(); }
+export function hide() { base().innerHTML = ''; if (overlay) under = null; else { focused = null; hideTip(); } }
 
 // A tooltip for anything with data-tip (text), data-tip-h (a heading) and data-tip-k (a line under it):
 // the blessings and skills a hero holds. It shows on hover, and when a controller's focus lands on it.

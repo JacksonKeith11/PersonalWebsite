@@ -92,6 +92,18 @@ controller's focus onto it) shows a tooltip with what it does (`showTip` in `js/
 ready. The run is saved at every Bonfire (`save.py`, `data/kingfall.db`) and the save deleted when the
 run ends.
 
+### The menu during a run (`runMenu` in `js/main.js`, `openMenu` in `js/ui.js`)
+
+Esc (Start on a controller) over a fight or the Bonfire: sound and music volume, "Quit the run" (the
+host only, after a question: message `quit`, `Room.quit_run`; everyone returns to the lobby with
+`result` "quit", and the save from the last Bonfire is kept so the run can be resumed) and "Leave the
+room". Esc, B or Start closes it. The fight does not pause (the server runs it); while the menu is up
+this browser's heroes stand idle. The menu is an overlay (`#menu`) over `#ui`: it takes the controller's
+focus, and `show()` can still redraw the Bonfire beneath it.
+
+In the lobby, a "◀ name ▶" picker (look, weapon, starting skill) goes back when clicked on its left half
+and on when clicked on its right (`side` in `js/main.js`).
+
 ### Combat
 
 - **Heroes** (`HERO` in `content/__init__.py`): 100 health, 116 px/s. Roll: 0.38 s, 92 px,
@@ -176,6 +188,8 @@ run ends.
   health (with numbers; it pulses under 30%), Focus, the dash pips, then tiles with the
   key to press: the flask (a big count of what's left, red at none), each skill (a shade sweeps away as
   it cools down, with the seconds) and the special (shaded until there's Focus for it).
+- **On each hero** (`drawBars` in `js/hero.js`; the owner asked, Nov 2026): a health bar over the head,
+  framed in the player's colour, for every hero; and under the feet of this browser's heroes, their dashes.
 - **Everyone else** is a small card at the top left (name, health, flasks as dots, buffs, downed text).
 - **The boss's bars are top centre** (they were at the bottom, where the panels now go). The camera may
   scroll 56 px below the floor so a hero at the bottom wall isn't under a panel.
@@ -188,7 +202,7 @@ run ends.
 | Greatsword | 2 wide swings, an overhead chop | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
 | Twin Daggers | 5-hit flurry, every cut building Bleed | backstep cut | Shadowstep (blink and cut) | a dash instead of a roll: 0.28 s, untouchable throughout; the most dashes of any weapon |
 | Halberd | thrusts, a sweep | 270° sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
-| Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow |
+| Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow as it ends, at what you're aiming at (not the way you rolled) |
 | Catalyst | bolts, a 3-bolt fan | charged orb that explodes | Nova round you | blink instead of a roll |
 
 Focus fills as you deal damage. Each weapon has four Arts (weapon-only upgrades).

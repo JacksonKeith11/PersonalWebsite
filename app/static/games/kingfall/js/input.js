@@ -55,7 +55,7 @@ export class Input {
     addEventListener('keyup', e => this.keys.delete(e.code));
     addEventListener('blur', () => { this.keys.clear(); this.mouseBtn.clear(); });
     addEventListener('mousemove', e => { this.kb.mouse = { x: e.clientX, y: e.clientY }; this.kb.lastUsed = performance.now(); });
-    addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('#ui button, #ui input, #ui select')) return; this.mouseBtn.add(e.button); });
+    addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('#ui button, #ui input, #ui select, #menu')) return; this.mouseBtn.add(e.button); });
     addEventListener('mouseup', e => this.mouseBtn.delete(e.button));
     addEventListener('contextmenu', e => { if (e.target.tagName === 'CANVAS') e.preventDefault(); });
   }

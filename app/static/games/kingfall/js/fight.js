@@ -1,15 +1,16 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=19';
-import { LocalHero, RemoteHero } from './hero.js?v=19';
-import { Boss } from './boss.js?v=19';
-import { drawArena } from './arenas.js?v=19';
-import { sfx } from './audio.js?v=19';
-import { music } from './music.js?v=19';
-import { deviceOfSlot } from './input.js?v=19';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=19';
+import { addFrames } from './rig.js?v=22';
+import { LocalHero, RemoteHero } from './hero.js?v=22';
+import { Boss } from './boss.js?v=22';
+import { drawArena } from './arenas.js?v=22';
+import { sfx } from './audio.js?v=22';
+import { music } from './music.js?v=22';
+import { deviceOfSlot } from './input.js?v=22';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=22';
 
 const INTERP = 0.1;
+const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
 const aoeCol = col => col ? Phaser.Display.Color.HexStringToColor(col).color : 0xffd23f;
 
@@ -125,7 +126,7 @@ export class FightScene extends Phaser.Scene {
         for (const row of m.h) {
           const [id, x, y, , , , hp, mhp, flasks, down, bleed] = row;
           this.heroRows[id] = { hp, mhp, flasks, down, bleed, shield: row[12] || 0, rally: row[13] || 0, emp: row[14] || 0 };
-          if (this.byId[id]) this.byId[id].view.st = down ? null : this.heroRows[id];
+          if (this.byId[id]) { this.byId[id].view.st = down ? null : this.heroRows[id]; this.byId[id].view.hp = [hp, mhp]; }
           const r = this.remote[id];
           if (r) { r.push(m.st, row); r.down = down === 1; r.dead = down === 2; r.x = x; r.y = y; }
           const l = this.local.find(v => v.id === id);
@@ -299,7 +300,7 @@ export class FightScene extends Phaser.Scene {
     const B = this.boss;
     const allies = [...this.local, ...Object.values(this.remote)];
     const ctx = {
-      input: this.cfg.input, boss: B, now, world: s => this.world(s), send: m => this.net.send(m),
+      input: this.cfg.menuOpen && this.cfg.menuOpen() ? NO_INPUT : this.cfg.input, boss: B, now, world: s => this.world(s), send: m => this.net.send(m),
       collide: h => this.collide(h), onHit: (h, k, tg) => this.onHit(h, k, tg), allies,
       onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
       onDenied: () => sfx.uiBack(),

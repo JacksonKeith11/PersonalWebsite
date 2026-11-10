@@ -1,6 +1,6 @@
 // Plays the start of a Kingfall run in headless browsers. One player: makes a debug room, picks a
 // starting skill in the lobby, uses it (and checks the server announced it), wins the fight, learns a
-// second at the Bonfire and uses that. Then two players in one room: each must see what the other does
+// second at the Bonfire and uses that, then quits the run from the Esc menu. Then two players in one room: each must see what the other does
 // (a skill and its animation, a ward on the other's hero and HUD card, a projectile in flight, the boss
 // hurt and its Burn meter filling), and both must get through the Bonfire into the next fight. Fails if
 // a page throws or logs an error or any step doesn't happen in time. About forty seconds.
@@ -107,6 +107,15 @@ async function serve() {
     await fight(p, 1); await p.waitForTimeout(ENTRANCE);
     if ((await p.$$('.sk')).length !== 2) throw new Error('the HUD should show two skills');
     await cast(p, 'x', 1);
+    // the bars on the hero, then the menu: Esc, quit the run, and the lobby offers the Bonfire's save again
+    const bars = await p.evaluate(() => { const v = kf.S.scene.local[0].view; return v.hp && v.hp[1] > 0 && v.dash && v.dash[1] > 0; });
+    if (!bars) throw new Error("the hero's health and dash bars have nothing to show");
+    await press(p, 'Escape');
+    await p.click('#m-quit');
+    await p.click('#m-yes');
+    await p.waitForFunction(() => kf.S.lobby.state === 'over' && kf.S.lobby.result === 'quit' && !kf.S.scene);
+    await p.waitForSelector('[data-resume]');
+    if (await p.$('#menu')) throw new Error('the menu should close when the run is quit');
     await p.context().close();
   };
 

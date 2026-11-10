@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=19';
-import { placeAttack, touches, wrap } from './moves.js?v=19';
-import { crescent, lance, burst } from './fx.js?v=19';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=22';
+import { placeAttack, touches, wrap } from './moves.js?v=22';
+import { crescent, lance, burst } from './fx.js?v=22';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -94,6 +94,9 @@ export class HeroView {
     this.ring = scene.add.ellipse(0, 0, 22, 9).setStrokeStyle(1, Phaser.Display.Color.HexStringToColor(h.colourHex).color, 0.85);
     this.colour = Phaser.Display.Color.HexStringToColor(h.colourHex).color;
     this.swingG = scene.add.graphics().setDepth(5100).setBlendMode(Phaser.BlendModes.ADD);
+    this.barG = scene.add.graphics().setDepth(5050);   // the health bar over the head, the dashes under the feet
+    this.hp = null;       // [health, most] from the server's snapshot (every hero)
+    this.dash = null;     // [dashes, most]: only this browser's heroes know theirs
     this.reachK = 1;
   }
   draw(x, y, an, at, aim, flash) {
@@ -110,8 +113,29 @@ export class HeroView {
     this.rig.setTint(flash ? 0xffffff : null);
     const K = an[0] === 'k' && SKILLS[an.slice(2)];
     this.rig.c.alpha = an === 'roll' || an === 'dash' ? 0.85 : an === 'blink' || (K && K.blink) ? 0.4 : 1;
+    this.drawBars(x, y, z, an);
   }
-  destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); }
+  destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); this.barG.destroy(); }
+
+  // Health over the head (every hero: red, brighter under 30%, framed in the player's colour) and, for
+  // this browser's heroes, their dashes under the feet: a pip each, the one coming back filling in grey.
+  drawBars(x, y, z, an) {
+    const g = this.barG;
+    g.clear();
+    if (!this.hp || an === 'down' || an === 'dead') return;
+    const [hp, most] = this.hp, W = 26, hx = Math.round(x) - W / 2, hy = Math.round(y - z) - 57;
+    const f = Math.max(0, Math.min(1, hp / Math.max(1, most)));
+    g.fillStyle(0x0c0a10, 0.8); g.fillRect(hx - 1, hy - 1, W + 2, 5);
+    g.fillStyle(f < 0.3 ? 0xff5a48 : 0xc84040, 1); g.fillRect(hx, hy, W * f, 3);
+    g.lineStyle(1, this.colour, 0.9); g.strokeRect(hx - 1.5, hy - 1.5, W + 3, 6);
+    if (!this.dash) return;
+    const [n, max] = this.dash, pw = 7, gap = 2, dx = Math.round(x) - (max * pw + (max - 1) * gap) / 2, dy = Math.round(y) + 9;
+    for (let i = 0; i < max; i++) {
+      const k = Math.max(0, Math.min(1, n - i)), px = dx + i * (pw + gap);
+      g.fillStyle(0x0c0a10, 0.8); g.fillRect(px - 1, dy - 1, pw + 2, 4);
+      g.fillStyle(k >= 1 ? 0xe8ecf2 : 0x7a7488, 1); g.fillRect(px, dy, pw * k, 2);
+    }
+  }
 
   // What's on the hero (this.st, from the server's snapshot): a ward is a pale shell round them, extra
   // damage a ring of embers turning at their feet, a charged next hit a violet spark circling the weapon hand.
@@ -351,7 +375,8 @@ export class LocalHero {
           this.haste = 2;
           this.proc('roll_end', ctx);
           if (this.S.dodge) ctx.send({ t: 'dodge', h: this.id, x0: Math.round(this.rollFrom[0]), y0: Math.round(this.rollFrom[1]), x1: Math.round(this.x), y1: Math.round(this.y) });
-          if (G.kind === 'rollshot') this.fire({ v: 380, r: 4, life: 0.9 }, 'guard', ctx);
+          // the bow's roll-shot flies where you're aiming now (the cursor, the stick, a locked-on boss), not the way you rolled
+          if (G.kind === 'rollshot') { if (want !== null) this.aim = want; this.fire({ v: 380, r: 4, life: 0.9 }, 'guard', ctx); }
           if (q === 'dodge') this.tryRoll(move, ctx);
           else if (q === 'light') this.startLight(0);
           else if (q === 'heavy') { setState('charge'); this.charge = 0; }
@@ -671,7 +696,7 @@ export class LocalHero {
     return 'hurt';
   }
 
-  draw() { this.view.reachK = this.S.reach || 1; this.view.draw(this.x, this.y, this.an(), this.anT, this.aim, this.flash > 0); }
+  draw() { this.view.reachK = this.S.reach || 1; this.view.dash = [this.dashes, this.maxDash]; this.view.draw(this.x, this.y, this.an(), this.anT, this.aim, this.flash > 0); }
   report() { return { t: 'st', h: this.id, x: Math.round(this.x * 10) / 10, y: Math.round(this.y * 10) / 10, f: Math.round(this.aim * 100) / 100, an: this.an(), at: Math.round(this.anT * 100) / 100 }; }
 }
 

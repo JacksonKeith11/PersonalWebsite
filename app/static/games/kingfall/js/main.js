@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=19';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=19';
-import { Net, ME } from './net.js?v=19';
-import { FightScene } from './fight.js?v=19';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=19';
-import { unlock, sfx, setVolume } from './audio.js?v=19';
-import { music } from './music.js?v=19';
+import { setAtlas } from './rig.js?v=22';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=22';
+import { Net, ME } from './net.js?v=22';
+import { FightScene } from './fight.js?v=22';
+import { show, hide, openMenu, closeMenu, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=22';
+import { unlock, sfx, setVolume } from './audio.js?v=22';
+import { music } from './music.js?v=22';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -50,11 +50,65 @@ fit();
 // ------------------------------------------------------------------ the loop for menus and joining
 function frame() {
   input.poll();
-  if (!S.scene) navFrame(input);
+  // The menu during a run: Esc (Start on a controller) opens it over a fight or the Bonfire; Esc, B or
+  // Start closes it. While it's up it takes the keys, and this browser's heroes stand idle.
+  const inRun = !!S.lobby && S.screen === 'lobby' && (S.lobby.state === 'fight' || S.lobby.state === 'bonfire');
+  const was = S.menu, start = Object.values(input.pads).some(d => d.pressed('start'));
+  if (!S.scene || S.menu) navFrame(input);
+  if (was && S.menu && (start || !inRun)) closeRunMenu();
+  else if (!was && inRun && (input.kb.pressed('back') || start)) runMenu();
   if (S.screen === 'lobby') lobbyDevices();
   setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
 if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
+}
+
+// ------------------------------------------------------------------ the menu during a run
+function closeRunMenu() { S.menu = false; closeMenu(); }
+
+function leaveRoom() {
+  closeRunMenu();
+  if (S.scene) { game.scene.stop('fight'); S.scene = null; hideHud(); }
+  S.starting = false;
+  net.sock.close(); S.screen = 'title'; S.lobby = null;
+  history.replaceState(null, '', location.pathname);
+  music.play('bonfire');
+  render();
+}
+
+// `ask`: 'quit' or 'leave' shows that question instead of the menu
+function runMenu(ask = null) {
+  const host = S.lobby.host === S.me, fighting = S.lobby.state === 'fight';
+  S.menu = true;
+  const el = openMenu(ask === 'quit' ? `<div class="screen menu">
+      <h2>Quit the run?</h2>
+      <p class="hint">Everyone goes back to the lobby. ${S.lobby.stage > 0 ? 'The run stays saved at its last Bonfire, and you can resume it from there.' : 'This run has not reached a Bonfire, so nothing of it is saved.'}</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn" id="m-back" data-nav data-back data-autofocus>Keep playing</button><button class="btn primary" id="m-yes" data-nav>Quit the run</button></div>
+    </div>` : ask === 'leave' ? `<div class="screen menu">
+      <h2>Leave the room?</h2>
+      <p class="hint">${S.lobby.heroes.length > myHeroes().length ? 'The others carry on; your hero stays where they stand.' : 'The room closes once it is empty; a run saved at a Bonfire can be resumed later.'}</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn" id="m-back" data-nav data-back data-autofocus>Stay</button><button class="btn primary" id="m-yes" data-nav>Leave the room</button></div>
+    </div>` : `<div class="screen menu">
+      <h2>Menu</h2>
+      ${fighting ? '<p class="hint">The fight carries on while this is open.</p>' : ''}
+      <div class="row" style="gap:18px;margin:6px 0 16px">
+        <label class="hint">Sound <input type="range" id="m-sfx" min="0" max="1" step="0.05" value="${ME.saved.sfx ?? 0.6}" data-nav></label>
+        <label class="hint">Music <input type="range" id="m-mus" min="0" max="1" step="0.05" value="${ME.saved.music ?? 0.5}" data-nav></label>
+      </div>
+      <div class="menu-list">
+        <button class="btn primary" id="m-resume" data-nav data-back data-autofocus>Back to the game</button>
+        ${host ? '<button class="btn" id="m-quit" data-nav>Quit the run</button>' : '<span class="hint">Only the host can quit the run for everyone.</span>'}
+        <button class="btn" id="m-leave" data-nav>Leave the room</button>
+      </div>
+    </div>`);
+  const on = (id, fn) => { const b = $(id, el); if (b) b.onclick = fn; };
+  on('#m-resume', closeRunMenu);
+  on('#m-quit', () => runMenu('quit'));
+  on('#m-leave', () => runMenu('leave'));
+  on('#m-back', () => runMenu());
+  on('#m-yes', () => { if (ask === 'quit') { net.send({ t: 'quit' }); closeRunMenu(); } else leaveRoom(); });
+  if ($('#m-sfx', el)) $('#m-sfx', el).oninput = e => { ME.saved.sfx = +e.target.value; ME.save(); setVolume(+e.target.value); };
+  if ($('#m-mus', el)) $('#m-mus', el).oninput = e => { ME.saved.music = +e.target.value; ME.save(); music.setVolume(+e.target.value); };
 }
 
 function lobbyDevices() {
@@ -196,6 +250,7 @@ function title() {
       <div><kbd>Space</kbd> roll · <kbd>Shift</kbd> block (press just before a hit to parry)</div><div><kbd>B</kbd> roll · <kbd>LB</kbd> block</div>
       <div><kbd>Q</kbd> special · <kbd>R</kbd> flask</div><div><kbd>Y</kbd> special · <kbd>X</kbd> flask</div>
       <div>hold <kbd>E</kbd> to revive · <kbd>Tab</kbd> lock on</div><div>hold <kbd>A</kbd> by a fallen ally to revive · <kbd>R3</kbd> lock on</div>
+      <div><kbd>Esc</kbd> menu (quit the run, volume)</div><div><kbd>Start</kbd> menu</div>
       <div><kbd>Z</kbd> <kbd>X</kbd> skills (or <kbd>1</kbd> <kbd>2</kbd>)</div><div><kbd>LT</kbd> · <kbd>A</kbd> skills</div>
     </div>
   </div>`);
@@ -213,6 +268,10 @@ function title() {
   $('#name').onkeydown = e => { if (e.key === 'Enter') (room ? $('#join') : $('#create')).click(); };
 }
 
+// Which way a click on a "◀ name ▶" picker goes: back on its left half, on on its right. A press from
+// a controller or the keyboard has no place, and goes on (left and right on the stick do both ways).
+const side = (e, b) => { if (!e.clientX && !e.clientY) return 1; const r = b.getBoundingClientRect(); return e.clientX < r.left + r.width / 2 ? -1 : 1; };
+
 function lobby() {
   const L = S.lobby, data = S.data;
   if (!L || !data) return;
@@ -220,7 +279,7 @@ function lobby() {
   const link = `${location.origin}/games/kingfall?room=${S.code}`;
   const over = L.state === 'over';
   const el = show(`<div class="screen">
-    ${over ? `<h2 style="color:${L.result === 'won' ? 'var(--gold2)' : '#c03030'}">${L.result === 'won' ? 'The run is won' : 'The party has fallen'}</h2>` : ''}
+    ${over ? `<h2 style="color:${L.result === 'won' ? 'var(--gold2)' : L.result === 'quit' ? 'var(--dim)' : '#c03030'}">${L.result === 'won' ? 'The run is won' : L.result === 'quit' ? 'The run was left' : 'The party has fallen'}</h2>` : ''}
     ${over ? '<div class="hint" style="margin:-6px 0 10px">Change your look, weapon or starting skill below before you fight again.</div>' : ''}
     <div class="row" style="justify-content:space-between">
       <div><h3 style="margin-top:0">Room</h3><div class="code-big">${esc(S.code)}</div></div>
@@ -271,7 +330,7 @@ function lobby() {
       if (h.slot === 0) { ME.saved.look = next; ME.save(); }
       net.send({ t: 'set', h: h.id, look: next });
     };
-    b.onclick = () => cycle(1);
+    b.onclick = e => cycle(side(e, b));
     b.addEventListener('lr', e => cycle(e.detail));
   });
   el.querySelectorAll('[data-weap]').forEach(b => {
@@ -282,7 +341,7 @@ function lobby() {
       if (h.slot === 0) { ME.saved.weapon = next; ME.save(); }
       net.send({ t: 'set', h: h.id, weapon: next });
     };
-    b.onclick = () => cycle(1);
+    b.onclick = e => cycle(side(e, b));
     b.addEventListener('lr', e => cycle(e.detail));
   });
   el.querySelectorAll('[data-skill]').forEach(b => {
@@ -293,7 +352,7 @@ function lobby() {
       if (h.slot === 0) { ME.saved.skill = next; ME.save(); }
       net.send({ t: 'set', h: h.id, skill: next });
     };
-    b.onclick = () => cycle(1);
+    b.onclick = e => cycle(side(e, b));
     b.addEventListener('lr', e => cycle(e.detail));
   });
   el.querySelectorAll('[data-diff]').forEach(b => { b.onclick = () => net.send({ t: 'diff', d: b.dataset.diff }); });
@@ -302,7 +361,7 @@ function lobby() {
   $('#copy').onclick = () => { navigator.clipboard && navigator.clipboard.writeText(link); $('#copy').textContent = 'Copied'; };
   if ($('#joinkb')) $('#joinkb').onclick = () => addHero(0);
   if ($('#start')) $('#start').onclick = start;
-  $('#leave').onclick = () => { net.sock.close(); S.screen = 'title'; S.lobby = null; history.replaceState(null, '', location.pathname); render(); };
+  $('#leave').onclick = leaveRoom;
   if (host && !mine.length && !over && L.heroes.length === 0) setTimeout(() => S.lobby && !myHeroes().length && addHero(0), 50);
 }
 
@@ -357,6 +416,7 @@ function startFight(m) {
     onReady: sc => { S.scene = sc; S.starting = false; for (const p of S.pending) sc.onMsg(p); S.pending = []; },
     onFrame: sc => updateHud(sc),
     onBanner: kind => banner(kind),
+    menuOpen: () => !!S.menu,
   });
 }
 

@@ -1,11 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=30';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=30';
-import { Net, ME } from './net.js?v=30';
-import { FightScene } from './fight.js?v=30';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=30';
-import { unlock, sfx, setVolume } from './audio.js?v=30';
-import { music } from './music.js?v=30';
+import { setAtlas } from './rig.js?v=32';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=32';
+import { icon } from './icons.js?v=32';
+import { Net, ME } from './net.js?v=32';
+import { FightScene } from './fight.js?v=32';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=32';
+import { unlock, sfx, setVolume } from './audio.js?v=32';
+import { music } from './music.js?v=32';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -222,27 +223,55 @@ function render() {
 const RARE_COL = { common: '#b8b0a0', rare: '#4a9ae0', epic: '#c060ff' };
 const SLOT_NAME = { light: 'Light', heavy: 'Heavy', special: 'Special', dodge: 'Dodge', guard: 'Guard' };
 
-function upgradeCard(uid, rarity, i, h) {
-  const U = S.data.upgrades[uid], V = U.vow ? S.data.vows[U.vow] : null;
+// How many blessings of each Vow a hero holds: {ember: 2, ...}
+const vowCounts = h => h.ups.reduce((n, [u]) => { const v = S.data.upgrades[u].vow; if (v) n[v] = (n[v] || 0) + 1; return n; }, {});
+// a blessing's emblem: its Vow's, else its weapon's for a Weapon Art, else a crown (passives, pacts)
+const emblem = U => icon(U.vow || (U.weapon ? U.weapon : U.pact ? 'blood' : 'crown'));
+// cards deal in with an animation only when the offer is new, not on every redraw of the Bonfire
+const dealt = {};
+function dealClass(key, sig) { if (dealt[key] === sig) return ''; dealt[key] = sig; return ' deal'; }
+
+function upgradeCard(uid, rarity, i, h, deal) {
+  const U = S.data.upgrades[uid], V = U.vow ? S.data.vows[U.vow] : null, vc = vowCounts(h);
   const held = U.slot && h.ups.find(([x]) => S.data.upgrades[x].slot === U.slot);
   const kind = U.duo ? 'Duo' : U.pact ? 'Pact' : U.weapon ? 'Weapon Art' : U.slot ? SLOT_NAME[U.slot] : 'Passive';
-  return `<button class="card-up" data-nav data-pick="${h.id}:${i}" style="--v:${V ? V.colour : '#c8a040'};--r:${RARE_COL[rarity]}">
-    <span class="up-top"><b>${esc(U.name)}</b><i>${rarity}</i></span>
+  const col = V ? V.colour : '#c8a040';
+  // a Duo shows the two Vows it joins; a Vow blessing how many of that Vow you hold already
+  const foot = U.duo ? `<span class="up-duo">${U.needs.map(v => `<span style="--v:${S.data.vows[v].colour}">${icon(v)} ${esc(S.data.vows[v].name)}</span>`).join('<em>+</em>')}</span>`
+    : V ? `<span class="up-vow">${vc[U.vow] ? `You hold ${vc[U.vow]} ${esc(V.name)}` : `First of ${esc(V.name)}`} · <i>${esc(V.blurb)}</i></span>` : '';
+  return `<button class="card-up r-${rarity}${deal}" data-nav data-pick="${h.id}:${i}" style="--v:${col};--r:${RARE_COL[rarity]};--i:${i}">
+    <span class="up-head"><span class="up-em">${emblem(U)}</span><span class="up-top"><b>${esc(U.name)}</b><i>${rarity}</i></span></span>
     <span class="up-kind">${V ? esc(V.name) + ' · ' : ''}${kind}</span>
     <span class="up-text">${esc(U.text[rarity])}</span>
+    ${foot}
     ${held ? `<span class="up-rep">Replaces ${esc(S.data.upgrades[held[0]].name)}</span>` : ''}
   </button>`;
 }
 
 // A skill on offer. With a free slot the card itself learns it; with both full it holds a button for
 // each skill it could replace.
-function skillCard(id, i, h) {
+function skillCard(id, i, h, deal) {
   const K = S.data.skills[id], full = h.skills.length >= S.data.max_skills;
-  const body = `<span class="up-top"><b>${esc(K.name)}</b><i>${K.cd}s cooldown</i></span>
-    <span class="up-kind">Skill</span><span class="up-text">${esc(K.text)}</span>`;
-  if (!full) return `<button class="card-up" data-nav data-learn="${h.id}:${i}" style="--v:${K.col};--r:var(--dim)">${body}</button>`;
-  return `<div class="card-up" style="--v:${K.col};--r:var(--dim)">${body}<span class="sk-rep">${h.skills.map((old, at) =>
+  const body = `<span class="up-head"><span class="up-em">${icon(id)}</span><span class="up-top"><b>${esc(K.name)}</b></span></span>
+    <span class="up-kind">Skill · ${K.cd}s cooldown</span><span class="up-text">${esc(K.text)}</span>`;
+  if (!full) return `<button class="card-up skill${deal}" data-nav data-learn="${h.id}:${i}" style="--v:${K.col};--r:${K.col};--i:${i}">${body}</button>`;
+  return `<div class="card-up skill${deal}" style="--v:${K.col};--r:${K.col};--i:${i}">${body}<span class="sk-rep">${h.skills.map((old, at) =>
     `<button class="btn" data-nav data-learn="${h.id}:${i}:${at}">Replace ${esc(S.data.skills[old].name)}</button>`).join('')}</span></div>`;
+}
+
+// The Vows a hero holds, and the Duos within reach: Sephiria-style, so a build's direction is visible.
+// Each Vow shows its emblem and count; a Duo lights each half you hold (both halves: it can be offered).
+function vowRow(h) {
+  const D = S.data, vc = vowCounts(h);
+  const held = Object.keys(D.vows).filter(v => vc[v]);
+  if (!held.length) return '';
+  const owned = new Set(h.ups.map(([u]) => u));
+  const duos = Object.entries(D.upgrades).filter(([id, U]) => U.duo && !owned.has(id) && U.needs.some(v => vc[v]));
+  return `<h3>Vows</h3><div class="vows">${held.map(v => `<span class="vow" style="--v:${D.vows[v].colour}" data-nav data-chip="${h.id}:v:${v}"
+      data-tip-h="${esc(D.vows[v].name)}" data-tip-k="${vc[v]} held" data-tip="${esc(D.vows[v].blurb)}">${icon(v)}<b>${vc[v]}</b></span>`).join('')}</div>
+    ${duos.length ? `<div class="duos">${duos.map(([id, U]) => `<span class="duo ${U.needs.every(v => vc[v]) ? 'ready' : ''}" data-nav data-chip="${h.id}:d:${id}"
+      data-tip-h="${esc(U.name)}" data-tip-k="Duo · ${U.needs.map(v => esc(D.vows[v].name)).join(' + ')}" data-tip="${esc(U.text.common)}">${U.needs.map(v =>
+      `<span class="${vc[v] ? 'on' : ''}" style="--v:${D.vows[v].colour}">${icon(v)}</span>`).join('')} ${esc(U.name)}</span>`).join('')}</div>` : ''}`;
 }
 
 function bonfire() {
@@ -259,7 +288,13 @@ function bonfire() {
     ${others.length ? `<div class="hint" style="margin-top:12px">${others.map(h => `${esc(h.name)}: ${h.ready ? 'ready' : 'choosing…'}`).join(' · ')}</div>` : ''}
   </div>`);
   const send = (t, h, extra = {}) => net.send({ t, h, ...extra });
-  el.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const [h, i] = b.dataset.pick.split(':').map(Number); send('pick', h, { i }); sfx.ui(); });
+  // picking a blessing: the chosen card lifts and glows, the others fall away, then it's sent
+  el.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+    if (b.classList.contains('chosen')) return;
+    const [h, i] = b.dataset.pick.split(':').map(Number);
+    b.classList.add('chosen'); b.parentElement.querySelectorAll('.card-up').forEach(c => c !== b && c.classList.add('gone'));
+    sfx.sting(0); setTimeout(() => send('pick', h, { i }), 280);
+  });
   el.querySelectorAll('[data-learn]').forEach(b => b.onclick = () => {
     const [h, i, at] = b.dataset.learn.split(':');
     send('learn', +h, i === 'skip' ? { skip: 1 } : { i: +i, at: at === undefined ? undefined : +at }); sfx.ui();
@@ -274,19 +309,19 @@ function panel(h) {
   const dev = deviceOfSlot(h.slot);
   // what the hero already has: hover a chip (or move onto it with a controller) to read what it does
   const known = h.skills.map((id, i) => `<span class="chip" data-nav data-chip="${h.id}:s:${id}" style="--r:${D.skills[id].col}" data-tip-h="${esc(D.skills[id].name)}"
-    data-tip-k="Skill · ${D.skills[id].cd}s cooldown" data-tip="${esc(D.skills[id].text)}"><kbd>${skillKey(dev, i)}</kbd> ${esc(D.skills[id].name)} · ${D.skills[id].cd}s</span>`).join('');
+    data-tip-k="Skill · ${D.skills[id].cd}s cooldown" data-tip="${esc(D.skills[id].text)}">${glyph(dev, i ? 'skill2' : 'skill1')} ${icon(id)} ${esc(D.skills[id].name)} · ${D.skills[id].cd}s</span>`).join('');
   const ups = h.ups.map(([u, r]) => {
     const U = D.upgrades[u], V = U.vow ? D.vows[U.vow] : null;
     const kind = U.duo ? 'Duo' : U.pact ? 'Pact' : U.weapon ? 'Weapon Art' : U.slot ? SLOT_NAME[U.slot] : 'Passive';
-    return `<span class="chip" data-nav data-chip="${h.id}:u:${u}" style="--r:${RARE_COL[r]}" data-tip-h="${esc(U.name)}" data-tip-k="${V ? esc(V.name) + ' · ' : ''}${kind} · ${r}"
-      data-tip="${esc(U.text[r])}">${esc(U.name)}</span>`; }).join('');
+    return `<span class="chip" data-nav data-chip="${h.id}:u:${u}" style="--r:${RARE_COL[r]};--v:${V ? V.colour : 'var(--gold)'}" data-tip-h="${esc(U.name)}" data-tip-k="${V ? esc(V.name) + ' · ' : ''}${kind} · ${r}"
+      data-tip="${esc(U.text[r])}">${V || U.weapon ? `<span class="em">${emblem(U)}</span>` : ''}${esc(U.name)}</span>`; }).join('');
   return `<div class="panel" data-owner="${h.id}" style="--c:${D.colours[h.colour]}">
     <div class="row"><b class="pname">${esc(h.name)}</b><span class="hint">Level ${h.level} · ${esc(W.name)} · ${h.mhp} health · ${h.maxflasks} flasks</span></div>
     ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><div class="attrs">${D.attrs.map(([k, name, text]) =>
       `<button class="btn attr" data-nav data-attr="${h.id}:${k}"><b>${name} ${h.attrs[k]}</b><small>${text}</small></button>`).join('')}</div>` : ''}
-    ${h.offer.length ? `<h3>Choose a blessing${h.picks > 1 ? ` (${h.picks})` : ''}</h3><div class="cards-up">${h.offer.map(([u, r], i) => upgradeCard(u, r, i, h)).join('')}</div>` : ''}
+    ${h.offer.length ? `<h3>Choose a blessing${h.picks > 1 ? ` (${h.picks})` : ''}</h3><div class="cards-up">${(d => h.offer.map(([u, r], i) => upgradeCard(u, r, i, h, d)).join(''))(dealClass('up' + h.id, JSON.stringify(h.offer)))}</div>` : ''}
     ${h.skill_offer.length ? `<h3>Learn a skill${h.skills.length >= D.max_skills ? ' (you carry two: one must go)' : ''}</h3>
-      <div class="cards-up">${h.skill_offer.map((id, i) => skillCard(id, i, h)).join('')}</div>
+      <div class="cards-up">${(d => h.skill_offer.map((id, i) => skillCard(id, i, h, d)).join(''))(dealClass('sk' + h.id, JSON.stringify(h.skill_offer)))}</div>
       <div class="row" style="margin-top:8px"><button class="btn" data-nav data-learn="${h.id}:skip">Pass</button>
         <span class="hint">Skills work with any weapon and come back on a cooldown.</span></div>` : ''}
     <h3>Shop</h3><div class="row">
@@ -296,6 +331,7 @@ function panel(h) {
       <button class="btn" data-nav data-buy="${h.id}:ember" ${L.coins < P.ember ? 'disabled' : ''}>Extra blessing (${P.ember})</button>
     </div>
     ${known ? `<h3>Skills</h3><div class="chips">${known}</div>` : ''}
+    ${vowRow(h)}
     ${ups ? `<h3>Blessings</h3><div class="chips">${ups}</div>` : ''}
     <div class="row" style="margin-top:14px;justify-content:flex-end">
       <button class="btn ${h.ready ? '' : 'primary'}" data-nav data-ready="${h.id}" ${!h.ready && (h.points || h.offer.length || h.skill_offer.length) ? 'title="You can still spend points, choose a blessing and learn a skill"' : ''}>${h.ready ? 'Not ready' : 'Ready'}</button>
@@ -303,9 +339,39 @@ function panel(h) {
   </div>`;
 }
 
+// The controls, with the keys and the buttons of the controller plugged in (Xbox labels when there's none)
+function controlsTable() {
+  const f = firstPadFamily(), pid = f === 'xbox' ? null : Object.keys(input.pads)[0];
+  const k = a => glyph('kb', a), p = a => pid ? glyph(pid, a) : glyph('xbox-pad', a);
+  return `<div><b>Keyboard & mouse</b></div><div><b>Controller</b></div>
+      <div><kbd class="key">WASD</kbd> move · mouse aim</div><div>Left stick move · right stick aim</div>
+      <div>${k('light')} light · hold ${k('heavy')} heavy</div><div>${p('light')} light · hold ${p('heavy')} heavy</div>
+      <div>${k('dodge')} roll · ${k('block')} block (press just before a hit to parry)</div><div>${p('dodge')} roll · ${p('block')} block</div>
+      <div>${k('special')} special · ${k('flask')} flask</div><div>${p('special')} special · ${p('flask')} flask</div>
+      <div>hold ${k('revive')} to revive · ${k('lock')} lock on</div><div>hold ${p('revive')} by a fallen ally to revive · ${p('lock')} lock on</div>
+      <div>${k('back')} menu (quit the run, volume)</div><div>${p('start')} menu</div>
+      <div>${k('skill1')} ${k('skill2')} skills (or <kbd class="key">1</kbd> <kbd class="key">2</kbd>)</div><div>${p('skill1')} · ${p('skill2')} skills</div>`;
+}
+
+// The title's backdrop: the four heroes side by side before a fire, embers rising past them
+function titleArt() {
+  const el = $('.screen.title');
+  if (!el || $('.lineup', el)) return;
+  const row = document.createElement('div');
+  row.className = 'lineup';
+  const HEROES = [['pilgrim', 1, { art: 'staff' }], ['knight', 0, { art: 'sword', offhand: 'shield' }], ['sellsword', 2, { art: 'greatsword' }], ['hunter', 3, { art: 'bow' }]];
+  try { for (const [look, colour, W] of HEROES) row.appendChild(portrait({ look, colour }, W, 120)); } catch (e) { return; }   // the art isn't loaded yet
+  const embers = document.createElement('div');
+  embers.className = 'embers';
+  embers.innerHTML = Array.from({ length: 22 }, () => `<i style="left:${Math.random() * 100}%;animation-delay:${(Math.random() * 6).toFixed(2)}s;animation-duration:${(4 + Math.random() * 4).toFixed(2)}s"></i>`).join('');
+  el.prepend(embers);
+  $('.tag', el).after(row);
+}
+
 function title() {
   const room = new URLSearchParams(location.search).get('room') || '';
   show(`<div class="screen title">
+    <div class="crest">${icon('crown')}</div>
     <h1 class="logo">KINGFALL</h1>
     <p class="tag">The king is dead. His knights, his beasts and his gods are not.</p>
     <div class="row center"><input class="field" id="name" data-nav maxlength="16" placeholder="Your name" value="${esc(ME.saved.name || '')}"></div>
@@ -320,17 +386,9 @@ function title() {
       <label class="hint">Sound <input type="range" id="vsfx" min="0" max="1" step="0.05" value="${ME.saved.sfx ?? 0.6}" data-nav></label>
       <label class="hint">Music <input type="range" id="vmus" min="0" max="1" step="0.05" value="${ME.saved.music ?? 0.5}" data-nav></label>
     </div>
-    <div class="controls">
-      <div><b>Keyboard & mouse</b></div><div><b>Controller</b></div>
-      <div><kbd>WASD</kbd> move · mouse aim</div><div>Left stick move · right stick aim</div>
-      <div><kbd>LMB</kbd> light · hold <kbd>RMB</kbd> heavy</div><div><kbd>RB</kbd> light · hold <kbd>RT</kbd> heavy</div>
-      <div><kbd>Space</kbd> roll · <kbd>Shift</kbd> block (press just before a hit to parry)</div><div><kbd>B</kbd> roll · <kbd>LB</kbd> block</div>
-      <div><kbd>Q</kbd> special · <kbd>R</kbd> flask</div><div><kbd>Y</kbd> special · <kbd>X</kbd> flask</div>
-      <div>hold <kbd>E</kbd> to revive · <kbd>Tab</kbd> lock on</div><div>hold <kbd>A</kbd> by a fallen ally to revive · <kbd>R3</kbd> lock on</div>
-      <div><kbd>Esc</kbd> menu (quit the run, volume)</div><div><kbd>Start</kbd> menu</div>
-      <div><kbd>Z</kbd> <kbd>X</kbd> skills (or <kbd>1</kbd> <kbd>2</kbd>)</div><div><kbd>LT</kbd> · <kbd>A</kbd> skills</div>
-    </div>
+    <div class="controls">${controlsTable()}</div>
   </div>`);
+  titleArt();
   const name = () => { const n = $('#name').value.trim().slice(0, 16); ME.saved.name = n; ME.save(); return n; };
   $('#create').onclick = () => { unlock(); name(); connect({ create: 1, debug: DEBUG ? 1 : 0 }); };
   $('#join').onclick = () => {
@@ -365,7 +423,7 @@ function lobby() {
     <h3>Heroes (${L.heroes.length}/4)</h3>
     <div class="heroes" id="heroes"></div>
     ${L.heroes.length < 4 ? `<div class="slot-empty">${mine.some(h => h.slot === 0) ? '' : '<button class="btn" id="joinkb" data-nav>Join with keyboard & mouse</button><br>'}
-      ${mine.some(h => h.slot === 0) && !S.p1pad ? 'Pick up a controller to play player one with it; more controllers press <kbd>Start</kbd> to add couch players' : 'Press <kbd>Start</kbd> on a controller to add a couch player'} · friends join with the code</div>` : ''}
+      ${mine.some(h => h.slot === 0) && !S.p1pad ? `Pick up a controller to play player one with it; more controllers press ${glyph(Object.keys(input.pads)[0] || 'xbox-pad', 'start')} to add couch players` : `Press ${glyph(Object.keys(input.pads)[0] || 'xbox-pad', 'start')} on a controller to add a couch player`} · friends join with the code</div>` : ''}
     <h3>Difficulty</h3>
     <div class="row">${Object.entries(S.diffs || {}).map(([k, n]) => host
       ? `<button class="btn ${L.diff === k ? 'primary' : ''}" data-nav data-diff="${k}">${esc(n)}</button>`
@@ -494,7 +552,7 @@ function startFight(m) {
     net, input, data: S.data, fight: m, heroes, me: S.me, zoom,
     onReady: sc => { S.scene = sc; S.starting = false; for (const p of S.pending) sc.onMsg(p); S.pending = []; },
     onFrame: sc => updateHud(sc),
-    onBanner: kind => banner(kind),
+    onBanner: (kind, sub) => banner(kind, sub),
     menuOpen: () => !!S.menu,
     onError: e => oops(e),
     p1pad: () => S.p1pad,
@@ -503,6 +561,7 @@ function startFight(m) {
 
 function endFight() {
   const sc = S.scene;
+  try { sc.cameras.main.fadeOut(550, 5, 3, 10); } catch (e) { /* the scene is already gone */ }
   setTimeout(() => {
     if (S.scene !== sc) return;
     game.scene.stop('fight');

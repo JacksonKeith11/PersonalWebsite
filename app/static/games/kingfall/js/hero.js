@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=30';
-import { placeAttack, touches, wrap } from './moves.js?v=30';
-import { crescent, lance, burst } from './fx.js?v=30';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=32';
+import { placeAttack, touches, wrap } from './moves.js?v=32';
+import { crescent, lance, burst } from './fx.js?v=32';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -98,6 +98,7 @@ export class HeroView {
     this.hp = null;       // [health, most] from the server's snapshot (every hero)
     this.dash = null;     // [dashes, most]: only this browser's heroes know theirs
     this.reachK = 1;
+    this.scene = scene; this.lastAn = ''; this.lastZ = 0;
   }
   draw(x, y, an, at, aim, flash) {
     this.drawSwing(x, y, an, at, aim);
@@ -106,6 +107,13 @@ export class HeroView {
     const A = an[0] === 'k' && SKILLS[an.slice(2)] && SKILLS[an.slice(2)].aoe;
     if (A && !A.at && at > 0.06) left = Math.floor((at - 0.06) / (A.every / 2)) % 2 === 1 ? !left : left;  // a whirl: the hero turns about with each strike
     const { p, spin, z } = heroPose(this.W, this.HERO, an, at);
+    // dust where a roll starts and where a leap lands
+    const A2 = this.scene.atmos;
+    if (A2) {
+      if (an !== this.lastAn && (an === 'roll' || an === 'dash')) A2.dust(x, y, 5);
+      if (this.lastZ > 8 && z < 1) A2.dust(x, y, 10, true);
+    }
+    this.lastAn = an; this.lastZ = z;
     this.rig.pose(p, left);
     placeRig(this.rig, x, y - z, spin, left);
     this.shadow.setPosition(x, y).setScale(1 - z / 80); this.ring.setPosition(x, y);

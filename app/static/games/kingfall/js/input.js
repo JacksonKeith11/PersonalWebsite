@@ -115,6 +115,36 @@ export class Input {
 // which slot (0-3) a device's hero uses on this browser: the keyboard is 0, controllers 1-4
 export const slotOf = id => id === 'kb' ? 0 : 1 + Number(id.slice(3));
 export const deviceOfSlot = slot => slot === 0 ? 'kb' : 'pad' + (slot - 1);
+// What a button is called on each kind of device. Controllers are told apart by the name the browser
+// gives them (PlayStation and Nintendo pads say so; anything else is labelled like an Xbox pad). The face
+// buttons sit in the same places on every pad (standard mapping), only their labels differ.
+const NAMES = {
+  kb: { light: 'LMB', heavy: 'RMB', special: 'Q', flask: 'R', dodge: 'Space', block: 'Shift', skill1: 'Z', skill2: 'X', confirm: 'Enter', back: 'Esc', start: 'Esc', lock: 'Tab', revive: 'E' },
+  xbox: { light: 'RB', heavy: 'RT', special: 'Y', flask: 'X', dodge: 'B', block: 'LB', skill1: 'LT', skill2: 'A', confirm: 'A', back: 'B', start: 'Menu', lock: 'R3', revive: 'A' },
+  ps: { light: 'R1', heavy: 'R2', special: '△', flask: '□', dodge: '○', block: 'L1', skill1: 'L2', skill2: '✕', confirm: '✕', back: '○', start: 'Options', lock: 'R3', revive: '✕' },
+  nin: { light: 'R', heavy: 'ZR', special: 'X', flask: 'Y', dodge: 'A', block: 'L', skill1: 'ZL', skill2: 'B', confirm: 'B', back: 'A', start: '+', lock: 'R3', revive: 'B' },
+};
+// a face button's colour on its pad (xbox: A green, B red, X blue, Y yellow; ps: ✕ blue, ○ red, □ pink, △ green)
+const FACE = { xbox: { A: 'g-a', B: 'g-b', X: 'g-x', Y: 'g-y' }, ps: { '✕': 'g-x', '○': 'g-b', '□': 'g-sq', '△': 'g-a' }, nin: {} };
+export function padFamily(id) {
+  if (!id || id === 'kb') return 'kb';
+  const gp = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find(g => g && 'pad' + g.index === id);
+  const n = gp ? gp.id : '';
+  if (/054c|playstation|dualshock|dualsense|wireless controller/i.test(n)) return 'ps';
+  if (/057e|nintendo|switch|pro controller|joy-con/i.test(n)) return 'nin';
+  return 'xbox';
+}
+export const keyName = (id, action) => NAMES[padFamily(id)][action] || action;
+// a <kbd> for an action on a device, coloured like the pad's face button where it is one
+export function glyph(id, action) {
+  const f = padFamily(id), t = NAMES[f][action] || action, c = (FACE[f] || {})[t];
+  return `<kbd class="${f === 'kb' ? 'key' : 'pad'} ${c || ''}">${t}</kbd>`;
+}
 // what to press for skill slot i (0 or 1) on a device
-export const skillKey = (id, i) => id === 'kb' ? ['Z', 'X'][i] : ['LT', 'A'][i];
+export const skillKey = (id, i) => keyName(id, i ? 'skill2' : 'skill1');
+// the kind of pad plugged in first (for the controls on the title screen), or 'xbox' with none
+export function firstPadFamily() {
+  const gp = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find(g => g && g.connected);
+  return gp ? padFamily('pad' + gp.index) : 'xbox';
+}
 export const padName = id => id === 'kb' ? 'Keyboard & mouse' : 'Controller ' + (Number(id.slice(3)) + 1);

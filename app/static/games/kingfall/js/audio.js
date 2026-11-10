@@ -100,6 +100,10 @@ export const sfx = {
   revive: () => { tone('sine', 400, 800, 0.5, 0.2); tone('sine', 600, 1200, 0.6, 0.12, 0.1); },
   stagger: (pan) => { tone('square', 200, 80, 0.4, 0.3, 0, pan); hiss(1000, 200, 0.6, 0.4, 0.4, 'bandpass', pan); },
   bossDown: () => { tone('sine', 110, 40, 2.5, 0.6); hiss(600, 60, 0.5, 2.5, 0.5, 'lowpass'); tone('triangle', 330, 330, 2, 0.12, 0.6); tone('triangle', 440, 440, 2, 0.1, 0.9); tone('triangle', 660, 660, 2, 0.08, 1.2); },
+  // the big moments: a deep bell under a boss's name card, a rising roar as it changes phase, a bright sting for a parry
+  gong: () => { tone('sine', 82, 78, 3.2, 0.5); tone('triangle', 164, 160, 2.6, 0.18, 0.01); tone('sine', 247, 244, 2.2, 0.1, 0.02); tone('sine', 415, 410, 1.6, 0.05, 0.03); hiss(300, 80, 0.6, 1.2, 0.25, 'lowpass'); },
+  roar: () => { hiss(120, 900, 0.7, 0.9, 0.55, 'lowpass'); tone('sawtooth', 55, 90, 0.9, 0.3); tone('sawtooth', 58, 95, 0.9, 0.22, 0.02); hiss(900, 200, 1, 1.4, 0.3, 'bandpass'); },
+  sting: (pan) => { tone('sine', 1320, 1300, 0.5, 0.18, 0, pan); tone('sine', 1980, 1960, 0.45, 0.1, 0.02, pan); },
   wipe: () => { tone('sawtooth', 220, 55, 2.2, 0.35); tone('sawtooth', 233, 58, 2.2, 0.25); },
   ui: () => tone('triangle', 660, 660, 0.06, 0.08),
   uiBack: () => tone('triangle', 440, 440, 0.06, 0.08),

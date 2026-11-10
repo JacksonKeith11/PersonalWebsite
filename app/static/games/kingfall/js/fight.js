@@ -1,14 +1,16 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=30';
-import { LocalHero, RemoteHero } from './hero.js?v=30';
-import { Boss } from './boss.js?v=30';
-import { drawArena } from './arenas.js?v=30';
-import { sfx } from './audio.js?v=30';
-import { music } from './music.js?v=30';
-import { deviceOfSlot } from './input.js?v=30';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=30';
-import { hudKeys } from './ui.js?v=30';
+import { addFrames } from './rig.js?v=32';
+import { LocalHero, RemoteHero } from './hero.js?v=32';
+import { Boss } from './boss.js?v=32';
+import { drawArena } from './arenas.js?v=32';
+import { sfx } from './audio.js?v=32';
+import { music } from './music.js?v=32';
+import { deviceOfSlot } from './input.js?v=32';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=32';
+import { hudKeys, bigCard } from './ui.js?v=32';
+import { Atmos } from './atmos.js?v=32';
+import { LORE, ROMAN } from './lore.js?v=32';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
@@ -54,6 +56,7 @@ export class FightScene extends Phaser.Scene {
       this.lights.push({ flame, glow, seed: Math.random() * 10 });
     }
 
+    this.atmos = new Atmos(this, fight.arena, w, h);
     this.boss = new Boss(this, data, fight);
     // darkness (the Briar Wolf's and the Moth Saint's second phase): black, but for light round the heroes
     this.darkAt = this.boss.B.dark || 0;
@@ -96,6 +99,12 @@ export class FightScene extends Phaser.Scene {
     this.started = this.net.now();
     this.ended = false;
     music.play(fight.boss, 1);
+    this.kick = 0;   // a punch of the camera's zoom, dying away
+    this.slow = 0;   // seconds of slow motion left (a boss's death)
+    // the fight opens out of black, and the boss's name card comes up with a bell
+    cam.fadeIn(600, 5, 3, 10);
+    const BD = data.bosses[fight.boss], lore = LORE[fight.boss] || {};
+    this.time.delayedCall(350, () => { sfx.gong(); bigCard('intro', BD.name, lore.title || ''); });
     this.cfg.onReady && this.cfg.onReady(this);
   }
 
@@ -161,7 +170,7 @@ export class FightScene extends Phaser.Scene {
         B.flash = 0.04;
         this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : '#f4f0e0', m.k === 'crit');
         if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg * (mine.S.focus_gain || 1) + (mine.state === 'special' ? mine.S.focusback || 0 : 0));
-        if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); }
+        if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); this.punch(0.03); }
         else if (!mine) sfx.hit(this.pan(B.x));
         if (!mine && this.remote[m.h]) {  // someone else's hit: the cut where it landed, facing from them
           const r = this.remote[m.h], a = Math.atan2(B.y - r.y, B.x - r.x);
@@ -200,15 +209,12 @@ export class FightScene extends Phaser.Scene {
         break;
       case 'immune': this.number(B.x, B.y - 74, 'Immune', '#a8b0bc'); break;
       case 'stagger':
-        sfx.stagger(this.pan(B.x)); this.number(B.x, B.y - 86, 'STAGGERED', '#ffd23f', true);
-        B.staggerDur = m.dur || 5; B.staggerT = 0; this.burst(B.x, B.y - 40, 0xffd23f, 24); this.cameras.main.shake(160, 0.006);
-        this.cameras.main.shake(140, 0.006);
+        sfx.stagger(this.pan(B.x)); sfx.sting(this.pan(B.x)); this.number(B.x, B.y - 86, 'STAGGERED', '#ffd23f', true);
+        B.staggerDur = m.dur || 5; B.staggerT = 0; this.burst(B.x, B.y - 40, 0xffd23f, 32); this.cameras.main.shake(200, 0.008);
+        this.rings.push({ x: B.x, y: B.y, r: B.r * 3 + 30, life: 0.3, col: 0xffd23f });
+        this.stop = Math.max(this.stop, 0.16); this.punch(0.07);
         break;
-      case 'parry':
-        sfx.parry(this.pan(m.x)); this.burst(m.x, m.y - 20, 0xfff0c0, 18);
-        this.number(m.x, m.y - 46, 'Parry!', '#fff0c0', true);
-        this.stop = 0.12;
-        break;
+      case 'parry': this.triumph(m.x, m.y, 'Parry!'); break;
       case 'block': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xe8ecf2, 8); break;
       case 'warded': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xa8b0bc, 10); this.number(m.x, m.y - 46, 'Warded', '#a8b0bc'); break;
       case 'hurt':
@@ -228,19 +234,57 @@ export class FightScene extends Phaser.Scene {
         if (m.left <= 0) this.cameras.main.shake(160, 0.006);
         break;
       case 'topple':
-        sfx.slam(this.pan(B.x)); this.number(B.x, B.y - 96, 'TOPPLED', '#ffd23f', true); this.cameras.main.shake(400, 0.012);
+        sfx.slam(this.pan(B.x)); this.number(B.x, B.y - 96, 'TOPPLED', '#ffd23f', true); this.cameras.main.shake(400, 0.012); this.punch(0.08);
         break;
       case 'addhit': { const a = this.boss.adds[m.a]; if (a) a.flash = 0.08; this.number(m.x, m.y - 24, m.dmg, '#f4f0e0'); break; }
       case 'adddie': this.burst(m.x, m.y - 10, 0xc8c0b0, 10); break;
       case 'bodydown':
-        if (this.boss.bodies.length > 1) { sfx.slam(this.pan(m.x)); this.number(m.x, m.y - 90, 'FELLED', '#ffd23f', true); }
+        if (this.boss.bodies.length > 1) {
+          sfx.slam(this.pan(m.x)); this.number(m.x, m.y - 90, 'FELLED', '#ffd23f', true);
+          this.punch(0.06); this.cameras.main.flash(160, 255, 240, 220); this.atmos.embers(m.x, m.y, 24, 0xffa040);
+        }
         break;
-      case 'bossdown':
-        sfx.bossDown(); this.cameras.main.shake(400, 0.01); this.burst(m.x, m.y - 40, 0xff7a1a, 40);
-        this.cfg.onBanner && this.cfg.onBanner('won');
+      case 'bossdown': {
+        // the kill: a white flash, a punch in, a long beat of slow motion, embers rising off the body, then the banner
+        sfx.bossDown(); this.cameras.main.shake(500, 0.012); this.cameras.main.flash(450, 255, 244, 224);
+        this.burst(m.x, m.y - 40, 0xff7a1a, 60); this.burst(m.x, m.y - 40, 0xffffff, 20);
+        this.rings.push({ x: m.x, y: m.y, r: 120, life: 0.3, col: 0xffd23f });
+        this.atmos.embers(m.x, m.y, 80, 0xffa040);
+        this.slow = 1.6; this.punch(0.14);
+        const lore = LORE[this.fightMsg.boss] || {};
+        this.time.delayedCall(900, () => this.cfg.onBanner && this.cfg.onBanner('won', lore.fall || ''));
         break;
-      case 'wipe': sfx.wipe(); for (const l of this.local) if (!l.dead) l.down = true; this.cfg.onBanner && this.cfg.onBanner('lost'); break;
+      }
+      case 'wipe':
+        sfx.wipe(); for (const l of this.local) if (!l.dead) l.down = true;
+        this.slow = 1.0; this.cameras.main.flash(500, 90, 10, 14);
+        this.cfg.onBanner && this.cfg.onBanner('lost');
+        break;
     }
+  }
+
+  // a punch of the camera's zoom (k: how far in, as a fraction), dying away over a fraction of a second
+  punch(k) { this.kick = Math.max(this.kick, k); }
+
+  // a hero's moment (a parry, a counter): a flash, a punch in, a ring and a bright sting
+  triumph(x, y, word) {
+    sfx.parry(this.pan(x)); sfx.sting(this.pan(x));
+    this.burst(x, y - 20, 0xfff0c0, 24);
+    this.number(x, y - 46, word, '#fff0c0', true);
+    this.rings.push({ x, y: y - 6, r: 44, life: 0.3, col: 0xfff0c0 });
+    this.cameras.main.flash(90, 255, 240, 210);
+    this.stop = Math.max(this.stop, 0.14); this.punch(0.05);
+  }
+
+  // a boss enters a new phase: everything stops for a beat, the screen flashes, a roar, and its card
+  onPhase(b, ph) {
+    sfx.roar();
+    this.stop = Math.max(this.stop, 0.35);
+    this.cameras.main.shake(650, 0.012); this.cameras.main.flash(380, 255, 90, 40); this.punch(0.1);
+    this.burst(b.x, b.y - 40, 0xff7a1a, 44);
+    this.rings.push({ x: b.x, y: b.y, r: 140, life: 0.3, col: 0xff5030 });
+    const lore = LORE[this.fightMsg.boss] || {};
+    bigCard('phase', 'Phase ' + (ROMAN[ph] || ph), (lore.phases || {})[ph] || '');
   }
 
   number(x, y, text, colour, big = false) {
@@ -295,6 +339,10 @@ export class FightScene extends Phaser.Scene {
     if (tg.b) tg.b.flash = 0.04;
     this.stop = Math.max(this.stop, small ? 0.045 : 0.08);
     this.cfg.input.rumble(hero.dev, small ? 0.25 : 0.5, 70);
+    if (kind === 'heavy' && hero.chargeU >= 0.95) {   // a fully charged heavy lands like it means it
+      this.stop = Math.max(this.stop, 0.13); this.punch(0.045); this.cameras.main.shake(150, 0.007);
+      this.burst(ix, iy, hero.view ? hero.view.colour : 0xffffff, 16);
+    }
   }
 
   // Player one (the keyboard's hero) also answers to player one's controller, if the lobby gave it one:
@@ -320,6 +368,8 @@ export class FightScene extends Phaser.Scene {
     const now = this.net.now();
     let dt = dtReal;
     if (this.stop > 0) { this.stop -= dtReal; dt = dtReal * 0.08; }
+    if (this.slow > 0) { this.slow -= dtReal; dt *= 0.3; }
+    const dtFx = this.slow > 0 ? dtReal * 0.35 : dtReal;   // effects slow down with it
     const B = this.boss;
     const allies = [...this.local, ...Object.values(this.remote)];
     const ctx = {
@@ -354,8 +404,8 @@ export class FightScene extends Phaser.Scene {
         const r = l.takeHit(h, bx, by);
         if (!r) return false;
         this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' || r === 'counter' ? 1 : 0, parry: r === 'parry' ? 1 : 0, counter: r === 'counter' ? 1 : 0 });
-        if (r === 'counter') { sfx.parry(this.pan(l.x)); this.number(l.x, l.y - 46, 'Counter!', '#fff0c0', true); }
-        if (r === 'parry') this.stop = 0.12;
+        if (r === 'counter') this.triumph(l.x, l.y, 'Counter!');
+        if (r === 'parry') this.stop = Math.max(this.stop, 0.12);
         if (r !== 'hurt') l.proc('guard', ctx);
         return true;
       });
@@ -378,7 +428,9 @@ export class FightScene extends Phaser.Scene {
     const sg = this.shotG;
     sg.clear(); this.shotGlow.clear(); this.shotFloor.clear();
     const cam0 = this.cameras.main, z = this.cfg.zoom();
-    if (cam0.zoom !== z) cam0.setZoom(z);
+    this.kick *= Math.exp(-dtReal * 7);
+    const zk = z * (1 + this.kick);
+    if (cam0.zoom !== zk) cam0.setZoom(zk);
     for (const l of this.local) {
       for (const s of l.shots) this.drawShot(s.x, s.y, s.a, s.r, s.col);
       for (const A of l.aoes) {
@@ -397,9 +449,9 @@ export class FightScene extends Phaser.Scene {
       return s.life > 0;
     });
     this.rings = this.rings.filter(r => {
-      r.life -= dtReal;
+      r.life -= dtFx;
       const u = 1 - r.life / 0.3, gl = this.shotGlow, c = r.col ?? 0xc080ff;
-      gl.fillStyle(c, 0.3 * (1 - u)).fillCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
+      gl.fillStyle(c, 0.3 * Math.min(1, 40 / r.r) * (1 - u)).fillCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));   // a wide ring is mostly its rim
       gl.lineStyle(1 + 4 * (1 - u), c, 0.9 * (1 - u)).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u));
       gl.lineStyle(1, 0xffffff, 1 - u).strokeCircle(r.x, r.y, r.r * (0.4 + 0.6 * u) - 1);
       return r.life > 0;
@@ -414,19 +466,19 @@ export class FightScene extends Phaser.Scene {
     // effects
     this.sparks.clear();
     this.sparkList = this.sparkList.filter(s => {
-      s.life -= dtReal; s.x += s.vx * dtReal; s.y += s.vy * dtReal; s.vy += 220 * dtReal;
+      s.life -= dtFx; s.x += s.vx * dtFx; s.y += s.vy * dtFx; s.vy += 220 * dtFx;
       // a short streak along its flight, thinning as it dies
       const k = Math.min(1, s.life / (s.max || 0.4) * 1.6);
       this.sparks.lineStyle(1.6 * k + 0.4, s.colour, k); this.sparks.lineBetween(s.x, s.y, s.x - s.vx * 0.035, s.y - s.vy * 0.035);
       return s.life > 0;
     });
     this.impacts = this.impacts.filter(o => {
-      o.life -= dtReal;
+      o.life -= dtFx;
       impact(this.sparks, o.x, o.y, o.a, 1 - o.life / 0.2, o.big, o.colour);
       return o.life > 0;
     });
     this.texts = this.texts.filter(o => {
-      o.life -= dtReal; o.t.y += o.vy * dtReal; o.vy *= 0.94; o.t.alpha = Math.min(1, o.life * 3);
+      o.life -= dtFx; o.t.y += o.vy * dtFx; o.vy *= 0.94; o.t.alpha = Math.min(1, o.life * 3);
       if (o.life <= 0) { o.t.destroy(); return false; }
       return true;
     });
@@ -446,6 +498,7 @@ export class FightScene extends Phaser.Scene {
         for (const L of this.lights) L.glow.setVisible(false);
       }
     }
+    this.atmos.update(dtFx, time, [...this.local, ...Object.values(this.remote)].map(h => ({ id: h.id, x: h.x, y: h.y, colour: h.view.colour, dead: h.dead || h.down })));
     // camera: this browser's heroes, nudged toward the boss
     const live = this.local.filter(l => !l.dead);
     const focus = live.length ? live : this.local;

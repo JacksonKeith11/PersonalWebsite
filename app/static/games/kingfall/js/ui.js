@@ -1,10 +1,11 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=30';
-import { heroFrames } from './hero.js?v=30';
-import { sfx } from './audio.js?v=30';
-import { skillKey, deviceOfSlot } from './input.js?v=30';
+import { paintRig, atlas } from './rig.js?v=32';
+import { heroFrames } from './hero.js?v=32';
+import { sfx } from './audio.js?v=32';
+import { skillKey, deviceOfSlot, glyph } from './input.js?v=32';
+import { icon } from './icons.js?v=32';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -75,18 +76,23 @@ export function closeMenu() {
   under = {};
 }
 
+let lastScreen = '';
 export function show(html) {
   const el = base();
   if (overlay) { el.innerHTML = html; return el; }   // redrawn beneath the menu: its cursors come back when it closes
   const was = names();
   el.innerHTML = html;
   hideTip();
+  // a new screen (title, lobby, Bonfire) fades and rises in; a redraw of the same one doesn't
+  const first = el.firstElementChild, kind = first ? first.className : '';
+  if (first && kind !== lastScreen) first.classList.add('enter');
+  lastScreen = kind;
   restore(el, was);
   // some screens add parts after show() returns (the lobby's hero rows): look again once they're in
   queueMicrotask(() => { if (!overlay && document.contains(el)) restore(el, { ...names(), ...was }); });
   return el;
 }
-export function hide() { base().innerHTML = ''; if (overlay) under = {}; else { cursors = {}; hideTip(); } }
+export function hide() { lastScreen = ''; base().innerHTML = ''; if (overlay) under = {}; else { cursors = {}; hideTip(); } }
 
 // A tooltip for anything with data-tip (text), data-tip-h (a heading) and data-tip-k (a line under it):
 // the blessings and skills a hero holds. It shows on hover, and when a controller's focus lands on it.
@@ -195,11 +201,12 @@ const FLASK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1h4v2l-1 
 export function hudKeys(id, dev) {
   const card = document.getElementById('card-' + id);
   if (!card) return;
-  const kb = dev === 'kb', set = (sel, k) => { const e = card.querySelector(sel); if (e) e.textContent = k; };
-  set('.flask kbd', kb ? 'R' : 'X'); set('.spc kbd', kb ? 'Q' : 'Y');
-  card.querySelectorAll('.sk kbd').forEach((e, i) => { e.textContent = skillKey(dev, i); });
+  const set = (e, action) => { if (e) e.outerHTML = glyph(dev, action); };
+  set(card.querySelector('.flask kbd'), 'flask'); set(card.querySelector('.spc kbd'), 'special');
+  card.querySelectorAll('.sk kbd').forEach((e, i) => set(e, i ? 'skill2' : 'skill1'));
 }
-const tile = (cls, key, body, attrs = '') => `<span class="tile ${cls}" ${attrs}><kbd>${key}</kbd>${body}<u></u><i></i></span>`;
+// a HUD tile: the key (a <kbd> from glyph), an icon, a name; <u> sweeps the cooldown, <i> shows its seconds
+const tile = (cls, key, body, attrs = '') => `<span class="tile ${cls}" ${attrs}>${key}${body}<u></u><i></i></span>`;
 
 export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = {}) {
   const el = document.getElementById('hud');
@@ -214,7 +221,7 @@ export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = 
         <div class="downtxt"></div>
       </div>`).join('')}</div>
     <div class="mine">${mine.map(h => {
-      const dev = deviceOfSlot(h.slot), W = weapons[h.weapon] || {}, kb = dev === 'kb';
+      const dev = deviceOfSlot(h.slot), W = weapons[h.weapon] || {};
       return `
       <div class="card me" id="card-${h.id}" style="--c:${colours[h.colour]}">
         <div class="buffs"></div>
@@ -224,9 +231,9 @@ export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = 
         <div class="bar fo"><i></i></div>
         <div class="pips" title="Dashes"></div>
         <div class="tiles">
-          ${tile('flask', kb ? 'R' : 'X', `${FLASK}<em></em><b>Flask</b>`)}
-          ${(h.skills || []).map((id, i) => skills[id] ? tile('sk', skillKey(dev, i), `<b>${esc(skills[id].name)}</b>`, `data-sk="${id}" style="--k:${skills[id].col}"`) : '').join('')}
-          ${W.special ? tile('spc', kb ? 'Q' : 'Y', `<b>${esc(W.special.name)}</b>`) : ''}
+          ${tile('flask', glyph(dev, 'flask'), `${FLASK}<em></em><b>Flask</b>`)}
+          ${(h.skills || []).map((id, i) => skills[id] ? tile('sk', glyph(dev, i ? 'skill2' : 'skill1'), `${icon(id)}<b>${esc(skills[id].name)}</b>`, `data-sk="${id}" style="--k:${skills[id].col}"`) : '').join('')}
+          ${W.special ? tile('spc', glyph(dev, 'special'), `${icon(h.weapon)}<b>${esc(W.special.name)}</b>`) : ''}
         </div>
       </div>`; }).join('')}</div>
     <div class="bossbar">${(boss.bodies || [boss]).map((b, e) => `<div class="bbody" id="bb-${e}"><div class="bname">${esc(b.name || boss.name)}</div>
@@ -314,13 +321,27 @@ export function updateHud(scene) {
   if (lh) lh.textContent = scene.local.some(l => l.locked) ? 'Locked on' : '';
 }
 
-export function banner(kind) {
+export function banner(kind, sub = '') {
   const el = document.getElementById('hud');
   const b = document.createElement('div');
   b.className = 'banner ' + kind;
-  b.innerHTML = kind === 'won' ? 'VANQUISHED' : 'FALLEN<small>the party is down</small>';
+  b.innerHTML = `<span class="rule"></span><span class="word">${kind === 'won' ? 'VANQUISHED' : 'FALLEN'}</span><span class="rule"></span>
+    <small>${esc(kind === 'won' ? sub : 'the party is down')}</small>`;
   el.appendChild(b);
-  setTimeout(() => b.remove(), 3300);
+  setTimeout(() => b.remove(), 3600);
+}
+
+// A card across the screen for a big moment: 'intro' (a boss's name and title as it enters) or 'phase'
+// (its new phase and a line). It plays its own animation in and out (css: .bigcard).
+export function bigCard(kind, title, sub) {
+  const el = document.getElementById('hud');
+  if (!el) return;
+  el.querySelectorAll('.bigcard').forEach(c => c.remove());
+  const c = document.createElement('div');
+  c.className = 'bigcard ' + kind;
+  c.innerHTML = `<span class="rule"></span><b>${esc(title)}</b>${sub ? `<i>${esc(sub)}</i>` : ''}<span class="rule"></span>`;
+  el.appendChild(c);
+  setTimeout(() => c.remove(), kind === 'intro' ? 3400 : 2600);
 }
 
 export function hideHud() { const el = document.getElementById('hud'); el.hidden = true; el.innerHTML = ''; }

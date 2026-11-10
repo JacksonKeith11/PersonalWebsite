@@ -1,6 +1,6 @@
 // The other bosses' arenas, drawn by code like the chapel (arena.js): a floor, a back wall and props,
 // in each place's palette. Every painter returns {canvas, candles: [[x, y]], windows: [[x, y]], tint}.
-import { drawChapel } from './arena.js?v=30';
+import { drawChapel } from './arena.js?v=32';
 
 function rng(seed) {
   let s = seed >>> 0;

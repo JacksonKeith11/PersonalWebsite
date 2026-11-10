@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=17';
-import { placeAttack, touches, wrap } from './moves.js?v=17';
-import { crescent, lance, burst } from './fx.js?v=17';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=19';
+import { placeAttack, touches, wrap } from './moves.js?v=19';
+import { crescent, lance, burst } from './fx.js?v=19';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -190,10 +190,8 @@ export class LocalHero {
     this.skillBuf = null;     // a skill pressed while busy: it fires as soon as the hero is free (within 0.4 s)
     this.denied = null;       // {id, until}: a skill pressed while cooling down (the HUD chip shakes)
     this.aimDist = null;      // how far away the thing aimed at is (the cursor, a locked-on boss), if known
-    this.maxSt = this.S.stamina || this.HERO.stamina;
     this.view = new HeroView(scene, h, this.W, this.HERO);
     this.x = x; this.y = y; this.aim = -Math.PI / 2;
-    this.st = this.maxSt; this.stWait = 0;
     this.perfects = new Set();
     this.focus = 40;
     this.state = 'idle'; this.t = 0; this.anT = 0;
@@ -214,8 +212,11 @@ export class LocalHero {
     this.procs = this.S.procs || [];  // the extra attacks this hero's upgrades add (content/upgrades.py, `proc`)
     this.procAt = {};     // upgrade id -> when it last went off (for those with a cooldown)
     this.haste = 0;       // seconds of Tailwind left after a roll
-    const G = this.W.guard;
-    this.dashes = (G.charges || 0) + (this.S.dash_charges || 0); this.dashT = 0;
+    // Dashes: what a roll, dash or blink spends, and a blocked hit or a counter stance too. How many and
+    // how fast they come back is the weapon's (W.dodge); a part-filled one can't be used yet.
+    this.maxDash = this.W.dodge.charges + (this.S.dash_charges || 0);
+    this.dashes = this.maxDash;
+    this.noDash = 0;      // until when the HUD's dash pips shake (a dodge asked for with none left)
   }
 
   an() {
@@ -245,9 +246,10 @@ export class LocalHero {
   }
   specialCost() { return this.W.special.focus * (this.S.special_cost || 1); }
 
-  spend(n) {
-    if (this.st <= 0) return false;
-    this.st -= n; this.stWait = this.HERO.st_delay;
+  // spend n dashes (a blocked hit can cost part of one), if they're there
+  useDash(n = 1) {
+    if (this.dashes < n - 1e-6) { this.noDash = performance.now() + 300; return false; }
+    this.dashes -= n;
     return true;
   }
 
@@ -258,9 +260,7 @@ export class LocalHero {
     this.t += dt * quick; this.anT += dt * quick;
     this.haste = Math.max(0, this.haste - dt);
     this.flash = Math.max(0, this.flash - dt);
-    if (this.stWait > 0) this.stWait -= dt; else this.st = Math.min(this.maxSt, this.st + H.st_regen * (this.S.st_regen || 1) * dt);
-    const maxDash = (G.charges || 0) + (this.S.dash_charges || 0);
-    if (this.dashes < maxDash && (this.dashT += dt) >= G.recharge) { this.dashes++; this.dashT = 0; }
+    this.dashes = Math.min(this.maxDash, this.dashes + dt * (this.S.dash_regen || 1) / (W.dodge.recharge * (this.S.dash_time || 1)));
     for (const k in this.skillCd) if (this.skillCd[k] > 0) this.skillCd[k] -= dt;
     this.stepShots(dt, ctx);
     if (this.down || this.dead) { this.state = this.dead ? 'dead' : 'down'; this.vx = this.vy = 0; return; }
@@ -354,7 +354,7 @@ export class LocalHero {
           if (G.kind === 'rollshot') this.fire({ v: 380, r: 4, life: 0.9 }, 'guard', ctx);
           if (q === 'dodge') this.tryRoll(move, ctx);
           else if (q === 'light') this.startLight(0);
-          else if (q === 'heavy' && this.st > 0) { setState('charge'); this.charge = 0; }
+          else if (q === 'heavy') { setState('charge'); this.charge = 0; }
         }
         speed = 0;
         break;
@@ -370,7 +370,7 @@ export class LocalHero {
         if (atk.hit && this.t >= atk.hit[0] && this.swing && !this.swing.proc) {
           this.swing.proc = true;
           if (this.state === 'atk' && this.combo === W.light.length - 1) this.proc('finisher', ctx);
-          if (this.state === 'heavy') { this.proc('heavy', ctx); if (this.chargeU >= 0.99) this.proc('heavy_full', ctx); }
+          if (this.state === 'heavy') { this.proc('heavy', ctx); if (this.chargeU >= 0.95) this.proc('heavy_full', ctx); }
         }
         if (this.state !== 'cstrike') {
           if (d.pressed('light')) this.queued = 'light';
@@ -409,12 +409,11 @@ export class LocalHero {
         break;
       }
       case 'charge':
+        if (this.charge < W.heavy.charge && this.charge + dt >= W.heavy.charge) { this.flash = 0.1; ctx.onCharged(this); }  // fully charged: a flash and a chime
         this.charge = Math.min(W.heavy.charge, this.charge + dt);
         speed = H.speed * speedK * 0.25;
-        if (!d.held('heavy')) {
-          if (this.spend(W.heavy.st)) { this.chargeU = this.charge / W.heavy.charge; this.startAttack('heavy'); }
-          else setState('idle');
-        } else if (d.pressed('dodge')) this.tryRoll(move, ctx);
+        if (!d.held('heavy')) { this.chargeU = this.charge / W.heavy.charge; this.startAttack('heavy'); }
+        else if (d.pressed('dodge')) this.tryRoll(move, ctx);
         break;
       case 'drink':
         speed = H.speed * speedK * H.flask.speed;
@@ -435,7 +434,7 @@ export class LocalHero {
         const moving = move.x || move.y;
         this.state = moving ? 'run' : 'idle';
         if (d.pressed('dodge')) { this.tryRoll(move, ctx); break; }
-        if (d.pressed('heavy') && this.st > 0) { setState('charge'); this.charge = 0; break; }
+        if (d.pressed('heavy')) { setState('charge'); this.charge = 0; break; }
         const q = this.queued; this.queued = null;   // the special or a drink asked for mid-attack
         if ((d.pressed('special') || q === 'special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
         if (this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0)) { const S = this.skillBuf.S; this.skillBuf = null; this.useSkill(S, move, ctx); break; }
@@ -443,7 +442,7 @@ export class LocalHero {
         // light: a press, or the button held (after a roll, a skill or a drink the combo picks straight back up)
         if (d.pressed('light') || (d.held('light') && !d.held('heavy'))) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (G.kind === 'block' && d.held('block')) { setState('block'); break; }
-        if (G.kind === 'counter' && d.pressed('block') && this.spend(G.st)) { setState('cnt'); break; }
+        if (G.kind === 'counter' && d.pressed('block') && this.useDash(G.cost)) { setState('cnt'); break; }
       }
     }
 
@@ -474,18 +473,17 @@ export class LocalHero {
   tryRoll(move, ctx) {
     const G = this.W.guard, dir = move.x || move.y ? Math.atan2(move.y, move.x) : this.aim;
     if (G.kind === 'dash') {
-      if (this.dashes <= 0 || !this.spend(G.st * (this.S.roll_st || 1))) return;
-      this.dashes--;
+      if (!this.useDash()) return;
       this.state = 'dash';
     } else if (G.kind === 'blink') {
-      if (!this.spend(G.st * (this.S.roll_st || 1))) return;
+      if (!this.useDash()) return;
       this.rollFrom = [this.x, this.y];
       this.x += Math.cos(dir) * G.dist; this.y += Math.sin(dir) * G.dist;
       ctx && ctx.collide(this);
       ctx && ctx.onBlink(this);
       this.state = 'blink';
     } else {
-      if (!this.spend(this.HERO.roll.st * (this.S.roll_st || 1))) return;
+      if (!this.useDash()) return;
       this.state = 'roll';
     }
     if (G.kind !== 'blink') this.rollFrom = [this.x, this.y];
@@ -498,7 +496,7 @@ export class LocalHero {
   // everyone), and a blink carries you off at once, the way you're walking or else the way you aim.
   useSkill(S, move, ctx) {
     this.skill = S; this.skillCd[S.id] = S.cd * (this.S.skill_cd || 1);
-    if (S.stamina) { this.st = this.maxSt; this.stWait = 0; }
+    if (S.dashes) this.dashes = this.maxDash;
     this.focus = Math.min(this.HERO.focus, this.focus + (S.focus || 0) + (this.S.skill_focus || 0));
     this.state = 'skill'; this.t = 0; this.anT = 0; this.queued = null;
     this.swing = { seq: ++swingSeq, struck: new Set(), fired: false };
@@ -511,8 +509,6 @@ export class LocalHero {
   }
 
   startLight(i) {
-    const st = this.W.light[i].st;   // lights are free (so a held combo never stalls); a weapon could still price one
-    if (st && !this.spend(st)) { this.state = 'idle'; return; }
     this.combo = i;
     this.startAttack('atk');
   }
@@ -539,14 +535,23 @@ export class LocalHero {
       const kind = 'proc:' + P.id;
       if (P.proj) this.fire(P.proj, kind, ctx);
       if (P.aoe) {
-        const A = P.aoe, far = when.startsWith('heavy') && this.W.heavy.proj && this.aimDist != null;
-        const at = far ? Math.min(260, this.aimDist) : A.at;
-        let x = this.x + Math.cos(this.aim) * at, y = this.y + Math.sin(this.aim) * at;
+        const A = P.aoe;
+        // A heavy that is a shot (the bow's arrow, the catalyst's orb) carries the area with it: it goes
+        // off where the shot first strikes or comes to rest, not at the hero's feet or the cursor.
+        const shot = when.startsWith('heavy') && this.W.heavy.proj ? this.shots.findLast(s => s.kind === 'heavy' && !s.landed) : null;
+        if (shot) { (shot.procs ||= []).push(P); continue; }
+        let x = this.x + Math.cos(this.aim) * A.at, y = this.y + Math.sin(this.aim) * A.at;
         if (A.mid && this.rollFrom) { x = (this.x + this.rollFrom[0]) / 2; y = (this.y + this.rollFrom[1]) / 2; }
-        this.aoes.push({ x, y, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind, col: A.col, pillar: !!A.pillar, boom: !!A.boom, pool: A.ticks > 1 });
-        ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(x), y: Math.round(y), r: A.r, life: A.delay + (A.ticks - 1) * A.every + 0.05, col: A.col, p: A.pillar ? 1 : A.ticks > 1 ? 2 : 0 });
+        this.procArea(P, x, y, ctx);
       }
     }
+  }
+
+  // an upgrade's area hit, at (x, y)
+  procArea(P, x, y, ctx) {
+    const A = P.aoe;
+    this.aoes.push({ x, y, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind: 'proc:' + P.id, col: A.col, pillar: !!A.pillar, boom: !!A.boom, pool: A.ticks > 1 });
+    ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(x), y: Math.round(y), r: A.r, life: A.delay + (A.ticks - 1) * A.every + 0.05, col: A.col, p: A.pillar ? 1 : A.ticks > 1 ? 2 : 0 });
   }
 
   // which attack a hit is reported as; a skill's is 'skill:<id>'
@@ -623,6 +628,10 @@ export class LocalHero {
         s.life = 0;
       }
       if (s.life <= 0 && s.boom && !hit) { this.strike({ k: 'circle', cx: s.x, cy: s.y, r: s.boom }, s.kind, s.swing, ctx); ctx.onBoom(s.x, s.y, s.boom); }
+      if ((hit || s.life <= 0) && !s.landed) {  // where it first strikes or comes to rest: what upgrades hung on it goes off here
+        s.landed = true;
+        for (const P of s.procs || []) this.procArea(P, s.x, s.y, ctx);
+      }
     }
     this.shots = this.shots.filter(s => s.life > 0);
     for (const A of this.aoes) {
@@ -645,8 +654,7 @@ export class LocalHero {
     if (this.state === 'block' && !h.unblock) {
       if (Math.abs(wrap(toBoss - this.aim)) <= G.arc * (this.S.guard_arc || 1) * Math.PI / 180) {
         if (this.blockAge <= this.parryWin && !h.noparry) return 'parry';
-        const cost = h.dmg * G.st_per_dmg * (this.S.block_st || 1);
-        if (this.st >= cost * 0.5) { this.st -= cost; this.stWait = this.HERO.st_delay; return 'block'; }
+        if (this.useDash(G.cost * (this.S.block_cost || 1))) return 'block';  // a blocked hit uses a dash; with none left the guard breaks
       }
     }
     if (this.state === 'cnt' && !h.unblock) {  // answered: no damage, and a strike back

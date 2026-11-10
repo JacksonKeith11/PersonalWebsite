@@ -1,13 +1,13 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=17';
-import { LocalHero, RemoteHero } from './hero.js?v=17';
-import { Boss } from './boss.js?v=17';
-import { drawArena } from './arenas.js?v=17';
-import { sfx } from './audio.js?v=17';
-import { music } from './music.js?v=17';
-import { deviceOfSlot } from './input.js?v=17';
-import { orb, arrow, impact, pillar, pool } from './fx.js?v=17';
+import { addFrames } from './rig.js?v=19';
+import { LocalHero, RemoteHero } from './hero.js?v=19';
+import { Boss } from './boss.js?v=19';
+import { drawArena } from './arenas.js?v=19';
+import { sfx } from './audio.js?v=19';
+import { music } from './music.js?v=19';
+import { deviceOfSlot } from './input.js?v=19';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=19';
 
 const INTERP = 0.1;
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
@@ -281,7 +281,7 @@ export class FightScene extends Phaser.Scene {
   // a local hero's attack connected (before the server's word, so it feels instant)
   onHit(hero, kind, tg) {
     sfx.hit(this.pan(tg.x));
-    const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.kind === 'body' && !tg.seg ? 30 : 10);
+    const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.up ? 0 : tg.kind === 'body' && !tg.seg ? 30 : 10);
     const small = kind === 'light' || kind.startsWith('proc:');   // an upgrade's extra hit lands as lightly as a light
     this.burst(ix, iy, 0xfff0c0, small ? 6 : 12);
     this.impact(ix, iy, hero.aim, !small, hero.view ? hero.view.colour : 0xffffff);
@@ -303,6 +303,7 @@ export class FightScene extends Phaser.Scene {
       collide: h => this.collide(h), onHit: (h, k, tg) => this.onHit(h, k, tg), allies,
       onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
       onDenied: () => sfx.uiBack(),
+      onCharged: h => { this.burst(h.x, h.y - 22, h.view.colour, 10); sfx.ui(); },
       onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
       onBoom: (x, y, r, col) => { const c = col ? aoeCol(col) : 0xc080ff; this.burst(x, y - 8, c, col ? 12 : 20); this.rings.push({ x, y, r, life: 0.3, col: c }); sfx.slam(this.pan(x)); },
     };
@@ -321,7 +322,7 @@ export class FightScene extends Phaser.Scene {
       B.checkHero(now, l, (h, id, bx, by) => {
         if (l.invulnerable() && !l.perfects.has(id)) {  // rolled clean through it
           l.perfects.add(id);
-          if (l.S.perfect_st) { l.st = Math.min(l.maxSt, l.st + l.S.perfect_st); this.number(l.x, l.y - 50, 'Perfect', '#fff0c0'); }
+          if (l.S.perfect_dash) { l.dashes = Math.min(l.maxDash, l.dashes + l.S.perfect_dash); this.number(l.x, l.y - 50, 'Perfect', '#fff0c0'); }
           this.net.send({ t: 'perfect', h: l.id });
           l.proc('perfect', ctx);
         }
@@ -356,9 +357,8 @@ export class FightScene extends Phaser.Scene {
     for (const l of this.local) {
       for (const s of l.shots) this.drawShot(s.x, s.y, s.a, s.r, s.col);
       for (const A of l.aoes) {
-        const p = 0.5 + 0.5 * Math.sin(time / 60), c = aoeCol(A.col);
-        if (A.pool) { pool(this.shotFloor, this.shotGlow, { cx: A.x, cy: A.y, r: A.r }, c, 1, time / 1000); continue; }  // an upgrade's lingering fire or rot
-        sg.fillStyle(c, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, c, 0.7).strokeCircle(A.x, A.y, A.r);
+        // heroes' areas are dashed rings, never filled (fx.js, allyArea): bosses' are the solid ones
+        allyArea(sg, this.shotGlow, { cx: A.x, cy: A.y, r: A.r }, aoeCol(A.col), 1, time / 1000, !!A.pool || A.ticks > 1);
       }
     }
     this.remoteShots = this.remoteShots.filter(s => {
@@ -366,8 +366,7 @@ export class FightScene extends Phaser.Scene {
       if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(s.x, s.y, s.a, s.r, s.col); }
       else {
         const c = aoeCol(s.col);
-        if (s.p === 2) { pool(this.shotFloor, this.shotGlow, { cx: s.x, cy: s.y, r: s.r }, c, Math.min(1, s.life * 3), time / 1000); return s.life > 0; }
-        sg.fillStyle(c, 0.12).fillCircle(s.x, s.y, s.r); sg.lineStyle(2, c, 0.6).strokeCircle(s.x, s.y, s.r);
+        allyArea(sg, this.shotGlow, { cx: s.x, cy: s.y, r: s.r }, c, Math.min(1, s.life * 3 + 0.2), time / 1000, s.p === 2);
         if (s.p && s.life <= 0) this.pillarAt(s.x, s.y, s.r, s.col);
       }
       return s.life > 0;

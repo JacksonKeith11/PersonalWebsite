@@ -11,7 +11,7 @@ the same commit.
 ## What it is
 
 A 2D top-down co-op **boss rush roguelite** for 1-4 players in the browser. Its influences are souls
-games (readable but punishing bosses, stamina, poise, delayed swings, a healing flask), Hades (top-down
+games (readable but punishing bosses, poise, delayed swings, a healing flask), Hades (top-down
 action, builds that grow across a run, upgrades that change how attacks behave) and Ember Knights (co-op
 chaos, weapon variety). It is its own game: own setting, names, bosses and art. Don't borrow any game's
 bosses, names, art or layouts.
@@ -35,11 +35,15 @@ Keep to these. They came from the owner directly.
 - **Souls-hard.** Small health pools, heavy boss damage, a flask with few charges. Reviving a downed
   teammate costs the reviver health.
 - **Six weapons**, each with a light combo, a charged heavy, a special and its own defensive move;
-  upgrades change how they behave; a weapon shrine at some Bonfires lets you swap.
+  upgrades change how they behave. (There was a weapon shrine at some Bonfires; the owner had it
+  removed in Nov 2026: a run keeps the weapon it started with.)
 - **Upgrades are individual, XP is shared.** Everyone picks at once from their own draw; coins are shared.
 - **Everything is unlocked from the first run.** No progress between runs; no bots in real games (they're
   for testing); no endless mode for now.
-- **Stamina** for rolling, heavy attacks and blocking.
+- **No stamina** (Nov 2026; it was there at first, for rolls, heavies and blocks): instead each hero has a
+  number of dashes that come back at a rate, both depending on the weapon.
+- **Heroes' areas and bosses' areas must look different** (Nov 2026), and a hero must be able to hover
+  over a blessing they hold and read what it does.
 - **Full launch:** everything built before it's listed.
 - **Controller and keyboard plus mouse**, both first-class, including every menu.
 - Defaults the owner accepted: no friendly fire; optional lock-on; difficulty presets that change only
@@ -83,23 +87,31 @@ A run draws two bosses from each tier, then a final (`POOLS`, `TIERS` in `room.p
 
 After each win: everyone heals and refills flasks, gains a level (one attribute point), one upgrade pick
 from three cards, the offer of a skill (below), and the party gets shared coins (60 + 40 x tier). The shop sells rerolls (30), a redraw of the skills on offer (30), an
-extra flask (120, +60 each time) and an extra blessing (150). The weapon shrine is lit at the Bonfires
-after fights 2 and 4 (changing weapon drops that weapon's Arts). The next fight starts when everyone is
+extra flask (120, +60 each time) and an extra blessing (150). Each blessing and skill a hero already holds is a chip in their panel: hovering it (or moving a
+controller's focus onto it) shows a tooltip with what it does (`showTip` in `js/ui.js`, any element with `data-tip`). The next fight starts when everyone is
 ready. The run is saved at every Bonfire (`save.py`, `data/kingfall.db`) and the save deleted when the
 run ends.
 
 ### Combat
 
-- **Heroes** (`HERO` in `content/__init__.py`): 100 health, 100 stamina (refills 0.6 s after spending),
-  116 px/s. Roll: 0.38 s, 92 px, invulnerable 0.02-0.29 s, 22 stamina; it starts at 1.5x its average
+- **Heroes** (`HERO` in `content/__init__.py`): 100 health, 116 px/s. Roll: 0.38 s, 92 px,
+  invulnerable 0.02-0.29 s; it starts at 1.5x its average
   speed and eases down to half (about a run), bends toward the stick at 200 degrees a second, and a light,
   heavy or roll pressed during it happens the moment it ends. A roll also cuts short the recovery of a
   heavy or special once it has struck. Flask: 3 charges, heals 45% after
   0.75 s of a 1 s drink, spilled if hit. Downed: 15 s to be revived (hold interact 2 s next to them; costs
   the reviver 25% of their health; they rise at 30%). Solo heroes get one Second Wind a run (not on Hard).
+- **Dashes, not stamina** (`dodge` on each weapon; `useDash` in `js/hero.js`). A roll, the daggers' dash
+  or the catalyst's blink spends one dash; so does blocking a hit (the guard's `cost`: with none left
+  the guard breaks and the hit lands) and taking the halberd's counter stance. A parry spends nothing.
+  Attacks, heavies included, are free. Dashes refill one after another; a part-filled one can't be used.
+  Sword 3 dashes, one back every 1.0 s; greatsword 2, 1.1 s; daggers 4, 0.9 s; halberd 3, 1.1 s; bow 3,
+  0.8 s; catalyst 3, 1.2 s. Endurance (+8% a point) and Patience bring them back faster, Far Blink
+  sooner, Fourth Dash adds one, Bulwark / Tower Shield / Living Wall make a block use less of one,
+  Perfect Form gives part of one back for dodging through a hit, Second Breath refills them all. The
+  HUD shows them as pips, the one coming back filling; they shake when a dodge is refused.
 - **Light combos repeat while held** (`update` in `js/hero.js`): holding light runs the combo and starts
-  it again after the last hit; each swing re-aims as it starts. Lights cost no stamina (stamina is for
-  rolls, heavies, blocks and counters), so a held combo never stalls. A skill, the special, a drink, a
+  it again after the last hit; each swing re-aims as it starts. No attack costs anything, so a held combo never stalls. A skill, the special, a drink, a
   heavy or a roll pressed mid-combo goes off at the next gap, ahead of the held light.
 - **Poise and stagger** (the owner asked for staggers to be rarer and longer). Every hit wears a boss's
   poise (its written poise x `POISE_K` 2.6 x the party scale); at zero it staggers for 5 s, shown by a
@@ -110,7 +122,7 @@ run ends.
   staggers a fight.
 - **Parrying** (sword and greatsword; `takeHit` in `js/hero.js`, `HERO["parry"]`): a hit that lands
   from the front within the weapon's window (0.18 s, greatsword 0.12 s) of *pressing* block is parried:
-  no damage, no stamina, a chunk of the boss's poise. The window runs from the press, not from when
+  no damage, no dash spent, a chunk of the boss's poise. The window runs from the press, not from when
   the guard comes up, so holding block through a swing earns nothing. As in Sekiro, tapping doesn't
   work: pressing block again within 0.5 s of the last press halves the window, then quarters it, and
   from the fourth quick press there's none; half a second without a press restores it. A shrunk or
@@ -135,6 +147,15 @@ run ends.
   (a crescent across the arc, a lance along a thrust, a burst for a slam) in that player's colour; a
   hit lands with a white star, sparks and a short hit-stop. A boss flashes pale red in the instant
   before its strike.
+- **Whose area is it** (`allyArea`, `pool` in `js/fx.js`): a boss's areas are solid: filled red
+  warnings, and pools in their own colour with a hard red rim. A hero's (a skill's, a blessing's, arrow
+  rain, for every player) are never filled and never red: a broken ring of dashes turning round the
+  spot with four ticks pointing in, in the skill's colour, and motes rising if it lingers. Keep to this
+  when adding either kind.
+- **Where a boss can be hit** (`targets` in `js/boss.js`): the circle at its feet and a second of the
+  same size on its drawn body (its radius x 1.5 above the feet, plus its height when it hovers or
+  leaps). Before the second circle a shot or swing aimed at the boss you see, from the side, passed
+  over the one on the floor; the Moth Saint, who hovers, was the worst.
 - **One look for every effect** (`js/fx.js`; the owner asked for clean effects like Hades'): swings are
   tapered crescents, thrusts spearheads, slams bursts, shockwaves glowing rings, projectiles orbs with a
   tail and a white core, arrows a shaft with a streak; all filled shapes on additive-blend Graphics, the
@@ -152,7 +173,7 @@ run ends.
 ### The HUD (`buildHud`, `updateHud` in `js/ui.js`)
 
 - **Your heroes are at the bottom left**: one panel online, one per couch player side by side. Each has
-  health (with numbers; it pulses under 30%), stamina, Focus, the daggers' dash pips, then tiles with the
+  health (with numbers; it pulses under 30%), Focus, the dash pips, then tiles with the
   key to press: the flask (a big count of what's left, red at none), each skill (a shade sweeps away as
   it cools down, with the seconds) and the special (shaded until there's Focus for it).
 - **Everyone else** is a small card at the top left (name, health, flasks as dots, buffs, downed text).
@@ -165,7 +186,7 @@ run ends.
 |---|---|---|---|---|
 | Sword & Shield | 3-hit combo | rising slash | Shield Bash | block, parry in the first 0.18 s |
 | Greatsword | 2 wide swings, an overhead chop | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
-| Twin Daggers | 5-hit flurry, every cut building Bleed | backstep cut | Shadowstep (blink and cut) | a dash with 3 charges instead of a roll: 0.28 s, untouchable throughout, a charge back every 0.8 s |
+| Twin Daggers | 5-hit flurry, every cut building Bleed | backstep cut | Shadowstep (blink and cut) | a dash instead of a roll: 0.28 s, untouchable throughout; the most dashes of any weapon |
 | Halberd | thrusts, a sweep | 270° sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
 | Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow |
 | Catalyst | bolts, a 3-bolt fan | charged orb that explodes | Nova round you | blink instead of a roll |
@@ -210,7 +231,7 @@ on the hero's HUD panel.
 | Fan of Knives | 7 s | five knives in a fan, x0.9 each, each builds Bleed |
 | Plague Censer | 16 s | a cloud where you aim (up to 200 px) for 3 s: six ticks of x0.7, building Rot |
 | Hammerfall | 11 s | a slam just ahead of you, x1.6, the most poise damage of any skill |
-| Second Breath | 24 s | stamina refills at once, +40 Focus |
+| Second Breath | 24 s | every dash comes back at once, +40 Focus |
 
 A skill's damage is `BASE` (20) x its multiplier whatever weapon is held; it counts as a special for
 build bonuses and for the critical on a staggered boss, but builds only its own status (not the
@@ -225,22 +246,25 @@ slot to replace when full) or `{t: 'learn', h, skip: 1}`.
 
 The owner calls these blessings. Only those a hero's weapon can use are offered (`usable`, `req`: block and
 parry upgrades need the sword or greatsword, guard upgrades a block or the halberd's counter, the longer
-roll an ordinary roll, Long Reach a melee weapon); changing weapon at a shrine doesn't remove ones already
-held. About twenty that were flat bonuses now add an attack or an effect instead (`proc` effects: the
+roll an ordinary roll, Long Reach a melee weapon). About twenty that were flat bonuses now add an attack or an effect instead (`proc` effects: the
 browser looses them in `LocalHero.proc`, the server prices them as `atk: 'proc', p: <id>` at 20 x `pow`):
 a wave of fire or a shockwave on the light combo's last hit, an eruption, lightning or a ground wave on a
 fully charged heavy, ice shards or a pool of rot on any heavy, fire left behind a roll or thunder where it
 ends, frost bursting from a block or from drinking, an echo striking after a roll through a hit. Others:
 Momentum (each combo hit deals more than the last), faster light attacks, Tailwind (speed after a roll),
 heals when your Burn or Rot takes hold, Unbowed (once a fight, survive a downing hit), piercing light
-arrows, an extra bolt on every catalyst cast. When adding one, prefer these to a flat `dmg` or `stat`.
+arrows, an extra bolt on every catalyst cast. A heavy that is a shot (the bow's arrow, the catalyst's orb)
+carries a `heavy` / `heavy_full` area with it: Thunderclap, Pyre Strike and the like go off where the shot first
+strikes or comes to rest, not at the hero's feet (they used to land at the cursor 0.4 s after release, or, on a
+controller, just in front of the caster, which read as not working). "Fully charged" is 95% or more, and
+reaching full charge flashes the hero with a chime. When adding one, prefer these to a flat `dmg` or `stat`.
 
 100 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
 special, dodge, guard; and four passives), ten plain passives (five of them for skills: quicker cooldowns, more damage, a heal, a ward or Focus on
 use), six Pacts (only offered to parties of two
 or more), six Duos (offered once you hold both Vows), and 24 Weapon Arts. A slot holds one upgrade; taking
 another replaces it. Rarity (common, rare x1.5, epic x2) scales the numbers. Offers lean toward Vows you
-already follow. Attributes: Vigor +12 health; Endurance +10 stamina and quicker recovery; Might +7% heavy
+already follow. Attributes: Vigor +12 health; Endurance dashes back 8% faster; Might +7% heavy
 and special damage and +8% poise damage; Finesse +6% light damage; Arcane +12% status buildup and +8%
 special damage.
 
@@ -335,7 +359,7 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   on a staggered boss for the critical. The daggers dodge with their dash (two charges), the catalyst
   with its blink (to a spot nothing is about to hit). Lights are checked against their real shapes;
   heavies and specials by reach; arrows and bolts hit what's in range, ignoring flight time. Bots never
-  block, parry or counter, have endless stamina (so rolls are free where dashes are counted), and are
+  block, parry or counter, spend and regain dashes as the game does, and are
   poor at rings and slow projectiles: treat the numbers as a rough guide.
 - **The weapons table** (`python3 tools/kingfall-sim.py "" 8 --weapons --skill 0.85`, about five
   minutes): each weapon alone / in a pair of the same, then mixed parties of 3 / 4. Latest (Nov 2026,
@@ -343,35 +367,35 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 
   | Boss | Sword | Greatsword | Daggers | Halberd | Bow | Catalyst | Mixed 3/4 |
   |---|---|---|---|---|---|---|---|
-  | Corvin | 62/88 | 75/100 | 50/62 | 75/100 | 62/88 | 100/100 | 100/100 |
-  | Mire | 88/100 | 100/100 | 100/88 | 88/100 | 62/75 | 100/100 | 100/100 |
-  | Bellwarden | 100/75 | 100/88 | 88/88 | 100/100 | 100/100 | 100/100 | 100/100 |
-  | Headsmen | 88/50 | 100/88 | 50/38 | 75/100 | 50/88 | 100/100 | 100/100 |
-  | Wolf | 100/100 | 100/100 | 100/75 | 100/88 | 75/100 | 100/100 | 88/100 |
-  | Alchemist | 62/88 | 75/75 | 50/88 | 75/100 | 62/88 | 88/100 | 100/100 |
-  | Wyrm | 88/75 | 75/100 | 12/0 | 75/88 | 100/88 | 100/88 | 100/100 |
-  | Mirror | 88/100 | 75/100 | 75/88 | 88/100 | 100/100 | 100/100 | 100/100 |
-  | Bastion | 88/88 | 100/100 | 38/12 | 100/100 | 75/88 | 100/100 | 100/100 |
-  | Moth | 100/88 | 100/100 | 100/75 | 100/88 | 12/62 | 0/88 | 88/100 |
-  | King | 88/100 | 100/75 | 0/0 | 88/88 | 50/38 | 25/25 | 100/100 |
-  | Drake | 100/100 | 75/75 | 75/38 | 88/75 | 75/25 | 62/75 | 100/62 |
-  | All | 88 | 91 | 58 | 91 | 73 | 85 | 97 |
+  | Corvin | 75/88 | 88/88 | 100/88 | 88/100 | 50/100 | 100/100 | 100/100 |
+  | Mire | 88/88 | 100/88 | 100/100 | 100/100 | 62/88 | 100/100 | 100/100 |
+  | Bellwarden | 62/75 | 100/88 | 88/88 | 100/100 | 75/100 | 100/100 | 100/100 |
+  | Headsmen | 75/88 | 88/88 | 75/88 | 88/100 | 88/88 | 100/100 | 100/100 |
+  | Wolf | 100/100 | 100/100 | 100/88 | 100/100 | 88/100 | 100/100 | 100/100 |
+  | Alchemist | 62/100 | 88/88 | 100/88 | 88/88 | 62/100 | 88/100 | 100/100 |
+  | Wyrm | 100/88 | 75/100 | 100/100 | 62/100 | 62/100 | 100/100 | 100/100 |
+  | Mirror | 88/88 | 88/100 | 88/88 | 75/100 | 75/100 | 100/100 | 100/100 |
+  | Bastion | 50/50 | 88/100 | 88/88 | 75/88 | 25/12 | 100/88 | 100/100 |
+  | Moth | 100/75 | 100/100 | 100/75 | 75/75 | 12/75 | 0/62 | 88/100 |
+  | King | 88/88 | 75/100 | 75/88 | 88/75 | 38/75 | 0/50 | 100/100 |
+  | Drake | 88/38 | 62/62 | 100/100 | 50/25 | 25/12 | 50/100 | 75/100 |
+  | All | 81 | 90 | 90 | 85 | 67 | 85 | 98 |
 
-  Fights average 1.2 to 1.7 minutes and 1.4 to 2.6 staggers. With 8 fights a cell, one cell swings by
-  25 points; read the columns. Parties of three and four win nearly everything. The catalyst's first
-  49% was the bots blinking into the next hit, not the weapon; its base went 17 to 18.
-- **The daggers column above is out of date**: it's from before their second pass. They began at 35%
-  (base 13, two dashes recharging in 1.2 s). Damage and poise (base 16, Shadowstep x2.6) and a quicker
-  recharge only reached 58%, and a third dash and built-in Bleed 62%, still 0% against the King. The
-  cause was the dash's invulnerability: 0.2 s against a roll's 0.29 s, too short for any hit that
-  lingers. Untouchable for the whole 0.28 s dash, they win 91% (solo / pair: Corvin 100/62, Mire
-  100/100, Bellwarden 88/75, Headsmen 100/88, Wolf 100/100, Alchemist 75/75, Wyrm 100/100, Mirror
-  88/100, Bastion 62/100, Moth 100/100, King 75/100, Drake 100/88), level with the sword, greatsword
-  and halberd. If they now feel too strong, take the base back toward 14 first.
+  This is the first table under dashes instead of stamina (bots used to roll for free). Fights average
+  1.1 to 1.7 minutes and 1.5 to 2.7 staggers. With 8 fights a cell, one cell swings by 25 points; read
+  the columns. The daggers column is from a second run after one adjustment (4 dashes a 0.7 s apiece
+  and base 16 won 97%; now 0.9 s and base 15); the bow's recharge went 1.0 s to 0.8 s after its
+  column was run and a rerun scored the same (55% alone, 79% in pairs). **The bow is the weakest**,
+  worst alone against the Bastion, the Moth and the Drake; the catalyst alone can't beat the Moth or
+  the King. Parties of three and four win nearly everything.
+- **How the daggers got here** (Nov 2026): 35% at first (base 13, two dashes). The cause was the dash's
+  invulnerability, 0.2 s against a roll's 0.29 s, too short for any hit that lingers; untouchable for
+  the whole 0.28 s dash they reached 91%. The catalyst's first 49% was the bots blinking into the next
+  hit, not the weapon.
 - **After the faster heroes and longer roll** (Nov 2026, sword parties, 10 fights each at skill 0.85,
   solo / 2 / 3 / 4): Mirror 80/100/100/100, Bastion 60/80/90/100, Moth 90/90/80/100, King
-  90/90/100/100, Drake 80/50/80/90; staggers 1.3 to 4.7 a fight. Much as before: bots never ran out of
-  stamina and dodge by timing, so they gain little from speed. A person will find it easier.
+  90/90/100/100, Drake 80/50/80/90; staggers 1.3 to 4.7 a fight. Much as before: bots then rolled for free
+  and dodge by timing, so they gain little from speed. A person will find it easier.
 - **Earlier numbers** (Nov 2026, sword parties before bots used heavies; 12 fights each at skill 0.85;
   solo / 2 / 3 / 4): Corvin 67/67/92/100, Headsmen 67/75/92/100, Alchemist 67/100/100/100, the rest
   83-100. Middling bots (skill 0.6) won a third to a half of Corvin, the Headsmen, the Wyrm, the
@@ -425,7 +449,7 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   Melee shapes still need a frame inside their window; keep those 60 ms or wider.
 - **A new skill** needs only an entry in `content/skills.py` if it's built from the existing pieces
   (`shape`, `proj`, `aoe`, `blink`, `empower`, `rally`, `heal`, `ward`, `status`; poses `cast` and
-  `raise`; `stamina` and `focus` are applied by the browser). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.
+  `raise`; `dashes` and `focus` are applied by the browser). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.
 - **The last snapshot of a lost fight must go out.** The loop sends a snapshot every other tick; when the
   last hero fell on an off tick, their browser never heard they were down and they could walk about for
   the three seconds before the lobby. The loop now sends one on losing, and the browser downs its own

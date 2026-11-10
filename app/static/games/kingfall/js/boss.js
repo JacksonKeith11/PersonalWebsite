@@ -3,10 +3,10 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=17';
-import { LiveMove, placeHit, touches } from './moves.js?v=17';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=17';
-import { sfx } from './audio.js?v=17';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=19';
+import { LiveMove, placeHit, touches } from './moves.js?v=19';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=19';
+import { sfx } from './audio.js?v=19';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -350,7 +350,7 @@ export class Boss {
         }
         const life = (t - h.t0) / Math.max(0.05, h.t1 - h.t0);
         if (s.k === 'zone') {
-          pool(g, gl, s, POOL[s.pool] || 0x6a8a2a, Math.min(1, (h.t1 - t) * 2, (t - h.t0) * 4), now);
+          pool(g, gl, s, POOL[s.pool] || 0x6a8a2a, Math.min(1, (h.t1 - t) * 2, (t - h.t0) * 4), now, DANGER);
         } else if (s.k === 'proj') {
           orb(gl, g, s.cx, s.cy, s.a, s.r, col, { lift: 8, core: fire ? 0xffe9a0 : 0xffffff });
         } else if (s.k === 'ring') {
@@ -450,6 +450,9 @@ export class Boss {
       if (!b.alive || b.state === 'intro' || b.untouchable(now, b.mv)) continue;
       (b.def.cores || []).forEach((c, i) => { if (b.cores[i] > 0) { const [x, y] = b.corePos(i); out.push({ kind: 'core', e: b.e, i, x, y, r: c.r, b }); } });
       out.push({ kind: 'body', e: b.e, x: b.x, y: b.y, r: b.r, b });
+      // ...and its body as drawn, which stands (or hovers: the Moth Saint) well above its feet. Without
+      // this a blow or a shot aimed at the boss you see passes over the circle on the floor.
+      out.push({ kind: 'body', e: b.e, x: b.x, y: b.y - b.z - b.r * 1.5, r: b.r, b, up: true });
       for (const [x, y] of this.segments(b)) out.push({ kind: 'body', e: b.e, x, y, r: 9, b, seg: true });
     }
     for (const a of Object.values(this.adds)) out.push({ kind: 'add', a: a.id, x: a.x, y: a.y, r: a.r, add: a });

@@ -11,8 +11,10 @@ Effect types:
   dmg      {slot, mult}            damage of that slot ('all' for every attack, 'skill' for skills) x mult
   poise    {slot, mult}
   status   {slot, kind, amt}       build a status on the boss per hit (burn, frost, bleed, rot)
-  stat     {key, add|mult}         mhp, stamina, st_regen, speed, roll_st, focus_gain, special_cost,
-                                   reach, flasks, heal, block_st, iframes, revive_time, skill_cd
+  stat     {key, add|mult}         mhp, speed, focus_gain, special_cost, reach, flasks, heal, iframes,
+                                   revive_time, dash_regen (dashes come back x mult faster), dash_time
+                                   (the seconds a dash takes to come back x mult), dash_charges, block_cost
+                                   (the share of a dash a blocked hit uses x mult), skill_cd
                                    (cooldowns x mult), skill_focus (Focus gained on using a skill)
   skillheal {amt}                  using a skill heals you amt
   skillward {amt}                  using a skill wards you against the next amt damage
@@ -20,7 +22,7 @@ Effect types:
   steal    {slot, frac}            heal by frac of that slot's damage
   chain    {every, dmg}            every Nth light hit adds dmg (lightning)
   crit     {mult}                  critical hits (on a staggered boss) x mult
-  perfect  {st, dmg, heal}         a dodge that iframes through a hit refunds stamina; the next hit
+  perfect  {dash, dmg, heal}       a dodge that iframes through a hit gives back `dash` of a dash; the next hit
                                    within 2 s deals dmg more; heals heal
   parry    {mult}                  the next hit after a parry x mult
   dodge    {kind, amt}             rolling past the boss (within 50 px) builds a status
@@ -96,7 +98,7 @@ U("rime_p1", "Shatter", "rime", None, "Frost bursts break {v}% more poise.", [{"
 U("rime_p2", "Cold Blood", "rime", None, "Drinking your flask bursts frost around you ({v} damage, building Frost).",
   [{"t": "proc", "when": "flask", "pow": 1.0, "poise": 14, "kind": "frost", "amt": 60, "aoe": {"at": 0, "r": 72, "delay": 0.05, "ticks": 1, "every": 0.2, "col": "#7fe3ff", "boom": 1}}], ["pow", "amt"])
 U("rime_p3", "Still Air", "rime", None, "Deal {v}% more to a frozen boss.", [{"t": "vsstatus", "kind": "frost", "mult": 1.15}], ["mult"])
-U("rime_p4", "Patience", "rime", None, "Stamina refills {v}% faster.", [{"t": "stat", "key": "st_regen", "mult": 1.2}], ["mult"])
+U("rime_p4", "Patience", "rime", None, "Your dashes come back {v}% faster.", [{"t": "stat", "key": "dash_regen", "mult": 1.2}], ["mult"])
 
 # ------------------------------------------------------------------ Blood
 U("blood_light", "Opened Vein", "blood", "light", "Light attacks build Bleed ({v} a hit).", [{"t": "status", "slot": "light", "kind": "bleed", "amt": 15}], ["amt"])
@@ -140,11 +142,11 @@ U("iron_light", "Hammering Blows", "iron", "light", "The last hit of your light 
 U("iron_heavy", "Siegebreaker", "iron", "heavy", "Heavy attacks break {v}% more poise.", [{"t": "poise", "slot": "heavy", "mult": 1.35}], ["mult"])
 U("iron_special", "Battering Ram", "iron", "special", "Your special deals {v}% more and breaks more poise.", [{"t": "dmg", "slot": "special", "mult": 1.3}, {"t": "poise", "slot": "special", "mult": 1.3}], ["mult"])
 U("iron_dodge", "Steady Roll", "iron", "dodge", "Rolls keep you invulnerable a little longer (+{v} ms).", [{"t": "stat", "key": "iframes", "add": 0.05}], ["add"], req="roll")
-U("iron_guard", "Bulwark", "iron", "guard", "Blocking costs {v}% less stamina.", [{"t": "stat", "key": "block_st", "mult": 0.6}], ["mult"], req="block")
+U("iron_guard", "Bulwark", "iron", "guard", "Blocking a hit uses {v}% less of a dash.", [{"t": "stat", "key": "block_cost", "mult": 0.6}], ["mult"], req="block")
 U("iron_p1", "Executioner", "iron", None, "Critical hits deal {v}% more.", [{"t": "crit", "mult": 1.4}], ["mult"])
 U("iron_p2", "Unbowed", "iron", None, "Once a fight, a hit that would down you leaves you standing on {v} health.", [{"t": "unbowed", "amt": 10}], ["amt"])
-U("iron_p3", "Perfect Form", "iron", None, "Dodging through a hit refunds {v} stamina; your next hit within 2 s deals 30% more.",
-  [{"t": "perfect", "st": 25, "dmg": 1.3, "heal": 0}], ["st"])
+U("iron_p3", "Perfect Form", "iron", None, "Dodging through a hit gives back {v}% of the dash; your next hit within 2 s deals 30% more.",
+  [{"t": "perfect", "dash": 0.5, "dmg": 1.3, "heal": 0}], ["dash"])
 U("iron_p4", "Extra Flask", "iron", None, "+1 flask charge.", [{"t": "stat", "key": "flasks", "add": 1}], [])
 
 # ------------------------------------------------------------------ passives with no Vow
@@ -179,7 +181,7 @@ U("duo_slag", "Slag", "ember", None, "Critical hits build 60 Burn and 60 Rot.", 
 
 # ------------------------------------------------------------------ Weapon Arts (the sword's; the others' are in their weapon files)
 U("art_sword_riposte", "Riposte", None, None, "After a parry, your next hit is a critical.", [{"t": "parry", "mult": 3.0}], [], weapon="sword")
-U("art_sword_bulwark", "Tower Shield", None, None, "Your block covers a wider arc and costs half the stamina.", [{"t": "stat", "key": "block_st", "mult": 0.5}, {"t": "stat", "key": "guard_arc", "mult": 1.4}], [], weapon="sword")
+U("art_sword_bulwark", "Tower Shield", None, None, "Your block covers a wider arc, and a blocked hit uses half a dash.", [{"t": "stat", "key": "block_cost", "mult": 0.5}, {"t": "stat", "key": "guard_arc", "mult": 1.4}], [], weapon="sword")
 U("art_sword_oath", "Oathblade", None, None, "Your shield bash heals you {v}.", [{"t": "specialheal", "amt": 12}], ["amt"], weapon="sword")
 U("art_sword_flurry", "Flurry", None, None, "Your light attacks are {v}% faster.", [{"t": "stat", "key": "light_speed", "mult": 1.2}], ["mult"], weapon="sword")
 
@@ -187,7 +189,7 @@ U("art_sword_flurry", "Flurry", None, None, "Your light attacks are {v}% faster.
 U("art_gs_titan", "Titan's Grip", None, None, "A fully charged heavy sends a shockwave along the ground ({v} damage) that passes through everything.",
   [{"t": "proc", "when": "heavy_full", "pow": 1.5, "poise": 20, "proj": {"v": 320, "r": 14, "life": 0.5, "pierce": True, "col": "#d8dce4"}}], ["pow"], weapon="greatsword")
 U("art_gs_quake", "Earthsplitter", None, None, "Your Leaping Slam breaks {v}% more poise.", [{"t": "poise", "slot": "special", "mult": 1.4}], ["mult"], weapon="greatsword")
-U("art_gs_wall", "Living Wall", None, None, "Blocking costs {v}% less stamina.", [{"t": "stat", "key": "block_st", "mult": 0.65}], ["mult"], weapon="greatsword")
+U("art_gs_wall", "Living Wall", None, None, "Blocking a hit uses {v}% less of a dash.", [{"t": "stat", "key": "block_cost", "mult": 0.65}], ["mult"], weapon="greatsword")
 U("art_gs_cleave", "Wide Cleave", None, None, "Your swings reach {v}% further.", [{"t": "stat", "key": "reach", "mult": 1.15}], ["mult"], weapon="greatsword")
 U("art_dg_venom", "Serrated Edges", None, None, "Light attacks build {v} Bleed.", [{"t": "status", "slot": "light", "kind": "bleed", "amt": 9}], ["amt"], weapon="daggers")
 U("art_dg_shadow", "Umbral Step", None, None, "Shadowstep deals {v}% more and costs less Focus.", [{"t": "dmg", "slot": "special", "mult": 1.3}, {"t": "stat", "key": "special_cost", "mult": 0.8}], ["mult"], weapon="daggers")
@@ -205,7 +207,7 @@ U("art_bw_roll", "Skirmisher", None, None, "Your roll-shot deals {v}% more.", [{
 U("art_ct_orb", "Greater Orb", None, None, "Your charged orb deals {v}% more.", [{"t": "dmg", "slot": "heavy", "mult": 1.25}], ["mult"], weapon="catalyst")
 U("art_ct_nova", "Starburst", None, None, "Nova deals {v}% more.", [{"t": "dmg", "slot": "special", "mult": 1.3}], ["mult"], weapon="catalyst")
 U("art_ct_bolt", "Split Bolts", None, None, "Every light cast looses one more bolt; bolts deal 30% less.", [{"t": "stat", "key": "light_shots", "add": 1}, {"t": "dmg", "slot": "light", "mult": 0.7}], [], weapon="catalyst")
-U("art_ct_blink", "Far Blink", None, None, "Your blink costs {v}% less stamina.", [{"t": "stat", "key": "roll_st", "mult": 0.7}], ["mult"], weapon="catalyst")
+U("art_ct_blink", "Far Blink", None, None, "Your blink comes back {v}% sooner.", [{"t": "stat", "key": "dash_time", "mult": 0.7}], ["mult"], weapon="catalyst")
 
 
 def offer(hero, n_heroes, rng, stage):
@@ -261,7 +263,7 @@ def describe(uid, rarity):
             if key in f:
                 x = f[key]
                 if f["t"] == "proc" and key == "pow": v = str(round(x * 20)); break
-                v = f"{round(x * 1000)}" if f.get("key") == "iframes" else f"{round((1 - x) * 100)}" if key == "mult" and x < 1 else f"{round((x - 1) * 100)}" if key == "mult" else f"{round(x * 100)}" if key in ("frac",) or (key == "add" and x < 1) else f"{round(x)}" if x >= 1 else f"{x:.2f}"
+                v = f"{round(x * 1000)}" if f.get("key") == "iframes" else f"{round((1 - x) * 100)}" if key == "mult" and x < 1 else f"{round((x - 1) * 100)}" if key == "mult" else f"{round(x * 100)}" if key in ("frac", "dash") or (key == "add" and x < 1) else f"{round(x)}" if x >= 1 else f"{x:.2f}"
                 break
         if v: break
     return u["text"].replace("{v}", v)

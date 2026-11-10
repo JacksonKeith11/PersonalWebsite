@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=17';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=17';
-import { Net, ME } from './net.js?v=17';
-import { FightScene } from './fight.js?v=17';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=17';
-import { unlock, sfx, setVolume } from './audio.js?v=17';
-import { music } from './music.js?v=17';
+import { setAtlas } from './rig.js?v=19';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=19';
+import { Net, ME } from './net.js?v=19';
+import { FightScene } from './fight.js?v=19';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=19';
+import { unlock, sfx, setVolume } from './audio.js?v=19';
+import { music } from './music.js?v=19';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -135,15 +135,20 @@ function bonfire() {
   });
   el.querySelectorAll('[data-attr]').forEach(b => b.onclick = () => { const [h, a] = b.dataset.attr.split(':'); send('attr', +h, { a }); });
   el.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const [h, item] = b.dataset.buy.split(':'); send('buy', +h, { item }); });
-  el.querySelectorAll('[data-weapon]').forEach(b => b.onclick = () => { const [h, w] = b.dataset.weapon.split(':'); send('weapon', +h, { weapon: w }); });
   el.querySelectorAll('[data-ready]').forEach(b => b.onclick = () => { const h = L.heroes.find(x => x.id === +b.dataset.ready); send('ready', h.id, { on: !h.ready }); });
 }
 
 function panel(h) {
   const L = S.lobby, D = S.data, W = D.weapons[h.weapon], P = L.prices;
   const dev = deviceOfSlot(h.slot);
-  const known = h.skills.map((id, i) => `<span class="chip" style="--r:${D.skills[id].col}" title="${esc(D.skills[id].text)}"><kbd>${skillKey(dev, i)}</kbd> ${esc(D.skills[id].name)} · ${D.skills[id].cd}s</span>`).join('');
-  const ups = h.ups.map(([u, r]) => `<span class="chip" style="--r:${RARE_COL[r]}" title="${esc(D.upgrades[u].text[r])}">${esc(D.upgrades[u].name)}</span>`).join('');
+  // what the hero already has: hover a chip (or move onto it with a controller) to read what it does
+  const known = h.skills.map((id, i) => `<span class="chip" data-nav data-chip="${h.id}:s:${id}" style="--r:${D.skills[id].col}" data-tip-h="${esc(D.skills[id].name)}"
+    data-tip-k="Skill · ${D.skills[id].cd}s cooldown" data-tip="${esc(D.skills[id].text)}"><kbd>${skillKey(dev, i)}</kbd> ${esc(D.skills[id].name)} · ${D.skills[id].cd}s</span>`).join('');
+  const ups = h.ups.map(([u, r]) => {
+    const U = D.upgrades[u], V = U.vow ? D.vows[U.vow] : null;
+    const kind = U.duo ? 'Duo' : U.pact ? 'Pact' : U.weapon ? 'Weapon Art' : U.slot ? SLOT_NAME[U.slot] : 'Passive';
+    return `<span class="chip" data-nav data-chip="${h.id}:u:${u}" style="--r:${RARE_COL[r]}" data-tip-h="${esc(U.name)}" data-tip-k="${V ? esc(V.name) + ' · ' : ''}${kind} · ${r}"
+      data-tip="${esc(U.text[r])}">${esc(U.name)}</span>`; }).join('');
   return `<div class="panel" style="--c:${D.colours[h.colour]}">
     <div class="row"><b class="pname">${esc(h.name)}</b><span class="hint">Level ${h.level} · ${esc(W.name)} · ${h.mhp} health · ${h.maxflasks} flasks</span></div>
     ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><div class="attrs">${D.attrs.map(([k, name, text]) =>
@@ -153,8 +158,6 @@ function panel(h) {
       <div class="cards-up">${h.skill_offer.map((id, i) => skillCard(id, i, h)).join('')}</div>
       <div class="row" style="margin-top:8px"><button class="btn" data-nav data-learn="${h.id}:skip">Pass</button>
         <span class="hint">Skills work with any weapon and come back on a cooldown.</span></div>` : ''}
-    ${h.swap ? `<h3>The weapon shrine</h3><div class="row">${Object.values(D.weapons).map(w =>
-      `<button class="btn" data-nav data-weapon="${h.id}:${w.id}" ${w.id === h.weapon ? 'disabled' : ''}>${esc(w.name)}</button>`).join('')}</div><div class="hint">Changing weapon keeps your blessings but loses your Weapon Arts.</div>` : ''}
     <h3>Shop</h3><div class="row">
       ${h.offer.length ? `<button class="btn" data-nav data-buy="${h.id}:reroll" ${L.coins < P.reroll ? 'disabled' : ''}>Reroll (${P.reroll})</button>` : ''}
       ${h.skill_offer.length ? `<button class="btn" data-nav data-buy="${h.id}:skills" ${L.coins < P.skills ? 'disabled' : ''}>Other skills (${P.skills})</button>` : ''}

@@ -53,12 +53,15 @@ class Bot:
         self.ranged = "proj" in first
         # how close it stands to fight: inside its first light attack's reach, or well back with a bow or catalyst
         self.stand = 150 if self.ranged else (first["shape"]["r"] if first["shape"]["k"] == "arc" else first["shape"]["x1"] * 0.9) * 0.8
-        # its dodge: a roll, the daggers' dash (two charges) or the catalyst's blink
+        # its dodge: a roll, the daggers' dash or the catalyst's blink (each spends one of the weapon's dashes)
         G, R = W["guard"], C.HERO["roll"]
         self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"])} if G["kind"] == "dash"
                       else {"dur": 0.16, "dist": G["dist"], "if": (0.0, 0.16), "blink": True} if G["kind"] == "blink"
                       else {"dur": R["dur"], "dist": R["dist"], "if": R["iframes"]})
-        self.dashes, self.dash_t = G.get("charges", 0), 0.0
+        st = fh.hero.build().stats   # dashes, as in the game: the weapon's count and recharge, and what the build changes
+        self.max_dash = W["dodge"]["charges"] + st["dash_charges"]
+        self.dashes = float(self.max_dash)
+        self.dash_rate = st["dash_regen"] / (W["dodge"]["recharge"] * st["dash_time"])
         self.act = None    # the attack being made: (kind, its data, when it lands, when it ends)
         self.cd = {}       # skill id -> when it's ready again
         self.focus = 40.0
@@ -124,9 +127,7 @@ def step_bot(b, f, now, dt, bots):
     d = math.hypot(bx - fh.x, by - fh.y)
     toward = math.atan2(by - fh.y, bx - fh.x)
     G = b.W["guard"]
-    if G["kind"] == "dash" and b.dashes < G["charges"]:
-        b.dash_t += dt
-        if b.dash_t >= G["recharge"]: b.dashes += 1; b.dash_t = 0.0
+    b.dashes = min(b.max_dash, b.dashes + b.dash_rate * dt)
     if b.state == "roll":
         R = b.dodge
         if not R.get("blink"):
@@ -147,9 +148,8 @@ def step_bot(b, f, now, dt, bots):
         if (until <= 0.12 + b.rng.uniform(-0.05, 0.05) * (1 - b.skill) or until <= 0.05) and b.state in ("idle", "atk"):
             b.decided.add(key)
             if b.rng.random() < b.skill:
-                if G["kind"] == "dash":
-                    if b.dashes <= 0: continue   # out of dashes: it takes the hit
-                    b.dashes -= 1
+                if b.dashes < 1: continue   # out of dashes: it takes the hit
+                b.dashes -= 1
                 b.state, b.t, b.act = "roll", 0.0, None
                 side = b.rng.choice((-1, 1))
                 b.roll_dir = toward + math.pi if long else (toward + side * math.pi / 2 if d < 70 else toward + math.pi)
@@ -291,8 +291,9 @@ def use_skill(b, f, now, d, body, target, bots):
             if not any(o.fh.hero.hp < o.fh.hero.mhp() * 0.6 for o in bots if not o.fh.down and math.hypot(o.fh.x - fh.x, o.fh.y - fh.y) <= s["radius"]): continue
         elif "ward" in s:
             if fh.shield or d > 120: continue
-        elif "stamina" in s:
-            if b.focus > 55: continue
+        elif "dashes" in s:
+            if b.focus > 55 and b.dashes >= 1: continue
+            b.dashes = b.max_dash
             b.focus = min(100.0, b.focus + s["focus"])
         elif d > 90: continue   # a cry or a charged hit: as the fight is joined
         f.use_skill(fh.hero.id, {"sk": sid}, now)

@@ -130,8 +130,34 @@ export function pillar(g, x, y, r, p, col) {
   g.fillStyle(0xffffff, 0.6 * k * k); g.fillEllipse(x, y, r * 1.3, r * 0.7);
 }
 
-// A pool on the floor (poison, fire, void...): a soft body, a bright rim that breathes, drifting motes.
-export function pool(floor, g, s, col, fade, now) {
+// A hero's area on the floor (a skill's, a blessing's, arrow rain): never filled and never red, so it
+// can't be taken for a boss's. A broken ring of dashes turning round it, four ticks pointing in, a faint
+// wash of its colour; `linger` (a cloud or fire that stays) adds motes rising inside. Bosses' areas are
+// solid: filled red warnings, and pools with a red rim (below).
+export function allyArea(floor, g, s, col, fade, now, linger = false) {
+  const N = 10, turn = now * 0.9, gap = Math.PI * 2 / N;
+  g.fillStyle(col, 0.07 * fade); g.fillCircle(s.cx, s.cy, s.r);
+  floor.lineStyle(2, col, 0.85 * fade);
+  for (let i = 0; i < N; i++) { floor.beginPath(); floor.arc(s.cx, s.cy, s.r, turn + i * gap, turn + i * gap + gap * 0.55); floor.strokePath(); }
+  floor.lineStyle(1, 0xffffff, 0.5 * fade);
+  for (let i = 0; i < N; i++) { floor.beginPath(); floor.arc(s.cx, s.cy, s.r - 3, -turn + i * gap, -turn + i * gap + gap * 0.3); floor.strokePath(); }
+  floor.lineStyle(2, col, 0.9 * fade);
+  for (let k = 0; k < 4; k++) {
+    const a = k * Math.PI / 2 + Math.PI / 4, c = Math.cos(a), n = Math.sin(a);
+    floor.lineBetween(s.cx + c * s.r, s.cy + n * s.r, s.cx + c * (s.r - 7), s.cy + n * (s.r - 7));
+  }
+  if (!linger) return;
+  for (let k = 0; k < 5; k++) {
+    const ph = (now * 0.6 + k * 0.2 + s.cy * 0.013) % 1, ang = k * 2.4 + s.cx * 0.07, rr = s.r * (0.2 + 0.55 * ((k * 0.37) % 1));
+    g.fillStyle(col, 0.8 * fade * Math.sin(ph * Math.PI));
+    g.fillCircle(s.cx + Math.cos(ang) * rr, s.cy + Math.sin(ang) * rr * 0.6 - ph * 14, 1.6);
+  }
+}
+
+// A boss's pool on the floor (poison, fire, void...): a soft body, a bright rim that breathes, drifting
+// motes, and (`danger`, a colour) a hard outer rim that marks it as something that hurts you.
+export function pool(floor, g, s, col, fade, now, danger = null) {
+  if (danger != null) { floor.lineStyle(2, danger, 0.8 * fade); floor.strokeCircle(s.cx, s.cy, s.r + 2); }
   const breathe = 0.5 + 0.5 * Math.sin(now * 3 + s.cx * 0.1);
   floor.fillStyle(col, 0.26 * fade); floor.fillCircle(s.cx, s.cy, s.r);
   floor.fillStyle(col, 0.2 * fade); floor.fillCircle(s.cx, s.cy, s.r * 0.66);

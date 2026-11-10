@@ -69,7 +69,6 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 .card .top b { font: 700 13px var(--serif); }
 .card .bar { height: 7px; margin-top: 3px; }
 .card .bar.hp > i.v { background: linear-gradient(#c84040, #8a2020); }
-.card .bar.st { height: 4px; } .card .bar.st > i { background: var(--st); }
 .card .bar.fo { height: 4px; } .card .bar.fo > i { background: var(--focus); }
 .flasks { letter-spacing: 1px; color: #e8a040; font-size: 9px; }
 .card.down { filter: grayscale(0.8); }
@@ -111,11 +110,13 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 .mine { position: absolute; left: 16px; bottom: 16px; right: 16px; display: flex; flex-wrap: wrap-reverse; align-items: flex-end; gap: 10px; }
 .card.me { width: auto; min-width: 236px; padding: 8px 10px 9px; background: #0e0b12e0; }
 .card.me .top b { font-size: 14px; } .card.me .hpn { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
-.card.me .bar.hp { height: 12px; } .card.me .bar.st, .card.me .bar.fo { height: 5px; }
+.card.me .bar.hp { height: 12px; } .card.me .bar.fo { height: 5px; }
 .card.me.low .bar.hp { animation: low 0.7s ease-in-out infinite; } .card.me.low .hpn { color: #ff8080; }
 @keyframes low { 50% { box-shadow: 0 0 0 1px #e05050, 0 0 8px #e05050; } }
 .card.me .buffs:empty, .card.me .downtxt:empty { display: none; } .card.me .buffs { margin-bottom: 4px; } .card.me .buffs span { margin-top: 0; }
-.pips { display: flex; gap: 3px; margin-top: 4px; } .pips i { width: 14px; height: 4px; background: #0008; box-shadow: 0 0 0 1px #4a3e52; } .pips i.on { background: #e8ecf2; }
+.pips { display: flex; gap: 4px; margin-top: 5px; } .pips i { display: block; width: 26px; height: 6px; background: #0008; box-shadow: 0 0 0 1px #4a3e52; transform: skewX(-20deg); }
+.pips i b { display: block; height: 100%; background: #7a7488; } .pips i.on b { background: #e8ecf2; box-shadow: 0 0 5px #e8ecf2aa; }
+.pips.no { animation: sk-no .3s; } .pips.no i { box-shadow: 0 0 0 1px #e05050; }
 .tiles { display: flex; gap: 6px; margin-top: 8px; }
 .tile { --k: #e8a040; --u: 0%; position: relative; width: 54px; height: 54px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
   padding: 0 2px 3px; background: #17121d; border: 2px solid var(--k); border-radius: 4px; overflow: hidden; box-shadow: 0 0 8px -2px var(--k); }
@@ -146,3 +147,11 @@ div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); 
 .stm .bar > i { background: var(--k); }
 .stm.live b { text-shadow: 0 0 6px var(--k), 0 1px 2px #000; }
 .stm.live .bar { box-shadow: 0 0 0 1px var(--k), 0 0 6px var(--k); }
+/* the tooltip over a blessing or skill a hero holds */
+.chip[data-tip] { cursor: help; }
+.chip[data-tip]:hover, .chip[data-tip].focus { background: #2a2232; box-shadow: 0 0 0 1px var(--r) inset; }
+#tip { position: fixed; z-index: 50; max-width: 280px; padding: 9px 11px; background: #120f17f8; border: 1px solid var(--line); border-top: 3px solid var(--r);
+  border-radius: 3px; box-shadow: 0 8px 24px #000c; pointer-events: none; font-size: 13px; line-height: 1.4; color: var(--text); }
+#tip[hidden] { display: none; }
+#tip b { display: block; font: 700 14px var(--serif); }
+#tip i { display: block; font-style: normal; font-size: 11px; color: var(--r); text-transform: uppercase; letter-spacing: .08em; margin: 1px 0 5px; }

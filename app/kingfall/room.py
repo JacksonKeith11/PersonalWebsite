@@ -27,7 +27,6 @@ POOLS = {1: ["corvin", "mire", "bellwarden"], 2: ["headsmen", "wolf", "alchemist
 TIERS = [1, 1, 2, 2, 3, 3, 4]
 SHOP = {"reroll": 30, "skills": 30, "flask": 120, "ember": 150}  # "skills" redraws the skills on offer
 FLAT = ("reroll", "skills")  # these never get dearer
-SWAP_AFTER = (2, 4)  # the weapon shrine is lit at the Bonfires after these fights
 # Difficulty: the host's choice. Only numbers change: boss health, boss damage, how fast bosses move
 # and recover, and whether a lone hero gets their Second Wind.
 DIFFS = {"squire": {"name": "Squire", "hp": 0.75, "dmg": 0.7, "speed": 0.9, "wind": True},
@@ -48,7 +47,6 @@ class Hero:
         self.offer = []         # upgrade cards on offer at the Bonfire
         self.picks = 0          # upgrades still to choose
         self.ready = False
-        self.swap = False       # may change weapon at this Bonfire
         self.start_skill = START  # the one they begin a run with (chosen in the lobby)
         self.skills = []        # skill ids, at most MAX_SKILLS
         self.skill_offer = []   # skills on offer at this Bonfire (learn one, or none)
@@ -74,7 +72,7 @@ class Hero:
         return {"id": self.id, "conn": self.conn.id, "slot": self.slot, "name": self.name, "look": self.look,
                 "weapon": self.weapon, "colour": self.colour, "level": self.level, "attrs": self.attrs,
                 "hp": self.hp, "mhp": self.mhp(), "flasks": self.flasks, "maxflasks": self.max_flasks(), "ups": self.ups,
-                "points": self.points, "offer": self.offer, "picks": self.picks, "ready": self.ready, "swap": self.swap,
+                "points": self.points, "offer": self.offer, "picks": self.picks, "ready": self.ready,
                 "skills": self.skills, "skill_offer": self.skill_offer, "start_skill": self.start_skill,
                 "stats": self.build().client()}
 
@@ -270,10 +268,6 @@ class Room:
                 if not h.offer: h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
             self.coins -= price
             if item not in FLAT: self.bought[item] = self.bought.get(item, 0) + 1
-        elif t == "weapon" and h.swap and msg.get("weapon") in C.WEAPONS and msg["weapon"] != h.weapon:
-            h.weapon = msg["weapon"]
-            h.ups = [(u, r) for u, r in h.ups if not UPGRADES[u]["weapon"]]  # the old weapon's Arts go with it
-            h.changed(); h.swap = False
         elif t == "learn" and h.skill_offer:
             # learn one of the offered skills (into slot `at` when both are full), or pass
             i, at = msg.get("i"), msg.get("at")
@@ -366,7 +360,6 @@ class Room:
                 h.points += 1
                 h.picks += 1
                 h.offer = draw_offer(h, len(self.heroes), self.rng, self.stage)
-                h.swap = self.stage in SWAP_AFTER
                 h.skill_offer = skill_offer(h.skills, self.rng)
                 h.ready = False
         else:
@@ -383,7 +376,7 @@ class Room:
     def checkpoint(self):
         """Save the run at the Bonfire: the bosses, the party's builds and coins."""
         heroes = [{"token": h.conn.token.split(":")[0], "slot": h.slot, "name": h.name, "look": h.look, "weapon": h.weapon, "colour": h.colour,
-                   "level": h.level, "attrs": h.attrs, "ups": h.ups, "points": h.points, "offer": h.offer, "picks": h.picks, "swap": h.swap,
+                   "level": h.level, "attrs": h.attrs, "ups": h.ups, "points": h.points, "offer": h.offer, "picks": h.picks,
                    "skills": h.skills, "skill_offer": h.skill_offer, "wind": h.second_wind} for h in self.heroes.values()]
         state = {"run": self.run, "stage": self.stage, "coins": self.coins, "bought": self.bought, "diff": self.diff, "heroes": heroes}
         boss = C.BOSSES[self.run[self.stage]]["name"] if self.stage < len(self.run) else ""
@@ -408,7 +401,7 @@ class Room:
             h = Hero(self.next_id, owner, slot, x["name"], x["look"], x["weapon"], x["colour"])
             self.next_id += 1
             h.level, h.attrs, h.ups, h.points = x["level"], x["attrs"], [tuple(u) for u in x["ups"]], x["points"]
-            h.offer, h.picks, h.swap, h.second_wind = [tuple(o) for o in x["offer"]], x["picks"], x["swap"], x["wind"]
+            h.offer, h.picks, h.second_wind = [tuple(o) for o in x["offer"]], x["picks"], x["wind"]
             h.skills = [k for k in x.get("skills", []) if k in SKILLS][:MAX_SKILLS]  # .get: saves from before skills
             h.skill_offer = [k for k in x.get("skill_offer", []) if k in SKILLS]
             h.changed(); h.hp = h.mhp(); h.flasks = h.max_flasks()

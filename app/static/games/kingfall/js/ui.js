@@ -1,10 +1,10 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=17';
-import { heroFrames } from './hero.js?v=17';
-import { sfx } from './audio.js?v=17';
-import { skillKey, deviceOfSlot } from './input.js?v=17';
+import { paintRig, atlas } from './rig.js?v=19';
+import { heroFrames } from './hero.js?v=19';
+import { sfx } from './audio.js?v=19';
+import { skillKey, deviceOfSlot } from './input.js?v=19';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -21,18 +21,42 @@ export function show(html) {
   const was = focused && el.contains(focused) ? keyOf(focused) : null;
   el.innerHTML = html;
   focused = null;
+  hideTip();
   const again = was && [...el.querySelectorAll('[data-nav]')].find(e => keyOf(e) === was);
   const first = again || el.querySelector('[data-autofocus]') || el.querySelector('[data-nav]');
   if (first) setFocus(first, false);
   return el;
 }
-export function hide() { ui().innerHTML = ''; focused = null; }
+export function hide() { ui().innerHTML = ''; focused = null; hideTip(); }
+
+// A tooltip for anything with data-tip (text), data-tip-h (a heading) and data-tip-k (a line under it):
+// the blessings and skills a hero holds. It shows on hover, and when a controller's focus lands on it.
+let tipFor = null;
+function tipEl() {
+  let t = document.getElementById('tip');
+  if (!t) { t = document.createElement('div'); t.id = 'tip'; t.hidden = true; document.body.appendChild(t); }
+  return t;
+}
+function showTip(el) {
+  const t = tipEl(), d = el.dataset;
+  tipFor = el;
+  t.innerHTML = `${d.tipH ? `<b>${esc(d.tipH)}</b>` : ''}${d.tipK ? `<i>${esc(d.tipK)}</i>` : ''}<span>${esc(d.tip)}</span>`;
+  t.style.setProperty('--r', el.style.getPropertyValue('--r') || 'var(--gold)');
+  t.hidden = false;
+  const r = el.getBoundingClientRect(), w = t.offsetWidth, h = t.offsetHeight;
+  t.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  t.style.top = (r.top - h - 8 >= 8 ? r.top - h - 8 : r.bottom + 8) + 'px';   // above it, or below when there's no room
+}
+function hideTip() { tipFor = null; const t = document.getElementById('tip'); if (t) t.hidden = true; }
+addEventListener('mouseover', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el); else if (tipFor && tipFor !== focused) hideTip(); });
+addEventListener('scroll', () => { if (tipFor) hideTip(); }, true);
 
 function setFocus(el, sound = true) {
   if (focused) focused.classList.remove('focus');
   focused = el;
   if (!el) return;
   el.classList.add('focus');
+  el.dataset.tip ? showTip(el) : hideTip();
   if (document.activeElement !== el && (el.tagName === 'INPUT' || el.tagName === 'BUTTON')) el.focus({ preventScroll: true });
   el.scrollIntoView({ block: 'nearest' });
   if (sound) sfx.ui();
@@ -92,7 +116,7 @@ export const LOOK_NAMES = { knight: 'Knight', pilgrim: 'Pilgrim', hunter: 'Witch
 
 // ------------------------------------------------------------------ HUD
 // The HUD. This browser's heroes each get a panel at the bottom left (one online; one per couch player,
-// side by side): health, stamina, Focus, then tiles for the flask (how many are left), each skill (its
+// side by side): health, Focus, dash pips, then tiles for the flask (how many are left), each skill (its
 // cooldown sweeping away, with the seconds) and the special (lit when there's Focus for it), each with
 // the key to press. Everyone else is a small card at the top left; the boss's bars are top centre.
 const FLASK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1h4v2l-1 1v2.2c2.4.9 4 2.7 4 5 0 2.3-2.2 3.8-5 3.8s-5-1.5-5-3.8c0-2.3 1.6-4.1 4-5V4L6 3z" fill="currentColor"/></svg>';
@@ -118,8 +142,8 @@ export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = 
         <div class="downtxt"></div>
         <div class="top"><b>${esc(h.name)}</b><span class="hpn"></span></div>
         <div class="bar hp"><i class="lag"></i><i class="v"></i></div>
-        <div class="bar st"><i></i></div><div class="bar fo"><i></i></div>
-        ${W.guard && W.guard.kind === 'dash' ? '<div class="pips"></div>' : ''}
+        <div class="bar fo"><i></i></div>
+        <div class="pips" title="Dashes"></div>
         <div class="tiles">
           ${tile('flask', kb ? 'R' : 'X', `${FLASK}<em></em><b>Flask</b>`)}
           ${(h.skills || []).map((id, i) => skills[id] ? tile('sk', skillKey(dev, i), `<b>${esc(skills[id].name)}</b>`, `data-sk="${id}" style="--k:${skills[id].col}"`) : '').join('')}
@@ -187,8 +211,7 @@ export function updateHud(scene) {
   for (const l of scene.local) {
     const c = document.getElementById('card-' + l.id);
     if (!c) continue;
-    const st = c.querySelector('.bar.st i'), fo = c.querySelector('.bar.fo i');
-    if (st) st.style.width = pct(l.st, l.maxSt);
+    const fo = c.querySelector('.bar.fo i');
     if (fo) fo.style.width = pct(l.focus, l.HERO.focus);
     for (const chip of c.querySelectorAll('.sk')) {  // shaded, with the seconds left, while it cools down
       const S = l.skills.find(k => k.id === chip.dataset.sk), left = Math.max(0, l.skillCd[chip.dataset.sk] || 0);
@@ -197,8 +220,16 @@ export function updateHud(scene) {
     }
     const sp = c.querySelector('.tile.spc');  // the special fills with Focus
     if (sp) { const need = l.specialCost(); cool(sp, l.focus >= need ? 0 : 1 - l.focus / need, ''); }
-    const pips = c.querySelector('.pips');    // the daggers' dashes
-    if (pips) { const max = (l.W.guard.charges || 0) + (l.S.dash_charges || 0), v = '<i class="on"></i>'.repeat(Math.max(0, l.dashes)) + '<i></i>'.repeat(Math.max(0, max - l.dashes)); if (pips.dataset.v !== v) { pips.dataset.v = v; pips.innerHTML = v; } }
+    // dashes: a pip each, the one coming back filling from the left; they shake when a dodge is refused
+    const pips = c.querySelector('.pips');
+    if (pips) {
+      if (pips.children.length !== l.maxDash) pips.innerHTML = '<i><b></b></i>'.repeat(l.maxDash);
+      [...pips.children].forEach((pip, i) => {
+        const f = Math.max(0, Math.min(1, l.dashes - i)), v = f >= 1 ? '1' : String(Math.round(f * 20) / 20);
+        if (pip.dataset.v !== v) { pip.dataset.v = v; pip.classList.toggle('on', f >= 1); pip.firstChild.style.width = f * 100 + '%'; }
+      });
+      pips.classList.toggle('no', performance.now() < l.noDash);
+    }
   }
   const lh = document.querySelector('.lockhint');
   if (lh) lh.textContent = scene.local.some(l => l.locked) ? 'Locked on' : '';

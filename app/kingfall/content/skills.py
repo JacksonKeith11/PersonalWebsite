@@ -8,7 +8,7 @@ weapons.py) and the server works out its damage: BASE x mult, with the hero's sp
 `pose` picks the casting animation ("cast": a hand thrust forward; "raise": both arms up). Skills
 without a hit act the moment they're used: `blink` (px, untouchable for `iframes` s), `empower` (the
 next hit's multiplier, within 5 s), `rally` (damage multiplier for `secs`, to allies within `radius` too), `heal`
-(share of max health, allies within `radius` too), `ward` (damage soaked), `stamina` and `focus` (refilled; the browser's doing). `status`: (kind, amount)
+(share of max health, allies within `radius` too), `ward` (damage soaked), `dashes` (all refilled) and `focus` (gained); the browser's doing. `status`: (kind, amount)
 built on what it hits. An `aoe` with a `range` lands on what the hero aims at (the cursor, or the boss
 they're locked on to), up to that far away; otherwise `at` px ahead.
 """
@@ -59,8 +59,8 @@ SKILLS = {s["id"]: s for s in [
      "dur": 0.6, "hit": (0.26, 0.36), "shape": {"k": "circle", "r": 40, "x": 34, "y": 0},
      "mult": 1.6, "poise": 75},
     {"id": "breath", "name": "Second Breath", "cd": 24, "col": "#9ad0ff", "pose": "raise",
-     "text": "Catch your breath: your stamina refills at once and you gain 40 Focus.",
-     "dur": 0.35, "stamina": 1, "focus": 40},
+     "text": "Catch your breath: your dashes all come back at once and you gain 40 Focus.",
+     "dur": 0.35, "dashes": 1, "focus": 40},
 ]}
 
 

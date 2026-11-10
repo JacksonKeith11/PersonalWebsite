@@ -22,7 +22,8 @@ class Build:
         a = attrs
         self.stats = {"mhp": H["hp"] + 12 * a["vig"], "stamina": H["stamina"] + 10 * a["end"], "st_regen": 1 + 0.06 * a["end"],
                       "speed": 1.0, "roll_st": 1.0, "focus_gain": 1.0, "special_cost": 1.0, "reach": 1.0, "flasks": H["flask"]["charges"],
-                      "heal": H["flask"]["heal"], "block_st": 1.0, "iframes": 0.0, "revive_time": 1.0, "guard_arc": 1.0, "dash_charges": 0, "skill_cd": 1.0, "skill_focus": 0}
+                      "heal": H["flask"]["heal"], "block_st": 1.0, "iframes": 0.0, "revive_time": 1.0, "guard_arc": 1.0, "dash_charges": 0, "skill_cd": 1.0, "skill_focus": 0,
+                      "light_speed": 1.0, "roll_haste": 1.0, "light_pierce": 0, "light_shots": 0}
         self.dmg = defaultdict(lambda: 1.0)
         self.dmg["light"] *= 1 + 0.06 * a["fin"]
         self.dmg["heavy"] *= 1 + 0.07 * a["mig"]
@@ -45,7 +46,9 @@ class Build:
                 elif t == "stat":
                     if "add" in f: self.stats[f["key"]] += f["add"]
                     else: self.stats[f["key"]] *= f["mult"]
-                else: self.fx[t].append(f)
+                else:
+                    f["uid"] = uid
+                    self.fx[t].append(f)
         self.stats["flasks"] = int(round(self.stats["flasks"]))
 
     def dmg_mult(self, slot):
@@ -69,4 +72,8 @@ class Build:
                 "block_st": round(s["block_st"], 3), "iframes": round(s["iframes"], 3), "revive_time": round(s["revive_time"], 3),
                 "guard_arc": round(s["guard_arc"], 3), "perfect_st": round(sum(f["st"] for f in perfect)),
                 "focusback": round(sum(f["amt"] for f in self.get("focusback"))), "dodge": bool(self.get("dodge")),
-                "dash_charges": round(s["dash_charges"]), "skill_cd": round(s["skill_cd"], 3), "skill_focus": round(s["skill_focus"])}
+                "dash_charges": round(s["dash_charges"]), "skill_cd": round(s["skill_cd"], 3), "skill_focus": round(s["skill_focus"]),
+                "light_speed": round(s["light_speed"], 3), "roll_haste": round(s["roll_haste"], 3), "light_pierce": round(s["light_pierce"]),
+                "light_shots": round(s["light_shots"]),
+                # the extra attacks upgrades add (content/upgrades.py, `proc`): the browser looses them, the server prices them
+                "procs": [{"id": f["uid"], "when": f["when"], "cd": f.get("cd", 0), "proj": f.get("proj"), "aoe": f.get("aoe")} for f in self.get("proc")]}

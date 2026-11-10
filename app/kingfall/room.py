@@ -211,7 +211,8 @@ class Room:
         elif t == "resume" and c.id == self.host and self.state in ("lobby", "over"):
             self.resume(c, str(msg.get("id"))[:40])
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:
-            self.start_run(msg.get("only") if self.debug and msg.get("only") in C.BOSSES else None)
+            self.start_run(msg.get("only") if self.debug and msg.get("only") in C.BOSSES else None,
+                           [u for u in msg.get("ups") or [] if u in UPGRADES] if self.debug else None)
         elif self.state == "bonfire" and h:
             self.bonfire(h, t, msg)
         elif t == "debugwin" and self.debug and self.fight:
@@ -294,7 +295,7 @@ class Room:
         self.broadcast(self.lobby_wire())
 
     # ------------------------------------------------------------------ the run
-    def start_run(self, only=None):
+    def start_run(self, only=None, ups=None):
         self.run_id = secrets.token_hex(8)
         self.stage = 0
         self.result = None
@@ -312,6 +313,7 @@ class Room:
         for h in self.heroes.values():
             h.level, h.points, h.picks, h.offer, h.ups, h.ready = 1, 0, 0, [], [], False
             h.skills, h.skill_offer = [h.start_skill], []
+            if ups: h.ups = [(u, "common") for u in ups]   # debug rooms can start holding upgrades (tests)
             h.attrs = {a: 0 for a in ATTRS}
             h.changed()
             h.flasks = h.max_flasks()

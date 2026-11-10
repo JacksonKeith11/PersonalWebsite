@@ -59,6 +59,9 @@ Keep to these. They came from the owner directly.
   with a smoother roll they can steer; every weapon has a light combo that repeats while the button is
   held, as in Hades; boss attacks have sounds; the loadout can be changed in the lobby after a defeat.
 
+- **Blessings** (Nov 2026): one a hero's weapon can't use is never offered (no block upgrades for the
+  daggers); blessings should change how attacks play or add effects, not hand out flat stat bonuses.
+
 ## How it plays now
 
 ### A run
@@ -220,6 +223,18 @@ slot to replace when full) or `{t: 'learn', h, skip: 1}`.
 
 ### Upgrades (`content/upgrades.py`, applied in `build.py`)
 
+The owner calls these blessings. Only those a hero's weapon can use are offered (`usable`, `req`: block and
+parry upgrades need the sword or greatsword, guard upgrades a block or the halberd's counter, the longer
+roll an ordinary roll, Long Reach a melee weapon); changing weapon at a shrine doesn't remove ones already
+held. About twenty that were flat bonuses now add an attack or an effect instead (`proc` effects: the
+browser looses them in `LocalHero.proc`, the server prices them as `atk: 'proc', p: <id>` at 20 x `pow`):
+a wave of fire or a shockwave on the light combo's last hit, an eruption, lightning or a ground wave on a
+fully charged heavy, ice shards or a pool of rot on any heavy, fire left behind a roll or thunder where it
+ends, frost bursting from a block or from drinking, an echo striking after a roll through a hit. Others:
+Momentum (each combo hit deals more than the last), faster light attacks, Tailwind (speed after a roll),
+heals when your Burn or Rot takes hold, Unbowed (once a fight, survive a downing hit), piercing light
+arrows, an extra bolt on every catalyst cast. When adding one, prefer these to a flat `dmg` or `stat`.
+
 100 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
 special, dodge, guard; and four passives), ten plain passives (five of them for skills: quicker cooldowns, more damage, a heal, a ward or Focus on
 use), six Pacts (only offered to parties of two
@@ -375,6 +390,9 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   error. Skipped (not failed) where Playwright isn't installed. Without `--serve` it runs against a
   server you started. It doesn't cover going down and being revived, couch players, or a reconnect.
   (The game reuses one fight scene object across fights: anything a test hangs on it outlives the fight.)
+- In a debug room the start message takes `ups: [upgrade ids]`: every hero begins holding them (how the
+  proc upgrades were checked in a browser). Sim bots count finisher and heavy procs roughly; roll, guard,
+  flask and perfect-dodge procs aren't played by bots.
 - `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the
   fight, `window.kf.safe()` makes this fight's boss walk about without ever attacking (for tests that
   stand and look).

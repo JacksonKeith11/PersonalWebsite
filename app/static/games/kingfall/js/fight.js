@@ -1,13 +1,13 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=15';
-import { LocalHero, RemoteHero } from './hero.js?v=15';
-import { Boss } from './boss.js?v=15';
-import { drawArena } from './arenas.js?v=15';
-import { sfx } from './audio.js?v=15';
-import { music } from './music.js?v=15';
-import { deviceOfSlot } from './input.js?v=15';
-import { orb, arrow, impact, pillar } from './fx.js?v=15';
+import { addFrames } from './rig.js?v=17';
+import { LocalHero, RemoteHero } from './hero.js?v=17';
+import { Boss } from './boss.js?v=17';
+import { drawArena } from './arenas.js?v=17';
+import { sfx } from './audio.js?v=17';
+import { music } from './music.js?v=17';
+import { deviceOfSlot } from './input.js?v=17';
+import { orb, arrow, impact, pillar, pool } from './fx.js?v=17';
 
 const INTERP = 0.1;
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
@@ -212,6 +212,7 @@ export class FightScene extends Phaser.Scene {
         break;
       case 'heal': sfx.heal(); this.burst(m.x, m.y - 20, 0x8be04e, 14); break;
       case 'down': sfx.down(); this.number(m.x, m.y - 46, 'Down!', '#e05050', true); if (mine) mine.down = true; break;  // at once, not at the next snapshot
+      case 'unbowed': sfx.parry(this.pan(m.x)); this.number(m.x, m.y - 56, 'Unbowed', '#b8c0cc', true); this.burst(m.x, m.y - 20, 0xb8c0cc, 16); break;
       case 'secondwind': this.number(this.byId[m.h]?.x || 0, (this.byId[m.h]?.y || 0) - 56, 'Second Wind', '#ffd23f', true); break;
       case 'revive': sfx.revive(); this.burst(m.x, m.y - 20, 0xffd23f, 16); break;
       case 'core':
@@ -281,11 +282,12 @@ export class FightScene extends Phaser.Scene {
   onHit(hero, kind, tg) {
     sfx.hit(this.pan(tg.x));
     const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.kind === 'body' && !tg.seg ? 30 : 10);
-    this.burst(ix, iy, 0xfff0c0, kind === 'light' ? 6 : 12);
-    this.impact(ix, iy, hero.aim, kind !== 'light', hero.view ? hero.view.colour : 0xffffff);
+    const small = kind === 'light' || kind.startsWith('proc:');   // an upgrade's extra hit lands as lightly as a light
+    this.burst(ix, iy, 0xfff0c0, small ? 6 : 12);
+    this.impact(ix, iy, hero.aim, !small, hero.view ? hero.view.colour : 0xffffff);
     if (tg.b) tg.b.flash = 0.04;
-    this.stop = kind === 'light' ? 0.045 : 0.08;
-    this.cfg.input.rumble(hero.dev, kind === 'light' ? 0.25 : 0.5, 70);
+    this.stop = Math.max(this.stop, small ? 0.045 : 0.08);
+    this.cfg.input.rumble(hero.dev, small ? 0.25 : 0.5, 70);
   }
 
   // ------------------------------------------------------------------ the frame
@@ -302,7 +304,7 @@ export class FightScene extends Phaser.Scene {
       onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
       onDenied: () => sfx.uiBack(),
       onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
-      onBoom: (x, y, r) => { this.burst(x, y - 8, 0xc080ff, 20); this.rings.push({ x, y, r, life: 0.3 }); sfx.slam(this.pan(x)); },
+      onBoom: (x, y, r, col) => { const c = col ? aoeCol(col) : 0xc080ff; this.burst(x, y - 8, c, col ? 12 : 20); this.rings.push({ x, y, r, life: 0.3, col: c }); sfx.slam(this.pan(x)); },
     };
     for (const l of this.local) {
       const before = l.state;
@@ -321,12 +323,14 @@ export class FightScene extends Phaser.Scene {
           l.perfects.add(id);
           if (l.S.perfect_st) { l.st = Math.min(l.maxSt, l.st + l.S.perfect_st); this.number(l.x, l.y - 50, 'Perfect', '#fff0c0'); }
           this.net.send({ t: 'perfect', h: l.id });
+          l.proc('perfect', ctx);
         }
         const r = l.takeHit(h, bx, by);
         if (!r) return false;
         this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' || r === 'counter' ? 1 : 0, parry: r === 'parry' ? 1 : 0, counter: r === 'counter' ? 1 : 0 });
         if (r === 'counter') { sfx.parry(this.pan(l.x)); this.number(l.x, l.y - 46, 'Counter!', '#fff0c0', true); }
         if (r === 'parry') this.stop = 0.12;
+        if (r !== 'hurt') l.proc('guard', ctx);
         return true;
       });
     }
@@ -351,13 +355,18 @@ export class FightScene extends Phaser.Scene {
     if (cam0.zoom !== z) cam0.setZoom(z);
     for (const l of this.local) {
       for (const s of l.shots) this.drawShot(s.x, s.y, s.a, s.r, s.col);
-      for (const A of l.aoes) { const p = 0.5 + 0.5 * Math.sin(time / 60), c = aoeCol(A.col); sg.fillStyle(c, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, c, 0.7).strokeCircle(A.x, A.y, A.r); }
+      for (const A of l.aoes) {
+        const p = 0.5 + 0.5 * Math.sin(time / 60), c = aoeCol(A.col);
+        if (A.pool) { pool(this.shotFloor, this.shotGlow, { cx: A.x, cy: A.y, r: A.r }, c, 1, time / 1000); continue; }  // an upgrade's lingering fire or rot
+        sg.fillStyle(c, 0.1 + 0.08 * p).fillCircle(A.x, A.y, A.r); sg.lineStyle(2, c, 0.7).strokeCircle(A.x, A.y, A.r);
+      }
     }
     this.remoteShots = this.remoteShots.filter(s => {
       s.life -= dtReal;
       if (s.k === 'proj') { s.x += Math.cos(s.a) * s.v * dtReal; s.y += Math.sin(s.a) * s.v * dtReal; this.drawShot(s.x, s.y, s.a, s.r, s.col); }
       else {
         const c = aoeCol(s.col);
+        if (s.p === 2) { pool(this.shotFloor, this.shotGlow, { cx: s.x, cy: s.y, r: s.r }, c, Math.min(1, s.life * 3), time / 1000); return s.life > 0; }
         sg.fillStyle(c, 0.12).fillCircle(s.x, s.y, s.r); sg.lineStyle(2, c, 0.6).strokeCircle(s.x, s.y, s.r);
         if (s.p && s.life <= 0) this.pillarAt(s.x, s.y, s.r, s.col);
       }

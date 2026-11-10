@@ -92,6 +92,7 @@ class FHero:
         self.empowered = None       # (damage mult, until) for the next hit
         self.vengeance = (1.0, 0.0)
         self.shield = 0
+        self.unbowed = False        # the Unbowed blessing has saved them this fight
         self.skill_used = {}        # skill id -> when it was last used (cooldowns start afresh each fight)
 
 
@@ -232,6 +233,10 @@ class Fight:
             if not s or "mult" not in s or s["id"] not in fh.hero.skills: return None
             if now - fh.skill_used.get(s["id"], -99.0) > SKILL_LIVE: return None
             return s["mult"] * SKILL_BASE / w["base"], s["poise"], "special"
+        if kind == "proc":   # an upgrade's extra attack: priced like a skill, whatever the weapon
+            f = next((x for x in fh.hero.build().get("proc") if x["uid"] == msg.get("p")), None)
+            if not f: return None
+            return f["pow"] * SKILL_BASE / w["base"], f.get("poise", 4), "proc"
         if kind == "guard" and "mult" in w["guard"]:  # the halberd's counter, the bow's roll-shot
             return w["guard"]["mult"], w["guard"].get("poise", 8), kind
         return None
@@ -269,6 +274,8 @@ class Fight:
         crit = b.state == "stagger" and slot in ("heavy", "special") and hid not in b.crit_by
         if crit: b.crit_by.add(hid)  # one critical each per stagger; the stagger runs its full length
         mult *= build.dmg_mult(slot)
+        if slot == "light" and isinstance(msg.get("i"), int):   # Momentum: each hit of the combo more than the last
+            for x in build.get("ramp"): mult *= x["mult"] ** max(0, min(6, msg["i"]))
         if msg.get("atk") == "skill": mult *= build.dmg["skill"]
         poise *= build.poise_mult(slot)
         h = fh.hero
@@ -319,6 +326,9 @@ class Fight:
         if msg.get("atk") == "skill":  # a skill builds its own status, not the special's
             st = SKILLS[msg["sk"]].get("status")
             if st: self.build_status(b, st[0], st[1] * build.buildup, now, fh)
+        elif msg.get("atk") == "proc":  # and so does an upgrade's extra attack
+            f = next((x for x in build.get("proc") if x["uid"] == msg.get("p")), None)
+            if f and f.get("kind"): self.build_status(b, f["kind"], f["amt"] * build.buildup, now, fh)
         else:
             own = C.WEAPONS[h.weapon].get("status", {}).get(slot)   # the weapon's own (the daggers' Bleed)
             for s in ([own] if own else []) + build.status[slot]: self.build_status(b, s[0], s[1] * build.buildup, now, fh)
@@ -413,6 +423,8 @@ class Fight:
             b.rot_until = now + 5.0
             b.rot_dps = 26 * scale * mult
             b.rot_blocks_poise = bool(build.get("vsstatus_poise"))
+        for x in build.get("burstheal"):
+            if x["kind"] == kind: self.heal(fh, x["amt"])
         for x in build.get("procbuild"):
             if x["on"] == kind: self.build_status(b, x["kind"], x["amt"], now, fh)
         if dmg:
@@ -518,7 +530,13 @@ class Fight:
         h.hp = max(0, h.hp - round(dmg))
         self.room.broadcast({"t": "fx", "k": "hurt", "h": hid, "dmg": round(dmg), "x": round(fh.x), "y": round(fh.y)})
         if h.hp <= 0:
-            self.knock_down(fh, now)
+            saved = None if fh.unbowed else next(iter(fh.hero.build().get("unbowed")), None)
+            if saved:   # Unbowed: once a fight, left standing
+                fh.unbowed = True
+                h.hp = min(h.mhp(), max(1, round(saved["amt"])))
+                self.room.broadcast({"t": "fx", "k": "unbowed", "h": hid, "x": round(fh.x), "y": round(fh.y)})
+            else:
+                self.knock_down(fh, now)
 
     def add_hit(self, fh, key):
         """An add touched a hero: 'a<id>:<n>' (n counts seconds of contact)."""

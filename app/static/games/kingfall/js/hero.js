@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=15';
-import { placeAttack, touches, wrap } from './moves.js?v=15';
-import { crescent, lance, burst } from './fx.js?v=15';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=17';
+import { placeAttack, touches, wrap } from './moves.js?v=17';
+import { crescent, lance, burst } from './fx.js?v=17';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -211,6 +211,9 @@ export class LocalHero {
     this.parryWin = 0;        // this press's parry window, in seconds
     this.shots = [];      // this hero's projectiles in flight
     this.aoes = [];       // area hits waiting to land (arrow rain)
+    this.procs = this.S.procs || [];  // the extra attacks this hero's upgrades add (content/upgrades.py, `proc`)
+    this.procAt = {};     // upgrade id -> when it last went off (for those with a cooldown)
+    this.haste = 0;       // seconds of Tailwind left after a roll
     const G = this.W.guard;
     this.dashes = (G.charges || 0) + (this.S.dash_charges || 0); this.dashT = 0;
   }
@@ -251,7 +254,9 @@ export class LocalHero {
   update(dt, ctx) {
     const d = ctx.input.get(this.dev);
     const H = this.HERO, W = this.W, G = W.guard;
-    this.t += dt; this.anT += dt;
+    const quick = this.state === 'atk' ? this.S.light_speed || 1 : 1;   // light attacks play faster with some upgrades
+    this.t += dt * quick; this.anT += dt * quick;
+    this.haste = Math.max(0, this.haste - dt);
     this.flash = Math.max(0, this.flash - dt);
     if (this.stWait > 0) this.stWait -= dt; else this.st = Math.min(this.maxSt, this.st + H.st_regen * (this.S.st_regen || 1) * dt);
     const maxDash = (G.charges || 0) + (this.S.dash_charges || 0);
@@ -287,7 +292,7 @@ export class LocalHero {
 
     const move = d.move;
     const speedK = this.S.speed || 1;
-    let speed = H.speed * speedK;
+    let speed = H.speed * speedK * (this.haste > 0 ? this.S.roll_haste || 1 : 1);
     const setState = s => { this.state = s; this.t = 0; this.anT = 0; };
 
     // The parry window opens at the press of block, wherever the hero is in an attack or a roll, so
@@ -343,6 +348,8 @@ export class LocalHero {
         if (this.t >= dur) {
           const q = this.queued; this.queued = null;
           setState('idle');
+          this.haste = 2;
+          this.proc('roll_end', ctx);
           if (this.S.dodge) ctx.send({ t: 'dodge', h: this.id, x0: Math.round(this.rollFrom[0]), y0: Math.round(this.rollFrom[1]), x1: Math.round(this.x), y1: Math.round(this.y) });
           if (G.kind === 'rollshot') this.fire({ v: 380, r: 4, life: 0.9 }, 'guard', ctx);
           if (q === 'dodge') this.tryRoll(move, ctx);
@@ -359,6 +366,12 @@ export class LocalHero {
           this.x += Math.cos(this.aim) * s * dt; this.y += Math.sin(this.aim) * s * dt;
         }
         this.checkHit(atk, ctx);
+        // what upgrades add to a strike, loosed once as it lands: on the combo's last light, on a heavy
+        if (atk.hit && this.t >= atk.hit[0] && this.swing && !this.swing.proc) {
+          this.swing.proc = true;
+          if (this.state === 'atk' && this.combo === W.light.length - 1) this.proc('finisher', ctx);
+          if (this.state === 'heavy') { this.proc('heavy', ctx); if (this.chargeU >= 0.99) this.proc('heavy_full', ctx); }
+        }
         if (this.state !== 'cstrike') {
           if (d.pressed('light')) this.queued = 'light';
           if (d.pressed('dodge')) this.queued = 'dodge';
@@ -426,7 +439,7 @@ export class LocalHero {
         const q = this.queued; this.queued = null;   // the special or a drink asked for mid-attack
         if ((d.pressed('special') || q === 'special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
         if (this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0)) { const S = this.skillBuf.S; this.skillBuf = null; this.useSkill(S, move, ctx); break; }
-        if ((d.pressed('heal') || q === 'heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
+        if ((d.pressed('heal') || q === 'heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); this.proc('flask', ctx); break; }
         // light: a press, or the button held (after a roll, a skill or a drink the combo picks straight back up)
         if (d.pressed('light') || (d.held('light') && !d.held('heavy'))) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (G.kind === 'block' && d.held('block')) { setState('block'); break; }
@@ -514,6 +527,28 @@ export class LocalHero {
     }
   }
 
+  // Loose every extra attack this hero's upgrades hang on `when` (finisher, heavy, heavy_full, roll_end,
+  // guard, perfect, flask): a projectile along the aim, or an area hit. An area lands `at` px ahead (for
+  // a bow or catalyst, on what's aimed at), or halfway back along the roll just made (`mid`). The server
+  // prices each hit from the upgrade (atk 'proc').
+  proc(when, ctx) {
+    for (const P of this.procs) {
+      if (P.when !== when) continue;
+      if (P.cd && ctx.now - (this.procAt[P.id] ?? -99) < P.cd) continue;
+      this.procAt[P.id] = ctx.now;
+      const kind = 'proc:' + P.id;
+      if (P.proj) this.fire(P.proj, kind, ctx);
+      if (P.aoe) {
+        const A = P.aoe, far = when.startsWith('heavy') && this.W.heavy.proj && this.aimDist != null;
+        const at = far ? Math.min(260, this.aimDist) : A.at;
+        let x = this.x + Math.cos(this.aim) * at, y = this.y + Math.sin(this.aim) * at;
+        if (A.mid && this.rollFrom) { x = (this.x + this.rollFrom[0]) / 2; y = (this.y + this.rollFrom[1]) / 2; }
+        this.aoes.push({ x, y, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind, col: A.col, pillar: !!A.pillar, boom: !!A.boom, pool: A.ticks > 1 });
+        ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(x), y: Math.round(y), r: A.r, life: A.delay + (A.ticks - 1) * A.every + 0.05, col: A.col, p: A.pillar ? 1 : A.ticks > 1 ? 2 : 0 });
+      }
+    }
+  }
+
   // which attack a hit is reported as; a skill's is 'skill:<id>'
   slot() { return this.state === 'skill' ? 'skill:' + this.skill.id : { atk: 'light', heavy: 'heavy', special: 'special', cstrike: 'guard' }[this.state] || 'light'; }
 
@@ -546,6 +581,7 @@ export class LocalHero {
   // send a hit for everything shape s touches that this swing hasn't struck yet
   strike(s, kind, swing, ctx) {
     const base = kind.startsWith('skill:') ? { h: this.id, atk: 'skill', sk: kind.slice(6), sw: swing.seq }
+      : kind.startsWith('proc:') ? { h: this.id, atk: 'proc', p: kind.slice(5), sw: swing.seq }
       : { h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: swing.seq };
     let any = false;
     for (const tg of ctx.boss.targets(ctx.now)) {
@@ -561,9 +597,12 @@ export class LocalHero {
   }
 
   fire(P, kind, ctx) {
-    const n = P.n || 1;
+    // upgrades: light arrows that pierce, an extra bolt on every light cast
+    const light = kind === 'light', more = light ? this.S.light_shots || 0 : 0;
+    if (light && this.S.light_pierce) P = { ...P, pierce: true };
+    const n = (P.n || 1) + more, spread = P.spread || (more ? 12 : 0);
     for (let i = 0; i < n; i++) {
-      const a = this.aim + ((P.spread || 0) * (i - (n - 1) / 2)) * Math.PI / 180;
+      const a = this.aim + (spread * (i - (n - 1) / 2)) * Math.PI / 180;
       const shot = { x: this.x + Math.cos(a) * 12, y: this.y + Math.sin(a) * 12, a, v: P.v, r: P.r, life: P.life, pierce: P.pierce, boom: P.boom,
         col: P.col, kind, combo: this.combo, c: this.chargeU || 0, swing: { seq: ++swingSeq, struck: new Set() } };
       this.shots.push(shot);
@@ -591,6 +630,7 @@ export class LocalHero {
       if (A.wait <= 0 && A.ticks > 0) {
         A.ticks--; A.wait = A.every;
         if (A.pillar) ctx.onPillar(A.x, A.y, A.r, A.col);
+        else if (A.boom) ctx.onBoom(A.x, A.y, A.r, A.col);
         this.strike({ k: 'circle', cx: A.x, cy: A.y, r: A.r }, A.kind, { seq: ++swingSeq, struck: new Set() }, ctx);
       }
     }

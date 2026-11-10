@@ -253,6 +253,15 @@ def land(b, f, now, target, body, near_add, core_i, bx, by, d, toward):
             f.hit_boss(fh.hero.id, {**msg, "e": body.e, "core": core_i}, now)
             mult = atk["mult"][1] if isinstance(atk["mult"], tuple) else atk["mult"]
             if kind != "special": b.focus = min(100.0, b.focus + b.W["base"] * mult * C.HERO["focus_per_dmg"])
+    # What upgrades hang on this strike (content/upgrades.py, `proc`): a rough count, as for skills. One
+    # hit (two ticks of a pool) if the attack landed. Roll, guard, flask and perfect-dodge procs aren't played.
+    if hits and target[0] != "add":
+        whens = {"light": ["finisher"] if b.combo == len(b.W["light"]) - 1 else [], "heavy": ["heavy", "heavy_full"]}.get(kind, [])
+        for P in fh.hero.build().get("proc"):
+            if P["when"] not in whens: continue
+            for _ in range(2 if P.get("aoe", {}).get("ticks", 1) > 1 else 1):
+                b.swing += 1
+                f.hit_boss(fh.hero.id, {"atk": "proc", "p": P["uid"], "sw": b.swing, "e": body.e, "core": core_i}, now)
 
 
 def use_skill(b, f, now, d, body, target, bots):

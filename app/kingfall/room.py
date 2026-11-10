@@ -183,7 +183,7 @@ class Room:
             return
         h = self.heroes.get(msg.get("h")) if "h" in msg else None
         if h is not None and h.conn is not c: return
-        if t == "add" and self.state == "lobby":
+        if t == "add" and self.state in ("lobby", "over"):
             if len(self.heroes) >= MAX_HEROES: return
             slot = msg.get("slot") if isinstance(msg.get("slot"), int) else 0
             if any(x.conn is c and x.slot == slot for x in self.heroes.values()): return
@@ -196,13 +196,13 @@ class Room:
             if msg.get("skill") in SKILLS: hero.start_skill = msg["skill"]
             self.heroes[hero.id] = hero
             self.broadcast(self.lobby_wire())
-        elif t == "set" and h and self.state == "lobby":
+        elif t == "set" and h and self.state in ("lobby", "over"):
             if msg.get("look") in LOOKS: h.look = msg["look"]
             if msg.get("weapon") in C.WEAPONS: h.weapon = msg["weapon"]
             if msg.get("skill") in SKILLS: h.start_skill = msg["skill"]
             if msg.get("name") is not None: h.name = clean(msg.get("name"), 16) or h.name
             self.broadcast(self.lobby_wire())
-        elif t == "drop" and h and self.state == "lobby":
+        elif t == "drop" and h and self.state in ("lobby", "over"):
             del self.heroes[h.id]
             self.broadcast(self.lobby_wire())
         elif t == "diff" and c.id == self.host and self.state in ("lobby", "over") and msg.get("d") in DIFFS:
@@ -341,6 +341,7 @@ class Room:
                 if f.over == "won" and now >= f.until:
                     self.end_fight(True)
                 elif f.over == "lost":
+                    self.broadcast(f.snapshot(now))  # the last word: everyone is down (or the last to fall could walk on)
                     await asyncio.sleep(3.0)
                     self.end_fight(False)
                 await asyncio.sleep(TICK)

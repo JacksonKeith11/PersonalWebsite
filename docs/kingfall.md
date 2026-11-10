@@ -54,13 +54,20 @@ Keep to these. They came from the owner directly.
 - **Skills** (Nov 2026): abilities on cooldowns, shared across all weapons, chosen after each fight; a
   hero carries at most two and swaps one out when over the limit.
 
+- **Feel and HUD** (Nov 2026, after the owner played): flasks left and cooldowns shown somewhere obvious,
+  at the bottom left, each player seeing only their own unless they share a screen; heroes move faster
+  with a smoother roll they can steer; every weapon has a light combo that repeats while the button is
+  held, as in Hades; boss attacks have sounds; the loadout can be changed in the lobby after a defeat.
+
 ## How it plays now
 
 ### A run
 
 The host makes a room; friends join by code, couch players press Start on a controller. Each hero picks a
 look (knight, pilgrim, witch hunter, sellsword; tinted in their player colour) and a weapon. The host picks
-the difficulty (Squire, Knight, Hard) and begins, or resumes a saved run.
+the difficulty (Squire, Knight, Hard) and begins, or resumes a saved run. When a run ends (lost or won) the room
+returns to the same lobby screen (`state` "over"), where everyone can change look, weapon and starting skill, join or
+leave before the host fights again.
 
 A run draws two bosses from each tier, then a final (`POOLS`, `TIERS` in `room.py`):
 
@@ -81,13 +88,21 @@ run ends.
 ### Combat
 
 - **Heroes** (`HERO` in `content/__init__.py`): 100 health, 100 stamina (refills 0.6 s after spending),
-  92 px/s. Roll: 0.42 s, 74 px, invulnerable 0.03-0.32 s, 25 stamina. Flask: 3 charges, heals 45% after
+  116 px/s. Roll: 0.38 s, 92 px, invulnerable 0.02-0.29 s, 22 stamina; it starts at 1.5x its average
+  speed and eases down to half (about a run), bends toward the stick at 200 degrees a second, and a light,
+  heavy or roll pressed during it happens the moment it ends. A roll also cuts short the recovery of a
+  heavy or special once it has struck. Flask: 3 charges, heals 45% after
   0.75 s of a 1 s drink, spilled if hit. Downed: 15 s to be revived (hold interact 2 s next to them; costs
   the reviver 25% of their health; they rise at 30%). Solo heroes get one Second Wind a run (not on Hard).
+- **Light combos repeat while held** (`update` in `js/hero.js`): holding light runs the combo and starts
+  it again after the last hit; each swing re-aims as it starts. Lights cost no stamina (stamina is for
+  rolls, heavies, blocks and counters), so a held combo never stalls. A skill, the special, a drink, a
+  heavy or a roll pressed mid-combo goes off at the next gap, ahead of the held light.
 - **Poise and stagger** (the owner asked for staggers to be rarer and longer). Every hit wears a boss's
   poise (its written poise x `POISE_K` 2.6 x the party scale); at zero it staggers for 5 s, shown by a
   ring counting down over its head. During a stagger each hero's first heavy or special is a
-  **critical** (x3); the stagger runs its full length and takes no poise damage. Each stagger makes the
+  **critical** (x3); the stagger runs its full length and takes no poise damage; a boss beaten past a phase threshold while
+  reeling changes phase when the stagger ends, not before (it used to cut the stagger short). Each stagger makes the
   next need 25% more. Poise refills (12% a second) after 3 s without poise damage. About two to four (see Testing)
   staggers a fight.
 - **Parrying** (sword and greatsword; `takeHit` in `js/hero.js`, `HERO["parry"]`): a hit that lands
@@ -131,12 +146,22 @@ run ends.
 - **Difficulty** (`DIFFS` in `room.py`): Squire 0.75 health, 0.7 damage, 0.9 speed; Knight as designed;
   Hard 1.15 health, 1.25 damage, 1.12 speed, no Second Wind.
 
+### The HUD (`buildHud`, `updateHud` in `js/ui.js`)
+
+- **Your heroes are at the bottom left**: one panel online, one per couch player side by side. Each has
+  health (with numbers; it pulses under 30%), stamina, Focus, the daggers' dash pips, then tiles with the
+  key to press: the flask (a big count of what's left, red at none), each skill (a shade sweeps away as
+  it cools down, with the seconds) and the special (shaded until there's Focus for it).
+- **Everyone else** is a small card at the top left (name, health, flasks as dots, buffs, downed text).
+- **The boss's bars are top centre** (they were at the bottom, where the panels now go). The camera may
+  scroll 56 px below the floor so a hero at the bottom wall isn't under a panel.
+
 ### Weapons (`content/weapons.py`)
 
 | Weapon | Light | Heavy (hold) | Special (Focus) | Defensive |
 |---|---|---|---|---|
 | Sword & Shield | 3-hit combo | rising slash | Shield Bash | block, parry in the first 0.18 s |
-| Greatsword | 2 wide swings | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
+| Greatsword | 2 wide swings, an overhead chop | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
 | Twin Daggers | 5-hit flurry, every cut building Bleed | backstep cut | Shadowstep (blink and cut) | a dash with 3 charges instead of a roll: 0.28 s, untouchable throughout, a charge back every 0.8 s |
 | Halberd | thrusts, a sweep | 270° sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
 | Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow |
@@ -158,7 +183,7 @@ with (Ember Lance unless they change it; the keyboard player's choice is remembe
 fight each hero is offered three they don't know and may learn one or pass; a hero carries two
 (`MAX_SKILLS`), so with two already each card offers "Replace <skill>" for either slot. The shop
 redraws the offer for 30 coins. Skills are kept in the save. Cooldowns start afresh each fight and show
-on the hero's HUD card.
+on the hero's HUD panel.
 
 - **Keys.** Slot 1 is Z or 1 (LT on a controller), slot 2 is X or 2 (A on a controller, or the D-pad).
   A is also revive: beside a fallen ally, holding it only revives. There's no rebinding.
@@ -251,6 +276,12 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   `lean`, `dy`, `z` (height: leaps, flight), `front` (shield/bell in front) and `run` (legs cycle).
 - Arenas are drawn in the browser on a canvas (`js/arena.js` for the chapel, `js/arenas.js` for the rest).
 - Music (`js/music.js`) and sounds (`js/audio.js`) are synthesized as they play.
+- **Boss attacks are heard** (`sounds` in `js/boss.js`, `sfx.boss` in `js/audio.js`): a breath drawn in
+  through the wind-up, a ping with the glint (a sour low one if the move can't be blocked), then each
+  hit's own sound as it starts, by shape: a whoosh for a swing, a sharp one for a thrust, a thump for a
+  slam, a rolling boom for a ring, a zip for a projectile, a crash for an area landing on its mark, a
+  hiss for a pool, a chirp for adds; lower for bigger hits, with a roar of flame for fire. They play
+  from the move's timeline, panned to where the hit is; hits of one kind within 60 ms sound once.
 
 ## Code map
 
@@ -322,6 +353,10 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   100/100, Bellwarden 88/75, Headsmen 100/88, Wolf 100/100, Alchemist 75/75, Wyrm 100/100, Mirror
   88/100, Bastion 62/100, Moth 100/100, King 75/100, Drake 100/88), level with the sword, greatsword
   and halberd. If they now feel too strong, take the base back toward 14 first.
+- **After the faster heroes and longer roll** (Nov 2026, sword parties, 10 fights each at skill 0.85,
+  solo / 2 / 3 / 4): Mirror 80/100/100/100, Bastion 60/80/90/100, Moth 90/90/80/100, King
+  90/90/100/100, Drake 80/50/80/90; staggers 1.3 to 4.7 a fight. Much as before: bots never ran out of
+  stamina and dodge by timing, so they gain little from speed. A person will find it easier.
 - **Earlier numbers** (Nov 2026, sword parties before bots used heavies; 12 fights each at skill 0.85;
   solo / 2 / 3 / 4): Corvin 67/67/92/100, Headsmen 67/75/92/100, Alchemist 67/100/100/100, the rest
   83-100. Middling bots (skill 0.6) won a third to a half of Corvin, the Headsmen, the Wyrm, the
@@ -373,4 +408,8 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
 - **A new skill** needs only an entry in `content/skills.py` if it's built from the existing pieces
   (`shape`, `proj`, `aoe`, `blink`, `empower`, `rally`, `heal`, `ward`, `status`; poses `cast` and
   `raise`; `stamina` and `focus` are applied by the browser). Animation names reach the server cut to 12 characters, so keep ids to 10 or fewer.
+- **The last snapshot of a lost fight must go out.** The loop sends a snapshot every other tick; when the
+  last hero fell on an off tick, their browser never heard they were down and they could walk about for
+  the three seconds before the lobby. The loop now sends one on losing, and the browser downs its own
+  hero on the `down` and `wipe` events without waiting.
 - The fight lives in one process's memory; a deploy drops it (the run resumes from the last Bonfire).

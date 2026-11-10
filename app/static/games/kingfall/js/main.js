@@ -1,11 +1,11 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=13';
-import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=13';
-import { Net, ME } from './net.js?v=13';
-import { FightScene } from './fight.js?v=13';
-import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=13';
-import { unlock, sfx, setVolume } from './audio.js?v=13';
-import { music } from './music.js?v=13';
+import { setAtlas } from './rig.js?v=15';
+import { Input, slotOf, padName, skillKey, deviceOfSlot } from './input.js?v=15';
+import { Net, ME } from './net.js?v=15';
+import { FightScene } from './fight.js?v=15';
+import { show, hide, navFrame, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=15';
+import { unlock, sfx, setVolume } from './audio.js?v=15';
+import { music } from './music.js?v=15';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -218,6 +218,7 @@ function lobby() {
   const over = L.state === 'over';
   const el = show(`<div class="screen">
     ${over ? `<h2 style="color:${L.result === 'won' ? 'var(--gold2)' : '#c03030'}">${L.result === 'won' ? 'The run is won' : 'The party has fallen'}</h2>` : ''}
+    ${over ? '<div class="hint" style="margin:-6px 0 10px">Change your look, weapon or starting skill below before you fight again.</div>' : ''}
     <div class="row" style="justify-content:space-between">
       <div><h3 style="margin-top:0">Room</h3><div class="code-big">${esc(S.code)}</div></div>
       <button class="btn" id="copy" data-nav>Copy invite link</button>
@@ -249,14 +250,14 @@ function lobby() {
     const info = document.createElement('div');
     info.innerHTML = `<div class="name">${esc(h.name)}</div>
       <div class="sub">${own ? (h.slot === 0 ? 'Keyboard & mouse' : padName('pad' + (h.slot - 1))) : 'Online'} · ${esc(LOOK_NAMES[h.look])} · ${esc(W.name)} · ${esc(data.skills[h.start_skill].name)}</div>
-      ${own && !over ? `<div style="margin-top:6px"><span class="pick"><button class="btn" data-nav data-lr data-look="${h.id}">◀ ${esc(LOOK_NAMES[h.look])} ▶</button></span>
+      ${own ? `<div style="margin-top:6px"><span class="pick"><button class="btn" data-nav data-lr data-look="${h.id}">◀ ${esc(LOOK_NAMES[h.look])} ▶</button></span>
         <span class="pick"><button class="btn" data-nav data-lr data-weap="${h.id}">◀ ${esc(W.name)} ▶</button></span>
         <span class="pick"><button class="btn" data-nav data-lr data-skill="${h.id}" style="border-color:${data.skills[h.start_skill].col}">◀ ${esc(data.skills[h.start_skill].name)} ▶</button></span></div>
         <div class="hint" style="margin-top:4px">${esc(W.blurb || '')}</div>
         <div class="hint">Starting skill: ${esc(data.skills[h.start_skill].text)}</div>` : ''}`;
     row.appendChild(info);
     const right = document.createElement('div');
-    if (own && !over) right.innerHTML = `<button class="btn" data-nav data-drop="${h.id}">Remove</button>`;
+    if (own) right.innerHTML = `<button class="btn" data-nav data-drop="${h.id}">Remove</button>`;
     row.appendChild(right);
     list.appendChild(row);
   }
@@ -347,7 +348,7 @@ function startFight(m) {
   S.starting = true; S.pending = [];
   const heroes = S.lobby.heroes;
   const boss = S.data.bosses[m.boss];
-  buildHud(boss, heroes, S.data.colours, heroes.filter(h => h.conn === S.me).map(h => h.id), S.data.skills);
+  buildHud(boss, heroes, S.data.colours, heroes.filter(h => h.conn === S.me).map(h => h.id), S.data.skills, S.data.weapons);
   game.scene.start('fight', {
     net, input, data: S.data, fight: m, heroes, me: S.me, zoom,
     onReady: sc => { S.scene = sc; S.starting = false; for (const p of S.pending) sc.onMsg(p); S.pending = []; },

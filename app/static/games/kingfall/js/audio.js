@@ -70,7 +70,30 @@ export const sfx = {
     else if (kind === 'delayed') { tone('sine', 300, 600, 0.9, 0.12, 0, pan); hiss(2000, 6000, 3, 0.9, 0.06, 'bandpass', pan); }
     else if (kind === 'guard') { tone('square', 120, 110, 0.15, 0.2, 0, pan); }
     else if (kind === 'embers' || kind === 'phase2') { hiss(300, 2000, 0.6, 0.7, 0.3, 'bandpass', pan); tone('sawtooth', 55, 110, 0.7, 0.2, 0, pan); }
-    else { tone('triangle', 260, 240, 0.08, 0.1, 0, pan); }
+  },
+  // A boss's attacks, one sound per kind of hit (boss.js plays them as each hit starts), sized by the
+  // hit: a bigger swing whooshes lower, a bigger slam thumps deeper. `fire` adds a roar of flame,
+  // `heavy` (it can't be blocked) a low growl under it.
+  boss: {
+    // the wind-up: a breath drawn in that rises until the strike (dur = how long that is)
+    windup: (pan, dur, heavy) => { hiss(180, heavy ? 700 : 1100, 1.4, dur, heavy ? 0.16 : 0.1, 'bandpass', pan); if (heavy) tone('sawtooth', 48, 82, dur, 0.14, 0, pan); },
+    // the glint just before the first strike: a bright ping, or a sour low one if it can't be blocked
+    glint: (pan, heavy) => heavy ? (tone('square', 196, 185, 0.22, 0.16, 0, pan), tone('square', 277, 262, 0.22, 0.12, 0, pan))
+      : (tone('triangle', 1560, 1500, 0.16, 0.14, 0, pan), tone('sine', 2340, 2300, 0.12, 0.07, 0, pan)),
+    arc: (pan, size, o) => { const k = Math.max(0.5, Math.min(1.6, 60 / size)); hiss(380 * k, 1900 * k, 0.9, 0.26, 0.5, 'bandpass', pan); tone('sine', 130 * k, 60, 0.2, 0.22, 0.02, pan); sfx.boss.extra(pan, o); },
+    rect: (pan, size, o) => { hiss(1400, 3600, 1.6, 0.14, 0.42, 'bandpass', pan); hiss(300, 900, 0.8, 0.22, 0.3, 'bandpass', pan); tone('triangle', 240, 90, 0.16, 0.2, 0, pan); sfx.boss.extra(pan, o); },
+    circle: (pan, size, o) => { const k = Math.max(0.6, Math.min(1.5, 40 / size)); tone('sine', 105 * k, 32, 0.45, 0.75, 0, pan); hiss(900, 70, 0.7, 0.4, 0.55, 'lowpass', pan); hiss(2600, 900, 1.5, 0.08, 0.25, 'bandpass', pan); sfx.boss.extra(pan, o); },
+    ring: (pan, size, o) => { tone('sine', 70, 34, 0.7, 0.6, 0, pan); hiss(240, 2200, 0.6, 0.75, 0.38, 'bandpass', pan); tone('triangle', 196, 185, 0.6, 0.12, 0, pan); sfx.boss.extra(pan, o); },
+    proj: (pan, size, o) => { const k = Math.max(0.6, Math.min(1.6, 7 / size)); tone('sawtooth', 620 * k, 170 * k, 0.2, 0.16, 0, pan); hiss(2600 * k, 700, 1.2, 0.2, 0.3, 'bandpass', pan); sfx.boss.extra(pan, o); },
+    zone: (pan, size, o) => { hiss(500, 1600, 2.5, 0.5, 0.28, 'bandpass', pan); tone('sine', 150, 260, 0.12, 0.14, 0.05, pan); tone('sine', 210, 330, 0.1, 0.12, 0.2, pan); tone('sine', 170, 300, 0.1, 0.1, 0.33, pan); sfx.boss.extra(pan, o); },
+    spawn: (pan) => { tone('sine', 300, 620, 0.3, 0.16, 0, pan); tone('sine', 450, 930, 0.3, 0.1, 0.08, pan); hiss(800, 2400, 2, 0.3, 0.12, 'bandpass', pan); },
+    // a called-down area landing on its mark (a pillar, a lobbed flask, a falling bell)
+    land: (pan, size, o) => { tone('sine', 150, 40, 0.35, 0.6, 0, pan); hiss(3200, 400, 0.8, 0.3, 0.5, 'bandpass', pan); sfx.boss.extra(pan, o); },
+    extra: (pan, o) => {
+      if (!o) return;
+      if (o.fire) hiss(1400, 260, 0.5, 0.55, 0.3, 'bandpass', pan);
+      if (o.heavy) tone('sawtooth', 62, 40, 0.4, 0.22, 0, pan);
+    },
   },
   heal: () => { tone('sine', 520, 520, 0.4, 0.15); tone('sine', 780, 780, 0.5, 0.12, 0.08); tone('sine', 1040, 1040, 0.6, 0.08, 0.16); },
   down: () => { tone('sawtooth', 300, 60, 0.9, 0.3); },

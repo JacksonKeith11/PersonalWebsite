@@ -1,13 +1,13 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=13';
-import { LocalHero, RemoteHero } from './hero.js?v=13';
-import { Boss } from './boss.js?v=13';
-import { drawArena } from './arenas.js?v=13';
-import { sfx } from './audio.js?v=13';
-import { music } from './music.js?v=13';
-import { deviceOfSlot } from './input.js?v=13';
-import { orb, arrow, impact, pillar } from './fx.js?v=13';
+import { addFrames } from './rig.js?v=15';
+import { LocalHero, RemoteHero } from './hero.js?v=15';
+import { Boss } from './boss.js?v=15';
+import { drawArena } from './arenas.js?v=15';
+import { sfx } from './audio.js?v=15';
+import { music } from './music.js?v=15';
+import { deviceOfSlot } from './input.js?v=15';
+import { orb, arrow, impact, pillar } from './fx.js?v=15';
 
 const INTERP = 0.1;
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
@@ -81,7 +81,7 @@ export class FightScene extends Phaser.Scene {
     this.reviveG = this.add.graphics().setDepth(6001);
     const cam = this.cameras.main;
     cam.setZoom(this.cfg.zoom());  // the canvas is at screen resolution; the camera does the magnifying
-    cam.setBounds(0, 0, w, h);
+    cam.setBounds(0, 0, w, h + 56);  // room below the floor, so heroes at the bottom wall aren't under the HUD's panels
     cam.setBackgroundColor('#0c0a10');
     this.camX = w / 2; this.camY = h / 2;
     this.lastReport = 0;
@@ -211,7 +211,7 @@ export class FightScene extends Phaser.Scene {
         else if (this.remote[m.h]) this.remote[m.h].flash = 0.12;
         break;
       case 'heal': sfx.heal(); this.burst(m.x, m.y - 20, 0x8be04e, 14); break;
-      case 'down': sfx.down(); this.number(m.x, m.y - 46, 'Down!', '#e05050', true); break;
+      case 'down': sfx.down(); this.number(m.x, m.y - 46, 'Down!', '#e05050', true); if (mine) mine.down = true; break;  // at once, not at the next snapshot
       case 'secondwind': this.number(this.byId[m.h]?.x || 0, (this.byId[m.h]?.y || 0) - 56, 'Second Wind', '#ffd23f', true); break;
       case 'revive': sfx.revive(); this.burst(m.x, m.y - 20, 0xffd23f, 16); break;
       case 'core':
@@ -231,7 +231,7 @@ export class FightScene extends Phaser.Scene {
         sfx.bossDown(); this.cameras.main.shake(400, 0.01); this.burst(m.x, m.y - 40, 0xff7a1a, 40);
         this.cfg.onBanner && this.cfg.onBanner('won');
         break;
-      case 'wipe': sfx.wipe(); this.cfg.onBanner && this.cfg.onBanner('lost'); break;
+      case 'wipe': sfx.wipe(); for (const l of this.local) if (!l.dead) l.down = true; this.cfg.onBanner && this.cfg.onBanner('lost'); break;
     }
   }
 
@@ -419,7 +419,7 @@ export class FightScene extends Phaser.Scene {
     if (focus.length) {
       let x = focus.reduce((s, l) => s + l.x, 0) / focus.length, y = focus.reduce((s, l) => s + l.y, 0) / focus.length;
       const nb = B.nearest(x, y);
-      x += (nb.x - x) * 0.3; y += (nb.y - nb.z * 0.5 - y) * 0.3 - 16;
+      x += (nb.x - x) * 0.3; y += (nb.y - nb.z * 0.5 - y) * 0.3 + 8;
       this.camX += (x - this.camX) * Math.min(1, dtReal * 5); this.camY += (y - this.camY) * Math.min(1, dtReal * 5);
       this.cameras.main.centerOn(Math.round(this.camX * z) / z, Math.round(this.camY * z) / z);
     }

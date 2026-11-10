@@ -328,6 +328,7 @@ class Fight:
         if b.hp <= 0 and b.alive:
             self.body_down(b, now)
             return
+        if b.state == "stagger": return   # a stagger runs its full length: the next phase waits for it to end
         for i, th in enumerate(b.d.get("phases", [])):
             ph = i + 2
             if b.phase < ph and b.hp <= b.mhp * th:
@@ -758,7 +759,9 @@ class Fight:
             if now >= b.until:
                 if b.state == "stagger" and b.cores:
                     b.cores = [c["hp"] * C.SCALE_HP[len(self.heroes) - 1] for c in b.d["cores"]]  # the cores glow again
+                was = b.state
                 b.state, b.until = "idle", now + 0.3
+                if was == "stagger": self.check_hp(b, now)   # a phase it was beaten into while reeling begins now
             return
         if b.move:
             m = b.move

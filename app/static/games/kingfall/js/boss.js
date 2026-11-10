@@ -3,9 +3,10 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=13';
-import { LiveMove, placeHit, touches } from './moves.js?v=13';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=13';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=15';
+import { LiveMove, placeHit, touches } from './moves.js?v=15';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=15';
+import { sfx } from './audio.js?v=15';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -176,6 +177,33 @@ export class Boss {
     for (const b of this.bodies) this.updateBody(b, now, dt);
     this.updateAdds(now, dt);
     this.drawDanger(now);
+    this.sounds(now);
+  }
+
+  // Every attack is heard: a breath drawn in through the wind-up, a ping with the glint, and each hit's
+  // own sound as it starts (audio.js, sfx.boss), panned to where it is. Hits of one kind starting within
+  // 60 ms of each other (a fan of knives, a cross of brands) sound once; a cancelled move falls silent.
+  sounds(now) {
+    for (const mv of this.moves) {
+      const t = now - mv.start, S = mv.snd ||= { hits: new Set(), last: {} };
+      if (t < 0 || now > mv.last + 0.2 || now > mv.cancelAt) continue;
+      const b = this.bodies[mv.e], pan = this.scene.pan(b ? b.x : mv.origin[0]);
+      if (mv.first != null) {
+        if (!S.windup && mv.first > 0.3) { S.windup = true; if (t < 0.15) sfx.boss.windup(pan, Math.min(1.4, mv.first - t), mv.unblock); }
+        if (!S.glint && t >= mv.first - 0.3) { S.glint = true; if (t < mv.first) sfx.boss.glint(pan, mv.unblock); }
+      }
+      mv.data.hits.forEach((h, i) => {
+        if (S.hits.has(i) || t < h.t0) return;
+        S.hits.add(i);
+        if (t > h.t0 + 0.25 || mv.start + h.t0 > mv.cancelAt) return;   // long past (we joined late), or never happened
+        const kind = h.k === 'spawn' ? 'spawn' : h.k === 'circle' && (h.tx || h.mark != null) ? 'land' : h.k;
+        if (S.last[kind] != null && h.t0 - S.last[kind] < 0.06) return;
+        S.last[kind] = h.t0;
+        const s = h.k === 'spawn' ? null : placeHit(mv, h, h.t0);
+        const size = h.k === 'rect' ? h.x1 - h.x0 : h.k === 'ring' ? h.th : h.r || 40;
+        sfx.boss[kind](s ? this.scene.pan(s.cx) : pan, size, { fire: !!h.fire || h.pool === 'fire', heavy: !!h.unblock });
+      });
+    }
   }
 
   updateBody(b, now, dt) {

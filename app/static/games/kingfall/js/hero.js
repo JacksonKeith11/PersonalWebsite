@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=13';
-import { placeAttack, touches, wrap } from './moves.js?v=13';
-import { crescent, lance, burst } from './fx.js?v=13';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=15';
+import { placeAttack, touches, wrap } from './moves.js?v=15';
+import { crescent, lance, burst } from './fx.js?v=15';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -55,7 +55,7 @@ export function heroPose(W, HERO, an, at) {
     case 'roll': {
       const u = Math.min(1, at / HERO.roll.dur);
       p = { torso: 40, head: 20, leg_f: -60, leg_b: -40, arm_f: -40, arm_b: -60, cape: 50, dy: 4 };
-      spin = 360 * u;
+      spin = 360 * (1 - (1 - u) * (1 - u));
       break;
     }
     case 'dash': p = { torso: 24, lean: 6, head: 10, leg_f: 40, leg_b: -40, arm_f: 30, arm_b: 40, cape: 50 }; break;
@@ -326,14 +326,28 @@ export class LocalHero {
       case 'roll': case 'dash': case 'blink': {
         const dur = this.state === 'roll' ? H.roll.dur : this.state === 'dash' ? G.dur : 0.16;
         if (this.state !== 'blink') {
-          const dist = this.state === 'roll' ? H.roll.dist : G.dist, u = this.t / dur;
-          const sp = dist / dur * (u < 0.75 ? 1.15 : 0.45);
+          // fast off the mark, easing down to a run by the end (the curve averages 1, so the distance holds),
+          // and steered: it bends toward the stick as it goes
+          const dist = this.state === 'roll' ? H.roll.dist : G.dist, u = Math.min(1, this.t / dur);
+          if (move.x || move.y) {
+            const turn = wrap(Math.atan2(move.y, move.x) - this.rollDir), max = (H.roll.turn || 0) * Math.PI / 180 * dt;
+            this.rollDir += Math.max(-max, Math.min(max, turn));
+          }
+          const sp = dist / dur * (1.5 - u);
           this.x += Math.cos(this.rollDir) * sp * dt; this.y += Math.sin(this.rollDir) * sp * dt;
         }
+        // what's pressed mid-roll happens the moment it ends
+        if (d.pressed('light')) this.queued = 'light';
+        if (d.pressed('heavy')) this.queued = 'heavy';
+        if (d.pressed('dodge') && this.t > 0.1) this.queued = 'dodge';
         if (this.t >= dur) {
+          const q = this.queued; this.queued = null;
           setState('idle');
           if (this.S.dodge) ctx.send({ t: 'dodge', h: this.id, x0: Math.round(this.rollFrom[0]), y0: Math.round(this.rollFrom[1]), x1: Math.round(this.x), y1: Math.round(this.y) });
           if (G.kind === 'rollshot') this.fire({ v: 380, r: 4, life: 0.9 }, 'guard', ctx);
+          if (q === 'dodge') this.tryRoll(move, ctx);
+          else if (q === 'light') this.startLight(0);
+          else if (q === 'heavy' && this.st > 0) { setState('charge'); this.charge = 0; }
         }
         speed = 0;
         break;
@@ -349,15 +363,30 @@ export class LocalHero {
           if (d.pressed('light')) this.queued = 'light';
           if (d.pressed('dodge')) this.queued = 'dodge';
           if (d.pressed('heavy')) this.queued = 'heavy';
+          if (d.pressed('special') && this.focus >= this.specialCost()) this.queued = 'special';
+          if (d.pressed('heal') && this.h.flasks > 0) this.queued = 'heal';
         }
-        if (this.state === 'atk' && this.queued && this.t >= atk.next) {
-          const q = this.queued; this.queued = null;
-          if (q === 'light' && this.combo < W.light.length - 1) { this.startLight(this.combo + 1); break; }
-          if (q === 'dodge') { this.tryRoll(move, ctx); break; }
-          if (q === 'heavy') { setState('charge'); this.charge = 0; break; }
+        const cut = this.queued === 'special' || this.queued === 'heal';
+        const skillReady = this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0);
+        // a skill, the special or a drink pressed mid-combo goes off at the next gap, ahead of a held light
+        if (this.state === 'atk' && this.t >= atk.next && (skillReady || cut)) { this.comboWait = 0.45; setState('idle'); break; }
+        // Holding light runs the combo on, as a queued press does, and starts it again after the last hit.
+        const more = this.queued || (this.state === 'atk' && d.held('light') ? 'light' : null);
+        if (this.state === 'atk' && more && this.t >= atk.next) {
+          this.queued = null;
+          if (more === 'light' && this.combo < W.light.length - 1) { this.startLight(this.combo + 1); break; }
+          if (more === 'dodge') { this.tryRoll(move, ctx); break; }
+          if (more === 'heavy') { setState('charge'); this.charge = 0; break; }
+          this.queued = more === 'light' && !d.held('light') ? more : null;  // the last hit: a press waits for it to finish
+        }
+        // a roll cuts short the recovery of a heavy or a special too (once it has struck, and landed if it leapt)
+        if (this.queued === 'dodge' && (this.state === 'heavy' || this.state === 'special')
+            && this.t >= Math.max(atk.hit ? atk.hit[1] : 0, atk.air ? atk.air[1] : 0) + 0.06) {
+          this.queued = null; this.tryRoll(move, ctx); break;
         }
         if (this.t >= atk.dur) {
-          const q = this.queued; this.queued = null;
+          const q = skillReady ? null : this.queued || (this.state === 'atk' && d.held('light') ? 'light' : null);
+          if (!cut) this.queued = null;
           this.comboWait = 0.45;
           setState('idle');
           if (q === 'dodge') this.tryRoll(move, ctx);
@@ -393,13 +422,15 @@ export class LocalHero {
         const moving = move.x || move.y;
         this.state = moving ? 'run' : 'idle';
         if (d.pressed('dodge')) { this.tryRoll(move, ctx); break; }
-        if (d.pressed('light')) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (d.pressed('heavy') && this.st > 0) { setState('charge'); this.charge = 0; break; }
-        if (d.pressed('special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
+        const q = this.queued; this.queued = null;   // the special or a drink asked for mid-attack
+        if ((d.pressed('special') || q === 'special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
         if (this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0)) { const S = this.skillBuf.S; this.skillBuf = null; this.useSkill(S, move, ctx); break; }
+        if ((d.pressed('heal') || q === 'heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
+        // light: a press, or the button held (after a roll, a skill or a drink the combo picks straight back up)
+        if (d.pressed('light') || (d.held('light') && !d.held('heavy'))) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (G.kind === 'block' && d.held('block')) { setState('block'); break; }
         if (G.kind === 'counter' && d.pressed('block') && this.spend(G.st)) { setState('cnt'); break; }
-        if (d.pressed('heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); break; }
       }
     }
 
@@ -467,7 +498,8 @@ export class LocalHero {
   }
 
   startLight(i) {
-    if (!this.spend(this.W.light[i].st)) { this.state = 'idle'; return; }
+    const st = this.W.light[i].st;   // lights are free (so a held combo never stalls); a weapon could still price one
+    if (st && !this.spend(st)) { this.state = 'idle'; return; }
     this.combo = i;
     this.startAttack('atk');
   }

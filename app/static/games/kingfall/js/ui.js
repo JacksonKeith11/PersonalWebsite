@@ -1,10 +1,10 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=13';
-import { heroFrames } from './hero.js?v=13';
-import { sfx } from './audio.js?v=13';
-import { skillKey, deviceOfSlot } from './input.js?v=13';
+import { paintRig, atlas } from './rig.js?v=15';
+import { heroFrames } from './hero.js?v=15';
+import { sfx } from './audio.js?v=15';
+import { skillKey, deviceOfSlot } from './input.js?v=15';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -91,20 +91,41 @@ export function portrait(h, W, size = 72) {
 export const LOOK_NAMES = { knight: 'Knight', pilgrim: 'Pilgrim', hunter: 'Witch Hunter', sellsword: 'Sellsword' };
 
 // ------------------------------------------------------------------ HUD
-export function buildHud(boss, heroes, colours, mineIds, skills = {}) {
+// The HUD. This browser's heroes each get a panel at the bottom left (one online; one per couch player,
+// side by side): health, stamina, Focus, then tiles for the flask (how many are left), each skill (its
+// cooldown sweeping away, with the seconds) and the special (lit when there's Focus for it), each with
+// the key to press. Everyone else is a small card at the top left; the boss's bars are top centre.
+const FLASK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1h4v2l-1 1v2.2c2.4.9 4 2.7 4 5 0 2.3-2.2 3.8-5 3.8s-5-1.5-5-3.8c0-2.3 1.6-4.1 4-5V4L6 3z" fill="currentColor"/></svg>';
+const tile = (cls, key, body, attrs = '') => `<span class="tile ${cls}" ${attrs}><kbd>${key}</kbd>${body}<u></u><i></i></span>`;
+
+export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = {}) {
   const el = document.getElementById('hud');
   el.hidden = false;
+  const mine = heroes.filter(h => mineIds.includes(h.id)), others = heroes.filter(h => !mineIds.includes(h.id));
   el.innerHTML = `
-    <div class="cards">${heroes.map(h => `
+    <div class="cards">${others.map(h => `
       <div class="card" id="card-${h.id}" style="--c:${colours[h.colour]}">
         <div class="top"><b>${esc(h.name)}</b><span class="flasks"></span></div>
         <div class="bar hp"><i class="lag"></i><i class="v"></i></div>
-        ${mineIds.includes(h.id) ? '<div class="bar st"><i></i></div><div class="bar fo"><i></i></div>' : ''}
-        ${mineIds.includes(h.id) && (h.skills || []).length ? `<div class="skills">${h.skills.map((id, i) => skills[id] ? `<span class="sk" data-sk="${id}" style="--k:${skills[id].col}">
-          <kbd>${skillKey(deviceOfSlot(h.slot), i)}</kbd><b>${esc(skills[id].name)}</b><i></i></span>` : '').join('')}</div>` : ''}
         <div class="buffs"></div>
         <div class="downtxt"></div>
       </div>`).join('')}</div>
+    <div class="mine">${mine.map(h => {
+      const dev = deviceOfSlot(h.slot), W = weapons[h.weapon] || {}, kb = dev === 'kb';
+      return `
+      <div class="card me" id="card-${h.id}" style="--c:${colours[h.colour]}">
+        <div class="buffs"></div>
+        <div class="downtxt"></div>
+        <div class="top"><b>${esc(h.name)}</b><span class="hpn"></span></div>
+        <div class="bar hp"><i class="lag"></i><i class="v"></i></div>
+        <div class="bar st"><i></i></div><div class="bar fo"><i></i></div>
+        ${W.guard && W.guard.kind === 'dash' ? '<div class="pips"></div>' : ''}
+        <div class="tiles">
+          ${tile('flask', kb ? 'R' : 'X', `${FLASK}<em></em><b>Flask</b>`)}
+          ${(h.skills || []).map((id, i) => skills[id] ? tile('sk', skillKey(dev, i), `<b>${esc(skills[id].name)}</b>`, `data-sk="${id}" style="--k:${skills[id].col}"`) : '').join('')}
+          ${W.special ? tile('spc', kb ? 'Q' : 'Y', `<b>${esc(W.special.name)}</b>`) : ''}
+        </div>
+      </div>`; }).join('')}</div>
     <div class="bossbar">${(boss.bodies || [boss]).map((b, e) => `<div class="bbody" id="bb-${e}"><div class="bname">${esc(b.name || boss.name)}</div>
       <div class="bar"><i class="lag"></i><i class="v"></i></div><div class="bar poise"><i></i></div>
       <div class="statuses">${STATUS.map(([k, name, col]) => `<span class="stm" data-st="${k}" style="--k:${col}" hidden><b>${name}</b><span class="bar"><i></i></span></span>`).join('')}</div></div>`).join('')}</div>
@@ -138,32 +159,46 @@ export function updateHud(scene) {
       el.querySelector('i').style.width = v + '%';
     });
   });
+  const text = (el, v) => { if (el && el.textContent !== v) el.textContent = v; };
   for (const [id, row] of Object.entries(scene.heroRows)) {
     const c = document.getElementById('card-' + id);
     if (!c) continue;
     setBar(c.querySelector('.bar.hp'), pct(row.hp, row.mhp));
-    c.querySelector('.flasks').textContent = '⚱'.repeat(row.flasks);
+    text(c.querySelector('.flasks'), '●'.repeat(row.flasks));
+    text(c.querySelector('.hpn'), `${Math.max(0, Math.ceil(row.hp))} / ${row.mhp}`);
     c.classList.toggle('down', row.down > 0);
+    c.classList.toggle('low', !row.down && row.hp / row.mhp < 0.3);
     // what's on them: a ward (and how much is left), extra damage (and for how long), a charged next hit
     const buffs = row.down ? '' : (row.shield > 0 ? `<span style="--k:#a8b0bc">Ward ${row.shield}</span>` : '')
       + (row.rally > 0 ? `<span style="--k:#ffb040">Damage up ${Math.ceil(row.rally)}s</span>` : '') + (row.emp ? '<span style="--k:#c8b4ff">Next hit charged</span>' : '');
     const bf = c.querySelector('.buffs');
     if (bf.dataset.v !== buffs) { bf.dataset.v = buffs; bf.innerHTML = buffs; }
-    c.querySelector('.downtxt').textContent = row.down === 2 ? 'Fallen' : row.down === 1 ? (row.bleed ? `Down: revive within ${Math.ceil(row.bleed)}s` : 'Down') : '';
+    text(c.querySelector('.downtxt'), row.down === 2 ? 'Fallen' : row.down === 1 ? (row.bleed ? `Down: revive within ${Math.ceil(row.bleed)}s` : 'Down') : '');
+    const fl = c.querySelector('.tile.flask');
+    if (fl) { text(fl.querySelector('em'), String(row.flasks)); fl.classList.toggle('empty', !row.flasks); }
   }
+  // a tile's cooldown: `u` (1 just used .. 0 ready) is the share still shaded, `n` the number over it
+  const cool = (el, u, n) => {
+    const v = u > 0 ? (u * 100).toFixed(0) + '%' : '0%';
+    if (el.dataset.u !== v) { el.dataset.u = v; el.style.setProperty('--u', v); }
+    el.classList.toggle('cool', u > 0);
+    text(el.lastElementChild, n);
+  };
   for (const l of scene.local) {
     const c = document.getElementById('card-' + l.id);
     if (!c) continue;
     const st = c.querySelector('.bar.st i'), fo = c.querySelector('.bar.fo i');
     if (st) st.style.width = pct(l.st, l.maxSt);
     if (fo) fo.style.width = pct(l.focus, l.HERO.focus);
-    for (const chip of c.querySelectorAll('.sk')) {  // greyed, with the seconds left, while it cools down
-      const left = l.skillCd[chip.dataset.sk] || 0, txt = left > 0 ? String(Math.ceil(left)) : '';
-      chip.classList.toggle('cool', left > 0);
+    for (const chip of c.querySelectorAll('.sk')) {  // shaded, with the seconds left, while it cools down
+      const S = l.skills.find(k => k.id === chip.dataset.sk), left = Math.max(0, l.skillCd[chip.dataset.sk] || 0);
+      cool(chip, S ? Math.min(1, left / (S.cd * (l.S.skill_cd || 1))) : 0, left > 0 ? String(Math.ceil(left)) : '');
       chip.classList.toggle('no', !!l.denied && l.denied.id === chip.dataset.sk && performance.now() < l.denied.until);
-      const n = chip.lastElementChild;
-      if (n.textContent !== txt) n.textContent = txt;
     }
+    const sp = c.querySelector('.tile.spc');  // the special fills with Focus
+    if (sp) { const need = l.specialCost(); cool(sp, l.focus >= need ? 0 : 1 - l.focus / need, ''); }
+    const pips = c.querySelector('.pips');    // the daggers' dashes
+    if (pips) { const max = (l.W.guard.charges || 0) + (l.S.dash_charges || 0), v = '<i class="on"></i>'.repeat(Math.max(0, l.dashes)) + '<i></i>'.repeat(Math.max(0, max - l.dashes)); if (pips.dataset.v !== v) { pips.dataset.v = v; pips.innerHTML = v; } }
   }
   const lh = document.querySelector('.lockhint');
   if (lh) lh.textContent = scene.local.some(l => l.locked) ? 'Locked on' : '';

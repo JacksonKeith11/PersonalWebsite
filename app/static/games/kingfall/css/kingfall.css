@@ -54,7 +54,7 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 
 /* ------------------------------------------------------------------ HUD */
 #hud { position: fixed; inset: 0; pointer-events: none; }
-.bossbar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(720px, 70vw); text-align: center; }
+.bossbar { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: min(640px, 52vw); text-align: center; }
 .bossbar .bname { font: 700 18px var(--serif); letter-spacing: 0.08em; color: #e8dcc0; text-shadow: 0 2px 4px #000; margin-bottom: 4px; }
 .bar { position: relative; height: 10px; background: #0008; border: 1px solid #000; box-shadow: 0 0 0 1px #4a3e52; overflow: hidden; }
 .bar > i { position: absolute; inset: 0 auto 0 0; display: block; transition: width .08s linear; }
@@ -63,15 +63,15 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 .bossbar .bar > i.v { background: linear-gradient(#c84040, #8a2020); }
 .bossbar .poise { height: 3px; margin-top: 3px; }
 .bossbar .poise > i { background: var(--gold); }
-.cards { position: absolute; left: 16px; top: 16px; display: grid; gap: 8px; }
-.card { width: 230px; background: #0e0b12cc; border: 1px solid #000; box-shadow: 0 0 0 1px #3a3044; border-left: 4px solid var(--c); padding: 6px 8px 7px; }
+.cards { position: absolute; left: 16px; top: 16px; display: grid; gap: 6px; }
+.card { width: 170px; background: #0e0b12cc; border: 1px solid #000; box-shadow: 0 0 0 1px #3a3044; border-left: 4px solid var(--c); padding: 6px 8px 7px; }
 .card .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; margin-bottom: 3px; }
 .card .top b { font: 700 13px var(--serif); }
 .card .bar { height: 7px; margin-top: 3px; }
 .card .bar.hp > i.v { background: linear-gradient(#c84040, #8a2020); }
 .card .bar.st { height: 4px; } .card .bar.st > i { background: var(--st); }
 .card .bar.fo { height: 4px; } .card .bar.fo > i { background: var(--focus); }
-.flasks { letter-spacing: 1px; color: #e8a040; }
+.flasks { letter-spacing: 1px; color: #e8a040; font-size: 9px; }
 .card.down { filter: grayscale(0.8); }
 .card .downtxt { color: #e07070; font-size: 12px; font-weight: 600; }
 .banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; font: 900 clamp(40px, 8vw, 84px)/1 var(--serif); letter-spacing: 0.14em;
@@ -107,17 +107,33 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--r); border-radius: 10px; color: var(--text); }
 
 /* skills: the chips on a hero's HUD card, and the "replace" buttons on a Bonfire skill card */
-.card .skills { display: flex; gap: 4px; margin-top: 5px; }
-.sk { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 10px; padding: 2px 4px; background: #0008; border: 1px solid var(--k);
-  border-radius: 2px; white-space: nowrap; }
-.sk b { flex: 1; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--k); }
-.sk kbd { font-size: 9px; padding: 0 3px; }
-.sk i { font-style: normal; font-weight: 700; color: var(--text); }
-.sk.cool { border-color: #4a3e52; } .sk.cool b { color: var(--dim); } .sk.cool kbd { opacity: 0.5; }
+/* this browser's heroes: panels along the bottom left, each with its bars and a row of tiles */
+.mine { position: absolute; left: 16px; bottom: 16px; right: 16px; display: flex; flex-wrap: wrap-reverse; align-items: flex-end; gap: 10px; }
+.card.me { width: auto; min-width: 236px; padding: 8px 10px 9px; background: #0e0b12e0; }
+.card.me .top b { font-size: 14px; } .card.me .hpn { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.card.me .bar.hp { height: 12px; } .card.me .bar.st, .card.me .bar.fo { height: 5px; }
+.card.me.low .bar.hp { animation: low 0.7s ease-in-out infinite; } .card.me.low .hpn { color: #ff8080; }
+@keyframes low { 50% { box-shadow: 0 0 0 1px #e05050, 0 0 8px #e05050; } }
+.card.me .buffs:empty, .card.me .downtxt:empty { display: none; } .card.me .buffs { margin-bottom: 4px; } .card.me .buffs span { margin-top: 0; }
+.pips { display: flex; gap: 3px; margin-top: 4px; } .pips i { width: 14px; height: 4px; background: #0008; box-shadow: 0 0 0 1px #4a3e52; } .pips i.on { background: #e8ecf2; }
+.tiles { display: flex; gap: 6px; margin-top: 8px; }
+.tile { --k: #e8a040; --u: 0%; position: relative; width: 54px; height: 54px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding: 0 2px 3px; background: #17121d; border: 2px solid var(--k); border-radius: 4px; overflow: hidden; box-shadow: 0 0 8px -2px var(--k); }
+.tile kbd { position: absolute; left: 2px; top: 2px; z-index: 2; font-size: 10px; line-height: 1; padding: 2px 4px; background: #000a; border: 1px solid #fff4; border-radius: 3px; color: #fff; }
+.tile b { position: relative; z-index: 2; font-size: 9px; line-height: 1.05; font-weight: 700; text-align: center; color: var(--k); text-shadow: 0 1px 2px #000; max-height: 2.1em; overflow: hidden; overflow-wrap: anywhere; }
+/* the shade that sweeps away as it comes ready, and the seconds over it */
+.tile u { position: absolute; inset: 0; z-index: 1; background: conic-gradient(#000c var(--u), #0000 0); pointer-events: none; }
+.tile i { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; font: 700 22px var(--serif); font-style: normal; color: #fff; text-shadow: 0 0 4px #000, 0 1px 2px #000; }
+.tile.cool { border-color: #4a3e52; box-shadow: none; } .tile.cool b { color: var(--dim); } .tile.cool kbd { opacity: 0.6; }
+.tile.spc { --k: var(--focus); }
+.tile.flask svg { position: absolute; left: 50%; top: 9px; width: 26px; height: 26px; margin-left: -19px; color: var(--k); }
+.tile.flask em { position: absolute; right: 7px; top: 12px; z-index: 2; font: 700 22px var(--serif); font-style: normal; color: #fff; text-shadow: 0 1px 3px #000; }
+.tile.flask.empty { border-color: #4a3e52; box-shadow: none; } .tile.flask.empty svg, .tile.flask.empty b { color: #5a4e62; } .tile.flask.empty em { color: #e05050; }
+@media (max-width: 760px) { .card.me { min-width: 0; } .tile { width: 46px; height: 46px; } .tile i, .tile.flask em { font-size: 18px; } }
 div.card-up { cursor: default; } div.card-up:hover { border-color: var(--line); box-shadow: none; }
 .sk-rep { display: grid; gap: 4px; margin-top: auto; } .sk-rep .btn { padding: 5px 8px; font-size: 12px; }
 .chip kbd { margin-right: 2px; }
-.sk.no { animation: sk-no .3s; border-color: #e05050; }
+.tile.no { animation: sk-no .3s; border-color: #e05050; }
 @keyframes sk-no { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 .buffs { display: flex; flex-wrap: wrap; gap: 4px; }
 .buffs span { font-size: 10px; font-weight: 600; color: var(--k); border: 1px solid var(--k); border-radius: 8px; padding: 0 6px; margin-top: 4px; background: #0008; }

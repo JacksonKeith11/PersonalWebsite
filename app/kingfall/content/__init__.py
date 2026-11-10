@@ -8,9 +8,11 @@ BOSSES = {b["id"]: b for b in (corvin.BOSS, mire.BOSS, bellwarden.BOSS, headsmen
 
 # A hero's base numbers. Seconds and world pixels.
 HERO = {
-    "hp": 100, "stamina": 100, "focus": 100, "speed": 92, "radius": 8,
+    "hp": 100, "stamina": 100, "focus": 100, "speed": 116, "radius": 8,
     "st_regen": 55, "st_delay": 0.6,
-    "roll": {"dur": 0.42, "dist": 74, "iframes": (0.03, 0.32), "st": 25},
+    # The roll starts fast and eases into a run (hero.js, `rollSpeed`), can be steered (`turn` degrees a
+    # second toward the stick) and takes a queued attack or another roll the moment it ends.
+    "roll": {"dur": 0.38, "dist": 92, "iframes": (0.02, 0.29), "st": 22, "turn": 200},
     "flask": {"charges": 3, "dur": 1.0, "at": 0.75, "heal": 0.45, "speed": 0.4},
     "focus_per_dmg": 0.6,
     # A parry is timed from the press of block, not from when the guard comes up. Pressing block again

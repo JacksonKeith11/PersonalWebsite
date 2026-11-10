@@ -2,7 +2,7 @@
 // A theme is a key and mode, a tempo, a bass line, a progression for the pad, a motif and a drum
 // pattern. Intensity rises with the boss's phase: phase 2 adds the drums, phase 3 the fast arpeggio.
 // The lobby and the Bonfire get a quiet pad of their own.
-import { audioOut } from './audio.js?v=22';
+import { audioOut } from './audio.js?v=23';
 
 const MODES = { minor: [0, 2, 3, 5, 7, 8, 10], phrygian: [0, 1, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10], harmonic: [0, 2, 3, 5, 7, 8, 11], locrian: [0, 1, 3, 5, 6, 8, 10] };
 // prog: scale degrees of each bar's chord root; motif: scale degrees per 8th (null rests); drums: per 16th (k kick, s snare, h hat)

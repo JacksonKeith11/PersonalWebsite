@@ -1,10 +1,10 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=22';
-import { heroFrames } from './hero.js?v=22';
-import { sfx } from './audio.js?v=22';
-import { skillKey, deviceOfSlot } from './input.js?v=22';
+import { paintRig, atlas } from './rig.js?v=23';
+import { heroFrames } from './hero.js?v=23';
+import { sfx } from './audio.js?v=23';
+import { skillKey, deviceOfSlot } from './input.js?v=23';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,6 +50,11 @@ export function show(html) {
   const again = was && [...el.querySelectorAll('[data-nav]')].find(e => keyOf(e) === was);
   const first = again || el.querySelector('[data-autofocus]') || el.querySelector('[data-nav]');
   if (first) setFocus(first, false);
+  // some screens add parts after show() returns (the lobby's hero rows): look again once they're in
+  if (was && !again) queueMicrotask(() => {
+    const late = !overlay && focused === first && [...el.querySelectorAll('[data-nav]')].find(e => keyOf(e) === was);
+    if (late) setFocus(late, false);
+  });
   return el;
 }
 export function hide() { base().innerHTML = ''; if (overlay) under = null; else { focused = null; hideTip(); } }
@@ -75,6 +80,8 @@ function showTip(el) {
 function hideTip() { tipFor = null; const t = document.getElementById('tip'); if (t) t.hidden = true; }
 addEventListener('mouseover', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el); else if (tipFor && tipFor !== focused) hideTip(); });
 addEventListener('scroll', () => { if (tipFor) hideTip(); }, true);
+// a click moves the focus too, so a redraw puts it back on what was clicked, not on the screen's default
+addEventListener('pointerdown', e => { const t = e.target.closest && e.target.closest('[data-nav]'); if (t && ui().contains(t)) setFocus(t, false); }, true);
 
 function setFocus(el, sound = true) {
   if (focused) focused.classList.remove('focus');
@@ -145,6 +152,14 @@ export const LOOK_NAMES = { knight: 'Knight', pilgrim: 'Pilgrim', hunter: 'Witch
 // cooldown sweeping away, with the seconds) and the special (lit when there's Focus for it), each with
 // the key to press. Everyone else is a small card at the top left; the boss's bars are top centre.
 const FLASK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1h4v2l-1 1v2.2c2.4.9 4 2.7 4 5 0 2.3-2.2 3.8-5 3.8s-5-1.5-5-3.8c0-2.3 1.6-4.1 4-5V4L6 3z" fill="currentColor"/></svg>';
+// a hero's HUD key hints, for the device driving it now (the keyboard's hero also answers to a spare controller)
+export function hudKeys(id, dev) {
+  const card = document.getElementById('card-' + id);
+  if (!card) return;
+  const kb = dev === 'kb', set = (sel, k) => { const e = card.querySelector(sel); if (e) e.textContent = k; };
+  set('.flask kbd', kb ? 'R' : 'X'); set('.spc kbd', kb ? 'Q' : 'Y');
+  card.querySelectorAll('.sk kbd').forEach((e, i) => { e.textContent = skillKey(dev, i); });
+}
 const tile = (cls, key, body, attrs = '') => `<span class="tile ${cls}" ${attrs}><kbd>${key}</kbd>${body}<u></u><i></i></span>`;
 
 export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = {}) {

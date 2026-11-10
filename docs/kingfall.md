@@ -70,7 +70,9 @@ Keep to these. They came from the owner directly.
 
 ### A run
 
-The host makes a room; friends join by code, couch players press Start on a controller. Each hero picks a
+The host makes a room; friends join by code, couch players press Start on a controller. The hero made
+with the room belongs to the keyboard, but any controller without a hero of its own also drives it: whichever
+was used last (`pickDevices` in `js/fight.js`; the HUD's key hints follow). Each hero picks a
 look (knight, pilgrim, witch hunter, sellsword; tinted in their player colour) and a weapon. The host picks
 the difficulty (Squire, Knight, Hard) and begins, or resumes a saved run. When a run ends (lost or won) the room
 returns to the same lobby screen (`state` "over"), where everyone can change look, weapon and starting skill, join or
@@ -102,7 +104,12 @@ this browser's heroes stand idle. The menu is an overlay (`#menu`) over `#ui`: i
 focus, and `show()` can still redraw the Bonfire beneath it.
 
 In the lobby, a "◀ name ▶" picker (look, weapon, starting skill) goes back when clicked on its left half
-and on when clicked on its right (`side` in `js/main.js`).
+and on when clicked on its right (`side` in `js/main.js`). The three pickers are equal, fixed-size cells on one
+row; a long name is cut short with "…" rather than resizing or wrapping (buttons never wrap their text).
+
+A redraw puts the focus back on the element that had it (`keyOf` in `js/ui.js`), and a mouse click moves the
+focus too. Gotcha: the lobby appends its hero rows after `show()` returns, so `show()` looks again in a
+microtask; without that every lobby update put the focus back on Begin.
 
 ### Combat
 

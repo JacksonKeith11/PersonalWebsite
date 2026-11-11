@@ -1852,3 +1852,31 @@ body.great-tide::after { content: ""; position: fixed; inset: 0; z-index: 45; po
 .unit.foe.chorded .fig { filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.85)); }
 .unit.foe.reactable .fig { filter: drop-shadow(0 0 5px rgba(255, 150, 80, 0.7)); }
 .unit.foe.chorded.reactable .fig { filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.85)) drop-shadow(0 0 4px rgba(255, 150, 80, 0.7)); }
+
+/* pings: a right-click's menu, the line for each ally's ping above the action bar, and an arrow at
+   the map's edge for a ping out of sight (positioned by hexmap.js) */
+.map.pinging canvas { cursor: crosshair; }
+#pingbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-hi); }
+.ping-menu { position: fixed; z-index: 60; min-width: 180px; padding: var(--s-1); display: grid; gap: 2px;
+  background: var(--glass); border: var(--bw) solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow-2);
+  animation: ping-pop 120ms ease-out; }
+.ping-menu .pm-where { padding: var(--s-1) var(--s-2); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.pm-opt { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2); border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: inherit; font-size: var(--fs-14); text-align: left; cursor: pointer; }
+.pm-opt:hover, .pm-opt:focus-visible { background: var(--panel-3); }
+.pm-opt svg { width: 18px; height: 18px; color: var(--accent-hi); }
+.pm-opt .grow { flex: 1; }
+.ping-feed { position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 9; display: grid; gap: var(--s-1); justify-items: center; pointer-events: none; }
+.ping-line { pointer-events: auto; display: inline-flex; align-items: center; gap: var(--s-2); max-width: min(520px, 90vw); padding: var(--s-1) var(--s-3) var(--s-1) var(--s-2);
+  border-radius: var(--r-pill); background: var(--glass); border: var(--bw) solid var(--seat); box-shadow: var(--shadow-2);
+  color: var(--text-2); font: inherit; font-size: var(--fs-14); cursor: pointer; animation: ping-pop 160ms ease-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ping-line svg { width: 16px; height: 16px; flex: none; color: var(--seat); }
+.ping-line b { color: var(--text); font-weight: var(--fw-semibold); }
+.ping-edge { position: absolute; z-index: 7; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(11, 16, 23, 0.9); border: 2px solid var(--ping); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ping) 30%, transparent); animation: ping-glow 900ms ease-in-out infinite alternate; }
+.ping-edge span { position: absolute; inset: 0; transform: rotate(var(--ang)); }
+.ping-edge span::after { content: ""; position: absolute; right: 5px; top: 50%; margin-top: -6px; border: 6px solid transparent; border-left: 9px solid var(--ping); }
+.hextip .meet { color: var(--accent-hi); display: flex; align-items: center; gap: 4px; }
+.hextip .meet svg { width: 14px; height: 14px; flex: none; }
+@keyframes ping-pop { from { opacity: 0; transform: translateY(4px) scale(0.97); } }
+@keyframes ping-glow { to { box-shadow: 0 0 0 8px color-mix(in srgb, var(--ping) 10%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .ping-edge, .ping-menu, .ping-line { animation: none; } }

@@ -767,6 +767,37 @@ sections of the results screen in `hud.js`.
 - **The bots** chip in while they have half their health or more, and a bot at an event waits for its
   huddle to be answered.
 
+### Pings and planning together on the map
+
+The owner asked for a ping, for the map to feel more responsive, and for it to be clear when allies
+are heading to the same place (Nov 2026).
+
+- **Pings** (`Room.ping`, `onPing` and `pingMenu` in `hud.js`, `MapView.ping`): right-click a hex for a
+  small menu (Look here, Let's go here, Careful here; keys 1-3), or Alt-click or press G over a hex
+  for "Look here", or arm the pin button by the zoom buttons and click. The server passes a `ping`
+  message straight to everyone in the room: nothing in the game changes and nothing is saved, and
+  one person can ping at most every `PING_GAP` (0.6 s). Everyone sees a pin drop on the hex in the
+  sender's hero colour, rings pulse out from it, the sender's name sits under it for `PING_MS` (5 s)
+  and the minimap rings it. The others also hear it and get a line above the action bar ("Bob
+  (Arcanist): careful here · Silverleaf grove") to click to look there. A ping out of sight gets an
+  arrow on the map's edge pointing at it (`placePingEdges`, a DOM button placed each frame). One
+  ping a person shows at a time.
+- **Heading to the same hex** (`planEnds` in `hexmap.js`; `planEnd` and `meeting` in `hud.js`): where
+  two or more heroes end the turn on one hex (at least one of them moving), their route rings merge
+  into one ring split into their colours, with a "Together" tag above it (left off on a fight's hex,
+  whose marker already shows who's there). The selected hero's hover preview counts, so you can see
+  you'd join an ally before you click. Stretches of route that two heroes share run side by side in
+  lanes, so neither trail hides the other. "This turn" says where each hero moves to and who with;
+  the hex tooltip says who's heading there, and "You'd end the turn together with ..."; and when an
+  ally's route comes to end where yours does, a line says so (`planNews`, from the state change).
+- **Responsiveness**: a clicked route draws at once, before the server answers (`setRoute` writes it
+  into the local plan; `routeRefused` puts the old plan back on an `err`), with a quick ring on the
+  hex. The hover preview redraws only the routes (`MapView.setPreview`); it used to redraw the whole
+  map (fog, places, units, minimap) on every hex the mouse crossed. The selected hero's reach is
+  worked out once per state (`reachOf`), where each hover worked it out three times. The preview's
+  end shows its cost ("3/4" moves). Map labels drawn for the eye (pins, tags, the cost) keep about
+  one size on screen at any zoom (`pingScale`).
+
 ### Music
 
 Synthesized in `js/audio.js` (no files). The owner asked for music per region (Nov 2026):
@@ -2112,7 +2143,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/itemart.js` | Item icons: a 12×12 base shape per kind of thing (axe, robe, shell...) painted in a material with an accent and a glow, then outlined. `ICON` maps each item to its look; a new item needs a line there (or it gets its slot's default). |
 | `js/skillfx.js` | What every action and enemy move looks like (`SKILL_FX`, `foeFx`), from the effects kit `combat.js` passes in (`fxKit`); the styles are the stylesheet's "skill effects" section. |
 | `js/stage.js` | The fights' painted backdrops (`stageKey` picks one for a fight, `stageURL` paints it once). |
-| `js/hexmap.js` | `MapView` (Phaser): painted terrain (with two surf frames), currents and whirlpools, places, units, fog, reach, routes; above the fog the squalls, raid roads, landmarks and region names; the minimap. |
+| `js/hexmap.js` | `MapView` (Phaser): painted terrain (with two surf frames), currents and whirlpools, places, units, fog, reach, routes (shared ends and lanes); above the fog the squalls, raid roads, landmarks and region names, pings and their edge arrows; the minimap. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`, the world's `cur`/`reef`/`pool` via `seaMap`), and how to describe requirements, dice and statuses. |
 | `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
 | `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound and music (a style per region, boss and final themes). |
@@ -2172,6 +2203,12 @@ clock anywhere: the run changes only when someone acts.
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
 ## Gotchas
+
+- **Routes are drawn before the server agrees** (`setRoute` in `hud.js`): the client writes a clicked
+  route into its copy of the plan. A refusal comes back as `err` without a new state, so `main.js`
+  calls `routeRefused` to put the old plan back; anything that can refuse a `path` must keep sending
+  `err` (an `Invalid`), not fail silently. Pings never touch `g.s` and skip `Room.after` (no save,
+  no state broadcast). With `?bots`, `window.saltboundMap` is the `MapView`, for browser tests.
 
 - **A move that crashes is rolled back** (`Room.guarded`, Nov 2026 audit): every player and bot move runs
   against a JSON snapshot of `g.s`; an exception that isn't `Invalid` is logged, the game is rebuilt from

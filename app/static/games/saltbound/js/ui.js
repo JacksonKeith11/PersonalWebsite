@@ -56,6 +56,7 @@ const P = {
   'chevron-up': '<path d="M6 15l6-6 6 6"/>',
   up: '<path d="M12 20V5M6 11l6-6 6 6"/>',
   crack: '<path d="M12 3l-2 6 4 3-3 4 2 5M5 5l14 14"/>',
+  pin: '<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
   root: '<path d="M12 3v8M12 11c-3 0-5 2-5 5v5M12 11c3 0 5 2 5 5v5M12 11v10"/>',
   clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',

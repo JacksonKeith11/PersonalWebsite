@@ -38,6 +38,8 @@ function noise(dur, { gain = 0.2, freq = 1200, q = 0.8, delay = 0, type = 'bandp
 
 const SOUNDS = {
   click: () => tone(880, 0.05, { type: 'triangle', gain: 0.08 }),
+  ping: () => { tone(1320, 0.09, { type: 'triangle', gain: 0.09 }); tone(1760, 0.16, { type: 'triangle', gain: 0.08, delay: 0.08 }); },
+  pingDanger: () => [988, 740, 988].forEach((f, i) => tone(f, 0.09, { type: 'square', gain: 0.05, delay: i * 0.09 })),
   place: () => { tone(520, 0.08, { type: 'triangle', gain: 0.12 }); tone(780, 0.1, { type: 'triangle', gain: 0.08, delay: 0.04 }); },
   dice: () => { for (let i = 0; i < 4; i++) noise(0.04, { gain: 0.15, freq: 2400 + i * 300, delay: i * 0.05 }); },
   swing: () => noise(0.14, { gain: 0.12, freq: 900, q: 0.6 }),

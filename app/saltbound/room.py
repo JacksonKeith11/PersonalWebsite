@@ -32,6 +32,8 @@ MAX_PEOPLE = 8
 BOT = "bot"
 BOT_DELAY = 0.35
 BOT_FIGHT_DELAY = 1.2  # each action plays out the moment it's placed; give it time to be seen
+PING_GAP = 0.6  # seconds between one person's map pings
+PING_KINDS = ("look", "go", "danger")
 
 
 class Person:
@@ -43,6 +45,7 @@ class Person:
         self.tab = tab
         self.connected = True
         self.closing = False
+        self.pinged = 0.0
 
 
 class Room:
@@ -163,6 +166,9 @@ class Room:
                 S.delete(clean(msg.get("id"), 40), p.token.split(":")[0])
                 self.send(p, {"t": "saves", "list": S.list_for(p.token.split(":")[0])})
                 return
+            elif t == "ping":
+                self.ping(p, msg)
+                return
             elif self.game is None:
                 self.lobby(p, t, msg)
             else:
@@ -176,6 +182,20 @@ class Room:
             self.send(p, {"t": "err", "msg": "Something went wrong. Try again."})
             return
         self.after()
+
+    def ping(self, p, msg):
+        """A mark on the map for everyone ("look here", "let's go here", "careful"). Nothing in the game
+        changes and nothing is saved: it's passed straight on, at most one per person every `PING_GAP`."""
+        tile, kind = msg.get("tile"), msg.get("kind")
+        if self.game is None or not isinstance(tile, int) or not 0 <= tile < Wd.W * Wd.H or kind not in PING_KINDS:
+            return
+        now = time.monotonic()
+        if now - p.pinged < PING_GAP:
+            return
+        p.pinged = now
+        heroes = [h for h, c in enumerate(self.ctl) if c == p.id]
+        self.everyone({"t": "ping", "tile": tile, "kind": kind, "from": p.id, "name": p.name,
+                       "h": heroes[0] if heroes else None})
 
     def guarded(self, fn, what):
         """Run a change to the game; if it fails unexpectedly (a bug, not a rule), log it, put the game

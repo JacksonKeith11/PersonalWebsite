@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=188';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=188';
-import { spriteURL, placeURL } from './art.js?v=188';
-import { itemURL } from './itemart.js?v=188';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=188';
-import { MapView } from './hexmap.js?v=188';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=188';
-import { disconnect } from './main.js?v=188';
-import * as sfx from './audio.js?v=188';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=189';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=189';
+import { spriteURL, placeURL } from './art.js?v=189';
+import { itemURL } from './itemart.js?v=189';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=189';
+import { MapView, SEATS } from './hexmap.js?v=189';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=189';
+import { disconnect } from './main.js?v=189';
+import * as sfx from './audio.js?v=189';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -17,7 +17,8 @@ let root = null, map = null, mapWorld = null;
 export function teardownGame() {
   if (map) { map.destroy(); map = null; }
   root = null; mapWorld = null;
-  UI.drawer = null; UI.res = {};
+  UI.drawer = null; UI.res = {}; UI.pingArmed = false; UI.undo = null;
+  closePingMenu();
 }
 
 const seat = h => `var(--hero-${h})`;
@@ -33,6 +34,34 @@ export const upDef = (k, x) => {
 export const upText = (k, a) => (k.endsWith('+') ? ` Upgraded: +2 to its numbers${a?.up_text ? `, and ${a.up_text}` : ''}.` : '');
 const skillDef = k => S.static.actions[k.replace(/\+$/, '')] || S.static.passives[k.replace(/\+$/, '')];
 const item = k => S.static.items[k];
+
+// Where a hero can get to this turn, worked out once per state from the server (every hover asked
+// for it, three times).
+let reachMemo = null;
+function reachOf(h0) {
+  const g = S.game;
+  if (reachMemo?.g !== g || reachMemo.h !== h0) reachMemo = { g, h: h0, r: reach(S.world, g, S.static, h0) };
+  return reachMemo.r;
+}
+// Where hero x ends this turn as planned (where they stand if they stay), or null by beacon.
+function planEnd(x, g = S.game) {
+  const p = g.plans?.[x], path = p?.path || [];
+  if (p?.warp != null) return null;
+  return path.length ? path[path.length - 1] : g.heroes[x].tile;
+}
+// The living heroes other than x who end the turn on the hex x does (when either of them moves).
+function meeting(x, g = S.game) {
+  const e = planEnd(x, g);
+  if (e == null || !g.heroes[x].alive) return [];
+  return g.heroes.map((_, y) => y).filter(y => y !== x && g.heroes[y].alive && planEnd(y, g) === e
+    && (g.plans?.[x]?.path?.length || g.plans?.[y]?.path?.length));
+}
+function hexName(t) {
+  const g = S.game;
+  if (g.seen[t] !== '1') return 'the fog';
+  const p = g.places[t];
+  return placeTitle(p) || `${terrainName(t, terrain(S.world, g, t))}${S.world.reg[t] ? ', ' + S.static.regions[S.world.reg[t]] : ''}`;
+}
 
 function sel() { return S.sel; }
 function selHero() { return S.game.heroes[sel()]; }
@@ -53,7 +82,9 @@ export function renderGame() {
     root = h('div.game', null,
       h('div.map#map'),
       h('div#topbar'), h('div#party.party'), h('div#forecast'), h('div#partyev'), h('div#actionbar'), h('div#log'), h('div#hint'),
+      h('div#pings.ping-feed'),
       h('div.zoom', null,
+        h('button.btn.icon#pingbtn', { 'aria-label': 'Ping', tip: 'Ping the map\nClick a hex to point it out to the party. Or right-click (Alt-click) a hex, or press G over it.', onclick: () => armPing(!UI.pingArmed) }, icon('pin')),
         h('button.btn.icon', { 'aria-label': 'Zoom in', tip: 'Zoom in\nOr use the mouse wheel', onclick: () => map?.zoomBy(1) }, icon('plus')),
         h('button.btn.icon', { 'aria-label': 'Zoom out', tip: 'Zoom out', onclick: () => map?.zoomBy(-1) }, h('span', { style: { fontSize: '20px', lineHeight: 1 } }, '−')),
         h('button.btn.icon', { 'aria-label': 'Find my hero', tip: 'Find my hero', onclick: () => map?.centerOn(selHero().tile) }, icon('target'))),
@@ -61,9 +92,10 @@ export function renderGame() {
       h('div#drawer'), h('div#modal'), h('div#combat'), h('div#hextip.hextip', { hidden: true }), h('div#menu'));
     $('app').replaceChildren(root);
     mapWorld = S.world;
-    map = new MapView($('map'), S.world, { click: onTileClick, hover: onTileHover });
+    map = new MapView($('map'), S.world, { click: onTileClick, hover: onTileHover, ping: (t, x, y, quick) => (quick ? sendPing(t, 'look') : pingMenu(t, x, y)) });
     map.centerOn(g.heroes[sel()]?.tile ?? S.world.start, false);
     map.attachMinimap($('minimap'));
+    if (new URLSearchParams(location.search).has('bots')) window.saltboundMap = map;  // tests drive the map
   }
   updateMap();
   renderTopbar();
@@ -82,32 +114,114 @@ export function renderGame() {
 function updateMap() {
   const g = S.game, h0 = sel();
   const planning = mine().includes(h0) && canPlan(h0) && !g.plans[h0]?.ready && !g.pending[h0]?.length;
-  map.setState(g, { sel: h0, mine: mine(), reach: planning ? reach(S.world, g, S.static, h0) : null, preview: UI.preview,
+  map.setState(g, { sel: h0, mine: mine(), reach: planning ? reachOf(h0) : null, preview: UI.preview, previewText: UI.previewText,
     regions: S.static.regions, squallR: S.static.squall?.r });
 }
 
 // ------------------------------------------------------------------ map input
-function onTileClick(t) {
+function onTileClick(t, x, y) {
   const g = S.game, h0 = sel();
   if (combatOpen()) return;
+  if (UI.pingArmed) { armPing(false); pingMenu(t, x ?? innerWidth / 2, y ?? innerHeight / 2); return; }
   if (!mine().includes(h0)) return;
   if (!canPlan(h0)) { toast('Not now: wait for the fight to finish.'); return; }
   if (g.pending[h0]?.length) { toast('Answer what’s in front of you first.'); return; }
   if (g.plans[h0].ready) { toast('Unready to change your route.'); return; }
   const hero = g.heroes[h0];
-  if (t === hero.tile) { send({ t: 'path', h: h0, path: [] }); UI.preview = null; return; }
-  const r = reach(S.world, g, S.static, h0);
-  const path = routeTo(r, t);
+  if (t === hero.tile) { setRoute(h0, []); return; }
+  const path = routeTo(reachOf(h0), t);
   if (!path || !path.length) { toast(S.game.seen[t] === '1' ? 'You can’t reach that hex this turn.' : 'You can’t see that far.'); sfx.play('error'); return; }
-  send({ t: 'path', h: h0, path });
-  UI.preview = null;
+  setRoute(h0, path);
+  map.tap(t, SEATS[h0]);
   sfx.play('click');
+}
+
+// A route shows the moment it's clicked, before the server answers (it checks the same rules); if
+// the server refuses it, `routeRefused` puts the old plan back.
+function setRoute(h0, path) {
+  const g = S.game, before = g.plans[h0];
+  UI.undo = { g, h: h0, plan: before };
+  g.plans[h0] = { ...before, path, rest: false, warp: null };
+  UI.preview = null; UI.previewText = '';
+  send({ t: 'path', h: h0, path });
+  updateMap(); renderForecast(); renderActionbar();
+}
+export function routeRefused() {
+  const u = UI.undo;
+  UI.undo = null;
+  if (!u || u.g !== S.game || !map) return;
+  u.g.plans[u.h] = u.plan;
+  updateMap(); renderForecast(); renderActionbar();
+}
+
+// ------------------------------------------------------------------ pings
+const PING_SAY = { look: 'Look here', go: 'Let’s go here', danger: 'Careful here' };
+const PING_ICON = { look: 'eye', go: 'flag', danger: 'skull' };
+function armPing(on) {
+  UI.pingArmed = on;
+  $('pingbtn')?.setAttribute('aria-pressed', String(on));
+  $('map')?.classList.toggle('pinging', on);
+}
+function sendPing(t, kind) {
+  if (t == null || t < 0) return;
+  send({ t: 'ping', tile: t, kind });
+}
+// A right-click's menu: what the ping means. Keys 1-3 pick too.
+function pingMenu(t, x, y) {
+  closePingMenu();
+  $('hextip').hidden = true;
+  const pick = k => { closePingMenu(); sendPing(t, k); };
+  const box = h('div.ping-menu', { role: 'menu', style: { left: Math.min(innerWidth - 190, x) + 'px', top: Math.min(innerHeight - 150, y) + 'px' } },
+    h('div.pm-where', null, hexName(t)),
+    ...Object.keys(PING_SAY).map((k, i) => h('button.pm-opt', { role: 'menuitem', onclick: () => pick(k) }, icon(PING_ICON[k]), h('span.grow', null, PING_SAY[k]), h('span.kbd', null, String(i + 1)))));
+  document.body.append(box);
+  UI.pingMenu = { box, pick: i => pick(Object.keys(PING_SAY)[i]) };
+  setTimeout(() => addEventListener('pointerdown', UI.pingAway = e => { if (!box.contains(e.target)) closePingMenu(); }), 0);
+}
+function closePingMenu() {
+  UI.pingMenu?.box.remove(); UI.pingMenu = null;
+  if (UI.pingAway) { removeEventListener('pointerdown', UI.pingAway); UI.pingAway = null; }
+}
+// Someone's ping (yours too): on the map, with a sound, and a line under the top bar to click to look.
+export function onPing(m) {
+  if (!map || !S.game) return;
+  const col = m.h != null ? SEATS[m.h] : 0xcfd6dd;
+  const who = m.h != null ? S.game.heroes[m.h].name : m.name;
+  map.ping(m.tile, col, m.kind, m.from === S.you ? PING_SAY[m.kind] : `${m.name}: ${PING_SAY[m.kind]}`, m.from);
+  sfx.play(m.kind === 'danger' ? 'pingDanger' : 'ping');
+  if (m.from === S.you) return;
+  feedLine(m.h, h('span', null, h('b', null, m.name), m.name !== who ? ` (${who})` : '', `: ${PING_SAY[m.kind].toLowerCase()} · `, hexName(m.tile)), m.tile, PING_ICON[m.kind]);
+}
+function feedLine(x, body, tile, ic) {
+  const el = $('pings');
+  if (!el) return;
+  const line = h('button.ping-line', { style: { '--seat': x != null ? seat(x) : 'var(--text-2)' }, tip: 'Click to look there', onclick: () => { map?.centerOn(tile); line.remove(); } },
+    icon(ic), body);
+  el.append(line);
+  while (el.children.length > 3) el.firstChild.remove();
+  setTimeout(() => line.remove(), 6000);
+}
+
+// An ally's route now ends where one of yours does: say so once, when it happens.
+function planNews(before) {
+  const g = S.game, me = mine();
+  if (!before || before.turn !== g.turn || g.phase !== 'plan' || !me.length) return;
+  for (let x = 0; x < g.heroes.length; x++) {
+    if (me.includes(x) || !g.heroes[x].alive || !g.plans?.[x]?.path?.length) continue;
+    const e = planEnd(x), e0 = before.plans?.[x] ? planEnd(x, before) : null;
+    if (e == null || e === e0) continue;
+    const mates = me.filter(y => g.heroes[y].alive && planEnd(y) === e);
+    if (!mates.length) continue;
+    feedLine(x, h('span', null, h('b', null, g.heroes[x].name), ` will end the turn with ${mates.map(y => g.heroes[y].name).join(' and ')} · `, hexName(e)), e, 'link');
+  }
 }
 
 function onTileHover(t, x, y) {
   const tip = $('hextip');
   if (!tip) return;
-  if (t < 0 || t === undefined) { tip.hidden = true; if (UI.preview) { UI.preview = null; updateMap(); } return; }
+  UI.hover = t ?? -1;
+  if (UI.pingMenu) { tip.hidden = true; return; }
+  if (t < 0 || t === undefined) { tip.hidden = true; if (UI.preview) setPreview(null); return; }
   const g = S.game, h0 = sel();
   const seen = g.seen[t] === '1';
   const lines = [];
@@ -145,9 +259,12 @@ function onTileHover(t, x, y) {
     if (opp) lines.push(h('div.prize', null, `${S.static.opps[opp.kind].name}, for ${opp.left} more turn${opp.left === 1 ? '' : 's'}: ${S.static.opps[opp.kind].text}`));
     const heroesHere = g.heroes.filter(x => x.alive && x.tile === t).map(x => x.name);
     if (heroesHere.length) lines.push(h('div', null, heroesHere.join(', ')));
+    // who ends the turn here as planned
+    const coming = g.heroes.map((_, y) => y).filter(y => g.heroes[y].alive && g.heroes[y].tile !== t && planEnd(y) === t).map(y => g.heroes[y].name);
+    if (coming.length) lines.push(h('div.meet', null, icon('link'), ` ${coming.join(' and ')} ${coming.length > 1 ? 'are' : 'is'} heading here this turn.`));
   }
-  if (mine().includes(h0) && canPlan(h0) && !g.plans[h0].ready) {
-    const r = reach(S.world, g, S.static, h0);
+  if (mine().includes(h0) && canPlan(h0) && !g.plans[h0].ready && !g.pending[h0]?.length) {
+    const r = reachOf(h0);
     const b = r.best.get(t);
     if (b && t !== g.heroes[h0].tile) {
       lines.push(h('div.cost', null, `${b.cost} of ${g.heroes[h0].moves} moves`));
@@ -156,15 +273,22 @@ function onTileHover(t, x, y) {
       const near = g.heroes.map((x, i) => i).filter(i => i !== h0 && g.heroes[i].alive && g.forecast?.ends[i] !== undefined && hexDist(g.forecast.ends[i], t) <= 1).map(i => g.heroes[i].name);
       if (gr) lines.push(h('div', { style: { color: 'var(--danger)' } }, `Walking in starts the fight.${near.length ? ` ${near.join(' and ')} would join (within a hex).` : ' Nobody else is close enough to join.'}`));
       else if (g.groups.some(x => vis2.has(x.tile) && !x.lair && hexDist(x.tile, t) <= 1)) lines.push(h('div', { style: { color: 'var(--warn, #e0a050)' } }, 'Next to enemies: they may step onto you.'));
+      const mates = g.heroes.map((_, y) => y).filter(y => y !== h0 && g.heroes[y].alive && planEnd(y) === t).map(y => g.heroes[y].name);
+      if (mates.length) lines.push(h('div.meet', null, icon('link'), ` You’d end the turn together with ${mates.join(' and ')}.`));
       const path = routeTo(r, t);
-      if (JSON.stringify(path) !== JSON.stringify(UI.preview)) { UI.preview = path; updateMap(); }
-    } else if (UI.preview) { UI.preview = null; updateMap(); }
+      if (JSON.stringify(path) !== JSON.stringify(UI.preview)) setPreview(path, `${b.cost}/${g.heroes[h0].moves}`);
+    } else if (UI.preview) setPreview(null);
   }
   tip.replaceChildren(...lines);
   tip.hidden = false;
   const tr = tip.getBoundingClientRect();
   tip.style.left = Math.min(innerWidth - tr.width - 12, x + 16) + 'px';
   tip.style.top = Math.min(innerHeight - tr.height - 12, y + 16) + 'px';
+}
+
+function setPreview(path, text = '') {
+  UI.preview = path; UI.previewText = text;
+  map?.setPreview(path, text);
 }
 
 // What the sea's extras mean for a skiff on this hex.
@@ -613,8 +737,10 @@ export function renderForecast() {
     } else if (p.warp != null) text = `travels by beacon (${beaconName(p.warp).title.replace(/^Near /, 'near ')})`;
     else if (p.rest) text = 'rests';
     else if (fc.lands[x]) text = LAND[fc.lands[x]] || 'arrives';
-    else if (p.path?.length) text = 'moves';
+    else if (p.path?.length) text = `moves to ${hexName(p.path[p.path.length - 1])}`;
     else text = p.ready ? 'stays put' : 'hasn’t planned yet';
+    const mates = fight ? [] : meeting(x);
+    if (mates.length) text += ` · together with ${mates.map(y => g.heroes[y].name).join(' and ')}`;
     lines.push(h('div.fc-line' + (fight ? '.fight' : ''), { style: { '--seat': seat(x) } },
       h('i.dot'), h('b', null, hero.name), h('span', null, ' ' + text), p.ready ? h('span.ok', null, ' ✓') : null));
   });
@@ -1614,7 +1740,7 @@ function forkView(fk) {
 
 // ------------------------------------------------------------------ first-time hints
 const HINTS = {
-  plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Walking into enemies starts a fight, and anyone within a hex joins in.'],
+  plan: ['Planning together', 'Everyone plans at once. Click a lit hex to plot a route, then Ready. When the whole party is ready, everyone moves together. Right-click a hex to ping it for the party; heroes ending the turn on one hex get a shared “Together” ring. Walking into enemies starts a fight, and anyone within a hex joins in.'],
   fight: ['Fighting with dice', 'Click dice to pick them, then click an action they fit: it happens at once, dice and all. Whoever plays first goes first, so set-ups before attacks. Heroes working together score combos: the same number on one enemy back to back (Chord), two heroes’ statuses meeting on one enemy (elemental reactions), and enough damage to break a boss’s big move. Hover Combos in the fight for the list. When everyone is ready, enemies do what their intents say.'],
   sea: ['Time and tide', 'Every nine turns the Great Tide rises: every enemy grows stronger, and the sea brings things ashore: wreckage and visitors at first, raiders and worse as the run goes on. They show on the map at once and under “This turn”. When the Great Tide rises the garrisons of objectives you haven’t cleared grow too, and an objective cleared before its garrison grows weakens the final boss. Gold-ringed places on the map are chances that won’t wait.'],
 };
@@ -1633,6 +1759,7 @@ function renderHint() {
 
 // ------------------------------------------------------------------ effects
 export function handleFx(list, before) {
+  planNews(before);
   const speed = S.settings.speed;
   let heroSteps = 0;
   // what the map says after a fight (level-ups, gold, the tide...) waits until the fight has played out
@@ -1718,6 +1845,13 @@ document.addEventListener('keydown', e => {
   if (!root || e.target.matches('input, select, textarea')) return;
   const g = S.game;
   if (!g || combatOpen()) return;
+  if (UI.pingMenu) {
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 3) { UI.pingMenu.pick(n - 1); e.preventDefault(); return; }
+    if (e.key === 'Escape') { closePingMenu(); return; }
+  }
+  if (e.key === 'Escape' && UI.pingArmed) { armPing(false); return; }
+  if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey && UI.hover >= 0 && !document.querySelector('#modal .scrim')) { sendPing(UI.hover, 'look'); return; }
   if (e.key === 'Escape') { if (UI.drawer) closeDrawer(); else if (UI.menu) { UI.menu = false; renderMenu(); } }
   // dialogs: number keys pick an option (loot goes straight on), Enter carries on
   const scrim = document.querySelector('#modal .scrim');

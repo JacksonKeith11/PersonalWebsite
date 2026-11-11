@@ -1,13 +1,14 @@
 // The hex map, drawn by Phaser: painted pixel terrain (repainted when the sea or tide changes), the
 // places, enemies and heroes standing on it, fog, reachable hexes and planned routes.
 // Everything else on screen is HTML.
-import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=188';
-import { spriteCanvas, placeCanvas } from './art.js?v=188';
+import { W, H, terrain, visibleTiles, neighbors, seaMap, dist } from './rules.js?v=189';
+import { spriteCanvas, placeCanvas } from './art.js?v=189';
 
 export const HW = 48, HH = 54, RS = 40;
 export const MAP_W = W * HW + HW / 2, MAP_H = (H - 1) * RS + HH;
 const K = 41.5692 / RS, SIZE = HW / Math.sqrt(3);
 export const SEATS = [0xe07a5f, 0x4fb3a9, 0xa48ad8];
+const PING_MS = 5000;
 
 export function center(t) {
   const q = t % W, r = Math.floor(t / W);
@@ -456,6 +457,8 @@ export class MapView {
     this.pending = null;
     this.paintedKey = null;
     this.tokens = new Map();
+    this.parent = parent;
+    this.pings = [];
     this.zoom = innerWidth > 1500 ? 2 : innerWidth > 900 ? 2 : 1;
     const self = this;
     this.game = new Phaser.Game({
@@ -500,10 +503,13 @@ export class MapView {
     this.layerLand = scene.add.container();
     this.layerLabels = scene.add.container();
     this.gHover = scene.add.graphics();
+    this.layerPathTags = scene.add.container();  // "Together" and the preview's cost: over the sprites
+    this.layerPing = scene.add.container();
     const cam = scene.cameras.main;
     cam.setBounds(-400, -300, MAP_W + 800, MAP_H + 600);
     cam.setZoom(this.zoom);
-    // input: drag to pan, click to choose, hover to inspect
+    // input: drag to pan, click to choose, hover to inspect; right-click (or Alt-click) to ping
+    scene.input.mouse?.disableContextMenu();
     let down = null;
     scene.input.on('pointerdown', p => { down = { x: p.x, y: p.y, sx: cam.scrollX, sy: cam.scrollY, moved: false }; });
     scene.input.on('pointermove', p => {
@@ -521,7 +527,9 @@ export class MapView {
       if (down && !down.moved) {
         const wp = cam.getWorldPoint(p.x, p.y);
         const t = tileAt(wp.x, wp.y);
-        if (t >= 0) this.handlers.click?.(t);
+        const ev = p.event, right = ev?.button === 2;
+        if (t >= 0 && (right || ev?.altKey)) this.handlers.ping?.(t, ev.clientX, ev.clientY, !right);
+        else if (t >= 0) this.handlers.click?.(t, ev?.clientX, ev?.clientY);
       }
       down = null;
     });
@@ -536,10 +544,12 @@ export class MapView {
   // The minimap follows the camera: redrawn when the view moves (checked each frame, drawn at most
   // a few times a second).
   tick() {
-    if (!this.mini || !this.scene) return;
+    if (!this.scene) return;
     const cam = this.scene.cameras.main, key = `${cam.scrollX | 0},${cam.scrollY | 0},${cam.zoom},${cam.width},${cam.height}`;
     const now = performance.now();
-    if (key !== this.miniKey && now - (this.miniAt || 0) > 120) { this.miniKey = key; this.miniAt = now; this.drawMinimap(); }
+    if (this.pings.length) this.placePingEdges(now);
+    if (!this.mini) return;
+    if ((key !== this.miniKey || this.pings.length) && now - (this.miniAt || 0) > 120) { this.miniKey = key; this.miniAt = now; this.drawMinimap(); }
   }
 
   zoomBy(d, px, py) {
@@ -555,6 +565,8 @@ export class MapView {
     const after = cam.getWorldPoint(px ?? cam.width / 2, py ?? cam.height / 2);
     cam.scrollX += before.x - after.x; cam.scrollY += before.y - after.y;
     this.drawLabels();
+    for (const pg of this.pings) pg.c.setScale(this.pingScale());
+    this.drawPaths();
   }
 
   centerOn(t, smooth = true) {
@@ -839,6 +851,13 @@ export class MapView {
     for (const o of st.opps || []) dot(o.tile, '#ffe7a8', 2);
     for (const q of st.squalls || []) { const [cx, cy] = center(q.tile); x.fillStyle = 'rgba(120,135,160,0.55)'; x.beginPath(); x.arc(cx * s, cy * s, 9, 0, 7); x.fill(); }
     st.heroes.forEach((hero, h) => { if (hero.alive) dot(hero.tile, '#' + SEATS[h].toString(16).padStart(6, '0'), 3); });
+    const now = performance.now();
+    for (const pg of this.pings) {
+      const [cx, cy] = center(pg.t), k = ((now - pg.at) % 900) / 900;
+      x.strokeStyle = '#' + pg.col.toString(16).padStart(6, '0'); x.lineWidth = 2; x.globalAlpha = 1 - k;
+      x.beginPath(); x.arc(cx * s, cy * s, 3 + k * 9, 0, 7); x.stroke();
+      x.globalAlpha = 1; dot(pg.t, x.strokeStyle, 2.6);
+    }
     const cam = this.scene?.cameras.main;
     if (cam) {
       const v = cam.worldView;
@@ -1028,21 +1047,56 @@ export class MapView {
     return key;
   }
 
+  // Where each hero ends the turn as planned (the selected hero's hover preview counts as its plan),
+  // and who ends it on the same hex: `{ends: {h: {tile, path, preview}}, meets: [{tile, heroes}]}`.
+  planEnds() {
+    const st = this.state, plans = st.plans || {}, ends = {};
+    st.heroes.forEach((hero, h) => {
+      if (!hero.alive) return;
+      const p = plans[h] || {};
+      if (p.warp != null) return;  // a beacon jump lands somewhere of its own choosing
+      const preview = this.opts?.preview && this.opts.sel === h ? this.opts.preview : null;
+      const path = preview || p.path || [];
+      ends[h] = { tile: path.length ? path[path.length - 1] : hero.tile, path, preview: !!preview };
+    });
+    const by = {};
+    for (const [h, e] of Object.entries(ends)) (by[e.tile] ||= []).push(+h);
+    const meets = Object.entries(by).filter(([, hs]) => hs.length > 1 && hs.some(h => ends[h].path.length)).map(([t, hs]) => ({ tile: +t, heroes: hs }));
+    return { ends, meets };
+  }
+
+  // Planned routes: a dotted trail in each hero's colour (side by side where two share a stretch, so
+  // neither hides the other) and a ring where it ends. Where heroes end the turn together, one ring
+  // split into their colours and a "Together" tag; the preview's end shows the moves it costs.
   drawPaths() {
     const g = this.gPaths; g.clear();
-    const plans = this.state.plans || {};
-    for (const [hs, p] of Object.entries(plans)) {
-      const h = +hs;
-      const hero = this.state.heroes[h];
-      const preview = this.opts?.preview && this.opts.sel === h ? this.opts.preview : null;
-      const path = preview || p.path;
-      if (!path || !path.length) continue;
+    const L = this.layerPathTags; L.removeAll(true);
+    if (!this.state) return;
+    const { ends, meets } = this.planEnds();
+    const fights = new Set((this.opts?.hideForecast ? [] : this.state.forecast?.fights || []).map(f => f.tile));
+    const meetAt = new Map(meets.map(m => [m.tile, m]));
+    const edges = {};
+    const edgeKey = (a, b) => a < b ? a + ',' + b : b + ',' + a;
+    for (const [hs, e] of Object.entries(ends)) {
+      const pts = [this.state.heroes[hs].tile, ...e.path];
+      for (let i = 1; i < pts.length; i++) (edges[edgeKey(pts[i - 1], pts[i])] ||= []).push(+hs);
+    }
+    for (const [hs, e] of Object.entries(ends)) {
+      const h = +hs, hero = this.state.heroes[h];
+      if (!e.path.length) continue;
       const mine = this.opts?.mine?.includes(h);
       const col = SEATS[h];
-      const pts = [center(hero.tile), ...path.map(center)];
-      const alpha = preview ? 0.75 : mine ? 1 : 0.6;
+      const tiles = [hero.tile, ...e.path], pts = tiles.map(center);
+      const alpha = e.preview ? 0.8 : mine ? 1 : 0.7;
       for (let i = 1; i < pts.length; i++) {
-        const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+        let [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+        // a stretch shared with an ally: each walks its own lane
+        const share = edges[edgeKey(tiles[i - 1], tiles[i])];
+        if (share.length > 1) {
+          const len0 = Math.hypot(x1 - x0, y1 - y0), off = (share.indexOf(h) - (share.length - 1) / 2) * 5;
+          const nx = -(y1 - y0) / len0 * off, ny = (x1 - x0) / len0 * off;
+          x0 += nx; y0 += ny; x1 += nx; y1 += ny;
+        }
         const len = Math.hypot(x1 - x0, y1 - y0), n = Math.floor(len / 7);
         for (let k = 1; k <= n; k++) {
           const f = k / n;
@@ -1050,10 +1104,125 @@ export class MapView {
           g.fillStyle(col, alpha); g.fillRect(Math.round(x0 + (x1 - x0) * f) - 1, Math.round(y0 + (y1 - y0) * f) - 2, 3, 3);
         }
       }
+      if (meetAt.has(e.tile)) continue;
       const [ex, ey] = pts[pts.length - 1];
       g.lineStyle(2, col, alpha); g.strokeCircle(ex, ey, 9);
       g.fillStyle(col, alpha * 0.35); g.fillCircle(ex, ey, 8);
     }
+    for (const m of meets) {
+      const [cx, cy] = center(m.tile), n = m.heroes.length;
+      g.fillStyle(0xf3ead2, 0.16); g.fillCircle(cx, cy, 15);
+      g.lineStyle(7, 0x0b1017, 0.7); g.strokeCircle(cx, cy, 15);
+      m.heroes.forEach((h, i) => {
+        const a0 = -Math.PI / 2 + i * Math.PI * 2 / n, a1 = a0 + Math.PI * 2 / n;
+        g.lineStyle(4, SEATS[h], 1); g.beginPath(); g.arc(cx, cy, 15, a0 + 0.08, a1 - 0.08); g.strokePath();
+      });
+      if (fights.has(m.tile)) continue;  // the fight's marker already shows who's there
+      const tag = this.scene.add.container(cx, cy - 40);
+      const txt = this.scene.add.text(n * 4 + 2, 0, 'Together', { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#f3ead2', resolution: 4 }).setOrigin(0.5);
+      const w = txt.width + n * 8 + 14;
+      const bg = this.scene.add.graphics();
+      bg.fillStyle(0x0b1017, 0.88); bg.fillRoundedRect(-w / 2, -8, w, 16, 8);
+      bg.lineStyle(1, 0xe0bb62, 0.9); bg.strokeRoundedRect(-w / 2, -8, w, 16, 8);
+      tag.add(bg);
+      m.heroes.forEach((h, i) => tag.add(this.scene.add.circle(-w / 2 + 8 + i * 8, 0, 3.5, SEATS[h]).setStrokeStyle(1, 0x0b1017)));
+      tag.add(txt);
+      tag.setScale(this.pingScale() * 0.9);
+      L.add(tag);
+    }
+    // the hover preview's cost, at its end
+    const sel = this.opts?.sel, pe = sel != null ? ends[sel] : null;
+    if (pe?.preview && this.opts.previewText) {
+      const [ex, ey] = center(pe.tile);
+      const t = this.scene.add.text(ex, ey + 22, this.opts.previewText, { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#ffe7a8', backgroundColor: '#0b1017e0', padding: { x: 4, y: 1 }, resolution: 4 }).setOrigin(0.5);
+      t.setScale(this.pingScale() * 0.9);
+      L.add(t);
+    }
+  }
+
+  // The hover preview alone: redraws only the routes (a whole setState on every hex the mouse
+  // crosses was the map's main lag).
+  setPreview(path, text = '') {
+    if (!this.ready || !this.opts) return;
+    this.opts.preview = path; this.opts.previewText = text;
+    this.drawPaths();
+  }
+
+  // ---------------------------------------------------------------- pings
+  // Things drawn for the eye at any zoom: about the same size on screen whether zoomed in or out.
+  pingScale() { return 1.6 / this.zoom; }
+
+  // Someone pinged a hex: a pin drops in their colour with what they mean on it (an eye, a flag, a
+  // "!"), rings pulse out from it and their name sits under it for `PING_MS`. Off screen, an arrow at
+  // the edge points the way (`placePingEdges`); the minimap rings it too. One ping a person at a time.
+  ping(t, col, kind, label, who) {
+    if (!this.scene) return;
+    const sc = this.scene, [cx, cy] = center(t);
+    for (const old of this.pings.filter(pg => pg.who === who)) this.unping(old);
+    const c = sc.add.container(cx, cy).setScale(this.pingScale());
+    const rings = sc.add.container(0, 8);
+    for (let k = 0; k < 3; k++) {
+      const r = sc.add.ellipse(0, 0, 26, 11).setStrokeStyle(3, col, 1);
+      rings.add(r);
+      sc.tweens.add({ targets: r, scale: 3, alpha: 0, duration: 1100, delay: k * 360, repeat: 3, repeatDelay: 0 });
+    }
+    const pin = sc.add.container(0, -60).setAlpha(0);
+    const stalk = sc.add.rectangle(0, 0, 2, 16, col).setOrigin(0.5, 0);
+    const disc = sc.add.circle(0, -2, 11, 0x0b1017, 0.95).setStrokeStyle(2.5, col);
+    const glyph = sc.add.graphics({ x: 0, y: -2 });
+    glyph.fillStyle(0xffffff, 1); glyph.lineStyle(2, 0xffffff, 1);
+    if (kind === 'go') { glyph.lineBetween(-3, 6, -3, -6); glyph.fillTriangle(-3, -6, 6, -3, -3, 0); }
+    else if (kind === 'danger') { glyph.fillRect(-1.5, -6, 3, 8); glyph.fillRect(-1.5, 4, 3, 3); }
+    else { glyph.strokeEllipse(0, 0, 14, 8); glyph.fillCircle(0, 0, 2.5); }
+    pin.add([stalk, disc, glyph]);
+    const name = sc.add.text(0, 22, label, { fontFamily: 'Inter', fontSize: '10px', fontStyle: 'bold', color: '#f3ead2', backgroundColor: '#0b1017d8', padding: { x: 4, y: 1 }, resolution: 4 }).setOrigin(0.5);
+    c.add([rings, pin, name]);
+    this.layerPing.add(c);
+    sc.tweens.add({ targets: pin, y: -18, alpha: 1, duration: 420, ease: 'Bounce.easeOut' });
+    sc.tweens.add({ targets: disc, scale: 1.15, duration: 500, yoyo: true, repeat: 4, delay: 420, ease: 'Sine.easeInOut' });
+    const pg = { t, col, who, c, at: performance.now(), edge: null };
+    pg.timer = sc.time.delayedCall(PING_MS, () => this.unping(pg));
+    this.pings.push(pg);
+    this.drawMinimap();
+  }
+
+  unping(pg) {
+    this.pings = this.pings.filter(x => x !== pg);
+    pg.timer?.remove();
+    pg.edge?.remove();
+    this.scene.tweens.add({ targets: pg.c, alpha: 0, duration: 300, onComplete: () => pg.c.destroy(true) });
+  }
+
+  // An arrow on the map's edge for each ping out of sight, pointing at it; click to look there.
+  placePingEdges() {
+    const cam = this.scene.cameras.main, v = cam.worldView, m = 26;
+    for (const pg of this.pings) {
+      const [wx, wy] = center(pg.t);
+      const sx = (wx - v.x) * cam.zoom, sy = (wy - v.y) * cam.zoom;
+      const out = sx < 0 || sy < 0 || sx > cam.width || sy > cam.height;
+      if (!out) { if (pg.edge) pg.edge.hidden = true; continue; }
+      if (!pg.edge) {
+        pg.edge = document.createElement('button');
+        pg.edge.className = 'ping-edge';
+        pg.edge.style.setProperty('--ping', '#' + pg.col.toString(16).padStart(6, '0'));
+        pg.edge.setAttribute('aria-label', 'Look at the ping');
+        pg.edge.innerHTML = '<span></span>';
+        pg.edge.addEventListener('click', () => this.centerOn(pg.t));
+        this.parent.append(pg.edge);
+      }
+      const x = Math.max(m, Math.min(cam.width - m, sx)), y = Math.max(m, Math.min(cam.height - m, sy));
+      pg.edge.hidden = false;
+      pg.edge.style.left = x + 'px'; pg.edge.style.top = y + 'px';
+      pg.edge.style.setProperty('--ang', Math.atan2(sy - y, sx - x) + 'rad');
+    }
+  }
+
+  // A quick ring where a route was just set, so the click answers at once.
+  tap(t, col) {
+    if (!this.scene) return;
+    const [cx, cy] = center(t), r = this.scene.add.circle(cx, cy, 9).setStrokeStyle(3, col, 1);
+    this.layerPing.add(r);
+    this.scene.tweens.add({ targets: r, scale: 2.4, alpha: 0, duration: 380, ease: 'Quad.easeOut', onComplete: () => r.destroy() });
   }
 
   drawUnits() {
@@ -1212,7 +1381,7 @@ export class MapView {
   }
   stepTime(speed) { return 260 / speed; }
 
-  destroy() { this.game.destroy(true); }
+  destroy() { for (const pg of this.pings) pg.edge?.remove(); this.game.destroy(true); }
 }
 
 const MINI_COL = { deep: '#1d4f6a', shoal: '#bfa877', beach: '#d9c48e', grass: '#5d8c47', forest: '#3e6a34', hills: '#7d8a4e', peak: '#7f7a72', town: '#c9a24a', ice: '#cfe3ee' };

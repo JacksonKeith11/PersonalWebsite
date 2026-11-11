@@ -1,14 +1,14 @@
 // The screens around a run: title (new, join, resume), the lobby (claiming heroes, difficulty,
 // saved runs) and the end of a run.
-import { S, saved, persist, send } from './store.js?v=188';
-import { $, h, icon, toast } from './ui.js?v=188';
-import { spriteURL, hasSprite } from './art.js?v=188';
+import { S, saved, persist, send } from './store.js?v=189';
+import { $, h, icon, toast } from './ui.js?v=189';
+import { spriteURL, hasSprite } from './art.js?v=189';
 
 // the ten classes, for the title screen's roster (it shows before the server has sent any class data)
 const ROSTER = ['vanguard', 'duelist', 'berserker', 'ranger', 'arcanist', 'mender', 'scoundrel', 'herald', 'alchemist', 'warden', 'spellblade', 'emberknight', 'dragonborn', 'psion', 'gunslinger', 'samurai'];
-import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=188';
-import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=188';
-import { connect, disconnect, debug } from './main.js?v=188';
+import { dieLabel, dieTip, faceText, faceTip, reqText } from './rules.js?v=189';
+import { paintTerrain, MAP_W, MAP_H } from './hexmap.js?v=189';
+import { connect, disconnect, debug } from './main.js?v=189';
 
 const app = () => $('app');
 
@@ -261,7 +261,7 @@ export function renderEnd() {
   const won = g.result === 'won';
   const host = r.host === S.you;
   // the party stands in a row; whoever led a column gets it as an award
-  const AWARDS = [['dmg', 'Most damage'], ['heal', 'Most healing'], ['kills', 'Most kills'], ['taken', 'Took the most hits']];
+  const AWARDS = [['dmg', 'Most damage dealt'],['heal', 'Most healing'], ['kills', 'Most kills'], ['taken', 'Most damage taken']];
   const best = k => Math.max(...g.stats.map(x => x[k]));
   const lineup = h('div.end-party', null, ...g.heroes.map((hero, i) => h('div.end-hero' + (hero.alive ? '' : '.fallen'), { style: { '--seat': `var(--hero-${i})`, '--i': i } },
     h('div.end-fig', null, h('img.pix', { src: spriteURL(hero.cls), alt: '' })),
@@ -282,7 +282,7 @@ export function renderEnd() {
           h('td', null, h('img.pix', { src: spriteURL(hero.cls), alt: '' }), hero.name,
             hero.name !== st.classes[hero.cls].name ? h('span.muted', null, st.classes[hero.cls].name) : null),
           // the best in each column stands out
-          ...['dmg', 'heal', 'kills', 'taken'].map(k => h('td' + (k !== 'taken' && g.stats[i][k] > 0 && g.stats[i][k] === Math.max(...g.stats.map(x => x[k])) ? '.best' : ''), null, g.stats[i][k])))))),
+          ...['dmg', 'heal', 'kills', 'taken'].map(k => h('td' + (g.stats[i][k] > 0 && g.stats[i][k] === Math.max(...g.stats.map(x => x[k])) ? '.best' : ''), null, g.stats[i][k])))))),
       h('div', { style: { display: 'flex', gap: '12px', justifyContent: 'center' } },
         host ? h('button.btn.primary.lg', { onclick: () => send({ t: 'quit' }) }, 'Back to the lobby') : h('p.muted', null, 'The host can take everyone back to the lobby.'),
         h('button.btn.lg', { onclick: disconnect }, 'Leave')),

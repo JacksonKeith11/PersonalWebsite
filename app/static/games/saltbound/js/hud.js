@@ -1,14 +1,14 @@
 // The run's HTML over the map: top bar, party cards, the action bar, the log, the town and hero
 // drawers, dialogs (events, loot, level-ups), first-time hints, and wiring the map's clicks.
-import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=188';
-import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=188';
-import { spriteURL, placeURL } from './art.js?v=188';
-import { itemURL } from './itemart.js?v=188';
-import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=188';
-import { MapView } from './hexmap.js?v=188';
-import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=188';
-import { disconnect } from './main.js?v=188';
-import * as sfx from './audio.js?v=188';
+import { S, send, mine, controllerName, isOnline, saved, persist } from './store.js?v=189';
+import { $, h, icon, toast, modal, bigBanner } from './ui.js?v=189';
+import { spriteURL, placeURL } from './art.js?v=189';
+import { itemURL } from './itemart.js?v=189';
+import { reach, routeTo, terrain, seaMap, TERRAIN_NAME, dieLabel, dieTip, faceText, faceTip, KIND_TEXT, reqText, visibleTiles, dist as hexDist, expected, face, topFace } from './rules.js?v=189';
+import { MapView } from './hexmap.js?v=189';
+import { renderCombat, combatFx, combatOpen, showFight, hpClass, reqBadge, afterCombat, holdCombat, CRIT_TIP } from './combat.js?v=189';
+import { disconnect } from './main.js?v=189';
+import * as sfx from './audio.js?v=189';
 
 // the log starts closed and "This turn" open; each remembers how you left it
 const UI = { drawer: null, log: saved.logOpen === true, fc: saved.fcOpen !== false, res: {}, hover: -1, preview: null, menu: false };
@@ -802,7 +802,15 @@ function openDrawer(kind, tab, who) {
 function closeDrawer() { UI.drawer = null; renderDrawer(); }
 
 function renderDrawer() {
+  // every update rebuilds the drawer: keep its scroll when it's the same drawer and tab (selling in
+  // the market once jumped the list back to the top)
+  const el = $('drawer'), d = UI.drawer;
+  const key = d ? `${d.kind}:${d.tab}:${d.who ?? sel()}` : null;
+  const top = key && key === UI.drawerKey ? el.querySelector('.drawer .body')?.scrollTop : 0;
   drawDrawer();
+  UI.drawerKey = UI.drawer ? key : null;
+  const body = el.querySelector('.drawer .body');
+  if (body && top) body.scrollTop = top;
   // the action bar slides left so the drawer doesn't cover Ready
   document.body.classList.toggle('drawer-open', $('drawer').childElementCount > 0);
 }

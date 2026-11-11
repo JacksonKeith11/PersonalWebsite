@@ -330,7 +330,7 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      blessings and jobs go on it when it's up, and are toasts otherwise.
   7. **Town and shop panel**.
   8. **Run end**: win or lose, the party in a row with an award under whoever led each column (most
-     damage, healing, kills, hits taken; the fallen greyed, a slow ray burst behind a win), then the
+     damage dealt, healing, kills, damage taken, each leader highlighted in the table too; the fallen greyed, a slow ray burst behind a win), then the
      per-hero summary table, the seed and a back-to-lobby button. Dungeon forks open each path card
      with the enemies waiting down it (or the shrine where none do), and a level-up shows the hero's
      portrait.
@@ -919,7 +919,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   `GUARD_ACT`; `Game.actions_of` swaps it in; the actions are `ARMOR_ACTIONS` in `items.py`): Hunker
   Down (die +1 Armor: the plain coats), Patch Up (die Armor, heal 2: the healers' robes), Coral Growth
   (heal 3: Coral Mail, whose old "Block heals 2" passive it replaced), Bristle (attackers take 2:
-  Barnacle Plate, Sharkskin), Sidestep (5+: dodge the next hit: Mistweave, Smuggler's Cloak), Echo
+  Barnacle Plate, Sharkskin), Sidestep (6+: dodge the next hit: Mistweave, Smuggler's Cloak; 5+ until Nov 2026), Echo
   Shell (attacks aimed at you −2: Siren's Conch; `to: "aiming"`), Cover (you or an ally: Diver's
   Harness, Whaleplate, Gilded Cuirass) and Tidewall (the party +2: Tidelord's Aegis). Plain Block is
   left only for a hero with no armor. The hero sheet and item rows name the action.
@@ -1408,6 +1408,18 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   (Storm Wisps: health adds, an extra die per merge).
 - **Riders**: `st`/`sn` on a hit; `st_min` only if a die rolls that much (a Siren's Seer die shows in
   advance whether its Lullaby lands); `pair` on doubles (Root, Stun, or `again`).
+- **Statuses hit harder** (owner's request, Nov 2026: more enemies that inflict statuses, and stronger
+  ones from those that do). A pass in `content/archipelago.py` (`STATUS_UP`, after the pools merge) gives
+  every existing status move Burn and Poison 1 more, Weak, Vulnerable, Mark and Root a round longer, and
+  lowers a die-gated rider's `st_min` by 1 (at least 2). Stuns, `pair` riders and status faces are left
+  alone. Then `STATUS_RIDERS` gives the 20 regular enemies that had no status one each, leaning on the
+  rarer kinds: Poison (Drowned Deckhand, Scarab Swarm), Freeze (Gale Sprite, Drowned Knight), Shock
+  (Lightning Totem), Burn (Seraph Sentinel, Quartermaster), Vulnerable, Mark, Weak and Root, and a Stun on
+  doubles for the Sleeping Sentinel and the Silverback. The bosses' machinery (cannons, kegs, the Tide
+  Guard) keeps none. Only enemies whose dice faces carry a status have no status move. Measured with the
+  Mistweave and Jaguar Pelt nerfs (2026-11-10, 300 Hard runs, seed 5000): **Hard 51.0%**, against 50.3%
+  in the last all-class batch (2026-11-07, a few builds earlier, so not a clean before-and-after);
+  classes 39-64% on about 55 runs each (±7): Duelist 64.2, Ranger 59.2 ... Alchemist 43.9, Samurai 38.9.
 - **Targeting** (`tgt`): random, weakest, strongest, vengeful (whoever hurt it most last round). Guard
   and Taunt swing intents in the open (`retarget_intents`).
 - **The first three regions and the Peak got their own enemies** (owner's request, Nov 2026; they had 5
@@ -1502,7 +1514,11 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 
 About 145 items (`ITEMS` in `content/items.py`, with the regional gear, relics and materials from `content/gear2.py`; 111 that can drop, of which a run sees the original 59 plus its regions' pieces, `Game.gear()`; each has a pixel icon, `ICON` in `js/itemart.js`): weapons give a die and actions, armor a guard die and
 often a passive, trinkets an odd die, a passive or an action. Gear past the starting kit has a passive
-of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
+of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **The rare first-hit
+dodges were nerfed** (owner's request, Nov 2026): Mistweave's passive is 2 more starting Armor (it halved
+the first hit each fight) and its Sidestep dodges on 6+ (was 5+); the Jaguar Pelt lost the first-hit
+passive and backstabs for 4 (was 3). Angel Feather (uncommon) and the Wings of the Arbiter (legendary)
+keep it, and their texts now say what it does: the first hit deals half (they said it missed). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
 Shellbreaker Maul ignores Armor, the Oilskin Coat stops Burns, the Diver's Harness a Stun and Freeze,
 the Smuggler's Cloak turns the first enemy each round that would attack you onto someone else (its own
 mod, `cloak`; the Ranger's Camouflage passive is the stronger "only when there's no one else"), the Gutting Knife
@@ -1717,7 +1733,11 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
 
 **Skill texts** follow one style (owner's request: clearer): "the die" is the number it shows, "On
 5+:" is what a roll meeting the requirement does and "Otherwise:" what a lower one does, "Any row"
-comes first, and enemies' "intents" are called their coming attack or action.
+comes first, and enemies' "intents" are called their coming attack or action. **Keep them short**
+(owner's request, Nov 2026: simpler, the Gunslinger's especially): rules only, no flavour ("the bullet
+goes on", "you draw first"), and a keyword with its own tooltip (Resonance faces, the Silver Round) gets
+a few words, not its whole rule. Every Gunslinger text and the 30 longest elsewhere were cut down then;
+none is over 140 characters.
 
 ## Balance now
 

@@ -1420,6 +1420,19 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   Mistweave and Jaguar Pelt nerfs (2026-11-10, 300 Hard runs, seed 5000): **Hard 51.0%**, against 50.3%
   in the last all-class batch (2026-11-07, a few builds earlier, so not a clean before-and-after);
   classes 39-64% on about 55 runs each (±7): Duelist 64.2, Ranger 59.2 ... Alchemist 43.9, Samurai 38.9.
+- **Six enemies built around statuses** (owner's request, Nov 2026), one per region, each bringing the
+  statuses its region's enemies lacked: `content/afflicters.py` (merged in `archipelago.py` after the
+  `STATUS_UP` pass, so its numbers are final; its `GROUPS` are added to each region's roaming groups,
+  three each, and its `CRITS` to `foes.py`). **Bilge Rats** (Smugglers' Keys: every bite Poisons 1,
+  doubles Root), **Omen Raven** (Stormcrag: Hex on a Seer die's 3+, Shiny Grab steals a die, Vulnerable on
+  doubles), **Sulphur Toad** (Cinderreach: Toxic Belch Poisons the whole party 2, Tongue Lash Roots),
+  **Rimebound Trapper** (the Frostpeaks: Snare Roots, Hunter's Mark on 3+, Freezing arrows), **Glowcap**
+  (the Verdant Deep: Spore Cloud Weakens everyone on 4+, Choking Spores crusts the biggest die; splits)
+  and **Arc Beetle** (the Prism Wood: Static Field, Shock bites, Shell Up). Sprites in
+  `tools/saltbound-art/foes4.py`, three looks each; the owner picked the rats out of a barrel, the storm
+  raven, the magma toad, the masked netter, the mushroom person and the prism horn (`PICKED`). In forced
+  fights every move fired and landed its status. No balance batch after them: the owner judged the
+  balance fine (Hard 51.0% just before, above).
 - **Targeting** (`tgt`): random, weakest, strongest, vengeful (whoever hurt it most last round). Guard
   and Taunt swing intents in the open (`retarget_intents`).
 - **The first three regions and the Peak got their own enemies** (owner's request, Nov 2026; they had 5
@@ -2110,6 +2123,7 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/classes.py` | The generic classes, their actions and passives, `SHORT` card text, `COMBOS`, levels and XP. |
 | `app/saltbound/content/items.py` | Items (generic), item passives and the actions weapons give. |
 | `app/saltbound/content/archipelago.py` | This map's enemies, pools, elites, dungeons and paths, the final boss, blessings and events. |
+| `app/saltbound/content/afflicters.py` | Six status-focused enemies, one per region, with their groups and critical riders (merged into `archipelago.py`). |
 | `app/saltbound/world.py` | Hex geometry (`step_dir` for a hex direction), terrain costs (`COST`, `FAST`), generating a run's map from its seed, and its extras (`add_features`: currents, reefs, whirlpools, places at sea, lookouts, grottos). |
 | `app/saltbound/biome.py` | `Biomes`, mixed into `Game`: the other regions' map rules (lava and eruptions, quicksand, trails, ice, sight, Frostbite, timeless Stillwood, dreams, oases, fossils, geodes, light-gates). |
 | `app/saltbound/travel.py` | `Travel`, mixed into `Game`: beacon towers (placing, lighting, travelling between lit ones) and travelling merchants (their roads, stock and shop). |
@@ -2192,6 +2206,12 @@ clock anywhere: the run changes only when someone acts.
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
 ## Gotchas
+
+- **The sprite build doesn't need Pillow, but its kit imports it** (`tools/threefold-art/kit.py`, for
+  PNG sheets). On a machine without it, stub it to rebuild `sprites.js`: from `tools/saltbound-art`,
+  `python -c "import sys, types, runpy; m = types.ModuleType('PIL'); m.Image = None; sys.modules['PIL'] = m;
+  sys.path.insert(0, '.'); runpy.run_path('build.py', run_name='__main__')"`. The output for existing
+  sprites must not change.
 
 - **A move that crashes is rolled back** (`Room.guarded`, Nov 2026 audit): every player and bot move runs
   against a JSON snapshot of `g.s`; an exception that isn't `Invalid` is logged, the game is rebuilt from

@@ -313,6 +313,11 @@ for _k, _riders in STATUS_RIDERS.items():
     for _mk, _r in _riders.items():
         FOES[_k]["moves"][_mk].update(_r)
 
+# ...and six new enemies built around statuses, one per region (content/afflicters.py), merged after the
+# pass so their numbers are final; their groups are added to GROUPS below.
+from . import afflicters as _S  # noqa: E402
+FOES.update(_S.FOES)
+
 for _k, _v in POOLS.items():
     FOES[_k]["pool"] = _v
 
@@ -343,6 +348,8 @@ GROUPS = {
               ["crag_ram", "cliff_hermit", "lightning_totem"], ["crag_ram", "thunder_wyvern"]],
 }
 GROUPS.update(_B.GROUPS)
+for _r, _gs in _S.GROUPS.items():
+    GROUPS[_r] = GROUPS[_r] + _gs
 # the Peak: the Drowned Crown's own court, with a few of the first three regions' enemies come ashore
 GROUPS["peak"] = [["drowned_knight"], ["brine_wraith", "brine_wraith"], ["tide_guard", "crown_herald"],
                   ["abyss_angler", "eel"], ["drowned_knight", "brine_wraith"], ["coral_colossus"],

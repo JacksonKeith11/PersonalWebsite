@@ -535,4 +535,10 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   last hero fell on an off tick, their browser never heard they were down and they could walk about for
   the three seconds before the lobby. The loop now sends one on losing, and the browser downs its own
   hero on the `down` and `wipe` events without waiting.
+- **A sound must never break the screen.** A panner given a place that isn't a number (a boss body
+  before its first snapshot, as when rejoining mid-fight) threw, and the error screen came back on every
+  rejoin of that room. `pan` in `js/fight.js` and `hiss`/`tone` in `js/audio.js` now fall back to the middle.
+- **Saves carry a version** (`save.py`): bumping `VERSION` without a migration deletes every older save the
+  next time its owner lists them. Version 2 (Nov 2026) cleared the runs from before the blessings changed.
+  Each saved run in the lobby has a Delete button (`forget`).
 - The fight lives in one process's memory; a deploy drops it (the run resumes from the last Bonfire).

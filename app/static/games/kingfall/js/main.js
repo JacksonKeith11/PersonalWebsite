@@ -1,12 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=32';
-import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=32';
-import { icon } from './icons.js?v=32';
-import { Net, ME } from './net.js?v=32';
-import { FightScene } from './fight.js?v=32';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=32';
-import { unlock, sfx, setVolume } from './audio.js?v=32';
-import { music } from './music.js?v=32';
+import { setAtlas } from './rig.js?v=33';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=33';
+import { icon } from './icons.js?v=33';
+import { Net, ME } from './net.js?v=33';
+import { FightScene } from './fight.js?v=33';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=33';
+import { unlock, sfx, setVolume } from './audio.js?v=33';
+import { music } from './music.js?v=33';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -430,7 +430,7 @@ function lobby() {
       : `<span class="chip" style="--r:${L.diff === k ? 'var(--gold)' : 'var(--line)'}">${esc(n)}</span>`).join('')}
       <span class="hint">${{ squire: 'Gentler bosses, for a relaxed night.', knight: 'As designed: souls-hard.', hard: 'Faster, meaner bosses; no Second Wind.' }[L.diff] || ''}</span></div>
     ${host && (S.saves || []).length ? `<h3>Saved runs</h3><div class="heroes">${S.saves.map(s =>
-      `<div class="row" style="justify-content:space-between"><span class="hint">${esc(s.summary)}</span><button class="btn" data-nav data-resume="${esc(s.id)}">Resume</button></div>`).join('')}</div>` : ''}
+      `<div class="row" style="justify-content:space-between"><span class="hint">${esc(s.summary)}</span><span><button class="btn" data-nav data-forget="${esc(s.id)}">Delete</button> <button class="btn" data-nav data-resume="${esc(s.id)}">Resume</button></span></div>`).join('')}</div>` : ''}
     <div class="row" style="margin-top:20px;justify-content:space-between">
       <button class="btn" id="leave" data-nav data-back>Leave</button>
       ${host ? `<button class="btn primary" id="start" data-nav ${L.heroes.length ? 'data-autofocus' : 'disabled'}>${over ? 'Fight again' : 'Begin'}</button>`
@@ -492,6 +492,7 @@ function lobby() {
     b.addEventListener('lr', e => cycle(e.detail));
   });
   el.querySelectorAll('[data-diff]').forEach(b => { b.onclick = () => net.send({ t: 'diff', d: b.dataset.diff }); });
+  el.querySelectorAll('[data-forget]').forEach(b => { b.onclick = () => net.send({ t: 'forget', id: b.dataset.forget }); });
   el.querySelectorAll('[data-resume]').forEach(b => { b.onclick = () => net.send({ t: 'resume', id: b.dataset.resume }); });
   el.querySelectorAll('[data-drop]').forEach(b => { b.onclick = () => net.send({ t: 'drop', h: +b.dataset.drop }); });
   if ($('[data-split]', el)) $('[data-split]', el).onclick = () => { const pad = S.p1pad; S.p1pad = null; addHero(slotOf(pad)); };

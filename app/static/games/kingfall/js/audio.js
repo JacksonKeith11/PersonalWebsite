@@ -12,7 +12,7 @@ function ac() {
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
-export function setVolume(v) { volume = v; if (master) master.gain.value = v; }
+export function setVolume(v) { volume = Number.isFinite(v) ? v : 0.6; if (master) master.gain.value = volume; }
 export function audioOut() { return ac() ? { ctx, master } : null; }
 export function unlock() { ac(); }
 
@@ -34,20 +34,20 @@ function env(c, g, t, a, peak, dur) {
 
 // filtered noise: whooshes, impacts, fire
 function hiss(f0, f1, q, dur, peak, type = 'bandpass', pan = 0) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || !(dur > 0) || ![f0, f1, peak].every(Number.isFinite)) return;
   const t = c.currentTime, s = noise(c), fl = c.createBiquadFilter(), g = c.createGain(), p = c.createStereoPanner();
   fl.type = type; fl.Q.value = q;
   fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
-  env(c, g, t, 0.01, peak, dur); p.pan.value = pan;
+  env(c, g, t, 0.01, peak, dur); p.pan.value = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0;  // a place not known yet plays in the middle
   s.connect(fl).connect(g).connect(p).connect(master);
   s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
 }
 
 function tone(type, f0, f1, dur, peak, delay = 0, pan = 0) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || !(dur > 0) || ![f0, f1, peak].every(Number.isFinite)) return;
   const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner();
   o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
-  env(c, g, t, 0.005, peak, dur); p.pan.value = pan;
+  env(c, g, t, 0.005, peak, dur); p.pan.value = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0;
   o.connect(g).connect(p).connect(master); o.start(t); o.stop(t + dur + 0.05);
 }
 

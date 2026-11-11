@@ -206,6 +206,10 @@ class Room:
         elif t == "diff" and c.id == self.host and self.state in ("lobby", "over") and msg.get("d") in DIFFS:
             self.diff = msg["d"]
             self.broadcast(self.lobby_wire())
+        elif t == "forget" and self.state in ("lobby", "over"):   # delete one of your saved runs
+            tok = c.token.split(":")[0]
+            SAVE.forget(str(msg.get("id"))[:40], tok)
+            self.send(c, {"t": "saves", "list": SAVE.list_for(tok)})
         elif t == "resume" and c.id == self.host and self.state in ("lobby", "over"):
             self.resume(c, str(msg.get("id"))[:40])
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:

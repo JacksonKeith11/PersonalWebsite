@@ -3,7 +3,8 @@ only loses the fight in progress.
 
 A save belongs to every browser that played in it (their tokens); each browser keeps at most `KEEP`.
 A run that ends (won or lost) deletes its save. Saves carry `VERSION`; `MIGRATIONS[n]` turns a
-version-n state into version n+1, and a save that can't be brought up to date is refused.
+version-n state into version n+1, and a save that can't be brought up to date is deleted when its
+owner next lists their saves (so bumping `VERSION` without a migration clears every old run).
 """
 
 import json
@@ -15,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("KINGFALL_DB", "data/kingfall.db"))
-VERSION = 1
+VERSION = 2   # 2 (Nov 2026): the owner asked for old runs to be cleared (one was stuck), and the blessings had changed under them
 MIGRATIONS = {}
 KEEP = 5
 _lock = threading.Lock()
@@ -47,6 +48,10 @@ def save(run_id, tokens, state, summary):
 def list_for(token):
     if not token: return []
     with _db() as con:
+        for rid, state in con.execute("SELECT id, state FROM runs").fetchall():   # drop what can no longer be loaded
+            v = json.loads(state).get("v", 0)
+            while v < VERSION and v in MIGRATIONS: v += 1
+            if v < VERSION: con.execute("DELETE FROM runs WHERE id = ?", (rid,))
         rows = con.execute("SELECT id, tokens, updated, summary FROM runs ORDER BY updated DESC").fetchall()
     return [{"id": r[0], "when": r[2], "summary": r[3]} for r in rows if token in json.loads(r[1])][:KEEP]
 
@@ -62,6 +67,13 @@ def load(run_id, token):
         if not step: return None
         state = step(state)
     return state
+
+
+def forget(run_id, token):
+    """A player deletes one of their own saves."""
+    with _db() as con:
+        r = con.execute("SELECT tokens FROM runs WHERE id = ?", (run_id,)).fetchone()
+        if r and token in json.loads(r[0]): con.execute("DELETE FROM runs WHERE id = ?", (run_id,))
 
 
 def delete(run_id):

@@ -110,3 +110,6 @@ Read this before changing `app/books/` or `app/static/books/`.
   regex in `receive.js` must agree with it when adding a site.
 - **The worker runs at `nice 10`.** It must stay importable without FastAPI or bs4, since its
   container has neither.
+- **Narration stops on battery.** A host job pauses the `tts` container while the Mac is unplugged
+  (see `docs/site.md`), so audio stops growing until it's back on the charger. The worker is frozen,
+  not stopped, and carries on mid-chapter.

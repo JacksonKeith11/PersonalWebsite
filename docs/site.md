@@ -16,9 +16,9 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   (a username, no password; see `docs/books.md`).
 - `app/arena/routes.py` adds Frag Arena's page and WebSocket (`docs/arena.md`),
   `app/brawl/routes.py` Board Brawl's (`docs/brawl.md`) and `app/saltbound/routes.py` Saltbound's
-  (`docs/saltbound.md`). Their games live in the web process's memory, so uvicorn must keep running
+  (`docs/saltbound.md`), and `app/kingfall/routes.py` Kingfall's (`docs/kingfall.md`). Their games live in the web process's memory, so uvicorn must keep running
   a single worker.
-- `app/rooms.py` is what the three multiplayer games share on the server: the WebSocket loop
+- `app/rooms.py` is what the four multiplayer games share on the server: the WebSocket loop
   (`serve(ws, enter)`: a first `hello`, then each message to `room.handle`, `room.leave` on close),
   sending to one connection through its own queue (`push`, hanging up a connection too far behind),
   `Refused` to turn a browser away with a message, rooms by four-letter code (`Codes`), `clean` for
@@ -40,6 +40,16 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
     `app/books`, so the worker may import only from there and the stdlib, numpy, lameenc and
     kokoro_onnx.
   - `tunnel`: cloudflared, under the `tunnel` profile. The deploy job doesn't rebuild it.
+- Both host jobs live outside the repo, in `~/.local/bin` with launchd agents in
+  `~/Library/LaunchAgents` and logs in `~/Library/Logs`, so merged code can't change what runs on the
+  host:
+  - `personal-site-deploy.sh` (every 2 minutes) records the last commit that went live in
+    `~/.local/state/personal-site-deploy/deployed` and deploys when `origin/main` differs from it, so
+    a pull into the checkout doesn't hide a push. It clears a lock left by a run that died (a crash
+    or a flat battery mid-build).
+  - `personal-site-power.sh` (every minute) pauses `tts` while the Mac is on battery and unpauses it
+    on the charger. Narration keeps every core busy and empties the battery in about 90 minutes.
+    A deploy recreates `tts` running, and the next check pauses it again.
 - Secrets live only in `.env` on the Mac. A new setting means: add it, empty, to `.env.example`, and
   tell the user it needs setting at the Mac.
 
@@ -63,7 +73,9 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   `python3 tools/bump-version.py --check` lists any file linked with two different versions.
 - **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about a minute): the app
   imports, cache versions agree, every browser JS file parses (`tools/check-js.sh`), and each game's
-  own checks. Browser smoke tests need a running server and live in each area's doc.
+  own checks. Browser smoke tests need a running server and live in each area's doc, except Kingfall's
+  (`tools/kingfall-smoke.js --serve`), which starts its own and is in `check-all.sh`; a check that exits
+  77 is reported as `skip` (Playwright isn't installed), not a failure.
 - **`node --check file.js` doesn't catch syntax errors in the games' ES modules**: here a `.js` file
   isn't parsed as a module, and broken code passes. `tools/check-js.sh` checks a `.mjs` copy of each.
 - **The serials route is registered at import time.** It's only registered if `SERIALS_PATH` was

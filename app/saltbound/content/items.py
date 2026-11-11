@@ -62,7 +62,7 @@ WEAPON_ACTIONS = {
                  "text": "A diagonal cut through the line: deal the die, then half the die to every enemy in its row (it too)."},
     "warning_shot": {"name": "Warning Shot", "req": {"n": 1}, "tgt": "foe",
                      "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "status", "s": "weak", "n": 1}],
-                     "text": "Any row: a shot past its ear: deal half the die, and it's Weak this round."},
+                     "text": "Any row: deal half the die. It's Weak this round."},
     "rake": {"name": "Rake", "req": {"n": 1}, "tgt": "foe", "melee": True,
              "ops": [{"op": "dmg", "amt": "v//2+1"}, {"op": "dmg", "amt": "v//2+1"}],
              "text": "Hit the enemy twice, for half the die +1 each (Mark, Vulnerable and the like count on both)."},
@@ -144,8 +144,8 @@ ARMOR_ACTIONS = {
                 "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "thorns", "n": "2", "to": "self"}],
                 "text": "Gain the die as Armor. Enemies that hit you this round take 2."},
     "sidestep": {"name": "Sidestep", "req": {"n": 1}, "tgt": "self",
-                 "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "dodge", "n": "1", "to": "self", "if": "v>=5"}],
-                 "text": "Gain the die as Armor. On 5+, the next hit on you also misses."},
+                 "ops": [{"op": "armor", "amt": "v"}, {"op": "status", "s": "dodge", "n": "1", "to": "self", "if": "v>=6"}],
+                 "text": "Gain the die as Armor. On 6+, the next hit on you also misses."},
     "echo_shell": {"name": "Echo Shell", "req": {"n": 1}, "tgt": "self",
                    "ops": [{"op": "armor", "amt": "v"}, {"op": "weaken", "amt": "2", "to": "aiming"}],
                    "text": "Gain the die as Armor. Every attack aimed at you drops by 2."},
@@ -414,7 +414,7 @@ PASSIVES = {
     "abyssal_tome": ({"echo_any": 1}, "Echo of the deep: your first action each fight happens twice, the second at half strength."),
     # armor
     "whaleplate": ({"first_hit_soak": 3}, "Blubber: the first hit on you each round deals 3 less."),
-    "mistweave": ({"evasive": 1}, "Mist: the first hit on you each fight misses."),
+    "mistweave": ({"start_armor": 2}, "Mist: start each fight with 2 more Armor."),  # was the first hit halved (owner: too strong)
     "tidelord_aegis": ({"unbreakable": 1}, "Unbreakable: once a fight, survive a lethal hit at 1 HP."),
     # trinkets
     "black_pearl": ({"kill_gold": 3}, "Pirate's luck: each kill gives you 3 gold."),

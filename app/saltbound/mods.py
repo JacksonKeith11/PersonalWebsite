@@ -205,7 +205,7 @@ MODS = {
     # defence and healing
     "max_hp": "+n max HP",
     "start_armor": "n Armor at the start of each fight",
-    "evasive": "the first hit each fight misses",
+    "evasive": "the first hit each fight deals half",
     "first_hit_soak": "the first hit each round deals n less",
     "footwork": "back-row enemies deal n less",
     "stun_ward": "ignore the first n Stuns each fight",

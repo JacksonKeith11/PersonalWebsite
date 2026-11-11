@@ -54,6 +54,8 @@ from .content import biomes as _B  # noqa: E402
 FOE_CRIT.update(_B.CRITS)
 from .content import isles as _I  # noqa: E402
 FOE_CRIT.update(_I.CRITS)
+from .content import afflicters as _S  # noqa: E402
+FOE_CRIT.update(_S.CRITS)
 for _k, _d in A.FOES.items():
     _c = FOE_CRIT.get(_k, ("half", None))
     _d["crit"] = list(_c)

@@ -405,7 +405,7 @@ a:hover { color: var(--accent-hi); }
 @keyframes chip-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* its own layer above the stage, whose units (z-index 2) can spill past its bottom in a crowded column */
-.tray { position: relative; z-index: 3; display: grid; grid-template-columns: auto 1fr auto; gap: var(--s-5); align-items: stretch; padding: var(--s-4) var(--s-6) var(--s-5); background: var(--panel); border-top: var(--bw) solid var(--border); }
+.tray { position: relative; z-index: 3; display: grid; grid-template-columns: auto minmax(0, 1fr) 200px; gap: var(--s-5); align-items: stretch; padding: var(--s-4) var(--s-6) var(--s-5); background: var(--panel); border-top: var(--bw) solid var(--border); }
 .tray-left { display: grid; gap: var(--s-3); align-content: start; min-width: 280px; }
 .tray-left .who { display: flex; align-items: center; gap: var(--s-2); }
 .tray-left .who b { font-family: var(--font-display); font-size: var(--fs-18); }
@@ -460,7 +460,8 @@ a:hover { color: var(--accent-hi); }
 .action .cd .icon-svg { width: 14px; height: 14px; }
 .action .cd.on { color: var(--accent); }
 .action:disabled .cd.on { opacity: 1; }
-.tray-right { display: grid; gap: var(--s-2); align-content: end; min-width: 180px; }
+/* a fixed width: its status line changes as plays roll, and a column that grew with it re-wrapped the cards */
+.tray-right { display: grid; gap: var(--s-2); align-content: end; min-width: 0; }
 .tray-right .btn { width: 100%; }
 .give-row { display: flex; align-items: center; gap: var(--s-2); color: var(--text-2); font-size: var(--fs-14); }
 .watch { display: flex; align-items: center; justify-content: center; gap: var(--s-4); padding: var(--s-5) var(--s-6); background: var(--panel); border-top: var(--bw) solid var(--border); color: var(--text-2); }

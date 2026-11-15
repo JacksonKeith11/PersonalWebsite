@@ -17,7 +17,10 @@ serials the owner follows, newest first, grouped by day, 50 per page.
   threadmark category 1 (the main story). That's one request per sync per forum, up to 5 pages.
   Each listing item also carries the threadmark's word count (a "Words" pair in the meta cell,
   already abbreviated like `2.4k`), stored as-is in `words` and shown after the chapter title.
-  Email sources leave it empty.
+- AO3 emails give word counts too: the chapter's comes right after its link ("Chapter 3: Name (1715
+  words)") and the work's total after the work title, so `_words_after` matches the count directly
+  after each chapter's own link text, in the HTML part's text. It's abbreviated like the forums'
+  (`short_count`: 1.7k). Royal Road and fiction.live emails don't carry counts.
 - `db.py` is SQLite at `data/serials.db`, with tables `updates`, `state` (key/value) and `status`.
   `Update.key` is unique per chapter, and saving upserts on it.
 - `page.py` renders the HTML (inline CSS) and the login page, which the books library doesn't

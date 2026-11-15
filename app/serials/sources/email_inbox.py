@@ -32,6 +32,7 @@ FICTIONLIVE_STORY_RE = re.compile(r"^https?://fiction\.live/stories/([^/?#'\"]+)
 FICTIONLIVE_CHAPTER_RE = re.compile(r"^https?://fiction\.live/stories/([^/?#'\"]+)/([A-Za-z0-9]{17})/[^/?#'\"]+/([A-Za-z0-9]{17})")
 GONE_LIVE_RE = re.compile(r"^(.*) has gone live\s*$", re.IGNORECASE)
 FICTIONLIVE_USER_RE = re.compile(r"^https?://fiction\.live/user/([^/?#'\"]+)")
+WORDS_AFTER = r"\s*\((\d[\d,]*) words\)"
 URL_RE = re.compile(r"https?://[^\s'\"<>()]+")
 # Link text that says nothing about the chapter, e.g. a "Read now" button.
 GENERIC_LINK_TEXT = {"", "read", "read now", "read it here", "read chapter", "read the chapter", "click here", "here", "view"}
@@ -47,11 +48,36 @@ def _links(msg: email.message.EmailMessage) -> list[tuple[str, str]]:
     return [(url, "") for url in URL_RE.findall(text)]
 
 
+def _body_text(msg: email.message.EmailMessage) -> str:
+    """The email's text with whitespace collapsed: the HTML part's text if there is one, else the plain part."""
+    html = next((p.get_content() for p in msg.walk() if p.get_content_type() == "text/html"), "")
+    text = BeautifulSoup(html, "html.parser").get_text(" ") if html else _plain_text(msg)
+    return " ".join(text.split())
+
+
+def short_count(n: int) -> str:
+    """A word count abbreviated the way the forums show it: 730, 1.7k, 18k."""
+    if n < 1000:
+        return str(n)
+    if n < 10000:
+        return f"{n / 1000:.1f}".removesuffix(".0") + "k"
+    return f"{round(n / 1000)}k"
+
+
+def _words_after(body: str, title: str) -> str:
+    """The "(N words)" right after `title` in the email, e.g. AO3's "Chapter 3: Name (1715 words)"."""
+    title = " ".join(title.split())
+    if not title:
+        return ""
+    m = re.search(re.escape(title) + WORDS_AFTER, body)
+    return short_count(int(m.group(1).replace(",", ""))) if m else ""
+
+
 def _label(text: str, default: str) -> str:
     return default if text.strip().lower() in GENERIC_LINK_TEXT else text
 
 
-def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> list[db.Update]:
+def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float, body: str = "") -> list[db.Update]:
     work_titles: dict[str, str] = {}
     for href, text in links:
         m = AO3_WORK_RE.match(href)
@@ -80,6 +106,8 @@ def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> lis
                     url=url,
                     published=sent,
                     author=author,
+                    # The chapter's own count; the work's total follows the work title instead.
+                    words=_words_after(body, text),
                 )
             )
     if not updates and "posted" in subject:
@@ -96,6 +124,7 @@ def _ao3_updates(links: list[tuple[str, str]], subject: str, sent: float) -> lis
                     url=url,
                     published=sent,
                     author=author,
+                    words=_words_after(body, work_title(work_id)),
                 )
             )
     return updates
@@ -223,7 +252,7 @@ def _process(msg: email.message.EmailMessage) -> None:
     links = _links(msg)
 
     if "archiveofourown.org" in sender:
-        updates = _ao3_updates(links, subject, sent)
+        updates = _ao3_updates(links, subject, sent, _body_text(msg))
     elif "royalroad.com" in sender:
         updates = _royalroad_updates(msg, links, subject, sent)
     elif "fiction.live" in sender:
@@ -234,6 +263,7 @@ def _process(msg: email.message.EmailMessage) -> None:
     merged: dict[str, db.Update] = {}
     for u in updates:
         if u.key not in merged or merged[u.key].title in PLACEHOLDER_TITLES:
+            u.words = u.words or (merged[u.key].words if u.key in merged else "")
             merged[u.key] = u
     db.save_updates(list(merged.values()))
 

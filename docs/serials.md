@@ -15,6 +15,9 @@ serials the owner follows, newest first, grouped by day, 50 per page.
 - `sources/xenforo.py` covers **SpaceBattles, Sufficient Velocity and Questionable Questing**. It
   logs in and reads each forum's "What's new → Threadmarks" listing, filtered to watched threads and
   threadmark category 1 (the main story). That's one request per sync per forum, up to 5 pages.
+  Each listing item also carries the threadmark's word count (a "Words" pair in the meta cell,
+  already abbreviated like `2.4k`), stored as-is in `words` and shown after the chapter title.
+  Email sources leave it empty.
 - `db.py` is SQLite at `data/serials.db`, with tables `updates`, `state` (key/value) and `status`.
   `Update.key` is unique per chapter, and saving upserts on it.
 - `page.py` renders the HTML (inline CSS) and the login page, which the books library doesn't
@@ -50,5 +53,5 @@ serials the owner follows, newest first, grouped by day, 50 per page.
 - **Forum sessions persist.** One httpx client per forum lives in memory, so the session cookie
   survives between syncs. The scheduler logs in only when the page shows `data-logged-in="false"`.
 - **Adding a column** means an `ALTER TABLE` guarded by a `PRAGMA table_info` check in `_db()`,
-  like the existing `author` column. There are no migrations otherwise.
+  like the existing `author` and `words` columns. There are no migrations otherwise.
 - Times display in `DISPLAY_TZ`, default `America/New_York`.

@@ -901,7 +901,7 @@ class Fight:
                 tg = self.heroes.get(m.target)
                 nd = b.d["moves"].get(nxt)
                 if (nd and b.chain < 2 and not b.queue and not self.calm and tg in self.alive_heroes() and b.phase in nd["phase"]
-                        and math.hypot(tg.x - b.x, tg.y - b.y) <= nd["range"][1] * 1.25):
+                        and nd["range"][0] * 0.8 <= math.hypot(tg.x - b.x, tg.y - b.y) <= nd["range"][1] * 1.25):
                     b.chain += 1
                     b.target = tg
                     self.start_move(b, nxt, nd, now, target=tg)

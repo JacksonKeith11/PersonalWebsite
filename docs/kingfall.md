@@ -350,8 +350,8 @@ phases that were the first with a move doubled, and nothing to remember each bos
 - **No opener under 0.55 s** (`delay(move, d, trim)` in `content/moves.py` lengthens a wind-up and trims
   the recovery). Follow-up hits inside a combo may still be fast.
 - **Strings and openings**: a move with `"then": "id"` is always followed by that move, at the same
-  hero, with no rest (two links at most; the follow-up must be in its phase and within 1.25x its
-  range). After a string the boss stands winded for `STRING_REST` 1.7 s (snapshot state `tired`:
+  hero, with no rest (two links at most; the follow-up must be in its phase and the hero within its
+  range, with a little slack: a fan of projectiles loosed point-blank can't be dodged). After a string the boss stands winded for `STRING_REST` 1.7 s (snapshot state `tired`:
   slumped, breath puffing): the opening. A move's own `"tired": s` does the same after it.
 - **Signature moves fire at set points** (`"marks": [(0.75, "pyre"), (0.25, "pyre")]` on the boss or
   body): when health passes a mark the move is queued and comes next, whatever the range. They are
@@ -515,6 +515,15 @@ Mirror Knight among the three.
   staggers. With 8 fights a cell, one cell swings by 25 points; read the columns. **The bow is the weakest**,
   worst alone against the Bastion, the Moth and the Drake; the catalyst alone can't beat the Moth or
   the King. Parties of three and four win nearly everything.
+- **After the boss rework** (Nov 2026; strings, signature moves, slower openers). The table above is from
+  before it. The first full run after it scored 74 / 91 / 80 / 82 / 73 / 88 / 96 (sword to mixed), with
+  the Moth, the King and the Alchemist far harder: the cause was strings, not signatures. A follow-up
+  fan of projectiles (the Moth's stream after her gust, the King's void bolts after a cleave, the
+  Alchemist's flask after a vault) was loosed point-blank; follow-ups now need the hero inside their
+  range. After that fix only a sword spot run was made (8 fights a cell, solo / pair): Corvin 62/88, Mire
+  88/100, Bellwarden 88/75, Headsmen 75/75, Wolf 100/100, Alchemist 38/75, Wyrm 100/100, Mirror 88/88,
+  Bastion 100/100, Moth 100/75, King 88/100, Drake 75/100: about where the sword was. **The full table
+  hasn't been re-run since the fix**; do that before tuning anything on its numbers.
 - **How the daggers got here** (Nov 2026): 35% at first (base 13, two dashes). The cause was the dash's
   invulnerability, 0.2 s against a roll's 0.29 s, too short for any hit that lingers; untouchable for
   the whole 0.28 s dash they reached 91%. The catalyst's first 49% was the bots blinking into the next

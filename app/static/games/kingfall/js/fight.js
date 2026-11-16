@@ -1,16 +1,16 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=37';
-import { LocalHero, RemoteHero } from './hero.js?v=37';
-import { Boss } from './boss.js?v=37';
-import { drawArena } from './arenas.js?v=37';
-import { sfx } from './audio.js?v=37';
-import { music } from './music.js?v=37';
-import { deviceOfSlot } from './input.js?v=37';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=37';
-import { hudKeys, bigCard } from './ui.js?v=37';
-import { Atmos } from './atmos.js?v=37';
-import { LORE, ROMAN } from './lore.js?v=37';
+import { addFrames } from './rig.js?v=38';
+import { LocalHero, RemoteHero } from './hero.js?v=38';
+import { Boss } from './boss.js?v=38';
+import { drawArena } from './arenas.js?v=38';
+import { sfx } from './audio.js?v=38';
+import { music } from './music.js?v=38';
+import { deviceOfSlot } from './input.js?v=38';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=38';
+import { hudKeys, bigCard } from './ui.js?v=38';
+import { Atmos } from './atmos.js?v=38';
+import { LORE, ROMAN } from './lore.js?v=38';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)

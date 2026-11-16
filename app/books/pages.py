@@ -1,7 +1,7 @@
 import json
 from html import escape
 
-ASSET_VERSION = 28
+ASSET_VERSION = 29
 STYLE = "/static/style.css?v=10"
 # What the pages load from this site, kept by the service worker (sw.js) so they open offline.
 SHELL = [
@@ -171,6 +171,11 @@ def reader(book: dict, theme: str = "original") -> str:
     <button class="icon-btn" id="listen-top" aria-label="Listen" title="Listen">{ICON_HEADPHONES}</button>
     <button class="icon-btn" data-open="menu" aria-label="More" title="More">{ICON_MORE}</button>
   </header>
+
+  <div id="return" hidden>
+    <button id="return-go" type="button"></button>
+    <button id="return-close" type="button" aria-label="Dismiss" title="Dismiss">×</button>
+  </div>
 
   <div id="scrim" hidden></div>
 

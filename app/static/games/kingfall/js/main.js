@@ -1,12 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=32';
-import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=32';
-import { icon } from './icons.js?v=32';
-import { Net, ME } from './net.js?v=32';
-import { FightScene } from './fight.js?v=32';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=32';
-import { unlock, sfx, setVolume } from './audio.js?v=32';
-import { music } from './music.js?v=32';
+import { setAtlas } from './rig.js?v=37';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=37';
+import { icon } from './icons.js?v=37';
+import { Net, ME } from './net.js?v=37';
+import { FightScene } from './fight.js?v=37';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=37';
+import { unlock, sfx, setVolume } from './audio.js?v=37';
+import { music } from './music.js?v=37';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -86,7 +86,7 @@ function frameBody() {
   if (S.screen === 'lobby') lobbyDevices(bound);
   if (S.scene && !S.menu) strayPads();
   setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
-if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
+if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), move: id => net.send({ t: 'debugmove', id }), get net() { return net; } };
 }
 
 // ------------------------------------------------------------------ the menu during a run
@@ -575,4 +575,4 @@ function endFight() {
 
 setVolume(ME.saved.sfx ?? 0.6); music.setVolume(ME.saved.music ?? 0.5);
 requestAnimationFrame(frame);
-if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), get net() { return net; } };
+if (DEBUG) window.kf = { S, input, win: () => net.send({ t: 'debugwin' }), safe: () => net.send({ t: 'debugsafe' }), move: id => net.send({ t: 'debugmove', id }), get net() { return net; } };

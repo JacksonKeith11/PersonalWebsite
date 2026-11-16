@@ -6,7 +6,7 @@ marked circles while he fights on, faster.
 
 import math
 
-from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
+from .moves import DMG, arc, circle, rect, ring, proj, zone, pose, delay, room
 
 DMG[0] = 1.2
 VOID = {"col": "#c060ff"}
@@ -110,9 +110,41 @@ PHASE3 = {  # the roof gives way
     "anim": [(0, pose()), (0.8, pose(arm_f=-175, arm_b=-175, head=-30, torso=-14)), (2.0, pose(arm_f=-175, arm_b=-175)), (2.6, pose())],
 }
 
+# --- the rework: readable openers, strings, the edict and the void wave
+delay(MOVES["lunge"], 0.11, 0.1)
+delay(MOVES["flourish"], 0.21, 0.15)
+MOVES["lunge"]["then"] = "flourish"
+MOVES["backstep"]["then"] = "daggers"
+MOVES["cleave"]["then"] = "voidbolts"
+
+# The Edict: he speaks one word, and the hall punishes whoever disobeys. KNEEL: stand still. FLEE: be
+# far from him. APPROACH: be at his side.
+MOVES["edict"] = {
+    "name": "The Edict", "variants": 3, "words": ["KNEEL", "FLEE", "APPROACH"], "show": 0.7,
+    "range": (0, 600), "weight": 2, "cd": 16.0, "phase": (1,), "dur": 3.9, "locks": [0.0],
+    "motion": [],
+    "hits": [room(2.8, 46, still=1, var=[0], mark=1.6, col="#fff0c0"),
+             circle(2.8, 3.3, 180, 0, 0, 46 / DMG[0], {"unblock": 1, "var": [1], "col": "#fff0c0"}, mark=2.0),
+             room(2.8, 46, near=120, var=[2], mark=1.6, col="#fff0c0")],
+    "anim": [(0, pose()), (0.6, pose(arm_f=-170, weapon=180, head=-12)), (2.7, pose(arm_f=-175, weapon=180, head=-14)), (2.85, pose(arm_f=-60, weapon=90, torso=10)),
+             (3.9, pose())],
+}
+
+# The Void Wave (the hollow giant): the roof's rubble falls and stays, and a wave of nothing crosses
+# the hall. Stand behind a stone.
+MOVES["voidwave"] = {
+    "name": "The Void Wave", "sig": True, "spots": "rubble", "spot_kind": "rubble", "tired": 1.6,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (2, 3), "dur": 4.8, "locks": [0.0],
+    "motion": [],
+    "hits": [room(3.4, cover=0, mark=2.6, col="#c060ff")],
+    "anim": [(0, pose()), (0.8, pose(arm_f=-175, arm_b=-175, head=-30, torso=-14)), (3.2, pose(arm_f=-175, arm_b=-175, head=-30, torso=-16)),
+             (3.4, pose(arm_f=-20, arm_b=-20, torso=20, dy=4)), (4.8, pose())],
+}
+
 BOSS = {
     "id": "king", "name": "The Hollow King", "tier": 4, "rig": "king", "art": "king", "arena": "throne",
     "hp": 4200, "poise": 170, "radius": 18, "speed": 78,
     "moves": MOVES, "phases": [0.66, 0.33], "phase_moves": {2: PHASE2, 3: PHASE3},
     "phase_art": {2: "hollow"}, "phase_rig": {"hollow": "hollow"}, "adds": {},
+    "marks": [(0.85, "edict"), (0.5, "voidwave"), (0.15, "voidwave")],
 }

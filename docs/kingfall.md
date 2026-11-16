@@ -63,6 +63,11 @@ Keep to these. They came from the owner directly.
   with a smoother roll they can steer; every weapon has a light combo that repeats while the button is
   held, as in Hades; boss attacks have sounds; the loadout can be changed in the lobby after a defeat.
 
+- **Bosses read like Hades'** (Nov 2026, the owner approved a written plan): extra weight on telegraphed
+  attacks and on one mechanic to remember each boss by. Bosses may be partly predictable (fixed strings
+  of moves, then an opening). Failing a signature move costs about 60% of a hero's health on Knight
+  (more on Hard, through the damage scale), so a solo player can make one mistake.
+
 - **Blessings** (Nov 2026): one a hero's weapon can't use is never offered (no block upgrades for the
   daggers); blessings should change how attacks play or add effects, not hand out flat stat bonuses.
 
@@ -178,7 +183,8 @@ microtask; without that every lobby update put the focus back on Begin.
   it looks round again and may walk toward someone else.
 - **What you see** (`drawWindup`, `drawTell` in `js/boss.js`; `drawSwing` in `js/hero.js`): every boss
   hit is outlined in red on the floor before it lands, from the moment its aim is final (its last lock)
-  or 0.6 s before; projectiles show a dashed path, rings a faint circle; area hits (`mark`) fill in.
+  or 0.6 s before; projectiles show a dashed path, rings a faint circle; every shape fills as its moment
+  comes (see "Telegraphs, strings and signature moves").
   A glint flashes on the boss just before its first strike (red if it can't be blocked), and a red
   marker hangs over the hero the move is aimed at. Every hero swing draws its real hitbox as it plays
   (a crescent across the arc, a lance along a thrust, a burst for a slam) in that player's colour; a
@@ -313,22 +319,74 @@ special damage.
 
 Every boss has 5-7 moves and a second phase (the finals have three) whose transition is an invulnerable
 roar with a shockwave. Every move has a readable wind-up (and a distinct sound); area attacks mark the
-ground first. Every boss has ranged attacks and areas to keep out of from its first phase.
+ground first. Every boss has ranged attacks and areas to keep out of from its first phase. Every boss
+also has a **signature move** (below), the last sentence of each row.
 
 | Boss | What it does |
 |---|---|
-| Ser Corvin | 3-hit combo that re-aims each swing, shield charge, delayed overhead, lunge, guard stance (front hits glance off), a thrown steel crescent, the brand (sword planted: burning brands in a cross round him and under you). Phase 2: a fourth burning slam with a spreading ring; fire waves. |
-| Mire Mother | tongue lash that pulls you in, belly-flop leap (lands where its shadow is), poison pools, a fan of bile globs, slap, tadpoles. Phase 2: submerges and erupts under you; double flop. |
-| Bellwarden | tolls send rings with gaps at the sides (sound can't be blocked), rakes, bell-slam, lurch, ghost choir, the knell (three ghost bells fall on you, each re-aimed). Phase 2: three tolls with different gaps; drags the bell round. |
-| Twin Headsmen | two bodies: the Hook (chain pull, flurry, chain whirl, dash, thrown hooks, a snare of chains that bleed whoever stands in them) and the Axe (execution, sweep, stomp, charge, a thrown axe). When one falls the other roars, heals a quarter and learns the other's signature. |
-| Briar Wolf | pounces, a feint that hops back then pounces, bites, tail lash, a spray of thorns, briars (roots burst under you and leave a thicket round the spot), howl raising a wall of thorns. Phase 2: the clearing goes dark; double pounces. |
-| Ashen Alchemist | keeps its distance; lobbed fire flasks, three-colour volleys, stilt stamp, vaults away leaving poison, homunculi. Phase 2: transmutes the floor; the great mixture; burning spray. |
-| Gravewyrm | burrows and erupts under you, lunging bite, bone shards, thrash, a ring that closes in. Its vertebrae can be struck too. Phase 2: burrows twice. |
-| Mirror Knight | the heroes' own combo, glide, shard fan, a parrying stance, glass reflections, shards raining in marked circles. Phase 2: the mirrors shatter. |
-| Bastion | rocket fist, stomp, a sweeping furnace beam, two-fist hammer, mortar shells lobbed from its back that leave fire. Armoured (half damage) until both knee cores and the back core are broken; then it topples for 7 s. Phase 2: two fists, the beam both ways. |
-| Moth Saint | hovers at range; dust spirals, pillars of light, wing gust, dust streams, mothlings. Phase 2: snuffs the candles (darkness); double spirals. |
-| Hollow King | phase 1 a duellist (lunges, a four-cut flourish, riposte stance, backstep, thrown knives, the decree: a crown of sigils round you, then its centre); phase 2 swells into the hollow giant (cleave, leaping crash, sweeps, void bolts, pools of void); phase 3 the sky falls. |
-| Eclipse Drake | fire breath that sweeps and leaves the bridge burning, lobbed fireballs, claws, tail, wing gust. Phase 2: dives along the bridge and rains fire from the air. Phase 3: the bridge's edges burn for the rest of the fight. |
+| Ser Corvin | 3-hit combo that re-aims each swing, shield charge, delayed overhead, lunge, guard stance (front hits glance off), a thrown steel crescent, the brand (sword planted: burning brands in a cross round him and under you). Phase 2: a fourth burning slam with a spreading ring; fire waves. **The Pyre**: he plants the sword and four lines of fire turn round him, one way or the other; walk with the turn. His thrown crescent can be struck (or parried) back at him for poise. |
+| Mire Mother | tongue lash that pulls you in, belly-flop leap (lands where its shadow is), poison pools, a fan of bile globs, slap, tadpoles. Phase 2: submerges and erupts under you; double flop. The tongue now holds whoever it catches while she bites down (break bar). **The Flood**: the bog rises; only three stones stay dry. |
+| Bellwarden | tolls send rings with gaps at the sides (sound can't be blocked), rakes, bell-slam, lurch, ghost choir, the knell (three ghost bells fall on you, each re-aimed). Phase 2: three tolls with different gaps; drags the bell round. **The Great Toll**: ghost bells fall and stay (two; one in phase 2), then the whole belfry is struck except the shadow behind a bell. |
+| Twin Headsmen | two bodies: the Hook (chain pull, flurry, chain whirl, dash, thrown hooks, a snare of chains that bleed whoever stands in them) and the Axe (execution, sweep, stomp, charge, a thrown axe). When one falls the other roars, heals a quarter and learns the other's signature. **The block**: the Hook's chain holds whoever it drags in (break bar on the Hook) and the Axe walks over to pass **the Sentence** on them. |
+| Briar Wolf | pounces, a feint that hops back then pounces, bites, tail lash, a spray of thorns, briars (roots burst under you and leave a thicket round the spot), howl raising a wall of thorns. Phase 2: the clearing goes dark; double pounces. The howl can be broken off (break bar). **The Stalk**: it vanishes; three pairs of eyes open at the edge, each brightens in turn, and it tears across the clearing from there. |
+| Ashen Alchemist | keeps its distance; lobbed fire flasks, three-colour volleys, stilt stamp, vaults away leaving poison, homunculi. Phase 2: transmutes the floor; the great mixture; burning spray. **The Great Work**: three chalk circles in its three colours; it holds up a flask of one and everything but that circle goes up. |
+| Gravewyrm | burrows and erupts under you, lunging bite, bone shards, thrash, a ring that closes in. Its vertebrae can be struck too. Phase 2: burrows twice. Cracks run ahead of it while it burrows. **The Cage**: a wide ring of bone closes on you, then crushes; break it off (break bar) or roll out through the ring. |
+| Mirror Knight | the heroes' own combo, glide, shard fan, a parrying stance, glass reflections, shards raining in marked circles. Phase 2: the mirrors shatter. **The Trinity**: it reappears as three knights raising the same blow; only the real one has a shadow. Break the real one (break bar) or the hall shatters. |
+| Bastion | rocket fist, stomp, a sweeping furnace beam, two-fist hammer, mortar shells lobbed from its back that leave fire. Armoured (half damage) until both knee cores and the back core are broken; then it topples for 7 s. Phase 2: two fists, the beam both ways. **The Purge**: it fires a fist into the floor, turns its beam the whole way round (stand behind the fist), then its vents hang open: a break bar that topples it. |
+| Moth Saint | hovers at range; dust spirals, pillars of light, wing gust, dust streams, mothlings. Phase 2: snuffs the candles (darkness); double spirals. **The Vigil**: three dead candles; strike one to light it, and when the dark comes down only a lit candle's glow is safe. |
+| Hollow King | phase 1 a duellist (lunges, a four-cut flourish, riposte stance, backstep, thrown knives, the decree: a crown of sigils round you, then its centre); phase 2 swells into the hollow giant (cleave, leaping crash, sweeps, void bolts, pools of void); phase 3 the sky falls. **The Edict** (phase 1): KNEEL (stand still), FLEE (be far) or APPROACH (be at his side). **The Void Wave** (the giant): rubble falls and stays; stand behind a stone. |
+| Eclipse Drake | fire breath that sweeps and leaves the bridge burning, lobbed fireballs, claws, tail, wing gust. Phase 2: dives along the bridge and rains fire from the air. Phase 3: the bridge's edges burn for the rest of the fight. **The Strafe**: it burns the bridge in lanes, twice, sparing one lane each time. **The Eclipse**: fire falls three times, each time sparing one ring of light; then it lands spent. |
+
+### Telegraphs, strings and signature moves (the boss rework, Nov 2026)
+
+What the bosses lacked beside Hades': openers that struck in under half a second, floor warnings with no
+read on *when*, one red for everything, a random pick after every move (so no reliable opening), second
+phases that were the first with a move doubled, and nothing to remember each boss by.
+
+- **Fill timers** (`warn` in `js/boss.js`): every hit's warning is its whole shape, faint, with a
+  stronger fill growing from the boss's side that reaches the far edge at the instant of the strike.
+  Hits that can't be blocked are orange-red with a doubled outline. **Gold always means help**: safe
+  ground, the shadow behind cover, a break bar. (Hero areas keep their dashed rings.)
+- **No opener under 0.55 s** (`delay(move, d, trim)` in `content/moves.py` lengthens a wind-up and trims
+  the recovery). Follow-up hits inside a combo may still be fast.
+- **Strings and openings**: a move with `"then": "id"` is always followed by that move, at the same
+  hero, with no rest (two links at most; the follow-up must be in its phase and within 1.25x its
+  range). After a string the boss stands winded for `STRING_REST` 1.7 s (snapshot state `tired`:
+  slumped, breath puffing): the opening. A move's own `"tired": s` does the same after it.
+- **Signature moves fire at set points** (`"marks": [(0.75, "pyre"), (0.25, "pyre")]` on the boss or
+  body): when health passes a mark the move is queued and comes next, whatever the range. They are
+  `"sig": True` (never picked at random), have a `name` shown over the boss with a gong (`onSig`), and
+  most end `tired`. The King's Edict is also an ordinary phase-1 move.
+- **A cast's own data** (`Move.c`, sent as `c` in `mv`): `v`, the variant it rolled (a move's
+  `"variants": n`; a hit with `"var": [..]` exists only in those variants), and `spots`
+  `[[x, y, r, tag, on]]` from the generator a move names in `"spots"` (`SPOTS` at the end of `fight.py`).
+- **Blasts** (`room(t0, dmg, ...)`): a hit on the whole arena, unblockable, 0.5 s long so a roll can't
+  carry you through it. It spares a hero by `safe=tag` (standing in a spot with that tag; `"v"` means the
+  spot the variant picked), `cover=tag` (behind such a spot as seen from the boss), `still=1` (not
+  moving) or `near=r` (within r of the boss). `spared` in `geom.py` and `js/moves.js` are twins. `cover`
+  also works on ordinary hits (the Bastion's beam).
+- **Strips of the arena** (`lane(...)`, `"abs": [x, y]`): hits placed in arena coordinates, wherever the
+  boss is (the Wolf's charges, the Drake's lanes).
+- **Break bars** (`"brk": {"hp": n}`, `"brk_win": (t0, t1)`): damage dealt to the body in that window
+  empties a gold bar over its head (scaled like boss health); emptied, the move is cancelled and the boss
+  reels for 3.5 s (`fx` `break`; it doesn't count toward stagger growth). The snapshot's last body field
+  is the bar's percent.
+- **Holds** (`"hold": s` on a hit): the hero it hurts can't move or dodge for s seconds, but can attack
+  (`held` in `js/hero.js`, set at once by its own browser; `fx` `held` lets the others draw the tongue or
+  chain taut). A cancel of that move (a break, a stagger) lets go. A move's `"call": "id"` makes another
+  live body start that move at the held hero (the Headsmen).
+- **Struck back** (`"ret": poise` on a projectile): a hero's swing that touches it (`targets` gives it
+  as kind `shot`), or a parry, sends `reflect`; it's gone for everyone and costs the boss that poise.
+- **A turning beam** is many short rects with rising `rot`; give them one `grp` so a hero is hurt at most
+  once every 0.9 s by that sweep, and it is warned by one thin line just ahead of it.
+- **Props** (`propTexture`, `drawCast` in `js/boss.js`): bells, stones, rubble, the fist and candles are
+  small canvases drawn in the browser, not atlas art; false knights are extra rigs of the boss in its
+  own pose; an add with `"draw"` instead of `"art"` uses one too (the unlit candle, an add that stands
+  still and can't hurt: `speed` 0, `dmg` 0, and lighting it turns its spot on, `spot` message).
+
+**Not built** from the plan: the Alchemist's pools bursting where two elements touch; the Bellwarden's
+ordinary knell bells staying as cover (the Great Toll drops its own). Lock-on still finds the real
+Mirror Knight among the three.
 
 ### Netcode
 
@@ -490,7 +548,14 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   flask and perfect-dodge procs aren't played by bots.
 - `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the
   fight, `window.kf.safe()` makes this fight's boss walk about without ever attacking (for tests that
-  stand and look).
+  stand and look), `window.kf.move('flood')` makes it use that move next (even when `safe`).
+- **Signature moves in the tests**: the smoke test casts the Flood twice (a hero in the open must be
+  hurt, one on a stone must not). Sim bots answer signatures by where they stand (`answer_signature` in
+  the sim: onto safe ground, behind cover, out of a strip, still for KNEEL; now and then they misread
+  one), can't move or roll while held, and break bars only by attacking as usual. They don't strike
+  projectiles back. Checked by hand in a headless browser (Nov 2026): every signature draws and hurts as
+  written; the Trinity's break; the crescent struck back; a candle lit and its glow safe; the tongue's
+  and the chain's hold with the Sentence following.
 - `python3 tools/kingfall-art/anim.py <boss|weapon> <move> out.png` draws a move's keyframes as a strip;
   `sheet.py` reviews bosses beside a hero at game size; `preview.py` the heroes.
 
@@ -506,6 +571,13 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   code stays in the address), puts the player back into a fight still going for the others; alone, the run
   is gone, since a room with nobody connected returns to the lobby.
 
+- **A hit's `v` is a projectile's speed.** The variant list on a hit is `var`, not `v` (the first try
+  used `v` and every projectile broke).
+- **The boss's overlay graphics are cleared at the top of `Boss.update`**, before the bodies draw on them.
+  They used to be cleared in `drawDanger`, after: the stagger ring and stars over a boss's head were
+  wiped every frame and never showed.
+- **Headless Chromium runs the fight at a low frame rate**, and hero time is capped per frame, so a held
+  attack lands far fewer hits a second than in a real browser. Don't size break bars from it.
 - **The two halves of the move maths must agree.** After changing `js/moves.js`, `geom.py` or
   `content/moves.py` (or adding a shape kind), run `node tools/kingfall-parity.mjs`.
 - **The server never clamps a move's motion after the fact**: browsers draw it as sent. `Fight.fit`

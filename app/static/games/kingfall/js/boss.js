@@ -3,14 +3,16 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=32';
-import { LiveMove, placeHit, touches } from './moves.js?v=32';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=32';
-import { sfx } from './audio.js?v=32';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=37';
+import { LiveMove, placeHit, touches, active, spared } from './moves.js?v=37';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=37';
+import { sfx } from './audio.js?v=37';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
 const INTERP = 0.1;
+const GOLD = 0xffd23f, UNBLOCK = 0xff3a20;
+const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
 
 const bodiesOf = B => B.bodies || [B];
 
@@ -104,11 +106,11 @@ export class Boss {
     rows.forEach((row, e) => {
       const b = this.bodies[e];
       if (!b) return;
-      const [x, y, vx, vy, face, hp, mhp, po, mpo, ph, state, cores, meters, live] = row;
+      const [x, y, vx, vy, face, hp, mhp, po, mpo, ph, state, cores, meters, live, brk] = row;
       if (state === 'stagger' && b.state !== 'stagger') b.staggerT = 0;
       if (ph > (b.phase || 1) && b.state !== 'dead' && this.scene.onPhase) this.scene.onPhase(b, ph);
       b.snap = { st, x, y, vx, vy };
-      Object.assign(b, { face, hp, mhp, poise: po, mpoise: mpo, phase: ph, state, cores, meters: meters || [], live: live || [] });
+      Object.assign(b, { face, hp, mhp, poise: po, mpoise: mpo, phase: ph, state, cores, meters: meters || [], live: live || [], brk: brk || 0 });
     });
     const seen = new Set();
     for (const [id, kind, x, y, hp, mhp] of adds || []) {
@@ -123,9 +125,12 @@ export class Boss {
 
   makeAdd(id, kind, x, y) {
     const A = this.B.adds[kind], sc = this.scene;
-    const name = A.art;
-    const [, , w, h, px, py] = atlas().frames[name];
-    const im = sc.add.image(x, y, 'atlas', name).setOrigin(px / w, py / h);
+    let im;
+    if (A.draw) im = sc.add.image(x, y, propTexture(sc, A.draw)).setOrigin(0.5, 0.92);
+    else {
+      const [, , w, h, px, py] = atlas().frames[A.art];
+      im = sc.add.image(x, y, 'atlas', A.art).setOrigin(px / w, py / h);
+    }
     if (A.tint) im.setTint(Phaser.Display.Color.HexStringToColor(A.tint).color);
     if (A.alpha) im.setAlpha(A.alpha);
     const shadow = sc.add.ellipse(x, y, A.radius * 2.2, A.radius * 0.7, 0x000000, 0.35).setDepth(1);
@@ -153,12 +158,21 @@ export class Boss {
     mv.e = m.e || 0;
     mv.tg = m.tg;
     // the move's first strike (for the glint and the target marker)
-    const strikes = data.hits.filter(h => h.k !== 'spawn' && h.k !== 'zone');
+    const strikes = data.hits.filter((h, i) => h.k !== 'spawn' && h.k !== 'zone' && active(mv, h, i));
     mv.first = strikes.length ? Math.min(...strikes.map(h => h.t0)) : null;
-    mv.unblock = data.hits.some(h => h.unblock);
+    mv.unblock = strikes.some(h => h.unblock);
     mv.last = mv.start + Math.max(data.dur, ...data.hits.map(h => h.t1));
     this.moves.push(mv);
-    if (this.moves.length > 16) this.moves.shift();
+    if (this.moves.length > 16) this.dropProps(this.moves.shift());
+    if (data.name && this.scene.onSig) this.scene.onSig(b, data);
+  }
+  onSpot(m) { const mv = this.moves.find(v => v.seq === m.seq); if (mv && mv.c.spots && mv.c.spots[m.i]) mv.c.spots[m.i][4] = 1; }
+  onReflect(m) { const mv = this.moves.find(v => v.seq === m.seq); if (mv) mv.gone.add(m.i); return mv; }
+  // a move's props (bells, stones, a word in the air): made as it needs them, dropped when it's over
+  dropProps(mv) {
+    if (!mv || !mv.props) return;
+    for (const o of mv.props) o.destroy();
+    mv.props = null;
   }
   onAim(m) { const mv = this.moves.find(v => v.seq === m.seq); if (mv) mv.reaim(m.lt, m.a, m.d); }
   onCancel(m) {
@@ -175,6 +189,7 @@ export class Boss {
   }
 
   update(now, dt) {
+    this.marks.clear(); this.fx.clear(); this.glow.clear();   // before the bodies draw their rings and bars on them
     for (const b of this.bodies) this.updateBody(b, now, dt);
     this.updateAdds(now, dt);
     this.drawDanger(now);
@@ -194,7 +209,7 @@ export class Boss {
         if (!S.glint && t >= mv.first - 0.3) { S.glint = true; if (t < mv.first) sfx.boss.glint(pan, mv.unblock); }
       }
       mv.data.hits.forEach((h, i) => {
-        if (S.hits.has(i) || t < h.t0) return;
+        if (S.hits.has(i) || t < h.t0 || !active(mv, h, i)) return;
         S.hits.add(i);
         if (t > h.t0 + 0.25 || mv.start + h.t0 > mv.cancelAt) return;   // long past (we joined late), or never happened
         const kind = h.k === 'spawn' ? 'spawn' : h.k === 'circle' && (h.tx || h.mark != null) ? 'land' : h.k;
@@ -230,6 +245,11 @@ export class Boss {
     if (b.state === 'stagger' && !mv) {
       b.staggerT += dt;
       pose = { ...(b.def.stagger_pose || { torso: 22, head: 18, arm_f: 30, weapon: 120, arm_b: 30, shield: -30, dy: 4 }), dy: 4 + Math.sin(b.staggerT * 3) };
+    } else if (b.state === 'tired' && !mv) {   // winded after a string: slumped and heaving, the opening
+      const sp = b.def.stagger_pose || { torso: 22, head: 18, arm_f: 30, weapon: 120, arm_b: 30, shield: -30, dy: 4 };
+      pose = {};
+      for (const k in sp) pose[k] = sp[k] * 0.6;
+      pose.dy = (sp.dy || 4) * 0.6 + Math.sin(now * 9) * 1.2;
     } else if (b.state === 'dead') {
       pose = b.def.dead_pose || { torso: 30, head: 30, arm_f: 40, weapon: 150, arm_b: 40, dy: 6 };
     } else if (!pose) {
@@ -263,6 +283,19 @@ export class Boss {
         f.fillStyle(0xffe680, 0.9); f.fillTriangle(sx - 3, sy, sx + 3, sy, sx, sy - 4); f.fillTriangle(sx - 3, sy - 1.5, sx + 3, sy - 1.5, sx, sy + 2.5);
       }
     }
+    if (b.state === 'tired' && !mv) {   // breath puffing off it
+      const f = this.fx, hy = b.y - b.z - Math.max(40, b.r * 2.2);
+      for (let k = 0; k < 3; k++) {
+        const u = (now * 1.1 + k / 3) % 1, side = Math.cos(b.face) < 0 ? -1 : 1;
+        f.fillStyle(0xe8e0d0, 0.5 * (1 - u)); f.fillCircle(b.x + side * (b.r * 0.7 + u * 14), hy - u * 12, 2 + u * 3);
+      }
+    }
+    // its break bar: gold, over its head, while a move that can be broken off is under way
+    if (b.brk > 0 && b.alive) {
+      const at = mv && mv.data.spot_kind === 'image' && mv.c.spots ? mv.c.spots.map(q => [q[0], q[1]]) : [[b.x, b.y]];   // the trinity: over all three
+      const top = this.scene.cameras.main.worldView.y + 40;
+      for (const [x, y] of at) this.breakBar(x, Math.max(top, y - b.z - Math.max(52, b.r * 2.9)), b.brk / 100, now);
+    }
     if (b.state === 'dead') { b.rig.c.alpha = Math.max(0, b.rig.c.alpha - dt * 0.35); b.shadow.alpha = b.rig.c.alpha * 0.4; if (b.segs) b.segs.forEach(s => s.alpha = b.rig.c.alpha); }
     // weak points glow until broken
     b.coreG.clear();
@@ -272,6 +305,14 @@ export class Boss {
       b.coreG.lineStyle(2, 0xa0e0ff, p).strokeCircle(cx, cy - (c.h || 0), c.r * 0.8);
       b.coreG.lineStyle(1, 0xffffff, p * 0.6).strokeCircle(cx, cy, c.r);
     });
+  }
+
+  breakBar(x, y, u, now) {
+    const f = this.fx, w = 44, p = 0.75 + Math.sin(now * 12) * 0.25;
+    f.fillStyle(0x120e16, 0.85); f.fillRect(x - w / 2 - 2, y - 4, w + 4, 8);
+    f.fillStyle(GOLD, p); f.fillRect(x - w / 2, y - 2, w * u, 4);
+    f.lineStyle(1, GOLD, 0.9); f.strokeRect(x - w / 2 - 2, y - 4, w + 4, 8);
+    f.fillStyle(GOLD, p); f.fillTriangle(x - 4, y - 7, x + 4, y - 7, x, y - 3);
   }
 
   // the Gravewyrm: its head on the rig, its vertebrae laid along the path the head has taken
@@ -325,31 +366,36 @@ export class Boss {
   // ground marks, swing arcs, rings, projectiles and pools
   drawDanger(now) {
     const g = this.marks, f = this.fx, gl = this.glow;
-    g.clear(); f.clear(); gl.clear();
     for (const mv of this.moves) {
       const t = now - mv.start;
-      if (now > mv.last + 0.2) continue;
+      if (now > mv.last + 0.2 || now > mv.cancelAt + 0.2) { this.dropProps(mv); continue; }
       this.drawTell(mv, t, now);
-      mv.data.hits.forEach(h => {
+      this.drawCast(mv, t, now);
+      mv.data.hits.forEach((h, i) => {
+        if (!active(mv, h, i)) return;
+        if (h.room) { this.drawRoom(mv, h, t, now); return; }
         if (h.mark == null && t < h.t0) { this.drawWindup(mv, h, t); return; }
         const fire = !!h.fire, col = fire ? FIRE : h.col ? Phaser.Display.Color.HexStringToColor(h.col).color : STEEL;
         // a swing's trail lingers a moment after it can no longer hurt
         const AFTER = 0.2, melee = h.k === 'arc' || h.k === 'rect' || h.k === 'circle';
-        if (melee && t > h.t1 && t < h.t1 + AFTER && mv.start + h.t1 <= mv.cancelAt) {
+        if (melee && h.grp == null && t > h.t1 && t < h.t1 + AFTER && mv.start + h.t1 <= mv.cancelAt) {
           const s = placeHit(mv, h, h.t1);
           if (s) this.drawStrike(gl, s, 1 + (t - h.t1) / AFTER, col);
           return;
         }
         const s = placeHit(mv, h, t, h.mark ?? 0);
         if (!s) return;
-        if (!s.live) { // the warning before it lands: it fills from the middle as the moment comes
+        if (!s.live) { // the warning before it lands: it fills from the middle, reaching the edge as it strikes
           const u = 1 - (h.t0 - t) / Math.max(0.05, h.mark);
-          g.fillStyle(DANGER, 0.1 + 0.12 * u); shape(g, s, true);
-          if (s.k === 'circle') { g.fillStyle(DANGER, 0.22); g.fillCircle(s.cx, s.cy, s.r * Math.max(0, u)); }
-          g.lineStyle(1.5, DANGER, 0.55 + 0.4 * u); shape(g, s, false);
+          warn(g, s, u, h.unblock ? UNBLOCK : DANGER, !!h.unblock);
           return;
         }
         const life = (t - h.t0) / Math.max(0.05, h.t1 - h.t0);
+        if (h.abs) {   // a strip of the arena: the whole of it burns (or is torn through) at once
+          gl.fillStyle(col, 0.5 * (1 - life * 0.5)); shape(gl, s, true);
+          gl.fillStyle(0xffffff, 0.25 * (1 - life)); shape(gl, { ...s, w: s.w * 0.35 }, true);
+          return;
+        }
         if (s.k === 'zone') {
           pool(g, gl, s, POOL[s.pool] || 0x6a8a2a, Math.min(1, (h.t1 - t) * 2, (t - h.t0) * 4), now, DANGER);
         } else if (s.k === 'proj') {
@@ -380,8 +426,12 @@ export class Boss {
     if (t < h.t0 - lead || lead <= 0.02) return;
     const s = placeHit(mv, h, h.t0);
     if (!s) return;
+    if (h.grp != null) {   // a turning beam: one thin line a little ahead of it, showing which way it turns
+      if (h.t0 - t > 0.3 && h.t0 - t <= 0.46) { this.marks.lineStyle(1.5, UNBLOCK, 0.7); shape(this.marks, s, false); }
+      return;
+    }
     const u = 1 - (h.t0 - t) / lead, g = this.marks;
-    const col = h.unblock ? 0xff3a20 : DANGER;
+    const col = h.unblock ? UNBLOCK : DANGER;
     if (s.k === 'proj') {
       const L2 = Math.min(140, h.v * 0.5), c = Math.cos(s.a), n = Math.sin(s.a);
       g.lineStyle(1, col, 0.25 + 0.5 * u);
@@ -389,8 +439,152 @@ export class Boss {
       return;
     }
     if (s.k === 'ring') { g.lineStyle(1, col, 0.2 + 0.4 * u); g.strokeCircle(s.cx, s.cy, h.r0 + 10); return; }
-    g.fillStyle(col, 0.1 + 0.2 * u * u); shape(g, s, true);
-    g.lineStyle(u > 0.7 ? 2 : 1, col, 0.45 + 0.5 * u); shape(g, s, false);
+    warn(g, s, u, col, !!h.unblock);
+  }
+
+  // A blast across the whole arena: the floor floods with its colour as it comes, and what will save
+  // you is drawn in gold: safe ground as a ring that fills, cover as the shadow behind it.
+  drawRoom(mv, h, t, now) {
+    const g = this.marks, lead = h.mark ?? 1.5, col = h.col ? hex(h.col) : DANGER;
+    if (t < h.t0 - lead || t > h.t1 + 0.25 || mv.start + Math.min(t, h.t0) > mv.cancelAt) return;
+    const u = Math.max(0, Math.min(1, 1 - (h.t0 - t) / lead)), live = t >= h.t0;
+    const fade = live ? Math.max(0, 1 - (t - h.t1) / 0.25) : 1;
+    g.fillStyle(col, (live ? 0.55 : 0.1 + 0.26 * u * u + 0.04 * Math.sin(now * (6 + 10 * u))) * fade);
+    g.fillRect(-300, -300, 1500, 1200);
+    if (live) return;
+    const [ox, oy] = mv.pos(h.t0);
+    if (h.near != null) this.safeRing(ox, oy, h.near, u, now);
+    if (h.still) {   // stand still: a gold ring at the feet of every hero on this screen
+      for (const hero of this.scene.local || []) if (!hero.down) { g.lineStyle(2, GOLD, 0.5 + 0.4 * u); g.strokeEllipse(hero.x, hero.y, 26 - 8 * u, 11 - 3 * u); }
+    }
+    for (const sp of mv.c.spots || []) {
+      const [x, y, r, tag, on] = sp;
+      if (h.safe != null) {
+        if (mv.data.spot_kind === 'flask') continue;   // the circles are drawn in their own colours; which is safe is the puzzle
+        if (h.safe === tag && on) this.safeRing(x, y, r, u, now);
+        else if (h.safe === tag) { g.lineStyle(1, GOLD, 0.35); g.strokeCircle(x, y, r); }
+      }
+      if (h.cover === tag && on) this.shadow(ox, oy, x, y, r, u);
+    }
+  }
+
+  // the shadow a piece of cover casts, away from the boss at (ox, oy): gold, the safe ground behind it
+  shadow(ox, oy, x, y, r, u) {
+    const g = this.marks, a = Math.atan2(y - oy, x - ox), d = Math.hypot(x - ox, y - oy), w = Math.asin(Math.min(1, (r + 6) / Math.max(d, r + 7)));
+    const P = (ang, dist) => [ox + Math.cos(ang) * dist, oy + Math.sin(ang) * dist];
+    g.fillStyle(GOLD, 0.14 + 0.1 * u);
+    poly(g, [P(a - w, d), P(a - w, d + 900), P(a + w, d + 900), P(a + w, d)], true);
+    g.lineStyle(1.5, GOLD, 0.5 + 0.4 * u);
+    g.lineBetween(...P(a - w, d), ...P(a - w, d + 900)); g.lineBetween(...P(a + w, d), ...P(a + w, d + 900));
+  }
+
+  safeRing(x, y, r, u, now) {
+    const g = this.marks;
+    g.fillStyle(GOLD, 0.12 + 0.08 * u); g.fillCircle(x, y, r);
+    g.lineStyle(2, GOLD, 0.6 + 0.35 * u); g.strokeCircle(x, y, r);
+    g.lineStyle(3, 0xfff0c0, 0.9); g.beginPath(); g.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + u * Math.PI * 2); g.strokePath();   // counts down to the blast
+    for (let k = 0; k < 4; k++) { const a = now * 0.8 + k * Math.PI / 2; g.lineBetween(x + Math.cos(a) * (r - 6), y + Math.sin(a) * (r - 6), x + Math.cos(a) * (r + 2), y + Math.sin(a) * (r + 2)); }
+  }
+
+  // what a cast sets out: its props (stones, bells, chalk circles, candles, rubble, a planted fist,
+  // false knights), eyes in the treeline, a word in the air, the flask it holds up, cracks in the ground
+  drawCast(mv, t, now) {
+    const d = mv.data, b = this.bodies[mv.e], sc = this.scene, f = this.fx, g = this.marks;
+    if (now > mv.cancelAt) { this.dropProps(mv); return; }
+    const spots = mv.c.spots || [];
+    const top = sc.cameras.main.worldView.y + 46;   // nothing it holds up may hide behind its own health bar
+    // cover from a turning beam (not a blast: drawRoom draws those): its shadow, for as long as the beam turns
+    const beam = d.hits.filter(h => h.cover != null && !h.room);
+    if (beam.length && t > 0.4 && t < beam[beam.length - 1].t1) {
+      const [ox, oy] = mv.pos(beam[0].t0);
+      for (const [x, y, r, tag, on] of spots) if (on && tag === beam[0].cover) this.shadow(ox, oy, x, y, r, Math.min(1, t / beam[0].t0));
+    }
+    if (spots.length && d.spot_kind && t > 0.2) {
+      mv.props ||= [];
+      spots.forEach((sp, i) => {
+        const [x, y, r, tag, on] = sp;
+        if (d.spot_kind === 'image') {   // false knights: the boss's own figure, in its own pose, but no shadow under them
+          if (tag === 0 || !b) return;
+          let rig = mv['rig' + i];
+          if (!rig) { rig = mv['rig' + i] = new Rig(sc, b.rigName, framesFor(b.rigName, b.art)); mv.props.push({ destroy: () => rig.c.destroy() }); }
+          rig.pose(sample(d.anim, Math.max(0, t), b.def_), Math.cos(b.face) < -0.05);
+          rig.c.setPosition(Math.round(x), Math.round(y)).setDepth(y);
+          return;
+        }
+        if (d.spot_kind === 'flask') {
+          const col = hex(d.spot_cols[tag]);
+          g.fillStyle(col, 0.16); g.fillCircle(x, y, r);
+          g.lineStyle(2.5, col, 0.9); g.strokeCircle(x, y, r);
+          g.lineStyle(1, col, 0.6); g.strokeCircle(x, y, r - 6);
+          return;
+        }
+        if (d.spot_kind === 'light') {   // rings of light, one after another: each shows only for its own blast
+          const at = d.seq_spots[tag], h = d.hits[tag];
+          if (t < at || t > h.t1) return;
+          f.fillStyle(0xfff0c0, 0.05 + 0.03 * Math.sin(now * 5)); f.fillCircle(x, y, r);
+          return;
+        }
+        const kind = d.spot_kind === 'candle' ? (on ? 'candle_lit' : null) : d.spot_kind;
+        if (d.spot_kind === 'candle' && on) { f.fillStyle(0xffc860, 0.1 + 0.03 * Math.sin(now * 7 + i)); f.fillCircle(x, y, r); }
+        if (!kind) return;
+        let im = mv['im' + i];
+        if (!im) {
+          im = mv['im' + i] = sc.add.image(x, y - 140, propTexture(sc, kind)).setOrigin(0.5, 0.9).setDepth(y);
+          mv.props.push(im);
+          sc.tweens.add({ targets: im, y, duration: kind === 'candle_lit' ? 1 : 260, ease: 'Quad.easeIn', onComplete: () => { if (kind !== 'candle_lit' && sc.thud) sc.thud(x, y); } });
+        }
+      });
+    }
+    // the flask it holds up: stand in the circle of this colour
+    if (d.spot_kind === 'flask' && b && t >= d.show && t < d.hits[0].t1) {
+      const col = hex(d.spot_cols[mv.c.v]), x = b.x, y = Math.max(top, b.y - b.z - Math.max(60, b.r * 3.4)), p = 0.8 + 0.2 * Math.sin(now * 10);
+      f.fillStyle(col, 0.3 * p); f.fillCircle(x, y, 13);
+      f.fillStyle(col, 1); f.fillCircle(x, y, 7);
+      f.lineStyle(2, 0xffffff, 0.9); f.strokeCircle(x, y, 7);
+    }
+    // a word in the air
+    if (d.words && b && t >= d.show && t < d.hits[0].t1) {
+      if (!mv.word) {
+        mv.word = sc.add.text(b.x, b.y - 96, d.words[mv.c.v], { fontFamily: 'Cinzel, Georgia, serif', fontSize: '20px', fontStyle: 'bold', color: '#fff0c0',
+          stroke: '#120e16', strokeThickness: 5, resolution: sc.cfg.zoom() }).setOrigin(0.5).setDepth(7000);
+        (mv.props ||= []).push(mv.word);
+      }
+      mv.word.setPosition(b.x, Math.max(top + 8, b.y - b.z - 96)).setScale(1 + 0.05 * Math.sin(now * 8));
+    }
+    // eyes in the treeline: the three places it will come from; each brightens before its charge
+    if (d.lanes && d.seqs) {
+      d.seqs[mv.c.v].forEach((L, k) => {
+        const at = d.at[k];
+        if (t < 0.8 || t > at + 0.1) return;
+        const [x, y, deg] = d.lanes[L], a = deg * Math.PI / 180, bright = t > at - 1.0;
+        const ex = x + Math.cos(a) * 6, ey = y + Math.sin(a) * 6 - 14, nx = -Math.sin(a) * 5, ny = Math.cos(a) * 5;
+        const p = bright ? 0.75 + 0.25 * Math.sin(now * 16) : 0.4;
+        for (const sgn of [-1, 1]) {
+          f.fillStyle(bright ? 0xff5030 : 0xd8c040, 0.3 * p); f.fillCircle(ex + nx * sgn, ey + ny * sgn, bright ? 6 : 4);
+          f.fillStyle(bright ? 0xffe0a0 : 0xd8c040, p); f.fillCircle(ex + nx * sgn, ey + ny * sgn, bright ? 2.4 : 1.8);
+        }
+      });
+    }
+    // the wyrm under the ground: cracks run ahead of it to where it will come up
+    if (b && b.def.render === 'wyrm' && d.under && t >= d.under[0] && t <= d.under[1]) {
+      const [x0, y0] = mv.pos(d.under[0]), [x1, y1] = mv.pos(d.under[1]), L = Math.hypot(x1 - x0, y1 - y0);
+      const u = (t - d.under[0]) / Math.max(0.01, d.under[1] - d.under[0]);
+      g.lineStyle(2, 0x1a1410, 0.75);
+      for (let q = 0; q < L * Math.min(1, u * 1.6); q += 12) {
+        const px = x0 + (x1 - x0) * q / L, py = y0 + (y1 - y0) * q / L, j = Math.sin(q * 1.7) * 5;
+        g.lineBetween(px - j * (y1 - y0) / L, py + j * (x1 - x0) / L, px + (x1 - x0) / L * 9 + j * (y1 - y0) / L, py + (y1 - y0) / L * 9 - j * (x1 - x0) / L);
+      }
+    }
+    // something held taut between it and whoever it has caught (a tongue, a chain)
+    for (const [hid, H] of Object.entries(sc.holds || {})) {
+      if (H.seq !== mv.seq || now > H.until || !b) continue;
+      const hero = sc.byId[hid];
+      if (!hero) continue;
+      const col = d.hits[0].col ? hex(d.hits[0].col) : 0xa8b0bc;
+      f.lineStyle(4, 0x120e16, 0.6); f.lineBetween(b.x, b.y - b.z - b.r, hero.x, hero.y - 16);
+      f.lineStyle(2, col, 1); f.lineBetween(b.x, b.y - b.z - b.r, hero.x, hero.y - 16);
+      f.lineStyle(2, GOLD, 0.6 + 0.3 * Math.sin(now * 14)); f.strokeEllipse(hero.x, hero.y, 26, 11);
+    }
   }
 
   // the tell: a glint on the boss just before its first strike (red if it can't be blocked), and a
@@ -424,12 +618,16 @@ export class Boss {
       const t = now - mv.start;
       if (t < 0 || now > mv.last + 0.2) continue;
       mv.data.hits.forEach((h, i) => {
-        if (h.k === 'spawn') return;
+        if (h.k === 'spawn' || !active(mv, h, i)) return;
         const id = `${mv.seq}:${i}` + (h.tick ? ':' + Math.floor((t - h.t0) / h.tick) : '');
         if (hero.taken.has(id)) return;
         const s = placeHit(mv, h, t);
         if (!s || !s.live) return;
-        if (touches(s, hero.x, hero.y, hero.HERO.radius)) {
+        // one sweep of a turning beam (its steps share a `grp`) hurts once a while, not at every step
+        const grp = h.grp != null ? `${mv.seq}:${h.grp}` : null, G = hero.grpHit ||= {};
+        if (grp && now - (G[grp] ?? -9) < 0.9) return;
+        if (touches(s, hero.x, hero.y, hero.HERO.radius) && !spared(mv, h, hero.x, hero.y, hero.moving)) {
+          if (grp && !hero.invulnerable()) G[grp] = now;
           const [bx, by] = mv.pos(Math.min(t, h.t0));
           const far = s.k === 'proj' || s.k === 'ring' || s.k === 'zone';
           if (cb(h, id, far ? s.cx : bx, far ? s.cy : by)) hero.taken.add(id);
@@ -437,7 +635,7 @@ export class Boss {
       });
     }
     for (const a of Object.values(this.adds)) {
-      if (now - a.seen < 1.0 || Math.hypot(a.x - hero.x, a.y - hero.y) > a.r + hero.HERO.radius) continue;  // a moment's grace when it appears
+      if (!a.A.dmg || now - a.seen < 1.0 || Math.hypot(a.x - hero.x, a.y - hero.y) > a.r + hero.HERO.radius) continue;  // a moment's grace when it appears
       const id = `a${a.id}:${Math.floor(now / 2)}`;  // an add bites at most every 2 s
       if (hero.taken.has(id)) continue;
       if (cb({ dmg: a.A.dmg, kb: 30 }, id, a.x, a.y)) hero.taken.add(id);
@@ -457,6 +655,14 @@ export class Boss {
       for (const [x, y] of this.segments(b)) out.push({ kind: 'body', e: b.e, x, y, r: 9, b, seg: true });
     }
     for (const a of Object.values(this.adds)) out.push({ kind: 'add', a: a.id, x: a.x, y: a.y, r: a.r, add: a });
+    for (const mv of this.moves) {   // its projectiles that can be struck back at it
+      const t = now - mv.start;
+      mv.data.hits.forEach((h, i) => {
+        if (!h.ret || !active(mv, h, i)) return;
+        const s = placeHit(mv, h, t);
+        if (s && s.live) out.push({ kind: 'shot', seq: mv.seq, i, mv, x: s.cx, y: s.cy - 8, r: s.r + 10 });
+      });
+    }
     return out;
   }
 }
@@ -488,4 +694,53 @@ function poly(g, pts, fill) {
   for (const p of pts.slice(1)) g.lineTo(p[0], p[1]);
   g.closePath();
   fill ? g.fillPath() : g.strokePath();
+}
+
+
+// The warning for a hit before it lands: a faint fill and an outline in the whole shape, and a
+// stronger fill that grows from the boss's side (or the middle) and reaches the far edge at the
+// instant of the strike. Hits that can't be blocked are orange-red with a doubled outline.
+function warn(g, s, u, col, heavy) {
+  u = Math.max(0, Math.min(1, u));
+  g.fillStyle(col, 0.08 + 0.08 * u); shape(g, s, true);
+  const inner = s.k === 'rect' ? (s.abs ? { ...s, w: s.w * u } : { ...s, x1: s.x0 + (s.x1 - s.x0) * u }) : s.k === 'arc' || s.k === 'circle' ? { ...s, r: s.r * u } : null;
+  if (inner && u > 0.02) { g.fillStyle(col, 0.2); shape(g, inner, true); }
+  g.lineStyle(u > 0.7 ? 2 : 1.5, col, 0.5 + 0.45 * u); shape(g, s, false);
+  if (heavy) {
+    const out = s.k === 'rect' ? { ...s, x0: s.x0 - 3, x1: s.x1 + 3, w: s.w + 3 } : { ...s, r: s.r + 3 };
+    g.lineStyle(1, 0xffd0a0, 0.5 + 0.4 * u); shape(g, out, false);
+  }
+}
+
+// Props drawn here rather than in the atlas: small canvases made once a scene and used as textures.
+function propTexture(sc, kind) {
+  const key = 'kfprop-' + kind;
+  if (sc.textures.exists(key)) return key;
+  const cv = document.createElement('canvas'); cv.width = 48; cv.height = 64;
+  const c = cv.getContext('2d'), R = (col, x, y, w, h) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+  c.fillStyle = 'rgba(0,0,0,0.35)'; c.beginPath(); c.ellipse(24, 57, 17, 5, 0, 0, 7); c.fill();
+  if (kind === 'bell') {
+    c.fillStyle = '#3a3048'; c.beginPath(); c.moveTo(11, 56); c.quadraticCurveTo(12, 22, 24, 18); c.quadraticCurveTo(36, 22, 37, 56); c.closePath(); c.fill();
+    c.fillStyle = '#6a5a88'; c.beginPath(); c.moveTo(15, 54); c.quadraticCurveTo(16, 26, 24, 22); c.quadraticCurveTo(26, 30, 22, 54); c.closePath(); c.fill();
+    R('#c8a8ff', 9, 53, 30, 3); R('#2a2236', 21, 12, 6, 7); R('#120e16', 22, 36, 2, 14);
+  } else if (kind === 'stone') {
+    c.fillStyle = '#4a5a44'; c.beginPath(); c.ellipse(24, 52, 20, 8, 0, 0, 7); c.fill();
+    c.fillStyle = '#7a8a70'; c.beginPath(); c.ellipse(24, 49, 19, 7, 0, 0, 7); c.fill();
+    c.fillStyle = '#98a88c'; c.beginPath(); c.ellipse(21, 47, 11, 3.5, 0, 0, 7); c.fill();
+  } else if (kind === 'rubble' || kind === 'fist') {
+    const dark = kind === 'fist' ? '#5a5462' : '#3c3644', mid = kind === 'fist' ? '#8a8494' : '#6a6474', lit = kind === 'fist' ? '#b8b0c0' : '#948ca0';
+    c.fillStyle = dark; c.beginPath(); c.moveTo(8, 57); c.lineTo(11, 30); c.lineTo(22, 20); c.lineTo(35, 24); c.lineTo(40, 57); c.closePath(); c.fill();
+    c.fillStyle = mid; c.beginPath(); c.moveTo(12, 55); c.lineTo(14, 32); c.lineTo(22, 24); c.lineTo(27, 30); c.lineTo(25, 55); c.closePath(); c.fill();
+    c.fillStyle = lit; c.fillRect(15, 32, 6, 3);
+    if (kind === 'fist') { R(dark, 13, 38, 24, 2); R(dark, 13, 45, 24, 2); R('#ffb040', 20, 26, 8, 3); }
+  } else {   // a candle, lit or not
+    R('#d8ccb0', 20, 30, 8, 26); R('#f0e8d0', 20, 30, 3, 26); R('#2a2236', 23, 25, 2, 6); R('#8a7a5a', 16, 54, 16, 4);
+    if (kind === 'candle_lit') {
+      c.fillStyle = 'rgba(255,200,96,0.35)'; c.beginPath(); c.arc(24, 20, 11, 0, 7); c.fill();
+      c.fillStyle = '#ffb040'; c.beginPath(); c.ellipse(24, 20, 4, 7, 0, 0, 7); c.fill();
+      c.fillStyle = '#fff0c0'; c.beginPath(); c.ellipse(24, 22, 2, 4, 0, 0, 7); c.fill();
+    }
+  }
+  sc.textures.addCanvas(key, cv);
+  return key;
 }

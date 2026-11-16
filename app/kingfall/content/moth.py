@@ -4,7 +4,7 @@ from her wings, and a brood of mothlings. Phase 2: she snuffs the candles; the s
 her spirals double.
 """
 
-from .moves import DMG, arc, circle, rect, ring, proj, spawn, pose
+from .moves import DMG, arc, circle, rect, ring, proj, spawn, pose, room
 
 DMG[0] = 1.15
 DUST = {"col": "#f0e0a0"}
@@ -65,10 +65,26 @@ PHASE2 = {  # she snuffs the candles
     "anim": [(0, pose()), (0.7, pose(wing_b=100, wing_f=90, arm_f=-170, arm_b=-170)), (1.6, pose(wing_b=10, wing_f=0)), (2.4, pose())],
 }
 
+# --- the rework: strings, and the vigil
+MOVES["gust"]["then"] = "stream"
+
+# The Vigil: three dead candles stand in the sanctum and she draws all the light into herself. Strike
+# a candle to light it; when the dark comes down, only a lit candle's glow is safe.
+MOVES["vigil"] = {
+    "name": "The Vigil", "sig": True, "spots": "candles", "spot_kind": "candle", "tired": 1.6,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 5.8, "locks": [0.0],
+    "motion": [],
+    "hits": [room(4.6, safe=0, mark=3.4, col="#2a1840")],
+    "anim": [(0, pose()), (0.7, pose(wing_b=100, wing_f=90, arm_f=-170, arm_b=-170)), (4.4, pose(wing_b=110, wing_f=100, arm_f=-175, arm_b=-175)),
+             (4.6, pose(wing_b=10, wing_f=0)), (5.8, pose())],
+}
+
 BOSS = {
     "id": "moth", "name": "The Moth Saint", "tier": 3, "rig": "moth", "art": "moth", "arena": "sanctum",
     "hp": 2000, "poise": 110, "radius": 20, "speed": 55, "keep": 150, "hover": 16,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2}, "dark": 2,
-    "adds": {"mothling": {"hp": 26, "speed": 58, "radius": 8, "dmg": 6, "art": "moth.mothling", "life": 20, "float": 14}},
+    "adds": {"candle": {"hp": 22, "speed": 0, "radius": 10, "dmg": 0, "draw": "candle", "life": 6},
+             "mothling": {"hp": 26, "speed": 58, "radius": 8, "dmg": 6, "art": "moth.mothling", "life": 20, "float": 14}},
     "stagger_pose": {"torso": 16, "head": 14, "wing_b": 10, "wing_f": 0, "z": -12}, "dead_pose": {"torso": 30, "head": 20, "wing_b": 0, "wing_f": -10, "z": -16},
+    "marks": [(0.75, "vigil"), (0.25, "vigil")],
 }

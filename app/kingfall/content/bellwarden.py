@@ -4,7 +4,7 @@ bell down, and calls a choir of ghosts. Phase 2: tolls come in threes and it dra
 a sweeping arc.
 """
 
-from .moves import DMG, arc, circle, rect, ring, zone, spawn, pose
+from .moves import DMG, arc, circle, rect, ring, zone, spawn, pose, delay, room
 
 DMG[0] = 0.75
 SOUND = {"col": "#c8a8ff", "unblock": True}  # sound passes through shields
@@ -91,10 +91,28 @@ PHASE2 = {
              (1.0, pose(bell=-210, front=1, torso=44, head=-40, arm_f=-40, arm_b=-40)), (2.6, pose())],
 }
 
+# --- the rework: readable openers, strings, and the Great Toll
+delay(MOVES["rake"], 0.1, 0.1)
+MOVES["rake"]["then"] = "lurch"
+MOVES["lurch"]["then"] = "slam"
+
+# The Great Toll: ghost bells fall and stay, then it tolls so loud the whole belfry is struck. The
+# only shelter is the shadow behind a bell. In its second phase only one bell falls.
+MOVES["greattoll"] = {
+    "name": "The Great Toll", "sig": True, "spots": "bells", "spot_kind": "bell", "tired": 1.6,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 4.6, "locks": [0.0],
+    "motion": [],
+    "hits": [room(3.2, cover=0, mark=2.4, col="#c8a8ff")],
+    "anim": [(0, pose()), (0.7, pose(bell=-120, front=1, torso=0, head=-10, arm_f=-150, arm_b=-150)),
+             (3.0, pose(bell=-140, front=1, torso=-8, head=-20, arm_f=-170, arm_b=-170, dy=-3)),
+             (3.2, pose(bell=-210, front=1, torso=44, head=-40, arm_f=-40, arm_b=-40, dy=3)), (4.6, pose())],
+}
+
 BOSS = {
     "id": "bellwarden", "name": "The Bellwarden", "tier": 1, "rig": "bellwarden", "art": "bellwarden", "arena": "belfry",
     "hp": 1450, "poise": 110, "radius": 18, "speed": 56,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"ghost": {"hp": 40, "speed": 32, "radius": 10, "dmg": 7, "art": "bellwarden.ghost", "life": 30, "float": 8, "alpha": 0.85}},
     "stagger_pose": {"torso": 50, "head": -40, "arm_f": 20, "arm_b": 20, "dy": 4}, "dead_pose": {"torso": 70, "head": -50, "arm_f": 30, "dy": 8},
+    "marks": [(0.75, "greattoll"), (0.25, "greattoll")],
 }

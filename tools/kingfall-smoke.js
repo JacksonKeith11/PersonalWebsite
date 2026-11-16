@@ -227,12 +227,45 @@ async function serve() {
     await p.context().close();
   };
 
+  // A signature move: the Mire Mother's Flood, twice. The first time the hero stands where they are and
+  // must be hurt by it; the second time they stand on a stone and must not be.
+  const signature = async () => {
+    const p = await open('sig', 'boss=mire');
+    await p.click('#create');
+    await p.waitForSelector('#start:not([disabled])');
+    await p.click('#start');
+    await fight(p, 0);
+    await p.evaluate(() => kf.safe());
+    await p.waitForTimeout(ENTRANCE);
+    const hp = () => p.evaluate(() => Object.values(kf.S.scene.heroRows)[0].hp);
+    const flood = async onStone => {
+      const n = await p.evaluate(() => kf.S.scene.boss.moves.length);
+      await p.evaluate(() => kf.move('flood'));
+      await p.waitForFunction(n => { const m = kf.S.scene.boss.moves; return m.length > n && m[m.length - 1].id === 'flood'; }, n);
+      const spots = await p.evaluate(() => { const m = kf.S.scene.boss.moves; return m[m.length - 1].c.spots; });
+      if (!spots || spots.length !== 3) throw new Error('the Flood should set out three stones');
+      await p.evaluate(([s, on]) => { const l = kf.S.scene.local[0]; l.x = s[0] + (on ? 0 : s[2] + 30); l.y = s[1]; }, [spots[0], onStone]);
+      const far = await p.evaluate(sp => { const l = kf.S.scene.local[0]; return sp.every(s => Math.hypot(l.x - s[0], l.y - s[1]) > s[2] + 8); }, spots);
+      if (!onStone && !far) await p.evaluate(([a, b]) => { const l = kf.S.scene.local[0]; l.x = (a[0] + b[0]) / 2; l.y = (a[1] + b[1]) / 2; }, spots);
+      await p.waitForFunction(() => { const sc = kf.S.scene, m = sc.boss.moves[sc.boss.moves.length - 1]; return sc.net.now() > m.start + m.data.dur; });
+      await p.waitForTimeout(300);
+    };
+    const full = await hp();
+    await flood(false);
+    const after = await hp();
+    if (!(after < full)) throw new Error('a hero off the stones should be hurt by the Flood');
+    await flood(true);
+    if (await hp() !== after) throw new Error("a hero on a stone shouldn't be hurt by the Flood");
+    await p.context().close();
+  };
+
   try {
     await solo();
     await duo();
     await couch();
+    await signature();
     if (problems.length) throw new Error('a page reported: ' + problems.join(' | '));
-    console.log("ok: one player started with a skill, used it, learned and used a second; two players saw each other's skill, ward and shot, and the boss's Burn; two controllers on one browser each steered their own hero");
+    console.log("ok: one player started with a skill, used it, learned and used a second; two players saw each other's skill, ward and shot, and the boss's Burn; two controllers on one browser each steered their own hero; a signature move hurt a hero in the open and spared one on safe ground");
     code = 0;
   } catch (e) {
     const where = (e.stack || '').split('\n').find(l => l.includes('kingfall-smoke.js')) || '';

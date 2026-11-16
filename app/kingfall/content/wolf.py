@@ -4,7 +4,7 @@ thorn that split the party. Phase 2: the forest goes dark; only its eyes and a g
 strike show, and it pounces twice.
 """
 
-from .moves import DMG, arc, circle, rect, ring, zone, proj, pose
+from .moves import DMG, arc, circle, rect, ring, zone, proj, pose, delay, lane
 
 DMG[0] = 1.0
 THORN = {"col": "#6a8a3a"}
@@ -86,9 +86,30 @@ PHASE2 = {
     "anim": [(0, pose()), (0.7, pose(neck=-34, head=-22, jaw=40, body=-8)), (1.8, pose(neck=-34, head=-22, jaw=40)), (2.4, pose())],
 }
 
+# --- the rework: readable openers, strings, a howl you can break, and the stalk
+delay(MOVES["bite"], 0.19, 0.15)
+MOVES["bite"]["then"] = "tail"
+MOVES["feint"]["then"] = "thorns"
+delay(MOVES["howl"], 0.6)
+MOVES["howl"].update({"brk": {"hp": 36}, "brk_win": (0.15, 1.45)})   # hurt it enough as it draws breath and the howl dies
+
+# The Stalk: it slips into the treeline. Three pairs of eyes open at the clearing's edge; each
+# brightens in turn, and the wolf tears across the clearing from there.
+LANES = [(48, 130, 0), (48, 380, 0), (200, 70, 90), (600, 70, 90), (60, 82, 27.2), (740, 82, 152.8)]   # where it comes from, and its heading
+SEQS = [(0, 3, 4), (1, 2, 5), (4, 1, 3), (5, 0, 2), (2, 5, 0), (3, 4, 1), (0, 5, 3), (1, 4, 2)]
+MOVES["stalk"] = {
+    "name": "The Stalk", "sig": True, "variants": len(SEQS), "lanes": LANES, "seqs": SEQS, "at": [2.0, 3.4, 4.8], "tired": 1.6,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 6.2, "locks": [0.0], "under": (0.5, 5.5),
+    "motion": [],
+    "hits": [lane(2.0 + k * 1.4, 2.3 + k * 1.4, x, y, deg, 780, 34, 34, mark=1.0, var=[i for i, q in enumerate(SEQS) if q[k] == L], col="#6a8a3a")
+             for k in range(3) for L, (x, y, deg) in enumerate(LANES) if any(q[k] == L for q in SEQS)],
+    "anim": [(0, pose()), (0.45, pose(neck=-20, head=-10, body=-6, dy=4)), (5.5, pose(dy=4)), (5.8, pose(neck=-30, head=-20, jaw=30)), (6.2, pose())],
+}
+
 BOSS = {
     "id": "wolf", "name": "The Briar Wolf", "tier": 2, "rig": "wolf", "art": "wolf", "arena": "forest",
     "hp": 2300, "poise": 140, "radius": 24, "speed": 88,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2}, "dark": 2, "adds": {},
     "stagger_pose": {"body": 10, "neck": 20, "head": 10, "dy": 5}, "dead_pose": {"body": 14, "neck": 30, "head": 20, "dy": 10},
+    "marks": [(0.75, "stalk"), (0.25, "stalk")],
 }

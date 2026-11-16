@@ -3,7 +3,7 @@ do (a three-cut combo, a lunge, a parrying stance) and fills the hall with their
 copies that hunt whoever they mirror. Phase 2: it shatters the mirrors and shards rain on the hall.
 """
 
-from .moves import DMG, arc, circle, rect, ring, proj, spawn, pose
+from .moves import DMG, arc, circle, rect, ring, proj, spawn, pose, delay, room
 
 DMG[0] = 1.05
 GLASS = {"col": "#a0d8f0"}
@@ -63,9 +63,27 @@ PHASE2 = {
     "anim": [(0, pose()), (0.6, pose(arm_f=-170, arm_b=-170, weapon=180, head=-16)), (1.6, pose(arm_f=-170, arm_b=-170)), (2.2, pose())],
 }
 
+# --- the rework: readable openers, strings, and the trinity
+delay(MOVES["combo"], 0.19, 0.15)
+MOVES["glide"]["then"] = "combo"
+MOVES["shards"]["then"] = "glide"
+
+# The Trinity: it vanishes and three knights stand where it was, all raising the same blow. Only the
+# real one casts a shadow. Hurt the real one enough (the gold bar) and all three break; or the hall shatters.
+MOVES["trinity"] = {
+    "name": "The Trinity", "sig": True, "spots": "trinity", "spot_kind": "image", "blink": True, "tired": 1.6,
+    "brk": {"hp": 32}, "brk_win": (0.5, 3.5),
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 4.6, "locks": [0.0],
+    "motion": [],
+    "hits": [room(3.5, mark=2.5, col="#a0d8f0")],
+    "anim": [(0, pose()), (0.7, pose(arm_f=-120, arm_b=-120, weapon=180, head=-8)), (3.3, pose(arm_f=-175, arm_b=-175, weapon=180, head=-16, dy=-2)),
+             (3.5, pose(arm_f=-30, arm_b=-30, weapon=100, torso=16, dy=3)), (4.6, pose())],
+}
+
 BOSS = {
     "id": "mirror", "name": "The Mirror Knight", "tier": 3, "rig": "mirror", "art": "mirror", "arena": "glass",
     "hp": 2400, "poise": 140, "radius": 20, "speed": 64,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"reflection": {"hp": 45, "speed": 52, "radius": 10, "dmg": 8, "art": "mirror.reflection", "life": 22, "alpha": 0.8}},
+    "marks": [(0.75, "trinity"), (0.25, "trinity")],
 }

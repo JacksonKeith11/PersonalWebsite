@@ -9,9 +9,9 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=32';
-import { placeAttack, touches, wrap } from './moves.js?v=32';
-import { crescent, lance, burst } from './fx.js?v=32';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=37';
+import { placeAttack, touches, wrap } from './moves.js?v=37';
+import { crescent, lance, burst } from './fx.js?v=37';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -486,10 +486,14 @@ export class LocalHero {
       if (this.reviveT >= H.down.revive * (this.S.revive_time || 1)) { ctx.send({ t: 'revive', h: this.id, who: fallen.id }); this.reviveT = 0; }
     } else { this.reviving = null; this.reviveT = 0; }
 
+    if (this.isHeld(ctx.now)) speed = 0;
     this.vx = move.x * speed; this.vy = move.y * speed;
     this.x += this.vx * dt; this.y += this.vy * dt;
     if (this.state === 'run' && !(move.x || move.y)) this.state = 'idle';
     ctx.collide(this);
+    // did they move this frame? (an edict to stand still is judged on this)
+    this.moving = Math.hypot(this.x - (this.px ?? this.x), this.y - (this.py ?? this.y)) > 0.02;
+    this.px = this.x; this.py = this.y;
   }
 
   attackData() {
@@ -503,7 +507,11 @@ export class LocalHero {
     }
   }
 
+  // caught by a tongue or a chain: can't move or dodge until it lets go (attacks still work)
+  isHeld(now) { return !!this.held && now < this.held.until; }
+
   tryRoll(move, ctx) {
+    if (this.isHeld(ctx.now)) { this.denied = { id: 'dash', until: performance.now() + 350 }; return; }
     const G = this.W.guard, dir = move.x || move.y ? Math.atan2(move.y, move.x) : this.aim;
     if (G.kind === 'dash') {
       if (!this.useDash()) return;
@@ -623,9 +631,14 @@ export class LocalHero {
       : { h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: swing.seq };
     let any = false;
     for (const tg of ctx.boss.targets(ctx.now)) {
-      const key = tg.kind === 'add' ? 'a' + tg.a : 'b' + tg.e;
+      const key = tg.kind === 'add' ? 'a' + tg.a : tg.kind === 'shot' ? 's' + tg.seq + ':' + tg.i : 'b' + tg.e;
       if (swing.struck.has(key) || !touches(s, tg.x, tg.y, tg.r)) continue;
       swing.struck.add(key);
+      if (tg.kind === 'shot') {   // one of the boss's own projectiles, struck back at it
+        tg.mv.gone.add(tg.i);
+        ctx.send({ t: 'reflect', h: this.id, seq: tg.seq, i: tg.i });
+        continue;
+      }
       any = true;
       if (tg.kind === 'add') { ctx.send({ t: 'hitadd', a: tg.a, ...base }); tg.add.flash = 0.08; }
       else ctx.send({ t: 'hit', e: tg.e, core: tg.kind === 'core' ? tg.i : undefined, ...base });

@@ -5,7 +5,7 @@ sets the blade alight: a fourth combo hit and fire waves along the ground.
 Times are seconds from the move's start, distances world pixels; see docs/kingfall.md, "Boss moves".
 """
 
-from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
+from .moves import DMG, arc, circle, rect, ring, proj, zone, pose, delay
 
 DMG[0] = 0.85  # tier 1: hits a little softer than written
 
@@ -110,9 +110,29 @@ PHASE2 = {
              (2.4, pose())],
 }
 
+# --- the rework (docs/kingfall.md, "Signature moves"): readable openers, strings, and one move to remember him by
+delay(MOVES["combo2"], 0.1, 0.1)
+MOVES["crescent"]["hits"][0]["ret"] = 60      # strike the crescent and it flies back at him
+MOVES["lunge"]["then"] = "crescent"
+MOVES["charge"]["then"] = "delayed"
+
+# The Pyre: he plants the sword and four lines of fire turn slowly round him, one way or the other.
+# Walk with the turn; the gaps between the lines are wide. He stands there the whole time.
+_ARM = {**BURN, "unblock": True}
+MOVES["pyre"] = {
+    "name": "The Pyre", "sig": True, "variants": 2, "tired": 2.0,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 6.4, "locks": [0.0],
+    "motion": [],
+    "hits": [rect(1.4 + i * 0.15, 1.57 + i * 0.15, 26, 440, 9, 30, {**_ARM, "var": [v], "grp": arm}, rot=arm * 90 + 45 + sgn * i * 5, mark=1.0 if i == 0 else None)
+             for v, sgn in ((0, 1), (1, -1)) for arm in range(4) for i in range(28)],
+    "anim": [(0, pose()), (0.6, pose(arm_f=-180, weapon=180, torso=-12, dy=-2)), (1.3, pose(arm_f=-20, weapon=170, torso=18, lean=4, dy=3)),
+             (5.7, pose(arm_f=-20, weapon=170, torso=16, dy=3)), (6.4, pose())],
+}
+
 BOSS = {
     "id": "corvin", "name": "Ser Corvin, the Oathless", "tier": 1, "rig": "knight", "art": "corvin",
     "hp": 1900, "poise": 120, "radius": 20, "speed": 52,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "arena": "chapel",
+    "marks": [(0.75, "pyre"), (0.25, "pyre")],
 }

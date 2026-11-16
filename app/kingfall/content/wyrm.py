@@ -60,9 +60,24 @@ PHASE2 = {
     "anim": [(0, pose()), (0.6, pose(head=-40, z=20, jaw=40)), (1.6, pose(head=-40, z=20, jaw=40)), (2.2, pose())],
 }
 
+# --- the rework: strings, and the cage
+MOVES["bite"]["then"] = "thrash"
+MOVES["shards"]["then"] = "burrow"
+
+# The Cage: its coils close round you in a wide ring of bone, then crush what's inside. Hurt it enough
+# (the gold bar) and the coils fall slack; or roll out through the ring before it closes.
+MOVES["cage"] = {
+    "name": "The Cage", "sig": True, "tired": 1.6, "brk": {"hp": 90}, "brk_win": (0.5, 3.7),
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 4.8, "locks": [0.0, 0.8], "reach": ("target", 0, 0, 300),
+    "motion": [],
+    "hits": [ring(1.3, 3.7, 190, -62, 14, 20, BONE, at=0, tx=True), circle(3.75, 3.9, 46, 0, 0, 44, BONE, tx=True, mark=0.9)],
+    "anim": [(0, pose()), (0.8, pose(head=-30, jaw=40, z=10)), (3.7, pose(head=10, jaw=10)), (3.9, pose(head=20, jaw=0)), (4.8, pose())],
+}
+
 BOSS = {
     "id": "wyrm", "name": "The Gravewyrm", "tier": 2, "rig": "wyrm", "art": "wyrm", "arena": "boneyard", "render": "wyrm",
     "hp": 3000, "poise": 260, "radius": 18, "speed": 84,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2}, "adds": {},
     "stagger_pose": {"head": 30, "jaw": 30, "z": -4}, "dead_pose": {"head": 40, "jaw": 40, "z": -6},
+    "marks": [(0.75, "cage"), (0.25, "cage")],
 }

@@ -76,6 +76,21 @@ PHASE2 = {
     "anim": [(0, pose()), (0.7, pose(arm_f=-170, arm_b=-170, head=-16, dy=-4)), (1.05, pose(arm_f=-10, arm_b=-10, dy=4)), (2.4, pose())],
 }
 
+# --- the rework: strings, and the purge
+MOVES["stomp"]["then"] = "hammer"
+
+# The Purge: it fires a fist into the floor, where it sticks, then turns its furnace beam the whole
+# way round. Stand behind the fist as the beam passes. Afterwards its vents hang open: hurt it enough
+# then (the gold bar) and it topples.
+MOVES["purge"] = {
+    "name": "The Purge", "sig": True, "spots": "fist", "spot_kind": "fist", "brk": {"hp": 70, "stagger": 5.0}, "brk_win": (6.0, 7.6),
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 7.8, "locks": [0.0],
+    "motion": [],
+    "hits": [rect(1.7 + i * 0.14, 1.86 + i * 0.14, 30, 470, 10, 22, {**BEAM, "cover": 0, "grp": 0}, rot=i * 12, mark=0.8 if i == 0 else None) for i in range(30)],
+    "anim": [(0, pose()), (0.5, pose(arm_f=-90, torso=-8)), (0.8, pose(arm_f=-80, torso=6)), (1.6, pose(head=-14, torso=-6)),
+             (5.9, pose(head=8)), (6.1, pose(torso=14, head=12, dy=6)), (7.5, pose(torso=14, head=12, dy=6)), (7.8, pose())],
+}
+
 BOSS = {
     "id": "bastion", "name": "The Bastion", "tier": 3, "rig": "golem", "art": "bastion", "arena": "wall",
     "hp": 2300, "poise": 400, "radius": 34, "speed": 26, "armor": 0.5,
@@ -83,4 +98,5 @@ BOSS = {
               {"dx": -40, "dy": -10, "r": 14, "hp": 180, "h": 96}],
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2}, "adds": {},
     "stagger_pose": {"torso": 14, "head": 12, "arm_f": 20, "arm_b": 20, "dy": 8}, "dead_pose": {"torso": 24, "head": 20, "dy": 14},
+    "marks": [(0.75, "purge"), (0.25, "purge")],
 }

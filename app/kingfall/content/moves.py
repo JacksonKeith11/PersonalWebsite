@@ -61,6 +61,40 @@ def spawn(t, kind, n=1, dist=30, spread=0):
     return {"k": "spawn", "t0": t, "t1": t, "dmg": 0, "kind": kind, "n": n, "x": dist, "spread": spread}
 
 
+def room(t0, dmg=60, life=0.5, mark=None, **extra):
+    """A blast across the whole arena (a signature move). It can't be blocked and lasts longer than a
+    roll's invulnerability, so it must be answered the way its move says: `safe=tag` spares a hero
+    standing in one of the cast's spots with that tag (tag "v": the spot the cast's variant picked),
+    `cover=tag` one standing behind such a spot as seen from the boss, `still=1` one who isn't moving.
+    Its damage is written as it lands (not scaled by the boss's DMG): about 60% of a hero's health."""
+    h = {"k": "circle", "t0": t0, "t1": t0 + life, "dmg": dmg, "r": 1400, "x": 0, "y": 0, "room": 1, "unblock": 1, **extra}
+    if mark is not None: h["mark"] = mark
+    return h
+
+
+def lane(t0, t1, ox, oy, deg, length, w, dmg, mark=None, **extra):
+    """A strip of the arena itself: from (ox, oy) in arena coordinates, `deg` degrees, `length` long and
+    w either side. `abs` hits ignore where the boss stands and aims."""
+    h = {"k": "rect", "t0": t0, "t1": t1, "dmg": round(dmg * DMG[0]), "x0": 0, "x1": length, "w": w, "abs": [ox, oy], "rot": deg, **extra}
+    if mark is not None: h["mark"] = mark
+    return h
+
+
+def delay(move, d, trim=0.0):
+    """Lengthen a move's wind-up by d seconds (everything after its start moves later) and take
+    `trim` off its recovery: for openers that struck too soon to read."""
+    sh = lambda t: t + d if t > 0 else t
+    move["locks"] = [sh(t) for t in move.get("locks", [0.0])]
+    move["motion"] = [(t0 + d, t1 + d, dist) for t0, t1, dist in move["motion"]]
+    for h in move["hits"]: h["t0"] += d; h["t1"] += d
+    for h in move["hits"]: h["t0"], h["t1"] = round(h["t0"], 3), round(h["t1"], 3)
+    move["anim"] = [(sh(t), p) for t, p in move["anim"][:-1]] + [(move["anim"][-1][0] + d - trim, move["anim"][-1][1])]
+    for k in ("air", "under", "guard"):
+        if k in move: move[k] = (move[k][0] + d, move[k][1] + d)
+    move["dur"] = round(move["dur"] + d - trim, 3)
+    return move
+
+
 def pose(**kw):
     """Rig keyframe: part angles in degrees (arm_f, arm_b, weapon, shield, torso, head, leg_f, leg_b,
     cape), lean/dy (body offset), front=1 (shield in front), run=1 (legs cycle)."""

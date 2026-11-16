@@ -24,7 +24,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from app.kingfall import content as C  # noqa: E402
 from app.kingfall.fight import TICK, Fight  # noqa: E402
-from app.kingfall.geom import place_attack, place_hit, touches  # noqa: E402
+from app.kingfall.geom import active, place_attack, place_hit, spared, touches  # noqa: E402
 from app.kingfall.room import Hero  # noqa: E402
 from app.kingfall.content.skills import MAX_SKILLS, SKILLS  # noqa: E402
 
@@ -65,6 +65,8 @@ class Bot:
         self.act = None    # the attack being made: (kind, its data, when it lands, when it ends)
         self.cd = {}       # skill id -> when it's ready again
         self.focus = 40.0
+        self.moving = False
+        self.grp = {}
 
     def iframes(self):
         a, b = self.dodge["if"]
@@ -77,7 +79,8 @@ def danger(f, x, y, ahead):
     for m in f.moves():
       t = f_now[0] - m.start
       for i, h in enumerate(m.data["hits"]):
-        if h["k"] == "spawn": continue
+        if h["k"] == "spawn" or not active(m, h, i): continue
+        if h.get("room") or "cover" in h or h.get("abs"): continue   # signature hits: answered by where you stand (answer_signature), not by rolling
         # sample the hit across its life (charges, rings and projectiles move): when does it first reach us?
         for k in range(8):
           ht = h["t0"] + (h["t1"] - h["t0"]) * k / 7
@@ -93,7 +96,74 @@ def danger(f, x, y, ahead):
 f_now = [0.0]
 
 
+def answer_signature(b, f, now, dt):
+    """A signature hit is coming (a blast across the arena, a strip of it, a beam with cover): do what
+    it asks, as a player would. Returns True if the bot is busy with that this tick."""
+    fh, H = b.fh, C.HERO
+    for m in f.moves():
+        t = now - m.start
+        for i, h in enumerate(m.data["hits"]):
+            if not (h.get("room") or "cover" in h or h.get("abs")) or not active(m, h, i) or t > h["t1"]: continue
+            key = f"sig{m.seq}:{i}"
+            if key not in b.decided:
+                b.decided.add(key)
+                if b.rng.random() > 0.5 + 0.5 * b.skill: b.decided.add(key + "x")   # now and then it doesn't read it in time
+            if key + "x" in b.decided: continue
+            left = h["t0"] - t
+            ox, oy = m.pos(m.start + h["t0"])
+            goal = None
+            if h.get("abs"):   # a strip of the arena: step out of it sideways
+                if left > h.get("mark", 0.6): continue
+                sh = place_hit(m, h, h["t0"])
+                if not touches(sh, fh.x, fh.y, H["radius"] + 8): continue
+                side = -math.sin(sh["a"]) * (fh.x - sh["cx"]) + math.cos(sh["a"]) * (fh.y - sh["cy"])
+                a = sh["a"] + (math.pi / 2 if side >= 0 else -math.pi / 2)
+                goal = (fh.x + math.cos(a) * 30, fh.y + math.sin(a) * 30)
+            elif h.get("still"):
+                if left < 0.4: return True   # stand still
+                continue
+            elif "near" in h:
+                if math.hypot(fh.x - ox, fh.y - oy) > h["near"] - 14: goal = (ox, oy)
+            else:
+                spots = [q for q in m.c.get("spots", []) if q[3] == (m.c.get("v") if h.get("safe") == "v" else h.get("safe", h.get("cover")))]
+                on = [q for q in spots if q[4]]
+                if not spots: continue   # nowhere to stand: only breaking the move off will do (the bot keeps attacking)
+                if not on:               # candles to light first: go to the nearest and strike it
+                    q = min(spots, key=lambda q: math.hypot(q[0] - fh.x, q[1] - fh.y))
+                    if math.hypot(q[0] - fh.x, q[1] - fh.y) > 34: goal = (q[0], q[1])
+                else:
+                    q = min(on, key=lambda q: math.hypot(q[0] - fh.x, q[1] - fh.y))
+                    if "cover" in h:
+                        d = max(1.0, math.hypot(q[0] - ox, q[1] - oy))
+                        goal = (q[0] + (q[0] - ox) / d * (q[2] + 14), q[1] + (q[1] - oy) / d * (q[2] + 14))
+                    else:
+                        goal = (q[0], q[1])
+                    far = math.hypot(goal[0] - fh.x, goal[1] - fh.y)
+                    if far < 5:
+                        if left < 1.0 or "cover" in h and not h.get("room"): return True   # there: wait for it
+                        continue
+                    if left > far / H["speed"] + 1.0 and h.get("room"): continue   # time to fight on a little longer
+            if goal:
+                a = math.atan2(goal[1] - fh.y, goal[0] - fh.x)
+                step = min(H["speed"] * dt, math.hypot(goal[0] - fh.x, goal[1] - fh.y))
+                fh.x, fh.y = f.clamp(fh.x + math.cos(a) * step, fh.y + math.sin(a) * step)
+                b.state, b.act = "idle", None
+                return True
+    return False
+
+
 def step_bot(b, f, now, dt, bots):
+    """One tick of a bot. A bot that's held (a tongue, a chain) can strike but not move or dodge."""
+    fh = b.fh
+    x, y = fh.x, fh.y
+    _step_bot(b, f, now, dt, bots)
+    if fh.held > now:
+        fh.x, fh.y = x, y
+        if b.state == "roll": b.state, b.t = "idle", 0.0
+    b.moving = abs(fh.x - x) + abs(fh.y - y) > 0.01
+
+
+def _step_bot(b, f, now, dt, bots):
     fh, H = b.fh, C.HERO
     b.t += dt
     if fh.down or fh.dead:
@@ -102,16 +172,19 @@ def step_bot(b, f, now, dt, bots):
     for m in f.moves():
         t = now - m.start
         for i, h in enumerate(m.data["hits"]):
-            if h["k"] == "spawn": continue
+            if h["k"] == "spawn" or not active(m, h, i): continue
             key = f"{m.seq}:{i}" + (f":{int((t - h['t0']) / h['tick'])}" if h.get("tick") else "")
             if key in b.taken: continue
+            grp = (m.seq, h["grp"]) if "grp" in h else None   # one sweep of a turning beam hurts once a while, not at every step
+            if grp and now - b.grp.get(grp, -9) < 0.9: continue
             s = place_hit(m, h, t)
-            if s and s["live"] and touches(s, fh.x, fh.y, H["radius"]) and not b.iframes():
+            if s and s["live"] and touches(s, fh.x, fh.y, H["radius"]) and not b.iframes() and not spared(m, h, fh.x, fh.y, b.moving):
+                if grp: b.grp[grp] = now
                 b.taken.add(key); b.hits += 1
                 f.hurt(fh.hero.id, {"id": key}, now)
                 b.state, b.t = "hurt", 0.0
     for a in list(f.adds.values()):  # adds bite once a second while touching
-        if now - a["born"] > 1.0 and math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
+        if a["dmg"] and now - a["born"] > 1.0 and math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
             key = f"a{a['id']}:{int(now / 2)}"
             if key not in b.taken:
                 b.taken.add(key); b.hits += 1; f.hurt(fh.hero.id, {"id": key}, now)
@@ -142,6 +215,7 @@ def step_bot(b, f, now, dt, bots):
     if b.state == "drink":
         if b.t > H["flask"]["dur"]: b.state = "idle"
         return
+    if b.state in ("idle", "atk") and answer_signature(b, f, now, dt): return
     # see a hit coming: roll through it (or away), as a player would
     for key, until, long in danger(f, fh.x, fh.y, b.react + 0.15):
         if key in b.decided: continue

@@ -4,7 +4,7 @@ to the air, diving across the bridge (its shadow shows the line) and raining fir
 bridge's edges burn and everything comes faster.
 """
 
-from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
+from .moves import DMG, arc, circle, rect, ring, proj, zone, pose, lane, room
 
 DMG[0] = 1.3
 FIRE = {"fire": 1, "col": "#ff8a3a"}
@@ -80,9 +80,38 @@ PHASE3 = {  # the bridge's edges catch fire and stay burning
     "anim": [(0, pose()), (0.7, pose(neck=-34, head=-20, jaw=40)), (1.8, pose(neck=-34, jaw=40)), (2.4, pose())],
 }
 
+# --- the rework: strings, the strafe and the eclipse
+MOVES["claws"]["then"] = "tail"
+MOVES["gust"]["then"] = "fireball"
+
+# The Strafe: it takes off and burns the bridge in lanes, twice, each time leaving one lane untouched.
+ROWS = [132, 255, 378]
+PASSES = [(a, b) for a in range(3) for b in range(3) if a != b]   # the lane spared on the first pass, and on the second
+MOVES["strafe"] = {
+    "name": "The Strafe", "sig": True, "variants": len(PASSES), "tired": 1.4,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2, 3), "dur": 6.0, "locks": [0.0], "air": (0.6, 5.0),
+    "motion": [],
+    "hits": [lane(2.2 + k * 1.7, 2.6 + k * 1.7, 0, ROWS[L], 0, 800, 61, 34, mark=1.3, var=[i for i, q in enumerate(PASSES) if q[k] != L], fire=1, col="#ff8a3a", unblock=1)
+             for k in range(2) for L in range(3)],
+    "anim": [(0, pose()), (0.6, pose(z=30, wing_b=-80, wing_f=-70)), (1.2, pose(z=110, wing_b=10, wing_f=10)), (2.4, pose(z=110, wing_b=-60, wing_f=-50, neck=20, jaw=30)),
+             (4.6, pose(z=110, wing_b=10, wing_f=10, neck=20, jaw=30)), (5.2, pose(z=0)), (6.0, pose())],
+}
+
+# The Eclipse: the sun goes black and fire falls three times. Each time, only one ring of light is
+# safe, and it isn't where the last one was. Then the drake lands, spent.
+MOVES["eclipse"] = {
+    "name": "The Eclipse", "sig": True, "spots": "lights", "spot_kind": "light", "seq_spots": [0.5, 2.3, 4.0], "tired": 3.0,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2, 3), "dur": 7.6, "locks": [0.0],
+    "motion": [],
+    "hits": [room(2.9 + i * 1.7, 40, safe=i, mark=1.4, fire=1, col="#ff8a3a") for i in range(3)],
+    "anim": [(0, pose()), (0.7, pose(z=40, wing_b=-90, wing_f=-80, neck=-30, jaw=40)), (6.6, pose(z=40, wing_b=-70, wing_f=-60, neck=-34, jaw=40)),
+             (7.0, pose(z=0, body=8, neck=30, head=20)), (7.6, pose())],
+}
+
 BOSS = {
     "id": "drake", "name": "The Eclipse Drake", "tier": 4, "rig": "drake", "art": "drake", "arena": "bridge",
     "hp": 4800, "poise": 220, "radius": 34, "speed": 46,
     "moves": MOVES, "phases": [0.6, 0.25], "phase_moves": {2: PHASE2, 3: PHASE3}, "adds": {},
     "stagger_pose": {"body": 8, "neck": 30, "head": 20, "dy": 6}, "dead_pose": {"body": 12, "neck": 40, "head": 30, "dy": 10},
+    "marks": [(0.8, "strafe"), (0.42, "eclipse"), (0.12, "eclipse")],
 }

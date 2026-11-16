@@ -4,7 +4,7 @@ try to split the party. When one falls, the other takes up their power: the Hook
 execution, the Axe learns to spin the chain.
 """
 
-from .moves import DMG, arc, circle, rect, ring, proj, zone, pose
+from .moves import delay, DMG, arc, circle, rect, ring, proj, zone, pose
 
 DMG[0] = 0.8
 CHAIN = {"col": "#a8b0bc"}
@@ -116,6 +116,29 @@ AXE_MOVES["hurl"] = {  # it throws the axe: slow, big, and back to its hand afte
     "hits": [proj(0.95, 0, 20, 0, 200, 16, 1.8, 34, {"col": "#c8c0b0", "kb": 80})],
     "anim": [(0, pose()), (0.7, pose(arm_f=-190, arm_b=-190, weapon=150, torso=-16, dy=-2)), (0.95, pose(arm_f=-40, arm_b=-40, weapon=90, torso=16, lean=5)),
              (2.0, pose())],
+}
+
+# --- the rework: readable openers, strings, and the block
+delay(HOOK_MOVES["flurry"], 0.21, 0.15)
+delay(HOOK_MOVES["dash"], 0.07, 0.07)
+HOOK_MOVES["dash"]["then"] = "flurry"
+AXE_MOVES["sweep"]["then"] = "stomp"
+
+# The block: the Hook's chain now holds whoever it drags in, and the Axe comes to pass sentence on them.
+# Hurt the Hook enough while he holds the chain (the gold bar) and it breaks.
+HOOK_MOVES["chain"].update({
+    "dur": 3.2, "cd": 9.0, "weight": 3, "call": "sentence", "brk": {"hp": 45}, "brk_win": (0.7, 3.0),
+    "hits": [rect(0.55, 0.72, 10, 210, 9, 14, {**CHAIN, "kb": -150, "hold": 2.4})],
+    "anim": [(0, pose()), (0.45, pose(arm_f=-160, weapon=180, torso=-10)), (0.6, pose(arm_f=-90, weapon=90, torso=10, lean=3)),
+             (2.9, pose(arm_f=-80, weapon=90, torso=-6, lean=-4)), (3.2, pose())],
+})
+AXE_MOVES["sentence"] = {
+    "name": "The Sentence", "sig": True,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 3), "dur": 3.0, "locks": [0.0, 1.3],
+    "motion": [(0.25, 1.25, ("target", -56, 0, 420))],
+    "hits": [rect(1.85, 1.99, 0, 110, 26, 62, {"unblock": True}, mark=None), ring(1.92, 2.5, 24, 140, 12, 9, at=90)],
+    "anim": [(0, pose()), (0.3, pose(torso=14, lean=5, run=1)), (1.25, pose(arm_f=-180, arm_b=-180, weapon=170, torso=-14, dy=-3)),
+             (1.8, pose(arm_f=-190, arm_b=-190, weapon=160, torso=-18)), (1.92, pose(arm_f=-40, arm_b=-40, weapon=110, torso=22, lean=6, dy=3)), (3.0, pose())],
 }
 
 RAGE = {  # the survivor's roar when the other falls

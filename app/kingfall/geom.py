@@ -21,6 +21,12 @@ def place_hit(move, h, t, lead=0.0):
     rot = h.get("rot", 0) * D2R
     fx = h.get("x", 0) + (move.dists[len(move.data["motion"])] if h.get("tx") else 0)
     if k == "spawn": return None
+    if h.get("abs"):   # a strip or a spot of the arena itself, wherever the boss is
+        ox, oy = h["abs"]
+        if k == "circle":
+            return {"k": k, "cx": ox + math.cos(rot) * fx - math.sin(rot) * h["y"], "cy": oy + math.sin(rot) * fx + math.cos(rot) * h["y"],
+                    "a": rot, "r": h["r"], "live": t >= h["t0"]}
+        return {**h, "cx": ox, "cy": oy, "a": rot, "live": t >= h["t0"]}
     if k in ("proj", "ring", "zone"):
         bx, by = pos(h["t0"]); a = aim_at(move.aims, h["t0"]) + rot
         ox = bx + math.cos(a) * fx - math.sin(a) * h.get("y", 0)
@@ -38,6 +44,32 @@ def place_hit(move, h, t, lead=0.0):
         return {"k": k, "cx": bx + math.cos(a) * fx - math.sin(a) * h["y"], "cy": by + math.sin(a) * fx + math.cos(a) * h["y"],
                 "a": a, "r": h["r"], "live": t >= h["t0"]}
     return {**h, "cx": bx, "cy": by, "a": a, "live": t >= h["t0"]}
+
+
+def active(move, h, i):
+    """Is hit i part of this cast? Not if it belongs to another variant, or was struck back."""
+    if i in move.gone: return False
+    return "var" not in h or move.c.get("v") in h["var"]
+
+
+def spared(move, h, x, y, moving=False):
+    """A signature hit's way out (content/moves.py, `room`): standing still, in a safe spot, or behind cover."""
+    if h.get("still") and not moving: return True
+    spots = move.c.get("spots") or []
+    if "near" in h:
+        ox, oy = _pos(move, h["t0"])
+        if math.hypot(x - ox, y - oy) <= h["near"]: return True
+    if "safe" in h:
+        tag = move.c.get("v") if h["safe"] == "v" else h["safe"]
+        if any(s[3] == tag and s[4] and math.hypot(x - s[0], y - s[1]) <= s[2] for s in spots): return True
+    if "cover" in h:
+        ox, oy = _pos(move, h["t0"])
+        d = math.hypot(x - ox, y - oy)
+        for s in spots:
+            if s[3] != h["cover"] or not s[4] or d <= math.hypot(s[0] - ox, s[1] - oy) or d < 1: continue
+            ux, uy = (x - ox) / d, (y - oy) / d
+            if (s[0] - ox) * ux + (s[1] - oy) * uy > 0 and abs((s[1] - oy) * ux - (s[0] - ox) * uy) <= s[2] + 6: return True
+    return False
 
 
 def _pos(move, t):

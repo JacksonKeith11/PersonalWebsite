@@ -3,7 +3,7 @@ belly-flop's shadow marks where she'll land, her poison pools shrink the safe fl
 pulls you into her reach. Phase 2: she sinks into the mire and bursts up beneath you, and flops twice.
 """
 
-from .moves import DMG, arc, circle, rect, ring, zone, spawn, proj, pose
+from .moves import DMG, arc, circle, rect, ring, zone, spawn, proj, pose, delay, room
 
 DMG[0] = 0.85
 TONGUE = {"col": "#c86a7a"}
@@ -80,10 +80,34 @@ PHASE2 = {
     "anim": [(0, pose()), (0.6, pose(dy=-4, jaw=36, head=-16, body=-8)), (1.4, pose(dy=-4, jaw=36, head=-12)), (2.4, pose())],
 }
 
+# --- the rework: readable openers, strings, the tongue that holds, and the flood
+delay(MOVES["slap"], 0.1, 0.1)
+MOVES["slap"]["then"] = "flop"
+MOVES["bile"]["then"] = "tongue"
+
+# The tongue now holds whoever it catches in front of her mouth, and she bites down on them. Hurt her
+# enough while she holds (the gold bar) and she lets go, reeling.
+MOVES["tongue"].update({
+    "dur": 2.8, "cd": 5.0, "brk": {"hp": 30}, "brk_win": (0.7, 2.05),
+    "hits": [rect(0.62, 0.76, 22, 190, 9, 14, {**TONGUE, "kb": -110, "hold": 1.5}), circle(2.1, 2.24, 58, 0, 40, 44, mark=0.9)],
+    "anim": [(0, pose()), (0.45, pose(head=-14, body=-6, jaw=12)), (0.62, pose(head=6, body=4, jaw=34)),
+             (1.9, pose(head=-8, jaw=40, body=-4)), (2.1, pose(head=8, jaw=0, body=6)), (2.8, pose())],
+})
+
+# The Flood: the bog rises over the whole floor. Only the stones stay dry.
+MOVES["flood"] = {
+    "name": "The Flood", "sig": True, "spots": "stones", "spot_kind": "stone", "tired": 1.6,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 4.8, "locks": [0.0],
+    "motion": [],
+    "hits": [room(3.4, safe=0, mark=2.8, col="#6a9a4a")],
+    "anim": [(0, pose()), (0.6, pose(dy=-4, jaw=36, head=-16, body=-8)), (3.2, pose(dy=-4, jaw=36, head=-12)), (3.5, pose(dy=4, jaw=6)), (4.8, pose())],
+}
+
 BOSS = {
     "id": "mire", "name": "The Mire Mother", "tier": 1, "rig": "toad", "art": "mire", "arena": "bog",
     "hp": 1900, "poise": 120, "radius": 30, "speed": 44,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"tadpole": {"hp": 34, "speed": 62, "radius": 9, "dmg": 7, "art": "mire.tadpole", "life": 25}},
     "stagger_pose": {"body": 10, "head": 14, "jaw": 20, "dy": 4}, "dead_pose": {"body": 12, "head": 20, "jaw": 30, "dy": 8},
+    "marks": [(0.75, "flood"), (0.25, "flood")],
 }

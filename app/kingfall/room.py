@@ -219,6 +219,9 @@ class Room:
             self.fight.die(now)
         elif t == "debugsafe" and self.debug and self.fight:  # this fight's boss never attacks (tests that stand about)
             self.fight.calm = True
+        elif t == "debugmove" and self.debug and self.fight:  # make the boss use one move next (tests of the signature moves)
+            for b in self.fight.bodies:
+                if msg.get("id") in b.d["moves"]: b.queue.append(msg["id"])
         elif t == "clienterr":  # a browser's script broke: into the server log, a few per connection
             c.errs = getattr(c, "errs", 0) + 1
             if c.errs <= 5:
@@ -234,6 +237,7 @@ class Room:
             elif t == "dodge": f.dodged(h.id, msg, now)
             elif t == "perfect": f.perfect(h.id, now)
             elif t == "hitadd": f.hit_add(h.id, msg, now)
+            elif t == "reflect": f.reflect(h.id, msg, now)
             elif t == "skill": f.use_skill(h.id, msg, now)
             elif t == "shot":  # a projectile or area hit, so other browsers can draw it
                 out = {"t": "fx", "k": "shot", "h": h.id}

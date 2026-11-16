@@ -21,6 +21,8 @@ export class LiveMove {
     this.aims = [[0, m.a]];
     this.dists = m.d.slice();
     this.cancelAt = Infinity;
+    this.c = m.c || {};      // what this cast rolled: v (its variant), spots [[x, y, r, tag, on]]
+    this.gone = new Set();   // hits struck back at the boss
   }
   reaim(lt, a, d) {
     this.aims = this.aims.filter(([t]) => t < lt);
@@ -50,6 +52,11 @@ export function placeHit(mv, h, t, lead = 0) {
   if (k === 'spawn') return null;
   const rot = (h.rot || 0) * D2R;
   const fx = (h.x || 0) + (h.tx ? mv.dists[mv.data.motion.length] || 0 : 0);
+  if (h.abs) {   // a strip or a spot of the arena itself, wherever the boss is
+    const [ox, oy] = h.abs;
+    if (k === 'circle') return { k, cx: ox + Math.cos(rot) * fx - Math.sin(rot) * h.y, cy: oy + Math.sin(rot) * fx + Math.cos(rot) * h.y, a: rot, r: h.r, live: t >= h.t0 };
+    return { ...h, k, cx: ox, cy: oy, a: rot, live: t >= h.t0 };
+  }
   if (k === 'proj' || k === 'ring' || k === 'zone') {
     // anchored where the boss stood when it was fired
     const [bx, by] = mv.pos(h.t0), a = mv.aim(h.t0) + rot;
@@ -92,6 +99,31 @@ export function touches(s, px, py, pr) {
       if (Math.abs(d - s.r) > s.th / 2 + pr) return false;
       const rel = wrap(Math.atan2(dy, dx) - s.a) / D2R;
       return !(s.gaps || []).some(([g0, g1]) => rel >= g0 && rel <= g1);
+    }
+  }
+  return false;
+}
+
+// Is hit i part of this cast? Not if it belongs to another variant, or was struck back.
+export const active = (mv, h, i) => !mv.gone.has(i) && (!h.var || h.var.includes(mv.c.v));
+
+// A signature hit's way out (content/moves.py, `room`): standing still, at the boss's side, in a safe
+// spot, or behind cover. The twin of geom.py's `spared`.
+export function spared(mv, h, x, y, moving) {
+  if (h.still && !moving) return true;
+  const spots = mv.c.spots || [];
+  const [ox, oy] = mv.pos(h.t0);
+  if (h.near != null && Math.hypot(x - ox, y - oy) <= h.near) return true;
+  if (h.safe != null) {
+    const tag = h.safe === 'v' ? mv.c.v : h.safe;
+    if (spots.some(s => s[3] === tag && s[4] && Math.hypot(x - s[0], y - s[1]) <= s[2])) return true;
+  }
+  if (h.cover != null) {
+    const d = Math.hypot(x - ox, y - oy);
+    for (const s of spots) {
+      if (s[3] !== h.cover || !s[4] || d <= Math.hypot(s[0] - ox, s[1] - oy) || d < 1) continue;
+      const ux = (x - ox) / d, uy = (y - oy) / d;
+      if ((s[0] - ox) * ux + (s[1] - oy) * uy > 0 && Math.abs((s[1] - oy) * ux - (s[0] - ox) * uy) <= s[2] + 6) return true;
     }
   }
   return false;

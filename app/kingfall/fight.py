@@ -33,6 +33,8 @@ ARENA = {"w": 800, "h": 480, "pad": (48, 70, 48, 40)}  # left, top, right, botto
 SKILL_SLACK = 0.3   # a browser's cooldown may run this far ahead of the server's
 SKILL_LIVE = 4.0    # a skill's hits count for this long after it's used (a lance in flight, a pillar falling)
 RECENT = 12          # finished moves kept for late hit reports and lingering hazards
+STRING_REST = 1.7    # after a string of moves a boss stands winded this long: the opening
+BREAK_STAGGER = 3.5  # a boss whose break bar is emptied reels this long
 
 
 def bodies_of(boss):
@@ -49,6 +51,9 @@ class Move:
         self.dists = dists
         self.locked = {0.0}
         self.spawned = set()
+        self.c = {}            # what this cast rolled: "v" its variant, "spots" [[x, y, r, tag, on]] (safe ground, cover)
+        self.gone = set()      # hits struck back at the boss (a projectile with `ret`)
+        self.brk = self.brk0 = 0.0   # its break bar: damage dealt in the move's `brk` window empties it
         self.last = start + max([data["dur"]] + [h["t1"] for h in data["hits"]])  # when its last hazard ends
 
     def pos(self, now):
@@ -66,6 +71,7 @@ class Move:
         m = {"t": "mv", "seq": self.seq, "e": self.e, "id": self.id, "at": round(self.start, 3), "x": round(self.origin[0], 1),
              "y": round(self.origin[1], 1), "a": round(self.aims[0][1], 4), "d": [round(d, 1) for d in self.dists]}
         if self.target is not None: m["tg"] = self.target
+        if self.c: m["c"] = self.c
         if extra: m.update(extra)
         return m
 
@@ -94,6 +100,7 @@ class FHero:
         self.shield = 0
         self.unbowed = False        # the Unbowed blessing has saved them this fight
         self.skill_used = {}        # skill id -> when it was last used (cooldowns start afresh each fight)
+        self.held = 0.0             # caught (a tongue, a chain): can't move until then
 
 
 class Body:
@@ -128,6 +135,10 @@ class Body:
         self.cores = [c["hp"] * C.SCALE_HP[n - 1] for c in d.get("cores", [])]
         self.enraged = False
         self.art = d["art"]
+        self.chain = 0           # moves into the string it's playing
+        self.tired_until = 0.0   # winded after a string: stands still, the opening
+        self.queue = []          # signature moves owed (its health passed one of its `marks`)
+        self.marks_done = set()
 
     @property
     def alive(self):
@@ -292,6 +303,12 @@ class Fight:
             mult *= 3.0
             for x in build.get("crit"): mult *= x["mult"]
         dmg = round(C.WEAPONS[h.weapon]["base"] * mult)
+        if m and m.brk > 0 and m.window("brk_win", now):   # a break bar: emptied, the move is broken off and the boss reels
+            m.brk -= dmg
+            if m.brk <= 0:
+                self.room.broadcast({"t": "fx", "k": "broken", "e": e, "h": hid, "x": round(b.x), "y": round(b.y)})
+                self.stagger(b, now, m.data["brk"].get("stagger", BREAK_STAGGER), "break")
+                for f in self.heroes.values(): f.held = 0.0
         if isinstance(core, int) and 0 <= core < len(b.cores) and b.cores[core] > 0:
             b.cores[core] = max(0, b.cores[core] - dmg)
             cx, cy = b.core_pos(core)
@@ -338,11 +355,16 @@ class Fight:
         if b.hp <= 0 and b.alive:
             self.body_down(b, now)
             return
+        for i, (th, mid) in enumerate(b.d.get("marks", [])):   # its signature moves come at set points of the fight
+            if i not in b.marks_done and b.hp <= b.mhp * th:
+                b.marks_done.add(i)
+                b.queue.append(mid)
         if b.state == "stagger": return   # a stagger runs its full length: the next phase waits for it to end
         for i, th in enumerate(b.d.get("phases", [])):
             ph = i + 2
             if b.phase < ph and b.hp <= b.mhp * th:
                 b.phase = ph
+                b.chain = 0
                 mv = b.d.get("phase_moves", {}).get(ph)
                 art = b.d.get("phase_art", {}).get(ph)
                 if art: b.art = art
@@ -362,6 +384,12 @@ class Fight:
         self.room.broadcast({"t": "fx", "k": "addhit", "a": a["id"], "dmg": dmg, "x": round(a["x"]), "y": round(a["y"])})
         if a["hp"] <= 0:
             del self.adds[a["id"]]
+            if a.get("spot"):   # a candle lit: its light is safe ground for the cast that set it out
+                seq, i = a["spot"]
+                for m in self.moves():
+                    if m.seq == seq:
+                        m.c["spots"][i][4] = 1
+                        self.room.broadcast({"t": "spot", "seq": seq, "i": i})
             self.room.broadcast({"t": "fx", "k": "adddie", "a": a["id"], "kind": a["kind"], "x": round(a["x"]), "y": round(a["y"])})
 
     def use_skill(self, hid, msg, now):
@@ -487,6 +515,7 @@ class Fight:
         if not fh or fh.down or fh.dead or self.over: return
         key = str(msg.get("id"))[:24]
         if key in fh.hits_taken: return
+        hit = mv = None
         if key.startswith("a"):
             dmg, src = self.add_hit(fh, key)
             if dmg is None: return
@@ -502,6 +531,11 @@ class Fight:
         build = fh.hero.build()
         if msg.get("parry") or msg.get("block"):
             for x in build.get("guard_status"): self.build_status(b, x["kind"], x["amt"] * build.buildup, now, fh)
+        if msg.get("parry") and hit and hit.get("ret"):   # a parried projectile that can be struck back goes back
+            i = int(key.split(":")[1])
+            if i not in mv.gone:
+                mv.gone.add(i)
+                self.room.broadcast({"t": "fx", "k": "reflect", "seq": mv.seq, "i": i, "e": mv.e, "h": hid, "x": round(fh.x), "y": round(fh.y)})
         if msg.get("parry"):
             self.damage_poise(b, 60 * (b.mpoise / b.base_poise) ** 0.5, now)
             for x in build.get("parry"): fh.empowered = (x["mult"], now + 3.0)
@@ -529,6 +563,15 @@ class Fight:
         h = fh.hero
         h.hp = max(0, h.hp - round(dmg))
         self.room.broadcast({"t": "fx", "k": "hurt", "h": hid, "dmg": round(dmg), "x": round(fh.x), "y": round(fh.y)})
+        if hit and hit.get("hold") and h.hp > 0:   # caught: held where they stand, and the other twin may come for them
+            fh.held = now + hit["hold"]
+            self.room.broadcast({"t": "fx", "k": "held", "h": hid, "e": mv.e, "seq": mv.seq, "dur": hit["hold"]})
+            call = mv.data.get("call")
+            for o in self.bodies:
+                if call and o is not src and o.alive and o.state not in ("stagger", "intro") and call in o.d["moves"] \
+                        and not (o.move and o.move.data.get("invuln")):
+                    self.start_move(o, call, o.d["moves"][call], now, cancel=True, target=fh)
+                    break
         if h.hp <= 0:
             saved = None if fh.unbowed else next(iter(fh.hero.build().get("unbowed")), None)
             if saved:   # Unbowed: once a fight, left standing
@@ -559,6 +602,21 @@ class Fight:
             if m.seq == seq and 0 <= i < len(m.data["hits"]) and m.data["hits"][i]["k"] != "spawn":
                 return m.data["hits"][i], m.start, m
         return None, 0, None
+
+    def reflect(self, hid, msg, now):
+        """A hero struck one of the boss's projectiles back at it (their browser says): it's gone for
+        everyone, and it costs the boss poise like a parry."""
+        fh = self.heroes.get(hid)
+        if not fh or fh.down or fh.dead or self.over: return
+        hit, start, mv = self.find_hit(f"{msg.get('seq')}:{msg.get('i')}")
+        i = msg.get("i")
+        if hit is None or not hit.get("ret") or i in mv.gone: return
+        if not (hit["t0"] - 0.3 <= now - start <= hit["t1"] + 0.5): return
+        mv.gone.add(i)
+        b = self.bodies[mv.e]
+        self.room.broadcast({"t": "fx", "k": "reflect", "seq": mv.seq, "i": i, "e": mv.e, "h": hid, "x": round(fh.x), "y": round(fh.y)})
+        if b.alive and b.state not in ("intro", "dead"):
+            self.damage_poise(b, hit["ret"] * (b.mpoise / b.base_poise) ** 0.5, now)
 
     def knock_down(self, fh, now):
         fh.down = True
@@ -650,14 +708,22 @@ class Fight:
         if any(o is not b and o.move and o.move.target == f.hero.id for o in self.bodies): w *= 0.4  # the two split up
         return w
 
-    def start_move(self, b, mid, data, now, cancel=False):
+    def start_move(self, b, mid, data, now, cancel=False, target=None):
         if cancel: self.cancel(b, now)
-        t = b.target if b.target in self.alive_heroes() else self.pick_target(b, now)
+        t = target or (b.target if b.target in self.alive_heroes() else self.pick_target(b, now))
+        self.seq += 1
+        cast = {}
+        if data.get("variants"): cast["v"] = random.randrange(data["variants"])
+        if data.get("spots"):
+            cast["spots"] = [[round(x), round(y), r, tag, on] for x, y, r, tag, on in SPOTS[data["spots"]](self, b, t, data, now)]
+            if data.get("blink"): b.x, b.y = cast["spots"][0][:2]   # it reappears on the first spot
         aim = math.atan2(t.y - b.y, t.x - b.x) if t else b.face
         dist = math.hypot(t.x - b.x, t.y - b.y) if t else 80
         dists = resolve(data, 0.0, dist, [0.0] * n_dists(data))
-        self.seq += 1
         b.move = Move(self.seq, b.e, mid, data, now + LEAD, (b.x, b.y), aim, dists, t.hero.id if t else None)
+        b.move.c = cast
+        if data.get("brk"):
+            b.move.brk = b.move.brk0 = data["brk"]["hp"] * C.SCALE_HP[len(self.heroes) - 1] * self.diff["hp"]
         self.fit(b.move)
         b.face = aim
         b.state = "move"
@@ -674,7 +740,7 @@ class Fight:
         opts = []
         for mid, m in b.d["moves"].items():
             if b.phase not in m["phase"] or b.cool.get(mid, 0) > now: continue
-            if m.get("enraged") and not b.enraged: continue
+            if m.get("sig") or (m.get("enraged") and not b.enraged): continue
             if m.get("adds") and sum(1 for a in self.adds.values() if a["kind"] == m["adds"]) >= m.get("max_adds", 4): continue
             lo, hi = m["range"]
             for f in self.alive_heroes():
@@ -713,6 +779,31 @@ class Fight:
             self.adds[self.add_seq] = {"id": self.add_seq, "kind": h["kind"], "x": x, "y": y, "hp": hp, "mhp": hp, "r": kind["radius"],
                                        "dmg": kind["dmg"], "speed": kind["speed"], "born": now, "life": kind.get("life", 30), "e": b.e}
 
+    def spawn_at(self, b, kind_id, x, y, now, life, spot=None):
+        """An add that stands where it's put (a candle): for a signature move's cast."""
+        kind = self.boss["adds"][kind_id]
+        self.add_seq += 1
+        hp = kind["hp"] * (1 + 0.3 * (len(self.heroes) - 1))
+        self.adds[self.add_seq] = {"id": self.add_seq, "kind": kind_id, "x": x, "y": y, "hp": hp, "mhp": hp, "r": kind["radius"],
+                                   "dmg": kind["dmg"], "speed": kind["speed"], "born": now, "life": life, "e": b.e, "spot": spot}
+
+    def spread(self, n, r, gap, near=None, lo=0.0, hi=0.0):
+        """n points inside the walls, r from them and `gap` apart; with `near`, each lo..hi from it."""
+        l, t, rt, bt = self.arena["pad"]
+        x0, x1, y0, y1 = l + r + 6, self.arena["w"] - rt - r - 6, t + r + 6, self.arena["h"] - bt - r - 6
+        pts = []
+        for _ in range(400):
+            if len(pts) == n: break
+            if near:
+                a, d = random.uniform(0, 2 * math.pi), random.uniform(lo, hi)
+                x, y = near[0] + math.cos(a) * d, near[1] + math.sin(a) * d
+                if not (x0 <= x <= x1 and y0 <= y <= y1): continue
+            else:
+                x, y = random.uniform(x0, x1), random.uniform(y0, y1)
+            if all(math.hypot(x - px, y - py) >= gap for px, py in pts): pts.append((x, y))
+        while len(pts) < n: pts.append((random.uniform(x0, x1), random.uniform(y0, y1)))
+        return pts
+
     def step_adds(self, now):
         live = self.alive_heroes()
         for a in list(self.adds.values()):
@@ -720,7 +811,7 @@ class Fight:
                 del self.adds[a["id"]]
                 self.room.broadcast({"t": "fx", "k": "adddie", "a": a["id"], "kind": a["kind"], "x": round(a["x"]), "y": round(a["y"])})
                 continue
-            if now - a["born"] < 0.6 or not live: continue
+            if now - a["born"] < 0.6 or not live or not a["speed"]: continue
             t = min(live, key=lambda f: math.hypot(f.x - a["x"], f.y - a["y"]))
             dx, dy = t.x - a["x"], t.y - a["y"]
             d = math.hypot(dx, dy)
@@ -804,9 +895,28 @@ class Fight:
             if now >= m.end():
                 self.recent = ([m] + self.recent)[:RECENT]
                 b.move = None
+                # a string: some moves are always followed by another, at the same hero, with no rest between
+                nxt = m.data.get("then")
+                nxt = random.choice(nxt) if isinstance(nxt, list) else nxt
+                tg = self.heroes.get(m.target)
+                nd = b.d["moves"].get(nxt)
+                if (nd and b.chain < 2 and not b.queue and not self.calm and tg in self.alive_heroes() and b.phase in nd["phase"]
+                        and math.hypot(tg.x - b.x, tg.y - b.y) <= nd["range"][1] * 1.25):
+                    b.chain += 1
+                    b.target = tg
+                    self.start_move(b, nxt, nd, now, target=tg)
+                    return
+                tired = m.data.get("tired") or (STRING_REST if b.chain else 0)
+                b.chain = 0
                 b.target = self.pick_target(b, now)  # a new look round after every attack
                 rest = (random.uniform(0.6, 1.2) if self.solo else random.uniform(0.25, 0.7)) * ((2.2 if self.solo else 1.9) if len(self.bodies) > 1 else 1)
+                if tired:   # winded: it stands and pants, open to whatever you have
+                    rest = tired + (0.3 if self.solo else 0)
+                    b.tired_until = now + rest / self.diff["speed"]
                 b.state, b.until = "idle", now + rest / self.diff["speed"]
+            return
+        if now < b.tired_until:
+            b.vx = b.vy = 0
             return
         if not b.target or b.target not in self.alive_heroes() or random.random() < 0.01:
             b.target = self.pick_target(b, now)
@@ -814,6 +924,11 @@ class Fight:
         if not t:
             b.vx = b.vy = 0
             return
+        if now >= b.until and b.queue:   # a signature move it owes comes before anything else
+            mid = b.queue.pop(0)
+            if mid in b.d["moves"]:
+                self.start_move(b, mid, b.d["moves"][mid], now)
+                return
         if now >= b.until and not self.calm:
             pick = self.choose(b, now)
             if pick:
@@ -836,10 +951,12 @@ class Fight:
     def snapshot(self, now):
         return {"t": "s", "st": round(now, 3),
                 "b": [[round(b.x, 1), round(b.y, 1), round(b.vx, 1), round(b.vy, 1), round(b.face, 3), b.hp, b.mhp,
-                       round(b.poise), b.mpoise, b.phase, b.state, [round(c) for c in b.cores],
+                       round(b.poise), b.mpoise, b.phase, "tired" if b.state == "idle" and now < b.tired_until else b.state, [round(c) for c in b.cores],
                        # each status: how full its meter is (%), and whether it's in force (burst lately; rot still eating)
                        [min(100, round(100 * b.meter[k] / (100 * 1.4 ** b.procs[k]))) for k in STATUSES],
-                       [1 if now - b.marked[k] < STATUS_LIVE or (k == "rot" and b.rot_until > now) else 0 for k in STATUSES]]
+                       [1 if now - b.marked[k] < STATUS_LIVE or (k == "rot" and b.rot_until > now) else 0 for k in STATUSES],
+                       # its break bar, percent left, while the move's window for it is open
+                       max(1, round(100 * b.move.brk / b.move.brk0)) if b.move and b.move.brk > 0 and b.move.window("brk_win", now) else 0]
                       for b in self.bodies],
                 "a": [[a["id"], a["kind"], round(a["x"], 1), round(a["y"], 1), round(a["hp"]), round(a["mhp"])] for a in self.adds.values()],
                 "h": [[f.hero.id, round(f.x, 1), round(f.y, 1), round(f.face, 2), f.anim, round(f.at, 2), f.hero.hp, f.hero.mhp(),
@@ -859,3 +976,51 @@ class Fight:
 
 def _wrap(a):
     return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+# ---------------------------------------------------------------------- where a signature cast puts its spots
+# Each returns [(x, y, r, tag, on)]: the safe ground or cover of that cast (a move's "spots" names one).
+
+def _stones(f, b, t, data, now):
+    return [(x, y, 32, 0, 1) for x, y in f.spread(3, 32, 150)]
+
+
+def _bells(f, b, t, data, now):
+    return [(x, y, 15, 0, 1) for x, y in f.spread(2 if b.phase < 2 else 1, 30, 90, (b.x, b.y), 95, 150)]
+
+
+def _flasks(f, b, t, data, now):
+    return [(x, y, 36, i, 1) for i, (x, y) in enumerate(f.spread(3, 36, 110, (t.x, t.y) if t else None, 40, 200))]
+
+
+def _candles(f, b, t, data, now):
+    pts = f.spread(3, 44, 170)
+    for i, (x, y) in enumerate(pts): f.spawn_at(b, "candle", x, y, now, data["dur"], (f.seq, i))
+    return [(x, y, 46, 0, 0) for x, y in pts]
+
+
+def _rubble(f, b, t, data, now):
+    return [(x, y, 17, 0, 1) for x, y in f.spread(3, 30, 100, (b.x, b.y), 100, 180)]
+
+
+def _lights(f, b, t, data, now):
+    out, at = [], (t.x, t.y) if t else (b.x, b.y)
+    for i in range(3):
+        at = f.spread(1, 60, 0, at, 30 if i == 0 else 90, 110 if i == 0 else 150)[0]
+        out.append((at[0], at[1], 60, i, 1))
+    return out
+
+
+def _trinity(f, b, t, data, now):
+    a, cx, cy = random.uniform(0, 2 * math.pi), f.arena["w"] / 2, f.arena["h"] / 2 + 15
+    return [(cx + math.cos(a + k * 2.094) * 150, cy + math.sin(a + k * 2.094) * 110, 20, 0 if k == 0 else 1, 1) for k in range(3)]
+
+
+def _fist(f, b, t, data, now):
+    a = math.atan2(t.y - b.y, t.x - b.x) if t else b.face
+    x, y = f.clamp(b.x + math.cos(a) * 120, b.y + math.sin(a) * 120)
+    return [(x, y, 18, 0, 1)]
+
+
+SPOTS = {"stones": _stones, "bells": _bells, "flasks": _flasks, "candles": _candles, "rubble": _rubble, "lights": _lights,
+         "trinity": _trinity, "fist": _fist}

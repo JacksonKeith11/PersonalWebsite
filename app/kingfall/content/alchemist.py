@@ -4,7 +4,7 @@ who closes in and calls up waddling homunculi. Phase 2: it transmutes the floor,
 across the room, and its mixtures explode where they meet.
 """
 
-from .moves import DMG, arc, circle, rect, ring, zone, spawn, proj, pose
+from .moves import DMG, arc, circle, rect, ring, zone, spawn, proj, pose, room
 
 DMG[0] = 0.92
 FIRE = {"fire": 1}
@@ -74,10 +74,27 @@ PHASE2 = {  # it transmutes the floor: pools bloom all over the laboratory
     "anim": [(0, pose()), (0.6, pose(arm_f=-170, arm_b=-170, torso=-14, head=-10)), (1.6, pose(arm_f=-170, arm_b=-170)), (2.6, pose())],
 }
 
+# --- the rework: strings, and the Great Work
+MOVES["stamp"]["then"] = "vault"
+MOVES["vault"]["then"] = "fireflask"
+
+# The Great Work: three circles are chalked on the floor, one for each of its mixtures. It raises a
+# flask of one colour and the whole laboratory goes up, except the circle of that colour.
+MOVES["greatwork"] = {
+    "name": "The Great Work", "sig": True, "variants": 3, "spots": "flasks", "spot_kind": "flask", "tired": 1.6,
+    "spot_cols": ["#7fe3ff", "#8be04e", "#ff8a3a"], "show": 1.3,
+    "range": (0, 600), "weight": 0, "cd": 0, "phase": (1, 2), "dur": 4.9, "locks": [0.0],
+    "motion": [],
+    "hits": [room(3.6, safe="v", mark=2.3)],
+    "anim": [(0, pose()), (0.6, pose(arm_f=-60, arm_b=-60, torso=10, head=10)), (1.3, pose(arm_f=-170, weapon=0, torso=-10, head=-10)),
+             (3.4, pose(arm_f=-175, weapon=0, torso=-12, head=-12)), (3.6, pose(arm_f=-40, weapon=60, torso=12)), (4.9, pose())],
+}
+
 BOSS = {
     "id": "alchemist", "name": "The Ashen Alchemist", "tier": 2, "rig": "alchemist", "art": "alchemist", "arena": "lab",
     "hp": 1550, "poise": 105, "radius": 16, "speed": 58, "keep": 160,
     "moves": MOVES, "phases": [0.5], "phase_moves": {2: PHASE2},
     "adds": {"homunculus": {"hp": 36, "speed": 40, "radius": 9, "dmg": 6, "art": "alchemist.homunculus", "life": 25}},
     "stagger_pose": {"torso": 20, "head": 14, "arm_f": 30, "arm_b": 30, "dy": 4}, "dead_pose": {"torso": 34, "head": 20, "dy": 10},
+    "marks": [(0.75, "greatwork"), (0.25, "greatwork")],
 }

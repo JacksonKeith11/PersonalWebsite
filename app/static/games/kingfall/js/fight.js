@@ -1,16 +1,16 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=32';
-import { LocalHero, RemoteHero } from './hero.js?v=32';
-import { Boss } from './boss.js?v=32';
-import { drawArena } from './arenas.js?v=32';
-import { sfx } from './audio.js?v=32';
-import { music } from './music.js?v=32';
-import { deviceOfSlot } from './input.js?v=32';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=32';
-import { hudKeys, bigCard } from './ui.js?v=32';
-import { Atmos } from './atmos.js?v=32';
-import { LORE, ROMAN } from './lore.js?v=32';
+import { addFrames } from './rig.js?v=37';
+import { LocalHero, RemoteHero } from './hero.js?v=37';
+import { Boss } from './boss.js?v=37';
+import { drawArena } from './arenas.js?v=37';
+import { sfx } from './audio.js?v=37';
+import { music } from './music.js?v=37';
+import { deviceOfSlot } from './input.js?v=37';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=37';
+import { hudKeys, bigCard } from './ui.js?v=37';
+import { Atmos } from './atmos.js?v=37';
+import { LORE, ROMAN } from './lore.js?v=37';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
@@ -81,11 +81,12 @@ export class FightScene extends Phaser.Scene {
     Object.assign(this.byId, this.remote);
     this.heroRows = {};
     this.texts = [];
+    this.holds = {};   // hero id -> {until, seq}: caught by a tongue or a chain (boss.js draws it taut)
     this.sparks = this.add.graphics().setDepth(6000).setBlendMode(Phaser.BlendModes.ADD);
     this.shotG = this.add.graphics().setDepth(5600);                                         // arrows' shafts, area rims
     this.shotGlow = this.add.graphics().setDepth(5601).setBlendMode(Phaser.BlendModes.ADD);  // everything that glows
     this.shotFloor = this.add.graphics().setDepth(2.5);                                      // their shadows
-    this.remoteShots = []; this.rings = []; this.pillars = [];
+    this.remoteShots = []; this.rings = []; this.pillars = []; this.returns = [];
     this.sparkList = [];
     this.impacts = [];     // where a hero's hit landed: a flash and a cut across it
     this.reviveG = this.add.graphics().setDepth(6001);
@@ -158,7 +159,12 @@ export class FightScene extends Phaser.Scene {
         sfx.tell(m.id, this.pan(m.x));
         break;
       case 'aim': B.onAim(m); break;
-      case 'cancel': B.onCancel(m); break;
+      case 'cancel':
+        B.onCancel(m);
+        for (const l of this.local) if (l.held && l.held.seq === m.seq) l.held = null;   // it let go
+        for (const k of Object.keys(this.holds)) if (this.holds[k].seq === m.seq) delete this.holds[k];
+        break;
+      case 'spot': B.onSpot(m); sfx.heal(); break;
       case 'fx': this.fx(m); break;
     }
   }
@@ -214,6 +220,24 @@ export class FightScene extends Phaser.Scene {
         this.rings.push({ x: B.x, y: B.y, r: B.r * 3 + 30, life: 0.3, col: 0xffd23f });
         this.stop = Math.max(this.stop, 0.16); this.punch(0.07);
         break;
+      case 'break':   // its break bar was emptied: the move is broken off and it reels
+        sfx.stagger(this.pan(B.x)); sfx.sting(this.pan(B.x)); this.number(B.x, B.y - 86, 'BROKEN', '#ffd23f', true);
+        B.staggerDur = m.dur || 3.5; B.staggerT = 0; this.burst(B.x, B.y - 40, 0xffd23f, 32); this.cameras.main.shake(200, 0.008);
+        this.rings.push({ x: B.x, y: B.y, r: B.r * 3 + 30, life: 0.3, col: 0xffd23f });
+        this.stop = Math.max(this.stop, 0.16); this.punch(0.07);
+        break;
+      case 'held':
+        this.holds[m.h] = { until: this.net.now() + m.dur, seq: m.seq };
+        this.number(m.x ?? (this.byId[m.h]?.x || 0), (this.byId[m.h]?.y || 0) - 56, 'Caught!', '#e05050', true);
+        break;
+      case 'reflect': {   // someone struck a projectile back at the boss
+        this.boss.onReflect(m);
+        sfx.parry(this.pan(m.x));
+        this.burst(m.x, m.y - 20, 0xfff0c0, 14);
+        this.number(m.x, m.y - 46, 'Returned!', '#fff0c0', true);
+        this.returns.push({ x: m.x, y: m.y - 16, e: m.e, life: 0.25 });
+        break;
+      }
       case 'parry': this.triumph(m.x, m.y, 'Parry!'); break;
       case 'block': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xe8ecf2, 8); break;
       case 'warded': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xa8b0bc, 10); this.number(m.x, m.y - 46, 'Warded', '#a8b0bc'); break;
@@ -267,6 +291,14 @@ export class FightScene extends Phaser.Scene {
   punch(k) { this.kick = Math.max(this.kick, k); }
 
   // a hero's moment (a parry, a counter): a flash, a punch in, a ring and a bright sting
+  // a signature move begins: its name over the boss, a gong
+  onSig(b, data) {
+    sfx.gong();
+    this.number(b.x, Math.max(this.cameras.main.worldView.y + 62, b.y - b.z - Math.max(70, b.r * 3.6)), data.name, data.sig ? '#ffd23f' : '#fff0c0', true);
+    this.texts[this.texts.length - 1].life = 1.8; this.texts[this.texts.length - 1].vy = -8;
+  }
+  thud(x, y) { sfx.slam(this.pan(x)); this.burst(x, y - 4, 0xc8c0b0, 8); }
+
   triumph(x, y, word) {
     sfx.parry(this.pan(x)); sfx.sting(this.pan(x));
     this.burst(x, y - 20, 0xfff0c0, 24);
@@ -403,6 +435,7 @@ export class FightScene extends Phaser.Scene {
         }
         const r = l.takeHit(h, bx, by);
         if (!r) return false;
+        if (r === 'hurt' && h.hold) l.held = { until: now + h.hold, seq: +id.split(':')[0] };   // caught: held until it lets go
         this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' || r === 'counter' ? 1 : 0, parry: r === 'parry' ? 1 : 0, counter: r === 'counter' ? 1 : 0 });
         if (r === 'counter') this.triumph(l.x, l.y, 'Counter!');
         if (r === 'parry') this.stop = Math.max(this.stop, 0.12);
@@ -427,6 +460,14 @@ export class FightScene extends Phaser.Scene {
     // projectiles and area hits: this browser's, and others' (relayed by the server)
     const sg = this.shotG;
     sg.clear(); this.shotGlow.clear(); this.shotFloor.clear();
+    this.returns = this.returns.filter(r => {   // a projectile struck back flies home to the boss
+      r.life -= dtReal;
+      const b = this.boss.bodies[r.e] || this.boss.bodies[0], u = 1 - Math.max(0, r.life) / 0.25;
+      const x = r.x + (b.x - r.x) * u, y = r.y + (b.y - 30 - r.y) * u;
+      orb(this.shotGlow, this.shotFloor, x, y, Math.atan2(b.y - 30 - r.y, b.x - r.x), 9, 0xfff0c0, { lift: 0 });
+      if (r.life <= 0) { this.burst(b.x, b.y - 30, 0xfff0c0, 18); sfx.clang(this.pan(b.x)); }
+      return r.life > 0;
+    });
     const cam0 = this.cameras.main, z = this.cfg.zoom();
     this.kick *= Math.exp(-dtReal * 7);
     const zk = z * (1 + this.kick);

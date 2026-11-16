@@ -180,7 +180,7 @@ U("duo_galvanic", "Galvanic Blood", "blood", None, "Chain lightning heals you 3.
 U("duo_slag", "Slag", "ember", None, "Critical hits build 60 Burn and 60 Rot.", [{"t": "critstatus", "amt": 60}], [], needs=["ember", "rot"])
 
 # ------------------------------------------------------------------ Weapon Arts (the sword's; the others' are in their weapon files)
-U("art_sword_riposte", "Riposte", None, None, "After a parry, your next hit is a critical.", [{"t": "parry", "mult": 3.0}], [], weapon="sword")
+U("art_sword_riposte", "Killing Answer", None, None, "After a parry, your next hit is a critical.", [{"t": "parry", "mult": 3.0}], [], weapon="sword")
 U("art_sword_bulwark", "Tower Shield", None, None, "Your block covers a wider arc, and a blocked hit uses half a dash.", [{"t": "stat", "key": "block_cost", "mult": 0.5}, {"t": "stat", "key": "guard_arc", "mult": 1.4}], [], weapon="sword")
 U("art_sword_oath", "Oathblade", None, None, "Your shield bash heals you {v}.", [{"t": "specialheal", "amt": 12}], ["amt"], weapon="sword")
 U("art_sword_flurry", "Flurry", None, None, "Your light attacks are {v}% faster.", [{"t": "stat", "key": "light_speed", "mult": 1.2}], ["mult"], weapon="sword")

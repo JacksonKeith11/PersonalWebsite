@@ -108,6 +108,14 @@ export const sfx = {
       default: hiss(2600, 600, 0.9, 0.11, 0.48, 'bandpass', pan); tone('square', 170, 70, 0.1, 0.2, 0, pan); tone('triangle', 1250, 1150, big ? 0.22 : 0.12, 0.1, 0, pan);
     }
   },
+  // a weapon's own bonus landing: a knife in the back, the halberd's tip, a Power Shot
+  bonus: (pan, kind) => {
+    if (kind === 'bk') { tone('triangle', 880, 440, 0.1, 0.12, 0, pan); hiss(4200, 1800, 2, 0.07, 0.2, 'bandpass', pan); }
+    else if (kind === 'tip') { tone('triangle', 2100, 1900, 0.16, 0.1, 0, pan); tone('sine', 3150, 3000, 0.12, 0.05, 0, pan); }
+    else { tone('sine', 150, 60, 0.3, 0.4, 0, pan); tone('triangle', 1320, 1250, 0.3, 0.12, 0, pan); }
+  },
+  // a Power Shot let fly: the string's crack
+  power: (pan) => { hiss(900, 5200, 1.4, 0.16, 0.4, 'bandpass', pan); tone('triangle', 1760, 880, 0.2, 0.14, 0, pan); },
   // a footfall, by floor: stone taps, mud squelches, grass and dirt scuff, glass ticks. `vol` 0..1 (others' are quieter)
   step: (floor, pan, vol = 1) => {
     const j = 0.85 + Math.random() * 0.3;

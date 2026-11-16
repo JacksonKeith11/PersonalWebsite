@@ -34,7 +34,7 @@ Keep to these. They came from the owner directly.
 - **Roguelite rush**: bosses drawn from a pool in tiers of rising difficulty, upgrades between them.
 - **Souls-hard.** Small health pools, heavy boss damage, a flask with few charges. Reviving a downed
   teammate costs the reviver health.
-- **Six weapons**, each with a light combo, a charged heavy, a special and its own defensive move;
+- **Six weapons**, each with its own light string, a dash-strike, one thing only it does, a charged heavy, a special and its own defensive move;
   upgrades change how they behave. (There was a weapon shrine at some Bonfires; the owner had it
   removed in Nov 2026: a run keeps the weapon it started with.)
 - **Upgrades are individual, XP is shared.** Everyone picks at once from their own draw; coins are shared.
@@ -221,14 +221,34 @@ microtask; without that every lobby update put the focus back on Begin.
 
 ### Weapons (`content/weapons.py`)
 
-| Weapon | Light | Heavy (hold) | Special (Focus) | Defensive |
-|---|---|---|---|---|
-| Sword & Shield | 3-hit combo | rising slash | Shield Bash | block, parry in the first 0.18 s |
-| Greatsword | 2 wide swings, an overhead chop | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
-| Twin Daggers | 5-hit flurry, every cut building Bleed | backstep cut | Shadowstep (blink and cut) | a dash instead of a roll: 0.28 s, untouchable throughout; the most dashes of any weapon |
-| Halberd | thrusts, a sweep | 270° sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
-| Longbow | arrows, a 3-arrow volley | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses an arrow as it ends, at what you're aiming at (not the way you rolled) |
-| Catalyst | bolts, a 3-bolt fan | charged orb that explodes | Nova round you | blink instead of a roll |
+| Weapon | Light string | Dash-strike | Its own | Heavy (hold) | Special (Focus) | Defensive |
+|---|---|---|---|---|---|---|
+| Sword & Shield | slash, backhand, shield punch (poise), lunging thrust | a low running slash | **Riposte**: light within 0.6 s of a block (0.8 s of a parry), x2.2. **Bull Rush**: heavy while blocking spends a dash to charge 84 px behind the shield, blocking from the front as it goes | rising slash | Shield Bash | block, parry in the first 0.18 s |
+| Greatsword | three swings, each wider and quicker, the last an overhead chop | a rising cut | **Whirlwind**: light held past the chop turns the blade, x0.8 all round every 0.34 s, walking at 55%, spending 0.8 dashes a second with none coming back; a hit doesn't stop it; it ends when light is let go or the dashes run out | overhead with hyper-armour | Leaping Slam (airborne) | block that lets 30% through |
+| Twin Daggers | 5 cuts building Bleed, the last a cross-cut that carries you through the boss | a crossing cut that goes through it | **Backstab**: x1.25 from behind (more than 115 degrees off its facing) | backstep cut that throws 3 knives (5 at full charge), x0.4 each | Shadowstep (blink and cut) | a dash instead of a roll: 0.28 s, untouchable throughout; the most dashes of any weapon |
+| Halberd | jab, jab, a double jab, a skewer at full stretch | a sliding poke at full reach | **Tip**: x1.2 when the target's edge is past 60% of the reach | 270 degree sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
+| Longbow | four shots, each quicker, then a fan of five | (the roll-shot) | **Power Shot**: let the charged heavy go within 0.24 s of full draw (the hero flashes white for exactly that long): x1.3, wider and faster | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses a fan of three as it ends, at what you're aiming at |
+| Catalyst | bolt, bolt, a sweep that throws a wide wave through everything within about 125 px | (the blink's burst) | **Sigils**: each light that hits marks the boss (up to 4, 8 s from the last, shown turning over its head); the orb or the Nova spends them for +15% each | charged orb that explodes | Nova round you | blink instead of a roll, leaving a burst where you stood |
+
+How the strings work (the owner asked for Hades-like weapons, Nov 2026; `moves` and the keys beside it
+in `content/weapons.py`, `startMove` and the `mv` state in `js/hero.js`):
+
+- **Weapon moves** (`W.moves`) are named attacks outside the light string, shaped like a light, with a
+  `slot` saying whose upgrades and statuses apply. They animate as `m_<name>` and are reported as
+  `{atk: 'move', m: name}`; the server prices them from the same table. Lights and moves flow into each
+  other: from a move's `next`, a held or queued light starts the string at its first hit.
+- **Dash-strike** (`moves.dash`): light pressed during a dodge, held through it, or pressed within 0.2 s
+  after. The bow and the catalyst have none of their own: their dodge already attacks.
+- **Position bonuses are the browser's word** (`bk`, `tip`, `pw` on a hit message), like every other hit
+  check; the server multiplies and sends `bonus` back on the hit's fx, which colours the number (rose from
+  behind, pale blue at the tip, cream for a Power Shot, violet for sigils spent). Sigils live on the
+  server's body (`sigils`) and ride on each catalyst hit's fx as `sg`.
+- **Other keys**: `more` (further hit windows, each a fresh swing: the double jab), `pass` (the hero goes
+  through bosses while the attack steps), `into` (the move a light becomes while light stays held), `loop`
+  / `drain` / `walk` / `whirl` (the whirlwind), `throw` (shots loosed with a melee swing, priced as the
+  move `as`), `guarding` (hits from the front are blocked during the move).
+- **Bots don't use any of it** but the strings themselves: no dash-strikes, whirlwind, riposte, backstabs,
+  tips or Power Shots, and the daggers' knives aren't counted. Their numbers undersell every weapon a little.
 
 Focus fills as you deal damage (0.45 Focus per point of damage; `HERO["focus_per_dmg"]`). Every special
 costs 50 of the 100, so a full bar holds two: they're meant to be rare and heavy (Nov 2026: costs went from
@@ -466,27 +486,28 @@ ground first. Every boss has ranged attacks and areas to keep out of from its fi
   heavies and specials by reach; arrows and bolts hit what's in range, ignoring flight time. Bots never
   block, parry or counter, spend and regain dashes as the game does, and are
   poor at rings and slow projectiles: treat the numbers as a rough guide.
-- **The weapons table** (`python3 tools/kingfall-sim.py "" 8 --weapons --skill 0.85`, about five
+- **The weapons table** (`python3 tools/kingfall-sim.py "" 8 --weapons`, about two
   minutes): each weapon alone / in a pair of the same, then mixed parties of 3 / 4. Latest (Nov 2026,
-  8 fights a cell, win %):
+  after the weapon strings were reworked; skill 0.8, 8 fights a cell, win %). The bots play only the
+  strings, so this checks the rework didn't move the baseline, not what the new moves are worth:
 
   | Boss | Sword | Greatsword | Daggers | Halberd | Bow | Catalyst | Mixed 3/4 |
   |---|---|---|---|---|---|---|---|
-  | Corvin | 75/100 | 100/100 | 88/75 | 88/88 | 75/88 | 100/100 | 100/100 |
-  | Mire | 88/100 | 100/100 | 100/100 | 100/100 | 62/88 | 100/100 | 100/100 |
-  | Bellwarden | 100/100 | 100/100 | 100/100 | 88/88 | 88/100 | 100/100 | 100/100 |
-  | Headsmen | 75/100 | 100/100 | 88/100 | 88/88 | 88/100 | 100/100 | 100/100 |
-  | Wolf | 100/100 | 100/100 | 100/100 | 100/100 | 88/100 | 100/100 | 100/100 |
-  | Alchemist | 50/75 | 88/100 | 88/100 | 88/75 | 50/100 | 88/100 | 100/100 |
-  | Wyrm | 88/100 | 100/88 | 100/100 | 75/75 | 75/100 | 100/100 | 100/100 |
-  | Mirror | 100/88 | 100/100 | 62/100 | 88/88 | 75/100 | 100/100 | 100/100 |
-  | Bastion | 88/75 | 88/100 | 100/88 | 75/75 | 12/75 | 88/88 | 100/100 |
-  | Moth | 88/100 | 88/100 | 100/100 | 88/88 | 12/62 | 0/62 | 88/75 |
-  | King | 75/88 | 75/100 | 88/100 | 75/100 | 62/38 | 0/50 | 100/100 |
-  | Drake | 88/62 | 75/88 | 100/100 | 75/38 | 12/75 | 62/88 | 88/100 |
-  | All | 88 | 95 | 95 | 84 | 72 | 84 | 98 |
+  | Corvin | 75/100 | 88/100 | 88/88 | 100/100 | 75/100 | 100/100 | 100/100 |
+  | Mire | 100/100 | 100/100 | 100/100 | 100/100 | 75/100 | 100/100 | 100/100 |
+  | Bellwarden | 75/75 | 100/100 | 100/100 | 100/100 | 88/100 | 100/100 | 88/100 |
+  | Headsmen | 75/75 | 100/100 | 88/88 | 62/100 | 50/88 | 88/100 | 100/100 |
+  | Wolf | 100/100 | 100/100 | 100/88 | 100/100 | 88/100 | 100/100 | 100/100 |
+  | Alchemist | 62/75 | 88/100 | 75/100 | 88/100 | 62/100 | 88/100 | 100/100 |
+  | Wyrm | 100/100 | 75/100 | 100/88 | 88/75 | 62/100 | 100/88 | 100/100 |
+  | Mirror | 75/75 | 100/100 | 88/100 | 88/100 | 88/100 | 100/100 | 100/100 |
+  | Bastion | 38/75 | 100/100 | 100/100 | 75/100 | 25/25 | 75/62 | 100/100 |
+  | Moth | 75/75 | 100/100 | 75/88 | 100/88 | 0/88 | 0/62 | 88/100 |
+  | King | 75/100 | 88/75 | 88/88 | 100/75 | 50/88 | 25/50 | 100/100 |
+  | Drake | 88/75 | 75/88 | 100/100 | 62/25 | 50/38 | 50/75 | 62/62 |
+  | Won % | 82 | 95 | 93 | 89 | 72 | 82 | 96 |
 
-  This table is from after specials became rare and heavy (50 Focus each, 1.9x damage). The run before
+  The table before the strings were reworked (skill 0.85) won 79 / 94 / 93 / 87 / 66 / 81 by weapon. The run before
   it (dashes, old specials) scored 81 / 90 / 90 / 85 / 67 / 85 / 98: everything within a few points, a
   little easier for sword, greatsword, daggers and bow. Fights average 1.0 to 1.5 minutes and 1.4 to 2.5
   staggers. With 8 fights a cell, one cell swings by 25 points; read the columns. **The bow is the weakest**,

@@ -1,12 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=34';
-import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=34';
-import { icon } from './icons.js?v=34';
-import { Net, ME } from './net.js?v=34';
-import { FightScene } from './fight.js?v=34';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=34';
-import { unlock, sfx, setVolume } from './audio.js?v=34';
-import { music } from './music.js?v=34';
+import { setAtlas } from './rig.js?v=35';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=35';
+import { icon } from './icons.js?v=35';
+import { Net, ME } from './net.js?v=35';
+import { FightScene } from './fight.js?v=35';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=35';
+import { unlock, sfx, setVolume } from './audio.js?v=35';
+import { music } from './music.js?v=35';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');

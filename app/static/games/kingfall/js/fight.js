@@ -1,20 +1,21 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=34';
-import { LocalHero, RemoteHero } from './hero.js?v=34';
-import { Boss } from './boss.js?v=34';
-import { drawArena } from './arenas.js?v=34';
-import { sfx, ambience, PLACE } from './audio.js?v=34';
-import { music } from './music.js?v=34';
-import { deviceOfSlot } from './input.js?v=34';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=34';
-import { hudKeys, bigCard } from './ui.js?v=34';
-import { Atmos } from './atmos.js?v=34';
-import { LORE, ROMAN } from './lore.js?v=34';
+import { addFrames } from './rig.js?v=35';
+import { LocalHero, RemoteHero } from './hero.js?v=35';
+import { Boss } from './boss.js?v=35';
+import { drawArena } from './arenas.js?v=35';
+import { sfx, ambience, PLACE } from './audio.js?v=35';
+import { music } from './music.js?v=35';
+import { deviceOfSlot } from './input.js?v=35';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=35';
+import { hudKeys, bigCard } from './ui.js?v=35';
+import { Atmos } from './atmos.js?v=35';
+import { LORE, ROMAN } from './lore.js?v=35';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
+const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff' };
 const aoeCol = col => col ? Phaser.Display.Color.HexStringToColor(col).color : 0xffd23f;
 
 export class FightScene extends Phaser.Scene {
@@ -125,7 +126,7 @@ export class FightScene extends Phaser.Scene {
     for (const B of this.boss.bodies) {
       if (!B.alive || B.untouchable(now, B.mv) || B.z > 10) continue;
       const dx = hero.x - B.x, dy = hero.y - B.y, d = Math.hypot(dx, dy), min = B.r + R - 2;
-      if (d < min && hero.state !== 'roll') {
+      if (d < min && hero.state !== 'roll' && !hero.passing) {
         const k = d > 0.01 ? (min - d) / d : 1;
         hero.x += dx * k; hero.y += (d > 0.01 ? dy : 1) * k;
       }
@@ -172,7 +173,12 @@ export class FightScene extends Phaser.Scene {
     switch (m.k) {
       case 'hit': case 'crit':
         B.flash = 0.04;
-        this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : '#f4f0e0', m.k === 'crit');
+        // a weapon's own bonus colours the number: from behind, with the tip, a Power Shot, sigils spent
+        this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : BONUS_COL[m.bonus] || '#f4f0e0', m.k === 'crit' || !!m.bonus);
+        if (m.sg != null) {
+          if (m.bonus === 'sigil') { this.burst(B.x, B.y - 44, 0xc080ff, 26); this.rings.push({ x: B.x, y: B.y - 30, r: 36, life: 0.3, col: 0xc080ff }); sfx.sting(this.pan(B.x)); }
+          B.sigils = m.sg; B.sigilAt = this.net.now();
+        }
         if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg * (mine.S.focus_gain || 1) + (mine.state === 'special' ? mine.S.focusback || 0 : 0));
         if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); this.punch(0.03); }
         else if (!mine) this.remote[m.h] ? sfx.hitBy(this.remote[m.h].h.weapon, this.pan(B.x), false) : sfx.hit(this.pan(B.x));
@@ -336,9 +342,9 @@ export class FightScene extends Phaser.Scene {
   }
 
   // a local hero's attack connected (before the server's word, so it feels instant)
-  onHit(hero, kind, tg) {
+  onHit(hero, kind, tg, bonus) {
     const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.up ? 0 : tg.kind === 'body' && !tg.seg ? 30 : 10);
-    const small = kind === 'light' || kind.startsWith('proc:');   // an upgrade's extra hit lands as lightly as a light
+    const small = kind === 'light' || kind.startsWith('proc:') || (kind.startsWith('move:') && kind !== 'move:riposte' && kind !== 'move:rush');   // an upgrade's extra hit lands as lightly as a light, and so do most weapon moves
     // each weapon lands its own way (and sounds it: audio.js, hitBy): the sword's sparks fly wide, the
     // greatsword's are heavy and kick up dust, the daggers' quick and red, the halberd's thrown on past
     // the blow, an arrow's splinters back along the shaft, the catalyst's a ring of its own colour
@@ -352,6 +358,11 @@ export class FightScene extends Phaser.Scene {
     else this.burst(ix, iy, 0xfff0c0, n);
     this.impact(ix, iy, hero.aim, !small, hero.view ? hero.view.colour : 0xffffff);
     if (tg.b) tg.b.flash = 0.04;
+    if (bonus) {   // struck from behind, with the tip, or a Power Shot: a ring in its colour and a bright note
+      const c = { bk: 0xff8a98, tip: 0xa8e0ff, pw: 0xfff0c0 }[bonus];
+      this.rings.push({ x: ix, y: iy, r: bonus === 'pw' ? 30 : 16, life: 0.3, col: c }); this.burst(ix, iy, c, bonus === 'pw' ? 14 : 6); sfx.bonus(this.pan(tg.x), bonus);
+      if (bonus === 'pw') { this.stop = Math.max(this.stop, 0.1); this.punch(0.035); }
+    }
     this.stop = Math.max(this.stop, small ? 0.045 : 0.08);
     this.cfg.input.rumble(hero.dev, small ? 0.25 : 0.5, 70);
     if (kind === 'heavy' && hero.chargeU >= 0.95) {   // a fully charged heavy lands like it means it
@@ -393,6 +404,8 @@ export class FightScene extends Phaser.Scene {
       collide: h => this.collide(h), onHit: (h, k, tg) => this.onHit(h, k, tg), allies,
       onBlink: h => { this.burst(h.x, h.y - 18, 0xc8b4ff, 12); sfx.roll(this.pan(h.x)); },
       onDenied: () => sfx.uiBack(),
+      onSwing: h => sfx.swing(this.pan(h.x)),
+      onPower: h => { sfx.power(this.pan(h.x)); this.rings.push({ x: h.x, y: h.y - 10, r: 34, life: 0.3, col: 0xfff0c0 }); this.punch(0.02); },
       onCharged: h => { this.burst(h.x, h.y - 22, h.view.colour, 10); sfx.ui(); },
       onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
       onBoom: (x, y, r, col) => { const c = col ? aoeCol(col) : 0xc080ff; this.burst(x, y - 8, c, col ? 12 : 20); this.rings.push({ x, y, r, life: 0.3, col: c }); sfx.slam(this.pan(x)); this.atmos.mark('scorch', x, y, r * 0.6); },
@@ -403,7 +416,7 @@ export class FightScene extends Phaser.Scene {
       l.update(dt, ctx);
       if (l.state !== before) {
         if (l.state === 'roll') sfx.roll(this.pan(l.x));
-        else if (l.state === 'atk' || l.state === 'special' || l.state === 'skill') sfx.swing(this.pan(l.x));
+        else if (l.state === 'atk' || l.state === 'mv' || l.state === 'special' || l.state === 'skill') sfx.swing(this.pan(l.x));
         else if (l.state === 'heavy') sfx.heavySwing(this.pan(l.x));
       } else if (l.state === 'atk' && l.t < dt * 1.5 && l.t > 0) sfx.swing(this.pan(l.x));
     }

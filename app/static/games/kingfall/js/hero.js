@@ -9,10 +9,10 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=34';
-import { placeAttack, touches, wrap } from './moves.js?v=34';
-import { crescent, lance, burst } from './fx.js?v=34';
-import { sfx } from './audio.js?v=34';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=35';
+import { placeAttack, touches, wrap } from './moves.js?v=35';
+import { crescent, lance, burst } from './fx.js?v=35';
+import { sfx } from './audio.js?v=35';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -49,6 +49,7 @@ export function heroPose(W, HERO, an, at) {
   let p, spin = 0, z = 0;
   const D = rigDefaults('hero');
   if (an[0] === 'k' && an[1] === '_') { const S = SKILLS[an.slice(2)]; return { p: S ? skillPose(S, at, D) : {}, spin, z }; }
+  if (an[0] === 'm' && an[1] === '_') { const M = (W.moves || {})[an.slice(2)]; return { p: M && M.anim ? sample(M.anim, at, D) : {}, spin, z }; }
   if (an[0] === 'l' && /^l\d+$/.test(an)) return { p: sample(W.light[Math.min(+an.slice(1), W.light.length - 1)].anim, at, D), spin, z };
   switch (an) {
     case 'run': p = runCycle(at * 13); break;
@@ -130,6 +131,8 @@ export class HeroView {
     let left = Math.cos(aim) < -0.05;
     const A = an[0] === 'k' && SKILLS[an.slice(2)] && SKILLS[an.slice(2)].aoe;
     if (A && !A.at && at > 0.06) left = Math.floor((at - 0.06) / (A.every / 2)) % 2 === 1 ? !left : left;  // a whirl: the hero turns about with each strike
+    const M = an[0] === 'm' && an[1] === '_' && (this.W.moves || {})[an.slice(2)];
+    if (M && M.whirl) left = Math.floor(at / (M.dur / 2)) % 2 === 1 ? !left : left;   // the whirlwind: the figure turns about as the blade goes round
     const { p, spin, z } = heroPose(this.W, this.HERO, an, at);
     const dt = Math.min(0.05, this.scene.game.loop.delta / 1000), K0 = an[0] === 'k' && SKILLS[an.slice(2)];
     const dodge = an === 'roll' || an === 'dash', blinks = an === 'blink' || !!(K0 && K0.blink);
@@ -221,11 +224,14 @@ export class HeroView {
       } else return;
     }
     if (/^l\d+$/.test(an)) { const i = Math.min(+an.slice(1), W.light.length - 1); atk = W.light[i]; rev = i % 2 === 1; }
+    else if (an[0] === 'm' && an[1] === '_') { atk = (W.moves || {})[an.slice(2)]; rev = !!(atk && atk.whirl) && Math.cos(aim) < -0.05; }
     else if (an === 'hv') atk = W.heavy;
     else if (an === 'sp') atk = W.special;
     else if (an === 'cs') atk = { shape: W.guard.shape, hit: [0.08, 0.16] };
     if (!atk || !atk.shape || atk.proj || atk.aoe) return;
-    const [h0, h1] = atk.hit, pre = 0.03, after = 0.2;
+    let [h0, h1] = atk.hit;
+    for (const w of atk.more || []) if (at >= w[0] - 0.03) [h0, h1] = w;   // a second jab: its own trail
+    const pre = 0.03, after = atk.loop ? 0.05 : 0.2;
     if (at < h0 - pre || at > h1 + after) return;
     // 0..1 across the strike, on to 2 as the trail dies away
     const p = at <= h1 ? (at - h0 + pre) / (h1 - h0 + pre) : 1 + (at - h1) / after;
@@ -286,11 +292,18 @@ export class LocalHero {
     this.maxDash = this.W.dodge.charges + (this.S.dash_charges || 0);
     this.dashes = this.maxDash;
     this.noDash = 0;      // until when the HUD's dash pips shake (a dodge asked for with none left)
+    this.mv = null;       // the weapon move being played (W.moves: a dash-strike, the riposte, the whirlwind...)
+    this.sinceDodge = 9;  // seconds since a dodge ended: light pressed just after is still the dash-strike
+    this.riposte = 0;     // seconds left in which light answers a block or parry with the riposte
+    this.over = 0;        // seconds a charged heavy has been held at full (the bow's Power Shot is timed from it)
+    this.power = false;   // this heavy was a Power Shot
+    this.passing = false; // going through bosses (the daggers' cross-cuts)
   }
 
   an() {
     switch (this.state) {
       case 'atk': return 'l' + this.combo;
+      case 'mv': return 'm_' + this.mv;
       case 'heavy': return 'hv';
       case 'charge': return 'hc';
       case 'special': return 'sp';
@@ -325,8 +338,11 @@ export class LocalHero {
   update(dt, ctx) {
     const d = ctx.input.get(this.dev);
     const H = this.HERO, W = this.W, G = W.guard;
-    const quick = this.state === 'atk' ? this.S.light_speed || 1 : 1;   // light attacks play faster with some upgrades
+    const M0 = this.state === 'mv' ? W.moves[this.mv] : null;
+    const quick = this.state === 'atk' || (M0 && M0.slot === 'light') ? this.S.light_speed || 1 : 1;   // light attacks play faster with some upgrades
     this.t += dt * quick; this.anT += dt * quick;
+    this.sinceDodge += dt; this.riposte = Math.max(0, this.riposte - dt); this.passing = false;
+    if (M0 && M0.drain) this.dashes = Math.max(0, this.dashes - (M0.drain + (this.S.dash_regen || 1) / (W.dodge.recharge * (this.S.dash_time || 1))) * dt);   // the whirlwind spends dashes, and none come back while it turns
     this.haste = Math.max(0, this.haste - dt);
     this.flash = Math.max(0, this.flash - dt);
     this.dashes = Math.min(this.maxDash, this.dashes + dt * (this.S.dash_regen || 1) / (W.dodge.recharge * (this.S.dash_time || 1)));
@@ -350,7 +366,8 @@ export class LocalHero {
       const tb = Math.atan2(boss.y - this.y, boss.x - this.x);
       if (Math.abs(wrap(want - tb)) < 0.44) want = tb;
     }
-    const busy = ['atk', 'heavy', 'special', 'skill', 'roll', 'dash', 'hurt', 'cstrike'].includes(this.state) && !(this.state === 'atk' && this.t < 0.05);
+    const busy = ['atk', 'mv', 'heavy', 'special', 'skill', 'roll', 'dash', 'hurt', 'cstrike'].includes(this.state) && !((this.state === 'atk' || this.state === 'mv') && (this.t < 0.05 || this.fresh)) && !(M0 && M0.loop);   // each swing re-aims as it starts (`fresh`: even on a slow frame)
+    this.fresh = false;
     if (want !== null && !busy) {
       this.aim = want;
       const aimsAtBoss = boss.alive && Math.abs(wrap(want - Math.atan2(boss.y - this.y, boss.x - this.x))) < 0.01;
@@ -421,20 +438,26 @@ export class LocalHero {
           this.proc('roll_end', ctx);
           if (this.S.dodge) ctx.send({ t: 'dodge', h: this.id, x0: Math.round(this.rollFrom[0]), y0: Math.round(this.rollFrom[1]), x1: Math.round(this.x), y1: Math.round(this.y) });
           // the bow's roll-shot flies where you're aiming now (the cursor, the stick, a locked-on boss), not the way you rolled
-          if (G.kind === 'rollshot') { if (want !== null) this.aim = want; this.fire({ v: 380, r: 4, life: 0.9 }, 'guard', ctx); }
+          if (G.kind === 'rollshot') { if (want !== null) this.aim = want; this.fire({ v: 380, r: 4, life: 0.9, n: G.n, spread: G.spread }, 'guard', ctx); }
+          this.sinceDodge = 0;
           if (q === 'dodge') this.tryRoll(move, ctx);
-          else if (q === 'light') this.startLight(0);
+          else if (q === 'light' || (q !== 'heavy' && d.held('light') && !d.held('heavy'))) {   // light out of a dodge: the dash-strike
+            if (want !== null) this.aim = want;
+            this.dashStrike(ctx) || this.startLight(0);
+          }
           else if (q === 'heavy') { setState('charge'); this.charge = 0; }
         }
         speed = 0;
         break;
       }
-      case 'atk': case 'heavy': case 'special': case 'cstrike': case 'skill': {
+      case 'atk': case 'mv': case 'heavy': case 'special': case 'cstrike': case 'skill': {
         const atk = this.attackData();
         if (atk.hit && this.t < atk.hit[1] && atk.step) { // a step as you swing (back, for some)
           const s = atk.step / atk.hit[1];
           this.x += Math.cos(this.aim) * s * dt; this.y += Math.sin(this.aim) * s * dt;
+          this.passing = !!atk.pass;   // a cross-cut goes through what it cuts
         }
+        if (atk.loop && want !== null) this.aim = want;   // the whirlwind has no front
         this.checkHit(atk, ctx);
         // what upgrades add to a strike, loosed once as it lands: on the combo's last light, on a heavy
         if (atk.hit && this.t >= atk.hit[0] && this.swing && !this.swing.proc) {
@@ -451,15 +474,30 @@ export class LocalHero {
         }
         const cut = this.queued === 'special' || this.queued === 'heal';
         const skillReady = this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0);
+        const chain = this.state === 'atk' || this.state === 'mv';   // lights and weapon moves flow into each other
         // a skill, the special or a drink pressed mid-combo goes off at the next gap, ahead of a held light
-        if (this.state === 'atk' && this.t >= atk.next && (skillReady || cut)) { this.comboWait = 0.45; setState('idle'); break; }
+        if (chain && this.t >= atk.next && (skillReady || cut)) { this.comboWait = 0.45; setState('idle'); break; }
+        if (atk.loop) {
+          // the whirlwind: round again while light is held and there are dashes to spend; a roll or a heavy breaks out at once
+          if (this.queued === 'dodge') { this.queued = null; this.tryRoll(move, ctx); break; }
+          if (this.queued === 'heavy') { this.queued = null; setState('charge'); this.charge = 0; this.over = 0; break; }
+          if (this.t >= atk.dur) {
+            this.queued = null;
+            if (d.held('light') && this.dashes > 0.05) { this.t = 0; this.anT = 0; this.swing = { seq: ++swingSeq, struck: new Set(), fired: false }; ctx.onSwing && ctx.onSwing(this); }
+            else { this.combo = 0; this.comboWait = 0; setState('idle'); }
+          }
+          speed = H.speed * speedK * (atk.walk || 0);
+          break;
+        }
         // Holding light runs the combo on, as a queued press does, and starts it again after the last hit.
-        const more = this.queued || (this.state === 'atk' && d.held('light') ? 'light' : null);
-        if (this.state === 'atk' && more && this.t >= atk.next) {
+        const more = this.queued || (chain && d.held('light') ? 'light' : null);
+        if (chain && more && this.t >= atk.next) {
           this.queued = null;
+          if (more === 'light' && this.state === 'mv') { this.startLight(0); break; }   // out of a dash-strike or a riposte, into the string
           if (more === 'light' && this.combo < W.light.length - 1) { this.startLight(this.combo + 1); break; }
+          if (more === 'light' && atk.into && d.held('light') && this.dashes > 0.3) { this.startMove(atk.into, ctx); break; }   // held past the finisher: the whirlwind
           if (more === 'dodge') { this.tryRoll(move, ctx); break; }
-          if (more === 'heavy') { setState('charge'); this.charge = 0; break; }
+          if (more === 'heavy') { setState('charge'); this.charge = 0; this.over = 0; break; }
           this.queued = more === 'light' && !d.held('light') ? more : null;  // the last hit: a press waits for it to finish
         }
         // a roll cuts short the recovery of a heavy or a special too (once it has struck, and landed if it leapt)
@@ -468,21 +506,30 @@ export class LocalHero {
           this.queued = null; this.tryRoll(move, ctx); break;
         }
         if (this.t >= atk.dur) {
-          const q = skillReady ? null : this.queued || (this.state === 'atk' && d.held('light') ? 'light' : null);
+          const q = skillReady ? null : this.queued || (chain && d.held('light') ? 'light' : null);
+          const wasMove = this.state === 'mv';
           if (!cut) this.queued = null;
           this.comboWait = 0.45;
           setState('idle');
           if (q === 'dodge') this.tryRoll(move, ctx);
-          else if (q === 'light') this.startLight(this.combo < W.light.length - 1 ? this.combo + 1 : 0);
+          else if (q === 'light') this.startLight(!wasMove && this.combo < W.light.length - 1 ? this.combo + 1 : 0);
         }
         speed = 0;
         break;
       }
       case 'charge':
-        if (this.charge < W.heavy.charge && this.charge + dt >= W.heavy.charge) { this.flash = 0.1; ctx.onCharged(this); }  // fully charged: a flash and a chime
+        // fully charged: a flash and a chime. The bow's flash lasts as long as its Power Shot window: let fly while it shows.
+        if (this.charge < W.heavy.charge && this.charge + dt >= W.heavy.charge) { this.flash = W.heavy.power ? W.heavy.power.window : 0.1; this.over = 0; ctx.onCharged(this); }
+        else if (this.charge >= W.heavy.charge) this.over += dt;
         this.charge = Math.min(W.heavy.charge, this.charge + dt);
         speed = H.speed * speedK * 0.25;
-        if (!d.held('heavy')) { this.chargeU = this.charge / W.heavy.charge; this.startAttack('heavy'); }
+        if (!d.held('heavy')) {
+          this.chargeU = this.charge / W.heavy.charge;
+          this.power = !!W.heavy.power && this.chargeU >= 1 && this.over <= W.heavy.power.window;
+          this.flash = 0;
+          this.startAttack('heavy');
+          if (this.power) ctx.onPower && ctx.onPower(this);
+        }
         else if (d.pressed('dodge')) this.tryRoll(move, ctx);
         break;
       case 'drink':
@@ -494,6 +541,8 @@ export class LocalHero {
         speed = H.speed * speedK * G.speed;
         if (!d.held('block')) setState('idle');
         else if (d.pressed('dodge')) this.tryRoll(move, ctx);
+        else if (d.pressed('light') && this.riposte > 0 && W.moves && W.moves.riposte) { this.riposte = 0; this.startMove('riposte', ctx); }   // the answer to a block or a parry
+        else if (d.pressed('heavy') && W.moves && W.moves.rush && this.useDash()) this.startMove('rush', ctx);   // the charge behind the shield
         break;
       case 'cnt':  // the halberd's counter stance: anything that hits you now is answered
         speed = 0;
@@ -504,8 +553,10 @@ export class LocalHero {
         const moving = move.x || move.y;
         this.state = moving ? 'run' : 'idle';
         if (d.pressed('dodge')) { this.tryRoll(move, ctx); break; }
-        if (d.pressed('heavy')) { setState('charge'); this.charge = 0; break; }
+        if (d.pressed('heavy')) { setState('charge'); this.charge = 0; this.over = 0; break; }
         const q = this.queued; this.queued = null;   // the special or a drink asked for mid-attack
+        if (d.pressed('light') && this.riposte > 0 && W.moves && W.moves.riposte) { this.riposte = 0; this.startMove('riposte', ctx); break; }
+        if (d.pressed('light') && this.sinceDodge < 0.2 && this.dashStrike(ctx)) break;
         if ((d.pressed('special') || q === 'special') && this.focus >= this.specialCost()) { this.focus -= this.specialCost(); this.startAttack('special', ctx); break; }
         if (this.skillBuf && !(this.skillCd[this.skillBuf.S.id] > 0)) { const S = this.skillBuf.S; this.skillBuf = null; this.useSkill(S, move, ctx); break; }
         if ((d.pressed('heal') || q === 'heal') && this.h.flasks > 0) { setState('drink'); ctx.send({ t: 'drink', h: this.id }); this.proc('flask', ctx); break; }
@@ -533,6 +584,7 @@ export class LocalHero {
     const W = this.W;
     switch (this.state) {
       case 'atk': return W.light[this.combo];
+      case 'mv': return W.moves[this.mv];
       case 'heavy': return W.heavy;
       case 'special': return W.special;
       case 'skill': return this.skill;
@@ -551,6 +603,11 @@ export class LocalHero {
       this.x += Math.cos(dir) * G.dist; this.y += Math.sin(dir) * G.dist;
       ctx && ctx.collide(this);
       ctx && ctx.onBlink(this);
+      if (G.burst && ctx) {   // the catalyst leaves a burst where it stood
+        const [bx, by] = this.rollFrom, U = G.burst;
+        this.aoes.push({ x: bx, y: by, r: U.r, wait: U.delay, ticks: 1, every: 0.2, kind: 'move:dash', col: U.col, boom: true });
+        ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(bx), y: Math.round(by), r: U.r, life: U.delay + 0.05, col: U.col, p: 0 });
+      }
       this.state = 'blink';
     } else {
       if (!this.useDash()) return;
@@ -583,8 +640,23 @@ export class LocalHero {
     this.startAttack('atk');
   }
 
+  // a weapon's named move (content/weapons.py, `moves`)
+  startMove(name, ctx) {
+    this.mv = name;
+    this.startAttack('mv', ctx);
+  }
+  // light out of a dodge, if this weapon has a strike for it
+  dashStrike(ctx) {
+    const M = this.W.moves && this.W.moves.dash;
+    if (!M || !M.anim) return false;
+    this.sinceDodge = 9;
+    this.startMove('dash', ctx);
+    return true;
+  }
+
   startAttack(kind, ctx) {
-    this.state = kind; this.t = 0; this.anT = 0;
+    this.state = kind; this.t = 0; this.anT = 0; this.fresh = true;
+    if (kind !== 'heavy') this.power = false;
     this.swing = { seq: ++swingSeq, struck: new Set(), fired: false };
     const atk = this.attackData();
     if (atk.blink) {  // the daggers' shadowstep: appear beside your target first
@@ -625,16 +697,22 @@ export class LocalHero {
   }
 
   // which attack a hit is reported as; a skill's is 'skill:<id>'
-  slot() { return this.state === 'skill' ? 'skill:' + this.skill.id : { atk: 'light', heavy: 'heavy', special: 'special', cstrike: 'guard' }[this.state] || 'light'; }
+  slot() { return this.state === 'skill' ? 'skill:' + this.skill.id : this.state === 'mv' ? 'move:' + this.mv : { atk: 'light', heavy: 'heavy', special: 'special', cstrike: 'guard' }[this.state] || 'light'; }
 
   // one swing strikes each thing it touches once: a body (or one of its weak points), adds.
   // Ranged attacks fire their projectiles or call down their area hit instead.
   checkHit(atk, ctx) {
     if (!atk.hit || this.t < atk.hit[0]) return;
     const kind = this.slot();
+    // further hit windows (the halberd's double jab): each strikes afresh, with its own sound
+    let hit = atk.hit, win = 0;
+    (atk.more || []).forEach((w, i) => { if (this.t >= w[0]) { hit = w; win = i + 1; } });
+    if (win !== (this.swing.win || 0)) { this.swing = { seq: ++swingSeq, struck: new Set(), fired: false, proc: this.swing.proc, thrown: true, win }; ctx.onSwing && ctx.onSwing(this); }
+    // shots loosed with a melee swing (the daggers' knives), priced as their own move
+    if (atk.throw && !this.swing.thrown) { this.swing.thrown = true; this.fire(atk.throw, 'move:' + atk.throw.as, ctx); }
     // A shot or a called-down area is loosed once, on the first frame at or after its moment: its
     // window is only 10 ms wide, and a frame (17 ms at 60 a second) can step clean over it.
-    if (atk.proj) { if (!this.swing.fired) { this.swing.fired = true; this.fire(atk.proj, kind, ctx); } return; }
+    if (atk.proj) { if (!this.swing.fired) { this.swing.fired = true; this.fire(this.state === 'heavy' && this.power ? atk.power.proj : atk.proj, kind, ctx); } return; }
     if (atk.aoe) {
       if (!this.swing.fired) {
         this.swing.fired = true;
@@ -648,7 +726,7 @@ export class LocalHero {
       }
       return;
     }
-    if (this.t > atk.hit[1]) return;
+    if (this.t > hit[1]) return;
     const s = placeAttack(reach(atk.shape, this.state === 'skill' ? 1 : this.S.reach || 1), this.x, this.y, this.aim);
     this.strike(s, kind, this.swing, ctx);
   }
@@ -657,6 +735,7 @@ export class LocalHero {
   strike(s, kind, swing, ctx) {
     const base = kind.startsWith('skill:') ? { h: this.id, atk: 'skill', sk: kind.slice(6), sw: swing.seq }
       : kind.startsWith('proc:') ? { h: this.id, atk: 'proc', p: kind.slice(5), sw: swing.seq }
+      : kind.startsWith('move:') ? { h: this.id, atk: 'move', m: kind.slice(5), sw: swing.seq }
       : { h: this.id, atk: kind, i: this.combo, c: this.chargeU || 0, sw: swing.seq };
     let any = false;
     for (const tg of ctx.boss.targets(ctx.now)) {
@@ -664,9 +743,18 @@ export class LocalHero {
       if (swing.struck.has(key) || !touches(s, tg.x, tg.y, tg.r)) continue;
       swing.struck.add(key);
       any = true;
+      // what only this weapon does (the server prices it): from behind a boss, with the tip of the reach, a Power Shot
+      const W = this.W, own = !kind.startsWith('skill:') && !kind.startsWith('proc:') && kind !== 'guard';
+      let bonus = null;
+      if (own && tg.kind === 'body' && tg.b) {
+        if (W.backstab && Math.abs(wrap(Math.atan2(this.y - tg.b.y, this.x - tg.b.x) - tg.b.face)) > 2.0) bonus = 'bk';
+        const far = s.k === 'rect' ? s.x1 : s.k === 'arc' ? s.r : 0;
+        if (W.tip && far && !swing.shot && Math.hypot(tg.x - this.x, tg.y - this.y) - tg.r > far * W.tip_from) bonus = 'tip';
+        if (swing.power) bonus = 'pw';
+      }
       if (tg.kind === 'add') { ctx.send({ t: 'hitadd', a: tg.a, ...base }); tg.add.flash = 0.08; }
-      else ctx.send({ t: 'hit', e: tg.e, core: tg.kind === 'core' ? tg.i : undefined, ...base });
-      ctx.onHit(this, kind, tg);
+      else ctx.send({ t: 'hit', e: tg.e, core: tg.kind === 'core' ? tg.i : undefined, ...base, ...(bonus ? { [bonus]: 1 } : {}) });
+      ctx.onHit(this, kind, tg, bonus);
     }
     return any;
   }
@@ -675,11 +763,11 @@ export class LocalHero {
     // upgrades: light arrows that pierce, an extra bolt on every light cast
     const light = kind === 'light', more = light ? this.S.light_shots || 0 : 0;
     if (light && this.S.light_pierce) P = { ...P, pierce: true };
-    const n = (P.n || 1) + more, spread = P.spread || (more ? 12 : 0);
+    const n = (P.n_full && (this.chargeU || 0) >= 0.95 ? P.n_full : P.n || 1) + more, spread = P.spread || (more ? 12 : 0);
     for (let i = 0; i < n; i++) {
       const a = this.aim + (spread * (i - (n - 1) / 2)) * Math.PI / 180;
       const shot = { x: this.x + Math.cos(a) * 12, y: this.y + Math.sin(a) * 12, a, v: P.v, r: P.r, life: P.life, pierce: P.pierce, boom: P.boom,
-        col: P.col, kind, combo: this.combo, c: this.chargeU || 0, swing: { seq: ++swingSeq, struck: new Set() } };
+        col: P.col, kind, combo: this.combo, c: this.chargeU || 0, swing: { seq: ++swingSeq, struck: new Set(), shot: true, power: kind === 'heavy' && this.power } };
       this.shots.push(shot);
       ctx.send({ t: 'shot', h: this.id, k: 'proj', x: Math.round(shot.x), y: Math.round(shot.y), a: Math.round(a * 1000) / 1000, v: P.v, r: P.r, life: P.life, col: P.col });
     }
@@ -723,10 +811,13 @@ export class LocalHero {
     const toBoss = Math.atan2(bossY - this.y, bossX - this.x);
     if (this.state === 'block' && !h.unblock) {
       if (Math.abs(wrap(toBoss - this.aim)) <= G.arc * (this.S.guard_arc || 1) * Math.PI / 180) {
-        if (this.blockAge <= this.parryWin && !h.noparry) return 'parry';
-        if (this.useDash(G.cost * (this.S.block_cost || 1))) return 'block';  // a blocked hit uses a dash; with none left the guard breaks
+        if (this.blockAge <= this.parryWin && !h.noparry) { this.riposte = 0.8; return 'parry'; }
+        if (this.useDash(G.cost * (this.S.block_cost || 1))) { this.riposte = 0.6; return 'block'; }  // a blocked hit uses a dash; with none left the guard breaks
       }
     }
+    // the charge behind the shield (it paid its dash to start): hits from the front are blocked as it goes
+    if (this.state === 'mv' && W.moves[this.mv].guarding && !h.unblock && this.t <= W.moves[this.mv].hit[1] + 0.05
+        && Math.abs(wrap(toBoss - this.aim)) <= G.arc * Math.PI / 180) return 'block';
     if (this.state === 'cnt' && !h.unblock) {  // answered: no damage, and a strike back
       this.aim = toBoss;
       this.state = 'cstrike'; this.t = 0; this.anT = 0;
@@ -734,7 +825,8 @@ export class LocalHero {
       return 'counter';
     }
     this.flash = 0.12;
-    if (this.state === 'heavy' && W.heavy.hyper) return 'hurt';  // hyper-armour: hurt, but no flinch
+    if (this.state === 'heavy' && W.heavy.hyper) return 'hurt';
+    if (this.state === 'mv' && W.moves[this.mv].loop) return 'hurt';   // the whirlwind turns on through a hit  // hyper-armour: hurt, but no flinch
     const away = Math.atan2(this.y - bossY, this.x - bossX), kb = h.kb || 30;
     this.kb = { vx: Math.cos(away) * kb * 5, vy: Math.sin(away) * kb * 5, t: 0.2 };
     this.state = 'hurt'; this.t = 0; this.anT = 0;

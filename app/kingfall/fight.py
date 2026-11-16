@@ -126,6 +126,7 @@ class Body:
         self.rot_blocks_poise = False
         self.slow_until = 0.0
         self.cores = [c["hp"] * C.SCALE_HP[n - 1] for c in d.get("cores", [])]
+        self.sigils, self.sigil_until = 0, 0.0   # the catalyst's marks on this body (content/weapons.py, `sigil`)
         self.enraged = False
         self.art = d["art"]
 
@@ -237,6 +238,10 @@ class Fight:
             f = next((x for x in fh.hero.build().get("proc") if x["uid"] == msg.get("p")), None)
             if not f: return None
             return f["pow"] * SKILL_BASE / w["base"], f.get("poise", 4), "proc"
+        if kind == "move":   # a weapon's named attack (a dash-strike, the riposte, the whirlwind...): priced as its slot
+            atk = w.get("moves", {}).get(msg.get("m"))
+            if not atk: return None
+            return atk["mult"], atk["poise"], atk.get("slot", "light")
         if kind == "guard" and "mult" in w["guard"]:  # the halberd's counter, the bow's roll-shot
             return w["guard"]["mult"], w["guard"].get("poise", 8), kind
         return None
@@ -274,6 +279,20 @@ class Fight:
         crit = b.state == "stagger" and slot in ("heavy", "special") and hid not in b.crit_by
         if crit: b.crit_by.add(hid)  # one critical each per stagger; the stagger runs its full length
         mult *= build.dmg_mult(slot)
+        # what only this weapon does: the daggers bite deeper from behind, the halberd at its tip, the bow on a
+        # Power Shot (the browser says which hits were), and the catalyst's heavy and special spend its sigils
+        W, bonus = C.WEAPONS[fh.hero.weapon], None
+        if msg.get("atk") in ("light", "heavy", "special", "move"):
+            if msg.get("bk") and W.get("backstab"): mult *= W["backstab"]; bonus = "back"
+            if msg.get("tip") and W.get("tip"): mult *= W["tip"]; bonus = "tip"
+            if msg.get("pw") and slot == "heavy" and W["heavy"].get("power"): mult *= W["heavy"]["power"]["mult"]; bonus = "power"
+            sg = W.get("sigil")
+            if sg and core is None:
+                if now > b.sigil_until: b.sigils = 0
+                if slot == "light":
+                    b.sigils = min(sg["max"], b.sigils + 1); b.sigil_until = now + sg["live"]
+                elif b.sigils and msg.get("atk") in ("heavy", "special"):
+                    mult *= 1 + sg["per"] * b.sigils; bonus = "sigil"; b.sigils = 0
         if slot == "light" and isinstance(msg.get("i"), int):   # Momentum: each hit of the combo more than the last
             for x in build.get("ramp"): mult *= x["mult"] ** max(0, min(6, msg["i"]))
         if msg.get("atk") == "skill": mult *= build.dmg["skill"]
@@ -323,7 +342,10 @@ class Fight:
                 self.build_status(b, "burn", x["amt"], now, fh); self.build_status(b, "rot", x["amt"], now, fh)
         elif b.state != "stagger":
             self.damage_poise(b, poise, now)
-        self.room.broadcast({"t": "fx", "k": "crit" if crit else "hit", "e": e, "h": hid, "dmg": dmg + extra, "x": round(b.x), "y": round(b.y)})
+        fx = {"t": "fx", "k": "crit" if crit else "hit", "e": e, "h": hid, "dmg": dmg + extra, "x": round(b.x), "y": round(b.y)}
+        if bonus: fx["bonus"] = bonus
+        if W.get("sigil"): fx["sg"] = b.sigils
+        self.room.broadcast(fx)
         if msg.get("atk") == "skill":  # a skill builds its own status, not the special's
             st = SKILLS[msg["sk"]].get("status")
             if st: self.build_status(b, st[0], st[1] * build.buildup, now, fh)

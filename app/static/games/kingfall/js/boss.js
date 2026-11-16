@@ -3,10 +3,10 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=33';
-import { LiveMove, placeHit, touches } from './moves.js?v=33';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=33';
-import { sfx } from './audio.js?v=33';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=34';
+import { LiveMove, placeHit, touches } from './moves.js?v=34';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=34';
+import { sfx } from './audio.js?v=34';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -198,13 +198,87 @@ export class Boss {
         S.hits.add(i);
         if (t > h.t0 + 0.25 || mv.start + h.t0 > mv.cancelAt) return;   // long past (we joined late), or never happened
         const kind = h.k === 'spawn' ? 'spawn' : h.k === 'circle' && (h.tx || h.mark != null) ? 'land' : h.k;
+        const s = h.k === 'spawn' ? null : placeHit(mv, h, h.t0);
+        this.leaveMark(h, s);
         if (S.last[kind] != null && h.t0 - S.last[kind] < 0.06) return;
         S.last[kind] = h.t0;
-        const s = h.k === 'spawn' ? null : placeHit(mv, h, h.t0);
         const size = h.k === 'rect' ? h.x1 - h.x0 : h.k === 'ring' ? h.th : h.r || 40;
         sfx.boss[kind](s ? this.scene.pan(s.cx) : pan, size, { fire: !!h.fire || h.pool === 'fire', heavy: !!h.unblock });
       });
     }
+  }
+
+  // What a hit leaves on the floor (atmos.js, mark): a slam cracks it, fire scorches it, a pool stains it.
+  leaveMark(h, s) {
+    const A = this.scene.atmos, fire = !!h.fire || h.pool === 'fire';
+    if (!A || !s) return;
+    if (s.k === 'zone') fire ? A.mark('scorch', s.cx, s.cy, s.r * 0.8, 0, h.t1 - h.t0) : A.mark('stain', s.cx, s.cy, s.r * 0.85, POOL[s.pool] || 0x6a8a2a, h.t1 - h.t0);
+    else if (s.k === 'circle') A.mark(fire ? 'scorch' : 'crack', s.cx, s.cy, fire ? s.r * 0.75 : Math.min(60, s.r * 0.9));
+    else if (fire && s.k === 'arc') A.mark('scorch', s.cx + Math.cos(s.a) * s.r * 0.6, s.cy + Math.sin(s.a) * s.r * 0.6, s.r * 0.4);
+    else if (fire && s.k === 'rect') A.mark('scorch', s.cx + Math.cos(s.a) * (s.x0 + s.x1) / 2, s.cy + Math.sin(s.a) * (s.x0 + s.x1) / 2, Math.min(40, (s.x1 - s.x0) * 0.3));
+  }
+
+  // How a body falls, by what it is: a knight reels and topples (`kneel`), a beast slumps (`slump`), a
+  // thing of stone or bronze shakes itself apart and settles (`crumble`), the mirror knight breaks into
+  // shards (`shatter`), a flyer drops out of the air (`fall`), the wyrm goes still from the tail up (`coil`).
+  deathStyle(b) {
+    if (b.def.render === 'wyrm') return 'coil';
+    if (b.def.hover) return 'fall';
+    if (b.rigName === 'mirror') return 'shatter';
+    if (b.rigName === 'golem' || b.rigName === 'bellwarden') return 'crumble';
+    return b.rig.parts.torso ? 'kneel' : 'slump';
+  }
+
+  // The pose of a dying body at `T` seconds after the blow, and what the fall does around it (dust, a
+  // thud as it comes to rest, shards). It reels from the pose it was struck in, then goes down.
+  dying(b, dt) {
+    const first = b.deadT == null, sc = this.scene, style = b.deathStyle ||= this.deathStyle(b);
+    if (first) { b.deadT = 0; b.fromPose = b.lastPose || {}; b.landed = false; b.puffT = 0; b.rig.setTint(null); }
+    const T0 = b.deadT; b.deadT += dt;
+    const T = b.deadT, dead = b.def.dead_pose || { torso: 30, head: 30, arm_f: 40, weapon: 150, arm_b: 40, dy: 6 };
+    const mix = (p0, p1, u) => { const o = {}; for (const k of new Set([...Object.keys(p0), ...Object.keys(p1)])) { const a = p0[k] ?? b.def_[k] ?? 0, c = p1[k] ?? b.def_[k] ?? 0; o[k] = typeof a === 'number' && typeof c === 'number' ? a + (c - a) * u : u < 0.5 ? a : c; } return o; };
+    const cl = u => Math.max(0, Math.min(1, u)), drop = style === 'crumble' ? 1.2 : style === 'slump' ? 0.8 : 1.0, reelEnd = style === 'slump' ? 0.3 : 0.45;
+    const reel = style === 'kneel' || style === 'shatter' ? { ...dead, torso: -14, head: -20, arm_f: -30, arm_b: -24, dy: 0 } : { ...dead, dy: 0, z: b.fromPose.z || 0 };
+    let pose;
+    if (T < reelEnd) pose = mix(b.fromPose, reel, 1 - (1 - cl(T / reelEnd)) ** 2);
+    else { const u = cl((T - reelEnd) / (drop - reelEnd)); pose = mix(reel, dead, u * u); }   // it falls faster as it goes
+    delete pose.run;
+    const c = b.rig.c, dir = c.scaleX < 0 ? -1 : 1, fallU = cl((T - reelEnd) / (drop - reelEnd));
+    b.shake = T < drop ? (style === 'crumble' ? 2.2 : 1.2) * (style === 'crumble' ? 0.4 + T / drop : 1 - T / drop) : 0;
+    if (style === 'kneel') c.angle = dir * 76 * fallU * fallU;          // flat on its face
+    else if (style === 'slump' || style === 'fall') c.angle = dir * 10 * fallU * fallU;
+    else if (style === 'crumble') c.scaleY = 1 - 0.14 * fallU;
+    if (style === 'crumble' && T < drop) {   // pieces coming off it all the way down
+      b.puffT -= dt;
+      if (b.puffT <= 0) { b.puffT = 0.14; sc.atmos.dust(b.x + (Math.random() - 0.5) * b.r * 2, b.y, 3, true); sc.burst(b.x + (Math.random() - 0.5) * b.r * 2, b.y - 20 - Math.random() * 40, 0xc8b8a0, 4); }
+    }
+    if (style === 'shatter') {
+      b.rig.setTint(T < 0.55 && Math.floor(T * 22) % 2 ? 0xffffff : null);
+      if (T0 < 0.55 && T >= 0.55) {
+        sfx.shatter(sc.pan(b.x)); sc.burst(b.x, b.y - 30, 0xe0f8ff, 60); sc.burst(b.x, b.y - 46, 0xffffff, 24);
+        sc.atmos.embers(b.x, b.y, 30, 0xc8f0ff); sc.atmos.mark('crack', b.x, b.y, 40); sc.cameras.main.shake(180, 0.008);
+        b.landed = true;
+      }
+      if (T >= 0.55) c.alpha = Math.max(0, c.alpha - dt * 7);
+    } else if (!b.landed && T >= drop) {   // it comes to rest
+      b.landed = true;
+      const big = b.r >= 20;
+      sfx.collapse(sc.pan(b.x), big); sc.atmos.dust(b.x + dir * (style === 'kneel' ? 24 : 0), b.y, big ? 16 : 10, true);
+      sc.cameras.main.shake(big ? 260 : 160, big ? 0.009 : 0.005);
+      if (big || style === 'crumble') sc.atmos.mark('crack', b.x + dir * (style === 'kneel' ? 18 : 0), b.y, Math.min(56, b.r * 1.8));
+    }
+    if (style === 'coil' && b.segs) {   // the vertebrae go dark from the tail to the head
+      b.segs.forEach((s, i) => {
+        const at = 0.15 + (b.segs.length - 1 - i) * 0.12, was = s.alpha;
+        s.alpha = Math.max(0.0, 1 - cl((T - at) / 0.5));
+        if (was > 0.5 && s.alpha <= 0.5 && s.p) sc.atmos.dust(s.p[0], s.p[1], 4, true);
+      });
+    }
+    // the body lies a while, then fades
+    const fadeAt = style === 'coil' ? 0.15 + b.segs.length * 0.12 + 0.3 : 1.7;
+    if (style !== 'shatter' && T > fadeAt) c.alpha = Math.max(0, c.alpha - dt * 0.5);
+    b.shadow.alpha = c.alpha * 0.4;
+    return pose;
   }
 
   updateBody(b, now, dt) {
@@ -231,28 +305,30 @@ export class Boss {
       b.staggerT += dt;
       pose = { ...(b.def.stagger_pose || { torso: 22, head: 18, arm_f: 30, weapon: 120, arm_b: 30, shield: -30, dy: 4 }), dy: 4 + Math.sin(b.staggerT * 3) };
     } else if (b.state === 'dead') {
-      pose = b.def.dead_pose || { torso: 30, head: 30, arm_f: 40, weapon: 150, arm_b: 40, dy: 6 };
+      pose = this.dying(b, dt);
     } else if (!pose) {
       if (moving) { b.walk += dt * 8; pose = runCycle(b.walk, 0.7); }
       else pose = { torso: Math.sin(now * 1.8) * 1.5, head: Math.sin(now * 1.8 + 0.6) * 1.5 };
       if (b.def.idle_pose) pose = { ...b.def.idle_pose, ...pose };
     }
     // height: leaps and flight lift the whole figure off its shadow
-    const hover = b.def.hover ? b.def.hover + Math.sin(now * 2.4) * 2 : 0;
+    if (b.state !== 'dead') b.lastPose = pose;
+    const hover = b.def.hover ? b.def.hover + (b.state === 'dead' ? 0 : Math.sin(now * 2.4) * 2) : 0;
     b.z = (pose.z || 0) + hover;
+    const jx = b.state === 'dead' && b.shake ? (Math.random() - 0.5) * 2 * b.shake : 0;
     const left = Math.cos(b.face) < -0.05;
     const under = b.untouchable(now, mv) && mv && mv.data.under && now - mv.start >= mv.data.under[0] && now - mv.start <= mv.data.under[1];
     if (b.def.render === 'wyrm') this.drawWyrm(b, pose, left, under, dt);
     else {
       b.rig.pose(pose, left);
-      b.rig.c.setPosition(Math.round(b.x), Math.round(b.y - b.z)).setDepth(b.y);
+      b.rig.c.setPosition(Math.round(b.x + jx), Math.round(b.y - b.z)).setDepth(b.y);
       b.rig.c.setVisible(!under);
     }
     const sh = Math.max(0.4, 1 - b.z / 120);
     b.shadow.setPosition(b.x, b.y + 1).setScale(sh).setVisible(!under);
     // a flash of white when struck; a flash of warning red in the instant before its strike lands
     const lead = mv && mv.first != null ? mv.first - (now - mv.start) : 9;
-    b.rig.setTint(b.flash > 0 ? 0xffffff : lead > 0.02 && lead < 0.09 && now < mv.cancelAt ? (mv.unblock ? 0xff5030 : 0xffd0c0) : null);
+    if (b.state !== 'dead') b.rig.setTint(b.flash > 0 ? 0xffffff : lead > 0.02 && lead < 0.09 && now < mv.cancelAt ? (mv.unblock ? 0xff5030 : 0xffd0c0) : null);
     // staggered: stars wheel over its head and a ring counts the stagger down
     if (b.state === 'stagger' && !mv) {
       const f = this.fx, left = Math.max(0, 1 - b.staggerT / (b.staggerDur || 5)), hy = b.y - b.z - Math.max(46, b.r * 2.6);
@@ -263,7 +339,6 @@ export class Boss {
         f.fillStyle(0xffe680, 0.9); f.fillTriangle(sx - 3, sy, sx + 3, sy, sx, sy - 4); f.fillTriangle(sx - 3, sy - 1.5, sx + 3, sy - 1.5, sx, sy + 2.5);
       }
     }
-    if (b.state === 'dead') { b.rig.c.alpha = Math.max(0, b.rig.c.alpha - dt * 0.35); b.shadow.alpha = b.rig.c.alpha * 0.4; if (b.segs) b.segs.forEach(s => s.alpha = b.rig.c.alpha); }
     // weak points glow until broken
     b.coreG.clear();
     (b.def.cores || []).forEach((c, i) => {

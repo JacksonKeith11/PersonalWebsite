@@ -313,6 +313,7 @@ class Fight:
                     self.room.broadcast({"t": "fx", "k": "chain", "e": e, "x": round(b.x), "y": round(b.y)})
         if slot == "special" and msg.get("atk") != "skill":
             for x in build.get("specialheal"): self.heal(fh, x["amt"])
+        fh.hero.tally["dmg"] += min(b.hp, dmg + extra)
         b.hp = max(0, b.hp - dmg - extra)
         fh.threat += dmg
         for x in build.get("steal"):
@@ -428,6 +429,7 @@ class Fight:
         for x in build.get("procbuild"):
             if x["on"] == kind: self.build_status(b, x["kind"], x["amt"], now, fh)
         if dmg:
+            fh.hero.tally["dmg"] += min(b.hp, dmg)
             b.hp = max(0, b.hp - dmg)
         self.room.broadcast({"t": "fx", "k": "status", "e": b.e, "kind": kind, "dmg": dmg, "x": round(b.x), "y": round(b.y)})
         self.check_hp(b, now)
@@ -457,6 +459,7 @@ class Fight:
         """A hero's roll carried them through a hit (their browser says)."""
         fh = self.heroes.get(hid)
         if not fh: return
+        fh.hero.tally["dodges"] += 1
         for x in fh.hero.build().get("perfect"):
             fh.empowered = (x["dmg"], now + 2.0)
             if x.get("heal"): self.heal(fh, x["heal"])
@@ -503,6 +506,7 @@ class Fight:
         if msg.get("parry") or msg.get("block"):
             for x in build.get("guard_status"): self.build_status(b, x["kind"], x["amt"] * build.buildup, now, fh)
         if msg.get("parry"):
+            fh.hero.tally["parries"] += 1
             self.damage_poise(b, 60 * (b.mpoise / b.base_poise) ** 0.5, now)
             for x in build.get("parry"): fh.empowered = (x["mult"], now + 3.0)
             for x in build.get("parryheal"): self.heal(fh, x["amt"])
@@ -527,6 +531,7 @@ class Fight:
                 return
         fh.heal_at = None  # a hit spills the drink
         h = fh.hero
+        h.tally["taken"] += min(h.hp, round(dmg))
         h.hp = max(0, h.hp - round(dmg))
         self.room.broadcast({"t": "fx", "k": "hurt", "h": hid, "dmg": round(dmg), "x": round(fh.x), "y": round(fh.y)})
         if h.hp <= 0:
@@ -562,6 +567,7 @@ class Fight:
 
     def knock_down(self, fh, now):
         fh.down = True
+        fh.hero.tally["downs"] += 1
         fh.heal_at = None
         for o in self.heroes.values():
             if o is not fh:
@@ -589,6 +595,7 @@ class Fight:
         if not any(x.get("free") for x in pacts):
             fh.hero.hp = max(1, fh.hero.hp - round(fh.hero.mhp() * d["cost"]))
         other.down = False
+        fh.hero.tally["revives"] += 1
         other.hero.hp = max(1, round(other.hero.mhp() * d["rise"]))
         other.shield = round(sum(x.get("shield", 0) for x in pacts))
         self.room.broadcast({"t": "fx", "k": "revive", "h": who, "by": hid, "x": round(other.x), "y": round(other.y)})

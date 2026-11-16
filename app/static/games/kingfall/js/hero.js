@@ -9,9 +9,10 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=33';
-import { placeAttack, touches, wrap } from './moves.js?v=33';
-import { crescent, lance, burst } from './fx.js?v=33';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=34';
+import { placeAttack, touches, wrap } from './moves.js?v=34';
+import { crescent, lance, burst } from './fx.js?v=34';
+import { sfx } from './audio.js?v=34';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 const hex = c => Phaser.Display.Color.HexStringToColor(c).color;
@@ -99,6 +100,29 @@ export class HeroView {
     this.dash = null;     // [dashes, most]: only this browser's heroes know theirs
     this.reachK = 1;
     this.scene = scene; this.lastAn = ''; this.lastZ = 0;
+    this.ghosts = []; this.ghostT = 0; this.stepN = -1;
+    this.mine = false;    // this browser's hero: its footsteps are louder
+  }
+  // An afterimage: the figure as it stands, in the player's colour, left behind to fade. A roll or a dash
+  // leaves a string of them; a blink leaves one where the hero stood.
+  ghost(life = 0.2) {
+    const c = this.rig.c, sc = this.scene;
+    const g = sc.add.container(c.x, c.y).setDepth(c.depth - 0.05);
+    g.scaleX = c.scaleX; g.angle = c.angle;
+    for (const im of c.list) {
+      if (!im.visible) continue;
+      g.add(sc.add.image(im.x, im.y, 'atlas', im.frame.name).setOrigin(im.originX, im.originY).setAngle(im.angle).setTintFill(this.colour));
+    }
+    g.setBlendMode(Phaser.BlendModes.ADD);
+    this.ghosts.push({ g, life, max: life });
+  }
+  drawGhosts(dt) {
+    this.ghosts = this.ghosts.filter(o => {
+      o.life -= dt;
+      if (o.life <= 0) { o.g.destroy(); return false; }
+      o.g.alpha = 0.55 * o.life / o.max;
+      return true;
+    });
   }
   draw(x, y, an, at, aim, flash) {
     this.drawSwing(x, y, an, at, aim);
@@ -107,6 +131,17 @@ export class HeroView {
     const A = an[0] === 'k' && SKILLS[an.slice(2)] && SKILLS[an.slice(2)].aoe;
     if (A && !A.at && at > 0.06) left = Math.floor((at - 0.06) / (A.every / 2)) % 2 === 1 ? !left : left;  // a whirl: the hero turns about with each strike
     const { p, spin, z } = heroPose(this.W, this.HERO, an, at);
+    const dt = Math.min(0.05, this.scene.game.loop.delta / 1000), K0 = an[0] === 'k' && SKILLS[an.slice(2)];
+    const dodge = an === 'roll' || an === 'dash', blinks = an === 'blink' || !!(K0 && K0.blink);
+    if (blinks && an !== this.lastAn && this.lastAn) this.ghost(0.34);   // before the figure moves: it is still where it stood
+    this.drawGhosts(dt);
+    // footfalls: two to each turn of the legs (rig.js, runCycle)
+    const pace = an === 'run' ? 13 : an === 'walk' ? 9 : an === 'blkw' ? 7 : 0;
+    if (pace) {
+      const n = Math.floor(at * pace / Math.PI);
+      if (n !== this.stepN && this.stepN >= 0 && this.scene.floor) sfx.step(this.scene.floor, this.scene.pan(x), this.mine ? (pace === 13 ? 1 : 0.6) : 0.4);
+      this.stepN = n;
+    } else this.stepN = -1;
     // dust where a roll starts and where a leap lands
     const A2 = this.scene.atmos;
     if (A2) {
@@ -121,9 +156,10 @@ export class HeroView {
     this.rig.setTint(flash ? 0xffffff : null);
     const K = an[0] === 'k' && SKILLS[an.slice(2)];
     this.rig.c.alpha = an === 'roll' || an === 'dash' ? 0.85 : an === 'blink' || (K && K.blink) ? 0.4 : 1;
+    if (dodge) { this.ghostT -= dt; if (this.ghostT <= 0) { this.ghostT = 0.045; this.ghost(); } } else this.ghostT = 0;
     this.drawBars(x, y, z, an);
   }
-  destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); this.barG.destroy(); }
+  destroy() { this.rig.destroy(); this.shadow.destroy(); this.ring.destroy(); this.swingG.destroy(); this.barG.destroy(); this.ghosts.forEach(o => o.g.destroy()); }
 
   // Health over the head (every hero: red, brighter under 30%, framed in the player's colour) and, for
   // this browser's heroes, their dashes under the feet: a pip each, the one coming back filling in grey.
@@ -223,6 +259,7 @@ export class LocalHero {
     this.denied = null;       // {id, until}: a skill pressed while cooling down (the HUD chip shakes)
     this.aimDist = null;      // how far away the thing aimed at is (the cursor, a locked-on boss), if known
     this.view = new HeroView(scene, h, this.W, this.HERO);
+    this.view.mine = true;
     this.x = x; this.y = y; this.aim = -Math.PI / 2;
     this.perfects = new Set();
     this.focus = 40;

@@ -1,16 +1,16 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=33';
-import { LocalHero, RemoteHero } from './hero.js?v=33';
-import { Boss } from './boss.js?v=33';
-import { drawArena } from './arenas.js?v=33';
-import { sfx } from './audio.js?v=33';
-import { music } from './music.js?v=33';
-import { deviceOfSlot } from './input.js?v=33';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=33';
-import { hudKeys, bigCard } from './ui.js?v=33';
-import { Atmos } from './atmos.js?v=33';
-import { LORE, ROMAN } from './lore.js?v=33';
+import { addFrames } from './rig.js?v=34';
+import { LocalHero, RemoteHero } from './hero.js?v=34';
+import { Boss } from './boss.js?v=34';
+import { drawArena } from './arenas.js?v=34';
+import { sfx, ambience, PLACE } from './audio.js?v=34';
+import { music } from './music.js?v=34';
+import { deviceOfSlot } from './input.js?v=34';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=34';
+import { hudKeys, bigCard } from './ui.js?v=34';
+import { Atmos } from './atmos.js?v=34';
+import { LORE, ROMAN } from './lore.js?v=34';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
@@ -57,6 +57,10 @@ export class FightScene extends Phaser.Scene {
     }
 
     this.atmos = new Atmos(this, fight.arena, w, h);
+    this.floor = (PLACE[fight.arena] || {}).floor || 'stone';   // what footsteps sound like here
+    ambience.start(fight.arena);
+    this.events.once('shutdown', () => ambience.stop());
+    this.heartT = 0; this.near = 0;
     this.boss = new Boss(this, data, fight);
     // darkness (the Briar Wolf's and the Moth Saint's second phase): black, but for light round the heroes
     this.darkAt = this.boss.B.dark || 0;
@@ -171,7 +175,7 @@ export class FightScene extends Phaser.Scene {
         this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : '#f4f0e0', m.k === 'crit');
         if (mine) mine.focus = Math.min(mine.HERO.focus, mine.focus + m.dmg * mine.HERO.focus_per_dmg * (mine.S.focus_gain || 1) + (mine.state === 'special' ? mine.S.focusback || 0 : 0));
         if (m.k === 'crit') { sfx.crit(this.pan(B.x)); this.cameras.main.shake(180, 0.008); this.burst(B.x, B.y - 40, 0xffd23f, 26); this.punch(0.03); }
-        else if (!mine) sfx.hit(this.pan(B.x));
+        else if (!mine) this.remote[m.h] ? sfx.hitBy(this.remote[m.h].h.weapon, this.pan(B.x), false) : sfx.hit(this.pan(B.x));
         if (!mine && this.remote[m.h]) {  // someone else's hit: the cut where it landed, facing from them
           const r = this.remote[m.h], a = Math.atan2(B.y - r.y, B.x - r.x);
           this.impact(B.x - Math.cos(a) * Math.min(B.r, 14), B.y - 30, a, m.k === 'crit', r.view.colour);
@@ -319,11 +323,13 @@ export class FightScene extends Phaser.Scene {
     const c = aoeCol(col);
     this.pillars.push({ x, y, r, col: c, life: 0.35 });
     this.burst(x, y - 6, c, 18); sfx.slam(this.pan(x)); this.cameras.main.shake(120, 0.005);
+    this.atmos.mark('scorch', x, y, r * 0.7);
   }
 
-  burst(x, y, colour, n) {
+  // sparks from a point; `dir` and `spread` (radians) throw them one way, `speed` scales how fast
+  burst(x, y, colour, n, { dir = null, spread = Math.PI, speed = 1 } = {}) {
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 120;
+      const a = dir == null ? Math.random() * Math.PI * 2 : dir + (Math.random() - 0.5) * 2 * spread, s = (40 + Math.random() * 120) * speed;
       const life = 0.25 + Math.random() * 0.3;
       this.sparkList.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 30, life, max: life, colour });
     }
@@ -331,10 +337,19 @@ export class FightScene extends Phaser.Scene {
 
   // a local hero's attack connected (before the server's word, so it feels instant)
   onHit(hero, kind, tg) {
-    sfx.hit(this.pan(tg.x));
     const ix = tg.x - Math.cos(hero.aim) * Math.min(tg.r, 14), iy = tg.y - (tg.up ? 0 : tg.kind === 'body' && !tg.seg ? 30 : 10);
     const small = kind === 'light' || kind.startsWith('proc:');   // an upgrade's extra hit lands as lightly as a light
-    this.burst(ix, iy, 0xfff0c0, small ? 6 : 12);
+    // each weapon lands its own way (and sounds it: audio.js, hitBy): the sword's sparks fly wide, the
+    // greatsword's are heavy and kick up dust, the daggers' quick and red, the halberd's thrown on past
+    // the blow, an arrow's splinters back along the shaft, the catalyst's a ring of its own colour
+    const wp = hero.h.weapon, n = small ? 6 : 12;
+    sfx.hitBy(wp, this.pan(tg.x), !small);
+    if (wp === 'greatsword') { this.burst(ix, iy, 0xffd9a0, n + 6, { speed: 0.75 }); this.atmos.dust(tg.x, tg.y, small ? 3 : 7, !small); if (!small) this.cameras.main.shake(90, 0.004); }
+    else if (wp === 'daggers') this.burst(ix, iy, 0xff8a98, n - 2, { dir: hero.aim + (Math.random() < 0.5 ? 1.2 : -1.2), spread: 0.5, speed: 1.4 });
+    else if (wp === 'halberd') this.burst(ix, iy, 0xfff0c0, n, { dir: hero.aim, spread: 0.5, speed: 1.3 });
+    else if (wp === 'bow') this.burst(ix, iy, 0xe8dcc0, n - 2, { dir: hero.aim + Math.PI, spread: 0.7, speed: 0.8 });
+    else if (wp === 'catalyst') { this.burst(ix, iy, 0xc080ff, n, { speed: 0.7 }); this.rings.push({ x: ix, y: iy, r: small ? 12 : 22, life: 0.3, col: 0xc080ff }); }
+    else this.burst(ix, iy, 0xfff0c0, n);
     this.impact(ix, iy, hero.aim, !small, hero.view ? hero.view.colour : 0xffffff);
     if (tg.b) tg.b.flash = 0.04;
     this.stop = Math.max(this.stop, small ? 0.045 : 0.08);
@@ -369,6 +384,7 @@ export class FightScene extends Phaser.Scene {
     let dt = dtReal;
     if (this.stop > 0) { this.stop -= dtReal; dt = dtReal * 0.08; }
     if (this.slow > 0) { this.slow -= dtReal; dt *= 0.3; }
+    if (this.near > 0) { this.near -= dtReal; dt *= 0.45; }   // a hit rolled clean through: a breath of slow motion
     const dtFx = this.slow > 0 ? dtReal * 0.35 : dtReal;   // effects slow down with it
     const B = this.boss;
     const allies = [...this.local, ...Object.values(this.remote)];
@@ -379,7 +395,7 @@ export class FightScene extends Phaser.Scene {
       onDenied: () => sfx.uiBack(),
       onCharged: h => { this.burst(h.x, h.y - 22, h.view.colour, 10); sfx.ui(); },
       onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
-      onBoom: (x, y, r, col) => { const c = col ? aoeCol(col) : 0xc080ff; this.burst(x, y - 8, c, col ? 12 : 20); this.rings.push({ x, y, r, life: 0.3, col: c }); sfx.slam(this.pan(x)); },
+      onBoom: (x, y, r, col) => { const c = col ? aoeCol(col) : 0xc080ff; this.burst(x, y - 8, c, col ? 12 : 20); this.rings.push({ x, y, r, life: 0.3, col: c }); sfx.slam(this.pan(x)); this.atmos.mark('scorch', x, y, r * 0.6); },
     };
     this.pickDevices();
     for (const l of this.local) {
@@ -397,6 +413,11 @@ export class FightScene extends Phaser.Scene {
       B.checkHero(now, l, (h, id, bx, by) => {
         if (l.invulnerable() && !l.perfects.has(id)) {  // rolled clean through it
           l.perfects.add(id);
+          if (now - (l.nearAt || 0) > 0.5) {   // once for a fan of hits
+            l.nearAt = now; this.near = 0.16; sfx.perfect(this.pan(l.x));
+            this.rings.push({ x: l.x, y: l.y - 6, r: 30, life: 0.3, col: 0xffffff });
+            l.view.ghost(0.4);
+          }
           if (l.S.perfect_dash) { l.dashes = Math.min(l.maxDash, l.dashes + l.S.perfect_dash); this.number(l.x, l.y - 50, 'Perfect', '#fff0c0'); }
           this.net.send({ t: 'perfect', h: l.id });
           l.proc('perfect', ctx);
@@ -498,7 +519,19 @@ export class FightScene extends Phaser.Scene {
         for (const L of this.lights) L.glow.setVisible(false);
       }
     }
-    this.atmos.update(dtFx, time, [...this.local, ...Object.values(this.remote)].map(h => ({ id: h.id, x: h.x, y: h.y, colour: h.view.colour, dead: h.dead || h.down })));
+    // close to falling (under a quarter health): a heartbeat, quickening, and red at the screen's edge
+    let danger = 0;
+    for (const l of this.local) {
+      if (l.down || l.dead || !l.view.hp || this.ended) continue;
+      const u = l.view.hp[0] / Math.max(1, l.view.hp[1]);
+      if (u > 0 && u < 0.25) danger = Math.max(danger, 0.45 + 0.55 * (1 - u / 0.25));
+    }
+    if (danger > 0 && this.boss.alive) {
+      this.heartT -= dtReal;
+      if (this.heartT <= 0) { this.heartT = 1.0 - 0.4 * danger; sfx.heart(); this.atmos.beat = 1; }
+    } else { this.heartT = 0; danger = 0; }
+    ambience.tick(dtReal);
+    this.atmos.update(dtFx, time, [...this.local, ...Object.values(this.remote)].map(h => ({ id: h.id, x: h.x, y: h.y, colour: h.view.colour, dead: h.dead || h.down })), danger);
     // camera: this browser's heroes, nudged toward the boss
     const live = this.local.filter(l => !l.dead);
     const focus = live.length ? live : this.local;

@@ -1,7 +1,8 @@
 // The fight's atmosphere, drawn over the painted arena: a colour grade on the floor (characters and
 // effects stay untouched, so they stand out), a vignette on the screen, motes drifting in the air (embers,
 // spores, dust, ash, snow), a soft light under each hero in their colour, and dust kicked up by rolls and
-// landings. Nothing here is gameplay; it all reads the scene and draws.
+// landings, marks the fight leaves on the floor (cracks, scorches, stains) and a red pulse at the screen's
+// edge while this browser's hero is close to falling. Nothing here is gameplay; it all reads the scene and draws.
 
 // per arena: grade (multiplied over the floor) and its strength; motes: colour, how many, how they drift
 const LOOK = {
@@ -29,6 +30,17 @@ function vignetteTexture(scene) {
   scene.textures.addCanvas('vignette', cv);
 }
 
+function dangerTexture(scene) {
+  if (scene.textures.exists('vigred')) return;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(128, 128, 70, 128, 128, 160);
+  gr.addColorStop(0, 'rgba(200,20,24,0)'); gr.addColorStop(0.55, 'rgba(200,20,24,0.25)'); gr.addColorStop(1, 'rgba(160,8,12,1)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  scene.textures.addCanvas('vigred', cv);
+}
+
+const MARK_LIFE = { crack: 16, scorch: 14, stain: 12 }, MARK_FADE = 5, MARKS = 36;
+
 export class Atmos {
   constructor(scene, arena, w, h) {
     this.scene = scene; this.w = w; this.h = h;
@@ -39,6 +51,11 @@ export class Atmos {
     this.vig = scene.add.image(0, 0, 'vignette').setScrollFactor(0).setDepth(6900).setAlpha(this.L.vig);
     this.g = scene.add.graphics().setDepth(5200).setBlendMode(Phaser.BlendModes.ADD);   // motes, and embers from a fallen boss
     this.dustG = scene.add.graphics().setDepth(2.6);
+    dangerTexture(scene);
+    this.red = scene.add.image(0, 0, 'vigred').setScrollFactor(0).setDepth(6901).setAlpha(0);
+    this.beat = 0;                                     // the pulse's kick on each heartbeat, dying away
+    this.markG = scene.add.graphics().setDepth(0.7);   // on the floor, over its grade, under everyone
+    this.marks = [];
     this.motes = []; this.puffs = []; this.glows = {};
     for (let i = 0; i < this.L.n; i++) this.motes.push(this.mote(true));
   }
@@ -66,12 +83,62 @@ export class Atmos {
     }
   }
 
+  // The fight leaves its marks on the floor, fading over a quarter of a minute: a `crack` where a slam
+  // landed, a `scorch` where fire did, a `stain` (in the pool's colour) where a pool lay. Only the newest
+  // few dozen are kept.
+  mark(kind, x, y, r, col = 0, extra = 0) {
+    if (!(r > 0) || !Number.isFinite(x + y)) return;
+    for (const m of this.marks) if (m.kind === kind && Math.hypot(m.x - x, m.y - y) < r * 0.4 && m.age < 1) return;   // one mark per blow
+    const rays = [];
+    if (kind === 'crack') {
+      const n = 5 + Math.floor(Math.random() * 3), a0 = Math.random() * 6.28;
+      for (let i = 0; i < n; i++) {
+        const a = a0 + i * 6.28 / n + (Math.random() - 0.5) * 0.7, pts = [[0, 0]], len = r * (0.55 + Math.random() * 0.55);
+        for (let k = 1; k <= 3; k++) pts.push([Math.cos(a + (Math.random() - 0.5) * 0.5) * len * k / 3, Math.sin(a + (Math.random() - 0.5) * 0.5) * len * k / 3 * 0.6]);
+        rays.push(pts);
+      }
+    }
+    this.marks.push({ kind, x, y, r, col, rays, age: 0, life: MARK_LIFE[kind] + extra, seed: Math.random() * 10 });
+    if (this.marks.length > MARKS) this.marks.shift();
+  }
+
+  drawMarks(dt) {
+    const g = this.markG; g.clear();
+    this.marks = this.marks.filter(m => {
+      m.age += dt;
+      const f = Math.min(1, m.age * 6, (m.life - m.age) / MARK_FADE);
+      if (f <= 0) return m.age < m.life;
+      if (m.kind === 'crack') {
+        g.fillStyle(0x08060c, 0.22 * f); g.fillEllipse(m.x, m.y, m.r * 1.5, m.r * 0.9);
+        for (const pts of m.rays) {
+          g.lineStyle(1.6, 0x06040a, 0.6 * f); g.beginPath(); g.moveTo(m.x, m.y);
+          for (const [dx, dy] of pts.slice(1)) g.lineTo(m.x + dx, m.y + dy);
+          g.strokePath();
+        }
+        g.fillStyle(0x06040a, 0.5 * f); g.fillEllipse(m.x, m.y, m.r * 0.35, m.r * 0.2);
+      } else if (m.kind === 'scorch') {
+        g.fillStyle(0x08060a, 0.3 * f); g.fillEllipse(m.x, m.y, m.r * 2, m.r * 1.25);
+        g.fillStyle(0x040306, 0.38 * f); g.fillEllipse(m.x, m.y, m.r * 1.3, m.r * 0.8);
+        const hot = Math.max(0, 1 - m.age / 2.5);   // the rim glows for a moment, then it is only soot
+        if (hot > 0) { g.lineStyle(1.5, 0xff7a2a, 0.55 * hot); g.strokeEllipse(m.x, m.y, m.r * 1.5, m.r * 0.92); }
+      } else {
+        g.fillStyle(m.col, 0.16 * f); g.fillEllipse(m.x, m.y, m.r * 2, m.r * 1.3);
+        g.fillStyle(0x08060a, 0.14 * f); g.fillEllipse(m.x + Math.sin(m.seed) * m.r * 0.2, m.y, m.r * 1.2, m.r * 0.7);
+      }
+      return m.age < m.life;
+    });
+  }
+
   // a fallen boss: embers that rise and drift, in its colour
   embers(x, y, n, col) { for (let i = 0; i < n; i++) this.motes.push(this.mote(false, x + (Math.random() - 0.5) * 50, y - Math.random() * 50, col, true)); }
 
-  update(dt, time, heroes) {
+  // `danger` 0..1: how close this browser's hero is to falling (0 above a quarter health)
+  update(dt, time, heroes, danger = 0) {
     const cam = this.scene.cameras.main, z = cam.zoom, vw = cam.width / z, vh = cam.height / z;
     this.vig.setPosition(cam.width / 2, cam.height / 2).setDisplaySize(vw * 1.02, vh * 1.02);
+    this.beat *= Math.exp(-dt * 5);
+    this.red.setPosition(cam.width / 2, cam.height / 2).setDisplaySize(vw * 1.02, vh * 1.02).setAlpha(danger > 0 ? Math.min(0.8, danger * (0.3 + 0.45 * this.beat)) : 0);
+    this.drawMarks(dt);
     const g = this.g; g.clear();
     const view = cam.worldView, pad = 30;
     this.motes = this.motes.filter(m => {

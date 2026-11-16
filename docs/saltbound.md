@@ -330,7 +330,7 @@ The owner asked for the whole UI flow to look **clean and professional**. Take p
      blessings and jobs go on it when it's up, and are toasts otherwise.
   7. **Town and shop panel**.
   8. **Run end**: win or lose, the party in a row with an award under whoever led each column (most
-     damage, healing, kills, hits taken; the fallen greyed, a slow ray burst behind a win), then the
+     damage dealt, healing, kills, damage taken, each leader highlighted in the table too; the fallen greyed, a slow ray burst behind a win), then the
      per-hero summary table, the seed and a back-to-lobby button. Dungeon forks open each path card
      with the enemies waiting down it (or the shrine where none do), and a level-up shows the hero's
      portrait.
@@ -767,6 +767,37 @@ sections of the results screen in `hud.js`.
 - **The bots** chip in while they have half their health or more, and a bot at an event waits for its
   huddle to be answered.
 
+### Pings and planning together on the map
+
+The owner asked for a ping, for the map to feel more responsive, and for it to be clear when allies
+are heading to the same place (Nov 2026).
+
+- **Pings** (`Room.ping`, `onPing` and `pingMenu` in `hud.js`, `MapView.ping`): right-click a hex for a
+  small menu (Look here, Let's go here, Careful here; keys 1-3), or Alt-click or press G over a hex
+  for "Look here", or arm the pin button by the zoom buttons and click. The server passes a `ping`
+  message straight to everyone in the room: nothing in the game changes and nothing is saved, and
+  one person can ping at most every `PING_GAP` (0.6 s). Everyone sees a pin drop on the hex in the
+  sender's hero colour, rings pulse out from it, the sender's name sits under it for `PING_MS` (5 s)
+  and the minimap rings it. The others also hear it and get a line above the action bar ("Bob
+  (Arcanist): careful here · Silverleaf grove") to click to look there. A ping out of sight gets an
+  arrow on the map's edge pointing at it (`placePingEdges`, a DOM button placed each frame). One
+  ping a person shows at a time.
+- **Heading to the same hex** (`planEnds` in `hexmap.js`; `planEnd` and `meeting` in `hud.js`): where
+  two or more heroes end the turn on one hex (at least one of them moving), their route rings merge
+  into one ring split into their colours, with a "Together" tag above it (left off on a fight's hex,
+  whose marker already shows who's there). The selected hero's hover preview counts, so you can see
+  you'd join an ally before you click. Stretches of route that two heroes share run side by side in
+  lanes, so neither trail hides the other. "This turn" says where each hero moves to and who with;
+  the hex tooltip says who's heading there, and "You'd end the turn together with ..."; and when an
+  ally's route comes to end where yours does, a line says so (`planNews`, from the state change).
+- **Responsiveness**: a clicked route draws at once, before the server answers (`setRoute` writes it
+  into the local plan; `routeRefused` puts the old plan back on an `err`), with a quick ring on the
+  hex. The hover preview redraws only the routes (`MapView.setPreview`); it used to redraw the whole
+  map (fog, places, units, minimap) on every hex the mouse crossed. The selected hero's reach is
+  worked out once per state (`reachOf`), where each hover worked it out three times. The preview's
+  end shows its cost ("3/4" moves). Map labels drawn for the eye (pins, tags, the cost) keep about
+  one size on screen at any zoom (`pingScale`).
+
 ### Music
 
 Synthesized in `js/audio.js` (no files). The owner asked for music per region (Nov 2026):
@@ -919,7 +950,7 @@ here respects `prefers-reduced-motion` (each block of CSS ends with its own guar
   `GUARD_ACT`; `Game.actions_of` swaps it in; the actions are `ARMOR_ACTIONS` in `items.py`): Hunker
   Down (die +1 Armor: the plain coats), Patch Up (die Armor, heal 2: the healers' robes), Coral Growth
   (heal 3: Coral Mail, whose old "Block heals 2" passive it replaced), Bristle (attackers take 2:
-  Barnacle Plate, Sharkskin), Sidestep (5+: dodge the next hit: Mistweave, Smuggler's Cloak), Echo
+  Barnacle Plate, Sharkskin), Sidestep (6+: dodge the next hit: Mistweave, Smuggler's Cloak; 5+ until Nov 2026), Echo
   Shell (attacks aimed at you −2: Siren's Conch; `to: "aiming"`), Cover (you or an ally: Diver's
   Harness, Whaleplate, Gilded Cuirass) and Tidewall (the party +2: Tidelord's Aegis). Plain Block is
   left only for a hero with no armor. The hero sheet and item rows name the action.
@@ -1408,6 +1439,31 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
   (Storm Wisps: health adds, an extra die per merge).
 - **Riders**: `st`/`sn` on a hit; `st_min` only if a die rolls that much (a Siren's Seer die shows in
   advance whether its Lullaby lands); `pair` on doubles (Root, Stun, or `again`).
+- **Statuses hit harder** (owner's request, Nov 2026: more enemies that inflict statuses, and stronger
+  ones from those that do). A pass in `content/archipelago.py` (`STATUS_UP`, after the pools merge) gives
+  every existing status move Burn and Poison 1 more, Weak, Vulnerable, Mark and Root a round longer, and
+  lowers a die-gated rider's `st_min` by 1 (at least 2). Stuns, `pair` riders and status faces are left
+  alone. Then `STATUS_RIDERS` gives the 20 regular enemies that had no status one each, leaning on the
+  rarer kinds: Poison (Drowned Deckhand, Scarab Swarm), Freeze (Gale Sprite, Drowned Knight), Shock
+  (Lightning Totem), Burn (Seraph Sentinel, Quartermaster), Vulnerable, Mark, Weak and Root, and a Stun on
+  doubles for the Sleeping Sentinel and the Silverback. The bosses' machinery (cannons, kegs, the Tide
+  Guard) keeps none. Only enemies whose dice faces carry a status have no status move. Measured with the
+  Mistweave and Jaguar Pelt nerfs (2026-11-10, 300 Hard runs, seed 5000): **Hard 51.0%**, against 50.3%
+  in the last all-class batch (2026-11-07, a few builds earlier, so not a clean before-and-after);
+  classes 39-64% on about 55 runs each (±7): Duelist 64.2, Ranger 59.2 ... Alchemist 43.9, Samurai 38.9.
+- **Six enemies built around statuses** (owner's request, Nov 2026), one per region, each bringing the
+  statuses its region's enemies lacked: `content/afflicters.py` (merged in `archipelago.py` after the
+  `STATUS_UP` pass, so its numbers are final; its `GROUPS` are added to each region's roaming groups,
+  three each, and its `CRITS` to `foes.py`). **Bilge Rats** (Smugglers' Keys: every bite Poisons 1,
+  doubles Root), **Omen Raven** (Stormcrag: Hex on a Seer die's 3+, Shiny Grab steals a die, Vulnerable on
+  doubles), **Sulphur Toad** (Cinderreach: Toxic Belch Poisons the whole party 2, Tongue Lash Roots),
+  **Rimebound Trapper** (the Frostpeaks: Snare Roots, Hunter's Mark on 3+, Freezing arrows), **Glowcap**
+  (the Verdant Deep: Spore Cloud Weakens everyone on 4+, Choking Spores crusts the biggest die; splits)
+  and **Arc Beetle** (the Prism Wood: Static Field, Shock bites, Shell Up). Sprites in
+  `tools/saltbound-art/foes4.py`, three looks each; the owner picked the rats out of a barrel, the storm
+  raven, the magma toad, the masked netter, the mushroom person and the prism horn (`PICKED`). In forced
+  fights every move fired and landed its status. No balance batch after them: the owner judged the
+  balance fine (Hard 51.0% just before, above).
 - **Targeting** (`tgt`): random, weakest, strongest, vengeful (whoever hurt it most last round). Guard
   and Taunt swing intents in the open (`retarget_intents`).
 - **The first three regions and the Peak got their own enemies** (owner's request, Nov 2026; they had 5
@@ -1502,7 +1558,11 @@ To add an effect: list it in `mods.py`, grant it in the content, read it in the 
 
 About 145 items (`ITEMS` in `content/items.py`, with the regional gear, relics and materials from `content/gear2.py`; 111 that can drop, of which a run sees the original 59 plus its regions' pieces, `Game.gear()`; each has a pixel icon, `ICON` in `js/itemart.js`): weapons give a die and actions, armor a guard die and
 often a passive, trinkets an odd die, a passive or an action. Gear past the starting kit has a passive
-of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
+of its own (`PASSIVES` in `items.py`, merged into each item's `mods` and `text`). **The rare first-hit
+dodges were nerfed** (owner's request, Nov 2026): Mistweave's passive is 2 more starting Armor (it halved
+the first hit each fight) and its Sidestep dodges on 6+ (was 5+); the Jaguar Pelt lost the first-hit
+passive and backstabs for 4 (was 3). Angel Feather (uncommon) and the Wings of the Arbiter (legendary)
+keep it, and their texts now say what it does: the first hit deals half (they said it missed). **Situational finds** (owner's request: a common or uncommon should sometimes beat a rare): the
 Shellbreaker Maul ignores Armor, the Oilskin Coat stops Burns, the Diver's Harness a Stun and Freeze,
 the Smuggler's Cloak turns the first enemy each round that would attack you onto someone else (its own
 mod, `cloak`; the Ranger's Camouflage passive is the stronger "only when there's no one else"), the Gutting Knife
@@ -1717,7 +1777,11 @@ its row (`workPips` in `hud.js`), tempering and enchanting together:
 
 **Skill texts** follow one style (owner's request: clearer): "the die" is the number it shows, "On
 5+:" is what a roll meeting the requirement does and "Otherwise:" what a lower one does, "Any row"
-comes first, and enemies' "intents" are called their coming attack or action.
+comes first, and enemies' "intents" are called their coming attack or action. **Keep them short**
+(owner's request, Nov 2026: simpler, the Gunslinger's especially): rules only, no flavour ("the bullet
+goes on", "you draw first"), and a keyword with its own tooltip (Resonance faces, the Silver Round) gets
+a few words, not its whole rule. Every Gunslinger text and the 30 longest elsewhere were cut down then;
+none is over 140 characters.
 
 ## Balance now
 
@@ -2090,6 +2154,7 @@ clock anywhere: the run changes only when someone acts.
 | `app/saltbound/classes.py` | The generic classes, their actions and passives, `SHORT` card text, `COMBOS`, levels and XP. |
 | `app/saltbound/content/items.py` | Items (generic), item passives and the actions weapons give. |
 | `app/saltbound/content/archipelago.py` | This map's enemies, pools, elites, dungeons and paths, the final boss, blessings and events. |
+| `app/saltbound/content/afflicters.py` | Six status-focused enemies, one per region, with their groups and critical riders (merged into `archipelago.py`). |
 | `app/saltbound/world.py` | Hex geometry (`step_dir` for a hex direction), terrain costs (`COST`, `FAST`), generating a run's map from its seed, and its extras (`add_features`: currents, reefs, whirlpools, places at sea, lookouts, grottos). |
 | `app/saltbound/biome.py` | `Biomes`, mixed into `Game`: the other regions' map rules (lava and eruptions, quicksand, trails, ice, sight, Frostbite, timeless Stillwood, dreams, oases, fossils, geodes, light-gates). |
 | `app/saltbound/travel.py` | `Travel`, mixed into `Game`: beacon towers (placing, lighting, travelling between lit ones) and travelling merchants (their roads, stock and shop). |
@@ -2112,7 +2177,7 @@ clock anywhere: the run changes only when someone acts.
 | `js/itemart.js` | Item icons: a 12×12 base shape per kind of thing (axe, robe, shell...) painted in a material with an accent and a glow, then outlined. `ICON` maps each item to its look; a new item needs a line there (or it gets its slot's default). |
 | `js/skillfx.js` | What every action and enemy move looks like (`SKILL_FX`, `foeFx`), from the effects kit `combat.js` passes in (`fxKit`); the styles are the stylesheet's "skill effects" section. |
 | `js/stage.js` | The fights' painted backdrops (`stageKey` picks one for a fight, `stageURL` paints it once). |
-| `js/hexmap.js` | `MapView` (Phaser): painted terrain (with two surf frames), currents and whirlpools, places, units, fog, reach, routes; above the fog the squalls, raid roads, landmarks and region names; the minimap. |
+| `js/hexmap.js` | `MapView` (Phaser): painted terrain (with two surf frames), currents and whirlpools, places, units, fog, reach, routes (shared ends and lanes); above the fog the squalls, raid roads, landmarks and region names, pings and their edge arrows; the minimap. |
 | `js/rules.js` | Route planning (step costs and sight come from the server: `static.map`, each hero's `sight`, the world's `cur`/`reef`/`pool` via `seaMap`), and how to describe requirements, dice and statuses. |
 | `js/art.js` | `flat32()`, sprite canvases, place icons. `js/sprites.js` is generated: never edit it. |
 | `js/ui.js` | `h()`, icons, tooltips, toasts, modals. `js/audio.js`: synthesized sound and music (a style per region, boss and final themes). |
@@ -2172,6 +2237,17 @@ clock anywhere: the run changes only when someone acts.
   tools/saltbound-shots.js [url] [dir] [WxH]` screenshots a whole bot-played run.
 
 ## Gotchas
+
+- **Routes are drawn before the server agrees** (`setRoute` in `hud.js`): the client writes a clicked
+  route into its copy of the plan. A refusal comes back as `err` without a new state, so `main.js`
+  calls `routeRefused` to put the old plan back; anything that can refuse a `path` must keep sending
+  `err` (an `Invalid`), not fail silently. Pings never touch `g.s` and skip `Room.after` (no save,
+  no state broadcast). With `?bots`, `window.saltboundMap` is the `MapView`, for browser tests.
+- **The sprite build doesn't need Pillow, but its kit imports it** (`tools/threefold-art/kit.py`, for
+  PNG sheets). On a machine without it, stub it to rebuild `sprites.js`: from `tools/saltbound-art`,
+  `python -c "import sys, types, runpy; m = types.ModuleType('PIL'); m.Image = None; sys.modules['PIL'] = m;
+  sys.path.insert(0, '.'); runpy.run_path('build.py', run_name='__main__')"`. The output for existing
+  sprites must not change.
 
 - **A move that crashes is rolled back** (`Room.guarded`, Nov 2026 audit): every player and bot move runs
   against a JSON snapshot of `g.s`; an exception that isn't `Invalid` is logged, the game is rebuilt from

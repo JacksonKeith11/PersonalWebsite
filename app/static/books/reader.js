@@ -482,6 +482,7 @@
       b.append(title, snip);
       b.addEventListener("click", async () => {
         closeSheets();
+        rememberPlace();
         await jump(r.chapter, r.segment);
         showHit(r.segment, q);
       });
@@ -489,6 +490,33 @@
       list.append(li);
     }
   }
+
+  // Where the reader was before following a search result, so they can go back. Going from
+  // result to result keeps the first place: that's where they were reading.
+  let returnTo = null;
+
+  function rememberPlace() {
+    if (!returnTo) {
+      const seg = segAtPage(page);
+      returnTo = { chapter, segment: seg, into: page - pageOfSeg(seg) };
+    }
+    $("#return-go").textContent = `↩ Back to ${book.chapters[returnTo.chapter].title}`;
+    $("#return").hidden = false;
+  }
+
+  function forgetPlace() {
+    returnTo = null;
+    $("#return").hidden = true;
+  }
+
+  $("#return-go").addEventListener("click", async () => {
+    const r = returnTo;
+    forgetPlace();
+    if (!r) return;
+    await jump(r.chapter, r.segment);
+    if (r.into && segs[r.segment]) go(pageOfSeg(r.segment) + r.into, false);
+  });
+  $("#return-close").addEventListener("click", forgetPlace);
 
   // The server's search, done on this device over the chapters it has.
   async function searchHere(q) {

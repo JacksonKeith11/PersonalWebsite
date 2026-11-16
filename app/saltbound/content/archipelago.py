@@ -267,6 +267,57 @@ POOLS = {
 }
 POOLS.update(_B.POOLS)
 POOLS.update(_I.POOLS)
+
+# Statuses hit harder (owner's request, Nov 2026: more enemies that inflict statuses, and the ones that
+# do, stronger). Every status move an enemy already has: Burn and Poison 1 more, Weak, Vulnerable, Mark
+# and Root a round longer, and a die-gated rider (`st_min`) lands a point sooner. Stuns are left alone
+# (a Stun loses a hero their whole round) and so are `pair` riders and status faces.
+STATUS_UP = ("burn", "poison", "weak", "vuln", "mark", "root")
+_seen = set()  # a move dict shared by two enemies is changed once
+for _moves in [f["moves"] for f in FOES.values()] + list(POOLS.values()):
+    for _m in _moves.values():
+        if id(_m) in _seen:
+            continue
+        _seen.add(id(_m))
+        if _m.get("st") in STATUS_UP:
+            _m["sn"] = _m.get("sn", 1) + 1
+        if _m.get("st") and _m["st"] != "stun" and _m.get("st_min"):
+            _m["st_min"] = max(2, _m["st_min"] - 1)
+
+# ...and the regular enemies that had no status at all get one, leaning on the rarer kinds (Poison,
+# Freeze, Shock, Burn, Vulnerable, Mark). Added after the pass above, so these are their final numbers.
+# The bosses' machinery (cannons, kegs, the Tide Guard) stays as it was.
+STATUS_RIDERS = {
+    "deckhand": {"hook": {"st": "poison", "sn": 2}},  # a rusty hook
+    "deckhound": {"savage": {"pair": {"st": "vuln", "sn": 1}}},
+    "corsair_captain": {"pistol": {"st": "mark", "sn": 1}},  # picks the crew's target
+    "harpy": {"talons": {"pair": {"st": "weak", "sn": 1}}},
+    "lightning_totem": {"discharge": {"st": "shock", "sn": 1}},
+    "carrion_vulture": {"peck": {"pair": {"st": "vuln", "sn": 1}}},
+    "scarab_swarm": {"devour": {"st": "poison", "sn": 1}},
+    "gargoyle": {"gargoyle_dive": {"st": "weak", "sn": 1, "st_min": 5}},
+    "fossil_hound": {"gnaw": {"pair": {"st": "root", "sn": 1}}},
+    "sleeping_sentinel": {"wakeful_strike": {"pair": {"st": "stun", "sn": 1}}},
+    "petrified_knight": {"stone_lance": {"st": "root", "sn": 1, "st_min": 6}},  # turning to stone
+    "orchid_mantis": {"scythe": {"st": "vuln", "sn": 1, "st_min": 5}},
+    "silverback": {"pummel": {"pair": {"st": "stun", "sn": 1}}},
+    "seraph_sentinel": {"halberd_of_light": {"st": "burn", "sn": 2}},
+    "shardling": {"slice": {"pair": {"st": "vuln", "sn": 1}}},
+    "geode_tortoise": {"shell_bash": {"st": "weak", "sn": 1}},
+    "facet_knight": {"faceted_blade": {"st": "mark", "sn": 1}},
+    "quartermaster": {"blunderbuss": {"st": "burn", "sn": 2}},  # powder burns
+    "gale_sprite": {"gust": {"st": "freeze", "sn": 1, "st_min": 5}},  # a chill wind
+    "drowned_knight": {"cleave": {"st": "freeze", "sn": 1}},  # cold seawater
+}
+for _k, _riders in STATUS_RIDERS.items():
+    for _mk, _r in _riders.items():
+        FOES[_k]["moves"][_mk].update(_r)
+
+# ...and six new enemies built around statuses, one per region (content/afflicters.py), merged after the
+# pass so their numbers are final; their groups are added to GROUPS below.
+from . import afflicters as _S  # noqa: E402
+FOES.update(_S.FOES)
+
 for _k, _v in POOLS.items():
     FOES[_k]["pool"] = _v
 
@@ -297,6 +348,8 @@ GROUPS = {
               ["crag_ram", "cliff_hermit", "lightning_totem"], ["crag_ram", "thunder_wyvern"]],
 }
 GROUPS.update(_B.GROUPS)
+for _r, _gs in _S.GROUPS.items():
+    GROUPS[_r] = GROUPS[_r] + _gs
 # the Peak: the Drowned Crown's own court, with a few of the first three regions' enemies come ashore
 GROUPS["peak"] = [["drowned_knight"], ["brine_wraith", "brine_wraith"], ["tide_guard", "crown_herald"],
                   ["abyss_angler", "eel"], ["drowned_knight", "brine_wraith"], ["coral_colossus"],

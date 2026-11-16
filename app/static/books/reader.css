@@ -212,6 +212,38 @@ body.chrome #topbar { transform: none; }
   text-overflow: ellipsis;
 }
 
+#return {
+  position: fixed;
+  z-index: 11;
+  bottom: max(calc(var(--footer) - 11px), 0px);
+  left: 50%;
+  max-width: calc(100% - 120px);
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+  background: var(--bar);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+}
+#return[hidden] { display: none; }
+/* Over the footer's page count while it's shown; above the player while listening. */
+body.listening #return { bottom: calc(env(safe-area-inset-bottom) + 86px); }
+#return button { border: 0; background: none; font: inherit; cursor: pointer; }
+#return-go {
+  min-width: 0;
+  padding: 7px 4px 7px 14px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#return-close { padding: 5px 12px 7px 8px; color: var(--muted); font-size: 20px; line-height: 1; }
+
 #scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.28); }
 .sheet {
   position: fixed;

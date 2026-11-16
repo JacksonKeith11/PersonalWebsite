@@ -27,7 +27,7 @@ PASSIVES = {
     "iron_will": {"name": "Iron Will", "mods": {"stun_ward": 1, "first_hit_soak": 3},
                   "text": "Ignore the first Stun each fight. The first hit on you each round deals 3 less."},
     "steady": {"name": "Shieldwall", "mods": {"guard_share": 4, "shield_block": 2, "start_armor": 6}, "tags": ["bulwark"],
-               "text": "Start each fight with 6 Armor. Your Guard also gives the guarded ally 4 Armor, your Taunt gives every ally 2 Armor, and your shield faces block 5."},
+               "text": "Start fights with 6 Armor. Guard also gives the ally 4 Armor, Taunt gives every ally 2, and your shield faces block 5."},
     "spiked_plate": {"name": "Spiked Plate", "mods": {"thorns": 3}, "tags": ["juggernaut"],
                      "text": "Enemies that hit you take 3 damage."},
     "overguard": {"name": "Overguard", "mods": {"start_armor": 5}, "tags": ["bulwark"],
@@ -102,7 +102,7 @@ ACTIONS = {
               "text": "Gain the die +2 as Armor. The next attack aimed at an ally this round hits you instead."},
     "taunt": {"cd": 2, "name": "Taunt", "req": {"n": 1}, "tgt": "self",
               "ops": [{"op": "taunt"}, {"op": "armor", "amt": "v+2"}, {"op": "status", "s": "thorns", "n": 2}],
-              "tags": ["bulwark"], "text": "Gain the die +2 as Armor. Every enemy attack this round hits you instead of your allies, and each attacker takes 2."},
+              "tags": ["bulwark"], "text": "Gain the die +2 as Armor. Every enemy attack this round hits you, and each attacker takes 2."},
     "brace": {"name": "Brace", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "armor", "amt": "v+1"}, {"op": "armor", "amt": "2", "to": "lowest"}],
               "tags": ["bulwark"], "text": "Gain the die +1 as Armor. Your ally with the lowest HP gains 2 Armor."},
     "rally_wall": {"cd": 2, "name": "Hold the Line", "req": {"n": 1}, "tgt": "self",
@@ -168,7 +168,7 @@ ACTIONS = {
     "cleanse": {"name": "Cleanse", "req": {"n": 1}, "tgt": "ally", "ops": [{"op": "cleanse"}, {"op": "heal", "amt": "v"}],
                 "text": "Remove Burn, Poison, Weak, Vulnerable, Mark and Root from an ally, and heal them by the die."},
     "smite": {"name": "Smite", "req": {"n": 1, "min": 4}, "tgt": "foe", "ops": [{"op": "dmg", "amt": "v+4+3*undead"}, {"op": "heal", "amt": "2", "to": "lowest"}],
-              "miss": [{"op": "dmg", "amt": "v//2"}], "text": "Any row. On 4+: deal the die +4 (+3 more against the undead), and your ally with the lowest HP heals 2. Otherwise: deal half the die."},
+              "miss": [{"op": "dmg", "amt": "v//2"}], "text": "Any row. On 4+: deal the die +4 (+3 more to the undead), and your lowest-HP ally heals 2. Otherwise: deal half the die."},
     "quick_lift": {"name": "Quick Lift", "req": {"n": 0}, "tgt": "downed", "per_rest": True,
                    "ops": [{"op": "lift", "amt": "4"}], "text": "Once until you rest, no die needed: revive a knocked-down ally with 4 HP."},
 
@@ -213,7 +213,7 @@ ACTIONS = {
     "earthshaker": {"cd": 2, "name": "Earthshaker", "req": {"n": 2, "sum_min": 12}, "tgt": "foes", "tags": ["rampage"],
                     "ops": [{"op": "dmg", "amt": "sum//2"}, {"op": "weaken", "amt": "sum//2", "to": "random"}],
                     "miss": [],
-                    "text": "Two dice summing to 12+: every enemy takes half the sum, and one enemy's coming attack drops by half the sum. Otherwise: nothing."},
+                    "text": "Two dice summing to 12+: every enemy takes half the sum, and one enemy's attack drops by half the sum. Otherwise: nothing."},
     "reckless_swing": {"name": "Reckless Swing", "req": {"n": 1, "min": 7}, "tgt": "foe", "melee": True,
                        "ops": [{"op": "dmg", "amt": "v+12"}, {"op": "selfdmg", "amt": "2"}],
                        "miss": [{"op": "dmg", "amt": "v//2"}, {"op": "selfdmg", "amt": "2"}],
@@ -239,13 +239,13 @@ ACTIONS = {
                      "text": "Any row. On 4+: you and your hawk strike together for the die +5. Otherwise: deal half the die."},
     "spotter": {"cd": 3, "name": "Spotter", "req": {"n": 1}, "tgt": "foes", "tags": ["marksman"],
                 "ops": [{"op": "foresee"}, {"op": "armor", "amt": "v//2", "to": "self"}],
-                "text": "Every enemy rolls its dice now, in the open, so the party sees exactly what's coming. Gain half the die as Armor."},
+                "text": "Every enemy rolls its dice now, in the open. Gain half the die as Armor."},
     "volley": {"name": "Volley", "req": {"n": 3, "upto": True}, "tgt": "foes",
                "ops": [{"op": "dmg", "amt": "(d+1)//2+1", "each": True}],
                "text": "Up to three dice: every enemy takes half of each die (rounded up) +1. Made for crowds."},
     "covering_fire": {"name": "Covering Fire", "req": {"n": 1}, "tgt": "foe",
                       "ops": [{"op": "weaken", "amt": "v"}, {"op": "dmg", "amt": "v//2"}],
-                      "text": "Any row: the enemy's coming attack drops by the die, and it takes half the die. Shoot whoever is about to hit hardest."},
+                      "text": "Any row: deal half the die. Its attack this round drops by the die."},
 
     # ---- Scoundrel
     "stab": {"name": "Stab", "req": {"n": 1}, "tgt": "foe", "melee": True, "ops": [{"op": "dmg", "amt": "v+3*(1-aimed)"}],
@@ -264,7 +264,7 @@ ACTIONS = {
                     "text": "Two dice summing to 9+: Poison every enemy for 3. Otherwise: nothing."},
     "pickpocket": {"cd": 3, "name": "Pickpocket", "req": {"n": 1, "min": 4}, "tgt": "foe", "tags": ["tricks"],
                    "ops": [{"op": "steal"}, {"op": "gold", "amt": "4"}], "miss": [{"op": "weaken", "amt": "v//2"}],
-                   "text": "On 4+: steal the biggest die from an enemy's coming attack, and 4 gold. Otherwise: its attack drops by half the die."},
+                   "text": "On 4+: steal the biggest die from an enemy's attack, and 4 gold. Otherwise: its attack drops by half the die."},
     "loaded_dice": {"name": "Loaded Dice", "req": {"n": 2}, "tgt": "self", "instant": True, "tags": ["tricks"],
                     "ops": [{"op": "loaded"}], "text": "Link two of your dice: the second rolls whatever the first does. Both stay free to use."},
     "smoke_bomb": {"cd": 2, "name": "Smoke Bomb", "req": {"n": 2, "pair": True}, "tgt": "party",
@@ -305,10 +305,10 @@ ACTIONS = {
     "firebomb": {"cd": 2, "name": "Firebomb", "req": {"n": 1, "min": 4}, "tgt": "foe", "bomb": True, "tags": ["bombs"],
                  "ops": [{"op": "dmg", "amt": "v", "to": "row"}, {"op": "status", "s": "burn", "n": 1, "to": "row"}],
                  "miss": [{"op": "dmg", "amt": "v//2"}],
-                 "text": "On 4+: deal the die to every enemy in the target's row, and Burn them 1. Otherwise: deal half the die to the target."},
+                 "text": "On 4+: deal the die to every enemy in its row and Burn them 1. Otherwise: deal half the die to it."},
     "acid_flask": {"name": "Acid Flask", "req": {"n": 1}, "tgt": "foe", "bomb": True, "tags": ["bombs"],
                    "ops": [{"op": "strip", "amt": "99"}, {"op": "status", "s": "vuln", "n": 2}, {"op": "dmg", "amt": "v"}],
-                   "text": "A bomb, any row: strip all of an enemy's Armor, make it Vulnerable for 2 rounds, and deal the die. Throw it before the big hits."},
+                   "text": "A bomb, any row: strip all its Armor, make it Vulnerable for 2 rounds, and deal the die."},
     "concussion": {"cd": 3, "name": "Concussion", "req": {"n": 1, "min": 6}, "tgt": "foe", "bomb": True, "tags": ["bombs"],
                    "ops": [{"op": "dmg", "amt": "3"}, {"op": "status", "s": "stun", "n": 1}], "miss": [{"op": "dmg", "amt": "v//2"}],
                    "text": "On a 6: deal 3 and Stun the enemy. Otherwise: deal half the die."},
@@ -324,7 +324,7 @@ ACTIONS = {
     "thornlash": {"name": "Thornlash", "req": {"n": 1}, "tgt": "foe",
                   "ops": [{"op": "dmg", "amt": "v+1"}, {"op": "status", "s": "root", "n": 1, "if": "v>=5"}], "text": "Any row: deal the die +1, and Root the enemy on 5+."},
     "sprout": {"name": "Sprout", "req": {"n": 1}, "tgt": "self", "ops": [{"op": "summon", "k": "sapling", "hp": "v*2"}],
-               "text": "Grow a sapling with twice the die in HP. It draws one attack this round (one aimed at you first), and enemies can attack it after that."},
+               "text": "Grow a sapling with twice the die in HP. It takes one attack this round (one aimed at you first), and can be attacked after that."},
     "call_bear": {"cd": 3, "name": "Call Bear", "req": {"n": 2, "sum_min": 9}, "tgt": "self", "tags": ["grove"],
                   "ops": [{"op": "summon", "k": "bear"}], "miss": [],
                   "text": "Two dice summing to 9+: a bear joins the fight (15 HP, hits for 4 each round). Otherwise: nothing."},
@@ -599,8 +599,7 @@ ACTIONS.update({
                     "text": "Any row: deal the die +3 per Sigil on the enemy, and spend them."},
     "elemental_infusion": {"name": "Elemental Infusion", "req": {"n": 1}, "tgt": "self", "spell": True, "tags": ["edge"],
                            "ops": [{"op": "infuse", "n": 3, "amt": "max(2,v//2)"}],
-                           "text": "Infuse your blade: your next three melee hits this round deal +half the die (at least 2) and carry "
-                                   "an element by the number: 1-2 Frost (Weak), 3-4 Shock, 5+ Burn 2."},
+                           "text": "Your next three melee hits this round deal +half the die (at least 2) and an element: 1-2 Frost (Weak), 3-4 Shock, 5+ Burn 2."},
     "charged_bolt": {"name": "Charged Bolt", "req": {"n": 1}, "tgt": "foe", "spell": True, "tags": ["edge"],
                      "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "status", "s": "shock", "n": 1},
                              {"op": "infuse", "n": 1, "amt": "3", "el": "shock"}],
@@ -623,13 +622,11 @@ ACTIONS.update({
                  "text": "Any row: deal the die +3 per Sigil on the enemy and spend them; every other enemy takes 2 per Sigil spent."},
     "runic_ward": {"name": "Runic Ward", "req": {"n": 1}, "tgt": "self", "spell": True, "tags": ["sigil"],
                    "ops": [{"op": "armor", "amt": "v+1+min(6,allsig)"}, {"op": "infuse", "n": 1, "amt": "2", "el": "frost"}],
-                   "text": "Gain the die +1 as Armor, +1 per Sigil on the enemies (up to +6). Your next melee hit this round "
-                           "deals +2 and carries Frost (Weak)."},
+                   "text": "Gain the die +1 as Armor, +1 per Sigil on enemies (up to +6). Your next melee hit this round deals +2 and adds Frost (Weak)."},
     "brand": {"cd": 3, "name": "Brand", "req": {"n": 1, "min": 6, "sigils": 2}, "tgt": "foe", "spell": True, "tags": ["sigil"],
               "ops": [{"op": "dmg", "amt": "v+sigv", "burst": True}, {"op": "status", "s": "weak", "n": 2},
                       {"op": "status", "s": "vuln", "n": 2}], "miss": [],
-              "text": "Any row, on an enemy with 2+ Sigils. On 6+: deal the die +3 per Sigil and spend them, and it's Weak "
-                      "and Vulnerable for 2 rounds. Otherwise: nothing."},
+              "text": "Any row, needs 2+ Sigils. On 6+: spend them to deal the die +3 per Sigil; it's Weak and Vulnerable for 2 rounds. Otherwise: nothing."},
 })
 PASSIVES.update({
     "whetted_runes": {"name": "Whetted Runes", "mods": {"whetted": 1}, "tags": ["edge"],
@@ -644,7 +641,7 @@ PASSIVES.update({
                           "text": "Your weapon die's lowest face is a rune: it counts as the die's top face and passes any "
                                   "condition, and the action it's on carves a Sigil."},
     "covenant_edge": {"name": "Covenant Edge", "cap": True, "mods": {"covenant": 1}, "tags": ["edge"],
-                      "text": "Your infusions last the whole fight and aren't used up, but their bonus is at most +3. A new one replaces the element, keeping the bigger bonus."},
+                      "text": "Your infusions last the whole fight, but give at most +3. A new one changes the element and keeps the bigger bonus."},
     "feedback_loop": {"name": "Feedback Loop", "mods": {"feedback_loop": 1}, "tags": ["sigil"],
                       "text": "Bursting 3 or more Sigils infuses your next two melee hits this round with the Burst's die "
                               "(+half of it, and its element)."},
@@ -733,8 +730,7 @@ PASSIVES.update({
     "hearthfire": {"name": "Hearthfire", "mods": {"hearthfire": 3}, "tags": ["temper"],
                    "text": "At the end of the round, if your Heat is 10 or more, your most wounded ally heals 3."},
     "heart_of_the_forge": {"name": "Heart of the Forge", "cap": True, "mods": {"white_heat": 5}, "tags": ["temper"],
-                           "text": "At 25 Heat you don't overheat: you burn white for the rest of the round (+5 on every hit), "
-                                   "and your Heat drops to 0."},
+                           "text": "At 25 Heat you don't overheat: your Heat drops to 0 and your hits deal +5 for the rest of the round."},
 })
 CLASS_DICE["emberknight"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["emberknight"] = {
@@ -777,7 +773,7 @@ ACTIONS.update({
                       "text": "Every enemy is Weak; on 6+, for 2 rounds."},
     "dread_gaze": {"name": "Dread Gaze", "req": {"n": 1}, "tgt": "foe", "tags": ["hide"],
                    "ops": [{"op": "gaze"}, {"op": "weaken", "amt": "v"}, {"op": "armor", "amt": "v", "to": "self"}],
-                   "text": "Any row: the enemy's attack this round turns on you instead and deals the die less, and you gain the die as Armor."},
+                   "text": "Any row: its attack this round turns on you and deals the die less. Gain the die as Armor."},
     "wing_buffet": {"name": "Wing Buffet", "req": {"n": 1}, "tgt": "front", "tags": ["hide"],
                     "ops": [{"op": "weaken", "amt": "max(1,v//2)"}],
                     "text": "Every front-row enemy's attack this round deals half the die less (at least 1)."},
@@ -843,8 +839,7 @@ ACTIONS.update({
     "telekinetic_hurl": {"name": "Telekinetic Hurl", "req": {"n": 1}, "tgt": "foe", "tags": ["telekinesis"],
                          "ops": [{"op": "dmg", "amt": "v"}, {"op": "drag"}, {"op": "dmg", "amt": "6", "if": "v==1"},
                                  {"op": "dmg", "amt": "6", "to": "another", "if": "v==1"}],
-                         "text": "Any row: deal the die and drag the enemy to the front row. On exactly 1, it's thrown into "
-                                 "another enemy: 6 more to it, and 6 to the other."},
+                         "text": "Any row: deal the die and drag the enemy to the front row. On exactly 1, throw it into another enemy: 6 more to each."},
     "gravity_well": {"name": "Gravity Well", "req": {"n": 1}, "tgt": "foes", "tags": ["telekinesis"],
                      "ops": [{"op": "dmg", "amt": "v", "if": "back"}, {"op": "drag", "if": "back"}],
                      "text": "Every back-row enemy takes the die and is dragged to the front row."},
@@ -859,13 +854,11 @@ ACTIONS.update({
                  "text": "Any row: the enemy's attack this round deals the die +1 less."},
     "puppet_strings": {"cd": 4, "name": "Puppet Strings", "req": {"n": 2, "exact": 6}, "tgt": "foe", "spell": True,
                        "tags": ["telepathy"], "ops": [{"op": "turn"}], "miss": [{"op": "dmg", "amt": "sum//2"}],
-                       "text": "Two dice, both 6: the enemy turns its attack this round on another enemy (that one takes it now, "
-                               "and the attack is spent). Otherwise: deal half the sum."},
+                       "text": "Two dice, both 6: its attack this round hits another enemy instead, right now. Otherwise: deal half the sum."},
 })
 PASSIVES.update({
     "mind_link": {"name": "Mind Link", "mods": {}, "tags": [],
-                  "text": "Spend 1 Focus to reveal one of an ally's hidden dice (it's rolled now and shown); each further Focus "
-                          "nudges it up or down by 1."},
+                  "text": "Spend 1 Focus: reveal one of an ally's hidden dice. Each further Focus nudges it up or down by 1."},
     "overclock": {"name": "Overclock", "mods": {"overclock": 1}, "tags": ["telekinesis"],
                   "text": "+1 Focus each round, but spending it costs 1 HP."},
     "resonant_pair": {"name": "Resonant Pair", "mods": {"resonant_pair": 1}, "tags": ["telekinesis"],
@@ -908,83 +901,83 @@ QUICK_DRAW = 8  # the map ability (4, then 6 after the first Normal batch; 8 aft
 ACTIONS.update({
     "fire": {"name": "Fire", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": [],
              "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "dmg", "amt": "rico", "to": "another", "if": "rico and v%2==0"}],
-             "text": "Any row: deal the die +3. Fires a round; the last round in the cylinder is the Silver Round and deals double."},
+             "text": "Any row: deal the die +3. Uses 1 round; your last round (the Silver Round) deals double."},
     "reload": {"name": "Reload", "req": {"n": 1}, "tgt": "self", "tags": [],
                "ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"}],
-               "text": "Refill your cylinder. On 1–3 the hammer's cocked: your next shot this round deals +3."},
+               "text": "Refill your cylinder. On 1–3: your next shot this round deals +3."},
     "pistol_whip": {"name": "Pistol Whip", "req": {"n": 1}, "tgt": "foe", "melee": True, "tags": [],
                     "ops": [{"op": "dmg", "amt": "v+1"}],
                     # its own upgrade: the usual "reaches any row" would make it a better Fire with no rounds
                     "up": {"ops": [{"op": "dmg", "amt": "v+1"}, {"op": "reload", "n": 1}]}, "up_text": "it also thumbs a round into the cylinder",
-                    "text": "Deal the die +1. Needs no rounds: for when the cylinder's empty."},
+                    "text": "Deal the die +1. Uses no rounds."},
     "fan_the_hammer": {"cd": 2, "name": "Fan the Hammer", "req": {"n": 1}, "tgt": "foe", "shot": "all", "tags": ["quickdraw"],
                        "ops": [{"op": "dmg", "amt": "v+2*ammo"}],
-                       "text": "Any row: fire every round left in one volley: the enemy takes the die +2 per round."},
+                       "text": "Any row: fire every round left at one enemy: the die +2 per round."},
     "take_cover": {"cd": 2, "name": "Take Cover", "req": {"n": 1}, "tgt": "self", "tags": ["quickdraw"],
                    "ops": [{"op": "armor", "amt": "v+2"}, {"op": "reload", "n": 2}],
-                   "text": "Gain the die +2 as Armor, and load 2 rounds while you're down."},
+                   "text": "Gain the die +2 as Armor and load 2 rounds."},
     "high_noon": {"once": True, "cap": True, "name": "High Noon", "req": {"n": 1}, "tgt": "foes", "shot": "all", "tags": ["quickdraw"],
                   "ops": [{"op": "dmg", "amt": "v+ammo"}],
-                  "text": "Once a fight: fire every round left: every enemy takes the die +1 per round."},
+                  "text": "Once a fight: fire every round left. Every enemy takes the die +1 per round."},
     "cover_fire": {"cd": 2, "name": "Cover Fire", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                    "ops": [{"op": "dmg", "amt": "v"}, {"op": "weaken", "amt": "v"}],
-                   "text": "Any row: deal the die, and the enemy's attack this round deals the die less."},
+                   "text": "Any row: deal the die. Its attack this round deals the die less."},
     "showdown": {"cd": 2, "name": "Showdown", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                  "ops": [{"op": "dmg", "amt": "v+3"}, {"op": "status", "s": "weak", "n": 1, "if": "aimed"}],
-                 "text": "Any row: deal the die +3. If the enemy's attack this round is aimed at you, you draw first: it's Weak this round too."},
+                 "text": "Any row: deal the die +3. If it's aiming at you, it's also Weak this round."},
     "trick_shot": {"cd": 2, "name": "Trick Shot", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                    "ops": [{"op": "dmg", "amt": "v+2"}, {"op": "dmg", "amt": "v", "to": "behind"}],
-                   "text": "Any row: deal the die +2, and the bullet goes on: the die to an enemy in the other row."},
+                   "text": "Any row: deal the die +2, and the die to an enemy in the other row."},
     "disarming_shot": {"cd": 3, "name": "Disarming Shot", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                "ops": [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": "1+(v>=5)"}],
-               "text": "Any row: deal the die and shoot the weapon from its hand: it's Weak this round (on 5+, for 2 rounds)."},
+               "text": "Any row: deal the die. It's Weak this round (2 rounds on 5+)."},
     # the second set (owner's request, Nov 2026)
     "suppressing_fire": {"cd": 3, "name": "Suppressing Fire", "req": {"n": 1}, "tgt": "foes", "shot": 3, "tags": ["quickdraw"],
                          "ops": [{"op": "dmg", "amt": "v//2"}, {"op": "weaken", "amt": "2"}],
-                         "text": "Fire 3 rounds across the field: every enemy takes half the die, and every attack this round deals 2 less."},
+                         "text": "Uses 3 rounds: every enemy takes half the die, and every attack this round deals 2 less."},
     "aces_and_eights": {"cd": 2, "name": "Aces and Eights", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                         "ops": [{"op": "dmg", "amt": "(v+3)*(1+2*(v==1 or v==8))"}],
-                        "text": "Any row: deal the die +3. On a 1 or an 8 (the dead man's hand), three times that."},
+                        "text": "Any row: deal the die +3. On a 1 or an 8: triple."},
     "piercing_round": {"cd": 2, "name": "Piercing Round", "req": {"n": 1}, "tgt": "foe", "shot": 1, "tags": ["trickshot"],
                        "ops": [{"op": "dmg", "amt": "v+4", "pierce": True}],
-                       "text": "Any row: deal the die +4, straight through its Armor."},
+                       "text": "Any row: deal the die +4, ignoring Armor."},
 })
 PASSIVES.update({
     "speed_loader": {"name": "Speed Loader", "mods": {"cylinder": 2}, "tags": ["quickdraw"],
                      "text": "Your cylinder holds 8 rounds."},
     "count_your_shots": {"name": "Count Your Shots", "mods": {"count_shots": 1}, "tags": ["quickdraw"],
-                         "text": "Each shot deals +1 for every round already fired from this cylinder (up to +4)."},
+                         "text": "Your shots deal +1 per round already fired from this cylinder (up to +4)."},
     "dry_fire": {"name": "Dry Fire", "mods": {"dry_fire": 4}, "tags": ["quickdraw"],
-                 "text": "While your cylinder is empty, Pistol Whip deals +4."},
+                 "text": "Pistol Whip deals +4 while your cylinder is empty."},
     "hammer_back": {"name": "Hammer Back", "mods": {"hammer_back": 1}, "tags": ["quickdraw"],
-                    "text": "Reload cocks the hammer on any roll, and a cocked shot deals +5, not +3."},
+                    "text": "Reload's next-shot bonus comes on any roll, and is +5."},
     "fresh_cartridge": {"name": "Fresh Cartridge", "mods": {"scavenge": 1}, "tags": ["quickdraw"],
-                        "text": "A shot that kills puts a round back in your cylinder."},
+                        "text": "A shot that kills reloads 1 round."},
     "ricochet_rounds": {"name": "Ricochet Rounds", "mods": {"ricochet": 3}, "tags": ["trickshot"],
-                        "text": "When Fire's die is even, the bullet bounces: 3 to another enemy."},
+                        "text": "Fire on an even die also hits another enemy for 3."},
     "silver_bullets": {"name": "Silver Bullets", "mods": {"silver_bullets": 1}, "tags": ["trickshot"],
-                       "text": "Your Silver Round ignores Armor and leaves the enemy Vulnerable for 2 rounds."},
+                       "text": "Your Silver Round ignores Armor and makes the enemy Vulnerable for 2 rounds."},
     "long_barrel": {"name": "Long Barrel", "mods": {"longshot": 2}, "tags": ["trickshot"],
-                    "text": "Your shots and other ranged hits on back-row enemies deal +2."},
+                    "text": "Your ranged hits on back-row enemies deal +2."},
     "two_guns": {"name": "Two Guns", "mods": {"silver_twin": 3}, "tags": ["quickdraw"],
-                 "text": "Your Silver Round is fired from both guns: another enemy takes the die +3 too."},
+                 "text": "Your Silver Round also hits another enemy for the die +3."},
     "gunsmoke": {"name": "Gunsmoke", "tags": ["quickdraw"],
-                 "mods": {"override": {"reload": {"short": ('refresh', 'refill · die Armor · 1–3: next shot +3', None), "text": "Refill your cylinder and gain the die as Armor. On 1–3 the hammer's cocked: your next shot this round deals +3.", "ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"},
+                 "mods": {"override": {"reload": {"short": ('refresh', 'refill · die Armor · 1–3: next shot +3', None), "text": "Refill your cylinder and gain the die as Armor. On 1–3: your next shot this round deals +3.", "ops": [{"op": "reload"}, {"op": "status", "s": "cocked", "n": 1, "to": "self", "if": "v<=3 or hammer"},
                                                           {"op": "armor", "amt": "v", "to": "self"}]}}},
-                 "text": "Reloading behind a cloud of smoke: Reload also gives you the die as Armor."},
+                 "text": "Reload also gives you the die as Armor."},
     "silver_lining": {"name": "Silver Lining", "mods": {"silver_lining": 5}, "tags": ["trickshot"],
-                      "text": "When your Silver Round lands, your most wounded ally (or you) heals 5."},
+                      "text": "When your Silver Round hits, your most wounded ally (or you) heals 5."},
     "finish_the_job": {"name": "Finish the Job", "mods": {"execute_bonus": 2}, "tags": ["trickshot"],
-                       "text": "Your hits on enemies below half health deal +2."},
+                       "text": "+2 damage to enemies below half health."},
     "lucky_chamber": {"name": "Lucky Chamber", "cap": True, "mods": {"lucky_chamber": 1}, "tags": ["trickshot"],
-                      "text": "The third round in each cylinder is a Silver Round too."},
+                      "text": "Your third round is also a Silver Round."},
 })
 CLASS_DICE["gunslinger"] = [{"faces": D(8), "dk": []}, {"faces": D(6), "dk": []}]
 CLASSES["gunslinger"] = {
     "name": "Gunslinger", "hp": 31, "hp_lvl": 4, "role": "Ranged damage on a six-shot clock",
     "dice": [D(8), D(6)], "tags": ["quickdraw", "trickshot"],
     "map": {"key": "quick_draw", "name": "Quick Draw",
-            "text": f"When a fight you're in starts, you shoot first: the enemy with the biggest attack takes {QUICK_DRAW}."},
+            "text": f"When a fight you're in starts, the enemy with the biggest attack takes {QUICK_DRAW}."},
     "start": ["fire", "reload", "pistol_whip"], "weapon": "six_shooter", "armor": "padded_coat",
     "pool": ["fan_the_hammer", "take_cover", "high_noon", "cover_fire", "showdown", "trick_shot", "disarming_shot",
              "speed_loader", "count_your_shots", "dry_fire", "hammer_back", "fresh_cartridge", "ricochet_rounds",
@@ -1008,7 +1001,7 @@ DRAWS = ("the_draw", "flash_draw")
 ACTIONS.update({
     "the_draw": {"name": "The Draw", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "sheathed", "tags": [],
                  "ops": [{"op": "dmg", "amt": "v+2+resolve"}, {"op": "draw"}],
-                 "text": "Sheathed: one cut from the scabbard: deal the die +2 + all your Resolve. You're Drawn, and your Resolve is spent."},
+                 "text": "Sheathed: deal the die +2 + all your Resolve. You're Drawn; your Resolve is spent."},
     "cut": {"name": "Cut", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "drawn", "tags": [],
             "ops": [{"op": "dmg", "amt": "v+3"}], "text": "Drawn: deal the die +3."},
     "scabbard_strike": {"name": "Scabbard Strike", "req": {"n": 1}, "tgt": "foe", "melee": True, "stance": "sheathed", "tags": [],
@@ -1022,7 +1015,7 @@ ACTIONS.update({
                 "text": "Drawn: put the blade away: gain half the die as Armor and add the die to your Resolve. You're Sheathed."},
     "flash_draw": {"cd": 2, "name": "Flash Draw", "req": {"n": 1}, "tgt": "front", "melee": True, "stance": "sheathed", "tags": ["iai"],
                    "ops": [{"op": "dmg", "amt": "v+resolve//2"}, {"op": "draw"}],
-                   "text": "Sheathed: a wide draw: every front-row enemy takes the die + half your Resolve. You're Drawn, and your Resolve is spent."},
+                   "text": "Sheathed: every front-row enemy takes the die + half your Resolve. You're Drawn; your Resolve is spent."},
     "waiting_stance": {"cd": 2, "name": "Waiting Stance", "req": {"n": 1}, "tgt": "self", "stance": "sheathed", "tags": ["iai"],
                        "ops": [{"op": "armor", "amt": "v+2"}, {"op": "status", "s": "machi", "n": 1, "to": "self"}],
                        "text": "Sheathed: gain the die +2 as Armor; this round your iai counter cuts for all your Resolve, not half."},
@@ -1387,10 +1380,10 @@ CLASSES["vanguard"]["pool"] = [k for k in CLASSES["vanguard"]["pool"] if k not i
 HAWK_HUNT = 1  # was 2: Ranger parties won 64.5% (400 Hard runs)
 HAWK_PECK = 2
 HAWK_WATCH = 3
-ACTIONS["sic_em"].update(text="Your hawk dives at any row: deal the die and make the enemy Weak. The hawk stays to hunt it (this doesn't use its move).")
+ACTIONS["sic_em"].update(text="Any row: your hawk deals the die and makes the enemy Weak, then stays to hunt it (no move used).")
 ACTIONS["sic_em"]["ops"] = [{"op": "dmg", "amt": "v"}, {"op": "status", "s": "weak", "n": 1}, {"op": "hawk_to"}]
 ACTIONS["pack_tactics"]["ops"] = [{"op": "dmg", "amt": "v+5+2*hunted"}]
-ACTIONS["pack_tactics"]["text"] = "Any row. On 4+: you and your hawk strike together for the die +5 (+7 on the enemy it's hunting). Otherwise: deal half the die."
+ACTIONS["pack_tactics"]["text"] = "Any row. On 4+: you and your hawk deal the die +5 (+7 on its hunted enemy). Otherwise: deal half the die."
 PASSIVES["alpha"].update(mods={"pet": 8, "alpha_hawk": 2},
                          text="Your hawk's die is a d8, and its peck and the hit it softens are doubled.")
 ACTIONS.update({
@@ -1463,9 +1456,9 @@ ACTIONS["mind_crush"]["miss"] = [{"op": "dmg", "amt": "sum"}]
 ACTIONS["mind_crush"]["text"] = "Two dice, a pair: any row, the enemy takes four times the pair's number. Otherwise: their sum."
 ACTIONS["call_bear"]["req"] = {"n": 2, "sum_min": 7}
 ACTIONS["call_bear"]["miss"] = [{"op": "summon", "k": "sapling", "hp": "sum"}]
-ACTIONS["call_bear"]["text"] = "Two dice summing to 7+: a bear joins the fight (15 HP, hits for 4 each round). Otherwise: a sapling with their sum in HP."
+ACTIONS["call_bear"]["text"] = "Two dice summing to 7+: a bear joins (15 HP, hits for 4 a round). Otherwise: a sapling with their sum in HP."
 ACTIONS["briar_wall"]["ops"] = [{"op": "armor", "amt": "sum//2+1+2*pair", "to": "party"}, {"op": "status", "s": "thorns", "n": 3, "to": "party"}]
-ACTIONS["briar_wall"]["text"] = "Two dice: the party gains half their sum +1 as Armor (+2 more each if they're a pair), and attackers take 3 this round."
+ACTIONS["briar_wall"]["text"] = "Two dice: the party gains half the sum +1 as Armor (+2 each on a pair), and attackers take 3 this round."
 
 for _k, _dice in CLASS_DICE.items():
     CLASSES[_k]["dice"] = _dice
@@ -1482,7 +1475,7 @@ SUMMON_CAP = 2
 # Dice verbs and the Mender's rework: actions that change dice rather than add numbers.
 ACTIONS.update({
     "encore": {"name": "Counterpoint", "req": {"n": 1}, "tgt": "self", "instant": True, "tags": ["anthem"],
-               "ops": [{"op": "flip"}], "text": "Roll one of your dice now, in the open. If it lands in the bottom half, flip it to the opposite face, +1 (a 2 on a d6 becomes a 6). That die stays free to use."},
+               "ops": [{"op": "flip"}], "text": "Roll one of your dice now. If it's in the bottom half, flip it to the opposite face +1 (a 2 on a d6 becomes 6). It stays usable."},
     "potency": {"name": "Splitting Flask", "req": {"n": 1}, "tgt": "self", "instant": True, "tags": ["elixirs"],
                 "ops": [{"op": "split"}], "text": "Split one of your dice into two dice half its size plus one (a d8 becomes two d5s)."},
     "bramble_skin": {"name": "Grafting", "req": {"n": 2}, "tgt": "self", "instant": True, "tags": ["grove"],
@@ -1507,7 +1500,7 @@ PASSIVES.update({
     "mirror_step": {"name": "Mirror Step", "mods": {"echo_die": 1}, "tags": ["flurry"],
                     "text": "Gain an Echo die: a d8 until an ally uses a die this round, then it shows the biggest number of their last play."},
     "building_rage": {"name": "Building Rage", "mods": {"swell_die": 1}, "tags": ["rampage"],
-                      "text": "Gain a Swell die. It starts each fight as a d4 and grows each round you leave it: d10 +2, d12 +7, then d20 +12. Using it starts it over."},
+                      "text": "Gain a Swell die: a d4 that grows each round you leave it (d10 +2, d12 +7, d20 +12). Using it resets it."},
     "powder_edge": {"name": "Powder Edge", "mods": {"explosive_weapon": 1}, "tags": ["bloodlust"],
                     "text": "Your weapon's die explodes: its top face rolls again and adds."},
     "hawks_eye": {"name": "Hawk's Eye", "mods": {"seer_augur": 1}, "tags": ["marksman"],
@@ -1519,16 +1512,13 @@ PASSIVES.update({
     "reactive_mix": {"name": "Reactive Mix", "mods": {"catalyst": 1}, "tags": ["bombs"],
                      "text": "Your weapon die's two lowest numbers become a burn face and a poison face."},
     "sympathetic_strings": {"name": "Sympathetic Strings", "mods": {"res_weapon": 1}, "tags": ["anthem"],
-                            "text": "Your weapon die's two lowest faces become Resonance faces: each rolls the biggest number "
-                                    "the last ally to act this round played (a 3 if nobody has), so it lines up Chords."},
+                            "text": "Your weapon die's two lowest faces become Resonance faces (they copy the last ally's biggest number this round)."},
     "attuned_mind": {"name": "Attuned Mind", "mods": {"res_low": 1}, "tags": ["telekinesis"],
-                     "text": "Your biggest die's lowest face becomes a Resonance face: it rolls the biggest number the "
-                             "last ally to act this round played (a 3 if nobody has)."},
+                     "text": "Your biggest die's lowest face becomes a Resonance face (it copies the last ally's biggest number this round)."},
     "mirrored_edge": {"name": "Mirrored Edge", "mods": {"res_mirror": 1}, "tags": ["flurry"],
-                      "text": "Each of your dice's lowest face (not your armor's) becomes a Resonance face: it rolls the "
-                              "biggest number the last ally to act this round played (a 3 if nobody has)."},
+                      "text": "Your dice's lowest faces (not your armor's) become Resonance faces (they copy the last ally's biggest number this round)."},
     "sap_rising": {"name": "Sap Rising", "mods": {"swell_die": 1}, "tags": ["grove"],
-                   "text": "Gain a Swell die. It starts each fight as a d4 and grows each round you leave it: d10 +2, d12 +7, then d20 +12. Using it starts it over."},
+                   "text": "Gain a Swell die: a d4 that grows each round you leave it (d10 +2, d12 +7, d20 +12). Using it resets it."},
 })
 NEW_DICE_PICKS = {"vanguard": ["shield_rim"], "arcanist": ["wild_surge"], "mender": ["steady_hands"],
                   "duelist": ["fated_blade", "mirror_step", "mirrored_edge"], "berserker": ["building_rage", "powder_edge"],

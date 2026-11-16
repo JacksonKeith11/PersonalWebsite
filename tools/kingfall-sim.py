@@ -312,7 +312,7 @@ def land(b, f, now, target, body, near_add, core_i, bx, by, d, toward):
     elif "aoe" in atk:
         hits = (atk["aoe"]["ticks"] + 1) // 2 if abs(d - atk["aoe"]["at"]) < atk["aoe"]["r"] + r else 0
     elif kind == "light":
-        hits = 1 if touches(place_attack(atk["shape"], fh.x, fh.y, toward), bx, by, r) else 0
+        hits = 1 + len(atk.get("more", ())) if touches(place_attack(atk["shape"], fh.x, fh.y, toward), bx, by, r) else 0   # `more`: a double jab
     else:
         hits = 1 if d <= reach(atk) + r else 0
         if hits and (atk.get("step", 0) > 40 or atk.get("blink")):   # a leap or a blink carries the hero to the target

@@ -58,6 +58,15 @@ def login(c, base: str, username: str, password: str) -> None:
         raise LoginRejected("login failed" + (f": {error.get_text(' ', strip=True)}" if error else ""))
 
 
+def _words(item) -> str:
+    """The threadmark's word count as the listing shows it ("2.4k", "730"), or ""."""
+    for dt in item.select(".structItem-cell--meta dt"):
+        if dt.get_text(strip=True).lower() == "words":
+            dd = dt.find_next_sibling("dd")
+            return dd.get_text(strip=True) if dd else ""
+    return ""
+
+
 def _parse(site: str, base: str, soup: BeautifulSoup) -> list[db.Update]:
     updates = []
     for item in soup.select(".structItem"):
@@ -81,6 +90,7 @@ def _parse(site: str, base: str, soup: BeautifulSoup) -> list[db.Update]:
                 title=mark_link.get_text(strip=True) or "New threadmark",
                 url=url,
                 published=datetime.strptime(posted["datetime"], "%Y-%m-%dT%H:%M:%S%z").timestamp(),
+                words=_words(item),
             )
         )
     return updates

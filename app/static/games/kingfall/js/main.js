@@ -1,12 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=38';
-import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=38';
-import { icon } from './icons.js?v=38';
-import { Net, ME } from './net.js?v=38';
-import { FightScene } from './fight.js?v=38';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=38';
-import { unlock, sfx, setVolume } from './audio.js?v=38';
-import { music } from './music.js?v=38';
+import { setAtlas } from './rig.js?v=39';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=39';
+import { icon } from './icons.js?v=39';
+import { Net, ME } from './net.js?v=39';
+import { FightScene } from './fight.js?v=39';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=39';
+import { unlock, sfx, setVolume } from './audio.js?v=39';
+import { music } from './music.js?v=39';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -407,6 +407,32 @@ function title() {
 // a controller or the keyboard has no place, and goes on (left and right on the stick do both ways).
 const side = (e, b) => { if (!e.clientX && !e.clientY) return 1; const r = b.getBoundingClientRect(); return e.clientX < r.left + r.width / 2 ? -1 : 1; };
 
+// How the run went, shown in the lobby when it ends: the road of bosses (felled, where the party fell,
+// never reached), the time spent fighting, and what each hero did (the server's tallies; the best of
+// each column is gold when there is more than one hero).
+function recap(L, data) {
+  const won = L.result === 'won', felled = L.stage + (won ? 1 : 0), heroes = L.heroes.filter(h => h.tally);
+  if (!L.run || !L.run.length || !heroes.length) return '';
+  const mins = Math.floor((L.clock || 0) / 60), secs = String(Math.round(L.clock || 0) % 60).padStart(2, '0');
+  const road = L.run.map((b, i) => {
+    const B = data.bosses[b], cls = i < felled ? 'felled' : i === felled && !won ? 'fell' : 'ahead';
+    return `<span class="stop ${cls}" title="${cls === 'felled' ? 'Felled' : cls === 'fell' ? (L.result === 'quit' ? 'Left here' : 'The party fell here') : 'Not reached'}">${cls === 'felled' ? '✓' : cls === 'fell' ? '✕' : '·'} ${esc(B ? B.name : b)}</span>`;
+  }).join('');
+  const cols = [['dmg', 'Damage'], ['taken', 'Taken'], ['parries', 'Parries'], ['dodges', 'Clean dodges'], ['revives', 'Revives'], ['downs', 'Downs']];
+  const best = {};
+  for (const [k] of cols) {
+    const v = heroes.map(h => h.tally[k] || 0), top = k === 'taken' || k === 'downs' ? Math.min(...v) : Math.max(...v);
+    best[k] = heroes.length > 1 && v.filter(x => x === top).length === 1 && (top > 0 || k === 'taken' || k === 'downs') ? top : null;
+  }
+  return `<div class="recap">
+    <div class="road">${road}</div>
+    <div class="hint">${felled} of ${L.run.length} felled · ${mins}:${secs} in battle · ${esc((S.diffs || {})[L.diff] || '')}</div>
+    <table><tr><th></th>${cols.map(([, n]) => `<th>${n}</th>`).join('')}</tr>
+    ${heroes.map(h => `<tr style="--c:${data.colours[h.colour]}"><td class="who">${esc(h.name)} <span class="hint">${esc((data.weapons[h.weapon] || {}).name || '')} · ${(h.ups || []).length} blessing${(h.ups || []).length === 1 ? '' : 's'}</span></td>${
+      cols.map(([k]) => `<td class="${best[k] === (h.tally[k] || 0) ? 'best' : ''}">${Math.round(h.tally[k] || 0).toLocaleString()}</td>`).join('')}</tr>`).join('')}
+    </table></div>`;
+}
+
 function lobby() {
   const L = S.lobby, data = S.data;
   if (!L || !data) return;
@@ -415,6 +441,7 @@ function lobby() {
   const over = L.state === 'over';
   const el = show(`<div class="screen">
     ${over ? `<h2 style="color:${L.result === 'won' ? 'var(--gold2)' : L.result === 'quit' ? 'var(--dim)' : '#c03030'}">${L.result === 'won' ? 'The run is won' : L.result === 'quit' ? 'The run was left' : 'The party has fallen'}</h2>` : ''}
+    ${over ? recap(L, data) : ''}
     ${over ? '<div class="hint" style="margin:-6px 0 10px">Change your look, weapon or starting skill below before you fight again.</div>' : ''}
     <div class="row" style="justify-content:space-between">
       <div><h3 style="margin-top:0">Room</h3><div class="code-big">${esc(S.code)}</div></div>
@@ -430,7 +457,7 @@ function lobby() {
       : `<span class="chip" style="--r:${L.diff === k ? 'var(--gold)' : 'var(--line)'}">${esc(n)}</span>`).join('')}
       <span class="hint">${{ squire: 'Gentler bosses, for a relaxed night.', knight: 'As designed: souls-hard.', hard: 'Faster, meaner bosses; no Second Wind.' }[L.diff] || ''}</span></div>
     ${host && (S.saves || []).length ? `<h3>Saved runs</h3><div class="heroes">${S.saves.map(s =>
-      `<div class="row" style="justify-content:space-between"><span class="hint">${esc(s.summary)}</span><button class="btn" data-nav data-resume="${esc(s.id)}">Resume</button></div>`).join('')}</div>` : ''}
+      `<div class="row" style="justify-content:space-between"><span class="hint">${esc(s.summary)}</span><span><button class="btn" data-nav data-forget="${esc(s.id)}">Delete</button> <button class="btn" data-nav data-resume="${esc(s.id)}">Resume</button></span></div>`).join('')}</div>` : ''}
     <div class="row" style="margin-top:20px;justify-content:space-between">
       <button class="btn" id="leave" data-nav data-back>Leave</button>
       ${host ? `<button class="btn primary" id="start" data-nav ${L.heroes.length ? 'data-autofocus' : 'disabled'}>${over ? 'Fight again' : 'Begin'}</button>`
@@ -492,6 +519,7 @@ function lobby() {
     b.addEventListener('lr', e => cycle(e.detail));
   });
   el.querySelectorAll('[data-diff]').forEach(b => { b.onclick = () => net.send({ t: 'diff', d: b.dataset.diff }); });
+  el.querySelectorAll('[data-forget]').forEach(b => { b.onclick = () => net.send({ t: 'forget', id: b.dataset.forget }); });
   el.querySelectorAll('[data-resume]').forEach(b => { b.onclick = () => net.send({ t: 'resume', id: b.dataset.resume }); });
   el.querySelectorAll('[data-drop]').forEach(b => { b.onclick = () => net.send({ t: 'drop', h: +b.dataset.drop }); });
   if ($('[data-split]', el)) $('[data-split]', el).onclick = () => { const pad = S.p1pad; S.p1pad = null; addHero(slotOf(pad)); };

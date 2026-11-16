@@ -64,6 +64,9 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
 
 ## Gotchas
 
+- **The resume lives in three places.** `tools/resume/resume.html` is the source of the PDF: edit it, then
+  `node tools/resume/render.js` rewrites `app/static/Jackson-Keith-Resume.pdf` (check `pdfinfo` still says one
+  page). `app/static/resume.html` is the web copy and is edited by hand to match.
 - **The nav bar exists in six places:** `index.html`, `resume.html`, `projects.html`,
   `recipes.html`, `games.html`, and the `NAV` string in `app/books/pages.py`. Each copy marks its
   own page with `aria-current="page"`. Add or rename links in all of them.

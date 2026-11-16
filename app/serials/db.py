@@ -22,6 +22,7 @@ class Update:
     url: str
     published: float  # unix seconds
     author: str = ""
+    words: str = ""  # the forum's word count as shown, e.g. "2.4k"; forums only
 
 
 def _db() -> sqlite3.Connection:
@@ -40,7 +41,8 @@ def _db() -> sqlite3.Connection:
                 title TEXT NOT NULL,
                 url TEXT NOT NULL,
                 published REAL NOT NULL,
-                author TEXT NOT NULL DEFAULT ''
+                author TEXT NOT NULL DEFAULT '',
+                words TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS updates_published ON updates (published DESC);
             CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT);
@@ -57,6 +59,9 @@ def _db() -> sqlite3.Connection:
         if "author" not in columns:
             _conn.execute("ALTER TABLE updates ADD COLUMN author TEXT NOT NULL DEFAULT ''")
             _conn.commit()
+        if "words" not in columns:
+            _conn.execute("ALTER TABLE updates ADD COLUMN words TEXT NOT NULL DEFAULT ''")
+            _conn.commit()
     return _conn
 
 
@@ -65,17 +70,18 @@ def save_updates(updates: list[Update]) -> None:
         db = _db()
         db.executemany(
             """
-            INSERT INTO updates (key, site, story_title, story_url, title, url, published, author)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO updates (key, site, story_title, story_url, title, url, published, author, words)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (key) DO UPDATE SET
                 story_title = excluded.story_title,
                 story_url = excluded.story_url,
                 title = excluded.title,
                 url = excluded.url,
                 published = excluded.published,
-                author = excluded.author
+                author = excluded.author,
+                words = excluded.words
             """,
-            [(u.key, u.site, u.story_title, u.story_url, u.title, u.url, u.published, u.author) for u in updates],
+            [(u.key, u.site, u.story_title, u.story_url, u.title, u.url, u.published, u.author, u.words) for u in updates],
         )
         db.commit()
 

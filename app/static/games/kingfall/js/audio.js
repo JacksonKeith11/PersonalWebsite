@@ -12,7 +12,7 @@ function ac() {
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
-export function setVolume(v) { volume = v; if (master) master.gain.value = v; }
+export function setVolume(v) { volume = Number.isFinite(v) ? v : 0.6; if (master) master.gain.value = volume; }
 export function audioOut() { return ac() ? { ctx, master } : null; }
 export function unlock() { ac(); }
 
@@ -34,20 +34,20 @@ function env(c, g, t, a, peak, dur) {
 
 // filtered noise: whooshes, impacts, fire
 function hiss(f0, f1, q, dur, peak, type = 'bandpass', pan = 0) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || !(dur > 0) || ![f0, f1, peak].every(Number.isFinite)) return;
   const t = c.currentTime, s = noise(c), fl = c.createBiquadFilter(), g = c.createGain(), p = c.createStereoPanner();
   fl.type = type; fl.Q.value = q;
   fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
-  env(c, g, t, 0.01, peak, dur); p.pan.value = pan;
+  env(c, g, t, 0.01, peak, dur); p.pan.value = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0;  // a place not known yet plays in the middle
   s.connect(fl).connect(g).connect(p).connect(master);
   s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
 }
 
 function tone(type, f0, f1, dur, peak, delay = 0, pan = 0) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || !(dur > 0) || ![f0, f1, peak].every(Number.isFinite)) return;
   const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner();
   o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
-  env(c, g, t, 0.005, peak, dur); p.pan.value = pan;
+  env(c, g, t, 0.005, peak, dur); p.pan.value = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0;
   o.connect(g).connect(p).connect(master); o.start(t); o.stop(t + dur + 0.05);
 }
 
@@ -95,6 +95,43 @@ export const sfx = {
       if (o.heavy) tone('sawtooth', 62, 40, 0.4, 0.22, 0, pan);
     },
   },
+  // A hero's hit landing, by weapon, so each feels different in the hand: the sword's ring, the
+  // greatsword's thud, the daggers' quick ticks, the halberd's crack, an arrow's thunk, the catalyst's
+  // crackle. `big`: a heavy or a special.
+  hitBy: (weapon, pan, big) => {
+    switch (weapon) {
+      case 'greatsword': tone('sine', big ? 95 : 120, 36, big ? 0.34 : 0.22, big ? 0.6 : 0.42, 0, pan); hiss(1400, 180, 0.7, big ? 0.3 : 0.2, 0.5, 'lowpass', pan); tone('square', 150, 70, 0.1, 0.16, 0, pan); break;
+      case 'daggers': hiss(5200, 2400, 2.2, 0.05, 0.4, 'bandpass', pan); tone('triangle', 1900 + Math.random() * 500, 900, 0.05, 0.14, 0, pan); if (big) hiss(3000, 900, 1.2, 0.14, 0.4, 'bandpass', pan); break;
+      case 'halberd': hiss(2000, 600, 1, 0.14, 0.5, 'bandpass', pan); tone('triangle', 520, 240, 0.12, 0.2, 0, pan); tone('square', 130, 60, big ? 0.2 : 0.1, 0.22, 0, pan); break;
+      case 'bow': tone('sine', 210, 90, 0.09, 0.4, 0, pan); hiss(1800, 500, 1.4, 0.07, 0.35, 'bandpass', pan); if (big) tone('triangle', 420, 160, 0.16, 0.18, 0, pan); break;
+      case 'catalyst': tone('sawtooth', 1300, 320, 0.14, 0.12, 0, pan); tone('sine', 660, 990, 0.16, 0.14, 0.02, pan); hiss(4200, 1600, 3, 0.12, 0.2, 'bandpass', pan); if (big) tone('sine', 110, 50, 0.3, 0.4, 0, pan); break;
+      default: hiss(2600, 600, 0.9, 0.11, 0.48, 'bandpass', pan); tone('square', 170, 70, 0.1, 0.2, 0, pan); tone('triangle', 1250, 1150, big ? 0.22 : 0.12, 0.1, 0, pan);
+    }
+  },
+  // a weapon's own bonus landing: a knife in the back, the halberd's tip, a Power Shot
+  bonus: (pan, kind) => {
+    if (kind === 'bk') { tone('triangle', 880, 440, 0.1, 0.12, 0, pan); hiss(4200, 1800, 2, 0.07, 0.2, 'bandpass', pan); }
+    else if (kind === 'tip') { tone('triangle', 2100, 1900, 0.16, 0.1, 0, pan); tone('sine', 3150, 3000, 0.12, 0.05, 0, pan); }
+    else { tone('sine', 150, 60, 0.3, 0.4, 0, pan); tone('triangle', 1320, 1250, 0.3, 0.12, 0, pan); }
+  },
+  // a Power Shot let fly: the string's crack
+  power: (pan) => { hiss(900, 5200, 1.4, 0.16, 0.4, 'bandpass', pan); tone('triangle', 1760, 880, 0.2, 0.14, 0, pan); },
+  // a footfall, by floor: stone taps, mud squelches, grass and dirt scuff, glass ticks. `vol` 0..1 (others' are quieter)
+  step: (floor, pan, vol = 1) => {
+    const j = 0.85 + Math.random() * 0.3;
+    if (floor === 'mud') { hiss(500 * j, 160, 1.2, 0.09, 0.11 * vol, 'lowpass', pan); tone('sine', 150 * j, 90, 0.06, 0.05 * vol, 0, pan); }
+    else if (floor === 'grass') hiss(2600 * j, 1200, 0.8, 0.07, 0.07 * vol, 'bandpass', pan);
+    else if (floor === 'dirt') hiss(900 * j, 400, 0.8, 0.06, 0.09 * vol, 'bandpass', pan);
+    else if (floor === 'glass') { tone('triangle', 2300 * j, 2000, 0.05, 0.035 * vol, 0, pan); hiss(4200, 2600, 2, 0.03, 0.05 * vol, 'bandpass', pan); }
+    else { hiss(1500 * j, 600, 1.4, 0.045, 0.1 * vol, 'bandpass', pan); tone('sine', 120 * j, 70, 0.04, 0.05 * vol, 0, pan); }
+  },
+  // a heartbeat while this browser's hero is close to falling
+  heart: () => { tone('sine', 62, 40, 0.14, 0.4); tone('sine', 56, 38, 0.16, 0.3, 0.16); },
+  // a hit rolled clean through: a quick bright whisper
+  perfect: (pan) => { tone('sine', 1560, 2100, 0.16, 0.1, 0, pan); tone('sine', 2340, 3100, 0.14, 0.05, 0.03, pan); hiss(3000, 7000, 2, 0.16, 0.1, 'bandpass', pan); },
+  // a boss's body coming to rest
+  collapse: (pan, big) => { tone('sine', big ? 70 : 95, 30, 0.5, 0.6, 0, pan); hiss(700, 70, 0.7, 0.5, 0.5, 'lowpass', pan); hiss(2200, 500, 1, 0.12, 0.2, 'bandpass', pan); },
+  shatter: (pan) => { for (let i = 0; i < 6; i++) tone('triangle', 1800 + Math.random() * 2600, 1400, 0.25, 0.08, i * 0.035, pan); hiss(6000, 2500, 1.5, 0.3, 0.3, 'highpass', pan); },
   heal: () => { tone('sine', 520, 520, 0.4, 0.15); tone('sine', 780, 780, 0.5, 0.12, 0.08); tone('sine', 1040, 1040, 0.6, 0.08, 0.16); },
   down: () => { tone('sawtooth', 300, 60, 0.9, 0.3); },
   revive: () => { tone('sine', 400, 800, 0.5, 0.2); tone('sine', 600, 1200, 0.6, 0.12, 0.1); },
@@ -107,4 +144,60 @@ export const sfx = {
   wipe: () => { tone('sawtooth', 220, 55, 2.2, 0.35); tone('sawtooth', 233, 58, 2.2, 0.25); },
   ui: () => tone('triangle', 660, 660, 0.06, 0.08),
   uiBack: () => tone('triangle', 440, 440, 0.06, 0.08),
+};
+
+// Each arena's own quiet sound under the music: a bed of filtered noise that swells and falls (wind, a
+// hall's hush, a fire's roar) and small sounds at random (drips, crackles, bubbles, chimes, rustles).
+// `floor` is what footsteps sound like there.
+export const PLACE = {
+  chapel:   { floor: 'stone', bed: [260, 0.6, 0.035, 'lowpass'], bits: ['crackle'], every: 1.6 },
+  bog:      { floor: 'mud',   bed: [420, 0.7, 0.03, 'lowpass'], bits: ['bubble', 'drip'], every: 1.3 },
+  belfry:   { floor: 'stone', bed: [700, 1.6, 0.05, 'bandpass'], bits: ['creak'], every: 5 },
+  yard:     { floor: 'dirt',  bed: [520, 1.0, 0.04, 'bandpass'], bits: ['rustle'], every: 4 },
+  forest:   { floor: 'grass', bed: [1500, 0.7, 0.035, 'bandpass'], bits: ['rustle', 'creak'], every: 2.2 },
+  lab:      { floor: 'stone', bed: [300, 0.6, 0.03, 'lowpass'], bits: ['bubble', 'bubble', 'drip'], every: 0.9 },
+  boneyard: { floor: 'dirt',  bed: [380, 2.4, 0.05, 'bandpass'], bits: ['rustle'], every: 5 },
+  glass:    { floor: 'glass', bed: [2400, 2.0, 0.02, 'bandpass'], bits: ['chime'], every: 1.8 },
+  wall:     { floor: 'stone', bed: [600, 0.8, 0.05, 'bandpass'], bits: ['crackle', 'crackle'], every: 0.7 },
+  sanctum:  { floor: 'stone', bed: [240, 0.6, 0.03, 'lowpass'], bits: ['crackle', 'chime'], every: 2.2 },
+  throne:   { floor: 'stone', bed: [180, 0.8, 0.045, 'lowpass'], bits: ['drip', 'creak'], every: 4 },
+  bridge:   { floor: 'stone', bed: [480, 0.9, 0.06, 'bandpass'], bits: ['crackle', 'crackle'], every: 0.5 },
+};
+const BITS = {
+  drip: pan => { tone('sine', 1100 + Math.random() * 500, 520, 0.07, 0.05, 0, pan); tone('sine', 700, 1300, 0.05, 0.03, 0.08, pan); },
+  crackle: pan => { hiss(3200 + Math.random() * 2500, 1500, 3, 0.025, 0.07, 'bandpass', pan); if (Math.random() < 0.4) hiss(2400, 1200, 2, 0.02, 0.05, 'bandpass', pan); },
+  bubble: pan => { const f = 160 + Math.random() * 240; tone('sine', f, f * 2.1, 0.08, 0.05, 0, pan); },
+  chime: pan => { const f = [1568, 1760, 2093, 2349, 2637][Math.floor(Math.random() * 5)]; tone('sine', f, f * 0.995, 0.9, 0.022, 0, pan); },
+  rustle: pan => hiss(1800 + Math.random() * 1200, 3600, 0.8, 0.5 + Math.random() * 0.5, 0.03, 'bandpass', pan),
+  creak: pan => { const f = 90 + Math.random() * 60; tone('sawtooth', f, f * 1.25, 0.5, 0.018, 0, pan); },
+};
+export const ambience = {
+  P: null, src: null, gain: null, next: 0, swell: 0,
+  start(arena) {
+    this.stop();
+    const c = ac(), P = PLACE[arena];
+    if (!c || !P) return;
+    const [f, q, vol, type] = P.bed;
+    const s = noise(c), fl = c.createBiquadFilter(), g = c.createGain();
+    s.loop = true; fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.value = 0.0001;
+    s.connect(fl).connect(g).connect(master); s.start();
+    g.gain.setTargetAtTime(vol, c.currentTime, 1.2);
+    this.P = P; this.src = s; this.gain = g; this.next = 1 + Math.random() * P.every; this.swell = 2;
+  },
+  // once a frame: the bed swells and falls, and now and then a small sound somewhere in the room
+  tick(dt) {
+    const P = this.P;
+    if (!P || !ctx) return;
+    this.swell -= dt;
+    if (this.swell <= 0) { this.swell = 2 + Math.random() * 3; this.gain.gain.setTargetAtTime(P.bed[2] * (0.5 + Math.random()), ctx.currentTime, 1.5); }
+    this.next -= dt;
+    if (this.next <= 0) { this.next = P.every * (0.4 + Math.random() * 1.2); BITS[P.bits[Math.floor(Math.random() * P.bits.length)]](Math.random() * 1.6 - 0.8); }
+  },
+  stop() {
+    if (this.src) {
+      const s = this.src, g = this.gain;
+      try { g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.3); s.stop(ctx.currentTime + 1.2); } catch (e) { /* already stopped */ }
+    }
+    this.P = this.src = this.gain = null;
+  },
 };

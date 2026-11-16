@@ -262,3 +262,17 @@ kbd.g-sq { background: #6a2a5a; border-color: #ff8ad8; color: #fff; }
 @keyframes ember { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: .9; } 100% { transform: translate(30px, -520px); opacity: 0; } }
 @media (max-width: 600px) { .lineup canvas { width: 72px !important; height: 72px !important; } }
 @media (prefers-reduced-motion: reduce) { .embers, .card-up.r-epic::after { display: none; } .enter, .card-up.deal, .bigcard, .bigcard b, .banner .word { animation-duration: .01s; } }
+
+/* the run's recap, in the lobby when a run ends */
+.recap { margin: 0 0 12px; padding: 10px 12px; background: #0e0b12cc; border: 1px solid var(--line); }
+.recap .road { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.recap .stop { font: 600 12px var(--serif); padding: 3px 8px; border: 1px solid var(--line); color: var(--dim); }
+.recap .stop.felled { color: var(--gold2); border-color: var(--gold); }
+.recap .stop.fell { color: #e07070; border-color: #8a2a2a; }
+.recap table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.recap th { font: 600 11px var(--serif); color: var(--dim); text-align: right; padding: 2px 6px; letter-spacing: 0.04em; text-transform: uppercase; }
+.recap td { text-align: right; padding: 4px 6px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.recap td.who { text-align: left; border-left: 3px solid var(--c); font: 700 13px var(--serif); }
+.recap td.who .hint { font: 400 11px inherit; display: block; }
+.recap td.best { color: var(--gold2); font-weight: 700; }
+@media (max-width: 620px) { .recap th, .recap td { padding: 3px 3px; font-size: 11px; } }

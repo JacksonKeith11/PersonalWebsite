@@ -99,6 +99,9 @@ Read this before changing `app/books/` or `app/static/books/`.
   isn't. A tap or swipe that starts with text selected, or ends with a selection made, only changes
   the selection and never turns the page, and `#viewport` is held at scroll 0 so dragging a
   selection to the edge can't slide the next page in.
+- **Following a search result remembers where the reader was** (`returnTo` in `reader.js`): a
+  "Back to …" pill over the footer returns to that page. Going on to other results keeps the first
+  place; the pill's × forgets it.
 - **Pagination uses CSS columns.** Each page is one column exactly as wide as the text area, and
   turning a page slides the strip. A relayout (an image loading, a settings change) returns to an
   anchored element rather than a page number, because the text moves.

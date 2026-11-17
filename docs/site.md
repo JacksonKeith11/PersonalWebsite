@@ -16,15 +16,19 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   (a username, no password; see `docs/books.md`).
 - `app/arena/routes.py` adds Frag Arena's page and WebSocket (`docs/arena.md`),
   `app/brawl/routes.py` Board Brawl's (`docs/brawl.md`) and `app/saltbound/routes.py` Saltbound's
-  (`docs/saltbound.md`), and `app/kingfall/routes.py` Kingfall's (`docs/kingfall.md`) and `app/relay/routes.py` Sketch Relay's (`docs/relay.md`). Their games live in the web process's memory, so uvicorn must keep running
+  (`docs/saltbound.md`), and `app/kingfall/routes.py` Kingfall's (`docs/kingfall.md`) `app/relay/routes.py` Sketch Relay's (`docs/relay.md`), `app/scramble/routes.py` Scramble's (`docs/scramble.md`) and `app/holdfast/routes.py` Holdfast's (`docs/holdfast.md`). Their games live in the web process's memory, so uvicorn must keep running
   a single worker.
-- `app/rooms.py` is what the five multiplayer games share on the server: the WebSocket loop
+- `app/rooms.py` is what the seven multiplayer games share on the server: the WebSocket loop
   (`serve(ws, enter)`: a first `hello`, then each message to `room.handle`, `room.leave` on close),
   sending to one connection through its own queue (`push`, hanging up a connection too far behind),
   `Refused` to turn a browser away with a message, rooms by four-letter code (`Codes`), `clean` for
   browser text and `page_version` for a page's `?v=`. In the browser,
   `app/static/games/shared/net.js` is the shared half: `identity(key)` (the localStorage token and
-  per-tab id) and `GameSocket` (connects, says hello, reconnects after 1, 2, 4… 16 s).
+  per-tab id) and `GameSocket` (connects, says hello, reconnects after 1, 2, 4… 16 s). Beside it,
+  `lobby.js` and `lobby.css` are the menu and lobby of a room-code game (a name, make a room or join by
+  code, the reload and error messages), used by Scramble and Holdfast: a new room-code game should
+  start from them rather than copy another game's menu. `lobby.js` reads the page's version from its
+  one `<script type=module src>`, and bumping `games/shared` updates every game that links it.
 - `data/` holds runtime state (`serials.db`, `books/`). It's mounted into both containers and is
   gitignored.
 
@@ -74,10 +78,10 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   app/static/style.css`: it bumps every link to it (the public pages, Song Guesser's `index.html`,
   `STYLE` in `app/books/pages.py`) and `ASSET_VERSION`, since the books service worker caches `STYLE`.
   `python3 tools/bump-version.py --check` lists any file linked with two different versions.
-- **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about a minute): the app
+- **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about four and a half minutes): the app
   imports, cache versions agree, every browser JS file parses (`tools/check-js.sh`), and each game's
   own checks. Browser smoke tests need a running server and live in each area's doc, except Kingfall's
-  and Sketch Relay's (`tools/kingfall-smoke.js --serve`, `tools/relay-smoke.js --serve`), which start their own and are in `check-all.sh`; a check that exits
+  Sketch Relay's, Scramble's and Holdfast's (`tools/<game>-smoke.js --serve`), which start their own and are in `check-all.sh`; a check that exits
   77 is reported as `skip` (Playwright isn't installed), not a failure.
 - **`node --check file.js` doesn't catch syntax errors in the games' ES modules**: here a `.js` file
   isn't parsed as a module, and broken code passes. `tools/check-js.sh` checks a `.mjs` copy of each.

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holdfast · Jackson Keith</title>
+  <meta name="description" content="Co-op tower defence for one to four players: one map, separate purses, thirty waves.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
+  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=1">
+</head>
+<body>
+  <div id="menu" class="screen paperish">
+    <div class="panel">
+      <a class="back" href="/games">&larr; Games</a>
+      <h1>Holdfast</h1>
+      <p class="intro">
+        Tower defence for one to four players. You all build on the same map, but each of you has your own
+        purse, so decide together who pays for what. Hold the keep for thirty waves.
+      </p>
+      <label class="field">Your name
+        <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false">
+      </label>
+      <div class="choices">
+        <section>
+          <h2>Start a game</h2>
+          <p>Make a room. Play alone, or send friends its code.</p>
+          <button id="create" class="primary" type="button">Make a room</button>
+        </section>
+        <section>
+          <h2>Join friends</h2>
+          <p>Type the code from whoever made the room.</p>
+          <div class="join">
+            <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Room code">
+            <button id="join" type="button">Join</button>
+          </div>
+        </section>
+      </div>
+      <p id="status" role="status"></p>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li>Enemies walk the road to the keep. Each one that gets there costs a life (a Warlord costs five). You share twenty.</li>
+          <li>Pick a tower from the bar, then click or tap a free square to build it. Click a tower to upgrade it (anyone can pay) or sell it (only its builder).</li>
+          <li>Every kill pays everyone equally. If a friend is short, give them gold from the players list.</li>
+          <li>Flyers ignore the road and go straight for the keep; cannons and beacons can't touch them.</li>
+          <li>Shieldbearers shrug off small hits. Ballistas go straight through armour.</li>
+          <li>Between waves, press Ready to send the next one early.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <div id="lobby" class="screen paperish" hidden>
+    <div class="panel">
+      <a class="back" href="/games/holdfast">&larr; Leave room</a>
+      <h1>Room <span id="room-code" class="code"></span></h1>
+      <p class="share">Send friends this link: <input id="share" readonly aria-label="Link to this room"> <button id="copy" type="button">Copy</button></p>
+      <div class="cols">
+        <section>
+          <h2>Players <small id="count"></small></h2>
+          <ul id="seats" class="people"></ul>
+        </section>
+        <section>
+          <h2>Game</h2>
+          <label class="field-row">Map <select id="map"></select></label>
+          <p id="map-blurb" class="note"></p>
+          <label class="field-row">Difficulty
+            <select id="diff">
+              <option value="easy">Easy</option>
+              <option value="normal">Normal</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <button id="start" class="primary host-only" type="button">Start</button>
+          <p id="lobby-note" class="note"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="game" class="screen" hidden>
+    <header class="top">
+      <b>Holdfast</b>
+      <span id="hud-wave"></span>
+      <span id="hud-lives"></span>
+      <span class="spacer"></span>
+      <button id="speed" class="host-only" type="button"></button>
+      <span>Room <b id="game-code" class="code"></b></span>
+    </header>
+    <div class="main">
+      <div class="stage">
+        <canvas id="board"></canvas>
+        <div id="palette" role="group" aria-label="Towers to build"></div>
+      </div>
+      <aside>
+        <section id="wavebox">
+          <h2 id="wave-title"></h2>
+          <p id="coming"></p>
+          <button id="ready" class="primary" type="button">Ready</button>
+        </section>
+        <section>
+          <h2>Purses</h2>
+          <ul id="purses" class="people"></ul>
+        </section>
+        <section id="info"></section>
+      </aside>
+    </div>
+    <div id="end" class="overlay" hidden>
+      <div class="card">
+        <p class="kicker" id="end-kicker"></p>
+        <h2 id="end-title"></h2>
+        <table>
+          <thead><tr><th>Player</th><th>Kills</th><th>Damage</th><th>Spent</th></tr></thead>
+          <tbody id="end-rows"></tbody>
+        </table>
+        <div class="row">
+          <button id="again" class="primary host-only" type="button">Back to the room</button>
+          <a class="button" href="/games/holdfast">Leave</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/games/holdfast/js/main.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+/* Scramble. The menu and lobby are the shared paper card (shared/lobby.css); the race fills the window. */
+body { background: #2c4a63 linear-gradient(180deg, #7fb6dc 0%, #cfe6f2 100%) fixed; }
+
+#game { position: fixed; inset: 0; overflow: hidden; background: #8cc0e3; touch-action: none; user-select: none; -webkit-user-select: none; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.hud {
+  position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; padding: calc(8px + env(safe-area-inset-top)) 16px 8px; pointer-events: none;
+  color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 30, 60, 0.7); font-variant-numeric: tabular-nums;
+}
+.hud .big { font-size: 1.5rem; }
+
+#banner {
+  position: absolute; top: 22%; left: 0; right: 0; margin: 0; text-align: center; pointer-events: none;
+  font: 700 clamp(2.2rem, 9vw, 5rem)/1.1 "Source Serif 4", Georgia, serif; color: #fff;
+  text-shadow: 0 3px 0 rgba(0, 30, 60, 0.45), 0 0 24px rgba(0, 30, 60, 0.4);
+}
+#banner.small { font-size: clamp(1.2rem, 4vw, 1.8rem); top: 14%; }
+
+#touch { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 14px calc(14px + env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: flex-end; pointer-events: none; }
+#touch button {
+  pointer-events: auto; width: 76px; height: 76px; border-radius: 50%; padding: 0; font-size: 1.5rem;
+  background: rgba(255, 255, 255, 0.35); border: 2px solid rgba(255, 255, 255, 0.8); color: #fff;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+#touch button.down { background: rgba(255, 255, 255, 0.7); color: #2c4a63; }
+#t-jump { margin-left: auto; width: 96px !important; height: 96px !important; font-size: 1.1rem !important; }
+
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(20, 40, 60, 0.45); overflow: auto; }
+.card {
+  width: min(560px, 100%); padding: 24px 28px; border-radius: 6px; background: var(--paper); color: var(--fg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.card h2 { font: 700 1.7rem/1.2 "Source Serif 4", Georgia, serif; margin: 2px 0 12px; }
+.kicker { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.card table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+.card th { text-align: left; font-size: 0.8rem; color: var(--muted); font-weight: 600; padding: 4px 6px; }
+.card td { padding: 7px 6px; border-top: 1px solid var(--rule); }
+.card td:first-child { width: 2.2em; color: var(--muted); }
+.card tr.me td { font-weight: 700; }
+.card td .dot { display: inline-block; margin-right: 6px; }
+.card td.gain { color: #2f7a43; font-weight: 600; }
+.card .row { margin: 0; }

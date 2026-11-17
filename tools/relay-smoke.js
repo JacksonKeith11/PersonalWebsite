@@ -231,7 +231,7 @@ async function serve() {
     console.log(`ok: three players wrote, drew and guessed; ${pages} pages read out; album and replay work`);
     code = 0;
   } catch (e) {
-    console.log('FAILED: ' + e.message);
+    console.log('FAILED: ' + e.message + ((e.stack || '').split('\n').find(l => l.includes('smoke.js')) || ''));
     if (problems.length) console.log('page errors:\n  ' + problems.join('\n  '));
   }
   await browser.close();

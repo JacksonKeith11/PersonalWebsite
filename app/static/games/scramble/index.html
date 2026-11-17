@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Scramble · Jackson Keith</title>
+  <meta name="description" content="An obstacle-course race for up to eight players: a new course every round, with saws, springs and moving platforms.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
+  <link rel="stylesheet" href="/static/games/scramble/game.css?v=1">
+</head>
+<body>
+  <div id="menu" class="screen paperish">
+    <div class="panel">
+      <a class="back" href="/games">&larr; Games</a>
+      <h1>Scramble</h1>
+      <p class="intro">
+        A race over an obstacle course that's different every round. Jump the gaps, duck the saws, ride the
+        lifts, and get to the flag before everyone else.
+      </p>
+      <label class="field">Your name
+        <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false">
+      </label>
+      <div class="choices">
+        <section>
+          <h2>Start a game</h2>
+          <p>Make a room, then send friends its code or add some bots.</p>
+          <button id="create" class="primary" type="button">Make a room</button>
+        </section>
+        <section>
+          <h2>Join friends</h2>
+          <p>Type the code from whoever made the room.</p>
+          <div class="join">
+            <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Room code">
+            <button id="join" type="button">Join</button>
+          </div>
+        </section>
+      </div>
+      <p id="status" role="status"></p>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li>One to eight racers. Bots can fill empty lanes.</li>
+          <li>Run with the arrow keys or A and D, jump with Space, W or the up arrow. Hold jump for a higher jump. On a phone, use the buttons on the screen.</li>
+          <li>Touch a spike or a saw, or fall in a pit, and you start that section again from its flag.</li>
+          <li>Other racers can't block you: you run through each other.</li>
+          <li>Once the first racer finishes, everyone else has 25 seconds.</li>
+          <li>Each round gives points by place. Most points after the last round wins.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <div id="lobby" class="screen paperish" hidden>
+    <div class="panel">
+      <a class="back" href="/games/scramble">&larr; Leave room</a>
+      <h1>Room <span id="room-code" class="code"></span></h1>
+      <p class="share">Send friends this link: <input id="share" readonly aria-label="Link to this room"> <button id="copy" type="button">Copy</button></p>
+      <div class="cols">
+        <section>
+          <h2>Racers <small id="count"></small></h2>
+          <ul id="seats" class="people"></ul>
+          <div class="row host-only">
+            <button id="bot-add" type="button">Add a bot</button>
+            <button id="bot-remove" type="button">Remove a bot</button>
+          </div>
+        </section>
+        <section>
+          <h2>Game</h2>
+          <label class="field-row">Rounds
+            <select id="rounds">
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="7">7</option>
+            </select>
+          </label>
+          <button id="start" class="primary host-only" type="button">Start the race</button>
+          <p id="lobby-note" class="note"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="game" class="screen" hidden>
+    <canvas id="view"></canvas>
+    <div class="hud">
+      <span id="hud-round"></span>
+      <span id="hud-place" class="big"></span>
+      <span id="hud-time"></span>
+    </div>
+    <p id="banner" role="status" hidden></p>
+    <div id="touch" hidden>
+      <button id="t-left" type="button" aria-label="Run left">◀</button>
+      <button id="t-right" type="button" aria-label="Run right">▶</button>
+      <button id="t-jump" type="button" aria-label="Jump">Jump</button>
+    </div>
+    <div id="results" class="overlay" hidden>
+      <div class="card">
+        <p class="kicker" id="res-kicker"></p>
+        <h2 id="res-title"></h2>
+        <table>
+          <thead><tr><th></th><th>Racer</th><th>Time</th><th>Round</th><th>Total</th></tr></thead>
+          <tbody id="res-rows"></tbody>
+        </table>
+        <p id="res-note" class="note"></p>
+        <div class="row">
+          <button id="again" class="primary host-only" type="button" hidden>Back to the room</button>
+          <a id="res-leave" class="button" href="/games/scramble" hidden>Leave</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/games/scramble/js/main.js?v=1"></script>
+</body>
+</html>

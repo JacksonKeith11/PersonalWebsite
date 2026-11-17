@@ -36,11 +36,16 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   keyboard/mouse and controllers; twelve bosses, twelve weapons, twenty skills on cooldowns, upgrades between fights) at `/games/kingfall`
 - `app/relay/` and `app/static/games/relay/`: Sketch Relay, a drawing-and-guessing party game for 3-8 friends (write,
   draw what you're handed, guess the drawing, pass it on; rooms by code, a FastAPI WebSocket server) at `/games/sketch-relay`
-- `app/rooms.py` and `app/static/games/shared/net.js`: what the five multiplayer games share (the WebSocket loop,
-  sending, room codes; the browser's identity and reconnecting socket)
+- `app/scramble/` and `app/static/games/scramble/`: Scramble, an obstacle-course race for 1-8 players with bots (a new
+  course every round; each browser runs its own physics, a FastAPI WebSocket server relays and scores) at `/games/scramble`
+- `app/holdfast/` and `app/static/games/holdfast/`: Holdfast, co-op tower defence for 1-4 players (one map, separate
+  purses, thirty waves; the fight runs on a FastAPI WebSocket server) at `/games/holdfast`
+- `app/rooms.py` and `app/static/games/shared/net.js`: what the seven multiplayer games share (the WebSocket loop,
+  sending, room codes; the browser's identity and reconnecting socket); `games/shared/lobby.js` and `lobby.css`:
+  the menu and lobby Scramble and Holdfast share
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
-  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `check-all.sh`, every fast check, and
+  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `scramble-*`, Scramble's; `holdfast-*`, Holdfast's; `check-all.sh`, every fast check, and
   `bump-version.py`, the cache versions)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
@@ -51,7 +56,7 @@ up front. Read the matching one before you change something in that area:
 
 | Changing... | Read |
 |---|---|
-| `app/main.py`, `app/auth.py`, `app/rooms.py`, `games/shared/`, public pages, `style.css`, the nav bar, Dockerfiles, compose, deploy, `tools/check-all.sh`, `tools/bump-version.py` | `docs/site.md` |
+| `app/main.py`, `app/auth.py`, `app/rooms.py`, `games/shared/` (`net.js`, `lobby.js`, `lobby.css`), public pages, `style.css`, the nav bar, Dockerfiles, compose, deploy, `tools/check-all.sh`, `tools/bump-version.py` | `docs/site.md` |
 | `app/serials/` | `docs/serials.md` |
 | `app/books/`, `app/static/books/` | `docs/books.md` |
 | `app/static/games/threefold/`, `tools/threefold-autoplay.js`, `tools/threefold-art/` | `docs/game.md` |
@@ -62,6 +67,8 @@ up front. Read the matching one before you change something in that area:
 | Saltbound skills, classes, dice or balance | `docs/saltbound-skills.md` too |
 | `app/kingfall/`, `app/static/games/kingfall/`, `tools/kingfall-*`, `tools/kingfall-art/` | `docs/kingfall.md` |
 | `app/relay/`, `app/static/games/relay/`, `tools/relay-*` | `docs/relay.md` |
+| `app/scramble/`, `app/static/games/scramble/`, `tools/scramble-*` | `docs/scramble.md` |
+| `app/holdfast/`, `app/static/games/holdfast/`, `tools/holdfast-*` | `docs/holdfast.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.
@@ -78,7 +85,7 @@ When a change alters how an area works or turns up a new gotcha, update its doc 
 - Cloudflare caches static files: when changing CSS/JS, bump its `?v=` with
   `python3 tools/bump-version.py <folder or file>` (a game's folder, `app/static/books`, or
   `app/static/style.css`); it updates every link together.
-- Run `tools/check-all.sh` before pushing: the fast checks for every area, in about a minute.
+- Run `tools/check-all.sh` before pushing: the fast checks for every area, in about four and a half minutes.
 - Don't run long scripts (the Saltbound simulator, browser audits) when existing numbers answer the
   question. For a question, answer first from what's known (the area doc's latest numbers, earlier
   output, `python3 tools/saltbound-sim.py --last`), say how old it is, and offer a fresh run. When a

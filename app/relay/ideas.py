@@ -1,0 +1,31 @@
+"""Starting prompts for Sketch Relay: offered to a player who can't think of one, and used for a
+player who runs out of time. Things that are funny to draw badly and easy to misread."""
+
+IDEAS = [
+    "A cat filing its taxes", "A wizard stuck in traffic", "A snowman on a beach holiday",
+    "A dog teaching a yoga class", "A dragon afraid of a mouse", "A ghost who can't find the light switch",
+    "A giraffe in a turtleneck", "A pirate at the dentist", "A robot learning to swim",
+    "A penguin delivering pizza", "A vampire at a blood drive", "A knight stuck in a revolving door",
+    "A shark at a job interview", "A cow jumping over a very small moon", "A snail winning a race",
+    "A bear who has lost his keys", "An octopus playing the drums", "A T. rex making a bed",
+    "A haunted toaster", "A mermaid on a bicycle", "A sheep getting a haircut", "A squirrel robbing a bank",
+    "A chicken crossing a tightrope", "A horse in a canoe", "A wedding between two cacti",
+    "An astronaut walking a dog on the moon", "A frog with a jetpack", "A grandma on a skateboard",
+    "A moose in an elevator", "A banana slipping on a person", "A lighthouse with stage fright",
+    "A cloud that is having a bad day", "A pigeon running for mayor", "A king who is also a potato",
+    "Two snails in a sword fight", "A whale in a bathtub", "A bee who is allergic to flowers",
+    "A scarecrow making friends with crows", "A volcano with a cold", "A duck directing an orchestra",
+    "A mummy unwrapping a present", "A crab giving a haircut", "An owl who overslept",
+    "A cowboy riding a goldfish", "A mole wearing sunglasses", "A hedgehog at a balloon party",
+    "A fish climbing a tree", "A spider knitting a sweater", "A camel on roller skates",
+    "A zombie doing its morning stretches", "A fox reading a bedtime story to chickens",
+    "A sloth late for the bus", "An elephant hiding behind a lamp post", "A burglar caught by a goose",
+    "A sandwich eating a person", "A tortoise with a rocket on its shell", "A wolf howling at a disco ball",
+    "A raccoon cooking dinner", "A yeti getting a sunburn", "A lobster playing the piano",
+    "A bat who is afraid of the dark", "A unicorn stuck in a doorway", "A walrus brushing its teeth",
+    "A goat on a trampoline", "A dinosaur at a birthday party", "A mouse lifting weights",
+    "A swan in a traffic jam", "A troll paying a toll", "An alien confused by a toaster",
+    "A lion scared of its own reflection", "A flamingo doing ballet", "A hamster driving a monster truck",
+    "A parrot giving a weather forecast", "A witch whose broom has broken down", "A turtle delivering mail",
+    "A kangaroo with too much shopping", "A snowball fight in the desert", "A pig building a brick house",
+]

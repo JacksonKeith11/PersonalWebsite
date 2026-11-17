@@ -2,7 +2,7 @@
 # The fast checks, before a push (every push to main goes live). About two and a half minutes.
 #     tools/check-all.sh
 # The other games' browser smoke tests need a running server and aren't included: see each area's doc.
-# Kingfall's starts its own server, and is skipped where Playwright isn't installed.
+# Kingfall's and Sketch Relay's start their own server, and are skipped where Playwright isn't installed.
 set -u
 cd "$(dirname "$0")/.."
 fail=0
@@ -30,4 +30,6 @@ run "Song Guesser: arrangements"     node tools/song-guesser-check.js
 run "Kingfall: geometry parity"      node tools/kingfall-parity.mjs
 run "Kingfall: bot fights"           python3 tools/kingfall-sim.py --fast
 run "Kingfall: a run in a browser"   node tools/kingfall-smoke.js --serve
+run "Sketch Relay: pretend games"    python3 tools/relay-check.py
+run "Sketch Relay: in three browsers" node tools/relay-smoke.js --serve
 exit $fail

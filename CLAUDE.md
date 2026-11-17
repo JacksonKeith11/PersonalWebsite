@@ -34,11 +34,13 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   dice combat, a rising sea as the clock; FastAPI WebSocket server, Phaser map) at `/games/saltbound`
 - `app/kingfall/` and `app/static/games/kingfall/`: Kingfall, a 2D co-op boss rush for 1-4 players (online and couch,
   keyboard/mouse and controllers; twelve bosses, twelve weapons, twenty skills on cooldowns, upgrades between fights) at `/games/kingfall`
-- `app/rooms.py` and `app/static/games/shared/net.js`: what the four multiplayer games share (the WebSocket loop,
+- `app/relay/` and `app/static/games/relay/`: Sketch Relay, a drawing-and-guessing party game for 3-8 friends (write,
+  draw what you're handed, guess the drawing, pass it on; rooms by code, a FastAPI WebSocket server) at `/games/sketch-relay`
+- `app/rooms.py` and `app/static/games/shared/net.js`: what the five multiplayer games share (the WebSocket loop,
   sending, room codes; the browser's identity and reconnecting socket)
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
-  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `check-all.sh`, every fast check, and
+  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `check-all.sh`, every fast check, and
   `bump-version.py`, the cache versions)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
@@ -59,6 +61,7 @@ up front. Read the matching one before you change something in that area:
 | `app/saltbound/`, `app/static/games/saltbound/`, `tools/saltbound-*`, `tools/saltbound-art/` | `docs/saltbound.md` |
 | Saltbound skills, classes, dice or balance | `docs/saltbound-skills.md` too |
 | `app/kingfall/`, `app/static/games/kingfall/`, `tools/kingfall-*`, `tools/kingfall-art/` | `docs/kingfall.md` |
+| `app/relay/`, `app/static/games/relay/`, `tools/relay-*` | `docs/relay.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sketch Relay · Jackson Keith</title>
+  <meta name="description" content="A drawing party game for three to eight friends: write something, pass it on, draw what you get, guess what you see, and watch it all go wrong.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/games/relay/game.css?v=1">
+</head>
+<body>
+  <!-- Start: make or join a room -->
+  <div id="menu" class="screen">
+    <div class="panel">
+      <a class="back" href="/games">&larr; Games</a>
+      <h1>Sketch Relay</h1>
+      <p class="intro">
+        A drawing game for three to eight friends. Write something, pass it on, draw what you're handed,
+        guess what the last person drew. At the end, read back how badly it all went.
+      </p>
+      <label class="field">Your name
+        <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false">
+      </label>
+      <div class="choices">
+        <section>
+          <h2>Start a game</h2>
+          <p>Make a room and send your friends its code or link.</p>
+          <button id="create" class="primary" type="button">Make a room</button>
+        </section>
+        <section>
+          <h2>Join friends</h2>
+          <p>Type the code from whoever made the room.</p>
+          <div class="join">
+            <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Room code">
+            <button id="join" type="button">Join</button>
+          </div>
+        </section>
+      </div>
+      <p id="status" role="status"></p>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li>Three to eight players, each on their own phone or computer.</li>
+          <li>Everyone starts by writing something to draw.</li>
+          <li>Every step, what you made is passed to the next player. Handed words, you draw them. Handed a drawing, you write what you think it is.</li>
+          <li>It carries on until everyone has added a page to every chain.</li>
+          <li>Then each chain is read out from the start, one page at a time.</li>
+          <li>There are no points. Drawing badly is the point.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- The room before the game starts -->
+  <div id="lobby" class="screen" hidden>
+    <div class="panel">
+      <a class="back" href="/games/sketch-relay">&larr; Leave room</a>
+      <h1>Room <span id="room-code" class="code"></span></h1>
+      <p class="share">Send friends this link: <input id="share" readonly aria-label="Link to this room"> <button id="copy" type="button">Copy</button></p>
+      <div class="cols">
+        <section>
+          <h2>Players <small id="count"></small></h2>
+          <ul id="seats" class="people"></ul>
+        </section>
+        <section>
+          <h2>Game</h2>
+          <label class="field-row">Timer
+            <select id="timer" class="host-input">
+              <option value="normal">On</option>
+              <option value="relaxed">Relaxed (twice as long)</option>
+              <option value="off">Off (wait for everyone)</option>
+            </select>
+          </label>
+          <button id="start" class="primary host-only" type="button">Start the game</button>
+          <p id="lobby-note" class="note"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- A game: this step's job -->
+  <div id="play" class="screen" hidden>
+    <div class="panel slim">
+      <header class="top">
+        <b>Sketch Relay</b>
+        <span id="step"></span>
+        <span class="spacer"></span>
+        <span id="clock" class="clock" hidden></span>
+      </header>
+
+      <form id="write" class="job" hidden>
+        <h2><label for="write-text">Write something for the next player to draw</label></h2>
+        <input id="write-text" class="words" autocomplete="off" placeholder="A cat filing its taxes">
+        <p class="ideas">Stuck? <span id="ideas"></span></p>
+        <button class="primary big" type="submit">Pass it on</button>
+      </form>
+
+      <div id="draw" class="job" hidden>
+        <p class="kicker">Draw this</p>
+        <h2 id="draw-prompt" class="prompt"></h2>
+        <canvas id="pad" class="sheet"></canvas>
+        <div class="tools">
+          <div id="colors" class="swatches" role="group" aria-label="Colour"></div>
+          <div id="widths" class="brushes" role="group" aria-label="Brush size"></div>
+          <button id="eraser" type="button" aria-pressed="false">Eraser</button>
+          <button id="undo" type="button">Undo</button>
+          <button id="clear" type="button">Clear</button>
+        </div>
+        <p id="ink" class="note" hidden></p>
+        <button id="draw-done" class="primary big" type="button">Pass it on</button>
+      </div>
+
+      <form id="guess" class="job" hidden>
+        <p class="kicker">Someone drew this</p>
+        <canvas id="guess-sheet" class="sheet"></canvas>
+        <h2><label for="guess-text">What is it?</label></h2>
+        <input id="guess-text" class="words" autocomplete="off">
+        <button class="primary big" type="submit">Pass it on</button>
+      </form>
+
+      <div id="waiting" class="job" hidden>
+        <h2 id="waiting-title"></h2>
+        <p id="waiting-note" class="note"></p>
+        <ul id="progress" class="people"></ul>
+        <button id="hurry" class="host-only" type="button">Move on without them</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reading the books out, and the album afterwards -->
+  <div id="books" class="screen" hidden>
+    <div class="panel slim">
+      <header class="top">
+        <b>Sketch Relay</b>
+        <span id="book-count"></span>
+        <span class="spacer"></span>
+        <span>Room <b id="books-code" class="code"></b></span>
+      </header>
+      <div id="tabs" class="tabs" role="tablist" hidden></div>
+      <h1 id="book-title"></h1>
+      <ol id="pages"></ol>
+      <div class="bar">
+        <button id="next" class="primary big host-only" type="button">Next</button>
+        <p id="reveal-note" class="note"></p>
+        <button id="save" type="button" hidden>Save this one as a picture</button>
+        <button id="again" class="primary host-only" type="button" hidden>Play again</button>
+        <a id="leave" class="button" href="/games/sketch-relay" hidden>Leave</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/games/relay/js/main.js?v=1"></script>
+</body>
+</html>

@@ -9,10 +9,10 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=47';
-import { placeAttack, touches, wrap } from './moves.js?v=47';
-import { crescent, lance, burst } from './fx.js?v=47';
-import { sfx } from './audio.js?v=47';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=50';
+import { placeAttack, touches, wrap } from './moves.js?v=50';
+import { crescent, lance, burst } from './fx.js?v=50';
+import { sfx } from './audio.js?v=50';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 
@@ -20,9 +20,9 @@ let SKILLS = {};   // the welcome's skills table, for poses and swings drawn fro
 // `Build.weapon`; the `mod` effects in content/upgrades.py). Each [path, value] is set in a copy.
 const modded = new Map();
 export function weaponOf(data, h) {
-  const base = data.weapons[h.weapon], mods = (h.stats && h.stats.mods) || [];
-  if (!mods.length) return base;
-  const key = h.weapon + JSON.stringify(mods);
+  const base = data.weapons[h.weapon], mods = (h.stats && h.stats.mods) || [], quick = (h.stats && h.stats.heavy_charge) || 1;
+  if (!mods.length && quick === 1) return base;
+  const key = h.weapon + quick + JSON.stringify(mods);
   if (!modded.has(key)) {
     const W = JSON.parse(JSON.stringify(base));
     for (const [path, value] of mods) {
@@ -31,6 +31,7 @@ export function weaponOf(data, h) {
       for (const k of keys.slice(0, -1)) { if (at[k] == null) at[k] = {}; at = at[k]; }
       at[keys.at(-1)] = JSON.parse(JSON.stringify(value));
     }
+    W.heavy.charge *= quick;   // the Wind-up trait: the heavy charges faster
     modded.set(key, W);
   }
   return modded.get(key);

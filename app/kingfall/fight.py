@@ -102,6 +102,7 @@ class FHero:
         self.skill_used = {}        # skill id -> when its cooldown began (cooldowns start afresh each fight; refunds move it back)
         self.skill_cast = {}        # skill id -> when it was really last cast (its hits count for a while after)
         self.held = 0.0             # caught (a tongue, a chain): can't move until then
+        self.grit = False           # the Grit trait has caught them this fight
         self.trance_until, self.trance_taken = 0.0, 1.0   # Battle Trance: hits taken hurt more until then
         self.guard_until = 0.0      # Stone Ward: the next hit before then is soaked whole
         self.seeded = -9.0          # when a dodge last seeded the boss with a status (Spore Cloud)
@@ -656,7 +657,7 @@ class Fight:
         fh.hero.tally["dodges"] += 1
         build = fh.hero.build()
         for x in build.get("perfect"):
-            fh.empowered = (x["dmg"], now + 2.0)
+            if x["dmg"] > 1: fh.empowered = (x["dmg"], now + 2.0)
             if x.get("heal"): self.heal(fh, x["heal"])
         if fh.down or fh.dead: return
         for x in build.get("perfectstatus"):   # at most once a second: a fan of shots is one dodge
@@ -750,6 +751,11 @@ class Fight:
         h.tally["taken"] += min(h.hp, round(dmg))
         h.hp = max(0, h.hp - round(dmg))
         self.room.broadcast({"t": "fx", "k": "hurt", "h": hid, "dmg": round(dmg), "x": round(fh.x), "y": round(fh.y)})
+        for x in build.get("grit"):   # Grit (a Vigor trait): once a fight, falling low gives some back
+            if not fh.grit and 0 < h.hp < h.mhp() * x["below"]:
+                fh.grit = True
+                self.heal(fh, x["heal"])
+                self.room.broadcast({"t": "fx", "k": "grit", "h": hid, "heal": round(x["heal"]), "x": round(fh.x), "y": round(fh.y)})
         if hit and hit.get("hold") and h.hp > 0:   # caught: held where they stand, and the other twin may come for them
             fh.held = now + hit["hold"]
             self.room.broadcast({"t": "fx", "k": "held", "h": hid, "e": mv.e, "seq": mv.seq, "dur": hit["hold"]})

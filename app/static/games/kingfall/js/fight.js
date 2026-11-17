@@ -1,16 +1,16 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=47';
-import { LocalHero, RemoteHero } from './hero.js?v=47';
-import { Boss } from './boss.js?v=47';
-import { drawArena } from './arenas.js?v=47';
-import { sfx, ambience, PLACE } from './audio.js?v=47';
-import { music } from './music.js?v=47';
-import { deviceOfSlot } from './input.js?v=47';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=47';
-import { hudKeys, bigCard } from './ui.js?v=47';
-import { Atmos } from './atmos.js?v=47';
-import { LORE, ROMAN } from './lore.js?v=47';
+import { addFrames } from './rig.js?v=50';
+import { LocalHero, RemoteHero } from './hero.js?v=50';
+import { Boss } from './boss.js?v=50';
+import { drawArena } from './arenas.js?v=50';
+import { sfx, ambience, PLACE } from './audio.js?v=50';
+import { music } from './music.js?v=50';
+import { deviceOfSlot } from './input.js?v=50';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=50';
+import { hudKeys, bigCard } from './ui.js?v=50';
+import { Atmos } from './atmos.js?v=50';
+import { LORE, ROMAN } from './lore.js?v=50';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
@@ -296,6 +296,7 @@ export class FightScene extends Phaser.Scene {
         break;
       case 'heal': sfx.heal(); this.burst(m.x, m.y - 20, 0x8be04e, 14); break;
       case 'down': sfx.down(); this.number(m.x, m.y - 46, 'Down!', '#e05050', true); if (mine) mine.down = true; break;  // at once, not at the next snapshot
+      case 'grit': sfx.heal(); this.number(m.x, m.y - 56, 'Grit +' + m.heal, '#8be04e', true); this.burst(m.x, m.y - 20, 0x8be04e, 16); break;
       case 'unbowed': sfx.parry(this.pan(m.x)); this.number(m.x, m.y - 56, 'Unbowed', '#b8c0cc', true); this.burst(m.x, m.y - 20, 0xb8c0cc, 16); break;
       case 'secondwind': this.number(this.byId[m.h]?.x || 0, (this.byId[m.h]?.y || 0) - 56, 'Second Wind', '#ffd23f', true); break;
       case 'revive': sfx.revive(); this.burst(m.x, m.y - 20, 0xffd23f, 16); break;

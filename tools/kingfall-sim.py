@@ -450,7 +450,10 @@ def level_up(h, n, rng, size):
     for k in range(n):
         if len(h.skills) < MAX_SKILLS: h.skills.append(rng.choice([x for x in SKILLS if x not in h.skills]))
         h.level += 1
-        h.attrs[rng.choice(("vig", "vig", "end", "mig", "fin"))] += 1
+        # points go mostly into one attribute, as a player after its second trait would put them, the rest anywhere
+        # (leaning to Vigor, as bots always have: with less health they simply lose more)
+        if k == 0: h.calling = rng.choice(("vig", "vig", "end", "mig", "fin"))
+        h.attrs[h.calling if rng.random() < 0.6 else rng.choice(("vig", "vig", "end", "mig", "fin"))] += 1
         cards = offer(h, size, rng, k + 1)
         if cards:
             uid, rarity = cards[0]

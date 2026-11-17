@@ -68,6 +68,9 @@ Keep to these. They came from the owner directly.
   of moves, then an opening). Failing a signature move costs about 60% of a hero's health on Knight
   (more on Hard, through the damage scale), so a solo player can make one mistake.
 
+- **Stat points should be interesting** (Nov 2026: "rework how the stat points work to make it more
+  interesting"): each attribute has two traits, unlocked at 2 and 5 points, on top of its per-point bonus
+  (see "Attribute points and traits"). The owner hasn't seen the design; it was built from that one line.
 - **Blessings and skills must give tactical options** (Nov 2026, the owner approved a written plan and then
   said "implement it all"): every blessing and skill should offer a choice or change how the game plays, more
   blessings should change movesets, and skills should play smoothly. Second presses of a skill button are
@@ -108,7 +111,7 @@ A run draws two bosses from each tier, then a final (`POOLS`, `TIERS` in `room.p
 | 3 | the Mirror Knight · the Bastion · the Moth Saint |
 | Final | the Hollow King · the Eclipse Drake |
 
-After each win: everyone heals and refills flasks, gains a level (one attribute point), one upgrade pick
+After each win: everyone heals and refills flasks, gains a level (one attribute point: see "Attribute points and traits"), one upgrade pick
 from three cards, the offer of a skill (below), and the party gets shared coins (60 + 40 x tier). The shop sells rerolls (30), a redraw of the skills on offer (30), an
 extra flask (120, +60 each time) and an extra blessing (150). Each blessing and skill a hero already holds is a chip in their panel: hovering it (or moving a
 controller's focus onto it) shows a tooltip with what it does (`showTip` in `js/ui.js`, any element with `data-tip`). The next fight starts when everyone is
@@ -432,12 +435,43 @@ special, dodge, guard; and four passives), ten plain passives, six Pacts (only o
 or more), six Duos (offered once you hold both Vows), and 48 Weapon Arts (four a weapon). A slot holds one upgrade; taking
 another replaces it. Rarity (common, rare x1.5, epic x2) scales the numbers marked in `scale`; a blessing
 that only changes a move has none, and reads the same at every rarity. Offers lean toward Vows you
-already follow. Attributes: Vigor +12 health; Endurance dashes back 8% faster; Might +7% heavy
-and special damage and +8% poise damage; Finesse +6% light damage; Arcane +12% status buildup and +8%
-special damage.
+already follow.
 
 "Fully charged" is 95% or more, and reaching full charge flashes the hero with a chime (Patience and
 Sanguine Cleave flash again for their own moments).
+
+### Attribute points and traits (`build.py`, `TRAITS`)
+
+A hero gains one point after every won fight: seven in a full run. Until Nov 2026 a point was only a small
+flat bonus; the owner asked for stat points to be more interesting, so each attribute now also has two
+**traits**, unlocked by the second and the fifth point in it. Seven points reach one attribute's second
+trait and another's first (5 + 2), or three first traits (2 + 2 + 2 + 1): that is the choice.
+
+| Attribute | Each point | At 2 points | At 5 points |
+|---|---|---|---|
+| Vigor | +12 health | **Grit**: the first time each fight you fall below 30% health, you heal 25 | **Last Stand**: below half health you deal 25% more |
+| Endurance | dashes come back 8% faster | **Fleet**: one more dash | **Flow**: a dodge through a hit gives the dash back |
+| Might | +7% heavy and special damage, +8% poise damage | **Wind-up**: the heavy charges 25% faster | **Crushing Blow**: your critical on a staggered boss deals 40% more |
+| Finesse | +6% light damage | **Tempo**: light attacks 10% faster | **Crescendo**: each hit of a light combo deals 6% more than the one before |
+| Arcane | +12% status buildup, +8% special damage | **Attunement**: skills come back 15% sooner | **Wellspring**: Focus fills 30% faster, and using a skill gives 10 Focus |
+
+- A trait is a list of effects of the same kind upgrades are made of, folded in by `Build.apply`; adding or
+  changing one is an edit to `TRAITS` and nothing else, unless it needs a new effect type. The two that did:
+  `grit` (applied in `Fight.hurt`, once a fight: `FHero.grit`, fx `grit`) and the stat `heavy_charge`, which
+  scales the heavy's charge time in the hero's own weapon table (`Build.weapon`, and `weaponOf` in `hero.js`
+  from `stats.heavy_charge`).
+- The browser gets each attribute's traits in the welcome (`attrs`: key, name, what a point gives, and
+  `[[points, name, text]]`). The Bonfire's level-up cards show the points as pips (the second and fifth
+  marked), and each trait lit when held or glowing when the next point unlocks it; held traits are also
+  chips under "Traits" with the same hover text as blessings.
+- Points can't be taken back. Thresholds of 2 and 5 were chosen so the first trait arrives at the second
+  Bonfire and a second trait costs most of a run.
+- Bots put about 60% of their points into one attribute, leaning to Vigor as they always have (`level_up` in
+  the sim; a first try that spread them evenly over all five lost more fights simply for having less
+  health). They gain nothing from Flow, Tempo or Wind-up, which the sim doesn't model. A spot run after the
+  change (sword and bow, 8 fights a cell, solo and pairs): 73% and 70%, against 76% and 73% before, which
+  is within what that few fights can tell apart; the full table wasn't re-run. A player who picks traits
+  to suit their weapon gains more from them than the bots show.
 
 ### The bosses
 

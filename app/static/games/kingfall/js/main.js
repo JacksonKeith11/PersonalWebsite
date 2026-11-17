@@ -1,12 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=47';
-import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=47';
-import { icon } from './icons.js?v=47';
-import { Net, ME } from './net.js?v=47';
-import { FightScene } from './fight.js?v=47';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=47';
-import { unlock, sfx, setVolume } from './audio.js?v=47';
-import { music } from './music.js?v=47';
+import { setAtlas } from './rig.js?v=50';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=50';
+import { icon } from './icons.js?v=50';
+import { Net, ME } from './net.js?v=50';
+import { FightScene } from './fight.js?v=50';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=50';
+import { unlock, sfx, setVolume } from './audio.js?v=50';
+import { music } from './music.js?v=50';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -313,6 +313,9 @@ function panel(h) {
   // what the hero already has: hover a chip (or move onto it with a controller) to read what it does
   const known = h.skills.map((id, i) => `<span class="chip" data-nav data-chip="${h.id}:s:${id}" style="--r:${D.skills[id].col}" data-tip-h="${esc(D.skills[id].name)}"
     data-tip-k="Skill · ${D.skills[id].cd}s cooldown" data-tip="${esc(D.skills[id].text)}">${glyph(dev, i ? 'skill2' : 'skill1')} ${icon(id)} ${esc(D.skills[id].name)} · ${D.skills[id].cd}s</span>`).join('');
+  // the traits their attribute points have unlocked
+  const held = D.attrs.flatMap(([k, name, , traits]) => traits.filter(t => h.attrs[k] >= t[0]).map(([need, tn, tt]) =>
+    `<span class="chip" data-nav data-chip="${h.id}:t:${k}${need}" style="--r:var(--gold);--v:var(--gold)" data-tip-h="${esc(tn)}" data-tip-k="${name} · ${need} points" data-tip="${esc(tt)}">${esc(tn)}</span>`)).join('');
   const ups = h.ups.map(([u, r]) => {
     const U = D.upgrades[u], V = U.vow ? D.vows[U.vow] : null;
     const kind = U.duo ? 'Duo' : U.pact ? 'Pact' : U.weapon ? 'Weapon Art' : U.slot ? SLOT_NAME[U.slot] : 'Passive';
@@ -320,8 +323,12 @@ function panel(h) {
       data-tip="${esc(U.text[r])}">${V || U.weapon ? `<span class="em">${emblem(U)}</span>` : ''}${esc(U.name)}</span>`; }).join('');
   return `<div class="panel" data-owner="${h.id}" style="--c:${D.colours[h.colour]}">
     <div class="row"><b class="pname">${esc(h.name)}</b><span class="hint">Level ${h.level} · ${esc(W.name)} · ${h.mhp} health · ${h.maxflasks} flasks</span></div>
-    ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><div class="attrs">${D.attrs.map(([k, name, text]) =>
-      `<button class="btn attr" data-nav data-attr="${h.id}:${k}"><b>${name} ${h.attrs[k]}</b><small>${text}</small></button>`).join('')}</div>` : ''}
+    ${h.points ? `<h3>Level up: ${h.points} point${h.points > 1 ? 's' : ''}</h3><p class="hint attrhint">Every point gives its attribute's bonus. The second and the fifth point in one attribute unlock its traits.</p><div class="attrs">${D.attrs.map(([k, name, text, traits]) => {
+      // a card for each attribute: its points as pips, what a point gives, and its two traits (lit when held, marked when the next point unlocks one)
+      const n = h.attrs[k], top = traits[traits.length - 1][0];
+      const pips = Array.from({ length: top }, (_, i) => `<i class="${i < n ? 'on' : ''}${traits.some(t => t[0] === i + 1) ? ' mark' : ''}"></i>`).join('');
+      return `<button class="btn attr" data-nav data-attr="${h.id}:${k}"><b>${name} <em>${n}</em></b><span class="apips">${pips}</span><small>${text}</small>
+        ${traits.map(([need, tn, tt]) => `<span class="trait ${n >= need ? 'has' : n + 1 === need ? 'next' : ''}"><u>${n >= need ? '✓' : need}</u><span><b>${esc(tn)}</b> ${esc(tt)}</span></span>`).join('')}</button>`; }).join('')}</div>` : ''}
     ${h.offer.length ? `<h3>Choose a blessing${h.picks > 1 ? ` (${h.picks})` : ''}</h3><div class="cards-up">${(d => h.offer.map(([u, r], i) => upgradeCard(u, r, i, h, d)).join(''))(dealClass('up' + h.id, JSON.stringify(h.offer)))}</div>` : ''}
     ${h.skill_offer.length ? `<h3>Learn a skill${h.skills.length >= D.max_skills ? ' (you carry two: one must go)' : ''}</h3>
       <div class="cards-up">${(d => h.skill_offer.map((id, i) => skillCard(id, i, h, d)).join(''))(dealClass('sk' + h.id, JSON.stringify(h.skill_offer)))}</div>
@@ -335,6 +342,7 @@ function panel(h) {
     </div>
     ${known ? `<h3>Skills</h3><div class="chips">${known}</div>` : ''}
     ${vowRow(h)}
+    ${held ? `<h3>Traits</h3><div class="chips">${held}</div>` : ''}
     ${ups ? `<h3>Blessings</h3><div class="chips">${ups}</div>` : ''}
     <div class="row" style="margin-top:14px;justify-content:flex-end">
       <button class="btn ${h.ready ? '' : 'primary'}" data-nav data-ready="${h.id}" ${!h.ready && (h.points || h.offer.length || h.skill_offer.length) ? 'title="You can still spend points, choose a blessing and learn a skill"' : ''}>${h.ready ? 'Not ready' : 'Ready'}</button>

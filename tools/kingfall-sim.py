@@ -395,18 +395,23 @@ def use_skill(b, f, now, d, body, target, bots):
         if b.cd.get(sid, 0) > now: continue
         s = SKILLS[sid]
         hits = 0
+        if "trance" in s: continue   # bots get none of its speed and all of its cost: they leave it
+        if "cost" in s and (fh.hero.hp < fh.hero.mhp() * 0.7 or b.focus > 40): continue   # Blood Pact: only when well and short of Focus
+        if "focus" in s and "mult" not in s: b.focus = min(100.0, b.focus + s["focus"])
         if "mult" in s:
             if target[0] != "body" or body.untouchable(now): continue
             if "proj" in s:
                 if d > 220: continue
                 hits = 1 if s["proj"].get("n", 1) == 1 else (3 if d < 60 else 2)
             elif "shape" in s:
-                if d > s["shape"]["r"] + s["shape"].get("x", 0) + reach - 6: continue
+                sh = s["shape"]
+                if d > (sh["x1"] if sh["k"] == "rect" else sh["r"] + sh.get("x", 0)) + reach - 6: continue
                 hits = 1
             else:
                 A = s["aoe"]
                 if d > (A.get("range") or A["at"]) + A["r"] + reach - 10: continue
                 hits = A["ticks"] if A["ticks"] <= 3 else A["ticks"] // 2   # a lingering cloud: the boss walks out of it
+                if "wave" in s: hits += 1   # a line of eruptions: a big boss stands on two
                 if A["delay"] > 0.4 and body.move is None and b.rng.random() > b.skill: hits = 0  # a slow pillar can miss a walking boss
         elif s.get("zone", {}).get("heal"):   # hallowed ground: when someone near is hurt (and then it stands in it, as bots stand anyway)
             if not any(o.fh.hero.hp < o.fh.hero.mhp() * 0.6 for o in bots if not o.fh.down and math.hypot(o.fh.x - fh.x, o.fh.y - fh.y) <= s["zone"]["r"]): continue

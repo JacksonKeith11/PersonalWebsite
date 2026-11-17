@@ -3,7 +3,7 @@
 Read this before changing anything in `app/kingfall/`, `app/static/games/kingfall/`, `tools/kingfall-*`
 or `tools/kingfall-art/`.
 
-**Status: built.** All twelve bosses, twelve weapons, twelve skills, 124 upgrades, the Bonfire, saves, difficulty and music
+**Status: built.** All twelve bosses, twelve weapons, twenty skills, 124 upgrades, the Bonfire, saves, difficulty and music
 are in. The first half of this doc is what the owner decided; "How it plays now" is the game as it is.
 When a change alters how the game works, update "How it plays now" (not a new section at the end) in
 the same commit.
@@ -325,7 +325,7 @@ on the hero's HUD panel.
   ward, embers circling the feet for extra damage, a violet spark for a charged hit, on every screen, and as
   chips on that hero's HUD card.
 
-Every skill asks for a decision (the rework of Nov 2026; before it four of the twelve were plain buttons):
+Every skill asks for a decision (the rework of Nov 2026; before it four of the first twelve were plain buttons; the last eight in the table were added that month, when the owner asked for more):
 
 | Skill | Cooldown | What it does | The decision |
 |---|---|---|---|
@@ -341,6 +341,14 @@ Every skill asks for a decision (the rework of Nov 2026; before it four of the t
 | Plague Censer | 16 s | a cloud where you aim (up to 200 px) for 3 s: six ticks of x0.6, building Rot | a boss in the cloud takes 15% more from everyone |
 | Hammerfall | 11 s | a slam, x1.8, the most poise damage of any skill | it leaps to what you aim at (up to 140 px, untouchable in the air), and counts double against a break bar |
 | Second Breath | 24 s | every dash comes back at once | for 4 s dashes cost nothing, and each hit dodged through gives 20 Focus |
+| Storm Brand | 14 s | a touch of lightning (56 px ahead), x0.8 | 4 s later the boss is struck for 35% of all the damage it took meanwhile: brand it before your party's best 4 s |
+| Rime Wall | 16 s | a circle of frost where you aim (up to 160 px) for 4 s, x0.15 a tick, building Frost | the boss's shots that touch it shatter: put it between you and a volley |
+| Blood Pact | 18 s | cast on the move | 15 health for 60 Focus and +40% on your next hit; refused when you have 16 health or less |
+| Stonebreaker | 10 s | five eruptions (26 px each) marching 230 px along your aim, x1.5 each, heavy on poise | they go off one after another over half a second: lead a moving boss |
+| Battle Trance | 22 s | cast on the move; 6 s of lights 30% faster and +15% damage | every hit you take in that time hurts 30% more |
+| Storm Bolt | 7 s | a fast bolt, x2.0 | landed on a boss mid-attack or winded, half its cooldown comes straight back |
+| Deathblow | 13 s | a heavy blow straight ahead (64 px), x2.6 | double against a boss under 30% of its health |
+| Rune Trap | 12 s | a rune set at your feet | it lies armed for 12 s and bursts (40 px, x3.4, heavy on poise) when the boss steps on it: set it where the boss is going |
 
 A skill's damage is `BASE` (20) x its multiplier whatever weapon is held; it counts as a special for
 build bonuses and for the critical on a staggered boss, but builds only its own status (not the
@@ -708,6 +716,10 @@ Mirror Knight among the three.
   fight beside a planted standard and reap only by luck, so those three weapons are stronger in a
   player's hands than the table says. The hard cells: gauntlets against Corvin and the Headsmen (12-50%),
   the sickle against the King and the Drake (25-50%).
+- **After the eight newer skills** (Nov 2026; a spot run of two weapons, 8 fights a cell, solo and pairs):
+  sword 76% (82% before), bow 73% (76%). A small dip, within what 8 fights a cell can tell apart: bots now
+  draw their two skills from twenty and use some of the new ones poorly or not at all (see "Bots and the
+  newer skills"). The full table wasn't re-run.
 - **How the daggers got here** (Nov 2026): 35% at first (base 13, two dashes). The cause was the dash's
   invulnerability, 0.2 s against a roll's 0.29 s, too short for any hit that lingers; untouchable for
   the whole 0.28 s dash they reached 91%. The catalyst's first 49% was the bots blinking into the next
@@ -746,6 +758,9 @@ Mirror Knight among the three.
   page loads, since making a room rewrites the address. `kf.S.scene.local[0]` is the hero: set `focus`,
   `dashes`, `x`, `y`, `locked` on it to stage a test. Headless Chromium runs the fight at a few frames a
   second, so hold a key at least 150 ms or a press can fall between frames.
+- **Bots and the newer skills**: bots never use Battle Trance (they'd get its cost and none of its speed), use
+  Blood Pact only when well and short of Focus, and count Stonebreaker as two eruptions and a Rune Trap as
+  landing whenever the boss is near.
 - **Bots and the rework**: bots use each skill's main hit and a rough share of its further hits (two ticks
   of the lance's trail, two knives on the way back), raise Stone Ward when a hit is about to land, and play
   `finisher`, `heavy` and `special` procs. They don't play `pass` procs, second presses, the Blood prices,

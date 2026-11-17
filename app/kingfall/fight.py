@@ -102,6 +102,7 @@ class FHero:
         self.skill_used = {}        # skill id -> when its cooldown began (cooldowns start afresh each fight; refunds move it back)
         self.skill_cast = {}        # skill id -> when it was really last cast (its hits count for a while after)
         self.held = 0.0             # caught (a tongue, a chain): can't move until then
+        self.trance_until, self.trance_taken = 0.0, 1.0   # Battle Trance: hits taken hurt more until then
         self.guard_until = 0.0      # Stone Ward: the next hit before then is soaked whole
         self.seeded = -9.0          # when a dodge last seeded the boss with a status (Spore Cloud)
         self.zoned = {}             # skill id -> the cast whose area has been placed
@@ -278,9 +279,10 @@ class Fight:
     def gain(self, fh, **kw):
         """Tell a hero's browser what a blessing just gave them: Focus, seconds off their skills' cooldowns,
         dashes (the browser keeps all three). The server's own cooldown clocks move with it."""
-        if kw.get("cd"):
-            for k in fh.skill_used: fh.skill_used[k] -= kw["cd"]
-        self.room.broadcast({"t": "fx", "k": "gain", "h": fh.hero.id, **{k: round(v, 2) for k, v in kw.items()}})
+        if kw.get("cd"):   # `sk`: only that skill's
+            for k in fh.skill_used:
+                if kw.get("sk") in (None, k): fh.skill_used[k] -= kw["cd"]
+        self.room.broadcast({"t": "fx", "k": "gain", "h": fh.hero.id, **{k: round(v, 2) if isinstance(v, (int, float)) else v for k, v in kw.items()}})
 
     def pay(self, fh, cost, key=None):
         """Health spent on a Blood blessing (once per `key`); never the last point."""
@@ -335,6 +337,11 @@ class Fight:
                    if (x["slot"] == "skill" and atk == "skill") or (x["slot"] == "special" and slot == "special" and atk != "skill")]
             for c in cs:
                 mult *= c.get("dmg", 1.0); poise *= c.get("poise", 1.0); counter = "counter"
+                if c.get("refund") and (sw, "refund") not in fh.swings:   # Storm Bolt: part of its cooldown comes straight back
+                    fh.swings.add((sw, "refund"))
+                    self.gain(fh, cd=skill["cd"] * build.stats["skill_cd"] * c["refund"], sk=skill["id"])
+        ex = skill.get("execute") if skill and not msg.get("sub") else None
+        if ex and b.hp < b.mhp * ex["below"]: mult *= ex["dmg"]; counter = "execute"   # Deathblow: double on a boss near its end
         # Blood: the combo's last light and an overcharged heavy cost health and hit harder; Storm's echo is half a special
         if atk == "light" and msg.get("i") == len(self.W(fh)["light"]) - 1:
             for x in build.get("bloodfin"): mult *= x["mult"]; self.pay(fh, x["cost"], ("fin", sw))
@@ -428,6 +435,8 @@ class Fight:
             for x in build.get("specialheal"): self.heal(fh, x["amt"])
             for x in build.get("growth"):   # a canker: it bursts later for a share of what the body takes meanwhile
                 if not b.growth: b.growth = {"until": now + x["secs"], "acc": 0.0, "frac": x["frac"], "amt": x["amt"], "by": fh}
+        if skill and skill.get("brand") and not msg.get("sub") and not b.growth:   # Storm Brand: struck later for a share of what it takes meanwhile
+            b.growth = {"until": now + skill["brand"]["secs"], "acc": 0.0, "frac": skill["brand"]["frac"], "amt": 0, "by": fh, "word": "BRAND", "kind": "bolt"}
         if skill and skill.get("cdhit") and (sw, "cd") not in fh.swings:   # each strike that lands brings it back sooner
             fh.swings.add((sw, "cd")); fh.skill_used[skill["id"]] = fh.skill_used.get(skill["id"], now) - skill["cdhit"]
         if b.growth: b.growth["acc"] += dmg + extra
@@ -515,6 +524,13 @@ class Fight:
         near = [o for o in self.alive_heroes() if o is fh or math.hypot(o.x - fh.x, o.y - fh.y) <= s.get("radius", 0)]
         if "empower" in s: fh.empowered = (s["empower"], now + 5.0)
         if "guard" in s: fh.guard_until = now + s["guard"]
+        if "cost" in s:   # Blood Pact: paid in health
+            self.pay(fh, s["cost"])
+            self.room.broadcast({"t": "fx", "k": "paid", "h": hid, "dmg": round(s["cost"]), "x": round(fh.x), "y": round(fh.y)})
+        if "trance" in s:
+            T = s["trance"]
+            fh.trance_until, fh.trance_taken = now + T["secs"], T["taken"]
+            fh.vengeance = (max(T["dmg"], fh.vengeance[0] if now < fh.vengeance[1] else 1.0), now + T["secs"])
         self.room.broadcast({"t": "fx", "k": "skill", "h": hid, "sk": s["id"], "x": round(fh.x), "y": round(fh.y)})
         if s.get("zone") and s["zone"].get("at") != "aoe": self.add_zone(fh, s, fh.x, fh.y, now)
 
@@ -723,7 +739,7 @@ class Fight:
                 self.room.broadcast({"t": "fx", "k": "block", "h": hid, "x": round(fh.x), "y": round(fh.y)})
             if not chip or msg.get("counter"): return
             dmg = dmg * chip  # a heavy weapon's block lets some through
-        dmg = dmg * self.dmg_scale
+        dmg = dmg * self.dmg_scale * (fh.trance_taken if now < fh.trance_until else 1.0)
         if fh.shield:
             soak = min(fh.shield, dmg); fh.shield -= soak; dmg -= soak
             if round(dmg) <= 0:  # the ward took all of it: no flinch from the drink, no damage number
@@ -793,7 +809,8 @@ class Fight:
         """A hero's burst of frost shattered one of the boss's projectiles (their browser says): gone for everyone."""
         fh = self.heroes.get(hid)
         if not fh or fh.down or fh.dead or self.over: return
-        if "nova" not in fh.hero.skills and not any(x.get("aoe", {}).get("clear") for x in fh.hero.build().get("proc")): return
+        if not any(SKILLS[k].get("clear") or SKILLS[k].get("aoe", {}).get("clear") for k in fh.hero.skills if k in SKILLS) \
+                and not any(x.get("aoe", {}).get("clear") for x in fh.hero.build().get("proc")) and not self.W(fh)["special"].get("clear"): return
         hit, start, mv = self.find_hit(f"{msg.get('seq')}:{msg.get('i')}")
         i = msg.get("i")
         if hit is None or hit.get("k") != "proj" or i in mv.gone: return
@@ -1059,8 +1076,8 @@ class Fight:
                 if dmg:
                     g["by"].hero.tally["dmg"] += min(b.hp, dmg)
                     b.hp = max(0, b.hp - dmg)
-                    self.room.broadcast({"t": "fx", "k": "status", "e": b.e, "kind": "rot", "word": "CANKER", "dmg": dmg, "x": round(b.x), "y": round(b.y)})
-                self.build_status(b, "rot", g["amt"] * g["by"].hero.build().buildup, now, g["by"])
+                    self.room.broadcast({"t": "fx", "k": "status", "e": b.e, "kind": g.get("kind", "rot"), "word": g.get("word", "CANKER"), "dmg": dmg, "x": round(b.x), "y": round(b.y)})
+                if g["amt"]: self.build_status(b, "rot", g["amt"] * g["by"].hero.build().buildup, now, g["by"])
                 self.check_hp(b, now)
         self.step_adds(now)
         for b in self.bodies:

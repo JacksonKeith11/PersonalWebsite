@@ -1,21 +1,21 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=45';
-import { LocalHero, RemoteHero } from './hero.js?v=45';
-import { Boss } from './boss.js?v=45';
-import { drawArena } from './arenas.js?v=45';
-import { sfx, ambience, PLACE } from './audio.js?v=45';
-import { music } from './music.js?v=45';
-import { deviceOfSlot } from './input.js?v=45';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=45';
-import { hudKeys, bigCard } from './ui.js?v=45';
-import { Atmos } from './atmos.js?v=45';
-import { LORE, ROMAN } from './lore.js?v=45';
+import { addFrames } from './rig.js?v=47';
+import { LocalHero, RemoteHero } from './hero.js?v=47';
+import { Boss } from './boss.js?v=47';
+import { drawArena } from './arenas.js?v=47';
+import { sfx, ambience, PLACE } from './audio.js?v=47';
+import { music } from './music.js?v=47';
+import { deviceOfSlot } from './input.js?v=47';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=47';
+import { hudKeys, bigCard } from './ui.js?v=47';
+import { Atmos } from './atmos.js?v=47';
+import { LORE, ROMAN } from './lore.js?v=47';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
-const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff', counter: '#ffe08a', streak: '#ffa040', catch: '#fff0c0', reap: '#b8f0c0' };
+const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff', counter: '#ffe08a', execute: '#ff5a48', streak: '#ffa040', catch: '#fff0c0', reap: '#b8f0c0' };
 const aoeCol = col => col ? Phaser.Display.Color.HexStringToColor(col).color : 0xffd23f;
 
 export class FightScene extends Phaser.Scene {
@@ -216,7 +216,7 @@ export class FightScene extends Phaser.Scene {
         if (!K) break;
         this.rings.push({ x: m.x, y: m.y, r: K.zone && K.zone.at !== 'aoe' ? K.zone.r : 26, life: 0.3, col: Phaser.Display.Color.HexStringToColor(K.col).color });
         this.number(m.x, m.y - 58, K.name, K.col, true);
-        K.guard ? sfx.clang(this.pan(m.x)) : K.zone && K.zone.rally ? sfx.parry(this.pan(m.x)) : K.zone && K.zone.heal ? sfx.heal() : K.blink ? 0 : K.free ? sfx.perfect(this.pan(m.x)) : sfx.heavySwing(this.pan(m.x));
+        K.trance ? sfx.roar && sfx.power(this.pan(m.x)) : K.guard ? sfx.clang(this.pan(m.x)) : K.zone && K.zone.rally ? sfx.parry(this.pan(m.x)) : K.zone && K.zone.heal ? sfx.heal() : K.blink ? 0 : K.free ? sfx.perfect(this.pan(m.x)) : sfx.heavySwing(this.pan(m.x));
         break;
       }
       case 'zone': {   // a skill's circle on the ground, for as long as it lasts
@@ -236,7 +236,7 @@ export class FightScene extends Phaser.Scene {
       case 'gain': {   // what a blessing gave: Focus, cooldown, dashes (this browser's heroes keep them)
         if (mine) mine.gain(m);
         const at = this.byId[m.h];
-        if (at) this.number(at.x, at.y - 58, m.focus ? '+' + Math.round(m.focus) + ' Focus' : m.cd ? 'Skills -' + m.cd + 's' : 'Dashes back', '#c8d4ff');
+        if (at) this.number(at.x, at.y - 58, m.focus ? '+' + Math.round(m.focus) + ' Focus' : m.cd ? (m.sk ? (this.data.skills[m.sk] || {}).name + ' -' : 'Skills -') + Math.round(m.cd * 10) / 10 + 's' : 'Dashes back', '#c8d4ff');
         break;
       }
       case 'paid': this.number(m.x, m.y - 46, '-' + m.dmg, '#c83a4a'); break;   // health spent on a Blood blessing
@@ -247,7 +247,8 @@ export class FightScene extends Phaser.Scene {
         break;
       }
       case 'status': {
-        const col = { burn: '#ff8a3a', frost: '#7fe3ff', bleed: '#e04a5a', rot: '#8be04e' }[m.kind];
+        const col = { burn: '#ff8a3a', frost: '#7fe3ff', bleed: '#e04a5a', rot: '#8be04e', bolt: '#c8b4ff' }[m.kind];
+        if (m.kind === 'bolt') this.bolt(B.x, B.y - 40);   // a Storm Brand comes due
         this.number(B.x, B.y - 92, (m.word || m.kind.toUpperCase()) + (m.dmg ? ' ' + m.dmg : ''), col, true);
         this.burst(B.x, B.y - 40, Phaser.Display.Color.HexStringToColor(col).color, 22);
         sfx.fire(this.pan(B.x));

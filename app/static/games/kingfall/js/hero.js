@@ -9,10 +9,10 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=45';
-import { placeAttack, touches, wrap } from './moves.js?v=45';
-import { crescent, lance, burst } from './fx.js?v=45';
-import { sfx } from './audio.js?v=45';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=47';
+import { placeAttack, touches, wrap } from './moves.js?v=47';
+import { crescent, lance, burst } from './fx.js?v=47';
+import { sfx } from './audio.js?v=47';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 
@@ -382,6 +382,7 @@ export class LocalHero {
     this.planted = null;  // {x, y}: where the war banner's standard stands
     this.nearStand = false;
     this.pullTo = null;   // {x, y}: where the sickle's chain is dragging the hero
+    this.tranceUntil = 0; this.tranceK = 1;   // Battle Trance: lights play this much faster until then
   }
 
   an() {
@@ -467,7 +468,7 @@ export class LocalHero {
   // what a blessing just gave (the server says): Focus, seconds off every skill's cooldown, dashes
   gain(m) {
     if (m.focus) this.focus = Math.min(this.HERO.focus, this.focus + m.focus);
-    if (m.cd) for (const k in this.skillCd) this.skillCd[k] -= m.cd;
+    if (m.cd) for (const k in this.skillCd) if (!m.sk || m.sk === k) this.skillCd[k] -= m.cd;   // `sk`: only that skill's
     if (m.dash) this.dashes = Math.min(this.maxDash, this.dashes + m.dash);
   }
 
@@ -487,7 +488,7 @@ export class LocalHero {
     this.nearStand = !!P0 && Math.hypot(P0.x - this.x, P0.y - this.y) <= W0.stand.r;
     // light attacks play faster with some upgrades, with a streak (gauntlets), beside the standard (war banner)
     const quick = this.state === 'atk' || (M0 && M0.slot === 'light')
-      ? (this.S.light_speed || 1) * (this.haste > 0 ? this.S.haste_light || 1 : 1) * (W0.streak ? 1 + W0.streak.speed * this.streak : 1) * (this.nearStand ? W0.stand.speed : 1) : 1;
+      ? (this.S.light_speed || 1) * (this.haste > 0 ? this.S.haste_light || 1 : 1) * (W0.streak ? 1 + W0.streak.speed * this.streak : 1) * (this.nearStand ? W0.stand.speed : 1) * (ctx.now < this.tranceUntil ? this.tranceK : 1) : 1;
     this.t += dt * quick; this.anT += dt * quick;
     this.now = ctx.now; this.echo = Math.max(0, this.echo - dt);
     if (this.streak > 0 && (this.streakT -= dt) <= 0) this.streak = 0;   // a streak lapses without a hit
@@ -566,7 +567,7 @@ export class LocalHero {
         if (!S.stick || this.stuck.length) this.doRecast(S, ctx);
         return;
       }
-      if (this.skillCd[S.id] > 0.4) { this.denied = { id: S.id, until: performance.now() + 350 }; ctx.onDenied(this); }
+      if (this.skillCd[S.id] > 0.4 || (S.cost && (this.view.hp ? this.view.hp[0] : 0) <= S.cost + 1)) { this.denied = { id: S.id, until: performance.now() + 350 }; ctx.onDenied(this); }   // cooling down, or too hurt to pay its price
       else this.skillBuf = { S, t: 0.6 };
     });
     if (this.skillBuf && (this.skillBuf.t -= dt) < 0) this.skillBuf = null;
@@ -866,6 +867,7 @@ export class LocalHero {
     if (S.dashes) this.dashes = this.maxDash;
     if (S.free) { this.freeUntil = ctx.now + S.free; this.perfectFocus = S.perfect_focus || 0; }
     if (S.guard) this.wardUntil = ctx.now + S.guard;
+    if (S.trance) { this.tranceUntil = ctx.now + S.trance.secs; this.tranceK = S.trance.speed; }
     this.focus = Math.min(this.HERO.focus, this.focus + (S.focus || 0) + (this.S.skill_focus || 0));
     if (!S.instant) {   // a cast: the hero plays it, facing where the player aims now
       if (this.wantA !== null) { this.aim = this.wantA; this.aimDist = this.wantDist; }
@@ -1044,11 +1046,21 @@ export class LocalHero {
         // `range`: it lands on what you aim at (the cursor, the boss you're locked on to), up to that far
         const at = A.range && this.aimDist != null ? Math.min(A.range, this.aimDist) : A.at;
         this.aoes.push({ x: this.x + Math.cos(this.aim) * at, y: this.y + Math.sin(this.aim) * at, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind,
-          col: atk.col, pillar: !!A.range && A.ticks === 1 && !A.shell, boom: !!A.shell, pool: A.ticks > 3, carry: !!A.carry, follow: A.follow || 0, fl: this.swing.fl });
+          col: atk.col, pillar: !!A.range && A.ticks === 1 && !A.shell, boom: !!A.shell || !!A.boom, pool: A.ticks > 3, clear: !!A.clear,
+          trap: A.trap || 0, id: A.trap ? ++swingSeq : 0, carry: !!A.carry, follow: A.follow || 0, fl: this.swing.fl });
         this.lastAoe = { x: this.aoes.at(-1).x, y: this.aoes.at(-1).y };
+        if (skill && atk.wave) {   // more of the same, marching away along the aim one after another
+          const V = atk.wave;
+          for (let i = 1; i <= V.n; i++) {
+            const x = this.x + Math.cos(this.aim) * (at + i * V.gap), y = this.y + Math.sin(this.aim) * (at + i * V.gap);
+            this.aoes.push({ x, y, r: A.r, wait: A.delay + i * V.step, ticks: 1, every: A.every, kind, col: atk.col, boom: true });
+            ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(x), y: Math.round(y), r: A.r, life: A.delay + i * V.step, col: atk.col, p: 0 });
+          }
+        }
         if (skill && atk.zone && atk.zone.at === 'aoe') ctx.send({ t: 'zone', h: this.id, sk: atk.id, x: Math.round(this.lastAoe.x), y: Math.round(this.lastAoe.y) });
         ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(this.aoes.at(-1).x), y: Math.round(this.aoes.at(-1).y), r: A.r,
-          life: A.follow ? A.delay + A.every : A.range && A.ticks === 1 ? A.delay : A.delay + A.ticks * A.every, col: atk.col, p: A.range && A.ticks === 1 && !A.shell ? 1 : A.ticks > 3 ? 2 : 0 });
+          ...(A.trap ? { id: this.aoes.at(-1).id } : {}),
+          life: A.trap ? A.trap : A.follow ? A.delay + A.every : A.range && A.ticks === 1 ? A.delay : A.delay + A.ticks * A.every, col: atk.col, p: A.range && A.ticks === 1 && !A.shell ? 1 : A.ticks > 3 ? 2 : 0 });
       }
       return;
     }
@@ -1175,6 +1187,13 @@ export class LocalHero {
     if (this.stuck.length) this.stuck = this.stuck.filter(k => k.until > ctx.now);
     for (const A of this.aoes) {
       if (A.carry) { A.x = this.x; A.y = this.y; }   // it goes with the hero (the whirl)
+      if (A.trap && A.wait <= 0) {   // armed: it lies waiting for a boss to step into it, then goes off (or fades when its time is up)
+        A.trap -= dt;
+        const b = ctx.boss.nearest(A.x, A.y), on = b.alive && Math.hypot(b.x - A.x, b.y - A.y) <= A.r + b.r;
+        if (!on && A.trap > 0) continue;
+        ctx.send({ t: 'shot', h: this.id, k: 'end', id: A.id });
+        if (!on) { A.ticks = 0; continue; }
+      }
       A.wait -= dt;
       if (A.wait <= 0 && A.ticks > 0) {
         A.ticks--; A.wait = A.every;

@@ -31,6 +31,15 @@ Every skill asks for a decision (the Nov 2026 rework):
 - `dashes` (all refilled), `free` (s of dashes that cost nothing), `perfect_focus` (Focus for each hit
   dodged through in that time).
 - `live`: seconds its hits still count after it's used (default SKILL_LIVE in fight.py).
+- `brand`: {secs, frac}: its hit brands the body; after `secs` it is struck for `frac` of the damage it took meanwhile.
+- an `aoe` with `clear` shatters boss shots inside it at every tick (a wall); with `trap` (s) it lies armed
+  that long and goes off when a boss steps into it; `wave`: {n, gap, step}: that many more of the same area,
+  each `gap` px further along the aim and `step` s later.
+- `cost`: health spent to use it (never the last point); `focus`: Focus gained.
+- `trance`: {secs, speed, dmg, taken}: for that long lights play `speed` faster and the hero deals `dmg` more,
+  and takes `taken` times the damage.
+- `counter.refund`: the share of its cooldown given back when it lands on a boss mid-attack or winded.
+- `execute`: {below, dmg}: x `dmg` against a body under that share of its health.
 """
 
 START = "lance"   # the skill a hero starts a run with unless they choose another
@@ -83,6 +92,33 @@ SKILLS = {s["id"]: s for s in [
     {"id": "breath", "name": "Second Breath", "cd": 24, "col": "#e8ecf2", "pose": "raise", "instant": True,
      "text": "Every dash comes back at once, and for 4 s dashes cost nothing and each hit you dodge through gives 20 Focus.",
      "dur": 0.3, "dashes": 1, "free": 4.0, "perfect_focus": 20},
+    # ---- eight more (Nov 2026)
+    {"id": "brand", "name": "Storm Brand", "cd": 14, "col": "#c8b4ff", "pose": "cast",
+     "text": "Brand the boss with a touch of lightning. 4 s later it is struck for 35% of all the damage it took meanwhile.",
+     "dur": 0.4, "hit": (0.12, 0.2), "shape": {"k": "arc", "r": 56, "a0": -50, "a1": 50}, "mult": 0.8, "poise": 8, "brand": {"secs": 4.0, "frac": 0.35}},
+    {"id": "wall", "name": "Rime Wall", "cd": 16, "col": "#7fe3ff", "pose": "raise",
+     "text": "Raise a wall of frost where you aim for 4 s: the boss's shots that touch it shatter, and it chills what stands in it.",
+     "dur": 0.4, "hit": (0.14, 0.15), "aoe": {"at": 60, "range": 160, "r": 46, "delay": 0.1, "ticks": 16, "every": 0.25, "clear": 1}, "mult": 0.15, "poise": 2,
+     "status": ("frost", 6), "live": 6.0},
+    {"id": "pact", "name": "Blood Pact", "cd": 18, "col": "#c83a4a", "pose": "cast", "instant": True,
+     "text": "Spend 15 health for 60 Focus, and your next hit within 5 s deals 40% more.",
+     "dur": 0.3, "cost": 15, "focus": 60, "empower": 1.4},
+    {"id": "quake", "name": "Stonebreaker", "cd": 10, "col": "#d8b070", "pose": "slam",
+     "text": "Strike the ground: five eruptions march away along your aim, one after another, each breaking poise.",
+     "dur": 0.5, "hit": (0.2, 0.21), "aoe": {"at": 36, "r": 26, "delay": 0.05, "ticks": 1, "every": 0.2, "boom": 1}, "wave": {"n": 4, "gap": 48, "step": 0.11},
+     "mult": 1.5, "poise": 30},
+    {"id": "trance", "name": "Battle Trance", "cd": 22, "col": "#ff6a3a", "pose": "raise", "instant": True,
+     "text": "For 6 s your light attacks are 30% faster and you deal 15% more, but every hit you take hurts 30% more.",
+     "dur": 0.3, "trance": {"secs": 6, "speed": 1.3, "dmg": 1.15, "taken": 1.3}},
+    {"id": "bolt", "name": "Storm Bolt", "cd": 7, "col": "#c8b4ff", "pose": "throw",
+     "text": "A fast bolt of lightning. Strike a boss that is mid-attack or winded and half its cooldown comes back at once.",
+     "dur": 0.36, "hit": (0.1, 0.11), "proj": {"v": 620, "r": 6, "life": 0.5, "col": "#c8b4ff"}, "mult": 2.0, "poise": 14, "counter": {"dmg": 1.0, "refund": 0.5}},
+    {"id": "execute", "name": "Deathblow", "cd": 13, "col": "#e8ecf2", "pose": "slam",
+     "text": "A heavy blow straight ahead. Against a boss below 30% of its health it deals double.",
+     "dur": 0.55, "hit": (0.2, 0.3), "shape": {"k": "rect", "x0": 0, "x1": 64, "w": 14}, "mult": 2.6, "poise": 36, "step": 14, "execute": {"below": 0.3, "dmg": 2.0}},
+    {"id": "trap", "name": "Rune Trap", "cd": 12, "col": "#ffd23f", "pose": "kneel",
+     "text": "Set a rune at your feet. It waits 12 s for the boss to step on it, then bursts, breaking a great deal of poise.",
+     "dur": 0.3, "hit": (0.12, 0.13), "aoe": {"at": 0, "r": 40, "delay": 0.4, "ticks": 1, "every": 0.2, "boom": 1, "trap": 12.0}, "mult": 3.4, "poise": 45, "live": 14.0},
 ]}
 
 

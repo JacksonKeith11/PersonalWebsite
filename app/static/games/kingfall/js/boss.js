@@ -3,10 +3,10 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=42';
-import { LiveMove, placeHit, touches, active, spared } from './moves.js?v=42';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=42';
-import { sfx } from './audio.js?v=42';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=45';
+import { LiveMove, placeHit, touches, active, spared } from './moves.js?v=45';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=45';
+import { sfx } from './audio.js?v=45';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -387,6 +387,12 @@ export class Boss {
     }
     // weak points glow until broken
     b.coreG.clear();
+    // the scythe's mark: a pale crescent hanging over it until it is reaped or fades
+    if ((b.reapUntil || 0) > now && b.state !== 'dead') {
+      const hy = b.y - b.z - Math.max(60, b.r * 3.2), k = 0.7 + 0.3 * Math.sin(now * 6);
+      b.coreG.lineStyle(2.5, 0xb8f0c0, k).beginPath().arc(b.x, hy, 7, Math.PI * 0.9, Math.PI * 2.1).strokePath();
+      b.coreG.lineStyle(1.5, 0xffffff, k).lineBetween(b.x + 6, hy + 1, b.x + 6, hy + 10);
+    }
     // the catalyst's sigils: violet marks turning over its head until the orb or the Nova spends them
     if (b.sigils > 0 && now - (b.sigilAt || 0) < 8 && b.state !== 'dead') {
       const hy = b.y - b.z - Math.max(52, b.r * 2.9);

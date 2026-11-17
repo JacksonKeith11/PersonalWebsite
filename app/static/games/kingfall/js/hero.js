@@ -9,10 +9,10 @@
 // Skills (app/kingfall/content/skills.py) are played the same way, in state 'skill' (animation
 // 'k_<id>'): a shape, a projectile or an area hit in the skill's colour, or nothing to hit at all
 // (a blink, a cry). The hero's cooldowns live here; the server keeps its own and refuses early ones.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=42';
-import { placeAttack, touches, wrap } from './moves.js?v=42';
-import { crescent, lance, burst } from './fx.js?v=42';
-import { sfx } from './audio.js?v=42';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=45';
+import { placeAttack, touches, wrap } from './moves.js?v=45';
+import { crescent, lance, burst } from './fx.js?v=45';
+import { sfx } from './audio.js?v=45';
 
 let SKILLS = {};   // the welcome's skills table, for poses and swings drawn from an animation's name
 
@@ -105,6 +105,7 @@ export function heroPose(W, HERO, an, at) {
     case 'cs': p = { ...W.guard.anim, arm_f: -90, weapon: -90, torso: 12, lean: 6 }; break;
     case 'blk': case 'cnt': p = { ...W.guard.anim }; break;
     case 'blkw': p = { ...W.guard.anim, ...runCycle(at * 7, 0.35), arm_b: W.guard.anim.arm_b }; break;
+    case 'rl': p = { arm_f: -70 + Math.sin(at * 14) * 8, weapon: 150, arm_b: -80, torso: 10, head: 10 }; break;   // reloading: head down over the breech
     case 'drink': p = { arm_f: -150 - Math.sin(at * 9) * 6, weapon: 150, head: -12, torso: -4 }; break;
     case 'hurt': p = { torso: -16, head: -12, lean: -3, arm_f: 20, arm_b: 30 }; break;
     case 'down': p = { torso: 0, head: -10, arm_f: -30, arm_b: 40, leg_f: 10, leg_b: -6 }; spin = -90; break;
@@ -140,6 +141,9 @@ export class HeroView {
     this.scene = scene; this.lastAn = ''; this.lastZ = 0;
     this.ghosts = []; this.ghostT = 0; this.stepN = -1;
     this.mine = false;    // this browser's hero: its footsteps are louder
+    this.noOff = false; this.noWeapon = false;   // what's out of the hands just now (a planted standard, thrown discs, the sickle)
+    this.pips = null;     // [n, most, colour]: a second row under the dashes (a streak, rounds or discs left); this browser's heroes only
+    this.reload = null;   // [share done, window from, window to, fumbled]: the ring over a reloading hero
   }
   // An afterimage: the figure as it stands, in the player's colour, left behind to fade. A roll or a dash
   // leaves a string of them; a blink leaves one where the hero stood.
@@ -171,6 +175,8 @@ export class HeroView {
     const M = attackOf(this.W, an);
     if (M && M.whirl) left = Math.floor(at / (M.dur / 2)) % 2 === 1 ? !left : left;   // the whirlwind: the figure turns about as the blade goes round
     const { p, spin, z } = heroPose(this.W, this.HERO, an, at);
+    if (this.noOff) p.shield_hide = 1;      // the standard is planted, or that disc is in the air
+    if (this.noWeapon) p.weapon_hide = 1;   // the sickle or the last disc is away from the hand
     const dt = Math.min(0.05, this.scene.game.loop.delta / 1000), K0 = an[0] === 'k' && SKILLS[an.slice(2)];
     const dodge = an === 'roll' || an === 'dash', blinks = an === 'blink' || !!(K0 && K0.blink);
     if (blinks && an !== this.lastAn && this.lastAn) this.ghost(0.34);   // before the figure moves: it is still where it stood
@@ -212,7 +218,20 @@ export class HeroView {
     g.fillStyle(0x0c0a10, 0.8); g.fillRect(hx - 1, hy - 1, W + 2, 5);
     g.fillStyle(f < 0.3 ? 0xff5a48 : 0xc84040, 1); g.fillRect(hx, hy, W * f, 3);
     g.lineStyle(1, this.colour, 0.9); g.strokeRect(hx - 1.5, hy - 1.5, W + 3, 6);
+    if (this.reload) {   // reloading: a ring closing over the head, the moment to press again marked on it
+      const [u, w0, w1, bad] = this.reload, cy = hy - 12, A = v => -Math.PI / 2 + v * Math.PI * 2;
+      g.lineStyle(4, 0x0c0a10, 0.8).beginPath().arc(Math.round(x), cy, 8, 0, Math.PI * 2).strokePath();
+      g.lineStyle(3, bad ? 0x7a7488 : 0xffd23f, 1).beginPath().arc(Math.round(x), cy, 8, A(w0), A(w1)).strokePath();
+      g.lineStyle(2, bad ? 0xc84040 : 0xffffff, 1).beginPath().arc(Math.round(x), cy, 8, A(0), A(Math.min(1, u))).strokePath();
+    }
     if (!this.dash) return;
+    if (this.pips) {   // a streak, or what's left to fire or throw
+      const [pn, pmax, col] = this.pips, w = pmax > 8 ? 2 : pmax > 3 ? 4 : 7, gp = 1, px0 = Math.round(x) - (pmax * w + (pmax - 1) * gp) / 2, py = Math.round(y) + 14;
+      for (let i = 0; i < pmax; i++) {
+        g.fillStyle(0x0c0a10, 0.8); g.fillRect(px0 + i * (w + gp) - 1, py - 1, w + 2, 4);
+        if (i < pn) { g.fillStyle(col, 1); g.fillRect(px0 + i * (w + gp), py, w, 2); }
+      }
+    }
     const [n, max] = this.dash, pw = 7, gap = 2, dx = Math.round(x) - (max * pw + (max - 1) * gap) / 2, dy = Math.round(y) + 9;
     for (let i = 0; i < max; i++) {
       const k = Math.max(0, Math.min(1, n - i)), px = dx + i * (pw + gap);
@@ -354,6 +373,15 @@ export class LocalHero {
     this.passSwing = {};  // upgrade id -> the swing its dodge-through attack is striking with
     this.lastAoe = null;  // where this attack's own area landed (what blessings hang on a special goes off there)
     this.readyAt = {};    // skill id -> when it last came off cooldown (the HUD chip flashes)
+    // the second six weapons (content/weapons.py)
+    this.streak = 0; this.streakT = 0;   // gauntlets: hits landed in a row, and seconds until it lapses
+    this.ammo = this.W.ammo ? this.W.ammo.max : 0;   // chakrams in hand, rounds in the cannon
+    this.late = [];       // seconds until each disc that wasn't caught comes back to hand
+    this.primed = false;  // the next throw or shot is a strong one (a disc caught, a reload timed)
+    this.fumbled = false; // this reload was pressed at the wrong moment
+    this.planted = null;  // {x, y}: where the war banner's standard stands
+    this.nearStand = false;
+    this.pullTo = null;   // {x, y}: where the sickle's chain is dragging the hero
   }
 
   an() {
@@ -364,6 +392,8 @@ export class LocalHero {
       case 'charge': return 'hc';
       case 'special': return 'sp';
       case 'cstrike': return 'cs';
+      case 'pull': return 'dash';
+      case 'reload': return 'rl';
       case 'skill': return 'k_' + this.skill.id;
       case 'block': return Math.hypot(this.vx, this.vy) > 5 ? 'blkw' : 'blk';
       default: return this.state;
@@ -376,7 +406,7 @@ export class LocalHero {
       const [a, b] = this.HERO.roll.iframes;
       return this.t >= a && this.t <= b + (this.S.iframes || 0);
     }
-    if (this.state === 'dash') return true;  // untouchable for the whole dash (0.28 s: about a roll's worth)
+    if (this.state === 'dash' || this.state === 'pull') return true;  // untouchable for the whole dash (0.28 s: about a roll's worth), and while the chain pulls
     if (this.state === 'blink') return true;
     if (this.state === 'skill' && this.skill.air) return this.t >= this.skill.air[0] && this.t <= this.skill.air[1];
     if (this.state === 'special' && this.W.special.air) return this.t >= this.W.special.air[0] && this.t <= this.W.special.air[1];
@@ -396,9 +426,43 @@ export class LocalHero {
     if (fl) this.swing.fl = { ...this.swing.fl, ...fl };
   }
   // begin charging a heavy (Patience: after a second stood still it is charged at once)
-  startCharge() {
+  startCharge(ctx) {
+    const W = this.W;
+    if (this.planted) { this.recallStandard(ctx); return; }                                      // the war banner: heavy again calls the standard home
+    if (W.heavy.proj && W.heavy.proj.hook && this.stuck.length) { this.yank(ctx); return; }       // the sickle lies thrown: yank it back
+    if (W.heavy.proj && W.heavy.proj.hook && this.shots.some(q => q.hook || q.kind === 'move:yank')) return;   // ...or is still in the air
+    if (W.heavy.ammo && this.ammo < W.heavy.ammo) {   // nothing to throw or fire
+      if (W.ammo.reload) this.startReload(); else this.noDash = performance.now() + 300;
+      return;
+    }
     this.state = 'charge'; this.t = 0; this.anT = 0; this.over = 0; this.oc = false;
     this.charge = this.S.patience && this.stillT >= 1 ? this.W.heavy.charge - 0.001 : 0;
+  }
+  // the cannon: break it open (press again inside the window to finish at once, primed)
+  startReload() {
+    if (this.state === 'reload' || this.ammo >= this.W.ammo.max) return;
+    this.state = 'reload'; this.t = 0; this.anT = 0; this.fumbled = false; this.queued = null;
+  }
+  // the war banner: the standard flies back to the hand through whatever is between
+  recallStandard(ctx) {
+    const P = this.planted;
+    this.planted = null;
+    ctx.send({ t: 'plant', h: this.id, up: 1 });
+    this.comeHome(P.x, P.y, 'move:recall', 10, this.h.colourHex, ctx);
+    ctx.onSwing && ctx.onSwing(this);
+  }
+  // the sickle, lying where it fell: yanked home on its chain
+  yank(ctx) {
+    for (const k of this.stuck) this.comeHome(k.x, k.y, 'move:yank', 8, k.col, ctx);
+    ctx.send({ t: 'shot', h: this.id, k: 'end', id: this.stuckId });
+    this.stuck = [];
+    ctx.onSwing && ctx.onSwing(this);
+  }
+  // something of the hero's flies back to the hand from (x, y), striking afresh on the way
+  comeHome(x, y, kind, r, col, ctx) {
+    const a = Math.atan2(this.y - 10 - y, this.x - x), v = 540, far = Math.hypot(this.x - x, this.y - 10 - y);
+    this.shots.push({ x, y, a, v, r, life: far / v + 0.4, pierce: true, col, kind, combo: 0, c: 0, home: true, swing: { seq: ++swingSeq, struck: new Set(), shot: true } });
+    ctx.send({ t: 'shot', h: this.id, k: 'proj', x: Math.round(x), y: Math.round(y), a: Math.round(a * 1000) / 1000, v, r, life: Math.round(far / v * 100) / 100, col });
   }
   // what a blessing just gave (the server says): Focus, seconds off every skill's cooldown, dashes
   gain(m) {
@@ -419,9 +483,19 @@ export class LocalHero {
     const d = ctx.input.get(this.dev);
     const H = this.HERO, W = this.W, G = W.guard;
     const M0 = this.state === 'mv' ? W.moves[this.mv] : null;
-    const quick = this.state === 'atk' || (M0 && M0.slot === 'light') ? (this.S.light_speed || 1) * (this.haste > 0 ? this.S.haste_light || 1 : 1) : 1;   // light attacks play faster with some upgrades
+    const W0 = this.W, P0 = this.planted;
+    this.nearStand = !!P0 && Math.hypot(P0.x - this.x, P0.y - this.y) <= W0.stand.r;
+    // light attacks play faster with some upgrades, with a streak (gauntlets), beside the standard (war banner)
+    const quick = this.state === 'atk' || (M0 && M0.slot === 'light')
+      ? (this.S.light_speed || 1) * (this.haste > 0 ? this.S.haste_light || 1 : 1) * (W0.streak ? 1 + W0.streak.speed * this.streak : 1) * (this.nearStand ? W0.stand.speed : 1) : 1;
     this.t += dt * quick; this.anT += dt * quick;
     this.now = ctx.now; this.echo = Math.max(0, this.echo - dt);
+    if (this.streak > 0 && (this.streakT -= dt) <= 0) this.streak = 0;   // a streak lapses without a hit
+    if (this.late.length) {   // discs that weren't caught come back to hand in their own time
+      this.late = this.late.map(v => v - dt);
+      const back = this.late.filter(v => v <= 0).length;
+      if (back) { this.ammo = Math.min(W0.ammo.max, this.ammo + back); this.late = this.late.filter(v => v > 0); }
+    }
     if (this.recast && ctx.now >= this.recast.until) this.recast = null;
     this.sinceDodge += dt; this.riposte = Math.max(0, this.riposte - dt); this.passing = false;
     if (M0 && M0.drain) this.dashes = Math.max(0, this.dashes - (M0.drain + (this.S.dash_regen || 1) / (W.dodge.recharge * (this.S.dash_time || 1))) * dt);   // the whirlwind spends dashes, and none come back while it turns
@@ -541,12 +615,13 @@ export class LocalHero {
           // the bow's roll-shot flies where you're aiming now (the cursor, the stick, a locked-on boss), not the way you rolled
           if (G.kind === 'rollshot' && !this.skillBlink) { if (want !== null) this.aim = want; this.fire({ v: 380, r: G.boom ? 6 : 4, life: 0.9, n: G.n, spread: G.spread, boom: G.boom }, 'guard', ctx); }
           this.sinceDodge = 0;
+          if (G.reload && W.ammo && !this.skillBlink) this.ammo = Math.min(W.ammo.max, this.ammo + G.reload);   // the cannon's slide chambers a round
           if (q === 'dodge') this.tryRoll(move, ctx);
           else if (q === 'light' || (q !== 'heavy' && d.held('light') && !d.held('heavy'))) {   // light out of a dodge: the dash-strike
             if (want !== null) this.aim = want;
             this.dashStrike(ctx) || this.startLight(0);
           }
-          else if (q === 'heavy') this.startCharge();
+          else if (q === 'heavy') this.startCharge(ctx);
         }
         speed = 0;
         break;
@@ -569,6 +644,10 @@ export class LocalHero {
           if (this.state === 'atk' && this.combo === W.light.length - 1) this.proc('finisher', ctx);
           if (this.state === 'heavy') { this.proc('heavy', ctx); if (this.chargeU >= 0.95) this.proc('heavy_full', ctx); }
           if (this.state === 'special') this.proc('special', ctx);
+          if (this.state === 'heavy' && atk.plant && !this.planted) {   // the war banner: the standard stays where it was slammed down
+            this.planted = { x: this.x + Math.cos(this.aim) * 18, y: this.y + Math.sin(this.aim) * 18 };
+            ctx.send({ t: 'plant', h: this.id, x: Math.round(this.planted.x), y: Math.round(this.planted.y) });
+          }
         }
         if (this.state !== 'cstrike') {
           if (d.pressed('light')) this.queued = 'light';
@@ -590,13 +669,13 @@ export class LocalHero {
           const q = this.queued || (d.held('light') && !d.held('heavy') ? 'light' : null);
           if (q === 'dodge') { this.queued = null; this.tryRoll(move, ctx); break; }
           if (q === 'light') { this.queued = null; if (want !== null) this.aim = want; this.startLight(0); break; }
-          if (q === 'heavy') { this.queued = null; this.startCharge(); break; }
+          if (q === 'heavy') { this.queued = null; this.startCharge(ctx); break; }
           if (skillReady) { setState('idle'); break; }
         }
         if (atk.loop) {
           // the whirlwind: round again while light is held and there are dashes to spend; a roll or a heavy breaks out at once
           if (this.queued === 'dodge') { this.queued = null; this.tryRoll(move, ctx); break; }
-          if (this.queued === 'heavy') { this.queued = null; this.startCharge(); break; }
+          if (this.queued === 'heavy') { this.queued = null; this.startCharge(ctx); break; }
           if (this.t >= atk.dur) {
             this.queued = null;
             if (d.held('light') && this.dashes > 0.05) { this.t = 0; this.anT = 0; this.swing = { seq: ++swingSeq, struck: new Set(), fired: false }; ctx.onSwing && ctx.onSwing(this); }
@@ -613,7 +692,7 @@ export class LocalHero {
           if (more === 'light' && this.combo < W.light.length - 1) { this.startLight(this.combo + 1); break; }
           if (more === 'light' && atk.into && d.held('light') && this.dashes > 0.3) { this.startMove(atk.into, ctx); break; }   // held past the finisher: the whirlwind
           if (more === 'dodge') { this.tryRoll(move, ctx); break; }
-          if (more === 'heavy') { this.startCharge(); break; }
+          if (more === 'heavy') { this.startCharge(ctx); break; }
           this.queued = more === 'light' && !d.held('light') ? more : null;  // the last hit: a press waits for it to finish
         }
         // a roll cuts short the recovery of a heavy or a special too (once it has struck, and landed if it leapt)
@@ -631,6 +710,26 @@ export class LocalHero {
           else if (q === 'light') this.startLight(!wasMove && this.combo < W.light.length - 1 ? this.combo + 1 : 0);
         }
         speed = this.state === 'skill' && atk.walk ? H.speed * speedK * atk.walk : 0;   // some skills are cast walking
+        break;
+      }
+      case 'pull': {   // the sickle has hooked a boss: the chain drags the hero to it, then the cut
+        const P = this.pullTo, far = Math.hypot(P.x - this.x, P.y - this.y), go = 620 * dt;
+        if (far <= 34 || this.t > 0.6) { this.aim = Math.atan2(P.y - this.y, P.x - this.x); this.startMove('reap', ctx); speed = 0; break; }
+        this.x += (P.x - this.x) / far * Math.min(go, far); this.y += (P.y - this.y) / far * Math.min(go, far);
+        this.passing = true;
+        speed = 0;
+        break;
+      }
+      case 'reload': {   // the cannon, broken open: press again as the ring passes the mark to finish at once, primed
+        const R = W.ammo, u = this.t / R.reload;
+        speed = H.speed * speedK * 0.5;
+        if (d.pressed('dodge')) { this.tryRoll(move, ctx); break; }
+        if (!this.fumbled && this.t > 0.12 && (d.pressed('light') || d.pressed('block'))) {
+          if (this.t >= R.window[0] && this.t <= R.window[1]) { this.ammo = R.max; this.primed = true; setState('idle'); ctx.onCatch && ctx.onCatch(this, 'Primed!'); break; }
+          this.fumbled = true; ctx.onDenied(this);
+        }
+        if (this.t >= R.reload + (this.fumbled ? R.fumble : 0)) { this.ammo = R.max; setState('idle'); ctx.onReload && ctx.onReload(this); }
+        void u;
         break;
       }
       case 'charge':
@@ -673,7 +772,7 @@ export class LocalHero {
         const moving = move.x || move.y;
         this.state = moving ? 'run' : 'idle';
         if (d.pressed('dodge')) { this.tryRoll(move, ctx); break; }
-        if (d.pressed('heavy')) { this.startCharge(); break; }
+        if (d.pressed('heavy')) { this.startCharge(ctx); break; }
         const q = this.queued; this.queued = null;   // the special or a drink asked for mid-attack
         if (d.pressed('light') && this.riposte > 0 && W.moves && W.moves.riposte) { this.riposte = 0; this.startMove('riposte', ctx); break; }
         if (d.pressed('light') && this.sinceDodge < 0.2 && this.dashStrike(ctx)) break;
@@ -683,6 +782,7 @@ export class LocalHero {
         // light: a press, or the button held (after a roll, a skill or a drink the combo picks straight back up)
         if (d.pressed('light') || (d.held('light') && !d.held('heavy'))) { this.startLight(this.comboWait > 0 && this.combo < W.light.length - 1 ? this.combo + 1 : 0); break; }
         if (G.kind === 'block' && d.held('block')) { setState('block'); break; }
+        if (W.ammo && W.ammo.reload && d.pressed('block')) { this.startReload(); break; }
         if (G.kind === 'counter' && d.pressed('block') && this.useDash(G.cost)) { setState('cnt'); break; }
       }
     }
@@ -723,7 +823,7 @@ export class LocalHero {
     if (this.isHeld(ctx.now)) { this.denied = { id: 'dash', until: performance.now() + 350 }; return; }
     const G = this.W.guard, dir = move.x || move.y ? Math.atan2(move.y, move.x) : this.aim;
     const kind = G.dodge || G.kind;   // a blessing can change the dodge itself (Stormstep: a blink)
-    if (!this.useDash()) return;
+    if (!this.useDash(kind === 'dash' && G.cost ? G.cost : 1)) return;   // the gauntlets' weave costs half a dash
     this.skillBlink = false; this.blinkDur = 0.16; this.passSwing = {};
     this.rollFrom = [this.x, this.y];
     if (kind === 'dash') this.state = 'dash';
@@ -733,7 +833,7 @@ export class LocalHero {
       ctx && ctx.onBlink(this);
       if (G.burst && ctx) {   // the catalyst leaves a burst where it stood
         const [bx, by] = this.rollFrom, U = G.burst;
-        this.aoes.push({ x: bx, y: by, r: U.r, wait: U.delay, ticks: 1, every: 0.2, kind: 'move:dash', col: U.col, boom: true });
+        this.aoes.push({ x: bx, y: by, r: U.r, wait: U.delay, ticks: 1, every: 0.2, kind: 'move:' + (U.as || 'dash'), col: U.col, boom: true });
         ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(bx), y: Math.round(by), r: U.r, life: U.delay + 0.05, col: U.col, p: 0 });
       }
       this.state = 'blink';
@@ -821,6 +921,11 @@ export class LocalHero {
   }
 
   startLight(i) {
+    const W = this.W, need = W.light[i].ammo;
+    if (need && this.ammo < need) {   // nothing in hand or in the breech
+      if (W.ammo.reload) { this.startReload(); return; }
+      this.combo = i; this.startMove('punch'); return;   // the chakrams are away: fists
+    }
     this.combo = i;
     this.startAttack('atk');
   }
@@ -845,6 +950,7 @@ export class LocalHero {
     this.swing = { seq: ++swingSeq, struck: new Set(), fired: false };
     this.lastAoe = null;
     if (kind === 'heavy' && this.oc) this.swing.fl = { oc: 1 };
+    if (kind === 'heavy' && this.W.heavy.spend && this.streak > 0) this.swing.fl = { ...this.swing.fl, sk: this.streak };   // the uppercut spends the streak
     const atk = this.attackData();
     if (atk.blink) {  // the daggers' shadowstep: appear beside your target first
       const b = ctx && atk.behind ? ctx.boss.nearest(this.x, this.y) : null;
@@ -879,7 +985,7 @@ export class LocalHero {
         // for an attack that is a shot or lands far off, the area goes to what's aimed at, not the hero's feet
         const far = when === 'finisher' && this.W.light.at(-1).proj ? Math.min(260, this.aimDist ?? 150) : A.at;
         let x = this.x + Math.cos(this.aim) * far, y = this.y + Math.sin(this.aim) * far;
-        if (when === 'special' && this.lastAoe) ({ x, y } = this.lastAoe);
+        if ((when === 'special' || when.startsWith('heavy')) && this.lastAoe) ({ x, y } = this.lastAoe);   // where the attack's own area landed (the bow's rain, the cannon's shell)
         if (A.mid && this.rollFrom) { x = (this.x + this.rollFrom[0]) / 2; y = (this.y + this.rollFrom[1]) / 2; }
         this.procArea(P, x, y, ctx);
       }
@@ -910,6 +1016,10 @@ export class LocalHero {
     // A shot or a called-down area is loosed once, on the first frame at or after its moment: its
     // window is only 10 ms wide, and a frame (17 ms at 60 a second) can step clean over it.
     const skill = this.state === 'skill';
+    if (atk.ammo && (atk.proj || atk.aoe) && !this.swing.fired) {   // a round fired, a disc thrown: a primed one (a caught disc, a timed reload) hits harder
+      this.ammo = Math.max(0, this.ammo - atk.ammo);
+      if (this.primed) { this.primed = false; this.swing.fl = { ...this.swing.fl, ch: 1 }; }
+    }
     if ((atk.proj || atk.aoe) && skill && !this.swing.fired && this.wantA !== null) { this.aim = this.wantA; this.aimDist = this.wantDist; }   // a skill goes where the player aims as it fires
     if (atk.proj) {
       if (!this.swing.fired) {
@@ -934,17 +1044,18 @@ export class LocalHero {
         // `range`: it lands on what you aim at (the cursor, the boss you're locked on to), up to that far
         const at = A.range && this.aimDist != null ? Math.min(A.range, this.aimDist) : A.at;
         this.aoes.push({ x: this.x + Math.cos(this.aim) * at, y: this.y + Math.sin(this.aim) * at, r: A.r, wait: A.delay, ticks: A.ticks, every: A.every, kind,
-          col: atk.col, pillar: !!A.range && A.ticks === 1, pool: A.ticks > 3, carry: !!A.carry, follow: A.follow || 0, fl: this.swing.fl });
+          col: atk.col, pillar: !!A.range && A.ticks === 1 && !A.shell, boom: !!A.shell, pool: A.ticks > 3, carry: !!A.carry, follow: A.follow || 0, fl: this.swing.fl });
         this.lastAoe = { x: this.aoes.at(-1).x, y: this.aoes.at(-1).y };
         if (skill && atk.zone && atk.zone.at === 'aoe') ctx.send({ t: 'zone', h: this.id, sk: atk.id, x: Math.round(this.lastAoe.x), y: Math.round(this.lastAoe.y) });
         ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(this.aoes.at(-1).x), y: Math.round(this.aoes.at(-1).y), r: A.r,
-          life: A.follow ? A.delay + A.every : A.range && A.ticks === 1 ? A.delay : A.delay + A.ticks * A.every, col: atk.col, p: A.range && A.ticks === 1 ? 1 : A.ticks > 3 ? 2 : 0 });
+          life: A.follow ? A.delay + A.every : A.range && A.ticks === 1 ? A.delay : A.delay + A.ticks * A.every, col: atk.col, p: A.range && A.ticks === 1 && !A.shell ? 1 : A.ticks > 3 ? 2 : 0 });
       }
       return;
     }
     if (this.t > hit[1]) return;
     const s = placeAttack(reach(atk.shape, this.state === 'skill' ? 1 : this.S.reach || 1), this.x, this.y, this.aim);
     this.strike(s, kind, this.swing, ctx);
+    if (!skill && atk.clear && !this.swing.cleared) { this.swing.cleared = true; ctx.clearShots(this, this.x, this.y, atk.clear); }   // the chain whirl too
     if (skill && atk.clear && !this.swing.cleared) { this.swing.cleared = true; ctx.clearShots(this, this.x, this.y, atk.clear); }   // the nova shatters the boss's shots
   }
 
@@ -968,6 +1079,11 @@ export class LocalHero {
       }
       any = true;
       if (kind.startsWith('skill:') && SKILLS[sk] && SKILLS[sk].cdhit && !sub && !swing.cdhit) { swing.cdhit = true; this.skillCd[sk] -= SKILLS[sk].cdhit; }   // each strike that lands brings it back sooner
+      const ST = this.W.streak;   // gauntlets: every blow of their own that lands adds to the streak; the uppercut that spent it starts it over
+      if (ST && !kind.startsWith('skill:') && !kind.startsWith('proc:') && !swing.streaked) {
+        swing.streaked = true;
+        this.streak = fl.sk ? 0 : Math.min(ST.max, this.streak + 1); this.streakT = ST.live;
+      }
       if (kind === 'move:dash' && this.S.dash_refund && !swing.refund) { swing.refund = true; this.dashes = Math.min(this.maxDash, this.dashes + 1); }   // Follow Through
       // what only this weapon does (the server prices it): from behind a boss, with the tip of the reach, a Power Shot
       const W = this.W, own = !kind.startsWith('skill:') && !kind.startsWith('proc:') && kind !== 'guard';
@@ -978,6 +1094,7 @@ export class LocalHero {
         if (W.tip && far && !swing.shot && Math.hypot(tg.x - this.x, tg.y - this.y) - tg.r > far * W.tip_from) bonus = 'tip';
         if (swing.power) bonus = 'pw';
         if (fl.bk && W.backstab) bonus = 'bk';
+        if (fl.ch) bonus = 'ch';
       }
       if (tg.kind === 'add') { ctx.send({ t: 'hitadd', a: tg.a, ...base }); tg.add.flash = 0.08; }
       else ctx.send({ t: 'hit', e: tg.e, core: tg.kind === 'core' ? tg.i : undefined, ...base, ...(bonus ? { [bonus]: 1 } : {}) });
@@ -993,7 +1110,7 @@ export class LocalHero {
     const n = (P.n_full && (this.chargeU || 0) >= 0.95 ? P.n_full : P.n || 1) + more, spread = P.spread || (more ? 12 : 0);
     for (let i = 0; i < n; i++) {
       const a = this.aim + (spread * (i - (n - 1) / 2)) * Math.PI / 180;
-      const shot = { x: this.x + Math.cos(a) * 12, y: this.y + Math.sin(a) * 12, a, v: P.v, r: P.r, life: P.life, pierce: P.pierce, boom: P.boom, back: P.back, stick: P.stick,
+      const shot = { x: this.x + Math.cos(a) * 12, y: this.y + Math.sin(a) * 12, a, v: P.v, r: P.r, life: P.life, pierce: P.pierce, boom: P.boom, back: P.back, stick: P.stick, disc: P.disc, hover: P.hover, hook: P.hook,
         col: P.col, kind, combo: this.combo, c: this.chargeU || 0, swing: { seq: ++swingSeq, struck: new Set(), shot: true, power: kind === 'heavy' && this.power, fl: this.swing ? this.swing.fl : null } };
       this.shots.push(shot);
       ctx.send({ t: 'shot', h: this.id, k: 'proj', x: Math.round(shot.x), y: Math.round(shot.y), a: Math.round(a * 1000) / 1000, v: P.v, r: P.r, life: P.life, col: P.col });
@@ -1021,6 +1138,28 @@ export class LocalHero {
         s.landed = true;
         for (const P of s.procs || []) this.procArea(P, s.x, s.y, ctx);
       }
+      if (hit && s.hook && !s.home) {   // the sickle bites: the chain drags the hero in (untouchable on the way) to cut
+        s.stick = 0;
+        if (!this.down && !this.isHeld(ctx.now)) { this.pullTo = { x: s.x, y: s.y }; this.state = 'pull'; this.t = 0; this.anT = 0; this.queued = null; ctx.onBlink(this); }
+      }
+      if (s.disc && s.life <= 0) {
+        const A = this.W.ammo;
+        if (s.hover && !s.turned) {   // it hangs where it landed, sawing, then comes to hand
+          const U = s.hover;
+          this.aoes.push({ x: s.x, y: s.y, r: U.r, wait: 0.1, ticks: U.ticks, every: U.every, kind: 'move:' + U.as, col: s.col, pool: true });
+          ctx.send({ t: 'shot', h: this.id, k: 'aoe', x: Math.round(s.x), y: Math.round(s.y), r: U.r, life: U.ticks * U.every, col: s.col, p: 2 });
+          this.late.push(U.ticks * U.every + 0.3);
+        } else if (!s.turned) {   // at the end of its flight a disc turns for where the hero stands now, cutting afresh on the way
+          s.turned = true;
+          const tx = this.x, ty = this.y - 10, far = Math.hypot(tx - s.x, ty - s.y);
+          s.a = Math.atan2(ty - s.y, tx - s.x); s.life = Math.max(0.08, far / s.v);
+          s.swing = { seq: ++swingSeq, struck: new Set(), shot: true, fl: s.swing.fl };
+          ctx.send({ t: 'shot', h: this.id, k: 'proj', x: Math.round(s.x), y: Math.round(s.y), a: Math.round(s.a * 1000) / 1000, v: s.v, r: s.r, life: Math.round(s.life * 100) / 100, col: s.col });
+        } else if (Math.hypot(this.x - s.x, this.y - 10 - s.y) <= A.catch && !this.down) {   // there to meet it: caught, and the next throw is the stronger for it
+          this.ammo = Math.min(A.max, this.ammo + 1); this.primed = true;
+          ctx.onCatch && ctx.onCatch(this, 'Caught!');
+        } else this.late.push(A.late);   // it finds its own way back, later
+      }
       if (s.life <= 0 && s.back && !s.home) {   // at the end of its flight it turns for home, striking afresh on the way
         s.home = true; s.pierce = true; s.life = Math.hypot(this.x - s.x, this.y - 10 - s.y) / s.v + 0.4;
         s.swing = { seq: ++swingSeq, struck: new Set(), shot: true, fl: s.swing.fl };
@@ -1028,7 +1167,7 @@ export class LocalHero {
         ctx.send({ t: 'shot', h: this.id, k: 'proj', x: Math.round(s.x), y: Math.round(s.y), a: Math.round(s.a * 1000) / 1000, v: s.v, r: s.r, life: Math.round((s.life - 0.4) * 100) / 100, col: s.col });
       } else if (s.life <= 0 && s.stick && !s.home) {   // a knife stays where it landed, to be called back
         if (!this.stuck.length) this.stuckId = ++swingSeq;
-        this.stuck.push({ x: s.x, y: s.y, a: s.a, col: s.col, until: ctx.now + s.stick });
+        this.stuck.push({ x: s.x, y: s.y, a: s.a, col: s.col, until: ctx.now + s.stick, r: s.hook ? 6 : 3 });
         ctx.send({ t: 'shot', h: this.id, k: 'proj', x: Math.round(s.x), y: Math.round(s.y), a: Math.round(s.a * 1000) / 1000, v: 0, r: 4, life: s.stick, col: s.col, id: this.stuckId });
       }
     }
@@ -1064,8 +1203,8 @@ export class LocalHero {
         && this.useDash(G.cost * (this.S.block_cost || 1))) return 'block';
     if (this.state === 'block' && !h.unblock) {
       if (Math.abs(wrap(toBoss - this.aim)) <= G.arc * (this.S.guard_arc || 1) * Math.PI / 180) {
-        if (this.blockAge <= this.parryWin && !h.noparry) { this.riposte = 0.8; return 'parry'; }
-        if (this.useDash(G.cost * (this.S.block_cost || 1))) { this.riposte = 0.6; return 'block'; }  // a blocked hit uses a dash; with none left the guard breaks
+        if (this.parryWin > 0 && this.blockAge <= this.parryWin && !h.noparry) { this.riposte = 0.8; return 'parry'; }
+        if (this.nearStand || this.useDash(G.cost * (this.S.block_cost || 1))) { this.riposte = 0.6; return 'block'; }   // beside the standard a block costs nothing  // a blocked hit uses a dash; with none left the guard breaks
       }
     }
     // the charge behind the shield (it paid its dash to start): hits from the front are blocked as it goes
@@ -1078,6 +1217,10 @@ export class LocalHero {
       return 'counter';
     }
     this.flash = 0.12;
+    if (W.streak) this.streak = Math.floor(this.streak * (W.streak.keep || 0));   // a hit taken ends the streak
+    if (this.state === 'reload') this.fumbled = true;
+    if (this.state === 'special' && W.special.hyper) return 'hurt';   // the scythe's Harvest isn't interrupted
+    if (this.state === 'pull') return 'hurt';
     if (this.state === 'heavy' && W.heavy.hyper) return 'hurt';
     if (this.state === 'charge' && W.heavy.hypercharge) return 'hurt';   // Siegebreaker: the charge isn't broken either
     if (this.state === 'mv' && W.moves[this.mv].loop) return 'hurt';   // the whirlwind turns on through a hit  // hyper-armour: hurt, but no flinch
@@ -1087,7 +1230,16 @@ export class LocalHero {
     return 'hurt';
   }
 
-  draw() { this.view.reachK = this.S.reach || 1; this.view.dash = [this.dashes, this.maxDash]; this.view.draw(this.x, this.y, this.an(), this.anT, this.aim, this.flash > 0); }
+  draw() {
+    const W = this.W, V = this.view;
+    V.pips = W.streak ? [this.streak, W.streak.max, 0xffa040] : W.ammo ? [this.ammo, W.ammo.max, this.primed ? 0xfff0c0 : 0xa8e0ff] : null;
+    V.reload = this.state === 'reload' ? [this.t / W.ammo.reload, W.ammo.window[0] / W.ammo.reload, W.ammo.window[1] / W.ammo.reload, this.fumbled] : null;
+    // what's out of the hands: a planted standard, discs in the air (the back hand's goes first), the thrown sickle
+    V.noOff = !!this.planted || (!!W.ammo && !W.ammo.reload && this.ammo < W.ammo.max);
+    V.noWeapon = (!!W.ammo && !W.ammo.reload && this.ammo < 1) || (!!(W.heavy.proj && W.heavy.proj.hook) && (this.stuck.length > 0 || this.shots.some(q => q.hook || q.kind === 'move:yank')));
+    this.drawInner();
+  }
+  drawInner() { this.view.reachK = this.S.reach || 1; this.view.dash = [this.dashes, this.maxDash]; this.view.draw(this.x, this.y, this.an(), this.anT, this.aim, this.flash > 0); }
   report() { return { t: 'st', h: this.id, x: Math.round(this.x * 10) / 10, y: Math.round(this.y * 10) / 10, f: Math.round(this.aim * 100) / 100, an: this.an(), at: Math.round(this.anT * 100) / 100 }; }
 }
 

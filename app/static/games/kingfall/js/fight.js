@@ -1,21 +1,21 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=42';
-import { LocalHero, RemoteHero } from './hero.js?v=42';
-import { Boss } from './boss.js?v=42';
-import { drawArena } from './arenas.js?v=42';
-import { sfx, ambience, PLACE } from './audio.js?v=42';
-import { music } from './music.js?v=42';
-import { deviceOfSlot } from './input.js?v=42';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=42';
-import { hudKeys, bigCard } from './ui.js?v=42';
-import { Atmos } from './atmos.js?v=42';
-import { LORE, ROMAN } from './lore.js?v=42';
+import { addFrames } from './rig.js?v=45';
+import { LocalHero, RemoteHero } from './hero.js?v=45';
+import { Boss } from './boss.js?v=45';
+import { drawArena } from './arenas.js?v=45';
+import { sfx, ambience, PLACE } from './audio.js?v=45';
+import { music } from './music.js?v=45';
+import { deviceOfSlot } from './input.js?v=45';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=45';
+import { hudKeys, bigCard } from './ui.js?v=45';
+import { Atmos } from './atmos.js?v=45';
+import { LORE, ROMAN } from './lore.js?v=45';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
-const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff', counter: '#ffe08a' };
+const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff', counter: '#ffe08a', streak: '#ffa040', catch: '#fff0c0', reap: '#b8f0c0' };
 const aoeCol = col => col ? Phaser.Display.Color.HexStringToColor(col).color : 0xffd23f;
 
 export class FightScene extends Phaser.Scene {
@@ -183,6 +183,11 @@ export class FightScene extends Phaser.Scene {
         B.flash = 0.04;
         // a weapon's own bonus colours the number: from behind, with the tip, a Power Shot, sigils spent
         this.number(B.x + (Math.random() - 0.5) * 16, B.y - 70, m.dmg, m.k === 'crit' ? '#ffd23f' : BONUS_COL[m.bonus] || '#f4f0e0', m.k === 'crit' || !!m.bonus);
+        if (m.mk != null) {   // the scythe's mark on it (seconds left), and the reaping of it
+          if (m.bonus === 'reap') { this.burst(B.x, B.y - 44, 0xb8f0c0, 26); this.rings.push({ x: B.x, y: B.y - 30, r: 40, life: 0.3, col: 0xb8f0c0 }); sfx.sting(this.pan(B.x)); }
+          B.reapUntil = m.mk > 0 ? this.net.now() + m.mk : 0;
+        }
+        if (m.bonus === 'streak') { this.burst(B.x, B.y - 44, 0xffa040, 22); this.punch(0.04); sfx.sting(this.pan(B.x)); }
         if (m.sg != null) {
           if (m.bonus === 'sigil') { this.burst(B.x, B.y - 44, 0xc080ff, 26); this.rings.push({ x: B.x, y: B.y - 30, r: 36, life: 0.3, col: 0xc080ff }); sfx.sting(this.pan(B.x)); }
           B.sigils = m.sg; B.sigilAt = this.net.now();
@@ -215,10 +220,18 @@ export class FightScene extends Phaser.Scene {
         break;
       }
       case 'zone': {   // a skill's circle on the ground, for as long as it lasts
+        if (m.sk === 'standard') {   // the war banner's standard, planted: it stands until its bearer calls it back
+          const who = this.byId[m.h];
+          this.zones = this.zones.filter(z => z.h !== m.h);
+          this.zones.push({ x: m.x, y: m.y, r: m.r, until: Infinity, col: who ? who.view.colour : 0xffd23f, banner: true, standard: true, h: m.h });
+          sfx.slam(this.pan(m.x));
+          break;
+        }
         const K = this.data.skills[m.sk];
         if (K && K.zone.at !== 'aoe') this.zones.push({ x: m.x, y: m.y, r: m.r, until: this.net.now() + m.dur, col: aoeCol(K.col), banner: !!K.zone.rally });
         break;
       }
+      case 'unzone': this.zones = this.zones.filter(z => z.h !== m.h); break;
       case 'mend': this.burst(m.x, m.y - 20, 0x8be04e, 4, { dir: -Math.PI / 2, spread: 0.5, speed: 0.5 }); break;
       case 'gain': {   // what a blessing gave: Focus, cooldown, dashes (this browser's heroes keep them)
         if (mine) mine.gain(m);
@@ -406,6 +419,9 @@ export class FightScene extends Phaser.Scene {
     const wp = hero.h.weapon, n = small ? 6 : 12;
     sfx.hitBy(wp, this.pan(tg.x), !small);
     if (wp === 'greatsword') { this.burst(ix, iy, 0xffd9a0, n + 6, { speed: 0.75 }); this.atmos.dust(tg.x, tg.y, small ? 3 : 7, !small); if (!small) this.cameras.main.shake(90, 0.004); }
+    else if (wp === 'gauntlets') { this.burst(ix, iy, 0xffd9a0, n - 2, { dir: hero.aim, spread: 0.9, speed: 0.9 }); if (!small) this.atmos.dust(tg.x, tg.y, 4, false); }
+    else if (wp === 'cannon') { this.burst(ix, iy, 0xffa040, n + 2, { speed: 1.1 }); this.rings.push({ x: ix, y: iy, r: small ? 10 : 20, life: 0.3, col: 0xffa040 }); }
+    else if (wp === 'scythe') this.burst(ix, iy, 0xb8f0c0, n, { dir: hero.aim + 1.3, spread: 0.6, speed: 1.2 });
     else if (wp === 'daggers') this.burst(ix, iy, 0xff8a98, n - 2, { dir: hero.aim + (Math.random() < 0.5 ? 1.2 : -1.2), spread: 0.5, speed: 1.4 });
     else if (wp === 'halberd') this.burst(ix, iy, 0xfff0c0, n, { dir: hero.aim, spread: 0.5, speed: 1.3 });
     else if (wp === 'bow') this.burst(ix, iy, 0xe8dcc0, n - 2, { dir: hero.aim + Math.PI, spread: 0.7, speed: 0.8 });
@@ -414,7 +430,7 @@ export class FightScene extends Phaser.Scene {
     this.impact(ix, iy, hero.aim, !small, hero.view ? hero.view.colour : 0xffffff);
     if (tg.b) tg.b.flash = 0.04;
     if (bonus) {   // struck from behind, with the tip, or a Power Shot: a ring in its colour and a bright note
-      const c = { bk: 0xff8a98, tip: 0xa8e0ff, pw: 0xfff0c0 }[bonus];
+      const c = { bk: 0xff8a98, tip: 0xa8e0ff, pw: 0xfff0c0, ch: 0xfff0c0 }[bonus];
       this.rings.push({ x: ix, y: iy, r: bonus === 'pw' ? 30 : 16, life: 0.3, col: c }); this.burst(ix, iy, c, bonus === 'pw' ? 14 : 6); sfx.bonus(this.pan(tg.x), bonus);
       if (bonus === 'pw') { this.stop = Math.max(this.stop, 0.1); this.punch(0.035); }
     }
@@ -464,6 +480,8 @@ export class FightScene extends Phaser.Scene {
       onCharged: h => { this.burst(h.x, h.y - 22, h.view.colour, 10); sfx.ui(); },
       onOver: h => { this.burst(h.x, h.y - 22, 0xc83a4a, 16); this.rings.push({ x: h.x, y: h.y - 10, r: 28, life: 0.3, col: 0xc83a4a }); sfx.power(this.pan(h.x)); },
       onReady: () => sfx.ui(),
+      onCatch: (h, word) => { sfx.power(this.pan(h.x)); this.number(h.x, h.y - 56, word, '#fff0c0', true); this.rings.push({ x: h.x, y: h.y - 10, r: 24, life: 0.3, col: 0xfff0c0 }); },
+      onReload: h => sfx.clang(this.pan(h.x)),
       onPass: (x0, y0, x1, y1, col) => this.streaks.push({ x0, y0, x1, y1, col: aoeCol(col || '#e8ecf2'), life: 0.22 }),
       // a nova or a burst of frost shatters the boss's shots inside it: gone here at once, and the server tells everyone
       clearShots: (h, x, y, r) => {
@@ -495,6 +513,7 @@ export class FightScene extends Phaser.Scene {
             l.nearAt = now; this.near = 0.16; sfx.perfect(this.pan(l.x));
             this.rings.push({ x: l.x, y: l.y - 6, r: 30, life: 0.3, col: 0xffffff });
             l.view.ghost(0.4);
+            if (l.W.streak) { l.streak = Math.min(l.W.streak.max, l.streak + l.W.streak.weave); l.streakT = l.W.streak.live; }   // gauntlets: a weave through a hit feeds the streak
             const pf = (l.S.perfect_focus || 0) + (now < l.freeUntil ? l.perfectFocus : 0);   // Overcharge, Second Breath: Focus for it
             if (pf) { l.focus = Math.min(l.HERO.focus, l.focus + pf); this.number(l.x, l.y - 62, '+' + pf + ' Focus', '#c8d4ff'); }
           }
@@ -517,6 +536,7 @@ export class FightScene extends Phaser.Scene {
         return true;
       });
     }
+    for (const r of Object.values(this.remote)) r.view.noOff = this.zones.some(z => z.standard && z.h === r.id);   // their standard is planted, not in the hand
     for (const l of this.local) l.draw();
     for (const r of Object.values(this.remote)) r.draw(now - INTERP, dtReal);
 
@@ -550,7 +570,12 @@ export class FightScene extends Phaser.Scene {
     this.zones = this.zones.filter(Z => {
       const left = Z.until - now;
       allyArea(sg, this.shotGlow, { cx: Z.x, cy: Z.y, r: Z.r }, Z.col, Math.min(1, left * 2), time / 1000, true);
-      if (Z.banner) {   // the banner itself: a pole and a pennant stirring
+      if (Z.standard) {   // a planted standard: a tall pole and its cloth in the bearer's colour
+        const w = Math.sin(time / 200) * 2;
+        sg.lineStyle(3, 0x3a2e24, 1).lineBetween(Z.x, Z.y, Z.x, Z.y - 46);
+        sg.fillStyle(0xc8a040, 1).fillRect(Z.x - 2, Z.y - 48, 4, 3);
+        sg.fillStyle(Z.col, 0.95).fillPoints([{ x: Z.x + 1, y: Z.y - 45 }, { x: Z.x + 20 + w, y: Z.y - 43 }, { x: Z.x + 15 + w, y: Z.y - 38 }, { x: Z.x + 20 + w, y: Z.y - 32 }, { x: Z.x + 1, y: Z.y - 31 }], true);
+      } else if (Z.banner) {   // the banner itself: a pole and a pennant stirring
         const w = Math.sin(time / 160) * 2;
         sg.lineStyle(2, 0x3a2e24, 1).lineBetween(Z.x, Z.y, Z.x, Z.y - 34);
         sg.fillStyle(Z.col, 0.95).fillTriangle(Z.x, Z.y - 34, Z.x + 16 + w, Z.y - 29, Z.x, Z.y - 22);

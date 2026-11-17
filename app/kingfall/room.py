@@ -255,6 +255,7 @@ class Room:
             elif t == "skill": f.use_skill(h.id, msg, now)
             elif t == "zone": f.zone_at(h.id, msg, now)
             elif t == "clear": f.clear(h.id, msg, now)
+            elif t == "plant": f.plant(h.id, msg, now)
             elif t == "pay": f.pay_special(h.id, now)
             elif t == "shot":  # a projectile or area hit, so other browsers can draw it
                 out = {"t": "fx", "k": "shot", "h": h.id}

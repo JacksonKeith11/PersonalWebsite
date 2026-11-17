@@ -52,10 +52,11 @@ class Bot:
         first = W["light"][0]
         self.ranged = "proj" in first
         # how close it stands to fight: inside its first light attack's reach, or well back with a bow or catalyst
-        self.stand = 150 if self.ranged else (first["shape"]["r"] if first["shape"]["k"] == "arc" else first["shape"]["x1"] * 0.9) * 0.8
+        self.stand = (min(150, first["proj"]["v"] * first["proj"]["life"] * 0.7) if self.ranged   # never beyond what its shots reach (the chakrams fly 175 px)
+                      else (first["shape"]["r"] if first["shape"]["k"] == "arc" else first["shape"]["x1"] * 0.9) * 0.8)
         # its dodge: a roll, the daggers' dash or the catalyst's blink (each spends one of the weapon's dashes)
         G, R = W["guard"], C.HERO["roll"]
-        self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"])} if G["kind"] == "dash"
+        self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"]), "cost": G.get("cost", 1)} if G["kind"] == "dash"
                       else {"dur": 0.16, "dist": G["dist"], "if": (0.0, 0.16), "blink": True} if G.get("dodge", G["kind"]) == "blink"
                       else {"dur": R["dur"], "dist": R["dist"], "if": R["iframes"]})
         st = fh.hero.build().stats   # dashes, as in the game: the weapon's count and recharge, and what the build changes
@@ -67,6 +68,11 @@ class Bot:
         self.focus = 40.0
         self.moving = False
         self.grp = {}
+        # the second six weapons (content/weapons.py): a streak, discs or rounds, played roughly as a player would
+        self.streak = 0
+        self.ammo = W["ammo"]["max"] if W.get("ammo") else 0
+        self.discs = []     # when each thrown chakram is back in hand
+        self.primed = False
 
     def iframes(self):
         a, b = self.dodge["if"]
@@ -192,6 +198,7 @@ def _step_bot(b, f, now, dt, bots):
                 b.hits += 1
                 f.hurt(fh.hero.id, {"id": key}, now)
                 b.state, b.t = "hurt", 0.0
+                b.streak = int(b.streak * b.W.get("streak", {}).get("keep", 0))   # a hit taken ends a streak
     for a in list(f.adds.values()):  # adds bite once a second while touching
         if a["dmg"] and now - a["born"] > 1.0 and math.hypot(a["x"] - fh.x, a["y"] - fh.y) < a["r"] + H["radius"] and not b.iframes():
             key = f"a{a['id']}:{int(now / 2)}"
@@ -231,8 +238,9 @@ def _step_bot(b, f, now, dt, bots):
         if (until <= 0.12 + b.rng.uniform(-0.05, 0.05) * (1 - b.skill) or until <= 0.05) and b.state in ("idle", "atk"):
             b.decided.add(key)
             if b.rng.random() < b.skill:
-                if b.dashes < 1: continue   # out of dashes: it takes the hit
-                b.dashes -= 1
+                cost = b.dodge.get("cost", 1)   # the gauntlets' weave costs half a dash
+                if b.dashes < cost: continue   # out of dashes: it takes the hit
+                b.dashes -= cost
                 b.state, b.t, b.act = "roll", 0.0, None
                 side = b.rng.choice((-1, 1))
                 b.roll_dir = toward + math.pi if long else (toward + side * math.pi / 2 if d < 70 else toward + math.pi)
@@ -280,6 +288,7 @@ def _step_bot(b, f, now, dt, bots):
     busy = body.move is not None and now - body.move.start < body.move.data["dur"] * 0.6
     if b.state == "idle" and use_skill(b, f, now, d, body, target, bots): return
     stand = min(b.stand, 22) if core_i is not None and not b.ranged else b.stand
+    if target[0] == "body" and core_i is None: stand = max(stand, body.d["radius"] + 12)   # a very short weapon (the gauntlets) still can't stand inside the boss
     if b.ranged and d < 80 and target[0] == "body":   # archers and casters back away
         fh.x -= math.cos(toward) * H["speed"] * dt; fh.y -= math.sin(toward) * H["speed"] * dt
     elif d > stand + (20 if b.ranged else 0):
@@ -287,6 +296,17 @@ def _step_bot(b, f, now, dt, bots):
     elif (target[0] == "add" or b.ranged or not busy or b.rng.random() < 0.02 * (1 - b.skill)) and b.state == "idle":
         W, sp, hv = b.W, b.W["special"], b.W["heavy"]
         kind, atk, at = "light", W["light"][b.combo], 0.0
+        A = W.get("ammo")
+        if A and atk.get("ammo"):
+            b.discs = [t for t in b.discs if t > now]
+            if "reload" in A and b.ammo < 1:   # the cannon is empty: reload (a bot times the quick reload about as well as it reads a dodge)
+                quick = b.rng.random() < b.skill * 0.7
+                b.ammo, b.primed = A["max"], quick
+                b.state, b.t, b.act, b.landed = "atk", 0.4 - (A["window"][0] + 0.1 if quick else A["reload"]), None, True
+                return
+            if "reload" not in A and len(b.discs) >= A["max"]:   # both chakrams are away: a punch that does next to nothing, and wait
+                b.state, b.t, b.act, b.landed = "atk", 0.15, None, True
+                return
         if target[0] == "body":
             left = body.until - now if body.state == "stagger" else 0.0
             if left > hv["charge"] + hv["hit"][0] + 0.1 and fh.hero.id not in body.crit_by and reach(hv) + body.d["radius"] >= d:
@@ -294,7 +314,8 @@ def _step_bot(b, f, now, dt, bots):
             elif b.focus >= sp["focus"] and reach(sp) + body.d["radius"] >= d and (not b.ranged or d > 90):
                 kind, atk = "special", sp
                 b.focus -= sp["focus"]
-        b.act = (kind, atk, at + atk["hit"][0], at + atk["dur"])
+        quick = 1 + W["streak"]["speed"] * b.streak if kind == "light" and W.get("streak") else 1.0   # a streak quickens the fists
+        b.act = (kind, atk, at + atk["hit"][0] / quick, at + atk["dur"] / quick)
         b.state, b.t, b.landed = "atk", 0.0, False
     fh.x, fh.y = f.clamp(fh.x, fh.y)
 
@@ -315,9 +336,17 @@ def land(b, f, now, target, body, near_add, core_i, bx, by, d, toward):
     fh = b.fh
     kind, atk = b.act[0], b.act[1]
     r = near_add["r"] if target[0] == "add" else body.d["cores"][core_i]["r"] if core_i is not None else body.d["radius"]
+    A, extra = b.W.get("ammo"), {}
+    if A and atk.get("ammo") and kind == "light":
+        if "reload" in A: b.ammo -= 1
+        else: b.discs.append(now + 0.9)
+        if b.primed or ("reload" not in A and b.rng.random() < b.skill * 0.6): extra["ch"] = 1   # a timed reload; a disc caught (bots stand where it returns)
+        b.primed = False
+    if kind == "heavy" and b.W["heavy"].get("spend") and b.streak: extra["sk"] = b.streak
     if "proj" in atk:
         n = atk["proj"].get("n", 1)
         hits = 0 if d > reach(atk) + r else 1 if n == 1 or d > 90 else 2 if d > 45 else n
+        if hits and atk["proj"].get("disc") and atk["proj"].get("pierce"): hits *= 2   # a chakram cuts on its way out and on its way back
     elif "aoe" in atk:
         hits = (atk["aoe"]["ticks"] + 1) // 2 if abs(d - atk["aoe"]["at"]) < atk["aoe"]["r"] + r else 0
     elif kind == "light":
@@ -329,13 +358,22 @@ def land(b, f, now, target, body, near_add, core_i, bx, by, d, toward):
             fh.x, fh.y = f.clamp(fh.x + math.cos(toward) * k, fh.y + math.sin(toward) * k)
     for _ in range(hits):
         b.swing += 1
-        msg = {"atk": kind, "i": b.combo, "c": 1.0, "sw": b.swing}
+        msg = {"atk": kind, "i": b.combo, "c": 1.0, "sw": b.swing, **extra}
         if target[0] == "add":
             f.hit_add(fh.hero.id, {**msg, "a": near_add["id"]}, now)
         else:
             f.hit_boss(fh.hero.id, {**msg, "e": body.e, "core": core_i}, now)
             mult = atk["mult"][1] if isinstance(atk["mult"], tuple) else atk["mult"]
             if kind != "special": b.focus = min(100.0, b.focus + b.W["base"] * mult * C.HERO["focus_per_dmg"])
+    if hits and target[0] != "add":
+        st = b.W.get("streak")
+        if st: b.streak = 0 if extra.get("sk") else min(st["max"], b.streak + hits)
+        if atk.get("proj", {}).get("hook"):   # the sickle bites: the chain pulls the bot in to cut
+            k = max(0.0, d - 30)
+            fh.x, fh.y = f.clamp(fh.x + math.cos(toward) * k, fh.y + math.sin(toward) * k)
+            b.swing += 1
+            f.hit_boss(fh.hero.id, {"atk": "move", "m": "reap", "sw": b.swing, "e": body.e, "core": core_i}, now)
+        if atk.get("plant"): f.plant(fh.hero.id, {"x": fh.x, "y": fh.y}, now)   # the standard stays where it was slammed down
     # What upgrades hang on this strike (content/upgrades.py, `proc`): a rough count, as for skills. One
     # hit (two ticks of a pool) if the attack landed. Roll, guard, flask and perfect-dodge procs aren't played.
     if hits and target[0] != "add":
@@ -467,7 +505,7 @@ def main():
             if any(r["time"] >= 899 for r in rs): bad = True
     if a.fast:  # every weapon gets a fight or two, so none can break unnoticed
         for i, w in enumerate(WEAPONS):
-            for boss in (list(C.BOSSES)[i], list(C.BOSSES)[i + 6]):
+            for boss in (list(C.BOSSES)[i % len(C.BOSSES)], list(C.BOSSES)[(i + 6) % len(C.BOSSES)]):
                 r = fight_once(boss, 1 + i % 2, a.skill, i, weapon=w)
                 print(f"{boss:12} {w:10} party {1 + i % 2}  {'won' if r['won'] else 'lost'}  {r['time'] / 60:4.1f} min")
                 if r["time"] >= 899: bad = True

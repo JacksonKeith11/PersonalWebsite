@@ -71,5 +71,74 @@ def staff():
     return g
 
 
-ALL = {'sword': sword, 'greatsword': greatsword, 'dagger': dagger, 'halberd': halberd, 'bow': bow, 'staff': staff}
-OFFHAND = {'shield': shield}  # drawn per player colour
+def gauntlet():
+    """A plated fist, worn on each hand: small, so the punches read as the arms'."""
+    g = P(9, 11, (4, 8), W)
+    g.rect(1, 0, 7, 5, 'w'); g.rect(5, 0, 7, 5, 'v'); g.rect(1, 2, 7, 2, 'u')
+    g.px(1, 0, 'Y'); g.px(3, 0, 'Y'); g.px(5, 0, 'Y'); g.px(7, 0, 'Y')   # the knuckle studs
+    g.rect(2, 6, 6, 9, 'a'); g.rect(2, 10, 6, 10, 'Y')
+    return g
+
+
+def sickle():
+    """A hooked blade on a short haft, a length of chain hanging from the pommel."""
+    g = P(15, 34, (9, 22), W)
+    g.rect(8, 8, 10, 27, 'h'); g.rect(10, 8, 10, 27, 'H')
+    # the blade curls forward and down from the head
+    g.rows(0, 0, [(6, 11), (3, 12), (1, 12), (0, 5), (0, 3), (0, 2), (0, 1), (0, 1)], 'w')
+    g.rows(0, 1, [(7, 11), (5, 11), (9, 11)], 'v')
+    g.rect(8, 3, 11, 7, 'v'); g.rect(7, 8, 11, 9, 'Y')
+    for i, y in enumerate(range(28, 34)): g.px(9 + (i % 2), y, 'a')   # chain
+    return g
+
+
+def chakram():
+    """A bladed ring, thrown and caught."""
+    g = P(15, 15, (7, 7), W)
+    g.ell(7.5, 7.5, 7.4, 7.4, 'w'); g.ell(8.2, 8.2, 6.2, 6.2, 'v'); g.ell(7.5, 7.5, 4.4, 4.4, '.')
+    g.rect(6, 11, 8, 13, 'h')   # the grip bound into the rim
+    for x, y in ((7, 0), (0, 7), (14, 7), (7, 14)): g.px(x, y, 'Y')
+    return g
+
+
+def spear():
+    g = P(7, 58, (3, 40), W)
+    g.rect(2, 9, 4, 57, 'h'); g.rect(4, 9, 4, 57, 'H')
+    g.rows(0, 0, [(3, 3), (2, 4), (2, 4), (1, 5), (1, 5), (1, 5), (2, 4), (2, 4)], 'w'); g.rect(4, 1, 4, 7, 'v')
+    g.rect(1, 8, 5, 9, 'Y'); g.rect(2, 55, 4, 57, 'a')
+    return g
+
+
+def standard(colour):
+    """The war banner's standard: a pole with a pennant in the player's colour, carried in the back hand."""
+    g = P(17, 46, (2, 34), {**W, 'C': colour[0], 'c': colour[1]})
+    g.rect(1, 2, 3, 45, 'h'); g.rect(3, 2, 3, 45, 'H')
+    g.rect(0, 0, 4, 1, 'Y'); g.px(2, 0, '*')
+    g.rows(4, 3, [(0, 12), (0, 12), (0, 11), (0, 11), (0, 10), (0, 9), (0, 9), (0, 10), (0, 11), (0, 11), (0, 12), (0, 12)], 'C')
+    g.rows(4, 9, [(0, 9), (0, 10), (0, 11), (0, 11), (0, 12), (0, 12)], 'c')
+    g.rect(6, 6, 9, 7, 'Y'); g.rect(7, 5, 8, 8, 'Y')   # a device on the cloth
+    return g
+
+
+def cannon():
+    """A hand cannon: a short flared barrel on a stock."""
+    g = P(9, 26, (4, 19), {**W, 'B': '#3a3440', 'b': '#26222c'})
+    g.rect(1, 0, 7, 1, 'Y'); g.rect(2, 2, 6, 13, 'B'); g.rect(5, 2, 6, 13, 'b'); g.rect(3, 0, 5, 0, 'b')
+    g.rect(1, 6, 7, 7, 'Y'); g.rect(1, 12, 7, 13, 'Y')
+    g.rect(3, 14, 5, 23, 'h'); g.rect(5, 14, 5, 23, 'H'); g.rect(2, 24, 6, 25, 'a')
+    return g
+
+
+def scythe():
+    g = P(25, 62, (20, 42), W)
+    g.rect(19, 4, 21, 61, 'h'); g.rect(21, 4, 21, 61, 'H')
+    # the long blade sweeps out and down from the head
+    g.rows(0, 0, [(12, 21), (7, 22), (4, 22), (2, 14), (1, 9), (0, 6), (0, 4), (0, 3), (0, 2), (0, 1), (0, 1)], 'w')
+    g.rows(0, 1, [(13, 21), (9, 21), (15, 21)], 'v')
+    g.rect(18, 3, 22, 5, 'Y'); g.rect(19, 30, 21, 31, 'Y'); g.rect(19, 59, 21, 61, 'a')
+    return g
+
+
+ALL = {'sword': sword, 'greatsword': greatsword, 'dagger': dagger, 'halberd': halberd, 'bow': bow, 'staff': staff,
+       'gauntlet': gauntlet, 'sickle': sickle, 'chakram': chakram, 'spear': spear, 'cannon': cannon, 'scythe': scythe}
+OFFHAND = {'shield': shield, 'standard': standard}  # drawn per player colour

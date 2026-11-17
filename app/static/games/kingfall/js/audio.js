@@ -99,7 +99,11 @@ export const sfx = {
   // greatsword's thud, the daggers' quick ticks, the halberd's crack, an arrow's thunk, the catalyst's
   // crackle. `big`: a heavy or a special.
   hitBy: (weapon, pan, big) => {
+    // the second six: fists thump, a cannon ball booms; the others borrow the nearest of the first six
+    weapon = { sickle: 'sword', chakrams: 'daggers', banner: 'halberd', scythe: 'greatsword' }[weapon] || weapon;
     switch (weapon) {
+      case 'gauntlets': tone('sine', big ? 150 : 190, 55, big ? 0.2 : 0.11, big ? 0.55 : 0.4, 0, pan); hiss(900, 200, 0.8, big ? 0.16 : 0.07, 0.4, 'lowpass', pan); break;
+      case 'cannon': tone('sine', 110, 34, big ? 0.36 : 0.2, 0.55, 0, pan); hiss(2200, 240, 0.6, big ? 0.3 : 0.16, 0.5, 'lowpass', pan); break;
       case 'greatsword': tone('sine', big ? 95 : 120, 36, big ? 0.34 : 0.22, big ? 0.6 : 0.42, 0, pan); hiss(1400, 180, 0.7, big ? 0.3 : 0.2, 0.5, 'lowpass', pan); tone('square', 150, 70, 0.1, 0.16, 0, pan); break;
       case 'daggers': hiss(5200, 2400, 2.2, 0.05, 0.4, 'bandpass', pan); tone('triangle', 1900 + Math.random() * 500, 900, 0.05, 0.14, 0, pan); if (big) hiss(3000, 900, 1.2, 0.14, 0.4, 'bandpass', pan); break;
       case 'halberd': hiss(2000, 600, 1, 0.14, 0.5, 'bandpass', pan); tone('triangle', 520, 240, 0.12, 0.2, 0, pan); tone('square', 130, 60, big ? 0.2 : 0.1, 0.22, 0, pan); break;

@@ -143,6 +143,7 @@ class Body:
         self.art = d["art"]
         self.chain = 0           # moves into the string it's playing
         self.tired_until = 0.0   # winded after a string: stands still, the opening
+        self.reap = {}           # hero id -> [until, uses left]: the scythe's mark (content/weapons.py, `reap`)
         self.growth = None       # a canker planted by a special (the Rot blessing): {until, acc, frac, amt, by}
         self.queue = []          # signature moves owed (its health passed one of its `marks`)
         self.marks_done = set()
@@ -324,10 +325,12 @@ class Fight:
         mult *= build.dmg_mult(slot)
         atk, sw = msg.get("atk"), msg.get("sw")
         skill = SKILLS.get(msg.get("sk")) if atk == "skill" else None
+        W = self.W(fh)
         # a counter-hit: on a boss that is mid-attack or winded, some skills and blessings strike harder
         counter = None
         if self.open(b, now):
             cs = [skill["counter"]] if skill and skill.get("counter") and not msg.get("sub") else []
+            if atk == "special" and W["special"].get("counter"): cs.append(W["special"]["counter"])   # the scythe's Harvest
             cs += [{"dmg": x["mult"], "poise": x["poise"]} for x in build.get("counterhit")
                    if (x["slot"] == "skill" and atk == "skill") or (x["slot"] == "special" and slot == "special" and atk != "skill")]
             for c in cs:
@@ -344,7 +347,23 @@ class Fight:
                 if x["move"] == msg.get("m"): mult *= x["mult"]
         # what only this weapon does: the daggers bite deeper from behind, the halberd at its tip, the bow on a
         # Power Shot (the browser says which hits were), and the catalyst's heavy and special spend its sigils
-        W, bonus = self.W(fh), counter
+        bonus = counter
+        # the second six: a streak spent (gauntlets), a caught disc or a primed shot (chakrams, cannon), a mark reaped (scythe)
+        st = W.get("streak")
+        if st and atk == "heavy" and W["heavy"].get("spend") and isinstance(msg.get("sk"), int) and msg["sk"] > 0:
+            mult *= 1 + st["per"] * min(st["max"], msg["sk"]); bonus = "streak"
+        if W.get("ammo") and msg.get("ch") and atk in ("light", "heavy"):
+            mult *= W["ammo"]["caught"]; bonus = "catch"
+        rp = W.get("reap")
+        if rp and core is None:
+            mark = b.reap.get(hid)
+            if atk == "light" and msg.get("i") == len(W["light"]) - 1:
+                b.reap[hid] = [now + rp["live"], rp["uses"]]
+            elif atk == "heavy" and mark and now < mark[0] and (sw, "reap") not in fh.swings:
+                fh.swings.add((sw, "reap"))
+                mult *= rp["mult"]; bonus = "reap"; self.heal(fh, rp["heal"])
+                mark[1] -= 1
+                if mark[1] <= 0: del b.reap[hid]
         if msg.get("atk") in ("light", "heavy", "special", "move"):
             if msg.get("bk") and W.get("backstab"): mult *= W["backstab"]; bonus = "back"
             if msg.get("tip") and W.get("tip"): mult *= W["tip"]; bonus = "tip"
@@ -425,6 +444,7 @@ class Fight:
         fx = {"t": "fx", "k": "crit" if crit else "hit", "e": e, "h": hid, "dmg": dmg + extra, "x": round(b.x), "y": round(b.y)}
         if bonus: fx["bonus"] = bonus
         if W.get("sigil"): fx["sg"] = b.sigils
+        if rp: fx["mk"] = round(max(0.0, b.reap[hid][0] - now), 1) if hid in b.reap else 0
         self.room.broadcast(fx)
         if atk == "skill":  # a skill builds its own status, not the special's
             st = (skill["sub"][msg["sub"]] if msg.get("sub") else skill).get("status")
@@ -516,6 +536,24 @@ class Fight:
         if math.hypot(x - fh.x, y - fh.y) > s["aoe"].get("range", 0) + 60: return
         fh.zoned[s["id"]] = fh.skill_cast[s["id"]]
         self.add_zone(fh, s, x, y, now)
+
+    def plant(self, hid, msg, now):
+        """The war banner's standard, planted (its bearer's browser says where) or called back (`up`)."""
+        fh = self.heroes.get(hid)
+        if not fh: return
+        st = self.W(fh).get("stand")
+        had = any(z["sk"] == "standard" and z["by"] is fh for z in self.zones)
+        self.zones = [z for z in self.zones if not (z["sk"] == "standard" and z["by"] is fh)]
+        if had: self.room.broadcast({"t": "fx", "k": "unzone", "h": hid})
+        if not st or msg.get("up") or fh.down or fh.dead: return
+        try:
+            x, y = float(msg.get("x")), float(msg.get("y"))
+        except (TypeError, ValueError):
+            return
+        if math.hypot(x - fh.x, y - fh.y) > 80: return
+        self.zones.append({"x": x, "y": y, "r": st["r"], "until": float("inf"), "sk": "standard", "by": fh, "rally": st["rally"],
+                           "hps": st.get("hps", 0), "every": 1.0, "next": now + 1.0})
+        self.room.broadcast({"t": "fx", "k": "zone", "h": hid, "sk": "standard", "x": round(x), "y": round(y), "r": st["r"], "dur": 0})
 
     def pay_special(self, hid, now):
         """Bloodletting: a special used without the Focus for it costs health."""
@@ -1001,7 +1039,11 @@ class Fight:
         if self.over == "won": return
         self.recent = [m for m in self.recent if m.last > now - 1.0]
         for z in self.zones:   # hallowed ground heals whoever stands in it
-            if z.get("heal") and now >= z["next"]:
+            if z.get("hps") and now >= z["next"]:   # a standard that mends (a Weapon Art): a little, every second
+                z["next"] += z["every"]
+                for o in self.alive_heroes():
+                    if math.hypot(o.x - z["x"], o.y - z["y"]) <= z["r"] and o.hero.hp < o.hero.mhp(): self.heal(o, z["hps"])
+            elif z.get("heal") and now >= z["next"]:
                 z["next"] += z["every"]
                 for o in self.alive_heroes():
                     if math.hypot(o.x - z["x"], o.y - z["y"]) <= z["r"] and o.hero.hp < o.hero.mhp():
@@ -1136,7 +1178,7 @@ class Fight:
                        # what's on them: ward left, seconds of extra damage left, a charged next hit
                        -1 if now < f.guard_until else round(f.shield),
                        round(max([f.vengeance[1] - now if f.vengeance[0] > 1 else 0.0]
-                                 + [z["until"] - now for z in self.zones if z.get("rally") and math.hypot(z["x"] - f.x, z["y"] - f.y) <= z["r"]] + [0.0]), 1),
+                                 + [min(99.0, z["until"] - now) for z in self.zones if z.get("rally") and math.hypot(z["x"] - f.x, z["y"] - f.y) <= z["r"]] + [0.0]), 1),
                        1 if f.empowered and now < f.empowered[1] else 0]
                       for f in self.heroes.values()]}
 

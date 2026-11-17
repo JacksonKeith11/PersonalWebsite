@@ -29,6 +29,12 @@ const P = {
   halberd: '<path d="M4 21 17 5"/><path d="M15 3l6 0-1 5"/><path d="M3 9c3-6 10-7 15-4" stroke-dasharray="2 2"/>',
   bow: '<path d="M6 2v7M12 3v8M18 2v7"/><path d="M4 7l2 3 2-3M10 8l2 3 2-3M16 7l2 3 2-3"/><ellipse cx="12" cy="19" rx="8" ry="2.5"/>',
   catalyst: '<path d="M12 2l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-3.2z" fill="currentColor" fill-opacity=".25"/><circle cx="12" cy="12" r="2"/>',
+  gauntlets: '<path d="M6 10V6h3v4M9 9V4h3v5M12 9V5h3v5M15 10V7h3v6c0 4-2 7-6 7s-6-3-6-7z" fill="currentColor" fill-opacity=".2"/><path d="M3 4l2 1M2 9h2M20 3l-1 2"/>',
+  sickle: '<circle cx="12" cy="12" r="8" stroke-dasharray="3 2.5"/><path d="M12 12c0-4 3-6 6-5-2 0-4 2-4 5z" fill="currentColor" fill-opacity=".3"/><path d="M12 12v6"/>',
+  chakrams: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="5 4"/><circle cx="20" cy="9" r="1.6" fill="currentColor"/><circle cx="4" cy="15" r="1.6" fill="currentColor"/>',
+  banner: '<path d="M3 20 19 6"/><path d="M19 6l-5 0 3.5 2.5z" fill="currentColor"/><path d="M4 12h5M3 16h4M9 8h4" stroke-dasharray="2 2"/>',
+  cannon: '<path d="M3 9h9l2 3-2 3H3z" fill="currentColor" fill-opacity=".2"/><path d="M15 6l5-3M16 12h6M15 18l5 3M17 9l3-1M17 15l3 1"/>',
+  scythe: '<circle cx="12" cy="13" r="8" stroke-dasharray="4 3"/><path d="M12 21V5"/><path d="M12 5c-4 0-7 2-8 6 2-2 5-3 8-3z" fill="currentColor" fill-opacity=".3"/>',
   // anything else
   star: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z"/>',
   crown: '<path d="M3 18h18l-1-10-5 4-3-7-3 7-5-4z" fill="currentColor" fill-opacity=".2"/><path d="M3 21h18"/>',

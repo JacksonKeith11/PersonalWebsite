@@ -98,7 +98,7 @@ def usable(u, weapon):
     from .weapons import WEAPONS
     g = WEAPONS[weapon]["guard"]["kind"]
     return {None: True, "block": g == "block", "guard": g in ("block", "counter"), "roll": g not in ("dash", "blink"),
-            "melee": weapon not in ("bow", "catalyst")}[u["req"]]
+            "melee": weapon not in ("bow", "catalyst", "cannon", "chakrams")}[u["req"]]
 
 
 # ------------------------------------------------------------------ Ember
@@ -272,6 +272,48 @@ U("art_ct_nova", "Lance of Stars", None, None, "Nova becomes a beam along your a
 U("art_ct_bolt", "Split Bolts", None, None, "Every light cast looses one more bolt; bolts deal 30% less.", [{"t": "stat", "key": "light_shots", "add": 1}, {"t": "dmg", "slot": "light", "mult": 0.7}], [], weapon="catalyst")
 U("art_ct_blink", "Twin Rune", None, None, "Your blink leaves a second burst where you arrive ({v} damage).",
   [{"t": "proc", "when": "roll_end", "pow": 1.0, "poise": 10, "aoe": {"at": 0, "r": 44, "delay": 0.14, "ticks": 1, "every": 0.2, "col": "#c080ff", "boom": 1}}], ["pow"], weapon="catalyst")
+
+
+# ------------------------------------------------------------------ Weapon Arts of the second six weapons
+M = lambda **kw: [{"t": "mod", "set": {k.replace("__", "."): v for k, v in kw.items()}}]
+U("art_gt_haymaker", "Haymaker", None, None, "Your uppercut throws a shockwave ahead ({v} damage) that passes through everything.",
+  [{"t": "proc", "when": "heavy", "pow": 1.2, "poise": 16, "proj": {"v": 300, "r": 12, "life": 0.4, "pierce": True, "col": "#ffa040"}}], ["pow"], weapon="gauntlets")
+U("art_gt_flow", "Unbroken", None, None, "A hit taken halves your streak instead of ending it.", M(streak__keep=0.5), [], weapon="gauntlets")
+U("art_gt_close", "Closing Step", None, None, "Your dash-strike lunges twice as far and hits harder.",
+  M(moves__dash__step=70, moves__dash__mult=1.9), [], weapon="gauntlets")
+U("art_gt_hundred", "Thousand Hands", None, None, "Hundred Hands lands seven blows, not five.",
+  M(special__more=[(0.2, 0.26), (0.32, 0.38), (0.44, 0.5), (0.56, 0.62), (0.68, 0.74), (0.86, 0.96)], special__dur=1.08, special__step_t=0.84), [], weapon="gauntlets")
+U("art_sk_round", "Full Circle", None, None, "Every sweep of your light combo goes all the way round you.",
+  M(light__0__shape={"k": "arc", "r": 62, "a0": -180, "a1": 180}, light__1__shape={"k": "arc", "r": 62, "a0": -180, "a1": 180}, light__2__shape={"k": "arc", "r": 68, "a0": -180, "a1": 180},
+    light__0__whirl=True, light__1__whirl=True), [], weapon="sickle")
+U("art_sk_thresher", "Thresher", None, None, "Where the thrown sickle lands it whirls for 2 s ({v} damage a turn).",
+  [{"t": "proc", "when": "heavy", "pow": 0.5, "poise": 4, "aoe": {"at": 60, "r": 42, "delay": 0.2, "ticks": 4, "every": 0.5, "col": "#d8dce4"}}], ["pow"], weapon="sickle")
+U("art_sk_whirl", "Long Chain", None, None, "Chain Whirl reaches further and turns five times, not three.",
+  M(special__more=[(0.32, 0.4), (0.52, 0.6), (0.72, 0.8), (0.92, 1.0)], special__dur=1.2, special__shape={"k": "arc", "r": 86, "a0": -180, "a1": 180}, special__clear=90), [], weapon="sickle")
+U("art_sk_reap", "Gallows Cut", None, None, "The cut at the end of the chain's pull strikes twice.", M(moves__reap__more=[(0.22, 0.32)], moves__reap__dur=0.54, moves__reap__mult=1.6), [], weapon="sickle")
+U("art_ck_third", "Third Disc", None, None, "You carry a third chakram.", M(ammo__max=3), [], weapon="chakrams")
+U("art_ck_burst", "Bursting Rims", None, None, "Each thrown disc bursts at the turn of its flight.", M(light__0__proj__boom=32, light__1__proj__boom=32), [], weapon="chakrams")
+U("art_ck_orbit", "Wide Orbit", None, None, "Orbit circles wider and for half as long again.", M(special__aoe__r=62, special__aoe__ticks=12), [], weapon="chakrams")
+U("art_ck_saw", "Whetted Saw", None, None, "The disc your heavy leaves hanging is wider and saws for 5 s, not 3.",
+  M(heavy__proj__hover={"r": 42, "ticks": 10, "every": 0.5, "as": "saw"}), [], weapon="chakrams")
+U("art_bn_field", "Broad Field", None, None, "Your planted standard holds half as much ground again.", M(stand__r=138), [], weapon="banner")
+U("art_bn_mend", "Hallowed Standard", None, None, "Heroes beside your planted standard are healed 2 health a second.", M(stand__hps=2), [], weapon="banner")
+U("art_bn_quake", "Earthshaker", None, None, "Planting the standard sends a second, wider ring through the floor ({v} damage).",
+  [{"t": "proc", "when": "heavy", "pow": 1.4, "poise": 30, "aoe": {"at": 18, "r": 86, "delay": 0.3, "ticks": 1, "every": 0.2, "col": "#d8dce4", "boom": 1}}], ["pow"], weapon="banner")
+U("art_bn_charge", "Unstoppable", None, None, "Vanguard Charge can't be interrupted and carries you half as far again.", M(special__hyper=True, special__step=150), [], weapon="banner")
+U("art_cn_drum", "Long Drum", None, None, "The cannon holds eight rounds.", M(ammo__max=8), [], weapon="cannon")
+U("art_cn_pierce", "Solid Shot", None, None, "Your shots pass through everything they hit.",
+  M(light__0__proj__pierce=True, light__1__proj__pierce=True, light__2__proj__pierce=True), [], weapon="cannon")
+U("art_cn_cluster", "Cluster Shell", None, None, "Your shell goes on bursting where it lands: three more blasts ({v} damage each).",
+  [{"t": "proc", "when": "heavy", "pow": 0.7, "poise": 8, "aoe": {"at": 130, "r": 42, "delay": 1.0, "ticks": 3, "every": 0.3, "col": "#ffa040", "boom": 1}}], ["pow"], weapon="cannon")
+U("art_cn_slide", "Quick Hands", None, None, "Your slide chambers three rounds, not one.", M(guard__reload=3), [], weapon="cannon")
+U("art_sc_second", "Second Harvest", None, None, "A mark can be reaped twice before it is spent.", M(reap__uses=2), [], weapon="scythe")
+U("art_sc_wide", "Wide Swath", None, None, "The first cut of your light combo goes all the way round you.",
+  M(light__0__shape={"k": "arc", "r": 64, "a0": -180, "a1": 180}, light__0__whirl=True), [], weapon="scythe")
+U("art_sc_ring", "Aftermath", None, None, "Harvest is followed a moment later by a second, wider ring ({v} damage).",
+  [{"t": "proc", "when": "special", "pow": 2.0, "poise": 30, "aoe": {"at": 0, "r": 112, "delay": 0.35, "ticks": 1, "every": 0.2, "col": "#b8f0c0", "boom": 1}}], ["pow"], weapon="scythe")
+U("art_sc_step", "Grave Step", None, None, "Your spectral step leaves a burst where you stood.",
+  M(guard__burst={"r": 44, "delay": 0.14, "col": "#b8f0c0", "as": "gstep"}, moves__gstep={"slot": "light", "mult": 0.7, "poise": 10}), [], weapon="scythe")
 
 
 def offer(hero, n_heroes, rng, stage):

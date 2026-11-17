@@ -3,7 +3,7 @@
 Read this before changing anything in `app/kingfall/`, `app/static/games/kingfall/`, `tools/kingfall-*`
 or `tools/kingfall-art/`.
 
-**Status: built.** All twelve bosses, six weapons, twelve skills, 100 upgrades, the Bonfire, saves, difficulty and music
+**Status: built.** All twelve bosses, twelve weapons, twelve skills, 124 upgrades, the Bonfire, saves, difficulty and music
 are in. The first half of this doc is what the owner decided; "How it plays now" is the game as it is.
 When a change alters how the game works, update "How it plays now" (not a new section at the end) in
 the same commit.
@@ -34,7 +34,7 @@ Keep to these. They came from the owner directly.
 - **Roguelite rush**: bosses drawn from a pool in tiers of rising difficulty, upgrades between them.
 - **Souls-hard.** Small health pools, heavy boss damage, a flask with few charges. Reviving a downed
   teammate costs the reviver health.
-- **Six weapons**, each with its own light string, a dash-strike, one thing only it does, a charged heavy, a special and its own defensive move;
+- **Twelve weapons** (six at first; the owner picked six more from a list of ideas in Nov 2026 and said "implement all of them"), each with its own light string, a dash-strike, one thing only it does, a charged heavy, a special and its own defensive move;
   upgrades change how they behave. (There was a weapon shrine at some Bonfires; the owner had it
   removed in Nov 2026: a run keeps the weapon it started with.)
 - **Upgrades are individual, XP is shared.** Everyone picks at once from their own draw; coins are shared.
@@ -240,6 +240,33 @@ microtask; without that every lobby update put the focus back on Begin.
 | Halberd | jab, jab, a double jab, a skewer at full stretch | a sliding poke at full reach | **Tip**: x1.2 when the target's edge is past 60% of the reach | 270 degree sweep | Pole Vault (airborne) | counter stance: a hit taken is absorbed and answered |
 | Longbow | four shots, each quicker, then a fan of five | (the roll-shot) | **Power Shot**: let the charged heavy go within 0.24 s of full draw (the hero flashes white for exactly that long): x1.3, wider and faster | charged piercing shot | Arrow Rain where you aim | roll-shot: the roll looses a fan of three as it ends, at what you're aiming at |
 | Catalyst | bolt, bolt, a sweep that throws a wide wave through everything within about 125 px | (the blink's burst) | **Sigils**: each light that hits marks the boss (up to 4, 8 s from the last, shown turning over its head); the orb or the Nova spends them for +15% each | charged orb that explodes | Nova round you | blink instead of a roll, leaving a burst where you stood |
+| Gauntlets | four jabs, then a hook; reach of 30 px | a lunging straight | **Streak**: every hit landed adds one (to 12; a weave through a hit adds 2) and each quickens the fists 2.5%; a hit taken ends it, and so do 4 s without landing one | an uppercut that spends the streak, +10% each | Hundred Hands: five blows walking forward | a weave: a 46 px sidestep, untouchable for its 0.26 s, for half a dash |
+| Chain Sickle | two wide sweeps at 62 px, then one nearly all the way round | a sweeping cut | **Hook and pull**: the thrown sickle that strikes a boss drags you to it, untouchable on the way, into a cut (x2.0); missing, it lies where it fell for 4 s and heavy again yanks it home through whatever is between (x1.7) | the throw itself | Chain Whirl: three turns all round you (72 px) that shatter boss shots | the chain whirled in front: a block that lets 25% through and can't parry |
+| Twin Chakrams | throw, throw, then a spinning kick while they're away | a spinning kick | **Catch**: a disc cuts on its way out and again on its way back to where you stood when it turned; within 26 px of that spot you catch it, and the next throw deals x1.5. Missed, it comes to hand 0.7 s later. With both away a light is a weak punch | a disc that hangs where it lands, sawing 6 times over 3 s | Orbit: discs circle you for 2.8 s (it needs no disc in hand) | a short dash |
+| War Banner | thrust, thrust, a flat sweep of the spear | a sliding thrust | **The standard**: within 95 px of it, planted, your lights are 25% faster, your blocks cost nothing, and every hero there deals 15% more | slams the standard down where you stand, and leaves it; heavy again calls it back to your hand through everything (x2.0) | Vanguard Charge: a 100 px lunge behind the spear | block and parry |
+| Hand Cannon | shot, shot, a heavier shot, from six rounds | (none: the slide reloads) | **Reload**: empty (or on the block button) it breaks open for 1.2 s; press again between 0.45 and 0.72 s and it's done at once with the next shot primed (x1.6); press at the wrong moment and it takes 0.4 s longer | a shell lobbed to land where you aim 0.7 s later | Grapeshot: seven balls point-blank, and a long recoil | a slide (80 px) that chambers one round |
+| Scythe | two slow arcs that reach behind you, then one all the way round | a rising cut | **Reap**: the string's last cut marks the boss for 7 s (a pale crescent over it); your heavy on a marked boss deals x1.5 and heals you 6 | a wide cut nothing interrupts | Harvest: a long wind-up nothing interrupts, then everything within 84 px is cut; x1.4 on a boss mid-attack or winded | a spectral step: a blink that passes through the boss |
+
+The second six (Nov 2026) are each built round one thing the first six don't do: staying inside the boss's
+reach, controlling distance, fighting with the weapon away from the hand, making ground matter, reloading,
+committing. Their keys are listed above their tables in `content/weapons.py`. Where each lives:
+
+- **Streak** (`W.streak`): counted in the browser (`LocalHero.streak`, the orange pips under the dashes); the
+  uppercut tells the server how many it spends (`sk` on the hit, capped at the weapon's `max`).
+- **Ammunition** (`W.ammo`, `LocalHero.ammo`, the pale pips): discs in hand or rounds loaded. A primed throw
+  or shot is flagged `ch`. Discs are shots with `disc`; ones that weren't caught wait in `late`. The reload
+  is state `reload` (animation `rl`), drawn as a ring over the head with the window marked on it.
+- **Hook** (a shot's `hook`): state `pull` in the browser, then `moves.reap`. A sickle that missed is in
+  `stuck`, like a thrown knife, until `yank`.
+- **Standard** (`W.stand`): `LocalHero.planted`; the browser sends `{t: 'plant', x, y}` (or `up: 1`), and the
+  server keeps it as a zone that never ends (`sk: 'standard'`, fx `zone` / `unzone`), which is what gives
+  everyone inside the extra damage. The bearer's back hand is drawn empty while it stands (`noOff`).
+- **Reap** (`W.reap`): kept by the server on the body (`Body.reap`); each scythe hit's fx carries `mk`, the
+  seconds the mark has left, which is what the crescent is drawn from.
+- **Art**: the six are in `tools/kingfall-art/weapons.py` (`gauntlet`, `sickle`, `chakram`, `spear` with the
+  `standard` as a per-colour offhand, `cannon`, `scythe`); the gauntlets and chakrams use the same sprite
+  in both hands (`offhand`). Their hit sounds are in `audio.js` (`hitBy`: fists and the cannon have their
+  own; the other four borrow from the first six), their special icons in `icons.js`.
 
 How the strings work (the owner asked for Hades-like weapons, Nov 2026; `moves` and the keys beside it
 in `content/weapons.py`, `startMove` and the `mv` state in `js/hero.js`):
@@ -375,7 +402,7 @@ What each Vow does to the five buttons:
 | Rot (delayed damage) | finisher bursts a spore cloud | a pool of rot | a canker: 30% of the next 2.5 s of damage | a dodge through a hit seeds 60 Rot | a block builds Rot |
 | Iron (armour) | finisher shockwave | charge and swing can't be interrupted | harder on a boss mid-attack | the dodge is a shoulder charge (poise) | a block throws a shockwave |
 
-Weapon Arts (four a weapon; every one changes a move):
+Weapon Arts (four a weapon; all but a couple change a move, and those change the weapon's own rule):
 
 | Weapon | Arts |
 |---|---|
@@ -385,10 +412,16 @@ Weapon Arts (four a weapon; every one changes a move):
 | Halberd | Thrown Spear (the string ends in a thrown spear); Answering Blade (walk in the stance, which lasts longer; a countered shot is hurled back); High Vault (strikes on take-off and landing); Reaper's Arc (the sweep goes round twice) |
 | Longbow | Piercing Shafts; Hunting Rain (Arrow Rain drifts after the boss); Quick Draw (a third of the draw, half the damage); Blast Arrow (the roll looses one arrow that bursts) |
 | Catalyst | Split Bolts; Lingering Orb (the orb hangs and pulses four times); Lance of Stars (Nova is a beam that strikes three times); Twin Rune (a second burst where the blink arrives) |
+| Gauntlets | Haymaker (the uppercut throws a shockwave); Unbroken (a hit halves the streak, not ends it); Closing Step (the dash-strike lunges twice as far); Thousand Hands (seven blows, not five) |
+| Chain Sickle | Full Circle (every sweep goes all round); Thresher (the thrown sickle whirls where it lands); Long Chain (the whirl reaches further, five turns); Gallows Cut (the pull's cut strikes twice) |
+| Twin Chakrams | Third Disc; Bursting Rims (discs burst at the turn); Wide Orbit; Whetted Saw (the hanging disc is wider and lasts 5 s) |
+| War Banner | Broad Field (the standard holds more ground); Hallowed Standard (it heals 2 a second); Earthshaker (planting sends a second ring); Unstoppable (the charge isn't interrupted and goes further) |
+| Hand Cannon | Long Drum (eight rounds); Solid Shot (shots pierce); Cluster Shell (three more blasts where the shell lands); Quick Hands (the slide chambers three) |
+| Scythe | Second Harvest (a mark can be reaped twice); Wide Swath (the first cut goes all round); Aftermath (a second ring after Harvest); Grave Step (the step leaves a burst) |
 
-100 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
+124 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
 special, dodge, guard; and four passives), ten plain passives, six Pacts (only offered to parties of two
-or more), six Duos (offered once you hold both Vows), and 24 Weapon Arts. A slot holds one upgrade; taking
+or more), six Duos (offered once you hold both Vows), and 48 Weapon Arts (four a weapon). A slot holds one upgrade; taking
 another replaces it. Rarity (common, rare x1.5, epic x2) scales the numbers marked in `scale`; a blessing
 that only changes a move has none, and reads the same at every rarity. Offers lean toward Vows you
 already follow. Attributes: Vigor +12 health; Endurance dashes back 8% faster; Might +7% heavy
@@ -664,6 +697,17 @@ Mirror Knight among the three.
   | moth | 88/88 | 100/100 | 100/100 | 100/75 | 50/62 | 38/50 | 62/62 |
   | king | 62/75 | 88/100 | 62/75 | 50/75 | 38/50 | 38/62 | 88/88 |
   | drake | 100/100 | 88/100 | 75/88 | 75/50 | 50/38 | 100/50 | 75/88 |
+- **The second six weapons** (Nov 2026; 8 fights a cell, solo and pairs, skill 0.8): banner 86%, cannon 84%,
+  scythe 84%, chakrams 85%, gauntlets 75%, sickle 75% (the first six are unchanged: 82/96/86/80/76/83). How
+  they got there: the first table had the gauntlets at 15%, the sickle at 64% and the chakrams at 60%. Two
+  causes were the bots' (they stood further off than the gauntlets reach and so never swung, and beyond the
+  chakrams' flight) and are fixed in the sim. The rest was the weapons: the gauntlets' weave was untouchable
+  for 0.16 s, too short for any hit that lingers (the daggers' dash had the same fault), and is now 0.26 s
+  and 46 px, base damage 12 to 14; the sickle's sweeps follow each other sooner and its base went 21 to 26;
+  the chakrams fly a little further and their base went 17 to 19. Bots never yank the sickle home, rarely
+  fight beside a planted standard and reap only by luck, so those three weapons are stronger in a
+  player's hands than the table says. The hard cells: gauntlets against Corvin and the Headsmen (12-50%),
+  the sickle against the King and the Drake (25-50%).
 - **How the daggers got here** (Nov 2026): 35% at first (base 13, two dashes). The cause was the dash's
   invulnerability, 0.2 s against a roll's 0.29 s, too short for any hit that lingers; untouchable for
   the whole 0.28 s dash they reached 91%. The catalyst's first 49% was the bots blinking into the next
@@ -706,6 +750,11 @@ Mirror Knight among the three.
   of the lance's trail, two knives on the way back), raise Stone Ward when a hit is about to land, and play
   `finisher`, `heavy` and `special` procs. They don't play `pass` procs, second presses, the Blood prices,
   Echo, Patience or any moveset change beyond what the patched weapon table gives their ordinary attacks.
+- **Bots and the second six weapons**: bots keep a streak and spend it on the uppercut, reload the cannon
+  when it's empty (timing the quick reload about as often as they read a dodge), wait when both chakrams are
+  away and catch about half of them, are pulled in by the sickle's hook, and plant the standard when they
+  use the heavy (which bots only do on a staggered boss, so they rarely fight beside it). They never yank
+  the sickle or call the standard back, and reap only when a stagger happens to follow the string's last cut.
 - **Signature moves in the tests**: the smoke test casts the Flood twice (a hero in the open must be
   hurt, one on a stone must not). Sim bots answer signatures by where they stand (`answer_signature` in
   the sim: onto safe ground, behind cover, out of a strip, still for KNEEL; now and then they misread

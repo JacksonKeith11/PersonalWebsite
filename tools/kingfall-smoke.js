@@ -1,7 +1,7 @@
 // Plays the start of a Kingfall run in headless browsers. One player: makes a debug room, picks a
 // starting skill in the lobby, uses it (and checks the server announced it), wins the fight, learns a
 // second at the Bonfire and uses that, then quits the run from the Esc menu. Then two players in one room: each must see what the other does
-// (a skill and its animation, a ward on the other's hero and HUD card, a projectile in flight, the boss
+// (a skill, its banner on the ground and its mark on the other's hero and HUD card, a projectile in flight, the boss
 // hurt and its Burn meter filling), and both must get through the Bonfire into the next fight. Then two
 // pretend controllers on one browser: each must steer only its own hero, in the lobby and the fight.
 // Fails if a page throws or logs an error or any step doesn't happen in time. About fifty seconds.
@@ -125,8 +125,8 @@ async function serve() {
     await p.context().close();
   };
 
-  // Two players in one room: what each browser shows of the other. Ann (the host) wards herself; Bea
-  // throws a lance at the boss. Each must see the other's skill, Bea must see Ann's ward on Ann's hero
+  // Two players in one room: what each browser shows of the other. Ann (the host) plants a banner; Bea
+  // throws a lance at the boss. Each must see the other's skill, Bea must see Ann's banner and its mark on Ann's hero
   // and HUD card, Ann must see Bea's lance fly and the boss's health and Burn meter move. Then both
   // learn a skill at the Bonfire and the second fight starts for both.
   const duo = async () => {
@@ -134,13 +134,13 @@ async function serve() {
     await ann.click('#create');
     await ann.waitForFunction(() => kf.S.lobby && kf.S.lobby.heroes.length === 1);
     const room = await ann.evaluate(() => kf.S.code);
-    await ann.evaluate(() => kf.net.send({ t: 'set', h: kf.S.lobby.heroes[0].id, skill: 'ward' }));
+    await ann.evaluate(() => kf.net.send({ t: 'set', h: kf.S.lobby.heroes[0].id, skill: 'rally' }));
     const bea = await open('Bea', 'room=' + room);
     await bea.click('#join');
     await bea.click('#joinkb');
     await bea.waitForFunction(() => kf.S.lobby.heroes.some(h => h.conn === kf.S.me));
     await bea.evaluate(() => kf.net.send({ t: 'set', h: kf.S.lobby.heroes.find(h => h.conn === kf.S.me).id, skill: 'lance' }));
-    await ann.waitForFunction(() => kf.S.lobby.heroes.length === 2 && kf.S.lobby.heroes.every(h => h.start_skill === (h.conn === kf.S.me ? 'ward' : 'lance')));
+    await ann.waitForFunction(() => kf.S.lobby.heroes.length === 2 && kf.S.lobby.heroes.every(h => h.start_skill === (h.conn === kf.S.me ? 'rally' : 'lance')));
     await ann.click('#start');
     await Promise.all([fight(ann, 0), fight(bea, 0)]);
     for (const p of [ann, bea]) if ((await p.$$('#hud .card')).length !== 2) throw new Error('the HUD should show both heroes');
@@ -148,16 +148,17 @@ async function serve() {
     await ann.waitForTimeout(ENTRANCE);
     const annId = await ann.evaluate(() => kf.S.scene.local[0].id);
 
-    // Ann's ward, as Bea sees it: the announcement, Ann's casting animation, the ward on her hero and card
+    // Ann's banner (Rallying Cry, cast on the move), as Bea sees it: the announcement, its circle on the
+    // ground, and the extra damage on Ann's hero and card while she stands in it
     const seen = Promise.all([
       bea.waitForFunction(() => kf.S.scene.smoke > 0),
-      bea.waitForFunction(id => kf.S.scene.remote[id].buf.some(r => r[5] === 'k_ward'), annId),
+      bea.waitForFunction(() => kf.S.scene.zones.length === 1),
     ]);
     seen.catch(() => {});
     await cast(ann, 'z', 0);
     await seen;
-    await bea.waitForFunction(id => kf.S.scene.heroRows[id].shield > 0 && kf.S.scene.remote[id].view.st.shield > 0, annId);
-    await bea.waitForFunction(id => /Ward/.test(document.querySelector(`#card-${id} .buffs`).textContent), annId);
+    await bea.waitForFunction(id => kf.S.scene.heroRows[id].rally > 0 && kf.S.scene.remote[id].view.st.rally > 0, annId);
+    await bea.waitForFunction(id => /Damage up/.test(document.querySelector(`#card-${id} .buffs`).textContent), annId);
 
     // Bea's lance, as Ann sees it: the shot in flight, then the boss hurt and burning. The boss walks
     // about, so a throw can miss: she aims afresh and throws again when the lance is back (8 s).
@@ -265,7 +266,7 @@ async function serve() {
     await couch();
     await signature();
     if (problems.length) throw new Error('a page reported: ' + problems.join(' | '));
-    console.log("ok: one player started with a skill, used it, learned and used a second; two players saw each other's skill, ward and shot, and the boss's Burn; two controllers on one browser each steered their own hero; a signature move hurt a hero in the open and spared one on safe ground");
+    console.log("ok: one player started with a skill, used it, learned and used a second; two players saw each other's skill, banner and shot, and the boss's Burn; two controllers on one browser each steered their own hero; a signature move hurt a hero in the open and spared one on safe ground");
     code = 0;
   } catch (e) {
     const where = (e.stack || '').split('\n').find(l => l.includes('kingfall-smoke.js')) || '';

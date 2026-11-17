@@ -3,10 +3,10 @@
 // for every browser); between moves it's extrapolated from the snapshots. Draws ground marks before
 // area hits, slashes, thrusts, rings, projectiles and lingering pools, and checks every hit against
 // this browser's heroes.
-import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=39';
-import { LiveMove, placeHit, touches, active, spared } from './moves.js?v=39';
-import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=39';
-import { sfx } from './audio.js?v=39';
+import { Rig, sample, runCycle, rigDefaults, atlas } from './rig.js?v=42';
+import { LiveMove, placeHit, touches, active, spared } from './moves.js?v=42';
+import { crescent, lance, burst, shockwave, orb, pool } from './fx.js?v=42';
+import { sfx } from './audio.js?v=42';
 
 const FIRE = 0xff7a1a, DANGER = 0xd0302a, STEEL = 0xe8ecf2;
 const POOL = { poison: 0x6a8a2a, fire: 0xff6a1a, ice: 0x7fe3ff, void: 0x8a3ab0, blood: 0x8a1e2a };
@@ -168,6 +168,19 @@ export class Boss {
   }
   onSpot(m) { const mv = this.moves.find(v => v.seq === m.seq); if (mv && mv.c.spots && mv.c.spots[m.i]) mv.c.spots[m.i][4] = 1; }
   onReflect(m) { const mv = this.moves.find(v => v.seq === m.seq); if (mv) mv.gone.add(m.i); return mv; }
+  // the boss's projectiles in flight within r of (x, y): [{seq, i, mv, x, y}] (a nova, a frost burst shatters them)
+  shotsIn(now, x, y, r) {
+    const out = [];
+    for (const mv of this.moves) {
+      const t = now - mv.start;
+      mv.data.hits.forEach((h, i) => {
+        if (h.k !== 'proj' || !active(mv, h, i)) return;
+        const s = placeHit(mv, h, t);
+        if (s && s.live && Math.hypot(s.cx - x, s.cy - y) <= r + s.r) out.push({ seq: mv.seq, i, mv, x: s.cx, y: s.cy });
+      });
+    }
+    return out;
+  }
   // a move's props (bells, stones, a word in the air): made as it needs them, dropped when it's over
   dropProps(mv) {
     if (!mv || !mv.props) return;

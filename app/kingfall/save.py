@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("KINGFALL_DB", "data/kingfall.db"))
-VERSION = 2   # 2 (Nov 2026): the owner asked for old runs to be cleared (one was stuck), and the blessings had changed under them
+VERSION = 3   # 3 (Nov 2026): the blessings and skills were reworked and the owner asked for every saved run to be wiped; 2: cleared once before
 MIGRATIONS = {}
 KEEP = 5
 _lock = threading.Lock()

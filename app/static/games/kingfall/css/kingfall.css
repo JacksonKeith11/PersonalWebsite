@@ -133,6 +133,12 @@ kbd { font: 600 11px var(--sans); background: #2a2232; border: 1px solid var(--l
 .tile i { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; font: 700 22px var(--serif); font-style: normal; color: #fff; text-shadow: 0 0 4px #000, 0 1px 2px #000; }
 .tile.cool { border-color: #4a3e52; box-shadow: none; } .tile.cool b { color: var(--dim); } .tile.cool kbd { opacity: 0.6; }
 .tile.spc { --k: var(--focus); }
+/* a skill just come off cooldown flashes; one whose second act is waiting (press again) pulses */
+.tile.ready { animation: tile-ready 0.5s ease-out; }
+@keyframes tile-ready { 0% { box-shadow: 0 0 18px 4px #fff, 0 0 8px -2px var(--k); border-color: #fff; transform: scale(1.12); } 100% { transform: none; } }
+.tile.again { border-color: #fff; animation: tile-again 0.5s ease-in-out infinite alternate; }
+.tile.again u { background: none; } .tile.again i { opacity: 0.35; }
+@keyframes tile-again { from { box-shadow: 0 0 4px 0 var(--k); } to { box-shadow: 0 0 14px 3px var(--k); } }
 .tile.flask svg { position: absolute; left: 50%; top: 9px; width: 26px; height: 26px; margin-left: -19px; color: var(--k); }
 .tile.flask em { position: absolute; right: 7px; top: 12px; z-index: 2; font: 700 22px var(--serif); font-style: normal; color: #fff; text-shadow: 0 1px 3px #000; }
 .tile.flask.empty { border-color: #4a3e52; box-shadow: none; } .tile.flask.empty svg, .tile.flask.empty b { color: #5a4e62; } .tile.flask.empty em { color: #e05050; }

@@ -48,7 +48,7 @@ class Bot:
         self.swing = 0
         self.decided = set()
         self.revive_t = 0.0
-        self.W = W = C.WEAPONS[fh.hero.weapon]
+        self.W = W = fh.hero.build().weapon(fh.hero.weapon)   # with what its blessings change in it
         first = W["light"][0]
         self.ranged = "proj" in first
         # how close it stands to fight: inside its first light attack's reach, or well back with a bow or catalyst
@@ -56,7 +56,7 @@ class Bot:
         # its dodge: a roll, the daggers' dash or the catalyst's blink (each spends one of the weapon's dashes)
         G, R = W["guard"], C.HERO["roll"]
         self.dodge = ({"dur": G["dur"], "dist": G["dist"], "if": (0.0, G["dur"])} if G["kind"] == "dash"
-                      else {"dur": 0.16, "dist": G["dist"], "if": (0.0, 0.16), "blink": True} if G["kind"] == "blink"
+                      else {"dur": 0.16, "dist": G["dist"], "if": (0.0, 0.16), "blink": True} if G.get("dodge", G["kind"]) == "blink"
                       else {"dur": R["dur"], "dist": R["dist"], "if": R["iframes"]})
         st = fh.hero.build().stats   # dashes, as in the game: the weapon's count and recharge, and what the build changes
         self.max_dash = W["dodge"]["charges"] + st["dash_charges"]
@@ -180,7 +180,16 @@ def _step_bot(b, f, now, dt, bots):
             s = place_hit(m, h, t)
             if s and s["live"] and touches(s, fh.x, fh.y, H["radius"]) and not b.iframes() and not spared(m, h, fh.x, fh.y, b.moving):
                 if grp: b.grp[grp] = now
-                b.taken.add(key); b.hits += 1
+                b.taken.add(key)
+                if now < fh.guard_until and not h.get("room"):   # Stone Ward soaks it and answers
+                    f.hurt(fh.hero.id, {"id": key, "ward": 1}, now)
+                    b.cd["ward"] = b.cd.get("ward", now) - SKILLS["ward"]["cd"] * SKILLS["ward"]["refund"]
+                    body0 = f.nearest_body(fh.x, fh.y)
+                    if math.hypot(body0.x - fh.x, body0.y - fh.y) <= SKILLS["ward"]["burst_r"] + body0.d["radius"]:
+                        b.swing += 1
+                        f.hit_boss(fh.hero.id, {"atk": "skill", "sk": "ward", "sub": "burst", "sw": b.swing, "e": body0.e}, now)
+                    continue
+                b.hits += 1
                 f.hurt(fh.hero.id, {"id": key}, now)
                 b.state, b.t = "hurt", 0.0
     for a in list(f.adds.values()):  # adds bite once a second while touching
@@ -330,7 +339,7 @@ def land(b, f, now, target, body, near_add, core_i, bx, by, d, toward):
     # What upgrades hang on this strike (content/upgrades.py, `proc`): a rough count, as for skills. One
     # hit (two ticks of a pool) if the attack landed. Roll, guard, flask and perfect-dodge procs aren't played.
     if hits and target[0] != "add":
-        whens = {"light": ["finisher"] if b.combo == len(b.W["light"]) - 1 else [], "heavy": ["heavy", "heavy_full"]}.get(kind, [])
+        whens = {"light": ["finisher"] if b.combo == len(b.W["light"]) - 1 else [], "heavy": ["heavy", "heavy_full"], "special": ["special"]}.get(kind, [])
         for P in fh.hero.build().get("proc"):
             if P["when"] not in whens: continue
             for _ in range(2 if P.get("aoe", {}).get("ticks", 1) > 1 else 1):
@@ -361,20 +370,27 @@ def use_skill(b, f, now, d, body, target, bots):
                 if d > (A.get("range") or A["at"]) + A["r"] + reach - 10: continue
                 hits = A["ticks"] if A["ticks"] <= 3 else A["ticks"] // 2   # a lingering cloud: the boss walks out of it
                 if A["delay"] > 0.4 and body.move is None and b.rng.random() > b.skill: hits = 0  # a slow pillar can miss a walking boss
-        elif "heal" in s:
-            if not any(o.fh.hero.hp < o.fh.hero.mhp() * 0.6 for o in bots if not o.fh.down and math.hypot(o.fh.x - fh.x, o.fh.y - fh.y) <= s["radius"]): continue
-        elif "ward" in s:
-            if fh.shield or d > 120: continue
+        elif s.get("zone", {}).get("heal"):   # hallowed ground: when someone near is hurt (and then it stands in it, as bots stand anyway)
+            if not any(o.fh.hero.hp < o.fh.hero.mhp() * 0.6 for o in bots if not o.fh.down and math.hypot(o.fh.x - fh.x, o.fh.y - fh.y) <= s["zone"]["r"]): continue
+        elif "guard" in s:   # the ward: as a hit is about to land (a bot reads it about as well as it reads a dodge)
+            if not danger(f, fh.x, fh.y, 0.5) or b.rng.random() > b.skill: continue
         elif "dashes" in s:
-            if b.focus > 55 and b.dashes >= 1: continue
+            if b.dashes >= 1: continue
             b.dashes = b.max_dash
-            b.focus = min(100.0, b.focus + s["focus"])
-        elif d > 90: continue   # a cry or a charged hit: as the fight is joined
+        elif d > 90: continue   # a banner or a charged hit: as the fight is joined
         f.use_skill(fh.hero.id, {"sk": sid}, now)
         b.cd[sid] = now + s["cd"] * fh.hero.build().stats["skill_cd"]
+        if s.get("zone", {}).get("at") == "aoe": f.zone_at(fh.hero.id, {"sk": sid, "x": body.x, "y": body.y}, now)
         for _ in range(hits):
             b.swing += 1
             f.hit_boss(fh.hero.id, {"atk": "skill", "sk": sid, "sw": b.swing, "e": body.e}, now)
+            if s.get("cdhit"): b.cd[sid] -= s["cdhit"]
+        # a skill's further hits, roughly: two ticks of a lance's burning trail, two of the knives on their way back
+        for sub, n in (("trail", 2), ("back", 2)):
+            for _ in range(n if hits and sub in s.get("sub", {}) else 0):
+                b.swing += 1
+                f.hit_boss(fh.hero.id, {"atk": "skill", "sk": sid, "sub": sub, "sw": b.swing, "e": body.e}, now)
+        if s.get("instant"): return False   # cast on the move: it doesn't cost the bot its swing
         b.state, b.t, b.landed, b.combo, b.act = "atk", 0.0, True, 0, None   # the cast takes about as long as a swing
         return True
     return False

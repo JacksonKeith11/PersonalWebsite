@@ -223,7 +223,8 @@ class Room:
             self.resume(c, str(msg.get("id"))[:40])
         elif t == "start" and c.id == self.host and self.state in ("lobby", "over") and self.heroes:
             self.start_run(msg.get("only") if self.debug and msg.get("only") in C.BOSSES else None,
-                           [u for u in msg.get("ups") or [] if u in UPGRADES] if self.debug else None)
+                           [u for u in msg.get("ups") or [] if u in UPGRADES] if self.debug else None,
+                           [k for k in msg.get("skills") or [] if k in SKILLS][:MAX_SKILLS] if self.debug else None)
         elif t == "quit" and c.id == self.host and self.state in ("fight", "bonfire"):
             self.quit_run()
         elif self.state == "bonfire" and h:
@@ -252,11 +253,14 @@ class Room:
             elif t == "hitadd": f.hit_add(h.id, msg, now)
             elif t == "reflect": f.reflect(h.id, msg, now)
             elif t == "skill": f.use_skill(h.id, msg, now)
+            elif t == "zone": f.zone_at(h.id, msg, now)
+            elif t == "clear": f.clear(h.id, msg, now)
+            elif t == "pay": f.pay_special(h.id, now)
             elif t == "shot":  # a projectile or area hit, so other browsers can draw it
                 out = {"t": "fx", "k": "shot", "h": h.id}
-                for k in ("x", "y", "a", "v", "r", "life", "p"):
+                for k in ("x", "y", "a", "v", "r", "life", "p", "id"):
                     if isinstance(msg.get(k), (int, float)): out[k] = msg[k]
-                out["k2"] = "aoe" if msg.get("k") == "aoe" else "proj"
+                out["k2"] = msg["k"] if msg.get("k") in ("aoe", "end") else "proj"   # end: the shots with that id are gone (knives called back)
                 if isinstance(msg.get("col"), str): out["col"] = msg["col"][:9]
                 self.broadcast(out)
 
@@ -313,7 +317,7 @@ class Room:
         self.broadcast(self.lobby_wire())
 
     # ------------------------------------------------------------------ the run
-    def start_run(self, only=None, ups=None):
+    def start_run(self, only=None, ups=None, skills=None):
         self.run_id = secrets.token_hex(8)
         self.stage = 0
         self.result = None
@@ -333,6 +337,7 @@ class Room:
             h.level, h.points, h.picks, h.offer, h.ups, h.ready = 1, 0, 0, [], [], False
             h.skills, h.skill_offer = [h.start_skill], []
             if ups: h.ups = [(u, "common") for u in ups]   # debug rooms can start holding upgrades (tests)
+            if skills: h.skills = list(skills)
             h.attrs = {a: 0 for a in ATTRS}
             h.changed()
             h.flasks = h.max_flasks()

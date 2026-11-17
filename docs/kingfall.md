@@ -68,6 +68,11 @@ Keep to these. They came from the owner directly.
   of moves, then an opening). Failing a signature move costs about 60% of a hero's health on Knight
   (more on Hard, through the damage scale), so a solo player can make one mistake.
 
+- **Blessings and skills must give tactical options** (Nov 2026, the owner approved a written plan and then
+  said "implement it all"): every blessing and skill should offer a choice or change how the game plays, more
+  blessings should change movesets, and skills should play smoothly. Second presses of a skill button are
+  fine; Stone Ward is a timed guard; heroes may come out stronger and the bosses be rebalanced after. The
+  owner also asked for every saved run to be wiped with it (`save.py`, `VERSION` 3).
 - **Blessings** (Nov 2026): one a hero's weapon can't use is never offered (no block upgrades for the
   daggers); blessings should change how attacks play or add effects, not hand out flat stat bonuses.
 
@@ -278,62 +283,120 @@ on the hero's HUD panel.
 
 - **Keys.** Slot 1 is Z or 1 (LT on a controller), slot 2 is X or 2 (A on a controller, or the D-pad).
   A is also revive: beside a fallen ally, holding it only revives. There's no rebinding.
-- **Presses are buffered.** A skill pressed mid-swing, mid-roll or while reeling fires as soon as the hero
-  is free (within 0.4 s). Pressed while cooling down, its HUD chip shakes red with a sound.
-- **What's on a hero shows** (the snapshot's last three hero fields: ward left, seconds of extra damage,
-  a charged next hit): a pale shell for a ward, embers circling the feet for extra damage, a violet spark
-  for a charged hit, on every screen, and as chips on that hero's HUD card ("Ward 23", "Damage up 4s",
-  "Next hit charged"). A hit a ward soaks whole says "Warded" and doesn't spill a drink.
+- **Presses are buffered** for 0.6 s. A skill pressed mid-swing, mid-roll or while reeling fires at the first
+  gap: between lights, or out of a heavy or a special once its blow has landed. Pressed while cooling down,
+  its HUD chip shakes red with a sound. When a cooldown ends the chip flashes with a chime; a chip whose
+  second press is waiting (Phase Step, Fan of Knives) pulses.
+- **Cast on the move** (`instant`): Phase Step, Rallying Cry, Stone Ward and Second Breath go off at once in
+  any state but reeling, and don't stop a combo. The others are casts (state `skill`): once the hit has
+  landed, a roll, a light or a heavy cuts the rest of the cast short (`landed` in `hero.js`).
+- **Aim is taken as the skill fires**, not when the button was pressed: `wantA` / `wantDist` in `hero.js` are
+  kept every frame, even mid-swing.
+- **Each has its own pose** (`pose`: throw, fan, raise, slam, spin, toss, kneel; `POSES` in `hero.js`).
+- **What's on a hero shows** (the snapshot's last three hero fields: ward left, or -1 while Stone Ward is up;
+  seconds of extra damage, which a banner they stand in also sets; a charged next hit): a pale shell for a
+  ward, embers circling the feet for extra damage, a violet spark for a charged hit, on every screen, and as
+  chips on that hero's HUD card.
 
-| Skill | Cooldown | What it does |
-|---|---|---|
-| Ember Lance | 8 s | a piercing lance of fire, x3.2, builds Burn |
-| Frost Nova | 12 s | a ring of ice round you (72 px), x2.2, builds Frost, heavy on poise |
-| Judgement | 12 s | a pillar of light where you aim (the cursor or the boss you're locked on to, up to 220 px; else 110 px ahead), landing after 0.55 s, x4.5 |
-| Reaping Whirl | 9 s | three strikes all round you (58 px), x1.3 each |
-| Phase Step | 8 s | blink 120 px the way you're walking (or aiming), untouchable for 0.28 s; your next hit within 5 s deals 60% more |
-| Rallying Cry | 22 s | you and allies within 150 px deal 30% more for 6 s |
-| Litany of Mending | 30 s | heals you and allies within 120 px for a fifth of your health |
-| Stone Ward | 20 s | soaks the next 45 damage you take |
-| Fan of Knives | 7 s | five knives in a fan, x0.9 each, each builds Bleed |
-| Plague Censer | 16 s | a cloud where you aim (up to 200 px) for 3 s: six ticks of x0.7, building Rot |
-| Hammerfall | 11 s | a slam just ahead of you, x1.6, the most poise damage of any skill |
-| Second Breath | 24 s | every dash comes back at once, +40 Focus |
+Every skill asks for a decision (the rework of Nov 2026; before it four of the twelve were plain buttons):
+
+| Skill | Cooldown | What it does | The decision |
+|---|---|---|---|
+| Ember Lance | 8 s | a piercing lance of fire, x3.0, builds Burn | its path burns for 3 s (five pools, x0.22 a tick): throw it along the line the boss will walk |
+| Frost Nova | 12 s | a ring of ice round you (72 px), x2.2, builds Frost | it shatters the boss's shots inside it, and breaks twice the poise on a boss mid-attack |
+| Judgement | 12 s | a pillar of light where you aim (up to 220 px), landing after 0.55 s, x4.0 | x1.5 on a boss that is mid-attack or winded |
+| Reaping Whirl | 9 s | three strikes all round you (58 px), x1.3 each | cast walking (70% speed); each strike that lands takes a second off its cooldown |
+| Phase Step | 8 s | blink 120 px the way you're walking, untouchable for 0.28 s; next hit within 5 s +60% | press again within 3 s to return to where you left |
+| Rallying Cry | 22 s | plants a banner for 8 s | heroes deal 30% more only inside its circle (105 px), so it works solo and has to be fought around |
+| Litany of Mending | 30 s | hallows the ground where you stand for 4 s (78 px) | heals a quarter of your health over its life, to whoever stays in it |
+| Stone Ward | 20 s | 1.2 s as stone | the next hit in that time is soaked whole (not a room-wide blast) and answered with a burst (64 px, x2.0, heavy on poise); half the cooldown comes back. Mistimed, it does nothing |
+| Fan of Knives | 8 s | five knives in a fan, x0.8 each, each builds Bleed | they lie where they land for 5 s: press again to call them back through whatever is between (x0.8 each again) |
+| Plague Censer | 16 s | a cloud where you aim (up to 200 px) for 3 s: six ticks of x0.6, building Rot | a boss in the cloud takes 15% more from everyone |
+| Hammerfall | 11 s | a slam, x1.8, the most poise damage of any skill | it leaps to what you aim at (up to 140 px, untouchable in the air), and counts double against a break bar |
+| Second Breath | 24 s | every dash comes back at once | for 4 s dashes cost nothing, and each hit dodged through gives 20 Focus |
 
 A skill's damage is `BASE` (20) x its multiplier whatever weapon is held; it counts as a special for
 build bonuses and for the critical on a staggered boss, but builds only its own status (not the
 special slot's) and doesn't trigger heal-on-special. The browser plays a skill like an attack (state
-`skill`, animation `k_<id>`, hits reported as `atk: 'skill', sk`) and tells the server `{t: 'skill'}`
-when it starts: the server keeps the cooldown (0.3 s of slack), applies what acts at once (empower,
-rally, heal, ward), broadcasts fx `skill` (everyone sees a ring in the skill's colour and its name) and
-only counts that skill's hits for 4 s after. Bonfire message: `{t: 'learn', h, i, at}` (`at` = the
-slot to replace when full) or `{t: 'learn', h, skip: 1}`.
+`skill`, animation `k_<id>`, hits reported as `atk: 'skill', sk`, a further hit of it with `sub`: the
+lance's `trail`, the ward's `burst`, the knives' `back`, each priced from the skill's `sub` table) and tells
+the server `{t: 'skill'}` when it starts: the server keeps the cooldown (0.3 s of slack; `skill_used`, which
+refunds move back, and `skill_cast`, the real moment, from which its hits count for `live` seconds, 4 by
+default), applies what acts at once (empower, the ward, a circle on the ground) and broadcasts fx `skill`.
+Circles on the ground are `Fight.zones` (fx `zone`; the censer's is placed by `{t: 'zone'}` from the browser,
+which knows where the cloud landed). A boss "mid-attack or winded" is `Fight.open` (a move under way, or
+resting after a string). Bonfire message: `{t: 'learn', h, i, at}` (`at` = the slot to replace when full) or
+`{t: 'learn', h, skip: 1}`.
 
 ### Upgrades (`content/upgrades.py`, applied in `build.py`)
 
 The owner calls these blessings. Only those a hero's weapon can use are offered (`usable`, `req`: block and
-parry upgrades need the sword or greatsword, guard upgrades a block or the halberd's counter, the longer
-roll an ordinary roll, Long Reach a melee weapon). About twenty that were flat bonuses now add an attack or an effect instead (`proc` effects: the
-browser looses them in `LocalHero.proc`, the server prices them as `atk: 'proc', p: <id>` at 20 x `pow`):
-a wave of fire or a shockwave on the light combo's last hit, an eruption, lightning or a ground wave on a
-fully charged heavy, ice shards or a pool of rot on any heavy, fire left behind a roll or thunder where it
-ends, frost bursting from a block or from drinking, an echo striking after a roll through a hit. Others:
-Momentum (each combo hit deals more than the last), faster light attacks, Tailwind (speed after a roll),
-heals when your Burn or Rot takes hold, Unbowed (once a fight, survive a downing hit), piercing light
-arrows, an extra bolt on every catalyst cast. A heavy that is a shot (the bow's arrow, the catalyst's orb)
-carries a `heavy` / `heavy_full` area with it: Thunderclap, Pyre Strike and the like go off where the shot first
-strikes or comes to rest, not at the hero's feet (they used to land at the cursor 0.4 s after release, or, on a
-controller, just in front of the caster, which read as not working). "Fully charged" is 95% or more, and
-reaching full charge flashes the hero with a chime. When adding one, prefer these to a flat `dmg` or `stat`.
+parry upgrades need the sword or greatsword, guard upgrades a block or the halberd's counter, Follow Through
+a melee weapon).
+
+**The rule (owner, Nov 2026): a blessing gives a tactical option or changes how a button plays; it is not a
+bigger number.** After the rework of that month each Vow keeps one flat passive and the rest act. When
+adding one, use these, in this order of preference:
+
+- **`mod`: change the weapon itself.** `{"t": "mod", "set": {"special.proj": {...}, "light.3": {...}}}` sets
+  paths in the hero's own copy of their weapon table (`Build.weapon` on the server, `weaponOf` in `hero.js`;
+  the paths ride to every browser in the hero's `stats.mods`). This is how a blessing replaces a move: the
+  sword's thrust becomes a spin, Shield Bash a thrown shield, Nova a beam, a roll a blink. The server prices
+  hits from the same patched table (`Fight.W`), so nothing else needs telling. Attack keys the mods use beyond
+  those in the weapons section: `back` (a shot turns for the hand at the end of its flight and strikes again),
+  `behind` (a blinking attack comes out behind the boss), `step_t` (when a lunge ends, if not at the first
+  hit), `guardcharge` / `hypercharge` (a heavy's charge blocks from the front / can't be interrupted),
+  `guard.dodge` (the dodge's kind), `guard.walk`, `guard.boom`, an aoe's `follow` (px it drifts toward the
+  boss between ticks).
+- **`proc`: an extra attack** the browser looses (`LocalHero.proc`) and the server prices (`atk: 'proc'`, 20 x
+  `pow`): on the combo's last light (`finisher`), a heavy (`heavy`, `heavy_full`), the special (`special`), a
+  roll's end, a block, a dodge through a hit, a drink, or along a dodge itself (`pass`: everything within
+  `pass` px of the hero as they go; a blink strikes the line it crossed). An aoe's `clear` shatters boss
+  shots inside it; `heal` heals the hero when the proc lands. A heavy that is a shot carries its `heavy` /
+  `heavy_full` area with it and it goes off where the shot lands; a `special` proc goes off where the
+  special's own area landed (the bow's rain); a `finisher` proc on a ranged weapon lands on what's aimed at.
+- **A rule the server keeps**: `bloodfin`, `overcharge`, `bloodspecial` (Blood: health paid for power; the
+  browser flags the swing with `oc`, or sends `{t: 'pay'}`), `echo` (a second special within 2 s, flagged
+  `eh`), `growth` (a canker that bursts for a share of the damage a body took meanwhile), `counterhit` (more
+  on a boss mid-attack or winded), `critextend`, `burstgain` / `perfectgain` (Focus or cooldown back, sent to
+  the hero's browser as fx `gain`, since the browser keeps Focus, cooldowns and dashes), `flaskrally`,
+  `movedmg`, `countershot`, `meditate`, `revivegain`. The docstring in `upgrades.py` lists them all.
+- **A flag the browser acts on** (`stat` keys with no number to them): `patience`, `haste_light`,
+  `drink_speed`, `dash_refund`.
+
+What each Vow does to the five buttons:
+
+| Vow | Light | Heavy | Special | Dodge | Guard |
+|---|---|---|---|---|---|
+| Ember (ground fire) | finisher throws a wave of fire | full charge erupts | leaves the ground burning 3 s | fire behind the roll | a block builds Burn |
+| Rime (control) | finisher bursts with frost | three ice shards | a frost burst that shatters shots | an ice patch that bursts a second later | a block bursts frost |
+| Blood (health for power) | finisher costs 4 health, +40% | held 0.5 s past full: 8 health, +35% | costs 15 health when Focus is short | the dodge cuts and heals 3 | a parry heals |
+| Storm (movement) | every third hit throws lightning | full charge calls lightning | usable again within 2 s, free, at half damage | the dodge becomes a blink that strikes its path | a parry calls lightning |
+| Rot (delayed damage) | finisher bursts a spore cloud | a pool of rot | a canker: 30% of the next 2.5 s of damage | a dodge through a hit seeds 60 Rot | a block builds Rot |
+| Iron (armour) | finisher shockwave | charge and swing can't be interrupted | harder on a boss mid-attack | the dodge is a shoulder charge (poise) | a block throws a shockwave |
+
+Weapon Arts (four a weapon; every one changes a move):
+
+| Weapon | Arts |
+|---|---|
+| Sword | Killing Answer (a parry makes the next hit a critical); Shield Throw (the special is a thrown shield that comes back, striking both ways); Whirling Edge (the string ends in a spin all round); Battering Rush (Bull Rush strikes twice) |
+| Greatsword | Titan's Grip (full charge sends a shockwave); Aftershock (a second, wider ring after the Leaping Slam); Living Wall (charging a heavy blocks from the front); Endless Whirl (the whirlwind costs no dashes, walks slower) |
+| Daggers | Thousand Cuts (the flurry throws both daggers); Homing Steel (the heavy's knives pierce and fly back); Umbral Step (Shadowstep comes out behind the boss); Razor Dash (the dash cuts what it passes) |
+| Halberd | Thrown Spear (the string ends in a thrown spear); Answering Blade (walk in the stance, which lasts longer; a countered shot is hurled back); High Vault (strikes on take-off and landing); Reaper's Arc (the sweep goes round twice) |
+| Longbow | Piercing Shafts; Hunting Rain (Arrow Rain drifts after the boss); Quick Draw (a third of the draw, half the damage); Blast Arrow (the roll looses one arrow that bursts) |
+| Catalyst | Split Bolts; Lingering Orb (the orb hangs and pulses four times); Lance of Stars (Nova is a beam that strikes three times); Twin Rune (a second burst where the blink arrives) |
 
 100 in all: six Vows (Ember, Rime, Blood, Storm, Rot, Iron) of nine each (one per slot: light, heavy,
-special, dodge, guard; and four passives), ten plain passives (five of them for skills: quicker cooldowns, more damage, a heal, a ward or Focus on
-use), six Pacts (only offered to parties of two
+special, dodge, guard; and four passives), ten plain passives, six Pacts (only offered to parties of two
 or more), six Duos (offered once you hold both Vows), and 24 Weapon Arts. A slot holds one upgrade; taking
-another replaces it. Rarity (common, rare x1.5, epic x2) scales the numbers. Offers lean toward Vows you
+another replaces it. Rarity (common, rare x1.5, epic x2) scales the numbers marked in `scale`; a blessing
+that only changes a move has none, and reads the same at every rarity. Offers lean toward Vows you
 already follow. Attributes: Vigor +12 health; Endurance dashes back 8% faster; Might +7% heavy
 and special damage and +8% poise damage; Finesse +6% light damage; Arcane +12% status buildup and +8%
 special damage.
+
+"Fully charged" is 95% or more, and reaching full charge flashes the hero with a chime (Patience and
+Sanguine Cleave flash again for their own moments).
 
 ### The bosses
 
@@ -510,7 +573,7 @@ Mirror Knight among the three.
 | `app/kingfall/routes.py` | The page and the WebSocket (through `app/rooms.py`) |
 | `app/kingfall/room.py` | Rooms, couch heroes per browser, the lobby, the run, the Bonfire, difficulty, checkpoints, the 30 Hz loop |
 | `app/kingfall/fight.py` | One fight: bodies, moves, AI, damage, poise, statuses, adds, cores, downed and revive |
-| `app/kingfall/build.py` | A hero's attributes and upgrades folded into numbers (`Build`); `client()` is what the browser needs |
+| `app/kingfall/build.py` | A hero's attributes and upgrades folded into numbers (`Build`); `weapon()` is their weapon table with their blessings' changes; `client()` is what the browser needs |
 | `app/kingfall/geom.py` | Hit shapes in Python (for the sim; twin of `js/moves.js`) |
 | `app/kingfall/save.py` | Saved runs in SQLite |
 | `app/kingfall/content/` | `moves.py` (shape builders, motion), one file per boss, `weapons.py`, `skills.py`, `upgrades.py`, `__init__.py` (hero numbers, scaling, what the browser gets) |
@@ -580,6 +643,27 @@ Mirror Knight among the three.
   88/100, Bellwarden 88/75, Headsmen 75/75, Wolf 100/100, Alchemist 38/75, Wyrm 100/100, Mirror 88/88,
   Bastion 100/100, Moth 100/75, King 88/100, Drake 75/100: about where the sword was. **The full table
   hasn't been re-run since the fix**; do that before tuning anything on its numbers.
+- **After the blessings and skills rework** (Nov 2026; the full weapons table, 8 fights a cell, solo / pair,
+  mixed 3 / 4): won 82% sword, 96% greatsword, 86% daggers, 80% halberd, 76% bow, 83% catalyst, 94% mixed;
+  1.2 to 2.2 staggers a fight. That is between the table before the boss rework (88/95/95/84/72/84/98) and
+  the one just after it (74/91/80/82/73/88/96), so no boss number was changed. Bots use little of what the
+  rework added (see "Bots and the rework" below), so a player who does is stronger than these numbers
+  say: tune from play. The weak cells are the bow and catalyst alone against the Bastion, Moth, King and Drake.
+
+  | Boss | sword | greatsword | daggers | halberd | bow | catalyst | mixed |
+  |---|---|---|---|---|---|---|---|
+  | corvin | 62/88 | 100/88 | 88/75 | 75/75 | 50/100 | 100/100 | 100/100 |
+  | mire | 88/88 | 100/100 | 88/100 | 88/88 | 100/100 | 88/100 | 100/100 |
+  | bellwarden | 100/88 | 100/100 | 100/100 | 100/100 | 100/100 | 100/88 | 100/100 |
+  | headsmen | 50/75 | 100/100 | 88/62 | 62/75 | 50/88 | 88/100 | 100/100 |
+  | wolf | 100/100 | 100/100 | 100/100 | 100/100 | 100/100 | 100/100 | 100/100 |
+  | alchemist | 38/75 | 62/100 | 50/75 | 62/88 | 88/100 | 100/100 | 100/100 |
+  | wyrm | 88/100 | 88/100 | 100/100 | 100/75 | 88/100 | 100/100 | 100/100 |
+  | mirror | 75/62 | 88/100 | 62/75 | 75/75 | 62/100 | 88/100 | 100/100 |
+  | bastion | 75/100 | 100/100 | 100/100 | 75/88 | 50/50 | 38/75 | 100/100 |
+  | moth | 88/88 | 100/100 | 100/100 | 100/75 | 50/62 | 38/50 | 62/62 |
+  | king | 62/75 | 88/100 | 62/75 | 50/75 | 38/50 | 38/62 | 88/88 |
+  | drake | 100/100 | 88/100 | 75/88 | 75/50 | 50/38 | 100/50 | 75/88 |
 - **How the daggers got here** (Nov 2026): 35% at first (base 13, two dashes). The cause was the dash's
   invulnerability, 0.2 s against a roll's 0.29 s, too short for any hit that lingers; untouchable for
   the whole 0.28 s dash they reached 91%. The catalyst's first 49% was the bots blinking into the next
@@ -601,19 +685,27 @@ Mirror Knight among the three.
 - **The browser smoke test** (`node tools/kingfall-smoke.js --serve`, about 50 s, in `check-all.sh`):
   starts its own server. One player: picks a starting skill, uses it, wins, learns a second at the
   Bonfire, uses that. Then two players in one room (two browser contexts): each must see the other's
-  skill announced and animated, a ward on the other's hero and HUD card, a lance in flight, the boss
+  skill announced, a banner's circle on the ground and its mark on the other's hero and HUD card, a lance in flight, the boss
   hurt and its Burn meter showing; both go through the Bonfire into the second fight. Then couch: two
   pretend controllers (`navigator.getGamepads` replaced) on one browser; the first used must become player
   one's, the second gets a hero with Start, its cursor must stay in its own row, and in the fight each
   stick must move only its own hero. Fails on any page error. Skipped (not failed) where Playwright isn't installed. Without `--serve` it runs against a
   server you started. It doesn't cover going down and being revived, or a reconnect.
   (The game reuses one fight scene object across fights: anything a test hangs on it outlives the fight.)
-- In a debug room the start message takes `ups: [upgrade ids]`: every hero begins holding them (how the
-  proc upgrades were checked in a browser). Sim bots count finisher and heavy procs roughly; roll, guard,
-  flask and perfect-dodge procs aren't played by bots.
+- In a debug room the start message takes `ups: [upgrade ids]` and `skills: [skill ids]`: every hero begins
+  holding them (how the proc and moveset upgrades were checked in a browser).
 - `?debug&boss=mire` on the page: a debug room that starts at that boss; `window.kf.win()` wins the
   fight, `window.kf.safe()` makes this fight's boss walk about without ever attacking (for tests that
   stand and look), `window.kf.move('flood')` makes it use that move next (even when `safe`).
+- **Blessings and skills in a browser** (`?debug&boss=corvin&ups=art_sword_oath,storm_dodge&skills=nova,step`):
+  a debug room's run starts holding those blessings (at common rarity) and skills. They're read when the
+  page loads, since making a room rewrites the address. `kf.S.scene.local[0]` is the hero: set `focus`,
+  `dashes`, `x`, `y`, `locked` on it to stage a test. Headless Chromium runs the fight at a few frames a
+  second, so hold a key at least 150 ms or a press can fall between frames.
+- **Bots and the rework**: bots use each skill's main hit and a rough share of its further hits (two ticks
+  of the lance's trail, two knives on the way back), raise Stone Ward when a hit is about to land, and play
+  `finisher`, `heavy` and `special` procs. They don't play `pass` procs, second presses, the Blood prices,
+  Echo, Patience or any moveset change beyond what the patched weapon table gives their ordinary attacks.
 - **Signature moves in the tests**: the smoke test casts the Flood twice (a hero in the open must be
   hurt, one on a stone must not). Sim bots answer signatures by where they stand (`answer_signature` in
   the sim: onto safe ground, behind cover, out of a strip, still for KNEEL; now and then they misread
@@ -625,6 +717,23 @@ Mirror Knight among the three.
   `sheet.py` reviews bosses beside a hero at game size; `preview.py` the heroes.
 
 ## Gotchas
+
+- **Never read `C.WEAPONS[...]` for a hero in a fight.** A blessing can change the hero's weapon (`mod`
+  effects): use `Fight.W(fh)` on the server and `weaponOf(data, h)` in the browser (`LocalHero.W`,
+  `HeroView.W`). The shared table is only right for the lobby and the weapon's name.
+- **The browser keeps Focus, cooldowns and dashes; the server keeps health.** A blessing that gives the
+  first three sends fx `gain` to the hero's browser (`Fight.gain`), and moves the server's own cooldown
+  clock (`skill_used`) with it or the next cast is refused as early. One that costs health is paid on the
+  server (`Fight.pay`), once per swing.
+- **`skill_used` is the cooldown clock, `skill_cast` the real moment.** Refunds (Stone Ward, Reaping Whirl,
+  Flashpoint, Meditation) move `skill_used` back; a skill's hits are counted for `live` seconds from
+  `skill_cast`. Using one for the other makes refunded skills' later hits vanish.
+- **A hit's flags ride on the swing** (`swing.fl`: `oc`, `eh`, `bk`), and are copied to further hit windows,
+  shots and areas made from it. Set them after `startAttack` makes the swing, and merge, don't replace.
+- **A skill's blink is state `blink`, not `skill`** (`blinkTo`, `skillBlink`): it must not loose the bow's
+  roll-shot or `roll_end` procs, which belong to the weapon's own dodge.
+- **The boss turns to face a hero at once when idle**, so "behind it" can't be judged when a blink lands:
+  Umbral Step flags its hit as from behind (`bk`) rather than asking the geometry.
 
 - **One error used to freeze a browser's fight for good.** Phaser asks for the next frame only after the
   current one returns, so an error in the fight scene's `update` (or `create`) stopped that browser's loop:

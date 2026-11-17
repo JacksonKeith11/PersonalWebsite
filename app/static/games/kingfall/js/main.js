@@ -1,12 +1,12 @@
 // Kingfall: boot, the menus, and the connection to the room. docs/kingfall.md describes the game.
-import { setAtlas } from './rig.js?v=39';
-import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=39';
-import { icon } from './icons.js?v=39';
-import { Net, ME } from './net.js?v=39';
-import { FightScene } from './fight.js?v=39';
-import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=39';
-import { unlock, sfx, setVolume } from './audio.js?v=39';
-import { music } from './music.js?v=39';
+import { setAtlas } from './rig.js?v=42';
+import { Input, slotOf, padName, deviceOfSlot, glyph, firstPadFamily } from './input.js?v=42';
+import { icon } from './icons.js?v=42';
+import { Net, ME } from './net.js?v=42';
+import { FightScene } from './fight.js?v=42';
+import { show, hide, openMenu, closeMenu, navFrame, setOwners, esc, portrait, setAtlasImage, LOOK_NAMES, buildHud, updateHud, banner, hideHud, $ } from './ui.js?v=42';
+import { unlock, sfx, setVolume } from './audio.js?v=42';
+import { music } from './music.js?v=42';
 
 const VERSION = new URL(import.meta.url).searchParams.get('v');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -210,7 +210,10 @@ function addHero(slot) {
   sfx.ui();
 }
 
-function start() { if (S.lobby && S.lobby.heroes.length) net.send({ t: 'start', only: ONLY || undefined }); }
+// ?debug&ups=a,b&skills=x,y starts the run holding those blessings and skills (tests); read at once, as the address changes when a room is made
+const DBG_LIST = k => { const v = DEBUG && new URLSearchParams(location.search).get(k); return v ? v.split(',') : undefined; };
+const DBG_UPS = DBG_LIST('ups'), DBG_SKILLS = DBG_LIST('skills');
+function start() { if (S.lobby && S.lobby.heroes.length) net.send({ t: 'start', only: ONLY || undefined, ups: DBG_UPS, skills: DBG_SKILLS }); }
 
 // ------------------------------------------------------------------ screens
 function render() {

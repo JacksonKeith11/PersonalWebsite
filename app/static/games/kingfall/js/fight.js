@@ -1,21 +1,21 @@
 // The fight: a Phaser scene with the arena, the boss and every hero. This browser's heroes are moved
 // here and their hits checked here (both ways); the server says what the boss does and keeps score.
-import { addFrames } from './rig.js?v=39';
-import { LocalHero, RemoteHero } from './hero.js?v=39';
-import { Boss } from './boss.js?v=39';
-import { drawArena } from './arenas.js?v=39';
-import { sfx, ambience, PLACE } from './audio.js?v=39';
-import { music } from './music.js?v=39';
-import { deviceOfSlot } from './input.js?v=39';
-import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=39';
-import { hudKeys, bigCard } from './ui.js?v=39';
-import { Atmos } from './atmos.js?v=39';
-import { LORE, ROMAN } from './lore.js?v=39';
+import { addFrames } from './rig.js?v=42';
+import { LocalHero, RemoteHero } from './hero.js?v=42';
+import { Boss } from './boss.js?v=42';
+import { drawArena } from './arenas.js?v=42';
+import { sfx, ambience, PLACE } from './audio.js?v=42';
+import { music } from './music.js?v=42';
+import { deviceOfSlot } from './input.js?v=42';
+import { orb, arrow, impact, pillar, allyArea } from './fx.js?v=42';
+import { hudKeys, bigCard } from './ui.js?v=42';
+import { Atmos } from './atmos.js?v=42';
+import { LORE, ROMAN } from './lore.js?v=42';
 
 const INTERP = 0.1;
 const NO_INPUT = { get: () => null };   // while the menu is open the heroes stand idle (the fight doesn't stop)
 // an area hit's colour: the skill's, or gold for a weapon's (arrow rain)
-const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff' };
+const BONUS_COL = { back: '#ff8a98', tip: '#a8e0ff', power: '#fff0c0', sigil: '#d0a0ff', counter: '#ffe08a' };
 const aoeCol = col => col ? Phaser.Display.Color.HexStringToColor(col).color : 0xffd23f;
 
 export class FightScene extends Phaser.Scene {
@@ -92,6 +92,8 @@ export class FightScene extends Phaser.Scene {
     this.shotGlow = this.add.graphics().setDepth(5601).setBlendMode(Phaser.BlendModes.ADD);  // everything that glows
     this.shotFloor = this.add.graphics().setDepth(2.5);                                      // their shadows
     this.remoteShots = []; this.rings = []; this.pillars = []; this.returns = [];
+    this.zones = [];       // circles heroes' skills leave on the ground: a banner, hallowed ground (the censer's cloud is drawn as its area)
+    this.streaks = [];     // the line a striking blink crossed
     this.sparkList = [];
     this.impacts = [];     // where a hero's hit landed: a flash and a cut across it
     this.reviveG = this.add.graphics().setDepth(6001);
@@ -200,21 +202,40 @@ export class FightScene extends Phaser.Scene {
         break;
       case 'shot':
         if (this.local.some(l => l.id === m.h)) break;  // ours are drawn already
+        if (m.k2 === 'end') { this.remoteShots = this.remoteShots.filter(s => !(s.h === m.h && s.id === m.id)); break; }   // knives called home
         this.remoteShots.push({ ...m, k: m.k2 });
         if (m.k === 'proj') sfx.swing(this.pan(m.x));
         break;
       case 'skill': {  // someone used a skill: a ring in its colour (as wide as its reach to allies) and its name
         const K = this.data.skills[m.sk];
         if (!K) break;
-        this.rings.push({ x: m.x, y: m.y, r: K.radius || 26, life: 0.3, col: Phaser.Display.Color.HexStringToColor(K.col).color });
+        this.rings.push({ x: m.x, y: m.y, r: K.zone && K.zone.at !== 'aoe' ? K.zone.r : 26, life: 0.3, col: Phaser.Display.Color.HexStringToColor(K.col).color });
         this.number(m.x, m.y - 58, K.name, K.col, true);
-        if (K.heal) break;  // the heal has its own sound
-        K.ward ? sfx.clang(this.pan(m.x)) : K.rally ? sfx.parry(this.pan(m.x)) : K.blink ? 0 : sfx.heavySwing(this.pan(m.x));
+        K.guard ? sfx.clang(this.pan(m.x)) : K.zone && K.zone.rally ? sfx.parry(this.pan(m.x)) : K.zone && K.zone.heal ? sfx.heal() : K.blink ? 0 : K.free ? sfx.perfect(this.pan(m.x)) : sfx.heavySwing(this.pan(m.x));
+        break;
+      }
+      case 'zone': {   // a skill's circle on the ground, for as long as it lasts
+        const K = this.data.skills[m.sk];
+        if (K && K.zone.at !== 'aoe') this.zones.push({ x: m.x, y: m.y, r: m.r, until: this.net.now() + m.dur, col: aoeCol(K.col), banner: !!K.zone.rally });
+        break;
+      }
+      case 'mend': this.burst(m.x, m.y - 20, 0x8be04e, 4, { dir: -Math.PI / 2, spread: 0.5, speed: 0.5 }); break;
+      case 'gain': {   // what a blessing gave: Focus, cooldown, dashes (this browser's heroes keep them)
+        if (mine) mine.gain(m);
+        const at = this.byId[m.h];
+        if (at) this.number(at.x, at.y - 58, m.focus ? '+' + Math.round(m.focus) + ' Focus' : m.cd ? 'Skills -' + m.cd + 's' : 'Dashes back', '#c8d4ff');
+        break;
+      }
+      case 'paid': this.number(m.x, m.y - 46, '-' + m.dmg, '#c83a4a'); break;   // health spent on a Blood blessing
+      case 'cleared': {   // a boss's shot shattered
+        const mv = this.boss.onReflect(m);
+        this.burst(m.x, m.y - 10, 0x7fe3ff, 10);
+        if (mv) sfx.clang(this.pan(m.x));
         break;
       }
       case 'status': {
         const col = { burn: '#ff8a3a', frost: '#7fe3ff', bleed: '#e04a5a', rot: '#8be04e' }[m.kind];
-        this.number(B.x, B.y - 92, m.kind.toUpperCase() + (m.dmg ? ' ' + m.dmg : ''), col, true);
+        this.number(B.x, B.y - 92, (m.word || m.kind.toUpperCase()) + (m.dmg ? ' ' + m.dmg : ''), col, true);
         this.burst(B.x, B.y - 40, Phaser.Display.Color.HexStringToColor(col).color, 22);
         sfx.fire(this.pan(B.x));
         break;
@@ -250,7 +271,9 @@ export class FightScene extends Phaser.Scene {
       }
       case 'parry': this.triumph(m.x, m.y, 'Parry!'); break;
       case 'block': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xe8ecf2, 8); break;
-      case 'warded': sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xa8b0bc, 10); this.number(m.x, m.y - 46, 'Warded', '#a8b0bc'); break;
+      case 'warded':
+        if (m.burst) { this.triumph(m.x, m.y, 'Warded!'); break; }   // Stone Ward soaked it and answers
+        sfx.clang(this.pan(m.x)); this.burst(m.x, m.y - 18, 0xa8b0bc, 10); this.number(m.x, m.y - 46, 'Warded', '#a8b0bc'); break;
       case 'hurt':
         sfx.hurt(this.pan(m.x));
         this.number(m.x, m.y - 46, m.dmg, '#e05050');
@@ -439,6 +462,16 @@ export class FightScene extends Phaser.Scene {
       onSwing: h => sfx.swing(this.pan(h.x)),
       onPower: h => { sfx.power(this.pan(h.x)); this.rings.push({ x: h.x, y: h.y - 10, r: 34, life: 0.3, col: 0xfff0c0 }); this.punch(0.02); },
       onCharged: h => { this.burst(h.x, h.y - 22, h.view.colour, 10); sfx.ui(); },
+      onOver: h => { this.burst(h.x, h.y - 22, 0xc83a4a, 16); this.rings.push({ x: h.x, y: h.y - 10, r: 28, life: 0.3, col: 0xc83a4a }); sfx.power(this.pan(h.x)); },
+      onReady: () => sfx.ui(),
+      onPass: (x0, y0, x1, y1, col) => this.streaks.push({ x0, y0, x1, y1, col: aoeCol(col || '#e8ecf2'), life: 0.22 }),
+      // a nova or a burst of frost shatters the boss's shots inside it: gone here at once, and the server tells everyone
+      clearShots: (h, x, y, r) => {
+        for (const s of B.shotsIn(now, x, y, r)) {
+          s.mv.gone.add(s.i);
+          this.net.send({ t: 'clear', h: h.id, seq: s.seq, i: s.i, x: Math.round(s.x), y: Math.round(s.y) });
+        }
+      },
       onPillar: (x, y, r, col) => this.pillarAt(x, y, r, col),
       onBoom: (x, y, r, col) => { const c = col ? aoeCol(col) : 0xc080ff; this.burst(x, y - 8, c, col ? 12 : 20); this.rings.push({ x, y, r, life: 0.3, col: c }); sfx.slam(this.pan(x)); this.atmos.mark('scorch', x, y, r * 0.6); },
     };
@@ -462,6 +495,8 @@ export class FightScene extends Phaser.Scene {
             l.nearAt = now; this.near = 0.16; sfx.perfect(this.pan(l.x));
             this.rings.push({ x: l.x, y: l.y - 6, r: 30, life: 0.3, col: 0xffffff });
             l.view.ghost(0.4);
+            const pf = (l.S.perfect_focus || 0) + (now < l.freeUntil ? l.perfectFocus : 0);   // Overcharge, Second Breath: Focus for it
+            if (pf) { l.focus = Math.min(l.HERO.focus, l.focus + pf); this.number(l.x, l.y - 62, '+' + pf + ' Focus', '#c8d4ff'); }
           }
           if (l.S.perfect_dash) { l.dashes = Math.min(l.maxDash, l.dashes + l.S.perfect_dash); this.number(l.x, l.y - 50, 'Perfect', '#fff0c0'); }
           this.net.send({ t: 'perfect', h: l.id });
@@ -469,6 +504,11 @@ export class FightScene extends Phaser.Scene {
         }
         const r = l.takeHit(h, bx, by);
         if (!r) return false;
+        if (r === 'ward') {   // Stone Ward: nothing gets through, and a burst answers
+          this.net.send({ t: 'hurt', h: l.id, id, ward: 1 });
+          l.wardBurst(ctx);
+          return true;
+        }
         if (r === 'hurt' && h.hold) l.held = { until: now + h.hold, seq: +id.split(':')[0] };   // caught: held until it lets go
         this.net.send({ t: 'hurt', h: l.id, id, block: r === 'block' || r === 'counter' ? 1 : 0, parry: r === 'parry' ? 1 : 0, counter: r === 'counter' ? 1 : 0 });
         if (r === 'counter') this.triumph(l.x, l.y, 'Counter!');
@@ -506,7 +546,26 @@ export class FightScene extends Phaser.Scene {
     this.kick *= Math.exp(-dtReal * 7);
     const zk = z * (1 + this.kick);
     if (cam0.zoom !== zk) cam0.setZoom(zk);
+    // circles on the ground: a banner's reach, hallowed ground
+    this.zones = this.zones.filter(Z => {
+      const left = Z.until - now;
+      allyArea(sg, this.shotGlow, { cx: Z.x, cy: Z.y, r: Z.r }, Z.col, Math.min(1, left * 2), time / 1000, true);
+      if (Z.banner) {   // the banner itself: a pole and a pennant stirring
+        const w = Math.sin(time / 160) * 2;
+        sg.lineStyle(2, 0x3a2e24, 1).lineBetween(Z.x, Z.y, Z.x, Z.y - 34);
+        sg.fillStyle(Z.col, 0.95).fillTriangle(Z.x, Z.y - 34, Z.x + 16 + w, Z.y - 29, Z.x, Z.y - 22);
+      }
+      return left > 0;
+    });
+    this.streaks = this.streaks.filter(o => {
+      o.life -= dtFx;
+      const k = Math.max(0, o.life / 0.22);
+      this.shotGlow.lineStyle(7 * k, o.col, 0.5 * k).lineBetween(o.x0, o.y0 - 12, o.x1, o.y1 - 12);
+      this.shotGlow.lineStyle(2, 0xffffff, k).lineBetween(o.x0, o.y0 - 12, o.x1, o.y1 - 12);
+      return o.life > 0;
+    });
     for (const l of this.local) {
+      for (const k of l.stuck) this.drawShot(k.x, k.y, k.a, 3, k.col);   // knives lying where they landed
       for (const s of l.shots) this.drawShot(s.x, s.y, s.a, s.r, s.col);
       for (const A of l.aoes) {
         // heroes' areas are dashed rings, never filled (fx.js, allyArea): bosses' are the solid ones

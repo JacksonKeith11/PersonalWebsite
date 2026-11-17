@@ -1,11 +1,11 @@
 // The DOM screens (title, lobby, results) and the HUD, plus controller navigation for every menu:
 // the D-pad or left stick moves between [data-nav] elements, A / Enter presses, B / Esc goes back.
 // An element with data-lr takes left/right itself (look and weapon pickers).
-import { paintRig, atlas } from './rig.js?v=39';
-import { heroFrames } from './hero.js?v=39';
-import { sfx } from './audio.js?v=39';
-import { skillKey, deviceOfSlot, glyph } from './input.js?v=39';
-import { icon } from './icons.js?v=39';
+import { paintRig, atlas } from './rig.js?v=42';
+import { heroFrames } from './hero.js?v=42';
+import { sfx } from './audio.js?v=42';
+import { skillKey, deviceOfSlot, glyph } from './input.js?v=42';
+import { icon } from './icons.js?v=42';
 
 export const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -233,7 +233,7 @@ export function buildHud(boss, heroes, colours, mineIds, skills = {}, weapons = 
         <div class="tiles">
           ${tile('flask', glyph(dev, 'flask'), `${FLASK}<em></em><b>Flask</b>`)}
           ${(h.skills || []).map((id, i) => skills[id] ? tile('sk', glyph(dev, i ? 'skill2' : 'skill1'), `${icon(id)}<b>${esc(skills[id].name)}</b>`, `data-sk="${id}" style="--k:${skills[id].col}"`) : '').join('')}
-          ${W.special ? tile('spc', glyph(dev, 'special'), `${icon(h.weapon)}<b>${esc(W.special.name)}</b>`) : ''}
+          ${W.special ? tile('spc', glyph(dev, 'special'), `${icon(h.weapon)}<b>${esc((((h.stats || {}).mods || []).find(m => m[0] === 'special.name') || [0, W.special.name])[1])}</b>`) : ''}
         </div>
       </div>`; }).join('')}</div>
     <div class="bossbar">${(boss.bodies || [boss]).map((b, e) => `<div class="bbody" id="bb-${e}"><div class="bname">${esc(b.name || boss.name)}</div>
@@ -279,7 +279,7 @@ export function updateHud(scene) {
     c.classList.toggle('down', row.down > 0);
     c.classList.toggle('low', !row.down && row.hp / row.mhp < 0.3);
     // what's on them: a ward (and how much is left), extra damage (and for how long), a charged next hit
-    const buffs = row.down ? '' : (row.shield > 0 ? `<span style="--k:#a8b0bc">Ward ${row.shield}</span>` : '')
+    const buffs = row.down ? '' : (row.shield > 0 ? `<span style="--k:#a8b0bc">Ward ${row.shield}</span>` : row.shield < 0 ? '<span style="--k:#e8ecf2">Stone Ward</span>' : '')
       + (row.rally > 0 ? `<span style="--k:#ffb040">Damage up ${Math.ceil(row.rally)}s</span>` : '') + (row.emp ? '<span style="--k:#c8b4ff">Next hit charged</span>' : '');
     const bf = c.querySelector('.buffs');
     if (bf.dataset.v !== buffs) { bf.dataset.v = buffs; bf.innerHTML = buffs; }
@@ -303,9 +303,11 @@ export function updateHud(scene) {
       const S = l.skills.find(k => k.id === chip.dataset.sk), left = Math.max(0, l.skillCd[chip.dataset.sk] || 0);
       cool(chip, S ? Math.min(1, left / (S.cd * (l.S.skill_cd || 1))) : 0, left > 0 ? String(Math.ceil(left)) : '');
       chip.classList.toggle('no', !!l.denied && l.denied.id === chip.dataset.sk && performance.now() < l.denied.until);
+      chip.classList.toggle('ready', performance.now() - (l.readyAt[chip.dataset.sk] || -9e9) < 500);   // just come off cooldown: it flashes
+      chip.classList.toggle('again', !!l.recast && l.recast.id === chip.dataset.sk);                     // press again: its second act is waiting
     }
     const sp = c.querySelector('.tile.spc');  // the special fills with Focus
-    if (sp) { const need = l.specialCost(); cool(sp, l.focus >= need ? 0 : 1 - l.focus / need, ''); }
+    if (sp) { const need = l.specialCost(); cool(sp, l.canSpecial() ? 0 : 1 - l.focus / need, ''); sp.classList.toggle('again', l.echo > 0); }
     // dashes: a pip each, the one coming back filling from the left; they shake when a dodge is refused
     const pips = c.querySelector('.pips');
     if (pips) {

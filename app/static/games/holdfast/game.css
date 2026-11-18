@@ -20,6 +20,14 @@ aside section { background: var(--slate2); border: 1px solid var(--line); border
 aside h2 { margin: 0 0 6px; font: 600 1rem/1.3 "Source Serif 4", Georgia, serif; }
 aside p { margin: 0 0 8px; color: var(--dim); font-size: 0.9rem; }
 #ready { width: 100%; }
+#coming .next-head { margin-bottom: 4px; }
+.foes { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.foes li { display: flex; align-items: center; gap: 8px; }
+.foes canvas { width: 28px; height: 28px; flex: none; background: #33502f; border-radius: 6px; }
+.foes span { display: flex; flex-direction: column; line-height: 1.2; font-size: 0.9rem; }
+.foes small { color: var(--dim); font-size: 0.78rem; }
+.foes li.special b { color: #ffd75a; }
+#coming .warn { color: #ffb4a8; background: rgba(255, 107, 90, 0.12); border-left: 3px solid #ff6b5a; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; }
 #game .people li { border-color: var(--line); padding: 5px 0; }
 #game .people li:last-child { border-bottom: 0; }
 #game .people .tag { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }

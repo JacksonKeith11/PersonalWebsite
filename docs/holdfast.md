@@ -22,8 +22,8 @@ Mint (pays its builder every wave, or raises the bounty on kills near it).
 **Upgrades are Bloons-style** (the owner asked for different upgrades per tower and a final
 evolution "like Bloons Tower Defense"). Every tower has two upgrade paths of four tiers; the first
 upgrade picks a path for good, and the other closes. Tier four is the path's **final evolution**:
-it costs 2,000-3,400 gold, renames the tower (Eagle Eye, Doomsday Gun, Storm Spire, Royal Mint…),
-draws it gold-rimmed with a crown, and only one of each final evolution may stand on the map at a
+it costs 1,400-2,400 gold (cut by 30% in November 2026 so games actually reach one), renames
+the tower (Eagle Eye, Doomsday Gun, Storm Spire, Royal Mint…), draws it gold-rimmed with a crown, and only one of each final evolution may stand on the map at a
 time (selling it frees the place). Anyone may pay to upgrade any tower; only its builder may sell it
 (for 70% of everything spent on it). Every tower counts its kills and damage, shown on its panel.
 
@@ -51,6 +51,11 @@ The owner asked for these in November 2026, all built together:
 - **Saves**: the game is saved at the start of every build phase (`data/holdfast.db`) and listed in
   the lobby of everyone who played in it; the host resumes it. Players who aren't back yet keep their
   seat, purse and towers until they rejoin. A game that ends deletes its save.
+- **Next-wave preview** (asked for with the balance pass below): the wave box lists what's coming,
+  each kind drawn as on the board, with how many and what's special (camouflaged, flies, armoured,
+  heals, splits, costs 5 lives); during a fight it shows the wave after. It warns when nothing built
+  can see Ghosts (towers send `cs`, whether they can) or hit flyers (worked out from `statsOf`). It
+  only redraws when the wave, the towers' warnings or the list change, not on every snapshot.
 - **Polish**: the reach an upgrade would give shows while pointing at it; keys (1-9 tower, Z/X buy
   on a path, Q ability, T targeting, U undo, Space ready, Esc); a build or upgrade can be undone for
   a full refund for 5 seconds (`UNDO`), by whoever paid; damage numbers.
@@ -76,7 +81,8 @@ The owner asked for these in November 2026, all built together:
 - Messages to the browser: `welcome` (the rules), `map` (with `build`, the only buildable tiles,
   on Quarry), `saves` (this browser's saved games), `note`, `state` (players, towers, wave, lives:
   sent when something structural changes; towers as `{id, k, p (path), n (tier), x, y, o (owner),
-  s (spent), kills, dmg, tg (targeting), un ([payer, seconds of undo left] or null)}`; `summary`,
+  s (spent), kills, dmg, tg (targeting), un ([payer, seconds of undo left] or null), cs (can see
+  Ghosts)}`; `coming`, the next wave's `[kind, count]` groups (a kind can appear twice); `summary`,
   `record_new` and `records` once a game ends, `records` in the lobby too) and `s`, the snapshot,
   ten times a second (enemies as `[id, kind index, x, y, health %, flags, damage since the last
   snapshot]` with flags 1 slowed, 2 burning, 4 stunned, 8 camouflaged; the shots since the last
@@ -98,8 +104,10 @@ The owner asked for these in November 2026, all built together:
   than one (bar 60 starting gold each). Scaling health by player count made four-player games
   much harder than solo ones.
 - **Each tier should be worth about what it costs.** Damage per gold stays near the base tower's
-  through tiers 1-2, a little better at tier 3 and about 1.4× at the final evolution, or upgrading
-  is a trap. Paths trade: one leans on a single target (good against Warlords), the other on
+  through tiers 1-2, a little better at tier 3 and about twice as good at the final evolution, or
+  upgrading is a trap. The evolution is the exception on purpose: at the old prices (about 1.4×)
+  nobody, not even the test builders, could save up for one in a 30-wave game, so the abilities
+  never came out. Paths trade: one leans on a single target (good against Warlords), the other on
   crowds or utility.
 - **Pressure all the way through, not only at the bosses.** Health grows as a polynomial
   (`1 + 0.45w + 0.06w²`), not an exponential: an exponential that's fair at wave 30 is a walkover
@@ -115,7 +123,9 @@ The owner asked for these in November 2026, all built together:
 - **Bounties go to whoever is connected.** A seated player who drops keeps their seat, their
   towers and their purse, but earns nothing until they're back; their gold is stuck until then.
 - **Flyers take the straight line from where a road starts to the keep** (`Room.flights`), not the
-  road, so towers along the road may never see them.
+  road, so towers along the road may never see them. On maps whose road winds back towards its start
+  (Coil, Knot) that line is short, which is why the flyer waves (every wave ending in 4 or 9) were
+  where those maps were lost; flyer waves are kept small (`n(5)`) for that reason.
 - **Armour is taken off each hit** (down to 15% of the hit at least) and grows with the wave, so
   fast, weak towers fade against Shieldbearers; Ballistas ignore it.
 - **The best beacon in reach counts, not the sum**, for each of `boost`, `reach` and `power`
@@ -151,8 +161,40 @@ only from wave 15 with most of the price in hand, and use abilities when a crowd
 the board. They never sell, give gold or send a wave early, and two builders can both upgrade one
 tower (each remembers the tier it was saving for). A decent human should do better.
 
-Latest run (November 2026, after targeting, abilities, the four new enemies, Knot and Quarry, and
-the smarter builders; 3 games each, `won` and, if any were lost, the wave reached):
+Latest run (November 2026, after the balance pass: hard's health ×1.3 → ×1.15, flyer waves cut to
+`n(5)` flyers and slowed to 1.1 tiles a second, Gargoyles slowed to 0.8, final evolutions 30%
+cheaper, and builders that save for one evolution at a time; 3 games each, `won`, the wave reached
+if any were lost, and evolutions standing at the end per game; 98 s):
+
+| | Easy | Normal | Hard |
+|---|---|---|---|
+| Meadow, 1 player | won 3/3, 2.7 evo | won 3/3, 2.7 evo | won 3/3, 2.0 evo |
+| Meadow, 2 players | won 3/3, 0.7 evo | won 1/3, wave 24-30, 0.3 evo | won 0/3, wave 12-29 |
+| Meadow, 4 players | won 3/3 | won 0/3, wave 12-19 | won 0/3, wave 10-12 |
+| Crossing, 1 player | won 3/3, 2.7 evo | won 3/3, 2.0 evo | won 2/3, wave 26-30, 1.0 evo |
+| Crossing, 2 players | won 3/3, 1.0 evo | won 1/3, wave 30-30, 0.7 evo | won 0/3, wave 16-30, 0.3 evo |
+| Crossing, 4 players | won 3/3 | won 2/3, wave 30-30 | won 0/3, wave 11-16 |
+| Coil, 1 player | won 3/3, 2.7 evo | won 2/3, wave 29-30, 1.0 evo | won 1/3, wave 24-30, 1.0 evo |
+| Coil, 2 players | won 3/3, 1.3 evo | won 3/3 | won 3/3 |
+| Coil, 4 players | won 3/3 | won 1/3, wave 29-30 | won 0/3, wave 21-24 |
+| Knot, 1 player | won 3/3, 1.7 evo | won 1/3, wave 24-30 | won 0/3, wave 24-29 |
+| Knot, 2 players | won 2/3, wave 29-30, 0.3 evo | won 2/3, wave 24-30 | won 1/3, wave 24-30 |
+| Knot, 4 players | won 1/3, wave 29-30 | won 1/3, wave 24-30, 0.3 evo | won 1/3, wave 19-30 |
+| Quarry, 1 player | won 3/3, 2.3 evo | won 3/3, 1.7 evo | won 1/3, wave 26-30, 0.7 evo |
+| Quarry, 2 players | won 3/3, 1.0 evo | won 0/3, wave 16-26 | won 0/3, wave 15-16 |
+| Quarry, 4 players | won 2/3, wave 30-30, 0.3 evo | won 0/3, wave 14-16 | won 0/3, wave 11-11 |
+
+Solo and two-player games are now winnable almost everywhere on easy and normal; hard is won solo
+on every map but Knot, and Coil and Knot are no longer the walls they were (Knot is still the
+hardest). Games now see final evolutions (two or three per solo game) and their abilities.
+What's left is the builders, not the maps: four builders, and two on Meadow and Quarry, still lose
+by waves 10-20 with few towers standing. Each builder saves from its own quarter of the income for
+its own next tower and nobody hands gold over, so less gets built early. Real players pool gold (the
+Give button) and should do much better. If four-player games feel too hard in real play, the lever
+is the starting gold per extra player (`START_GOLD` in data.py), not enemy health.
+
+The run before (after targeting, abilities, the four new enemies, Knot and Quarry, and the smarter
+builders):
 
 | | Easy | Normal | Hard |
 |---|---|---|---|

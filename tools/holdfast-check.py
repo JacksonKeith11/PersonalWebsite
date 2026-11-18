@@ -93,7 +93,7 @@ async def main():
     view = a.read()["state"]["towers"][0]
     assert {k: v for k, v in view.items() if k != "un"} == {
         "id": t.id, "k": "archer", "p": None, "n": 0, "x": 2, "y": 3, "o": a.p.id, "s": 50, "kills": 0, "dmg": 0,
-        "tg": "first"}, view
+        "tg": "first", "cs": False}, view
     assert view["un"][0] == a.p.id and 0 < view["un"][1] <= game.UNDO
     # Anyone may upgrade; only the builder may sell. The first upgrade picks the path for good.
     b.do(t="up", id=t.id)
@@ -369,6 +369,7 @@ def newer():
     assert not other.sees
     tower_at(room, p, "beacon", 6, 3, 1, 1)
     assert other.sees, "a Spyglass should reveal Ghosts to its neighbours"
+    assert other.view()["cs"], "the browser's wave preview needs to know what sees Ghosts"
     for x in list(room.towers.values()):
         room.sell(p, x)
     # Undo: a build or upgrade comes back in full for a few seconds, only to whoever paid.

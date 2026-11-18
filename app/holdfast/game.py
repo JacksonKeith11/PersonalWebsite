@@ -85,7 +85,7 @@ class Tower:
             undo = [self.undo[1], round(self.undo[0] - time.monotonic(), 1)]
         return {"id": self.id, "k": self.kind, "p": self.path, "n": self.tier, "x": self.x, "y": self.y,
                 "o": self.owner, "s": self.spent, "kills": self.kills, "dmg": round(self.dmg),
-                "tg": self.target, "un": undo}
+                "tg": self.target, "un": undo, "cs": self.sees}
 
 
 class Enemy:

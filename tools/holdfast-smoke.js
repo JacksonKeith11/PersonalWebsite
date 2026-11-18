@@ -90,6 +90,9 @@ async function serve() {
     await host.click('#start');
     const all = [host, friend];
     for (const p of all) await p.waitForSelector('#game:not([hidden])');
+    // the next-wave preview: the first wave's Grunts, drawn and named
+    await host.waitForSelector('#coming .foes li');
+    if (!/\d+ Grunts/.test(await host.textContent('#coming'))) throw new Error('the wave preview should list the Grunts');
 
     const st = p => p.evaluate(() => window.holdfast.S.st);
     const gold = (p, name) => p.evaluate(n => { const { S } = window.holdfast; return S.gold[S.st.players.find(q => q.name === n).id]; }, name);

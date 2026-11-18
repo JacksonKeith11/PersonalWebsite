@@ -6,8 +6,9 @@ For each map and difficulty, with 1, 2 and 4 players, builders play whole games:
 fixed mix of towers, puts each where it covers the most road, and spends what's left on upgrades.
 They play sensibly but simply: each tower's usual path (`PREFER`, single-target for archers and
 ballistas, crowd-control for frost and tesla), something that can see Ghosts before they come,
-sniper ballistas aimed at the strongest enemy (archers aimed that way let flyers past), final evolutions from wave 15 once most of the price is in
-hand, and abilities used when a crowd or a Warlord is on the board.
+sniper ballistas aimed at the strongest enemy (archers aimed that way let flyers past), one final
+evolution saved for at a time from wave 21 while the waves are held (`Builder.star`), and abilities
+used when a crowd or a Warlord is on the board.
 They never sell, hand gold over or send a wave early, so a decent human should do better. Prints
 how many games were won, the wave reached and the lives left. `--fast` plays one game of each map
 on normal with two players (a few seconds): `tools/check-all.sh` uses it to see the fight runs.
@@ -56,6 +57,26 @@ class Builder:
             t.plan = path if self.rng.random() < odds else 1 - path
         return t.plan
 
+    def drop(self):
+        self.save_for = None
+        if self.room.starrer is self:
+            self.room.starrer = None
+
+    def star(self):
+        """After the second Warlord (wave 21 on), one builder at a time saves for a final evolution
+        (the cheapest a tier-3 tower can take), once three waves in a row were held cleanly, until a
+        leak puts the gold back to work. Saving earlier, or while lives were going, lost games."""
+        room = self.room
+        if room.wave < 21 or room.starrer is not None or any(room.leaks.get(room.wave - i) for i in range(3)):
+            return
+        cost = lambda t: D.TOWERS[t.kind]["paths"][self.plan(t)]["tiers"][D.EVOLUTION - 1]["cost"]  # noqa: E731
+        ready = [t for t in room.towers.values()
+                 if t.tier == D.EVOLUTION - 1 and not room.evolved(t.kind, self.plan(t))]
+        if ready:
+            t = min(ready, key=cost)
+            self.save_for = ("up", t.id, t.tier)
+            room.starrer = self
+
     def abilities(self):
         room = self.room
         if not room.fighting:
@@ -78,16 +99,13 @@ class Builder:
                 spotter.plan = 0
                 self.save_for = ("up", spotter.id, spotter.tier)
         if self.save_for is None:
+            self.star()
+        if self.save_for is None:
             counts = {k: sum(t.kind == k for t in towers) for k in MIX}
             kind = min(MIX, key=lambda k: (counts[k] + 0.5) / MIX[k])
-            # a final evolution only once the defence is up (wave 15 on) and most of the price is in
-            # hand: saving thousands from nothing leaves the road bare for waves
-            def worth(t):
-                if t.tier < D.EVOLUTION - 1:
-                    return True
-                path = self.plan(t)
-                cost = D.TOWERS[t.kind]["paths"][path]["tiers"][D.EVOLUTION - 1]["cost"]
-                return t.tier < D.EVOLUTION and room.wave >= 15 and p.gold >= 0.7 * cost
+            def worth(t):  # final evolutions go through `star`
+                return t.tier < D.EVOLUTION - 1
+
             ups = [t for t in towers if worth(t)]
             if ups and len(towers) >= 5 and self.rng.random() < 0.55:
                 t = self.rng.choice(ups)
@@ -95,14 +113,16 @@ class Builder:
             else:
                 self.save_for = ("build", kind, None)
         what, arg, tier = self.save_for
-        if what == "up":
+        if room.starrer is self and room.leaks.get(room.wave):  # the road needs the gold more
+            self.drop()
+        elif what == "up":
             t = room.towers.get(arg)
             path = self.plan(t) if t is not None else 0
             # gone, or someone else bought the tier this was saving for
             if t is None or t.tier != tier or t.tier >= D.EVOLUTION or (t.tier + 1 == D.EVOLUTION and room.evolved(t.kind, path)):
-                self.save_for = None
+                self.drop()
             elif room.upgrade(p, t, path):
-                self.save_for = None
+                self.drop()
         elif p.gold >= D.TOWERS[arg]["cost"]:
             spots = [xy for xy in room.buildable if xy not in room.at]
             if spots:
@@ -126,6 +146,7 @@ def play(map_id, diff, n, seed):
     for route, length in room.flights:
         (x0, y0), (x1, y1) = route[0][0], route[1][0]
         room.road += [(x0 + (x1 - x0) * i / length, y0 + (y1 - y0) * i / length) for i in range(0, int(length), 2)]
+    room.starrer = None  # the builder saving for a final evolution
     builders = [Builder(room, p, rng) for p in room.players.values()]
     steps = 0
     while room.phase == "play":

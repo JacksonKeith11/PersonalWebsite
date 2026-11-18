@@ -245,6 +245,7 @@ function render() {
   $('speed').textContent = `Speed ×${st.speed}`;
   if (S.chosen != null && !tower(S.chosen)) S.chosen = null;
   renderLive();
+  renderComing();
   renderInfo();
 
   const over = st.phase !== 'play';
@@ -335,15 +336,55 @@ function useAbility(id) {
   if (t && abilityOf(t) && (S.cd[id] ?? 0) <= 0 && S.st.fighting) room.send({ t: 'ability', id });
 }
 
+// What the next wave brings: each kind drawn as on the board, how many, what's special about it,
+// and a warning when nothing built can deal with it (nothing that sees Ghosts, or hits flyers).
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : word.endsWith('s') ? 'es' : 's'}`;
+function traits(e) {
+  return [e.camo && 'camouflaged', e.air && 'flies', e.armor && 'armoured', e.heal && 'heals others',
+    e.split && `splits in ${e.split}`, (e.lives || 1) > 1 && `costs ${e.lives} lives`, e.summon && 'calls up Grunts'].filter(Boolean);
+}
+function renderComing() {
+  const st = S.st, box = $('coming'), foes = S.cfg.enemies;
+  const counts = new Map();
+  for (const [k, n] of st.coming) counts.set(k, (counts.get(k) || 0) + n);
+  const kinds = [...counts.keys()];
+  const sight = st.towers.some(t => t.cs), antiAir = st.towers.some(t => statsOf(t.k, t.p, t.n).air);
+  const warn = [];
+  if (kinds.some(k => foes[k].camo) && !sight) warn.push('Nothing built can see Ghosts. Longbow (Archer), Heavy Bolts (Ballista), a Frost or Brazier, or a tower beside a Spyglass (Beacon) can.');
+  if (kinds.some(k => foes[k].air) && !antiAir) warn.push('Nothing built can hit flyers. Archers, Frost, Ballistas and Teslas can.');
+  const key = JSON.stringify([st.wave, st.fighting, [...counts], warn]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  if (!kinds.length) { box.replaceChildren(el('p', '', st.fighting ? 'The last wave: hold them off.' : '')); return; }
+  const head = el('p', 'next-head', st.fighting ? `Next, wave ${st.wave + 1}:` : 'Coming:');
+  const list = el('ul', 'foes');
+  for (const k of kinds) {
+    const li = el('li'), icon = document.createElement('canvas');
+    icon.width = icon.height = 56;
+    icon.setAttribute('aria-hidden', 'true');
+    const c = icon.getContext('2d');
+    c.scale(56 / 1.4, 56 / 1.4);
+    const [color, r] = ENEMY[k] || ['#ccc', 0.27];
+    if (foes[k].camo) c.globalAlpha = 0.6;
+    drawEnemyBody(c, k, 0.7, 0.7, 0.25 + r * 0.6, color, 0, true);   // big ones a little bigger
+    const text = el('span');
+    text.append(el('b', '', plural(counts.get(k), foes[k].name)));
+    const tr = traits(foes[k]);
+    if (tr.length) text.append(el('small', '', tr.join(', ')));
+    li.append(icon, text);
+    if (foes[k].camo || foes[k].lives > 1 || foes[k].air) li.classList.add('special');
+    list.append(li);
+  }
+  box.replaceChildren(head, list, ...warn.map(w => el('p', 'warn', w)));
+}
+
 // The parts that change with every snapshot: gold, the countdown, what can be afforded.
 function renderLive() {
   const st = S.st;
   if (!st || st.phase === 'lobby') return;
-  const names = S.cfg.enemies, gold = myGold(), seated = me()?.seated;
+  const gold = myGold(), seated = me()?.seated;
   $('wave-title').textContent = st.fighting ? `Wave ${st.wave}` : st.wave >= S.cfg.waves ? 'All waves beaten'
     : `Wave ${st.wave + 1} in ${Math.ceil(S.nextIn ?? 0)} s`;
-  $('coming').textContent = st.fighting ? 'Hold them off.'
-    : st.coming.map(([k, n]) => `${n} ${names[k].name}${n > 1 ? 's' : ''}`).join(', ');
   const chips = ['Rally', 'Mark Them', 'Bounty Hunt'].map((label, i) => S.glow[i] > 0 ? `${label} ${Math.ceil(S.glow[i])} s` : null).filter(Boolean);
   let box = $('chips');
   if (!box) { box = el('div', 'chips'); box.id = 'chips'; $('coming').after(box); }
@@ -624,6 +665,32 @@ function drawTower(c, kind, path, tier, ring) {
   }
 }
 
+// An enemy's body at (x, y), radius r; `flap` moves a Gargoyle's wings; an `icon` (the wave
+// preview) leaves out the Mender's ring.
+function drawEnemyBody(ctx, kind, x, y, r, color, flap, icon = false) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (kind === 'brute') ctx.roundRect(x - r, y - r, r * 2, r * 2, 0.1);
+  else if (FLYING.has(kind)) {
+    const f = kind === 'gargoyle' ? Math.sin(flap) * 0.08 : 0;
+    ctx.moveTo(x, y - r); ctx.lineTo(x + r * 1.4, y + f); ctx.lineTo(x, y + r * 0.6); ctx.lineTo(x - r * 1.4, y + f);
+  } else if (kind === 'ghost') { ctx.arc(x, y - r * 0.2, r, Math.PI, 0); ctx.lineTo(x + r, y + r); for (let i = 3; i >= 0; i--) ctx.lineTo(x - r + i * r * 2 / 3, y + r - (i % 2) * 0.1); }
+  else if (kind === 'splitter') { ctx.arc(x - r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x + r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x, y - r * 0.4, r * 0.6, 0, 7); }
+  else ctx.arc(x, y, r, 0, 7);
+  ctx.fill();
+  if (kind === 'healer') {   // a white cross, and the ring it mends within
+    const a = ctx.globalAlpha;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - r * 0.15, y - r * 0.55, r * 0.3, r * 1.1);
+    ctx.fillRect(x - r * 0.55, y - r * 0.15, r * 1.1, r * 0.3);
+    if (!icon) { ctx.strokeStyle = 'rgba(92, 196, 106, 0.35)'; ctx.lineWidth = 0.03; ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 7); ctx.stroke(); }
+    ctx.globalAlpha = a;
+  }
+  if (kind === 'gargoyle') { ctx.strokeStyle = '#3a3d44'; ctx.lineWidth = 0.05; ctx.stroke(); }
+  if (kind === 'shield' || kind === 'boss') { ctx.strokeStyle = kind === 'boss' ? '#f2c230' : '#cfe0ff'; ctx.lineWidth = 0.07; ctx.stroke(); }
+}
+
 function frame() {
   requestAnimationFrame(frame);
   if (!S.st || S.st.phase === 'lobby' || !S.map || $('game').hidden) return;
@@ -706,27 +773,9 @@ function frame() {
     e.y = e.fy + (e.ty - e.fy) * u;
     const [color, r] = ENEMY[e.kind], x = e.x + 0.5, y = e.y + 0.5 - (FLYING.has(e.kind) ? 0.25 : 0);
     if (FLYING.has(e.kind)) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 0.4, r * 0.8, r * 0.4, 0, 0, 7); ctx.fill(); }
-    ctx.fillStyle = color;
     if (e.camo) ctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 4 + e.tx);   // a Ghost: hard to make out
-    ctx.beginPath();
-    if (e.kind === 'brute') ctx.roundRect(x - r, y - r, r * 2, r * 2, 0.1);
-    else if (FLYING.has(e.kind)) {
-      const flap = e.kind === 'gargoyle' ? Math.sin(t * 10 + e.tx) * 0.08 : 0;
-      ctx.moveTo(x, y - r); ctx.lineTo(x + r * 1.4, y + flap); ctx.lineTo(x, y + r * 0.6); ctx.lineTo(x - r * 1.4, y + flap);
-    } else if (e.kind === 'ghost') { ctx.arc(x, y - r * 0.2, r, Math.PI, 0); ctx.lineTo(x + r, y + r); for (let i = 3; i >= 0; i--) ctx.lineTo(x - r + i * r * 2 / 3, y + r - (i % 2) * 0.1); }
-    else if (e.kind === 'splitter') { ctx.arc(x - r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x + r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x, y - r * 0.4, r * 0.6, 0, 7); }
-    else ctx.arc(x, y, r, 0, 7);
-    ctx.fill();
+    drawEnemyBody(ctx, e.kind, x, y, r, color, t * 10 + e.tx);
     ctx.globalAlpha = 1;
-    if (e.kind === 'healer') {   // a white cross, and the ring it mends within
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(x - r * 0.15, y - r * 0.55, r * 0.3, r * 1.1);
-      ctx.fillRect(x - r * 0.55, y - r * 0.15, r * 1.1, r * 0.3);
-      ctx.strokeStyle = 'rgba(92, 196, 106, 0.35)'; ctx.lineWidth = 0.03;
-      ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 7); ctx.stroke();
-    }
-    if (e.kind === 'gargoyle') { ctx.strokeStyle = '#3a3d44'; ctx.lineWidth = 0.05; ctx.stroke(); }
-    if (e.kind === 'shield' || e.kind === 'boss') { ctx.strokeStyle = e.kind === 'boss' ? '#f2c230' : '#cfe0ff'; ctx.lineWidth = 0.07; ctx.stroke(); }
     if (e.slow) { ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = 0.05; ctx.beginPath(); ctx.arc(x, y, r + 0.07, 0, 7); ctx.stroke(); }
     if (e.burning) {   // flickering flames
       ctx.fillStyle = `rgba(255, ${120 + 60 * Math.sin(t * 20 + e.tx * 9)}, 40, 0.75)`;
@@ -810,4 +859,4 @@ function frame() {
 }
 
 requestAnimationFrame(frame);
-if (room.debug) window.holdfast = { S, room };
+if (room.debug) window.holdfast = { S, room, renderComing };   // for the checks

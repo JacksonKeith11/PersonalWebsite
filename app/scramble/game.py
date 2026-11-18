@@ -498,7 +498,7 @@ class Room:
         L = legs[leg]
         x, y = min(x, L[3]), L[2]
         q.leg, q.leg_t = leg, (x - L[1]) / C.RUN
-        q.x, q.y, q.dead, q.down, q.fail_leg, q.ride, q.dashing = x, y, 0, 0.0, None, None, False
+        q.x, q.y, q.air, q.dead, q.down, q.fail_leg, q.ride, q.dashing = x, y, 0, 0, 0.0, None, None, False
         self.warped(q)
 
     def warped(self, q):

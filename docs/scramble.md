@@ -173,7 +173,7 @@ alone on the course only rolls boosts.
   item (bolts and freezes arriving late, and blocked by a late shield), emotes, hats, records and
   awards; the fork's slow way and the lift, bot dashes, and bots waiting for a good moment to use an
   item. Latest runs (November 2026, after theme mechanics and smarter bots): bots finish in 36-123 s
-  (average about 75), and 6-19 of about 105 run out of time (the runs before these changes: 11-15),
+  (average about 76), and 6-20 of about 105 run out of time (the runs before these changes: 11-15),
   mostly the slow bots that get hit most. Before the difficulty and item changes it was 26-70 s and
   about 5%. In `check-all.sh`.
 - `node tools/scramble-smoke.js --serve` (about 45 s): two browsers, one phone-sized, and a bot race

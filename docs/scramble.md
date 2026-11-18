@@ -7,11 +7,13 @@ Read this before changing anything in `app/scramble/`, `app/static/games/scrambl
 
 A side-on obstacle-course race for 1-8 players, each on their own phone or computer; the host can
 add bots. Every round is a new course: a start, seven to eleven obstacle segments picked at random
-from sixteen kinds (more in later rounds) and a finish. Each course gets harder along its length,
+from twenty-one kinds (more in later rounds) and a finish, in one of five themes (Meadow, Dunes,
+Snowfield, Dusk, Caverns; the look only, dealt out so a game doesn't repeat one until all five are used). Each course gets harder along its length,
 from difficulty 0.35 at the first obstacle to 1 at the last (`D_FIRST`), and every kind of segment
 scales with it (wider gaps, thinner pillars, faster saws, extra hazards). Touch a spike or a saw, or
 fall in a pit, and after 1.2 s you start that segment again from its flag. Racers run through each
-other. Once the first racer finishes, the rest get 25 seconds or 70% of the winner's time, whichever
+other. Besides running and jumping there's an **air dash** (X, S, K or down; Dash on a phone): a burst
+level and fast for 0.16 s, once per jump, given back on landing or a spring. Once the first racer finishes, the rest get 25 seconds or 70% of the winner's time, whichever
 is longer. Points by place each round (10, 7, 5, 4, 3, 2, 1, 1; whoever doesn't finish is placed by
 how far they got); most points after 3, 5 or 7 rounds wins.
 
@@ -26,10 +28,14 @@ the nastier the roll (`item_weights`):
 | Freeze | Everyone ahead runs at half speed for 2.5 s |
 | Spike trap | Spikes where you stand (or where you land) for 12 s; they don't hurt whoever dropped them |
 | Swap | Trade places with the racer just ahead; back half of the field only |
-| Shield | Blocks the next bolt, freeze or swap used on you (not traps) |
+| Shield | Blocks the next bolt, freeze, swap or curse used on you (not traps) |
 | Boost | Run 1.5× as fast for 2 s |
+| Curse | Flips the controls of the racer just ahead for 3 s (bots run at 0.6× instead) |
+| Grapple | Puts you where the racer just ahead last stood; they aren't moved. Back 60% of the field only |
 
-The leader never rolls a bolt, freeze or swap; a racer with nobody behind never rolls a trap; a racer
+Bolts and freezes **take 0.7 s to arrive** (`INCOMING`): the server sends `warn` to everyone, the
+target's screen flashes red and says so, and a shield used before it lands blocks it. Bots holding a
+shield use it in time 60% of the time. The leader never rolls a bolt, freeze, swap, curse or grapple; a racer with nobody behind never rolls a trap; a racer
 alone on the course only rolls boosts.
 
 ## How it works
@@ -52,6 +58,12 @@ alone on the course only rolls boosts.
   `warp`). The server does the same to bots, and keeps freeze and boost timers so everyone can see
   them (`pos` carries a seventh number per racer: 1 shielded, 2 frozen, 4 boosted). Traps are in
   `state` (`traps`), and each browser treats them as spikes.
+- **Course pieces beyond solid blocks** (all in `physics.js`, all a function of the race time so
+  every browser agrees): conveyor `belts` move whoever stands on them; `blinks` are solid for the first
+  half of each period, set a quarter period apart so they come and go in a wave; `winds` push whoever
+  is in them while they gust (over gaps only, so standing still is always safe); `lavas` rise from
+  when a racer passes their trigger, per racer like crumbles (`p.lava`), and reset on a respawn. The
+  `fork` segment has two ways over a trench: stones to hop (bots go this way) or the floor and a lift.
 - **Crumbling blocks crumble for each racer separately**: `p.stood` in `physics.js` records when this
   player first stood on each, and a respawn resets it. Other racers' crumbles aren't drawn.
 - **Bots don't run the physics.** Each segment lists the surfaces a bot crosses (`Seg.route`), which
@@ -62,6 +74,22 @@ alone on the course only rolls boosts.
   someone is ahead, and a trap until someone is close behind), are caught once by each trap, and
   run slower or faster while frozen or boosted. A swap puts a bot on the nearest ground at or before
   where it lands (`Room.place_bot`).
+- **Results**: the server counts each racer's falls, items used, items landed and hits taken
+  (`stats` in `state`), gives up to four awards a round (`awards()`: Never fell, Sharpshooter, Most
+  bolted, Item hoarder, Bounced back; at most one each, no ties), and keeps the room's best time
+  through each kind of segment (`Room.records`, timed in `Room.timed` from crossing one flag to the
+  next; a swap or grapple, a jump past several flags, or anything under a second doesn't count). The
+  round's results list new records; the final screen lists them all.
+- **Emotes and hats**: 1-6 (or the emote buttons) send `emote`; the server passes it on, at most one
+  per racer per 1.2 s, and the browsers show a bubble over the racer and a line in the feed. Bots
+  emote now and then when they hit someone or finish. A hat is picked in the lobby (`hat`, 0-8, kept in
+  the browser's storage and sent again on joining); bots get a random one.
+- **Watching**: once you've finished (or are sitting a round out), the camera follows whoever is
+  running in front; the arrows (or the run buttons) move along the field.
+- **Drawing**: a progress strip along the top shows the flags and every racer; a "?" by a name means
+  they hold an item. Particles (dust, bursts on knock-outs, confetti at the line, sparks behind
+  incoming items), a screen shake when you're knocked out, a squash on landing, legs that run by
+  distance, and dash afterimages are all the browser's own, from what it already knows.
 - **The clock**: the race time is `time.monotonic() - t0`, negative during the countdown. Every
   `pos` carries it, and the browser keeps the offset from the message that arrived quickest.
 - The menu and lobby are the shared `games/shared/lobby.js` and `lobby.css` (Holdfast uses them too).
@@ -69,10 +97,11 @@ alone on the course only rolls boosts.
 ## Design directives
 
 - **A segment must be finishable, and provably so.** `tools/scramble-check.mjs` searches the real
-  physics for a way through several random builds of every segment, easy and hard. A new segment
+  physics for a way through several random builds of every segment, easy and hard, without the dash
+  (so the dash is only ever a way to be quicker). A new segment
   goes in `SEGMENTS` and must pass it.
 - **Catch-up through items, not rubber-banding.** The back of the field gets the bolts, freezes,
-  swaps and boosts; the leader gets shields and traps. Don't speed anyone up or slow anyone down
+  swaps, curses, grapples and boosts; the leader gets shields and traps. Don't speed anyone up or slow anyone down
   except through an item.
 - **Trust the browsers.** It's a game between friends: the server takes each browser's word for
   where its player is, and only refuses a finish quicker than 80% of a flat-out run with nothing
@@ -85,8 +114,12 @@ alone on the course only rolls boosts.
 ## Gotchas
 
 - **`RUN` is in two places**: `course.py` (the bots' pace, and the finish check) and `physics.js`.
-  So are `KNOCKOUT` and the freeze and boost numbers: `game.py` (bots, and what's drawn on others)
-  and `main.js` (this player).
+  So are `KNOCKOUT` and the freeze, boost and curse numbers: `game.py` (bots, and what's drawn on
+  others) and `main.js` (this player). The counts of hats and emotes are in both too.
+- **Anything per-racer on the player object must be replaced, not changed** (`stood`, `lava`): the
+  checker's search copies players shallowly. Its state key includes the lava start times.
+- **Blinking platforms must move slower than a runner**: the wave advances a platform a quarter
+  period at a time; at 2.6 s or more that's under 300 px/s. Quicker and nobody can keep up with it.
 - **A swap moves you to where the other racer last stood** (`Player.safe`, updated whenever a racer
   reports being on the ground and alive), never into mid-air, and sets your checkpoint from there.
 - **Items can only hit racers still running** (`Room.running`); a racer who has finished is safe.
@@ -109,10 +142,11 @@ alone on the course only rolls boosts.
 - `node tools/scramble-check.mjs` (about 40 s): every segment can be finished, at difficulty 0.35
   and at 1. In `check-all.sh`. A new segment goes in `SEGMENTS` and must pass it.
 - `python3 tools/scramble-check.py` (about 5 s): bots race whole games on a fake clock (one human
-  standing still, seven bots using items on each other); scoring, finishing, watching, leaving, and
-  every item. Latest runs (November 2026, after the difficulty and item changes): bots finish in
-  35-130 s (average 75), and 5-25% run out of time, mostly the slow bots that get hit most. Before
-  those changes it was 26-70 s and about 5%. In `check-all.sh`.
+  standing still, seven bots using items on each other); scoring, finishing, watching, leaving, every
+  item (bolts and freezes arriving late, and blocked by a late shield), emotes, hats, records and
+  awards. Latest runs (November 2026, after the new segments and items): bots finish in 36-121 s
+  (average about 78), and about 10% run out of time, mostly the slow bots that get hit most. Before
+  the difficulty and item changes it was 26-70 s and about 5%. In `check-all.sh`.
 - `node tools/scramble-smoke.js --serve` (about 45 s): two browsers, one phone-sized, and a bot race
   a round, including grabbing and using an item. In `check-all.sh`; skipped where Playwright isn't
   installed. `--shots <folder>` saves screenshots.

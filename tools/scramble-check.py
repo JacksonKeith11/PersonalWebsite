@@ -6,7 +6,8 @@ Bots race whole games of every length; each must get round every course well ins
 limit, and the points must add up. Then a pretend browser: its positions are passed on, a finish
 that comes too soon is ignored, a real one starts the 25-second countdown, whoever doesn't finish
 is placed by distance, and joining and leaving mid-race behave. Then items: who gets what, boxes,
-and what each item does to people and to bots, shields included. Prints how long the bots took.
+and what each item does to people and to bots, shields included (and put up in time against a bolt
+on its way); emotes, hats, the room's records and a round's awards. Prints how long the bots took.
 (`tools/scramble-check.mjs` is the other half: it proves a player can get through each segment.)
 """
 
@@ -161,6 +162,32 @@ async def main():
     last = W(1, 3, 0)
     assert last["trap"] == 0 and last["swap"] > 0 and last["freeze"] > last["shield"]
     assert W(0.4, 2, 2)["swap"] == 0, "only the back half may swap"
+    assert lead["curse"] == lead["grapple"] == 0 and last["curse"] > 0 and last["grapple"] > 0
+
+    # Records: the room keeps the best time through each kind of segment, and a round's awards.
+    room = game.Room("RECS")
+    room.course, room.legs, room.risks = C.build(5, 4)
+    room.t0, room.phase = clock.t, "race"
+    segs, names = room.course["segs"], room.course["names"]
+    p = game.Player(1, "Rec", "#fff")
+    p.racing = True
+    room.players = {1: p}
+    clock.t += 1
+    p.x = segs[1] + 40
+    room.timed(p)
+    clock.t += 2.5
+    p.x = segs[2] + 40
+    room.timed(p)
+    assert room.records == {names[1]: [2.5, "Rec"]} and room.new_records == [[names[1], 2.5, "Rec"]]
+    room.warped(p)  # a swap: no record for the segment you land in
+    clock.t += 0.5
+    p.x = segs[3] + 40
+    room.timed(p)
+    assert names[2] not in room.records or names[2] == names[1]
+    p.fin, p.falls, p.landed = 30, 0, 2
+    q = game.Player(2, "Other", "#000")
+    q.fin, q.falls, q.taken = 40, 3, 2
+    assert game.awards([p, q]) == [["Never fell", 1], ["Most bolted", 2]], game.awards([p, q])
 
     room = game.Room("ITEM")
     a, b = Browser(room, "A"), Browser(room, "B")
@@ -190,7 +217,18 @@ async def main():
         """`who` (a Browser, or a bot) uses `item`; returns the fx as A's browser saw it."""
         p = who if isinstance(who, game.Player) else who.p
         p.item = item
+        a.last.pop("fx", None)
+        a.last.pop("warn", None)
         room.use(p)
+        if item in ("bolt", "freeze") and "warn" in a.read():
+            # on its way: everyone is warned, and it lands a moment later
+            warn = a.last["warn"]
+            assert warn["k"] == item and warn["by"] == p.id and warn["in"] == game.INCOMING, warn
+            for _ in range(round(2 / game.TICK)):
+                clock.t += game.TICK
+                room.tick()
+                if "fx" in a.read():
+                    break
         fx = a.read()["fx"]
         assert fx["k"] == item and fx["by"] == p.id and p.item is None, fx
         return fx
@@ -198,16 +236,17 @@ async def main():
     # Bolt: the racer just ahead is knocked out, unless they have a shield.
     a.do(t="p", v=[1000, 0, 1, 0, 0])
     b.do(t="p", v=[1200, 0, 1, 0, 0])
-    bot.x = 3000
+    room.place_bot(bot, 3000, 0)  # (bots stand where their legs say)
     assert use(a, "bolt")["to"] == [b.p.id]
     b.p.shield = True
     fx = use(a, "bolt")
     assert fx["to"] == [] and fx["blocked"] == [b.p.id] and not b.p.shield
-    assert use(b, "bolt")["to"] == [bot.id] and bot.dead and bot.down == game.KNOCKOUT
+    fx = use(b, "bolt")
+    assert fx["to"] == [bot.id] and bot.dead and bot.down == game.KNOCKOUT, (fx, bot.dead, bot.down)
     run(room, game.KNOCKOUT + 0.1)
     assert not bot.dead
     # Nobody ahead: it fizzles.
-    bot.x = 3000
+    room.place_bot(bot, 3000, 0)  # (bots stand where their legs say)
     assert use(bot, "bolt")["to"] == []
     # Freeze: everyone ahead runs at half speed for a while.
     fx = use(a, "freeze")
@@ -234,6 +273,46 @@ async def main():
     a.do(t="p", v=[2000, 0, 1, 0, 0])
     use(a, "swap")
     assert a.p.x == 2500 and 1700 < bot.x <= 2000 and not bot.dead, (a.p.x, bot.x, bot.dead)
+    # A bolt on its way can still be blocked by a shield put up in time.
+    a.p.fin = None
+    a.do(t="p", v=[1000, 0, 1, 0, 0])
+    room.place_bot(bot, 1300, 0)
+    bot.item = "shield"
+    a.p.item = "bolt"
+    room.use(a.p)
+    assert room.incoming and a.read()["warn"]["to"] == [bot.id]
+    room.use(bot)
+    assert bot.shield
+    run(room, game.INCOMING + 0.1)
+    assert not bot.dead and not bot.shield and a.read()["fx"]["blocked"] == [bot.id]
+    # Curse: the racer ahead runs backwards for a while (bots: slowly).
+    bot.boost_until = 0
+    fx = use(a, "curse")
+    assert fx["to"] == [bot.id] and room.speed(bot) == game.CURSE_SPEED, (fx, bot.x, a.p.x, room.speed(bot))
+    run(room, 0.1)
+    assert {q[0]: q for q in a.read()["pos"]["ps"]}[bot.id][6] & 8, "a cursed racer isn't drawn cursed"
+    run(room, game.CURSE)
+    assert room.speed(bot) == 1
+    # Grapple: pulled to where the racer ahead last stood; they stay put.
+    bot.safe, there = (bot.x, 0), bot.x
+    fx = use(a, "grapple")
+    assert fx["warp"][str(a.p.id)][:2] == [round(there), 0] and a.p.x == there == bot.x and str(bot.id) not in fx["warp"], fx
+    # The round's numbers: items used and landed, and hits taken.
+    assert a.p.used >= 5 and a.p.landed >= 3 and bot.taken >= 2, (a.p.used, a.p.landed, bot.taken)
+    # Emotes, a moment apart at most; hats.
+    a.last.pop("emote", None)
+    a.do(t="emote", k=2)
+    assert a.read()["emote"] == {"t": "emote", "by": a.p.id, "k": 2}
+    a.last.pop("emote", None)
+    a.do(t="emote", k=3)
+    assert "emote" not in a.read(), "emotes weren't spaced out"
+    clock.t += game.EMOTE_GAP
+    for bad in (-1, game.EMOTES, "1"):
+        a.do(t="emote", k=bad)
+    assert "emote" not in a.read()
+    a.do(t="hat", v=3)
+    a.do(t="hat", v=game.HATS)
+    assert a.p.hat == 3 and a.read()["state"]["players"][0]["hat"] == 3
     # Shield.
     use(a, "shield")
     assert a.p.shield and a.read()["state"]["players"][0]["shield"]

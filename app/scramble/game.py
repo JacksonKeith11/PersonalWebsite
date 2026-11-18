@@ -40,9 +40,15 @@ SEGMENTS = (7, 11)  # obstacle segments in the first and the last round
 KNOCKOUT = 1.2  # seconds a knocked-out racer waits before going back to their flag (js/main.js too)
 
 # Items. Effects that last are timed on the server (for bots, and so everyone can see them).
-ITEMS = ("bolt", "freeze", "trap", "swap", "shield", "boost")
+ITEMS = ("bolt", "freeze", "trap", "swap", "shield", "boost", "curse", "grapple")
 FREEZE, FREEZE_SPEED = 2.5, 0.5  # seconds, and how fast the frozen run
 BOOST, BOOST_SPEED = 2.0, 1.5
+CURSE, CURSE_SPEED = 3.0, 0.6  # seconds a curse reverses a racer's controls (bots: run this slowly)
+INCOMING = 0.7  # seconds between a bolt or freeze being used and it landing: time to put a shield up
+HATS = 9  # how many hats there are to pick from (js/main.js draws them; 0 is none)
+EMOTES = 6  # how many emotes (js/main.js has them)
+EMOTE_GAP = 1.2  # seconds between one racer's emotes
+RECORD_LEAST = 1.0  # a segment run quicker than this isn't believed (no segment is that short)
 TRAP_LIFE, TRAP_W = 12, 40
 GRAB_REACH = 120  # how far from a box a browser may claim it from (it's checked loosely)
 
@@ -59,6 +65,8 @@ def item_weights(f, ahead, behind):
         "bolt": (1 + 3 * f) if ahead else 0,
         "freeze": 4 * f if ahead else 0,
         "swap": 3 * f if ahead and f >= 0.5 else 0,
+        "curse": 2 * f if ahead else 0,
+        "grapple": 2.5 * f if ahead and f >= 0.4 else 0,
     }
 
 
@@ -70,6 +78,8 @@ class Player:
         self.closing = False
         self.points = 0
         self.racing = False
+        self.hat = random.randrange(1, HATS) if bot else 0
+        self.emoted = -99.0
         self.reset()
 
     def reset(self):
@@ -78,7 +88,10 @@ class Player:
         self.gain = 0
         self.item = None
         self.shield = False
-        self.frozen_until = self.boost_until = 0.0
+        self.frozen_until = self.boost_until = self.cursed_until = 0.0
+        # this round's numbers, for the results: knocked out, items used, landed on others, taken
+        self.falls = self.used = self.landed = self.taken = 0
+        self.seg, self.seg_t = 0, 0.0  # the segment they're in, and the race time they entered it
         self.boxes = set()  # the boxes they've had an item from this round
         self.safe = (60.0, 0.0)  # the last place they stood (where a swap puts someone)
         self.trap_pending = False  # used a trap in the air: it's dropped when they land
@@ -105,6 +118,11 @@ class Room:
         self.order = []  # ids in finishing order
         self.traps = []  # [id, x, y, w, owner, until]
         self.next_trap = 1
+        self.incoming = []  # [lands at, item, user, [targets]]: bolts and freezes on their way
+        self.records = {}  # segment name -> [seconds, racer's name]: the room's best through each kind
+        self.new_records = []  # this round's: [segment name, seconds, racer's name]
+        self.awards = []  # this round's: [title, player id]
+        self.themes = []
         self.task = None
         self.empty_since = None
 
@@ -201,6 +219,13 @@ class Room:
         if t == "use":
             self.use(p)
             return
+        if t == "emote":
+            self.emote(p, msg.get("k"))
+            return
+        if t == "hat" and type(msg.get("v")) is int and 0 <= msg["v"] < HATS:
+            p.hat = msg["v"]
+            self.send_state()
+            return
         host = p.id == self.host
         if t == "bot" and host and self.phase == "lobby":
             bots = [q for q in self.players.values() if q.bot]
@@ -237,7 +262,11 @@ class Room:
         if not (math.isfinite(x) and math.isfinite(y)):
             return
         p.x, p.y = max(0.0, min(x, self.course["length"])), max(-2000.0, min(y, 2000.0))
-        p.face, p.air, p.dead = (-1 if v[2] < 0 else 1), int(bool(v[3])), int(bool(v[4]))
+        dead = int(bool(v[4]))
+        if dead and not p.dead:
+            p.falls += 1
+        p.face, p.air, p.dead = (-1 if v[2] < 0 else 1), int(bool(v[3])), dead
+        self.timed(p)
         if not p.air and not p.dead:
             p.safe = (p.x, p.y)
             if p.trap_pending:
@@ -253,11 +282,16 @@ class Room:
         lo, hi = SEGMENTS
         n = lo + round((hi - lo) * (self.round - 1) / max(1, self.rounds - 1))
         self.course, self.legs, self.risks = C.build(random.getrandbits(32), n)
+        if not self.themes:
+            self.themes = random.sample(C.THEMES, len(C.THEMES))
+        self.course["theme"] = self.themes.pop()
         self.phase = "race"
         self.t0 = time.monotonic() + COUNTDOWN
         self.ends = None
         self.order = []
         self.traps = []
+        self.incoming = []
+        self.new_records, self.awards = [], []
         seats = [p for p in self.players.values() if p.bot or p.connected][:MAX_PLAYERS]
         for p in self.players.values():
             p.reset()
@@ -268,8 +302,28 @@ class Room:
     def send_course(self, p):
         self.send(p, {"t": "course", "round": self.round, "course": self.course, "now": round(self.now(), 3)})
 
+    def timed(self, p):
+        """Time racers through each segment: the room keeps the best through each kind."""
+        segs = self.course["segs"]
+        now = self.now()
+        was = p.seg
+        while p.seg + 1 < len(segs) and p.x >= segs[p.seg + 1] + 30:
+            p.seg += 1
+        if p.seg != was:
+            # just got through an obstacle (one at a time: a jump past several isn't a run through them)
+            if p.seg >= 2 and p.seg == was + 1 and p.seg_t is not None and now - p.seg_t >= RECORD_LEAST:
+                name, secs = self.course["names"][p.seg - 1], round(now - p.seg_t, 2)
+                best = self.records.get(name)
+                if best is None or secs < best[0]:
+                    self.records[name] = [secs, p.name]
+                    self.new_records = [r for r in self.new_records if r[0] != name] + [[name, secs, p.name]]
+            p.seg_t = max(0.0, now)
+
     def finished(self, p):
+        self.timed(p)
         p.fin = round(self.now(), 2)
+        if p.bot and random.random() < 0.5:
+            self.emote(p, 5 if self.order else 4)  # GG, or a flame for the winner
         self.order.append(p.id)
         if self.ends is None:
             self.ends = min(RACE_LIMIT, p.fin + max(AFTER_FIRST, AFTER_SHARE * p.fin))
@@ -310,8 +364,10 @@ class Room:
             p.safe = (p.x, p.y)
             if p.trap_pending:
                 self.drop_trap(p)
+        self.timed(p)
         if p.leg == p.fail_leg and u > 0.55:
             p.fail_leg, p.dead, p.down = None, 1, KNOCKOUT
+            p.falls += 1
         if p.item is None:
             for i, (bx, _) in enumerate(self.course["boxes"]):
                 if i not in p.boxes and abs(p.x - bx) < 20:
@@ -321,6 +377,7 @@ class Room:
             if owner != p.id and tid not in p.wary and not p.air and abs(p.y - ty) < 6 and tx - 14 < p.x < tx + tw + 14:
                 p.wary.add(tid)
                 self.knock(p)
+                p.falls += 1
         if p.x >= self.course["finish"]:
             self.finished(p)
 
@@ -329,7 +386,8 @@ class Room:
     def speed(self, p):
         now = self.now()
         return ((FREEZE_SPEED if now < p.frozen_until else 1.0) *
-                (BOOST_SPEED if now < p.boost_until else 1.0))
+                (BOOST_SPEED if now < p.boost_until else 1.0) *
+                (CURSE_SPEED if now < p.cursed_until else 1.0))
 
     def running(self, but=None):
         return [q for q in self.racers() if q.fin is None and q is not but]
@@ -372,6 +430,11 @@ class Room:
         x, y = min(x, L[3]), L[2]
         q.leg, q.leg_t = leg, (x - L[1]) / C.RUN
         q.x, q.y, q.dead, q.down, q.fail_leg = x, y, 0, 0.0, None
+        self.warped(q)
+
+    def warped(self, q):
+        """Moved by a swap or a grapple: no record for the segment they land in."""
+        q.seg, q.seg_t = self.checkpoint(q.x), None
 
     def drop_trap(self, p):
         p.trap_pending = False
@@ -384,37 +447,37 @@ class Room:
         if self.phase != "race" or not p.racing or p.fin is not None or p.item is None or self.now() < 0:
             return
         item, p.item, p.use_at = p.item, None, None
+        p.used += 1
         now = self.now()
         ahead = sorted((q for q in self.running(but=p) if q.x > p.x), key=lambda q: q.x)
         fx = {"t": "fx", "k": item, "by": p.id, "to": [], "blocked": []}
 
-        def hit(q):
-            if q.shield:
-                q.shield = False
-                fx["blocked"].append(q.id)
-                return False
-            fx["to"].append(q.id)
-            return True
-
-        if item == "bolt" and ahead:
-            if hit(ahead[0]):
-                self.knock(ahead[0])
-        elif item == "freeze":
+        if item in ("bolt", "freeze") and ahead:
+            # on its way: the targets are warned, and a shield put up in time still blocks it
+            to = [ahead[0].id] if item == "bolt" else [q.id for q in ahead]
+            self.incoming.append([now + INCOMING, item, p.id, to])
+            self.everyone({"t": "warn", "k": item, "by": p.id, "to": to, "in": INCOMING})
             for q in ahead:
-                if hit(q):
-                    q.frozen_until = now + FREEZE
-        elif item == "swap" and ahead:
+                if q.bot and q.id in to and q.item == "shield" and random.random() < 0.6:
+                    q.use_at = now + random.uniform(0.1, INCOMING - 0.15)
+            self.send_state()
+            return
+        if item == "swap" and ahead:
             q = ahead[0]
-            if hit(q):
+            if self.hit(p, q, fx):
                 mine, theirs = p.safe, q.safe
                 fx["warp"] = {}
                 for who, (x, y) in ((p, theirs), (q, mine)):
-                    fx["warp"][who.id] = [round(x), round(y), self.checkpoint(x)]
-                    if who.bot:
-                        self.place_bot(who, x, y)
-                    else:
-                        who.x, who.y = x, y
-                    who.safe = (x, y)
+                    self.warp(who, x, y, fx)
+        elif item == "grapple" and ahead:
+            q = ahead[0]
+            fx["to"].append(q.id)  # who you were pulled to (it does nothing to them)
+            fx["warp"] = {}
+            self.warp(p, *q.safe, fx)
+        elif item == "curse" and ahead:
+            q = ahead[0]
+            if self.hit(p, q, fx):
+                q.cursed_until = now + CURSE
         elif item == "trap":
             if p.air:
                 p.trap_pending = True
@@ -428,6 +491,58 @@ class Room:
         self.everyone(fx)
         self.send_state()
 
+    def hit(self, by, q, fx):
+        """An item lands on q, unless their shield takes it."""
+        if q.shield:
+            q.shield = False
+            fx["blocked"].append(q.id)
+            return False
+        fx["to"].append(q.id)
+        by.landed += 1
+        q.taken += 1
+        if by.bot and random.random() < 0.3:
+            self.emote(by, random.choice((1, 4)))
+        return True
+
+    def warp(self, who, x, y, fx):
+        fx["warp"][who.id] = [round(x), round(y), self.checkpoint(x)]
+        if who.bot:
+            self.place_bot(who, x, y)
+        else:
+            who.x, who.y = x, y
+            self.warped(who)
+        who.safe = (x, y)
+
+    def land_incoming(self):
+        """Bolts and freezes arriving."""
+        now = self.now()
+        due = [i for i in self.incoming if i[0] <= now]
+        if not due:
+            return
+        self.incoming = [i for i in self.incoming if i[0] > now]
+        for _, item, by, to in due:
+            p = self.players.get(by)
+            if p is None:
+                continue
+            fx = {"t": "fx", "k": item, "by": by, "to": [], "blocked": []}
+            for q in [self.players.get(i) for i in to]:
+                if q is None or q not in self.running() or not self.hit(p, q, fx):
+                    continue
+                if item == "bolt":
+                    self.knock(q)
+                    q.falls += 1
+                else:
+                    q.frozen_until = now + FREEZE
+            self.everyone(fx)
+        self.send_state()
+
+    def emote(self, p, k):
+        now = time.monotonic()
+        if type(k) is not int or not 0 <= k < EMOTES or now - p.emoted < EMOTE_GAP:
+            return
+        p.emoted = now
+        self.everyone({"t": "emote", "by": p.id, "k": k})
+
     def bot_items(self):
         now = self.now()
         for p in self.racers():
@@ -435,7 +550,7 @@ class Room:
                 continue
             ahead = [q for q in self.running(but=p) if q.x > p.x]
             behind = [q for q in self.running(but=p) if q.x < p.x and p.x - q.x < 700]
-            if p.item in ("bolt", "freeze", "swap") and not ahead or p.item == "trap" and not behind:
+            if p.item in ("bolt", "freeze", "swap", "curse", "grapple") and not ahead or p.item == "trap" and not behind:
                 p.use_at = now + 1.0  # nobody to use it on yet
             else:
                 self.use(p)
@@ -448,6 +563,7 @@ class Room:
             p = self.players[pid]
             p.gain = POINTS[place] if place < len(POINTS) else 0
             p.points += p.gain
+        self.awards = awards(self.racers())
         last = self.round >= self.rounds
         self.phase = "final" if last else "results"
         self.until = time.monotonic() + RESULTS_TIME
@@ -461,6 +577,7 @@ class Room:
                     if p.bot:
                         self.move_bot(p, TICK)
                 self.bot_items()
+            self.land_incoming()
             if any(trap[5] < now for trap in self.traps):
                 self.traps = [trap for trap in self.traps if trap[5] >= now]
                 self.send_state()
@@ -480,8 +597,9 @@ class Room:
 
     @staticmethod
     def marks(p, now):
-        """What to draw on a racer: 1 shielded, 2 frozen, 4 boosted."""
-        return int(p.shield) | 2 * (now < p.frozen_until) | 4 * (now < p.boost_until)
+        """What to draw on a racer: 1 shielded, 2 frozen, 4 boosted, 8 cursed."""
+        return (int(p.shield) | 2 * (now < p.frozen_until) | 4 * (now < p.boost_until)
+                | 8 * (now < p.cursed_until))
 
     async def run(self):
         next_t = time.monotonic()
@@ -507,15 +625,43 @@ class Room:
             "t": "state", "phase": self.phase, "host": self.host, "rounds": self.rounds, "round": self.round,
             "players": [{"id": p.id, "name": p.name, "color": p.color, "on": p.connected, "bot": p.bot,
                          "pts": p.points, "racing": p.racing, "fin": p.fin, "gain": p.gain,
-                         "item": p.item, "shield": p.shield}
+                         "item": p.item, "shield": p.shield, "hat": p.hat,
+                         "stats": [p.falls, p.used, p.landed, p.taken]}
                         for p in self.players.values()],
             "order": self.order,
+            "records": self.new_records if self.phase == "results" else
+            sorted([k, *v] for k, v in self.records.items()) if self.phase == "final" else [],
+            "awards": self.awards if self.phase in ("results", "final") else [],
             "traps": [t[:5] for t in self.traps],
             "ends": self.ends,
         }
         if self.phase == "results":
             st["next"] = round(max(0.0, self.until - time.monotonic()), 1)
         self.everyone(st)
+
+
+def awards(racers):
+    """A few titles for the round: [title, player id], at most one each."""
+    out, given = [], set()
+
+    def give(title, p):
+        if p is not None and p.id not in given:
+            out.append([title, p.id])
+            given.add(p.id)
+
+    def most(key, least=1):
+        best = max(racers, key=key, default=None)
+        if best is None or key(best) < least or sum(key(q) == key(best) for q in racers) > 1:
+            return None
+        return best
+
+    clean = [p for p in racers if p.fin is not None and p.falls == 0]
+    give("Never fell", min(clean, key=lambda p: p.fin, default=None))
+    give("Sharpshooter", most(lambda p: p.landed, 2))
+    give("Most bolted", most(lambda p: p.taken, 2))
+    give("Item hoarder", most(lambda p: p.used, 3))
+    give("Bounced back", most(lambda p: p.falls if p.fin is not None else -1, 4))
+    return out[:4]
 
 
 ROOMS = Codes(ROOM_KEEP)

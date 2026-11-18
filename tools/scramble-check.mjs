@@ -3,8 +3,8 @@
 //     node tools/scramble-check.mjs [variants per segment, default 3]
 //
 // Each segment is built several times over (they vary at random) between a start and a finish, and
-// a breadth-first search over what a player could press (run, run and jump, wait, back up) must
-// reach the far side alive. Prints the fastest time found for each. About 45 seconds.
+// a breadth-first search over what a player could press (run, run and jump, wait, back up; never the
+// air dash, so every segment can be done without it) must reach the far side alive. Prints the fastest time found for each. About 45 seconds.
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -48,7 +48,7 @@ function solve(raw) {
         for (let i = 0; i < HOLD && !p.dead; i++) P.step(p, a, (n * HOLD + i) * P.DT, c);
         if (p.dead || p.x < c.segs[from] - 90) continue;
         if (p.ground && p.x >= goal) return (n + 1) * HOLD * P.DT;
-        const key = `${Math.round(p.x / 8)},${Math.round(p.y / 8)},${Math.round(p.vy / 150)},${Math.sign(Math.round(p.vx / 100))},${p.held ? 1 : 0}`;
+        const key = `${Math.round(p.x / 8)},${Math.round(p.y / 8)},${Math.round(p.vy / 150)},${Math.sign(Math.round(p.vx / 100))},${p.held ? 1 : 0},${Object.values(p.lava).map(v => v.toFixed(1))}`;
         if (!seen.has(key)) seen.set(key, p);
       }
     }
@@ -73,5 +73,5 @@ for (const c of courses) {
 for (const [name, times] of Object.entries(best)) {
   console.log(`${name.padEnd(8)} ${times.length} variants, ${Math.min(...times).toFixed(1)}-${Math.max(...times).toFixed(1)} s`);
 }
-if (failed || Object.keys(best).length < 16) { console.log('FAILED'); process.exit(1); }
+if (failed || Object.keys(best).length < courses.length / variants / 2) { console.log('FAILED'); process.exit(1); }
 console.log(`ok: every segment can be finished (${courses.length} courses searched)`);

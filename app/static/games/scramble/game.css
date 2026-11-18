@@ -16,10 +16,37 @@ body { background: #2c4a63 linear-gradient(180deg, #7fb6dc 0%, #cfe6f2 100%) fix
   font: 700 clamp(2.2rem, 9vw, 5rem)/1.1 "Source Serif 4", Georgia, serif; color: #fff;
   text-shadow: 0 3px 0 rgba(0, 30, 60, 0.45), 0 0 24px rgba(0, 30, 60, 0.4);
 }
-#banner.small { font-size: clamp(1.2rem, 4vw, 1.8rem); top: 14%; }
+#banner.small { font-size: clamp(1.2rem, 4vw, 1.8rem); top: 18%; }
+#banner.warn { color: #ffe14d; animation: throb 0.25s ease-in-out infinite alternate; }
+@keyframes throb { to { transform: scale(1.08); } }
+
+/* emotes: a row of buttons at the bottom left; on a phone, behind a button at the top right */
+#emote-bar { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 6px; align-items: center; }
+#emote-toggle { display: none; }
+#emotes { display: flex; gap: 4px; }
+#emotes button, #emote-toggle {
+  width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 0; font-size: 1.1rem; font-weight: 800;
+  background: rgba(20, 40, 60, 0.45); color: #fff;
+}
+#emotes button:hover { background: rgba(20, 40, 60, 0.7); }
+body.coarse #emote-bar { left: auto; right: 12px; bottom: auto; top: calc(78px + env(safe-area-inset-top)); flex-direction: column; align-items: flex-end; }
+body.coarse #emote-toggle { display: block; }
+body.coarse #emotes { display: none; flex-direction: column; }
+body.coarse #emotes.open { display: flex; }
+
+#feed {
+  position: absolute; left: 12px; top: calc(70px + env(safe-area-inset-top)); margin: 0; padding: 0; list-style: none;
+  pointer-events: none; display: flex; flex-direction: column; gap: 4px;
+}
+#feed li { padding: 3px 10px; border-left: 4px solid; border-radius: 4px; background: rgba(20, 40, 60, 0.55); color: #fff; font-weight: 600; font-size: 0.95rem; }
+#watching {
+  position: absolute; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom)); margin: 0; text-align: center; pointer-events: none;
+  color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 30, 60, 0.8);
+}
+body.coarse #watching { bottom: calc(118px + env(safe-area-inset-bottom)); }
 
 #item {
-  position: absolute; left: 50%; transform: translateX(-50%); top: calc(48px + env(safe-area-inset-top));
+  position: absolute; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top));
   display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); padding: 6px 14px 6px 8px;
   border-radius: 999px; background: rgba(20, 40, 60, 0.6); color: #fff; pointer-events: none;
 }
@@ -36,6 +63,7 @@ body { background: #2c4a63 linear-gradient(180deg, #7fb6dc 0%, #cfe6f2 100%) fix
 #t-use { margin-left: auto; width: 64px !important; height: 64px !important; font-size: 0.95rem !important; font-weight: 700; background: rgba(242, 194, 48, 0.75) !important; color: #3a2a00 !important; }
 #t-use.empty { opacity: 0.3; background: rgba(255, 255, 255, 0.2) !important; color: #fff !important; }
 #t-jump { width: 96px !important; height: 96px !important; font-size: 1.1rem !important; }
+#t-dash { width: 64px !important; height: 64px !important; font-size: 0.95rem !important; font-weight: 700; }
 
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(20, 40, 60, 0.45); overflow: auto; }
 .card {
@@ -52,3 +80,16 @@ body { background: #2c4a63 linear-gradient(180deg, #7fb6dc 0%, #cfe6f2 100%) fix
 .card td .dot { display: inline-block; margin-right: 6px; }
 .card td.gain { color: #2f7a43; font-weight: 600; }
 .card .row { margin: 0; }
+
+.card td small.stats { display: block; margin-left: 18px; font-size: 0.8rem; color: var(--muted); }
+.awards { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.95rem; }
+.records h3 { margin: 0 0 4px; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.records ul { margin: 0 0 10px; padding-left: 18px; font-size: 0.95rem; columns: 2; column-gap: 24px; }
+@media (max-width: 480px) { .records ul { columns: 1; } .card { padding: 18px 16px; } }
+
+/* the hat picker, in the lobby */
+.hat-title { margin-top: 18px !important; }
+.hats { display: flex; flex-wrap: wrap; gap: 6px; }
+.hats button { width: 50px; height: 50px; padding: 3px; border-color: var(--rule); background: #fff; }
+.hats button.on { border: 2px solid var(--accent); background: #f3ead7; }
+.hats canvas { width: 44px; height: 44px; display: block; }

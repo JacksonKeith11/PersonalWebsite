@@ -5,6 +5,11 @@ the server where it is; the server passes everyone's position on, runs the bots 
 route, and decides who finished when. Players don't touch each other, so nothing needs agreeing
 between browsers beyond the clock (moving platforms and saws are a function of the race time).
 Points by finishing place each round; most points after the last round wins.
+
+Item boxes sit at the start of every other obstacle. A racer holds one item at a time and uses it
+when they like; the server rolls it (nastier the further back they are), decides who it hits from
+everyone's positions, and broadcasts it (`fx`). A browser named in `to` applies the hit to its own
+player; the server applies it to bots.
 """
 
 import asyncio
@@ -27,10 +32,34 @@ ROOM_KEEP = 30 * 60
 POINTS = [10, 7, 5, 4, 3, 2, 1, 1]
 ROUNDS = (3, 5, 7)
 COUNTDOWN = 3.5  # seconds on the start line
-AFTER_FIRST = 25  # seconds the rest get once someone has finished
-RACE_LIMIT = 150
+AFTER_FIRST = 25  # seconds the rest get once someone has finished, at least
+AFTER_SHARE = 0.7  # or this share of the winner's time, if that's longer
+RACE_LIMIT = 210
 RESULTS_TIME = 8
-SEGMENTS = (5, 8)  # obstacle segments in the first and the last round
+SEGMENTS = (7, 11)  # obstacle segments in the first and the last round
+KNOCKOUT = 1.2  # seconds a knocked-out racer waits before going back to their flag (js/main.js too)
+
+# Items. Effects that last are timed on the server (for bots, and so everyone can see them).
+ITEMS = ("bolt", "freeze", "trap", "swap", "shield", "boost")
+FREEZE, FREEZE_SPEED = 2.5, 0.5  # seconds, and how fast the frozen run
+BOOST, BOOST_SPEED = 2.0, 1.5
+TRAP_LIFE, TRAP_W = 12, 40
+GRAB_REACH = 120  # how far from a box a browser may claim it from (it's checked loosely)
+
+
+def item_weights(f, ahead, behind):
+    """How likely each item is for a racer `f` of the way back (0 leading, 1 last), with `ahead`
+    racers still running in front of them and `behind` behind."""
+    if not ahead and not behind:
+        return {"boost": 1.0}
+    return {
+        "shield": 3 - 2 * f,
+        "boost": 1 + 3 * f,
+        "trap": (3 - 1.5 * f) if behind else 0,
+        "bolt": (1 + 3 * f) if ahead else 0,
+        "freeze": 4 * f if ahead else 0,
+        "swap": 3 * f if ahead and f >= 0.5 else 0,
+    }
 
 
 class Player:
@@ -47,6 +76,14 @@ class Player:
         self.x, self.y, self.face, self.air, self.dead = 60.0, 0.0, 1, 0, 0
         self.fin = None  # race time when they crossed the line
         self.gain = 0
+        self.item = None
+        self.shield = False
+        self.frozen_until = self.boost_until = 0.0
+        self.boxes = set()  # the boxes they've had an item from this round
+        self.safe = (60.0, 0.0)  # the last place they stood (where a swap puts someone)
+        self.trap_pending = False  # used a trap in the air: it's dropped when they land
+        self.use_at = None  # bots: when to use the item they hold
+        self.wary = set()  # bots: traps that have already caught them
         # bots only
         self.leg, self.leg_t, self.fail_leg, self.down = 0, 0.0, None, 0.0
         self.skill = random.uniform(0.62, 0.92)
@@ -66,6 +103,8 @@ class Room:
         self.ends = None  # race time the round ends, once someone has finished
         self.until = 0.0  # monotonic time the results screen ends
         self.order = []  # ids in finishing order
+        self.traps = []  # [id, x, y, w, owner, until]
+        self.next_trap = 1
         self.task = None
         self.empty_since = None
 
@@ -156,6 +195,12 @@ class Room:
         if t == "p":
             self.moved(p, msg)
             return
+        if t == "grab":
+            self.grab(p, msg.get("i"))
+            return
+        if t == "use":
+            self.use(p)
+            return
         host = p.id == self.host
         if t == "bot" and host and self.phase == "lobby":
             bots = [q for q in self.players.values() if q.bot]
@@ -193,6 +238,10 @@ class Room:
             return
         p.x, p.y = max(0.0, min(x, self.course["length"])), max(-2000.0, min(y, 2000.0))
         p.face, p.air, p.dead = (-1 if v[2] < 0 else 1), int(bool(v[3])), int(bool(v[4]))
+        if not p.air and not p.dead:
+            p.safe = (p.x, p.y)
+            if p.trap_pending:
+                self.drop_trap(p)
         # nobody gets round a course faster than flat out with no obstacles
         if p.x >= self.course["finish"] and self.now() > self.course["finish"] / C.RUN * 0.8:
             self.finished(p)
@@ -208,6 +257,7 @@ class Room:
         self.t0 = time.monotonic() + COUNTDOWN
         self.ends = None
         self.order = []
+        self.traps = []
         seats = [p for p in self.players.values() if p.bot or p.connected][:MAX_PLAYERS]
         for p in self.players.values():
             p.reset()
@@ -222,7 +272,7 @@ class Room:
         p.fin = round(self.now(), 2)
         self.order.append(p.id)
         if self.ends is None:
-            self.ends = min(RACE_LIMIT, p.fin + AFTER_FIRST)
+            self.ends = min(RACE_LIMIT, p.fin + max(AFTER_FIRST, AFTER_SHARE * p.fin))
         self.send_state()
 
     def move_bot(self, p, dt):
@@ -236,7 +286,7 @@ class Room:
                 p.leg = next(i for i, leg in enumerate(self.legs) if leg[7] == seg)
                 p.leg_t, p.dead = 0.0, 0
             return
-        p.leg_t += dt * p.skill
+        p.leg_t += dt * p.skill * self.speed(p)
         while True:
             kind, x0, y0, x1, y1, secs, arc, seg = self.legs[p.leg]
             if p.leg_t < secs:
@@ -256,10 +306,139 @@ class Room:
         p.y = y0 + (y1 - y0) * u - 4 * arc * u * (1 - u)
         p.air = int(kind == "jump")
         p.face = 1
+        if not p.air:
+            p.safe = (p.x, p.y)
+            if p.trap_pending:
+                self.drop_trap(p)
         if p.leg == p.fail_leg and u > 0.55:
-            p.fail_leg, p.dead, p.down = None, 1, 0.9
+            p.fail_leg, p.dead, p.down = None, 1, KNOCKOUT
+        if p.item is None:
+            for i, (bx, _) in enumerate(self.course["boxes"]):
+                if i not in p.boxes and abs(p.x - bx) < 20:
+                    self.grab(p, i)
+        for trap in self.traps:
+            tid, tx, ty, tw, owner, _ = trap
+            if owner != p.id and tid not in p.wary and not p.air and abs(p.y - ty) < 6 and tx - 14 < p.x < tx + tw + 14:
+                p.wary.add(tid)
+                self.knock(p)
         if p.x >= self.course["finish"]:
             self.finished(p)
+
+    # ------------------------------------------------------------ items
+
+    def speed(self, p):
+        now = self.now()
+        return ((FREEZE_SPEED if now < p.frozen_until else 1.0) *
+                (BOOST_SPEED if now < p.boost_until else 1.0))
+
+    def running(self, but=None):
+        return [q for q in self.racers() if q.fin is None and q is not but]
+
+    def grab(self, p, i):
+        if (self.phase != "race" or not p.racing or p.fin is not None or p.item is not None or p.dead
+                or type(i) is not int or not 0 <= i < len(self.course["boxes"]) or i in p.boxes
+                or abs(p.x - self.course["boxes"][i][0]) > GRAB_REACH):
+            return
+        p.boxes.add(i)
+        others = self.running(but=p)
+        ahead = [q for q in others if q.x > p.x]
+        behind = [q for q in others if q.x <= p.x]
+        done = sum(q.fin is not None for q in self.racers())
+        place = done + len(ahead)
+        f = place / max(1, len(self.racers()) - 1)
+        weights = item_weights(min(1.0, f), len(ahead), len(behind))
+        kinds = [k for k in weights if weights[k] > 0]
+        p.item = random.choices(kinds, [weights[k] for k in kinds])[0]
+        if p.bot:
+            p.use_at = self.now() + random.uniform(0.8, 3.5)
+        self.send_state()
+
+    def knock(self, q):
+        """Knock a racer out (they go back to their flag). Browsers do it to themselves on `fx`."""
+        if q.bot:
+            q.dead, q.down, q.fail_leg = 1, KNOCKOUT, None
+        else:
+            q.dead = 1
+
+    def checkpoint(self, x):
+        segs = self.course["segs"]
+        return max(i for i in range(len(segs) - 1) if segs[i] <= x)
+
+    def place_bot(self, q, x, y):
+        """Put a bot down at x: on the run it covers, or the nearest ground before it."""
+        runs = [i for i, L in enumerate(self.legs) if L[0] == "run" and L[1] <= x]
+        leg = runs[-1] if runs else 0
+        L = self.legs[leg]
+        x, y = min(x, L[3]), L[2]
+        q.leg, q.leg_t = leg, (x - L[1]) / C.RUN
+        q.x, q.y, q.dead, q.down, q.fail_leg = x, y, 0, 0.0, None
+
+    def drop_trap(self, p):
+        p.trap_pending = False
+        x, y = p.safe
+        self.traps.append([self.next_trap, round(x - TRAP_W / 2), round(y), TRAP_W, p.id, self.now() + TRAP_LIFE])
+        self.next_trap += 1
+        self.send_state()
+
+    def use(self, p):
+        if self.phase != "race" or not p.racing or p.fin is not None or p.item is None or self.now() < 0:
+            return
+        item, p.item, p.use_at = p.item, None, None
+        now = self.now()
+        ahead = sorted((q for q in self.running(but=p) if q.x > p.x), key=lambda q: q.x)
+        fx = {"t": "fx", "k": item, "by": p.id, "to": [], "blocked": []}
+
+        def hit(q):
+            if q.shield:
+                q.shield = False
+                fx["blocked"].append(q.id)
+                return False
+            fx["to"].append(q.id)
+            return True
+
+        if item == "bolt" and ahead:
+            if hit(ahead[0]):
+                self.knock(ahead[0])
+        elif item == "freeze":
+            for q in ahead:
+                if hit(q):
+                    q.frozen_until = now + FREEZE
+        elif item == "swap" and ahead:
+            q = ahead[0]
+            if hit(q):
+                mine, theirs = p.safe, q.safe
+                fx["warp"] = {}
+                for who, (x, y) in ((p, theirs), (q, mine)):
+                    fx["warp"][who.id] = [round(x), round(y), self.checkpoint(x)]
+                    if who.bot:
+                        self.place_bot(who, x, y)
+                    else:
+                        who.x, who.y = x, y
+                    who.safe = (x, y)
+        elif item == "trap":
+            if p.air:
+                p.trap_pending = True
+            else:
+                self.drop_trap(p)
+        elif item == "shield":
+            p.shield = True
+        elif item == "boost":
+            p.boost_until = now + BOOST
+            fx["to"].append(p.id)
+        self.everyone(fx)
+        self.send_state()
+
+    def bot_items(self):
+        now = self.now()
+        for p in self.racers():
+            if not p.bot or p.item is None or p.fin is not None or p.use_at is None or now < p.use_at:
+                continue
+            ahead = [q for q in self.running(but=p) if q.x > p.x]
+            behind = [q for q in self.running(but=p) if q.x < p.x and p.x - q.x < 700]
+            if p.item in ("bolt", "freeze", "swap") and not ahead or p.item == "trap" and not behind:
+                p.use_at = now + 1.0  # nobody to use it on yet
+            else:
+                self.use(p)
 
     def end_round(self):
         # whoever didn't finish is placed by how far they got
@@ -281,9 +460,14 @@ class Room:
                 for p in self.racers():
                     if p.bot:
                         self.move_bot(p, TICK)
+                self.bot_items()
+            if any(trap[5] < now for trap in self.traps):
+                self.traps = [trap for trap in self.traps if trap[5] >= now]
+                self.send_state()
             racers = self.racers()
             self.everyone({"t": "pos", "now": round(now, 3),
-                           "ps": [[p.id, round(p.x), round(p.y), p.face, p.air, p.dead] for p in racers]})
+                           "ps": [[p.id, round(p.x), round(p.y), p.face, p.air, p.dead, self.marks(p, now)]
+                                  for p in racers]})
             waiting = [p for p in racers if p.fin is None and (p.bot or p.connected)]
             people = [p for p in waiting if not p.bot]
             if self.ends is not None and not people and any(not p.bot for p in racers):
@@ -293,6 +477,11 @@ class Room:
         elif self.phase == "results" and time.monotonic() > self.until:
             self.start_round()
             self.send_state()
+
+    @staticmethod
+    def marks(p, now):
+        """What to draw on a racer: 1 shielded, 2 frozen, 4 boosted."""
+        return int(p.shield) | 2 * (now < p.frozen_until) | 4 * (now < p.boost_until)
 
     async def run(self):
         next_t = time.monotonic()
@@ -317,9 +506,11 @@ class Room:
         st = {
             "t": "state", "phase": self.phase, "host": self.host, "rounds": self.rounds, "round": self.round,
             "players": [{"id": p.id, "name": p.name, "color": p.color, "on": p.connected, "bot": p.bot,
-                         "pts": p.points, "racing": p.racing, "fin": p.fin, "gain": p.gain}
+                         "pts": p.points, "racing": p.racing, "fin": p.fin, "gain": p.gain,
+                         "item": p.item, "shield": p.shield}
                         for p in self.players.values()],
             "order": self.order,
+            "traps": [t[:5] for t in self.traps],
             "ends": self.ends,
         }
         if self.phase == "results":

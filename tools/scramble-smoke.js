@@ -1,7 +1,8 @@
 // Plays a round of Scramble in two headless browsers (one phone-sized) with a bot. The host makes a
 // room, adds a bot and sets three rounds; a friend joins by the link. Both must see the countdown,
 // run and jump under their own controls, see each other and the bot move, be knocked out by a fall
-// and put back at the flag, and (carried to the line, since a browser can't be trusted to play well)
+// and put back at the flag, run through an item box and use what's in it (both screens must see it go
+// off), and (carried to the line, since a browser can't be trusted to play well)
 // finish and get the round's points. Fails if a page throws or logs an error. About 40 s.
 //
 //     node tools/scramble-smoke.js [http://localhost:8080]    against a running server
@@ -125,25 +126,36 @@ async function serve() {
     await friend.waitForFunction(() => window.scramble.S.me.dead);
     await friend.waitForFunction(() => { const { S } = window.scramble; return !S.me.dead && S.me.ground && Math.abs(S.me.x - S.course.segs[2] - 60) < 5; });
 
+    // An item box: run through it, get an item, use it, and both screens see it go off.
+    await host.evaluate(() => { const { S } = window.scramble; Object.assign(S.me, { x: S.course.boxes[0][0] - 60, y: -1, vx: 0, vy: 0, dead: false }); });
+    await host.keyboard.down('ArrowRight');
+    await host.waitForFunction(() => { const { S, room } = window.scramble; return S.st.players.find(p => p.id === room.you).item; });
+    await host.keyboard.up('ArrowRight');
+    await host.waitForSelector('#item:not([hidden])');
+    await shot(host, '5-item');
+    await host.keyboard.press('KeyE');
+    for (const p of all) await p.waitForFunction(() => window.scramble.S.itemsSeen > 0);
+    await host.waitForSelector('#item', { state: 'hidden' });
+
     // To the line. (The server won't believe a finish quicker than a flat-out run.)
-    await host.waitForFunction(() => { const { S, raceTime } = window.scramble; return raceTime() > S.course.finish / 300 * 0.8 + 0.5; }, null, { timeout: 60000 });
+    await host.waitForFunction(() => { const { S, raceTime } = window.scramble; return raceTime() > S.course.finish / 300 * 0.8 + 0.5; }, null, { timeout: 90000 });
     await host.evaluate(() => { const { S } = window.scramble; S.me.x = S.course.finish + 20; S.me.y = -1; });
     await host.waitForFunction(() => /Finished/.test(document.getElementById('banner').textContent));
     await friend.waitForFunction(() => / s left/.test(document.getElementById('banner').textContent));
-    await shot(host, '5-finished');
+    await shot(host, '6-finished');
     await friend.evaluate(() => { const { S } = window.scramble; S.me.x = S.course.finish + 20; S.me.y = -1; });
     for (const p of all) await p.waitForSelector('#results:not([hidden])', { timeout: 40000 });
     const st = await host.evaluate(() => window.scramble.S.st);
     const pts = Object.fromEntries(st.players.map(q => [q.name, q.pts]));
     if (pts.Ada !== 10 && pts.Bo !== 7 && pts.Ada + pts.Bo < 12) throw new Error(`odd points: ${JSON.stringify(pts)}`);
     if (await host.locator('#res-rows tr').count() !== 3) throw new Error('the results are missing a racer');
-    await shot(host, '6-results');
-    await shot(friend, '6-results-phone');
+    await shot(host, '7-results');
+    await shot(friend, '7-results-phone');
     // and the next round starts on its own
     for (const p of all) await p.waitForFunction(() => window.scramble.S.st.round === 2 && window.scramble.S.st.phase === 'race', null, { timeout: 15000 });
 
     if (problems.length) throw new Error('page errors:\n  ' + problems.join('\n  '));
-    console.log('ok: two players and a bot raced a round: controls, knock-outs, the finish and the points all work');
+    console.log('ok: two players and a bot raced a round: controls, knock-outs, items, the finish and the points all work');
     code = 0;
   } catch (e) {
     console.log('FAILED: ' + e.message + ((e.stack || '').split('\n').find(l => l.includes('smoke.js')) || ''));

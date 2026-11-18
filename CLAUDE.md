@@ -37,7 +37,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/relay/` and `app/static/games/relay/`: Sketch Relay, a drawing-and-guessing party game for 3-8 friends (write,
   draw what you're handed, guess the drawing, pass it on; rooms by code, a FastAPI WebSocket server) at `/games/sketch-relay`
 - `app/scramble/` and `app/static/games/scramble/`: Scramble, an obstacle-course race for 1-8 players with bots (a new
-  course every round; each browser runs its own physics, a FastAPI WebSocket server relays and scores) at `/games/scramble`
+  course every round, items to hit each other with; each browser runs its own physics, a FastAPI WebSocket server relays, decides items and scores) at `/games/scramble`
 - `app/holdfast/` and `app/static/games/holdfast/`: Holdfast, co-op tower defence for 1-4 players (one map, separate
   purses, thirty waves; the fight runs on a FastAPI WebSocket server) at `/games/holdfast`
 - `app/rooms.py` and `app/static/games/shared/net.js`: what the seven multiplayer games share (the WebSocket loop,

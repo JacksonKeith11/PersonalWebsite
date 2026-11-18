@@ -61,8 +61,11 @@ def hang_up(queue):
 
 def page_version(page: Path):
     """A game page's ?v= (its asset version): a tab opened before a deploy runs the old code
-    against the new server, so the socket tells it to reload."""
-    return re.search(r"\?v=(\d+)", page.read_text()).group(1)
+    against the new server, so the socket tells it to reload. It's the ?v= of the page's module
+    script, which is what the browser sends; a shared stylesheet linked first can be older."""
+    text = page.read_text()
+    found = re.search(r'<script type="module" src="[^"]*\?v=(\d+)"', text) or re.search(r"\?v=(\d+)", text)
+    return found.group(1)
 
 
 class Refused(Exception):

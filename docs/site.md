@@ -22,7 +22,8 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   (`serve(ws, enter)`: a first `hello`, then each message to `room.handle`, `room.leave` on close),
   sending to one connection through its own queue (`push`, hanging up a connection too far behind),
   `Refused` to turn a browser away with a message, rooms by four-letter code (`Codes`), `clean` for
-  browser text and `page_version` for a page's `?v=`. In the browser,
+  browser text and `page_version` for a page's `?v=` (the `?v=` of its module script, which is what the
+  browser sends: a shared stylesheet linked earlier on the page can carry an older one). In the browser,
   `app/static/games/shared/net.js` is the shared half: `identity(key)` (the localStorage token and
   per-tab id) and `GameSocket` (connects, says hello, reconnects after 1, 2, 4… 16 s). Beside it,
   `lobby.js` and `lobby.css` are the menu and lobby of a room-code game (a name, make a room or join by

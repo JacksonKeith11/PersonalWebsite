@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/scramble/game.css?v=1">
+  <link rel="stylesheet" href="/static/games/scramble/game.css?v=2">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -46,6 +46,7 @@
           <li>Run with the arrow keys or A and D, jump with Space, W or the up arrow. Hold jump for a higher jump. On a phone, use the buttons on the screen.</li>
           <li>Touch a spike or a saw, or fall in a pit, and you start that section again from its flag.</li>
           <li>Other racers can't block you: you run through each other.</li>
+          <li>Run through a <b>?</b> box for an item, and use it with E or Shift (or the Use button on a phone). The further back you are, the nastier the item: a bolt that knocks out the racer ahead, a freeze for everyone in front, a spike trap, or a swap that trades places with the racer ahead. Shields block the next item used on you; boosts make you faster for a moment.</li>
           <li>Once the first racer finishes, everyone else has 25 seconds.</li>
           <li>Each round gives points by place. Most points after the last round wins.</li>
         </ul>
@@ -91,9 +92,14 @@
       <span id="hud-time"></span>
     </div>
     <p id="banner" role="status" hidden></p>
+    <div id="item" hidden>
+      <span id="item-icon" aria-hidden="true"></span>
+      <span><b id="item-name"></b> <small id="item-tip"></small></span>
+    </div>
     <div id="touch" hidden>
       <button id="t-left" type="button" aria-label="Run left">◀</button>
       <button id="t-right" type="button" aria-label="Run right">▶</button>
+      <button id="t-use" class="empty" type="button" aria-label="Use your item">Use</button>
       <button id="t-jump" type="button" aria-label="Jump">Jump</button>
     </div>
     <div id="results" class="overlay" hidden>
@@ -113,6 +119,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/scramble/js/main.js?v=1"></script>
+  <script type="module" src="/static/games/scramble/js/main.js?v=2"></script>
 </body>
 </html>

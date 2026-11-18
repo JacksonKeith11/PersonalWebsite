@@ -4,7 +4,7 @@
 //
 // Each segment is built several times over (they vary at random) between a start and a finish, and
 // a breadth-first search over what a player could press (run, run and jump, wait, back up) must
-// reach the far side alive. Prints the fastest time found for each. About ten seconds.
+// reach the far side alive. Prints the fastest time found for each. About 45 seconds.
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,7 +23,7 @@ from app.scramble import course
 out = []
 for make in course.SEGMENTS:
     for seed in range(${variants}):
-        for d in (0.1, 0.9):
+        for d in (0.35, 1.0):
             c, legs, risks = course.build(seed, 1, [make], d)
             c["hard"] = d > 0.5
             out.append(c)
@@ -73,5 +73,5 @@ for (const c of courses) {
 for (const [name, times] of Object.entries(best)) {
   console.log(`${name.padEnd(8)} ${times.length} variants, ${Math.min(...times).toFixed(1)}-${Math.max(...times).toFixed(1)} s`);
 }
-if (failed || Object.keys(best).length < 13) { console.log('FAILED'); process.exit(1); }
+if (failed || Object.keys(best).length < 16) { console.log('FAILED'); process.exit(1); }
 console.log(`ok: every segment can be finished (${courses.length} courses searched)`);

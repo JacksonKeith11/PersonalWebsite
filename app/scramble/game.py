@@ -50,6 +50,9 @@ EMOTES = 6  # how many emotes (js/main.js has them)
 EMOTE_GAP = 1.2  # seconds between one racer's emotes
 RECORD_LEAST = 1.0  # a segment run quicker than this isn't believed (no segment is that short)
 TRAP_LIFE, TRAP_W = 12, 40
+DASH_PACE = 1.3  # a bot dashing across a jump gets over it this much quicker
+ICE_RISK = 1.15
+BOT_PATIENCE = 8  # seconds a bot waits for a good moment to use an item  # bots fluff segments this much more often on snow's ice
 GRAB_REACH = 120  # how far from a box a browser may claim it from (it's checked loosely)
 
 
@@ -100,6 +103,11 @@ class Player:
         # bots only
         self.leg, self.leg_t, self.fail_leg, self.down = 0, 0.0, None, 0.0
         self.skill = random.uniform(0.62, 0.92)
+        self.legs = None  # their way round, if not the course's (`Room.route_for`)
+        self.calm = set()  # segments they're taking the slow, safe way through
+        self.ride = None  # (boards at, gets off at): riding a lift
+        self.dashing = False  # dashing across the jump they're on
+        self.got_at = 0.0  # race time they got the item they hold
 
 
 class Room:
@@ -112,6 +120,7 @@ class Room:
         self.phase = "lobby"  # lobby, race, results, final
         self.round = 0
         self.course = self.legs = self.risks = None
+        self.alts = {}  # other ways through some segments, for bots (course.build)
         self.t0 = 0.0  # monotonic time the race started (after the countdown)
         self.ends = None  # race time the round ends, once someone has finished
         self.until = 0.0  # monotonic time the results screen ends
@@ -265,7 +274,7 @@ class Room:
         dead = int(bool(v[4]))
         if dead and not p.dead:
             p.falls += 1
-        p.face, p.air, p.dead = (-1 if v[2] < 0 else 1), int(bool(v[3])), dead
+        p.face, p.air, p.dead = (-1 if v[2] < 0 else 1), (2 if v[3] == 2 else int(bool(v[3]))), dead
         self.timed(p)
         if not p.air and not p.dead:
             p.safe = (p.x, p.y)
@@ -281,7 +290,7 @@ class Room:
         self.round += 1
         lo, hi = SEGMENTS
         n = lo + round((hi - lo) * (self.round - 1) / max(1, self.rounds - 1))
-        self.course, self.legs, self.risks = C.build(random.getrandbits(32), n)
+        self.course, self.legs, self.risks, self.alts = C.build(random.getrandbits(32), n)
         if not self.themes:
             self.themes = random.sample(C.THEMES, len(C.THEMES))
         self.course["theme"] = self.themes.pop()
@@ -296,6 +305,8 @@ class Room:
         for p in self.players.values():
             p.reset()
             p.racing = p in seats
+            if p.bot:
+                p.legs = self.route_for(p)
         for p in self.players.values():
             self.send_course(p)
 
@@ -329,36 +340,92 @@ class Room:
             self.ends = min(RACE_LIMIT, p.fin + max(AFTER_FIRST, AFTER_SHARE * p.fin))
         self.send_state()
 
+    def route_for(self, p):
+        """A bot's way round: where a segment has a slow, safe way through (the fork's trench), the
+        clumsier the bot, the likelier it takes it."""
+        legs = self.legs
+        for seg, alt in self.alts.items():
+            if random.random() < 0.15 + 0.9 * (0.92 - p.skill):
+                at = [i for i, leg in enumerate(legs) if leg[7] == seg]
+                legs = legs[:at[0]] + alt + legs[at[-1] + 1:]
+                p.calm.add(seg)
+        return legs
+
+    def bot_legs(self, p):
+        return p.legs or self.legs
+
+    def ride(self, p, leg):
+        """A bot waiting for a lift to come down, then riding it up. Lifts move with the race clock,
+        so this goes by the clock, not the bot's pace."""
+        kind, x0, y0, x1, y1, _, mover, seg = leg
+        top, dy, period, phase = (self.course["movers"][mover][i] for i in (1, 5, 6, 7))
+        now = self.now()
+        if p.ride is None:
+            # the lift is at the bottom when sin(2 pi t / period + phase) = 1
+            first = (math.pi / 2 - phase) / (2 * math.pi) * period
+            board = first + math.ceil((now - first) / period) * period
+            p.ride = (board, board + period / 2)
+        board, off = p.ride
+        if now < board:
+            p.x, p.y = x0, y0
+        else:
+            u = min(1.0, (now - board) / 0.3)
+            p.x = x0 + (x1 - x0) * u
+            p.y = top + dy * math.sin(2 * math.pi * now / period + phase)
+        p.air = 0
+        if now >= off:
+            p.ride, p.leg, p.leg_t = None, p.leg + 1, 0.0
+            p.x, p.y = x1, y1
+
     def move_bot(self, p, dt):
-        """Walk a bot along the course's legs; now and then it fluffs a segment and starts it again."""
+        """Walk a bot along its legs; now and then it fluffs a segment and starts it again."""
         if p.fin is not None:
             return
+        legs = self.bot_legs(p)
         if p.down > 0:
             p.down -= dt
             if p.down <= 0:  # back to the start of the segment it fell in
-                seg = self.legs[p.leg][7]
-                p.leg = next(i for i, leg in enumerate(self.legs) if leg[7] == seg)
-                p.leg_t, p.dead = 0.0, 0
+                seg = legs[p.leg][7]
+                p.leg = next(i for i, leg in enumerate(legs) if leg[7] == seg)
+                p.leg_t, p.dead, p.ride, p.dashing = 0.0, 0, None, False
             return
-        p.leg_t += dt * p.skill * self.speed(p)
+        if legs[p.leg][0] == "ride":
+            self.ride(p, legs[p.leg])
+            self.timed(p)
+            return
+        theme = self.course.get("theme")
+        pace = dt * p.skill * self.speed(p)
+        if legs[p.leg][0] == "run" and theme == "desert":
+            pace *= (1 + C.SAND) / 2  # the sand slows bots too (half as much: people can hop it)
+        if p.dashing:
+            pace *= DASH_PACE
+        p.leg_t += pace
         while True:
-            kind, x0, y0, x1, y1, secs, arc, seg = self.legs[p.leg]
+            kind, x0, y0, x1, y1, secs, arc, seg = legs[p.leg]
             if p.leg_t < secs:
                 break
-            if p.leg + 1 == len(self.legs):
+            if p.leg + 1 == len(legs):
                 p.x, p.y, p.air = x1, y1, 0
                 return
-            p.leg_t -= secs
+            p.leg_t = 0.0 if legs[p.leg + 1][0] == "ride" else p.leg_t - secs
             p.leg += 1
-            if self.legs[p.leg][7] != seg:  # a new segment: will this one go wrong?
-                seg = self.legs[p.leg][7]
-                mine = [i for i, leg in enumerate(self.legs) if leg[7] == seg and leg[0] == "jump"]
-                bad = mine and random.random() < self.risks[seg] * (1.05 - p.skill) * 1.3
+            nxt = legs[p.leg]
+            # a long jump: a bot that's any good dashes across it
+            p.dashing = nxt[0] == "jump" and nxt[3] - nxt[1] > 150 and random.random() < p.skill - 0.2
+            if nxt[7] != seg:  # a new segment: will this one go wrong?
+                seg = nxt[7]
+                mine = [i for i, leg in enumerate(legs) if leg[7] == seg and leg[0] == "jump"]
+                risk = self.risks[seg] * (1.05 - p.skill) * 1.3 * (ICE_RISK if theme == "snow" else 1)
+                bad = mine and seg not in p.calm and random.random() < risk
                 p.fail_leg = random.choice(mine) if bad else None
+            if nxt[0] == "ride":
+                self.ride(p, nxt)
+                self.timed(p)
+                return
         u = p.leg_t / secs if secs else 1.0
         p.x = x0 + (x1 - x0) * u
         p.y = y0 + (y1 - y0) * u - 4 * arc * u * (1 - u)
-        p.air = int(kind == "jump")
+        p.air = (2 if p.dashing and 0.25 < u < 0.7 else 1) if kind == "jump" else 0
         p.face = 1
         if not p.air:
             p.safe = (p.x, p.y)
@@ -408,7 +475,8 @@ class Room:
         kinds = [k for k in weights if weights[k] > 0]
         p.item = random.choices(kinds, [weights[k] for k in kinds])[0]
         if p.bot:
-            p.use_at = self.now() + random.uniform(0.8, 3.5)
+            p.got_at = self.now()
+            p.use_at = p.got_at + random.uniform(0.8, 3.5)
         self.send_state()
 
     def knock(self, q):
@@ -424,12 +492,13 @@ class Room:
 
     def place_bot(self, q, x, y):
         """Put a bot down at x: on the run it covers, or the nearest ground before it."""
-        runs = [i for i, L in enumerate(self.legs) if L[0] == "run" and L[1] <= x]
+        legs = self.bot_legs(q)
+        runs = [i for i, L in enumerate(legs) if L[0] == "run" and L[1] <= x]
         leg = runs[-1] if runs else 0
-        L = self.legs[leg]
+        L = legs[leg]
         x, y = min(x, L[3]), L[2]
         q.leg, q.leg_t = leg, (x - L[1]) / C.RUN
-        q.x, q.y, q.dead, q.down, q.fail_leg = x, y, 0, 0.0, None
+        q.x, q.y, q.dead, q.down, q.fail_leg, q.ride, q.dashing = x, y, 0, 0.0, None, None, False
         self.warped(q)
 
     def warped(self, q):
@@ -544,16 +613,34 @@ class Room:
         self.everyone({"t": "emote", "by": p.id, "k": k})
 
     def bot_items(self):
+        """Bots use what they hold when it'll do some good: a curse on someone in a hard segment, a
+        swap or grapple when the one ahead is well ahead, a trap when someone's close behind. Held too
+        long, they use it anyway if anyone's there to use it on."""
         now = self.now()
         for p in self.racers():
             if not p.bot or p.item is None or p.fin is not None or p.use_at is None or now < p.use_at:
                 continue
-            ahead = [q for q in self.running(but=p) if q.x > p.x]
-            behind = [q for q in self.running(but=p) if q.x < p.x and p.x - q.x < 700]
+            ahead = sorted((q for q in self.running(but=p) if q.x > p.x), key=lambda q: q.x)
+            behind = [q for q in self.running(but=p) if q.x < p.x]
+            impatient = now - p.got_at > BOT_PATIENCE
+            gap = ahead[0].x - p.x if ahead else 0
             if p.item in ("bolt", "freeze", "swap", "curse", "grapple") and not ahead or p.item == "trap" and not behind:
-                p.use_at = now + 1.0  # nobody to use it on yet
+                good = False
+            elif p.item in ("swap", "grapple"):
+                good = gap > (150 if impatient else 400)
+            elif p.item == "curse":
+                q = ahead[0]
+                good = impatient or self.risks[self.checkpoint(q.x)] >= 0.6
+            elif p.item == "freeze":
+                good = impatient or len(ahead) >= 2 or gap < 900
+            elif p.item == "trap":
+                good = p.air == 0 and (impatient or min(p.x - q.x for q in behind) < 450)
             else:
+                good = True
+            if good:
                 self.use(p)
+            else:
+                p.use_at = now + 0.5  # not yet: look again in a moment
 
     def end_round(self):
         # whoever didn't finish is placed by how far they got

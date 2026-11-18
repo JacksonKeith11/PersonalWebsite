@@ -12,7 +12,7 @@ body { background: #2c4a63 linear-gradient(180deg, #7fb6dc 0%, #cfe6f2 100%) fix
 .hud .big { font-size: 1.5rem; }
 
 #banner {
-  position: absolute; top: 22%; left: 0; right: 0; margin: 0; text-align: center; pointer-events: none;
+  position: absolute; top: 22%; left: 0; right: 0; margin: 0; padding: 0 16px; text-align: center; pointer-events: none;
   font: 700 clamp(2.2rem, 9vw, 5rem)/1.1 "Source Serif 4", Georgia, serif; color: #fff;
   text-shadow: 0 3px 0 rgba(0, 30, 60, 0.45), 0 0 24px rgba(0, 30, 60, 0.4);
 }

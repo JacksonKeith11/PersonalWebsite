@@ -61,16 +61,68 @@ def run(room, secs):
 async def main():
     # Courses: every segment's route is continuous and runs left to right.
     for seed in range(40):
-        c, legs, risks = C.build(seed, 8)
+        c, legs, risks, alts = C.build(seed, 8)
         assert len(c["segs"]) == 10 and len(risks) == 10 and c["finish"] < c["length"]
         for a, b in zip(legs, legs[1:]):
             assert abs(a[3] - b[1]) < 1e-6 and a[4] == b[2] and b[3] >= b[1] - 1e-6, (seed, a, b)
         assert all(leg[5] > 0 or leg[0] == "run" for leg in legs)
+        for seg, alt in alts.items():  # another way through a segment starts and ends where it does
+            mine = [leg for leg in legs if leg[7] == seg]
+            assert alt[0][1:3] == mine[0][1:3] and alt[-1][3:5] == mine[-1][3:5], (seed, seg)
+            for a, b in zip(alt, alt[1:]):
+                assert abs(a[3] - b[1]) < 1e-6 and a[4] == b[2], (seed, a, b)
+
+    # The fork's slow way: a bot on it waits for the lift, rides it up and carries on.
+    c, legs, risks, alts = C.build(3, 1, [C.seg_fork], 0.8)
+    room = game.Room("FORK")
+    room.course, room.legs, room.risks, room.alts = c, legs, risks, alts
+    bot = game.Player(1, "Bot", "#fff", bot=True)
+    bot.skill, room.t0, room.ends, room.order, room.phase = 0.62, clock.t, None, [], "race"
+    room.players = {1: bot}
+    random_was = game.random.random
+    game.random.random = lambda: 0.0  # takes the trench, dashes every long jump
+    bot.legs = room.route_for(bot)
+    game.random.random = random_was
+    assert bot.calm == {1} and any(L[0] == "ride" for L in bot.legs)
+    m = c["movers"][0]
+    rode = dashed = 0
+    for _ in range(round(30 / game.TICK)):
+        room.move_bot(bot, game.TICK)
+        if bot.legs[bot.leg][0] == "ride" and bot.ride and room.now() > bot.ride[0] + 0.3:
+            rode += 1
+            lift = m[1] + m[5] * game.math.sin(2 * game.math.pi * room.now() / m[6] + m[7])
+            assert abs(bot.y - lift) < 1e-6 and m[0] <= bot.x <= m[0] + m[2], "off the lift"
+        dashed += bot.air == 2
+        clock.t += game.TICK
+    assert bot.fin and rode and not bot.falls, (bot.fin, rode, bot.falls)
+    bot = game.Player(2, "Ace", "#fff", bot=True)
+    bot.skill = 0.92
+    game.random.random = lambda: 0.99
+    assert room.route_for(bot) is legs and not bot.calm, "a sure-footed bot takes the stones"
+    game.random.random = random_was
+
+    # Bots dash across long jumps (and show it), and get round quicker for it.
+    c, legs, risks, alts = C.build(4, 1, [C.seg_gaps], 0.8)
+    took = []
+    for chance in (0.99, 0.0):
+        room.course, room.legs, room.risks, room.alts = c, legs, [0] * 3, {}
+        bot = game.Player(1, "Bot", "#fff", bot=True)
+        bot.skill, room.t0, room.ends, room.order = 0.9, clock.t, None, []
+        room.players = {1: bot}
+        game.random.random = lambda: chance
+        dashed = 0
+        while not bot.fin:
+            room.move_bot(bot, game.TICK)
+            dashed += bot.air == 2
+            clock.t += game.TICK
+        game.random.random = random_was
+        took.append((bot.fin, dashed))
+    assert took[0][1] == 0 and took[1][1] > 0 and took[1][0] < took[0][0], took
 
     # Left alone, every bot gets to the end of every course, however clumsy it is.
     room = game.Room("TEST")
     for seed in range(30):
-        room.course, room.legs, room.risks = C.build(seed, 8)
+        room.course, room.legs, room.risks, room.alts = C.build(seed, 8)
         bot = game.Player(1, "Bot", "#fff", bot=True)
         bot.skill, room.t0, room.ends, room.order = 0.62, clock.t, None, []
         room.players = {1: bot}
@@ -166,7 +218,7 @@ async def main():
 
     # Records: the room keeps the best time through each kind of segment, and a round's awards.
     room = game.Room("RECS")
-    room.course, room.legs, room.risks = C.build(5, 4)
+    room.course, room.legs, room.risks, room.alts = C.build(5, 4)
     room.t0, room.phase = clock.t, "race"
     segs, names = room.course["segs"], room.course["names"]
     p = game.Player(1, "Rec", "#fff")
@@ -332,6 +384,31 @@ async def main():
     assert bot.dead and tid in bot.wary, "the trap didn't catch the bot"
     run(room, game.TRAP_LIFE)
     assert not room.traps and not a.read()["state"]["traps"]
+    # Bots wait for a good moment: a grapple only once the racer ahead is well ahead (or they've
+    # waited long enough), a trap only once someone's close behind.
+    a.do(t="p", v=[3000 + 200, 0, 1, 0, 0])
+    room.place_bot(bot, 3000, 0)
+    bot.item, bot.got_at = "grapple", room.now()
+    bot.use_at = room.now()
+    room.bot_items()
+    assert bot.item == "grapple", "grappled someone barely ahead"
+    a.do(t="p", v=[3000 + 600, 0, 1, 0, 0])
+    bot.use_at = room.now()
+    room.bot_items()
+    assert bot.item is None and abs(bot.x - 3600) < 300, (bot.item, bot.x)
+    room.place_bot(bot, 3000, 0)
+    a.do(t="p", v=[3000 + 200, 0, 1, 0, 0])
+    bot.item, bot.got_at, bot.use_at = "grapple", room.now() - game.BOT_PATIENCE - 1, room.now()
+    room.bot_items()
+    assert bot.item is None, "held on to a grapple for ever"
+    bot.item, bot.got_at, bot.use_at = "trap", room.now(), room.now()
+    room.bot_items()
+    assert bot.item == "trap", "dropped a trap with nobody near behind"
+    a.do(t="p", v=[bot.x - 200, 0, 1, 0, 0])
+    bot.use_at = room.now()
+    room.bot_items()
+    assert bot.item is None and room.traps
+    room.traps = []
     # Bots grab and use items on their own.
     room.leave(a.p, a.queue)
     used = 0

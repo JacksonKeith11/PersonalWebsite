@@ -2,7 +2,7 @@
 // server reports them, items, emotes, and the drawing. The server (app/scramble/game.py) makes the
 // course, runs the bots and keeps the clock, the scores and the records.
 
-import { BELT_H, BLINK_H, CRUMBLE, CRUMBLE_H, DT, PH, PW, SPIKE_H, blinkOn, gusting, lavaTop, posX, posY, prepare, spawn, step } from './physics.js?v=3';
+import { BELT_H, BLINK_H, CRUMBLE, CRUMBLE_H, DT, PH, PW, SPIKE_H, blinkOn, gusting, lavaTop, posX, posY, prepare, spawn, step } from './physics.js?v=4';
 import { person, startRoom } from '../../shared/lobby.js?v=1';
 
 const $ = id => document.getElementById(id);
@@ -49,13 +49,13 @@ const HATS = ['None', 'Cap', 'Crown', 'Top hat', 'Bow', 'Horns', 'Headband', 'Pr
 const THEMES = {
   meadow: { name: 'Meadow', sky: ['#6fb1e0', '#d6ecf5'], hills: ['#a9d0c0', '#8fbf9c'], dirt: '#7a5433', top: '#5fae4e',
     thin: ['#b07a45', '#d19a5c'], label: 'rgba(20,40,60,0.75)' },
-  desert: { name: 'Dunes', sky: ['#f0a95f', '#fbe6bf'], hills: ['#ecc893', '#dcab6c'], dirt: '#b5773f', top: '#e6c47c',
+  desert: { name: 'Dunes', tip: 'Sand slows your running: hop to keep your speed', sky: ['#f0a95f', '#fbe6bf'], hills: ['#ecc893', '#dcab6c'], dirt: '#b5773f', top: '#e6c47c',
     thin: ['#a8693a', '#d39c5d'], label: 'rgba(70,35,10,0.8)' },
-  snow: { name: 'Snowfield', sky: ['#93aecb', '#eaf2f8'], hills: ['#e3ecf3', '#c9d9e6'], dirt: '#666b7a', top: '#f6f9fc',
+  snow: { name: 'Snowfield', tip: 'Icy underfoot: slow to get going, slow to stop', sky: ['#93aecb', '#eaf2f8'], hills: ['#e3ecf3', '#c9d9e6'], dirt: '#666b7a', top: '#f6f9fc',
     thin: ['#7f8796', '#e9f1f7'], label: 'rgba(20,40,60,0.8)' },
   dusk: { name: 'Dusk', sky: ['#24285a', '#e0807a'], hills: ['#55437a', '#3b3260'], dirt: '#4b3a3a', top: '#6f8f5a',
     thin: ['#7b5a48', '#a77b5e'], label: 'rgba(255,240,230,0.85)' },
-  cave: { name: 'Caverns', sky: ['#17161d', '#3a3442'], hills: ['#2c2833', '#231f29'], dirt: '#4a4250', top: '#857590',
+  cave: { name: 'Caverns', tip: 'Dark: you only see what\'s near you, and what glows', sky: ['#17161d', '#3a3442'], hills: ['#2c2833', '#231f29'], dirt: '#4a4250', top: '#857590',
     thin: ['#5c5060', '#8f7f94'], label: 'rgba(240,230,250,0.85)' },
 };
 const theme = () => THEMES[S.course?.theme] || THEMES.meadow;
@@ -98,6 +98,8 @@ function receive(m) {
     S.watch = null;
     S.frozenUntil = S.boostUntil = S.curseUntil = 0;
     S.cam.x = 0;
+    const th = theme();
+    if (th.tip) S.note = { text: `${th.name}: ${th.tip}`, until: local() - m.now + 3.5 };   // shown once the race is on
   } else if (m.t === 'fx') {
     itemUsed(m);
   } else if (m.t === 'warn') {
@@ -125,6 +127,9 @@ function receive(m) {
         if (!o.dead && dead) burst(x, y - PH / 2, player(id)?.color || '#fff', 14);
       }
       S.others.set(id, Object.assign(o, { tx: x, ty: y, face, air, dead, marks }));
+      if (air === 2 && (id !== room.you || !racing())) {   // dashing: leave afterimages like this player's
+        S.parts.push({ x, y: y - PH / 2, vx: 0, vy: 0, life: 0.18, max: 0.18, color: player(id)?.color || '#fff', size: 0, g: 0, ghost: face });
+      }
     }
   }
 }
@@ -459,7 +464,7 @@ function simulate(now) {
   }
   if (now - lastSent > 0.066) {
     lastSent = now;
-    room.send({ t: 'p', v: [Math.round(p.x), Math.round(p.y), p.face, p.ground ? 0 : 1, p.dead ? 1 : 0] });
+    room.send({ t: 'p', v: [Math.round(p.x), Math.round(p.y), p.face, p.ground ? 0 : p.dashT ? 2 : 1, p.dead ? 1 : 0] });
   }
 }
 
@@ -475,6 +480,7 @@ function hud(now) {
     if (now < 0) {
       const n = Math.ceil(-now);
       text = n > 3 ? theme().name : String(n);
+      if (n > 3 && theme().tip) { text += ` · ${theme().tip}`; small = true; }
       if (n !== lastCount && n <= 3) sound('tick');
       lastCount = n;
     } else if (now < 0.8) {
@@ -763,7 +769,7 @@ function draw(now, dt) {
     const p = player(id);
     if (!p || !seen(o.x - 20, 40)) continue;
     runner(o.x, o.y, { color: p.color, face: o.face, air: o.air, dead: o.dead, alpha: 0.85, marks: o.marks || 0, hat: p.hat,
-      landed: wall - (o.landAt ?? -9), moving: Math.abs(o.tx - o.x) > 0.5 });
+      landed: wall - (o.landAt ?? -9), moving: Math.abs(o.tx - o.x) > 0.5, dashing: o.air === 2 });
     ctx.fillStyle = th.label;
     ctx.fillText(p.name, o.x, o.y - PH - 12);
     if (p.item && p.fin == null) holding(o.x + ctx.measureText(p.name).width / 2 + 12, o.y - PH - 17);
@@ -795,8 +801,9 @@ function draw(now, dt) {
   drawEffects();
   drawEmotes(wall);
 
-  // in front of everything, on the screen: the weather, then the race so far
+  // in front of everything, on the screen: the caverns' dark, the weather, then the race so far
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (c.theme === 'cave') darkness(f, k, cam.x - sx0, cam.y - sy0, t, wall);
   weather(th, wall);
   if (S.incoming.some(i => i.to.includes(room.you)) && racing()) {
     const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.35, canvas.width / 2, canvas.height / 2, canvas.height * 0.8);
@@ -806,6 +813,40 @@ function draw(now, dt) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   progress();
+}
+
+// The caverns are dark: everything goes dim except near the racer the camera follows, faintly near
+// the others, and round what glows (saws, item boxes, flags, the finish, rising lava).
+function darkness(f, k, cx, cy, t, wall) {
+  const W = canvas.width, H = canvas.height, c = S.course;
+  const g = (S.dark ||= document.createElement('canvas')).getContext('2d');
+  if (S.dark.width !== W || S.dark.height !== H) { S.dark.width = W; S.dark.height = H; }
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(8,6,14,0.88)';
+  g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'destination-out';
+  const light = (x, y, r, a = 1) => {
+    const sx = (x - cx) * k, sy = (y - cy) * k, sr = r * k;
+    if (sx < -sr || sx > W + sr || sy < -sr || sy > H + sr) return;
+    const grad = g.createRadialGradient(sx, sy, sr * 0.35, sx, sy, sr);
+    grad.addColorStop(0, `rgba(0,0,0,${a})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
+  };
+  const flicker = 1 + Math.sin(wall * 9) * 0.02 + Math.sin(wall * 23) * 0.015;
+  light(f.x, f.y - PH / 2, 300 * flicker);
+  for (const [id, o] of S.others) if (o !== f && !(id === room.you && f === S.me)) light(o.x, o.y - PH / 2, 90, 0.7);
+  for (const s of c.saws) light(posX(s, t), posY(s, t), s.r + 46, 0.75);
+  for (const [bx, by] of c.boxes) light(bx, by, 60, 0.7);
+  c.segs.forEach((x, i) => { if (i) light(x + 50, -54, 70, 0.6); });
+  light(c.finish + 30, -100, 200, 0.8);
+  c.lavas.forEach((l, i) => {
+    const top = S.me && mine()?.racing ? lavaTop(S.me, l, i, t) : l.base;
+    for (let x = l.x0 + 60; x < l.x1; x += 120) light(x, top, 110, 0.6);
+  });
+  ctx.drawImage(S.dark, 0, 0);
 }
 
 // The sky's far layers, and what's in it, by theme.

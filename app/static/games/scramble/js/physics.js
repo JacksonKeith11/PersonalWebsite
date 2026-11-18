@@ -10,6 +10,9 @@ export const SPIKE_H = 18, PIT = 520;   // fall below PIT and you're out
 export const CRUMBLE = 0.5, CRUMBLE_H = 26;   // seconds a crumbling block holds once stood on
 export const BELT_H = 24, BLINK_H = 22;
 export const DASH_V = 560, DASH_T = 0.16;   // the air dash: this fast, for this long, once per jump
+// What some themes do underfoot: snow is ice (slow to speed up, slow to stop), and in the dunes sand
+// slows running on the ground (hop to keep your speed). course.py's bots know these numbers too.
+export const ICE_ACC = 700, SAND = 0.8;
 const HALF = PW / 2;
 
 // Turn the server's arrays into objects.
@@ -90,7 +93,8 @@ export function step(p, inp, t, c) {
   for (const w of c.winds) {   // and the wind
     if (gusting(w, t) && p.x + HALF > w.x && p.x - HALF < w.x + w.w && p.y > w.y && p.y - PH < w.y + w.h) p.x += w.v * dt;
   }
-  const acc = (p.ground ? 3000 : 1800) * dt, want = inp.dir * RUN * (p.speed ?? 1) - p.vx;
+  const ice = c.theme === 'snow', sand = c.theme === 'desert' && p.ground;
+  const acc = (p.ground ? (ice ? ICE_ACC : 3000) : 1800) * dt, want = inp.dir * RUN * (p.speed ?? 1) * (sand ? SAND : 1) - p.vx;
   if (inp.dir) p.face = inp.dir;
 
   // the air dash: a press in the air sends you level and fast for a moment, once until you land

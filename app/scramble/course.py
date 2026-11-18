@@ -22,13 +22,17 @@ A built course is plain data for the browser:
                                                  to `cap` (each racer has their own, as with crumbles)
     boxes   [x, y]                               item boxes, at the start of every other obstacle
     segs    [x, ...]                             where each segment starts (the checkpoints)
-plus, for the server's bots only, `legs`: the way through as runs and jumps (see `legs_of`).
+    theme   "meadow" | "desert" | "snow" | "dusk" | "cave"  (set by the server: snow is icy and the
+            dunes' sand slows running, in physics.js; the caverns are dark, in main.js)
+plus, for the server's bots only, `legs`: the way through as runs and jumps (see `legs_of`), and
+`alts`: other ways through some segments (the fork's trench), by segment index, for bots to choose.
 """
 
 import math
 import random
 
 RUN = 300  # px/s; the same number as js/physics.js
+SAND = 0.8  # running on the dunes' sand is this fast (js/physics.js too)
 DEEP = 600  # how far down a ground block goes (past the bottom of the screen)
 SPIKE_H = 18
 
@@ -41,6 +45,7 @@ class Seg:
         self.plats, self.spikes, self.saws, self.movers, self.pads, self.crumbles = [], [], [], [], [], []
         self.belts, self.blinks, self.winds, self.lavas = [], [], [], []
         self.route = []  # (x0, x1, top): the surfaces a bot crosses, in order
+        self.alt = []  # another way through, the same way (plus ("ride", mover, x, x, bottom, top) items)
         self.w = 0
 
     def ground(self, x, w, top=0, h=DEEP, spikes=()):
@@ -362,6 +367,8 @@ def seg_fork(r, d):
             s.saw(x + 60, -70, 24, 0, 40, r.uniform(1.6, 2.2), r.uniform(0, 6.28))
     s.movers.append([905, floor // 2, 90, 22, 0, floor // 2, round(r.uniform(2.8, 3.4), 3), round(r.uniform(0, 6.28), 3)])
     s.ground(1000, 200)
+    # the slow way, for cautious bots: down to the floor, wait by the lift, ride it up
+    s.alt = [(0, 200, 0), (240, 880, floor), ("ride", len(s.movers) - 1, 880, 950, floor, 0), (1000, 1200, 0)]
     return s
 
 
@@ -372,10 +379,17 @@ THEMES = ("meadow", "desert", "snow", "dusk", "cave")
 D_FIRST = 0.35  # the first obstacle's difficulty; the last is 1
 
 
-def legs_of(route, seg):
-    """A route as legs for a bot: ("run" | "jump", x0, y0, x1, y1, seconds, arc height, segment)."""
+def legs_of(route, seg, movers=0):
+    """A route as legs for a bot: ("run" | "jump", x0, y0, x1, y1, seconds, arc height, segment), or
+    ("ride", x0, y0, x1, y1, 0, mover, segment): wait at x0 for the lift `mover` (its index in the
+    course, `movers` being how many came before this segment's) to come down, then ride it up."""
     legs = []
-    for i, (x0, x1, top) in enumerate(route):
+    for i, item in enumerate(route):
+        if item[0] == "ride":
+            _, m, xa, xb, bottom, top = item
+            legs.append(("ride", xa, bottom, xb, top, 0.0, movers + m, seg))
+            continue
+        x0, x1, top = item
         if i and not (x0 - legs[-1][3] < 1 and top == legs[-1][4]):
             px, py = legs[-1][3], legs[-1][4]
             rise = max(0, py - top)
@@ -389,7 +403,8 @@ def legs_of(route, seg):
 
 def build(seed, n, makers=None, d=None):
     """A course of `n` obstacle segments (or exactly `makers`), from difficulty D_FIRST at the
-    first to 1 at the last (or all at difficulty `d`, 0 to 1)."""
+    first to 1 at the last (or all at difficulty `d`, 0 to 1). Returns the course, the bots' legs,
+    each segment's risk and the other ways through ({segment: legs}, to swap in for that segment's)."""
     r = random.Random(seed)
     if makers is None:
         pool = r.sample(SEGMENTS, len(SEGMENTS))
@@ -397,17 +412,23 @@ def build(seed, n, makers=None, d=None):
     keys = ("plats", "spikes", "saws", "movers", "pads", "crumbles", "belts", "blinks", "winds")
     course = {k: [] for k in keys}
     course.update({"lavas": [], "boxes": [], "segs": [], "names": []})
-    legs, risks, x = [], [], 0
+    legs, risks, alts, x = [], [], {}, 0
     for i, make in enumerate([seg_start, *makers, seg_finish]):
         if d is not None:
             level = d
         else:
             level = D_FIRST + (1 - D_FIRST) * (i - 1) / max(1, len(makers) - 1)
         s = make(r, min(1.0, max(0.0, level)))
+        movers = len(course["movers"])
         for key in keys:
             course[key] += [[v[0] + x, *v[1:]] for v in getattr(s, key)]
         course["lavas"] += [[a + x, b + x, trig + x, *rest] for a, b, trig, *rest in s.lavas]
         route = [(a + x, b + x, top) for a, b, top in s.route]
+        if s.alt and legs:
+            alt = [(v[0], v[1], v[2] + x, v[3] + x, *v[4:]) if v[0] == "ride" else (v[0] + x, v[1] + x, v[2])
+                   for v in s.alt]
+            alt[0] = (legs[-1][3], alt[0][1], alt[0][2])
+            alts[i] = legs_of([(legs[-1][3], legs[-1][3], legs[-1][4]), *alt], i, movers)[1:]
         if legs:  # carry on from where the last segment's route ended
             route[0] = (legs[-1][3], route[0][1], route[0][2])
             legs += legs_of([(legs[-1][3], legs[-1][3], legs[-1][4]), *route], i)[1:]
@@ -421,4 +442,4 @@ def build(seed, n, makers=None, d=None):
         x += s.w
     course["finish"] = x - 400
     course["length"] = x
-    return course, legs, risks
+    return course, legs, risks, alts

@@ -8,7 +8,13 @@ Read this before changing anything in `app/scramble/`, `app/static/games/scrambl
 A side-on obstacle-course race for 1-8 players, each on their own phone or computer; the host can
 add bots. Every round is a new course: a start, seven to eleven obstacle segments picked at random
 from twenty-one kinds (more in later rounds) and a finish, in one of five themes (Meadow, Dunes,
-Snowfield, Dusk, Caverns; the look only, dealt out so a game doesn't repeat one until all five are used). Each course gets harder along its length,
+Snowfield, Dusk, Caverns; dealt out so a game doesn't repeat one until all five are used). Three of
+them play differently: **Snowfield** is ice (on the ground you speed up and slow down at 700 px/s²
+instead of 3000, `ICE_ACC`), the **Dunes'** sand slows running on the ground to 0.8× (`SAND`; in the air you
+get your speed back, so hopping beats running), and the **Caverns** are dark (only the drawing:
+`darkness()` in `main.js` lights a pool round the racer the camera follows, dimmer ones round the
+others, and glows round saws, boxes, flags, lava and the finish). The countdown and the first seconds
+of the race say so. Each course gets harder along its length,
 from difficulty 0.35 at the first obstacle to 1 at the last (`D_FIRST`), and every kind of segment
 scales with it (wider gaps, thinner pillars, faster saws, extra hazards). Touch a spike or a saw, or
 fall in a pit, and after 1.2 s you start that segment again from its flag. Racers run through each
@@ -63,17 +69,31 @@ alone on the course only rolls boosts.
   half of each period, set a quarter period apart so they come and go in a wave; `winds` push whoever
   is in them while they gust (over gaps only, so standing still is always safe); `lavas` rise from
   when a racer passes their trigger, per racer like crumbles (`p.lava`), and reset on a respawn. The
-  `fork` segment has two ways over a trench: stones to hop (bots go this way) or the floor and a lift.
+  `fork` segment has two ways over a trench: stones to hop or the floor and a lift (bots take either).
 - **Crumbling blocks crumble for each racer separately**: `p.stood` in `physics.js` records when this
   player first stood on each, and a respawn resets it. Other racers' crumbles aren't drawn.
 - **Bots don't run the physics.** Each segment lists the surfaces a bot crosses (`Seg.route`), which
   `legs_of` turns into runs and jumps; `Room.move_bot` walks a bot along them at its own pace
   (`skill`, 0.62-0.92 of flat out) and now and then has it fluff a jump and restart the segment,
-  more often on segments with a higher `risk` (scaled up with the segment's difficulty). Bots run
-  through boxes, use their item after a second or three (holding a bolt, freeze or swap until
-  someone is ahead, and a trap until someone is close behind), are caught once by each trap, and
-  run slower or faster while frozen or boosted. A swap puts a bot on the nearest ground at or before
-  where it lands (`Room.place_bot`).
+  more often on segments with a higher `risk` (scaled up with the segment's difficulty, and by
+  `ICE_RISK` on snow). On the dunes they run at 0.9× (half the sand's slowing: people can hop it).
+  - **Dashes**: on a jump over 150 px a bot dashes with a chance of its skill less 0.2, getting
+    across 1.3× quicker (`DASH_PACE`) and reporting `air` 2 so browsers draw its afterimages (a
+    browser reports 2 while its own player dashes, too).
+  - **Other ways through**: a segment can have a second route (`Seg.alt`; only the fork's trench so
+    far), built into legs as `alts` (`course.build` returns it, by segment index). At the start of
+    a round `Room.route_for` gives each bot its own legs (`Player.legs`), swapping the slow way in
+    with a chance of 0.15 + 0.9 × (0.92 − skill), so clumsy bots take it more; a bot on the slow
+    way never fluffs that segment (`Player.calm`). A `ride` leg waits for the lift to reach the
+    bottom, then rides it up on the race clock (`Room.ride`), not the bot's pace.
+  - **Items**: they run through boxes and look at using their item after a second or three, then
+    every half second until it would do some good (`bot_items`): a swap or grapple once the racer
+    ahead is 400 px ahead, a curse when that racer is in a risky segment, a freeze with two ahead or
+    one within 900 px, a trap on the ground with someone within 450 px behind. After 8 s held
+    (`BOT_PATIENCE`) they settle for less (150 px for a swap or grapple). Shields go up straight
+    away (a shield stays up until something hits it, so holding one back gains nothing). Bots are
+    caught once by each trap and run slower or faster while frozen or boosted.
+  - A swap puts a bot on the nearest ground at or before where it lands (`Room.place_bot`).
 - **Results**: the server counts each racer's falls, items used, items landed and hits taken
   (`stats` in `state`), gives up to four awards a round (`awards()`: Never fell, Sharpshooter, Most
   bolted, Item hoarder, Bounced back; at most one each, no ties), and keeps the room's best time
@@ -113,11 +133,15 @@ alone on the course only rolls boosts.
 
 ## Gotchas
 
-- **`RUN` is in two places**: `course.py` (the bots' pace, and the finish check) and `physics.js`.
+- **`RUN` is in two places**: `course.py` (the bots' pace, and the finish check) and `physics.js`; `SAND` too.
   So are `KNOCKOUT` and the freeze, boost and curse numbers: `game.py` (bots, and what's drawn on
   others) and `main.js` (this player). The counts of hats and emotes are in both too.
 - **Anything per-racer on the player object must be replaced, not changed** (`stood`, `lava`): the
   checker's search copies players shallowly. Its state key includes the lava start times.
+- **A theme that changes the physics must be searched**: `physics.js` reads `c.theme` (the server
+  sets it on the course after building it), and `tools/scramble-check.mjs` builds a hard variant of
+  every segment for each such theme. Add a new one to its list. The checks there are why snow is
+  700, not slipperier, and why sand slows running rather than jumping.
 - **Blinking platforms must move slower than a runner**: the wave advances a platform a quarter
   period at a time; at 2.6 s or more that's under 300 px/s. Quicker and nobody can keep up with it.
 - **A swap moves you to where the other racer last stood** (`Player.safe`, updated whenever a racer
@@ -139,14 +163,19 @@ alone on the course only rolls boosts.
 
 ## Checking a change
 
-- `node tools/scramble-check.mjs` (about 40 s): every segment can be finished, at difficulty 0.35
-  and at 1. In `check-all.sh`. A new segment goes in `SEGMENTS` and must pass it.
+- `node tools/scramble-check.mjs` (about 1 m 45 s): every segment can be finished, at difficulty 0.35
+  and at 1, and at 1 on snow and on the dunes. In `check-all.sh`. A new segment goes in `SEGMENTS`
+  and must pass it. On ice the search tells states apart by speed in steps of 100 px/s; finer and the
+  600 states it keeps fill up with near-copies and it loses the way up the lava (a wider search,
+  3000, finds it either way).
 - `python3 tools/scramble-check.py` (about 5 s): bots race whole games on a fake clock (one human
   standing still, seven bots using items on each other); scoring, finishing, watching, leaving, every
   item (bolts and freezes arriving late, and blocked by a late shield), emotes, hats, records and
-  awards. Latest runs (November 2026, after the new segments and items): bots finish in 36-121 s
-  (average about 78), and about 10% run out of time, mostly the slow bots that get hit most. Before
-  the difficulty and item changes it was 26-70 s and about 5%. In `check-all.sh`.
+  awards; the fork's slow way and the lift, bot dashes, and bots waiting for a good moment to use an
+  item. Latest runs (November 2026, after theme mechanics and smarter bots): bots finish in 36-123 s
+  (average about 75), and 6-19 of about 105 run out of time (the runs before these changes: 11-15),
+  mostly the slow bots that get hit most. Before the difficulty and item changes it was 26-70 s and
+  about 5%. In `check-all.sh`.
 - `node tools/scramble-smoke.js --serve` (about 45 s): two browsers, one phone-sized, and a bot race
   a round, including grabbing and using an item. In `check-all.sh`; skipped where Playwright isn't
   installed. `--shots <folder>` saves screenshots.

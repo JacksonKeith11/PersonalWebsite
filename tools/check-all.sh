@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The fast checks, before a push (every push to main goes live). About four and a half minutes.
+# The fast checks, before a push (every push to main goes live). About six and a half minutes.
 #     tools/check-all.sh
 # The other games' browser smoke tests need a running server and aren't included: see each area's doc.
 # Kingfall's, Sketch Relay's, Scramble's and Holdfast's start their own server, and are skipped where Playwright isn't installed.
@@ -32,7 +32,7 @@ run "Kingfall: bot fights"           python3 tools/kingfall-sim.py --fast
 run "Kingfall: a run in a browser"   node tools/kingfall-smoke.js --serve
 run "Sketch Relay: pretend games"    python3 tools/relay-check.py
 run "Sketch Relay: in three browsers" node tools/relay-smoke.js --serve
-run "Scramble: segments finishable"  node tools/scramble-check.mjs
+run "Scramble: segments finishable"  node tools/scramble-check.mjs 1
 run "Scramble: bot races"            python3 tools/scramble-check.py
 run "Scramble: in two browsers"      node tools/scramble-smoke.js --serve
 run "Holdfast: the room's rules"     python3 tools/holdfast-check.py

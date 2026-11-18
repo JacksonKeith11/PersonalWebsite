@@ -40,7 +40,17 @@ SEGMENTS = (7, 11)  # obstacle segments in the first and the last round
 KNOCKOUT = 1.2  # seconds a knocked-out racer waits before going back to their flag (js/main.js too)
 
 # Items. Effects that last are timed on the server (for bots, and so everyone can see them).
-ITEMS = ("bolt", "freeze", "trap", "swap", "shield", "boost", "curse", "grapple")
+ITEMS = ("bolt", "freeze", "trap", "swap", "shield", "boost", "curse", "grapple",
+         "crossbow", "honey", "fan", "hole", "plank", "bomb")
+# Things put down on the course (after Ultimate Chicken Horse's pieces): how long each lasts. They're
+# in `state` (`props`); each browser's physics.js does what they do to its own player (never to
+# whoever put them down, except a plank, which anyone can stand on), and the server does it to bots.
+PROP_LIFE = {"crossbow": 10, "honey": 12, "fan": 8, "hole": 7, "plank": 10}
+ARROW_RANGE = 650  # a crossbow's reach behind where it stands (js/physics.js has the rest)
+HONEY, HONEY_W = 0.35, 90  # how fast you run in honey, and how wide a puddle is (physics.js too)
+FAN_W, FAN_SLOW = 380, 0.55  # a fan's reach behind it; bots in it run this fast (people are blown back)
+HOLE_R = 210  # a black hole's pull reaches this far (it hovers 95 px up)
+BOMB_R, BOMB_CLEAR = 170, 450  # a bomb knocks out racers this close and clears traps and props this close
 FREEZE, FREEZE_SPEED = 2.5, 0.5  # seconds, and how fast the frozen run
 BOOST, BOOST_SPEED = 2.0, 1.5
 CURSE, CURSE_SPEED = 3.0, 0.6  # seconds a curse reverses a racer's controls (bots: run this slowly)
@@ -70,6 +80,12 @@ def item_weights(f, ahead, behind):
         "swap": 3 * f if ahead and f >= 0.5 else 0,
         "curse": 2 * f if ahead else 0,
         "grapple": 2.5 * f if ahead and f >= 0.4 else 0,
+        "crossbow": (2.2 - 1.2 * f) if behind else 0,
+        "honey": (2.2 - 1.2 * f) if behind else 0,
+        "fan": (1.8 - f) if behind else 0,
+        "hole": (1.6 - f) if behind else 0,
+        "plank": 0.6 + 1.6 * f,
+        "bomb": 1.5,
     }
 
 
@@ -126,6 +142,7 @@ class Room:
         self.until = 0.0  # monotonic time the results screen ends
         self.order = []  # ids in finishing order
         self.traps = []  # [id, x, y, w, owner, until]
+        self.props = []  # [id, kind, x, y, owner, since, until, face]: crossbows, honey, fans, black holes, planks
         self.next_trap = 1
         self.incoming = []  # [lands at, item, user, [targets]]: bolts and freezes on their way
         self.records = {}  # segment name -> [seconds, racer's name]: the room's best through each kind
@@ -226,7 +243,7 @@ class Room:
             self.grab(p, msg.get("i"))
             return
         if t == "use":
-            self.use(p)
+            self.use(p, msg.get("at"))
             return
         if t == "emote":
             self.emote(p, msg.get("k"))
@@ -299,6 +316,7 @@ class Room:
         self.ends = None
         self.order = []
         self.traps = []
+        self.props = []
         self.incoming = []
         self.new_records, self.awards = [], []
         seats = [p for p in self.players.values() if p.bot or p.connected][:MAX_PLAYERS]
@@ -399,6 +417,7 @@ class Room:
             pace *= (1 + C.SAND) / 2  # the sand slows bots too (half as much: people can hop it)
         if p.dashing:
             pace *= DASH_PACE
+        pace *= self.props_on_bot(p)
         p.leg_t += pace
         while True:
             kind, x0, y0, x1, y1, secs, arc, seg = legs[p.leg]
@@ -447,6 +466,27 @@ class Room:
                 p.falls += 1
         if p.x >= self.course["finish"]:
             self.finished(p)
+
+    def props_on_bot(self, p):
+        """What other racers' props do to a bot: honey and fans slow it; a crossbow or a black hole
+        may knock it out, once each (like a trap)."""
+        now, pace = self.now(), 1.0
+        for pid, kind, x, y, owner, since, until, face in self.props:
+            if owner == p.id or not since <= now < until:
+                continue
+            if kind == "honey" and not p.air and abs(p.y - y) < 6 and abs(p.x - x) < HONEY_W / 2:
+                pace *= HONEY
+            elif kind == "fan" and 0 < (x - p.x) * face < FAN_W and y - 260 < p.y < y + 40:
+                pace *= FAN_SLOW
+            elif kind in ("crossbow", "hole") and pid not in p.wary and p.dead == 0:
+                near = (0 < (x - p.x) * face < ARROW_RANGE and abs(p.y - y) < 60 if kind == "crossbow"
+                        else math.hypot(p.x - x, p.y - 20 - (y - 95)) < HOLE_R * 0.6)
+                if near:
+                    p.wary.add(pid)
+                    if random.random() < (0.3 if kind == "crossbow" else 0.35) * (1.2 - p.skill):
+                        self.knock(p)
+                        p.falls += 1
+        return pace
 
     # ------------------------------------------------------------ items
 
@@ -512,9 +552,15 @@ class Room:
         self.next_trap += 1
         self.send_state()
 
-    def use(self, p):
+    def use(self, p, at=None):
         if self.phase != "race" or not p.racing or p.fin is not None or p.item is None or self.now() < 0:
             return
+        # where the browser says its player was when they pressed (it's quicker than the last `p`)
+        if (isinstance(at, list) and len(at) == 4 and all(isinstance(n, (int, float)) and math.isfinite(n) for n in at)
+                and abs(at[0] - p.x) < 250 and abs(at[1] - p.y) < 250):
+            x, y, face, air = float(at[0]), float(at[1]), (-1 if at[2] < 0 else 1), bool(at[3])
+        else:
+            x, y, face, air = p.x, p.y, p.face, bool(p.air)
         item, p.item, p.use_at = p.item, None, None
         p.used += 1
         now = self.now()
@@ -552,6 +598,23 @@ class Room:
                 p.trap_pending = True
             else:
                 self.drop_trap(p)
+        elif item in ("crossbow", "honey", "fan", "hole"):
+            # on the ground where they last stood (in the air: where they last stood, too)
+            sx, sy = (x, y) if not air else p.safe
+            self.put(item, sx, sy, p.id, face)
+        elif item == "plank":
+            # under their feet and on ahead; in the air, a little below them, to land on
+            self.put(item, x, y + (50 if air else 0), p.id, face)
+        elif item == "bomb":
+            fx["pos"] = [round(x), round(y)]
+            gone = len(self.traps) + len(self.props)
+            self.traps = [t for t in self.traps if abs(t[1] + t[3] / 2 - x) > BOMB_CLEAR]
+            self.props = [q for q in self.props if abs(q[2] - x) > BOMB_CLEAR]
+            fx["cleared"] = gone - len(self.traps) - len(self.props)
+            for q in self.running(but=p):
+                if math.hypot(q.x - x, q.y - y) < BOMB_R and self.hit(p, q, fx):
+                    self.knock(q)
+                    q.falls += 1
         elif item == "shield":
             p.shield = True
         elif item == "boost":
@@ -559,6 +622,12 @@ class Room:
             fx["to"].append(p.id)
         self.everyone(fx)
         self.send_state()
+
+    def put(self, kind, x, y, owner, face):
+        now = self.now()
+        self.props.append([self.next_trap, kind, round(x), round(y), owner, round(now, 3),
+                           round(now + PROP_LIFE[kind], 3), face])
+        self.next_trap += 1
 
     def hit(self, by, q, fx):
         """An item lands on q, unless their shield takes it."""
@@ -626,6 +695,8 @@ class Room:
             gap = ahead[0].x - p.x if ahead else 0
             if p.item in ("bolt", "freeze", "swap", "curse", "grapple") and not ahead or p.item == "trap" and not behind:
                 good = False
+            elif p.item in ("crossbow", "honey", "fan", "hole") and not behind:
+                good = False
             elif p.item in ("swap", "grapple"):
                 good = gap > (150 if impatient else 400)
             elif p.item == "curse":
@@ -635,6 +706,18 @@ class Room:
                 good = impatient or len(ahead) >= 2 or gap < 900
             elif p.item == "trap":
                 good = p.air == 0 and (impatient or min(p.x - q.x for q in behind) < 450)
+            elif p.item in ("crossbow", "honey", "fan", "hole"):
+                if not behind:
+                    good = False
+                else:
+                    reach = {"crossbow": 600, "honey": 350, "fan": 380, "hole": 300}[p.item]
+                    good = p.air == 0 and (impatient or min(p.x - q.x for q in behind) < reach)
+            elif p.item == "bomb":
+                others = self.running(but=p)
+                near = any(math.hypot(q.x - p.x, q.y - p.y) < BOMB_R * 0.8 for q in others)
+                stuff = any(abs(t[1] - p.x) < BOMB_CLEAR and t[4] != p.id for t in self.traps) or any(
+                    abs(q[2] - p.x) < BOMB_CLEAR and q[4] != p.id and q[1] != "plank" for q in self.props)
+                good = near or stuff or impatient
             else:
                 good = True
             if good:
@@ -665,8 +748,9 @@ class Room:
                         self.move_bot(p, TICK)
                 self.bot_items()
             self.land_incoming()
-            if any(trap[5] < now for trap in self.traps):
+            if any(trap[5] < now for trap in self.traps) or any(q[6] < now for q in self.props):
                 self.traps = [trap for trap in self.traps if trap[5] >= now]
+                self.props = [q for q in self.props if q[6] >= now]
                 self.send_state()
             racers = self.racers()
             self.everyone({"t": "pos", "now": round(now, 3),
@@ -720,6 +804,7 @@ class Room:
             sorted([k, *v] for k, v in self.records.items()) if self.phase == "final" else [],
             "awards": self.awards if self.phase in ("results", "final") else [],
             "traps": [t[:5] for t in self.traps],
+            "props": self.props,
             "ends": self.ends,
         }
         if self.phase == "results":

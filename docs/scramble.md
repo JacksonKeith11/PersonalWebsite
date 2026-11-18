@@ -7,7 +7,10 @@ Read this before changing anything in `app/scramble/`, `app/static/games/scrambl
 
 A side-on obstacle-course race for 1-8 players, each on their own phone or computer; the host can
 add bots. Every round is a new course: a start, seven to eleven obstacle segments picked at random
-from twenty-one kinds (more in later rounds) and a finish, in one of five themes (Meadow, Dunes,
+from seventy-five kinds (more in later rounds; the fifty-four newer ones borrow mechanics from other
+platformers: firebars, crushers, cannons, pipes with biting plants, red/blue switch blocks, pendulums,
+ferris wheels, barrel cannons, jump rings, low gravity, updrafts, one-way clouds, rolling boulders,
+lasers, portals and more; each one's docstring in `course.py` says what it borrows) and a finish, in one of five themes (Meadow, Dunes,
 Snowfield, Dusk, Caverns; dealt out so a game doesn't repeat one until all five are used). Three of
 them play differently: **Snowfield** is ice (on the ground you speed up and slow down at 700 px/s²
 instead of 3000, `ICE_ACC`), the **Dunes'** sand slows running on the ground to 0.8× (`SAND`; in the air you
@@ -38,6 +41,18 @@ the nastier the roll (`item_weights`):
 | Boost | Run 1.5× as fast for 2 s |
 | Curse | Flips the controls of the racer just ahead for 3 s (bots run at 0.6× instead) |
 | Grapple | Puts you where the racer just ahead last stood; they aren't moved. Back 60% of the field only |
+| Crossbow | Put down where you stand, facing back down the course: an arrow every 1.4 s for 10 s, 650 px |
+| Honey | A sticky puddle where you stand for 12 s: anyone else on it runs at 0.35× |
+| Fan | Blows anyone behind you (380 px) back at 230 px/s for 8 s |
+| Black hole | Hovers over where you stand for 7 s, pulling anyone within 210 px in; its core kills |
+| Plank | A plank under your feet and on ahead for 10 s (50 px below you if used in the air, to land on); anyone can stand on it |
+| Bomb | Knocks out racers within 170 px (a shield saves them) and clears every trap and prop within 450 px |
+
+The last six (the owner asked for items like Ultimate Chicken Horse's) put things on the course that
+everyone has to deal with. They're `props` in `state` (`[id, kind, x, y, owner, since, until, face]`,
+`Room.props`); physics.js does what they do to its own player, never to whoever put them down (except
+the plank, which is solid for everyone). Leaders roll the four hazards (only with someone behind);
+the back of the field rolls more planks; anyone can roll a bomb.
 
 Bolts and freezes **take 0.7 s to arrive** (`INCOMING`): the server sends `warn` to everyone, the
 target's screen flashes red and says so, and a shield used before it lands blocks it. Bots holding a
@@ -70,6 +85,15 @@ alone on the course only rolls boosts.
   is in them while they gust (over gaps only, so standing still is always safe); `lavas` rise from
   when a racer passes their trigger, per racer like crumbles (`p.lava`), and reset on a respawn. The
   `fork` segment has two ways over a trench: stones to hop or the floor and a lift (bots take either).
+- **The newer course pieces** (all in `physics.js`, all functions of the race time, listed in
+  `course.py`'s docstring): movers and saws have a `kind` (0 swinging, 1 round an ellipse, 2 a
+  pendulum, 3 slamming); `bars` (firebars), `crushers` (deadly blocks), `cannons` (a shot every
+  period, worked out from the time, so they need no state), `jets` (deadly for part of each period;
+  flames, pop-up spikes, lasers, plants, choppers, jaws are only looks), `rings` (a fresh jump press
+  while touching one jumps again), `barrels` (hold you until a fresh jump press, or by themselves if
+  `auto`, then fire you off; nobody steers for `FLING` s), `chasers` (a boulder per racer, like lava),
+  `zones` (low gravity, goo, ice, updraft), `ledges` (one-way), `portals`, pad strengths and plat looks.
+  Bots ignore all of it: their routes cross the surfaces and dice (`risk`) stand in for the hazards.
 - **Crumbling blocks crumble for each racer separately**: `p.stood` in `physics.js` records when this
   player first stood on each, and a respawn resets it. Other racers' crumbles aren't drawn.
 - **Bots don't run the physics.** Each segment lists the surfaces a bot crosses (`Seg.route`), which
@@ -86,6 +110,9 @@ alone on the course only rolls boosts.
     with a chance of 0.15 + 0.9 × (0.92 − skill), so clumsy bots take it more; a bot on the slow
     way never fluffs that segment (`Player.calm`). A `ride` leg waits for the lift to reach the
     bottom, then rides it up on the race clock (`Room.ride`), not the bot's pace.
+  - **Props**: honey and fans slow a bot inside them; passing a crossbow or a black hole it may be
+    knocked out, once each (`Room.props_on_bot`). Bots put the four hazards down with someone close
+    behind, a plank whenever, and a bomb with someone (or someone else's props) close.
   - **Items**: they run through boxes and look at using their item after a second or three, then
     every half second until it would do some good (`bot_items`): a swap or grapple once the racer
     ahead is 400 px ahead, a curse when that racer is in a risky segment, a freeze with two ahead or
@@ -142,6 +169,15 @@ alone on the course only rolls boosts.
   sets it on the course after building it), and `tools/scramble-check.mjs` builds a hard variant of
   every segment for each such theme. Add a new one to its list. The checks there are why snow is
   700, not slipperier, and why sand slows running rather than jumping.
+- **A pendulum's home is the bottom of its swing**: it rises (y goes down) towards the ends. The
+  chain is drawn from `y - dx`. (The first version had the sign the wrong way and swung into the floor.)
+- **Barrels are placed by working out the shot**: `course.fly` steps a shot the way physics.js does
+  (gravity, then move; nobody steers during `FLING`) so a blast barrel's next barrel sits on its path,
+  and `course.landing` finds where a shot comes down. Change the physics and these must follow.
+- **`fx.pos`, not `fx.at`**: the browser stamps every effect with `at` (its own clock), so a bomb's
+  position travels as `pos`.
+- **The checker's beam keeps a spread of positions** (at most a twelfth of it per 64 px), or states
+  standing on platforms about to vanish crowd out the ones waiting further back for them to come round.
 - **Blinking platforms must move slower than a runner**: the wave advances a platform a quarter
   period at a time; at 2.6 s or more that's under 300 px/s. Quicker and nobody can keep up with it.
 - **A swap moves you to where the other racer last stood** (`Player.safe`, updated whenever a racer
@@ -163,18 +199,20 @@ alone on the course only rolls boosts.
 
 ## Checking a change
 
-- `node tools/scramble-check.mjs` (about 1 m 45 s): every segment can be finished, at difficulty 0.35
-  and at 1, and at 1 on snow and on the dunes. In `check-all.sh`. A new segment goes in `SEGMENTS`
-  and must pass it. On ice the search tells states apart by speed in steps of 100 px/s; finer and the
+- `node tools/scramble-check.mjs` (about 5 minutes on four cores; 600 courses): every segment can be
+  finished, at difficulty 0.35 and at 1 on three random builds, and at 1 on snow and on the dunes. The
+  searches run in one worker thread per core. `check-all.sh` runs one build of each
+  (`node tools/scramble-check.mjs 1`, about 2 m 20 s); run all three after changing a segment, or
+  name the segments to search just those (`node tools/scramble-check.mjs 3 maces swings`). A new
+  segment goes in `SEGMENTS` (the newer ones in `MORE`) and must pass it. On ice the search tells states apart by speed in steps of 100 px/s; finer and the
   600 states it keeps fill up with near-copies and it loses the way up the lava (a wider search,
   3000, finds it either way).
 - `python3 tools/scramble-check.py` (about 5 s): bots race whole games on a fake clock (one human
   standing still, seven bots using items on each other); scoring, finishing, watching, leaving, every
   item (bolts and freezes arriving late, and blocked by a late shield), emotes, hats, records and
-  awards; the fork's slow way and the lift, bot dashes, and bots waiting for a good moment to use an
-  item. Latest runs (November 2026, after theme mechanics and smarter bots): bots finish in 36-123 s
-  (average about 76), and 6-20 of about 105 run out of time (the runs before these changes: 11-15),
-  mostly the slow bots that get hit most. Before the difficulty and item changes it was 26-70 s and
+  awards; the fork's slow way and the lift, bot dashes, bots waiting for a good moment to use an
+  item, and the props (where they go, what they do to bots, running out, bombs). Latest runs (November 2026, after the 54 new segments and the props): bots finish in 35-129 s
+  (average about 74), and 5-15 of about 105 run out of time; before them, 36-123 s and 6-20. Before the difficulty and item changes it was 26-70 s and
   about 5%. In `check-all.sh`.
 - `node tools/scramble-smoke.js --serve` (about 45 s): two browsers, one phone-sized, and a bot race
   a round, including grabbing and using an item. In `check-all.sh`; skipped where Playwright isn't

@@ -409,6 +409,97 @@ async def main():
     room.bot_items()
     assert bot.item is None and room.traps
     room.traps = []
+    # Things put down (after Ultimate Chicken Horse): a crossbow, honey, a fan and a black hole go where
+    # you stood, facing the way you faced; a plank under your feet and on ahead (lower in mid-air, to
+    # land on); all of them are in `state` until they run out.
+    room.traps, room.props = [], []
+    a.p.fin, a.p.dead = None, 0
+    a.do(t="p", v=[2000, 0, 1, 0, 0])
+    for kind in ("crossbow", "honey", "fan", "hole"):
+        a.p.item = kind
+        a.do(t="use", at=[2010, 0, -1, 0])
+    assert [q[1] for q in room.props] == ["crossbow", "honey", "fan", "hole"], room.props
+    assert all(q[2:5] == [2010, 0, a.p.id] and q[7] == -1 and q[6] - q[5] == game.PROP_LIFE[q[1]] for q in room.props), room.props
+    assert a.read()["state"]["props"] == room.props
+    a.p.item = "plank"
+    a.do(t="use", at=[2100, -200, 1, 1])
+    assert room.props[-1][1:4] == ["plank", 2100, -150], "a plank used in mid-air goes below you"
+    a.p.item = "honey"
+    a.do(t="use", at=[9999, 0, 1, 0])  # nowhere near where A is: the last position is used instead
+    assert room.props[-1][2] == 2000, room.props[-1]
+    # A bot runs slowly through honey and fans, and may be caught by a crossbow or a black hole (once).
+    room.props = []
+    run_leg = next(i for i, L in enumerate(room.legs) if L[0] == "run" and L[3] - L[1] > 200 and L[2] == 0)
+    L = room.legs[run_leg]
+    bot.leg, bot.leg_t, bot.skill, bot.dead, bot.down, bot.fin = run_leg, 0.0, 0.9, 0, 0.0, None
+    room.move_bot(bot, game.TICK)
+    honey_at = bot.x + 80
+    room.props = [[900, "honey", round(honey_at), L[2], a.p.id, room.now(), room.now() + 12, 1]]
+    assert room.props_on_bot(bot) == 1.0
+    bot.x = honey_at
+    assert room.props_on_bot(bot) == game.HONEY
+    room.props = [[901, "fan", round(bot.x + 100), L[2], a.p.id, room.now(), room.now() + 8, 1]]
+    assert room.props_on_bot(bot) == game.FAN_SLOW
+    room.props[0][7] = -1  # a fan facing the other way blows the other way
+    assert room.props_on_bot(bot) == 1.0
+    room.props = [[902, "crossbow", round(bot.x + 300), L[2], a.p.id, room.now(), room.now() + 10, 1]]
+    random_was = game.random.random
+    game.random.random = lambda: 0.0
+    room.props_on_bot(bot)
+    assert bot.dead and 902 in bot.wary, "the crossbow never caught the bot"
+    bot.dead, bot.down = 0, 0.0
+    room.props_on_bot(bot)
+    assert not bot.dead, "a crossbow caught a bot twice"
+    room.props[0][4] = bot.id  # its own crossbow doesn't shoot it
+    bot.wary = set()
+    room.props_on_bot(bot)
+    assert not bot.dead
+    game.random.random = random_was
+    # Props run out.
+    room.props = [[903, "plank", 100, 0, a.p.id, room.now(), room.now() + 0.2, 1]]
+    run(room, 0.3)
+    assert not room.props and not a.read()["state"]["props"]
+    # Bomb: knocks out racers right by you (a shield still saves them) and clears what's put down nearby.
+    a.do(t="p", v=[3000, 0, 1, 0, 0])
+    room.place_bot(bot, 3000, 0)
+    bot.x, bot.y, bot.shield = 3060, 0.0, False
+    room.traps = [[50, 3100, 0, 40, bot.id, room.now() + 9]]
+    room.props = [[51, "crossbow", 3300, 0, bot.id, room.now(), room.now() + 9, 1],
+                  [52, "honey", 3800, 0, bot.id, room.now(), room.now() + 9, 1]]
+    fx = use(a, "bomb")
+    assert fx["to"] == [bot.id] and bot.dead and fx["cleared"] == 2 and fx["pos"] == [3000, 0], fx
+    assert [q[0] for q in room.props] == [52] and not room.traps
+    run(room, game.KNOCKOUT + 0.1)
+    room.place_bot(bot, 3000, 0)
+    bot.x, bot.shield = 3060, True
+    fx = use(a, "bomb")
+    assert fx["blocked"] == [bot.id] and not bot.dead and not bot.shield, fx
+    # Bots put props down when someone's close behind, plank whenever, bomb when someone's near.
+    room.props = []
+    a.do(t="p", v=[bot.x - 1500, 0, 1, 0, 0])
+    for kind in ("crossbow", "honey", "fan", "hole"):
+        bot.item, bot.got_at, bot.use_at = kind, room.now(), room.now()
+        room.bot_items()
+        assert bot.item == kind, f"put a {kind} down with nobody near behind"
+        a.do(t="p", v=[bot.x - 200, 0, 1, 0, 0])
+        bot.use_at = room.now()
+        room.bot_items()
+        assert bot.item is None and room.props[-1][1] == kind and room.props[-1][4] == bot.id, kind
+        a.do(t="p", v=[bot.x - 1500, 0, 1, 0, 0])
+    bot.item, bot.got_at, bot.use_at = "bomb", room.now(), room.now()
+    room.bot_items()
+    assert bot.item == "bomb", "set off a bomb with nobody and nothing near"
+    a.do(t="p", v=[bot.x + 60, bot.y, 1, 0, 0])
+    a.p.shield = False
+    bot.use_at = room.now()
+    room.bot_items()
+    assert bot.item is None and a.p.dead, "the bot didn't bomb the racer next to it"
+    a.p.dead = 0
+    room.props = []
+    W = game.item_weights
+    assert all(W(0, 0, 3)[k] > 0 for k in ("crossbow", "honey", "fan", "hole")), "the leader gets things to put down"
+    assert all(W(1, 3, 0)[k] == 0 for k in ("crossbow", "honey", "fan", "hole")), "nobody behind: nothing to put down"
+    assert W(1, 3, 0)["plank"] > W(0, 0, 3)["plank"]
     # Bots grab and use items on their own.
     room.leave(a.p, a.queue)
     used = 0

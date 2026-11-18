@@ -37,7 +37,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/relay/` and `app/static/games/relay/`: Sketch Relay, a drawing-and-guessing party game for 3-8 friends (write,
   draw what you're handed, guess the drawing, pass it on; rooms by code, a FastAPI WebSocket server) at `/games/sketch-relay`
 - `app/scramble/` and `app/static/games/scramble/`: Scramble, an obstacle-course race for 1-8 players with bots (a new
-  course every round, items to hit each other with; each browser runs its own physics, a FastAPI WebSocket server relays, decides items and scores) at `/games/scramble`
+  course every round from seventy-five kinds of segment, items to hit each other with or leave on the course; each browser runs its own physics, a FastAPI WebSocket server relays, decides items and scores) at `/games/scramble`
 - `app/holdfast/` and `app/static/games/holdfast/`: Holdfast, co-op tower defence for 1-4 players (one map, separate
   purses, thirty waves, nine towers with two upgrade paths and a final evolution each, five maps, endless mode, saves and records in `data/holdfast.db`; the fight runs on a FastAPI WebSocket server) at `/games/holdfast`
 - `app/rooms.py` and `app/static/games/shared/net.js`: what the seven multiplayer games share (the WebSocket loop,
@@ -85,7 +85,7 @@ When a change alters how an area works or turns up a new gotcha, update its doc 
 - Cloudflare caches static files: when changing CSS/JS, bump its `?v=` with
   `python3 tools/bump-version.py <folder or file>` (a game's folder, `app/static/books`, or
   `app/static/style.css`); it updates every link together.
-- Run `tools/check-all.sh` before pushing: the fast checks for every area, in about four and a half minutes.
+- Run `tools/check-all.sh` before pushing: the fast checks for every area, in about six and a half minutes.
 - Don't run long scripts (the Saltbound simulator, browser audits) when existing numbers answer the
   question. For a question, answer first from what's known (the area doc's latest numbers, earlier
   output, `python3 tools/saltbound-sim.py --last`), say how old it is, and offer a fresh run. When a

@@ -1,6 +1,7 @@
 // Plays Holdfast in two headless browsers (one phone-sized). The host makes a room, picks a map
 // and difficulty; a friend joins by the link. They build (by click and by tap), are refused a tower on
-// the road, give gold, upgrade each other's towers and sell their own; a wave is fought and its
+// the road, give gold, upgrade each other's towers along a path (the other path closes) and sell
+// their own; kill counts and the mute button work; a wave is fought and its
 // enemies, shots and bounties must show up on both screens; then, with every tower sold, the keep
 // falls, the scores come up, and the host takes everyone back to the room. Fails if a page throws or
 // logs an error. About 50 s.
@@ -113,7 +114,7 @@ async function serve() {
     await pick(friend, 'archer');
     await tile(friend, 3, 1);
     for (const p of all) await count(p, 3);
-    if ((await towers(friend)).some(t => t[3] === 2 && t[4] === 2)) throw new Error('a tower was built on the road');
+    if ((await towers(friend)).some(t => t.x === 2 && t.y === 2)) throw new Error('a tower was built on the road');
     await shot(host, '3-building');
     await shot(friend, '3-building-phone');
 
@@ -123,9 +124,11 @@ async function serve() {
     await host.keyboard.press('Escape');
     await tile(host, 3, 1);
     await host.waitForSelector('#info h2');
-    if (!(await host.textContent('#info')).includes('Built by Bo')) throw new Error("the panel doesn't say who built the tower");
+    if (!(await host.textContent('#info')).includes('built by Bo')) throw new Error("the panel doesn't say who built the tower");
     if (await host.locator('#info button', { hasText: 'Sell' }).count()) throw new Error("the host was offered someone else's tower to sell");
-    if (!await host.isDisabled('#info button[data-cost]')) throw new Error('an upgrade the host cannot afford was on offer');
+    if (await host.locator('#info .paths section').count() !== 2) throw new Error("the tower's two upgrade paths aren't shown");
+    if (!await host.isDisabled('#info button[data-path="0"]')) throw new Error('an upgrade the host cannot afford was on offer');
+    if ((await host.textContent('#kills')) !== '0') throw new Error("a new tower's kill count isn't 0");
 
     // Send the wave: enemies arrive on both screens, towers shoot, kills pay both purses.
     for (const p of all) await p.click('#ready');
@@ -137,13 +140,21 @@ async function serve() {
     await shot(friend, '4-wave-phone');
     await friend.waitForFunction(() => window.holdfast.S.gold[window.holdfast.room.you] > 55, null, { timeout: 20000 });
     await host.waitForFunction(() => window.holdfast.S.gold[window.holdfast.room.you] >= 60, null, { timeout: 30000 });
-    await host.click('#info button[data-cost]');   // now she can: anyone may pay for an upgrade
-    await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t[3] === 3 && t[4] === 1 && t[2] === 1));
+    await host.click('#info button[data-path="0"]');   // now she can: anyone may pay for an upgrade
+    await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.x === 3 && t.y === 1 && t.p === 0 && t.n === 1));
+    // the path is chosen: the other one is closed
+    await host.waitForFunction(() => document.querySelector('#info .paths section:nth-child(2)')?.textContent.includes('Closed'));
+    // kill counts come through to both screens, and show on the panel
+    await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.kills > 0), null, { timeout: 30000 });
+    await host.waitForFunction(() => +document.getElementById('kills').textContent >= 0);
+    await shot(host, '4b-upgraded');
+    await host.click('#mute');
+    if ((await host.getAttribute('#mute', 'aria-pressed')) !== 'true') throw new Error("the mute button didn't mute");
 
     // Sell everything: the keep falls, and the scores come up.
     await host.click('#speed');
     for (const p of all) {
-      const mine = await p.evaluate(() => { const { S, room } = window.holdfast; return S.st.towers.filter(t => t[5] === room.you).map(t => [t[3], t[4]]); });
+      const mine = await p.evaluate(() => { const { S, room } = window.holdfast; return S.st.towers.filter(t => t.o === room.you).map(t => [t.x, t.y]); });
       await p.keyboard.press('Escape');
       for (const [x, y] of mine) {
         await tile(p, x, y);

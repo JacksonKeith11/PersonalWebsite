@@ -30,7 +30,17 @@ const S = {
 const room = startRoom({ key: 'holdfast', path: '/games/holdfast', title: 'Holdfast', show, onMessage: receive });
 const player = id => S.st?.players.find(p => p.id === id);
 const me = () => player(room.you);
-const tower = id => S.st?.towers?.find(t => t[0] === id);
+const tower = id => S.st?.towers?.find(t => t.id === id);
+
+// A tower's numbers with `tiers` bought on `path` (the same sum as data.stats on the server).
+function statsOf(kind, path = null, tiers = 0) {
+  const def = S.cfg.towers[kind], out = { ...def.base };
+  if (path != null) for (const t of def.paths[path].tiers.slice(0, tiers)) Object.assign(out, t.set);
+  return out;
+}
+const EVOLUTION = 4;
+// What to call a tower: its final evolution's name, or its kind.
+const towerName = t => (t.n >= EVOLUTION ? S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].name : S.cfg.towers[t.k].name);
 const myGold = () => S.gold[room.you] ?? me()?.gold ?? 0;
 
 function receive(m) {
@@ -63,16 +73,26 @@ function receive(m) {
     render();
   } else if (m.t === 's') {
     const t = now(), seen = new Set();
-    for (const [id, k, x, y, hp, slow] of m.e) {
+    for (const [id, k, x, y, hp, flags] of m.e) {
       seen.add(id);
       const e = S.enemies.get(id) || { x, y };
-      S.enemies.set(id, Object.assign(e, { kind: S.cfg.kinds[k], fx: e.x, fy: e.y, tx: x, ty: y, at: t, hp, slow }));
+      S.enemies.set(id, Object.assign(e, { kind: S.cfg.kinds[k], fx: e.x, fy: e.y, tx: x, ty: y, at: t, hp,
+        slow: flags & 1, burning: flags & 2, stunned: flags & 4 }));
     }
     for (const id of S.enemies.keys()) if (!seen.has(id)) S.enemies.delete(id);
+    const heard = new Set();
     for (const [id, ...pts] of m.f) {
       const tw = tower(id);
-      if (tw) S.shots.push({ kind: tw[1], level: tw[2], from: [tw[3], tw[4]], pts, at: t });
+      if (!tw) continue;
+      S.shots.push({ kind: tw.k, st: statsOf(tw.k, tw.p, tw.n), evolved: tw.n >= EVOLUTION, from: [tw.x, tw.y], pts, at: t });
+      if (!heard.has(tw.k)) { heard.add(tw.k); hit(tw.k, tw.n >= EVOLUTION); }
     }
+    let killed = false;
+    for (const [id, kills] of Object.entries(m.k || {})) {
+      const tw = tower(+id);
+      if (tw) { tw.kills = kills; killed = true; }
+    }
+    if (killed) { hit('pop'); if (S.chosen != null && $('kills')) $('kills').textContent = tower(S.chosen)?.kills ?? 0; }
     S.gold = m.g;
     S.nextIn = m.n;
     renderLive();
@@ -81,23 +101,87 @@ function receive(m) {
 
 // ---------------------------------------------------------------- sounds
 
-let audio = null;
-function sound(kind) {
+let audio = null, noise = null, muted = false;
+try { muted = localStorage.getItem('holdfast-muted') === '1'; } catch { /* private mode */ }
+const lastHit = {};
+
+function ctxAudio() {
+  if (muted) return null;
   try {
     audio ||= new AudioContext();
-    const [f0, f1, secs, type] = { build: [420, 640, 0.09, 'triangle'], up: [520, 1040, 0.16, 'triangle'], sell: [500, 250, 0.12, 'triangle'],
-      wave: [196, 294, 0.5, 'sawtooth'], leak: [140, 60, 0.35, 'square'], win: [523, 1047, 0.8, 'triangle'], lose: [220, 55, 0.9, 'sawtooth'] }[kind];
-    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
-    o.type = type;
-    o.frequency.setValueAtTime(f0, t);
-    o.frequency.exponentialRampToValueAtTime(f1, t + secs);
-    g.gain.setValueAtTime(0.05, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + secs);
-    o.connect(g).connect(audio.destination);
-    o.start(t);
-    o.stop(t + secs);
-  } catch { /* no sound, then */ }
+    if (!noise) {
+      noise = audio.createBuffer(1, audio.sampleRate * 0.5, audio.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return audio;
+  } catch { return null; }
 }
+
+// A pitched blip: from f0 to f1 over `secs`.
+function tone(f0, f1, secs, type, vol = 0.05, delay = 0) {
+  const a = ctxAudio();
+  if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + delay;
+  o.type = type;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f1, t + secs);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0005, t + secs);
+  o.connect(g).connect(a.destination);
+  o.start(t);
+  o.stop(t + secs);
+}
+
+// A burst of filtered noise: thuds, whooshes and cracks.
+function hiss(freq, q, secs, vol = 0.06, kind = 'bandpass') {
+  const a = ctxAudio();
+  if (!a) return;
+  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime;
+  src.buffer = noise;
+  f.type = kind;
+  f.frequency.value = freq;
+  f.Q.value = q;
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0005, t + secs);
+  src.connect(f).connect(g).connect(a.destination);
+  src.start(t);
+  src.stop(t + secs);
+}
+
+function sound(kind) {
+  if (kind === 'evolve') { tone(392, 784, 0.25, 'triangle', 0.06); tone(523, 1047, 0.3, 'triangle', 0.06, 0.12); tone(659, 1319, 0.5, 'triangle', 0.06, 0.24); return; }
+  const [f0, f1, secs, type] = { build: [420, 640, 0.09, 'triangle'], up: [520, 1040, 0.16, 'triangle'], sell: [500, 250, 0.12, 'triangle'],
+    wave: [196, 294, 0.5, 'sawtooth'], leak: [140, 60, 0.35, 'square'], win: [523, 1047, 0.8, 'triangle'], lose: [220, 55, 0.9, 'sawtooth'] }[kind];
+  tone(f0, f1, secs, type);
+}
+
+// A weapon's hit, at most once every 70 ms per weapon so a big defence doesn't roar. Final
+// evolutions sound bigger.
+function hit(kind, big = false) {
+  const t = performance.now();
+  if (muted || t - (lastHit[kind] || 0) < 70) return;
+  lastHit[kind] = t;
+  const v = big ? 1.6 : 1;
+  switch (kind) {
+    case 'archer': hiss(3200, 6, 0.06, 0.035 * v); tone(900, 500, 0.05, 'triangle', 0.02 * v); break;
+    case 'cannon': hiss(180, 1, 0.3, 0.12 * v, 'lowpass'); tone(110, 40, 0.25, 'sine', 0.08 * v); break;
+    case 'frost': tone(1800, 2400, 0.18, 'sine', 0.025 * v); tone(2700, 3600, 0.12, 'sine', 0.015 * v, 0.03); break;
+    case 'ballista': tone(260, 90, 0.12, 'square', 0.04 * v); hiss(900, 3, 0.08, 0.05 * v); break;
+    case 'tesla': tone(1400, 300, 0.12, 'sawtooth', 0.03 * v); hiss(5000, 2, 0.1, 0.03 * v, 'highpass'); break;
+    case 'brazier': hiss(700, 0.6, 0.35, 0.05 * v); break;
+    case 'mortar': hiss(120, 1, 0.45, 0.13 * v, 'lowpass'); tone(80, 30, 0.4, 'sine', 0.09 * v); break;
+    case 'pop': tone(700, 1200, 0.05, 'triangle', 0.02); break;
+  }
+}
+
+$('mute').addEventListener('click', () => {
+  muted = !muted;
+  try { localStorage.setItem('holdfast-muted', muted ? '1' : '0'); } catch { /* private mode */ }
+  $('mute').textContent = muted ? '🔇' : '🔊';
+  $('mute').setAttribute('aria-pressed', String(muted));
+});
+$('mute').textContent = muted ? '🔇' : '🔊';
 
 // ---------------------------------------------------------------- the lobby and the panels
 
@@ -165,46 +249,83 @@ function renderLive() {
     }
     return li;
   }));
-  for (const b of $('palette').children) b.classList.toggle('poor', gold < S.cfg.towers[b.dataset.kind].cost[0]);
-  const up = $('info').querySelector('[data-cost]');
-  if (up) up.disabled = gold < +up.dataset.cost;
+  for (const b of $('palette').children) b.classList.toggle('poor', gold < S.cfg.towers[b.dataset.kind].cost);
+  for (const up of $('info').querySelectorAll('[data-cost]')) up.disabled = up.dataset.locked === '1' || gold < +up.dataset.cost;
 }
 
-const STAT = [['dmg', 'Damage'], ['rate', 'Every', v => `${v} s`], ['range', 'Reach'], ['splash', 'Blast'],
-  ['slow', 'Slows by', v => `${Math.round(v * 100)}%`], ['chain', 'Jumps to'], ['boost', 'Speeds up', v => `${Math.round(v * 100)}%`]];
+const pct = v => `${Math.round(v * 100)}%`;
+const STAT = [['dmg', 'Damage'], ['shots', 'Targets'], ['rate', 'Every', v => `${v} s`], ['range', 'Reach'],
+  ['splash', 'Blast'], ['cluster', 'Extra blasts'], ['chain', 'Jumps to'], ['slow', 'Slows by', pct],
+  ['stun', 'Stuns for', v => `${v} s`], ['burn', 'Burns', v => `${v} a second`], ['shred', 'Strips armour', v => `${v} a hit`],
+  ['brittle', 'Slowed take', v => `${pct(v)} more`], ['boss', 'Against Warlords', v => `×${v}`],
+  ['pierce', 'Ignores armour', () => 'yes'], ['air', 'Hits flyers', v => (v ? 'yes' : 'no')],
+  ['boost', 'Speeds up', pct], ['reach', 'Extends reach', pct], ['power', 'Adds damage', pct],
+  ['income', 'Pays a wave', v => `${v} gold`], ['bounty', 'Kill bonus', pct]];
+
+function statList(stats) {
+  const dl = el('dl');
+  for (const [key, label, fmt = v => v] of STAT) {
+    if (stats[key] == null || (key === 'air' && stats.mode === 'income') || (key === 'air' && stats.mode === 'support')) continue;
+    dl.append(el('dt', '', label), el('dd', '', fmt(stats[key])));
+  }
+  return dl;
+}
 
 function renderInfo() {
   const box = $('info'), T = S.cfg.towers;
   const tw = S.chosen != null ? tower(S.chosen) : null;
-  const kind = tw ? tw[1] : S.picked;
+  const kind = tw ? tw.k : S.picked;
   if (!kind) { box.replaceChildren(); return; }
-  const def = T[kind], level = tw ? tw[2] : 0, stats = def.levels[level], next = tw && def.levels[level + 1];
-  const dl = el('dl');
-  for (const [key, label, fmt = v => v] of STAT) {
-    if (stats[key] == null) continue;
-    dl.append(el('dt', '', label), el('dd', '', fmt(stats[key]) + (next && next[key] !== stats[key] ? ` → ${fmt(next[key])}` : '')));
+  const def = T[kind];
+  if (!tw) {
+    box.replaceChildren(el('h2', '', `${def.name} (${def.cost} gold)`), el('p', '', def.blurb), statList(def.base),
+      el('p', '', 'Click or tap a free square to build it.'));
+    return;
   }
-  const parts = [el('h2', '', tw ? `${def.name}, level ${level + 1}` : `${def.name} (${def.cost[0]} gold)`), el('p', '', def.blurb), dl];
-  if (tw) {
-    parts.splice(1, 0, el('p', '', `Built by ${player(tw[5])?.name || 'someone who left'}.`));
-    const row = el('div', 'row');
-    if (next && me()?.seated) {
-      const up = el('button', 'primary', `Upgrade: ${def.cost[level + 1]} gold`);
-      up.type = 'button';
-      up.dataset.cost = def.cost[level + 1];
-      up.disabled = myGold() < def.cost[level + 1];
-      up.addEventListener('click', () => { sound('up'); room.send({ t: 'up', id: tw[0] }); });
-      row.append(up);
+  const evolved = tw.n >= EVOLUTION;
+  const title = el('h2', evolved ? 'evolved' : '', towerName(tw));
+  const sub = tw.p == null ? 'Not upgraded yet' : `${def.paths[tw.p].name}, tier ${tw.n}${evolved ? ': final evolution' : ''}`;
+  const tally = el('p', 'tally');
+  tally.append('Kills: ', el('b', '', ''), ` · damage ${Number(tw.dmg || 0).toLocaleString()} · built by ${player(tw.o)?.name || 'someone who left'}`);
+  tally.querySelector('b').id = 'kills';
+  tally.querySelector('b').textContent = tw.kills;
+  const parts = [title, el('p', '', sub), tally, statList(statsOf(kind, tw.p, tw.n))];
+
+  // the two upgrade paths: the next tier on each, or why not
+  const paths = el('div', 'paths');
+  def.paths.forEach((path, pi) => {
+    const col = el('section', `path${tw.p === pi ? ' taken' : ''}`);
+    const pips = el('span', 'pips');
+    for (let i = 1; i <= EVOLUTION; i++) pips.append(el('i', tw.p === pi && tw.n >= i ? 'on' : i === EVOLUTION ? 'evo' : ''));
+    col.append(el('h3', '', path.name), pips);
+    const mine = tw.p == null || tw.p === pi, n = mine ? tw.n : 0, next = path.tiers[n];
+    if (!mine) col.append(el('p', 'note', `Closed: this tower took ${def.paths[tw.p].name}.`));
+    else if (!next) col.append(el('p', 'note', 'Fully evolved.'));
+    else {
+      const evo = n + 1 === EVOLUTION;
+      const taken = evo && S.st.towers.some(o => o.id !== tw.id && o.k === kind && o.p === pi && o.n >= EVOLUTION);
+      col.append(el('p', 'next', `${evo ? 'Final evolution: ' : ''}${next.name}`), el('p', 'note', next.blurb.replace(/^Final evolution: /, '')));
+      if (me()?.seated) {
+        const up = el('button', evo ? 'primary evo' : 'primary', `${evo ? 'Evolve' : 'Buy'}: ${next.cost} gold`);
+        up.type = 'button';
+        up.dataset.cost = next.cost;
+        up.dataset.path = pi;
+        up.dataset.locked = taken ? '1' : '0';
+        up.disabled = taken || myGold() < next.cost;
+        up.addEventListener('click', () => { sound(evo ? 'evolve' : 'up'); room.send({ t: 'up', id: tw.id, path: pi }); });
+        col.append(up);
+        if (taken) col.append(el('p', 'note', `There's already a ${next.name}: only one at a time.`));
+      }
     }
-    if (tw[5] === room.you) {
-      const sell = el('button', '', `Sell for ${Math.round(tw[6] * S.cfg.sell)}`);
-      sell.type = 'button';
-      sell.addEventListener('click', () => { sound('sell'); room.send({ t: 'sell', id: tw[0] }); S.chosen = null; });
-      row.append(sell);
-    }
-    parts.push(row);
-  } else {
-    parts.push(el('p', '', 'Click or tap a free square to build it.'));
+    paths.append(col);
+  });
+  parts.push(paths);
+  if (tw.o === room.you) {
+    const sell = el('button', '', `Sell for ${Math.round(tw.s * S.cfg.sell)}`);
+    sell.type = 'button';
+    sell.className = 'sell';
+    sell.addEventListener('click', () => { sound('sell'); room.send({ t: 'sell', id: tw.id }); S.chosen = null; });
+    parts.push(sell);
   }
   box.replaceChildren(...parts);
 }
@@ -227,8 +348,8 @@ function buildPalette() {
     icon.width = icon.height = 68;
     const c = icon.getContext('2d');
     c.setTransform(60, 0, 0, 60, 34, 34);
-    drawTower(c, kind, 0, '#c9d3dd');
-    b.append(icon, el('span', '', def.name), el('span', 'cost', def.cost[0]));
+    drawTower(c, kind, null, 0, '#c9d3dd');
+    b.append(icon, el('span', '', def.name), el('span', 'cost', def.cost));
     b.addEventListener('click', () => pick(kind));
     return b;
   }));
@@ -254,7 +375,7 @@ const tileAt = e => {
   const r = canvas.getBoundingClientRect();
   return [Math.floor((e.clientX - r.left) / r.width * S.cfg.cols), Math.floor((e.clientY - r.top) / r.height * S.cfg.rows)];
 };
-const towerAt = (x, y) => S.st.towers.find(t => t[3] === x && t[4] === y);
+const towerAt = (x, y) => S.st.towers.find(t => t.x === x && t.y === y);
 const free = (x, y) => x >= 0 && y >= 0 && x < S.cfg.cols && y < S.cfg.rows
   && !S.map.road.has(`${x},${y}`) && !S.map.rocks.has(`${x},${y}`) && !towerAt(x, y);
 
@@ -265,10 +386,10 @@ canvas.addEventListener('click', e => {
   const [x, y] = tileAt(e), there = towerAt(x, y);
   if (there) {
     if (S.picked) pick(S.picked);
-    S.chosen = S.chosen === there[0] ? null : there[0];
+    S.chosen = S.chosen === there.id ? null : there.id;
     renderInfo();
   } else if (S.picked && me()?.seated) {
-    if (free(x, y) && myGold() >= S.cfg.towers[S.picked].cost[0]) { sound('build'); room.send({ t: 'build', k: S.picked, x, y }); }
+    if (free(x, y) && myGold() >= S.cfg.towers[S.picked].cost) { sound('build'); room.send({ t: 'build', k: S.picked, x, y }); }
   } else {
     S.chosen = null;
     renderInfo();
@@ -277,21 +398,32 @@ canvas.addEventListener('click', e => {
 });
 canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (S.picked) pick(S.picked); });
 
-const TOWER_COLOR = { archer: '#7fb069', cannon: '#5a6672', frost: '#7fd0e8', ballista: '#b08a5a', tesla: '#c9a0f0', beacon: '#f2c230' };
+const TOWER_COLOR = { archer: '#7fb069', cannon: '#8a96a3', frost: '#7fd0e8', ballista: '#b08a5a', tesla: '#c9a0f0', beacon: '#f2c230',
+  brazier: '#ff7a2f', mortar: '#a3a9b3', mint: '#f2d14a' };
+const PATH_COLOR = ['#f2c230', '#6fd0ff'];
 const ENEMY = {   // colour and radius, in tiles
   grunt: ['#d9534a', 0.27], runner: ['#f09a3e', 0.2], swarm: ['#b06fd6', 0.14], brute: ['#8f2d2d', 0.4],
   shield: ['#4f7fc9', 0.3], flyer: ['#f3f0e6', 0.24], boss: ['#3a2440', 0.55],
 };
 
-// A tower, drawn in a 1 x 1 box centred on the origin.
-function drawTower(c, kind, level, ring) {
-  c.fillStyle = '#2a3542';
-  c.strokeStyle = ring;
-  c.lineWidth = 0.07;
+// A tower, drawn in a 1 x 1 box centred on the origin: its tiers as pips in its path's colour, and
+// a final evolution bigger, gold-rimmed and glowing.
+function drawTower(c, kind, path, tier, ring) {
+  const evo = tier >= EVOLUTION, t = performance.now() / 1000;
+  if (evo) {
+    c.fillStyle = `rgba(255, 215, 90, ${0.25 + 0.12 * Math.sin(t * 3)})`;
+    c.beginPath(); c.arc(0, 0, 0.62, 0, 7); c.fill();
+  }
+  c.fillStyle = evo ? '#3a2f1a' : '#2a3542';
+  c.strokeStyle = evo ? '#ffd75a' : ring;
+  c.lineWidth = evo ? 0.1 : 0.07;
   c.beginPath();
-  c.roundRect(-0.4, -0.4, 0.8, 0.8, 0.14);
+  c.roundRect(-0.42, -0.42, 0.84, 0.84, 0.14);
   c.fill();
   c.stroke();
+  if (evo) { c.strokeStyle = ring; c.lineWidth = 0.05; c.beginPath(); c.roundRect(-0.32, -0.32, 0.64, 0.64, 0.1); c.stroke(); }
+  c.save();
+  if (evo) c.scale(1.15, 1.15);
   c.fillStyle = c.strokeStyle = TOWER_COLOR[kind];
   c.lineWidth = 0.09;
   c.lineCap = 'round';
@@ -301,9 +433,20 @@ function drawTower(c, kind, level, ring) {
   else if (kind === 'frost') { for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3; c.moveTo(-Math.cos(a) * 0.26, -Math.sin(a) * 0.26); c.lineTo(Math.cos(a) * 0.26, Math.sin(a) * 0.26); } c.stroke(); }
   else if (kind === 'ballista') { c.moveTo(0, 0.26); c.lineTo(0, -0.28); c.moveTo(-0.24, -0.02); c.quadraticCurveTo(0, -0.3, 0.24, -0.02); c.stroke(); }
   else if (kind === 'tesla') { c.moveTo(0.06, -0.28); c.lineTo(-0.14, 0.04); c.lineTo(0.02, 0.04); c.lineTo(-0.06, 0.28); c.lineTo(0.16, -0.06); c.lineTo(0, -0.06); c.closePath(); c.fill(); }
+  else if (kind === 'brazier') {
+    c.moveTo(0, -0.28); c.quadraticCurveTo(0.24, -0.02, 0.14, 0.16); c.quadraticCurveTo(0, 0.26, -0.14, 0.16); c.quadraticCurveTo(-0.24, -0.02, 0, -0.28); c.fill();
+    c.fillStyle = '#ffd36b'; c.beginPath(); c.arc(0, 0.08, 0.08, 0, 7); c.fill();
+  } else if (kind === 'mortar') { c.fillRect(-0.14, -0.18, 0.28, 0.36); c.fillStyle = '#2a3542'; c.beginPath(); c.ellipse(0, -0.18, 0.14, 0.06, 0, 0, 7); c.fill(); c.fillStyle = TOWER_COLOR[kind]; c.fillRect(-0.24, 0.14, 0.48, 0.08); }
+  else if (kind === 'mint') { c.arc(0, 0, 0.22, 0, 7); c.fill(); c.fillStyle = '#8a6a10'; c.font = 'bold 0.3px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', 0, 0.02); }
   else { c.arc(0, 0, 0.2, 0, 7); c.stroke(); c.beginPath(); c.arc(0, 0, 0.07, 0, 7); c.fill(); }
-  c.fillStyle = '#fff';
-  for (let i = 0; i < level; i++) { c.beginPath(); c.arc(-0.06 * (level - 1) + i * 0.12, 0.33, 0.04, 0, 7); c.fill(); }
+  c.restore();
+  if (evo) {   // a crown
+    c.fillStyle = '#ffd75a';
+    c.beginPath(); c.moveTo(-0.16, -0.4); c.lineTo(-0.16, -0.54); c.lineTo(-0.08, -0.46); c.lineTo(0, -0.58); c.lineTo(0.08, -0.46); c.lineTo(0.16, -0.54); c.lineTo(0.16, -0.4); c.closePath(); c.fill();
+  } else if (tier > 0) {
+    c.fillStyle = PATH_COLOR[path];
+    for (let i = 0; i < tier; i++) { c.beginPath(); c.arc(-0.07 * (tier - 1) + i * 0.14, 0.34, 0.05, 0, 7); c.fill(); }
+  }
 }
 
 function frame() {
@@ -352,17 +495,17 @@ function frame() {
   };
   if (S.picked && hover && S.st.phase === 'play') {
     const ok = free(...hover);
-    reach(hover[0], hover[1], T[S.picked].levels[0].range, ok);
+    reach(hover[0], hover[1], Math.min(T[S.picked].base.range, 12), ok);
     ctx.globalAlpha = 0.6;
-    ctx.save(); ctx.translate(hover[0] + 0.5, hover[1] + 0.5); drawTower(ctx, S.picked, 0, ok ? '#fff' : '#ff5a4a'); ctx.restore();
+    ctx.save(); ctx.translate(hover[0] + 0.5, hover[1] + 0.5); drawTower(ctx, S.picked, null, 0, ok ? '#fff' : '#ff5a4a'); ctx.restore();
     ctx.globalAlpha = 1;
   }
-  if (chosen) reach(chosen[3], chosen[4], T[chosen[1]].levels[chosen[2]].range, true);
+  if (chosen) reach(chosen.x, chosen.y, Math.min(statsOf(chosen.k, chosen.p, chosen.n).range, 12), true);
 
-  for (const [id, kind, level, x, y, owner] of S.st.towers) {
+  for (const tw of S.st.towers) {
     ctx.save();
-    ctx.translate(x + 0.5, y + 0.5);
-    drawTower(ctx, kind, level, id === S.chosen ? '#fff' : player(owner)?.color || '#8a8580');
+    ctx.translate(tw.x + 0.5, tw.y + 0.5);
+    drawTower(ctx, tw.k, tw.p, tw.n, tw.id === S.chosen ? '#fff' : player(tw.o)?.color || '#8a8580');
     ctx.restore();
   }
 
@@ -382,6 +525,14 @@ function frame() {
     ctx.fill();
     if (e.kind === 'shield' || e.kind === 'boss') { ctx.strokeStyle = e.kind === 'boss' ? '#f2c230' : '#cfe0ff'; ctx.lineWidth = 0.07; ctx.stroke(); }
     if (e.slow) { ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = 0.05; ctx.beginPath(); ctx.arc(x, y, r + 0.07, 0, 7); ctx.stroke(); }
+    if (e.burning) {   // flickering flames
+      ctx.fillStyle = `rgba(255, ${120 + 60 * Math.sin(t * 20 + e.tx * 9)}, 40, 0.75)`;
+      for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.7, y - r * 0.4 + Math.sin(a) * r * 0.3, r * 0.3, 0, 7); ctx.fill(); }
+    }
+    if (e.stunned) {   // stars overhead
+      ctx.fillStyle = '#ffe14d';
+      for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r, y - r - 0.12 + Math.sin(a) * 0.05, 0.05, 0, 7); ctx.fill(); }
+    }
     if (e.hp < 100) {
       const bw = Math.max(0.5, r * 2);
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -392,28 +543,35 @@ function frame() {
   }
 
   // shots, each fading over a moment
-  S.shots = S.shots.filter(s => t - s.at < 0.3);
+  S.shots = S.shots.filter(s => t - s.at < 0.35);
   ctx.lineCap = 'round';
   for (const s of S.shots) {
-    const age = (t - s.at) / 0.3, fx = s.from[0] + 0.5, fy = s.from[1] + 0.5;
+    const age = (t - s.at) / 0.35, fx = s.from[0] + 0.5, fy = s.from[1] + 0.5, big = s.evolved ? 1.6 : 1;
     ctx.globalAlpha = 1 - age;
-    ctx.strokeStyle = ctx.fillStyle = TOWER_COLOR[s.kind];
-    if (s.kind === 'frost') {
-      ctx.lineWidth = 0.06;
-      ctx.beginPath(); ctx.arc(fx, fy, T.frost.levels[s.level].range * age, 0, 7); ctx.stroke();
-    } else if (s.kind === 'tesla') {
-      ctx.lineWidth = 0.07;
+    ctx.strokeStyle = ctx.fillStyle = s.evolved ? '#ffd75a' : TOWER_COLOR[s.kind];
+    if (s.st.mode === 'aura') {   // a pulse from the tower
+      ctx.lineWidth = 0.06 * big;
+      if (s.kind === 'brazier') { ctx.fillStyle = `rgba(255, 110, 30, ${0.25 * (1 - age)})`; ctx.beginPath(); ctx.arc(fx, fy, s.st.range * (0.3 + 0.7 * age), 0, 7); ctx.fill(); }
+      ctx.beginPath(); ctx.arc(fx, fy, s.st.range * age, 0, 7); ctx.stroke();
+    } else if (s.st.mode === 'chain') {
+      ctx.lineWidth = 0.07 * big;
       ctx.beginPath(); ctx.moveTo(fx, fy);
       for (let i = 0; i < s.pts.length; i += 2) ctx.lineTo(s.pts[i] + 0.5 + Math.sin(i * 7 + s.at * 90) * 0.08, s.pts[i + 1] + 0.5 + Math.cos(i * 5 + s.at * 70) * 0.08);
       ctx.stroke();
+    } else if (s.st.mode === 'splash') {   // the shell's flight, then a blast at each point
+      const tx = s.pts[0] + 0.5, ty = s.pts[1] + 0.5;
+      ctx.lineWidth = 0.05;
+      ctx.beginPath(); ctx.moveTo(fx, fy);
+      if (s.kind === 'mortar') ctx.quadraticCurveTo((fx + tx) / 2, Math.min(fy, ty) - 2, tx, ty); else ctx.lineTo(tx, ty);
+      ctx.stroke();
+      for (let i = 0; i < s.pts.length; i += 2) {
+        ctx.fillStyle = i ? 'rgba(255, 179, 71, 0.7)' : s.st.burn ? '#ff6a2f' : '#ffb347';
+        ctx.beginPath(); ctx.arc(s.pts[i] + 0.5, s.pts[i + 1] + 0.5, s.st.splash * (i ? 0.6 : 1) * (0.4 + 0.6 * age), 0, 7); ctx.fill();
+      }
     } else {
       const tx = s.pts[0] + 0.5, ty = s.pts[1] + 0.5;
-      ctx.lineWidth = s.kind === 'ballista' ? 0.1 : 0.05;
+      ctx.lineWidth = (s.kind === 'ballista' ? 0.1 : 0.05) * big;
       ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(tx, ty); ctx.stroke();
-      if (s.kind === 'cannon') {
-        ctx.fillStyle = '#ffb347';
-        ctx.beginPath(); ctx.arc(tx, ty, T.cannon.levels[s.level].splash * (0.4 + 0.6 * age), 0, 7); ctx.fill();
-      }
     }
   }
   ctx.globalAlpha = 1;

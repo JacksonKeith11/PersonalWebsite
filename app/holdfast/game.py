@@ -19,6 +19,7 @@ log = logging.getLogger("holdfast")
 
 STEP = 1 / 15  # one step of the fight
 SNAP_EVERY = 0.1
+MAX_SHOTS = 80  # shots drawn a snapshot, at most (a Storm of Arrows looses forty a second)
 MAX_PLAYERS = 4
 MAX_IN_ROOM = 10
 COLORS = ["#e8552f", "#3f8fe8", "#e8b923", "#4fb85f"]
@@ -47,14 +48,22 @@ class Player:
 class Tower:
     def __init__(self, tid, kind, x, y, owner):
         self.id, self.kind, self.x, self.y, self.owner = tid, kind, x, y, owner
-        self.level = 0
-        self.spent = D.TOWERS[kind]["cost"][0]
+        self.path = None  # the upgrade path, once one's bought
+        self.tier = 0
+        self.spent = D.TOWERS[kind]["cost"]
         self.cool = 0.3
-        self.boost = 0.0
+        self.boost = self.reach = self.power = 0.0  # from beacons nearby
+        self.kills = 0
+        self.dmg = 0.0
+        self.stats = D.stats(kind)
 
     @property
-    def stats(self):
-        return D.TOWERS[self.kind]["levels"][self.level]
+    def range(self):
+        return self.stats["range"] * (1 + self.reach)
+
+    def view(self):
+        return {"id": self.id, "k": self.kind, "p": self.path, "n": self.tier, "x": self.x, "y": self.y,
+                "o": self.owner, "s": self.spent, "kills": self.kills, "dmg": round(self.dmg)}
 
 
 class Enemy:
@@ -70,7 +79,10 @@ class Enemy:
         self.route, self.length = route, length
         self.d = 0.0  # how far along the route
         self.x, self.y = route[0][0]
-        self.slow, self.slow_for = 0.0, 0.0
+        self.slow, self.slow_for, self.brittle = 0.0, 0.0, 0.0
+        self.stun = 0.0  # seconds left stopped dead
+        self.burn, self.burn_for, self.burner = 0.0, 0.0, None  # damage a second, for how long, from which tower
+        self.boss = kind == "boss"
 
 
 def make_route(points):
@@ -108,6 +120,7 @@ class Room:
         self.next_in = 0.0  # seconds until the next wave starts, between waves
         self.lives = D.LIVES
         self.shots = []
+        self.kills = []  # towers that have killed something since the last snapshot
         self.next_tower = self.next_enemy = 1
         self.blocked = set()
         self.routes = []
@@ -210,7 +223,7 @@ class Room:
             if t == "build":
                 self.build(p, msg.get("k"), msg.get("x"), msg.get("y"))
             elif t == "up":
-                self.upgrade(p, self.towers.get(msg.get("id")))
+                self.upgrade(p, self.towers.get(msg.get("id")), msg.get("path"))
             elif t == "sell":
                 self.sell(p, self.towers.get(msg.get("id")))
             elif t == "give":
@@ -264,9 +277,9 @@ class Room:
                 and (x, y) not in self.blocked and (x, y) not in self.at)
 
     def build(self, p, kind, x, y):
-        if kind not in D.TOWERS or not self.free(x, y) or p.gold < D.TOWERS[kind]["cost"][0]:
+        if kind not in D.TOWERS or not self.free(x, y) or p.gold < D.TOWERS[kind]["cost"]:
             return None
-        cost = D.TOWERS[kind]["cost"][0]
+        cost = D.TOWERS[kind]["cost"]
         p.gold -= cost
         p.spent += cost
         t = Tower(self.next_tower, kind, x, y, p.id)
@@ -275,16 +288,26 @@ class Room:
         self.boosts()
         return t
 
-    def upgrade(self, p, t):
-        if t is None or t.level >= 2:
+    def evolved(self, kind, path):
+        """The tower that already has this final evolution, if any: only one may stand at a time."""
+        return next((t for t in self.towers.values()
+                     if t.kind == kind and t.path == path and t.tier >= D.EVOLUTION), None)
+
+    def upgrade(self, p, t, path):
+        """Buy the next tier on `path` (the first buy picks the path for good). Anyone may pay."""
+        if t is None or path not in (0, 1) or (t.path is not None and t.path != path) or t.tier >= D.EVOLUTION:
             return False
-        cost = D.TOWERS[t.kind]["cost"][t.level + 1]
+        if t.tier + 1 == D.EVOLUTION and self.evolved(t.kind, path):
+            return False
+        cost = D.TOWERS[t.kind]["paths"][path]["tiers"][t.tier]["cost"]
         if p.gold < cost:
             return False
         p.gold -= cost
         p.spent += cost
         t.spent += cost
-        t.level += 1
+        t.path = path
+        t.tier += 1
+        t.stats = D.stats(t.kind, path, t.tier)
         self.boosts()
         return True
 
@@ -297,11 +320,13 @@ class Room:
         self.boosts()
 
     def boosts(self):
-        """Work out how much faster each tower fires for the beacons beside it."""
+        """Work out what the beacons beside each tower do for it: the best of each kind counts."""
         beacons = [t for t in self.towers.values() if t.kind == "beacon"]
         for t in self.towers.values():
-            t.boost = max((b.stats["boost"] for b in beacons
-                           if b is not t and math.hypot(b.x - t.x, b.y - t.y) <= b.stats["range"]), default=0.0)
+            near = [b.stats for b in beacons
+                    if b is not t and math.hypot(b.x - t.x, b.y - t.y) <= b.stats["range"]]
+            t.boost, t.reach, t.power = (max((b.get(k, 0.0) for b in near), default=0.0)
+                                         for k in ("boost", "reach", "power"))
 
     def start_wave(self):
         self.wave += 1
@@ -323,55 +348,89 @@ class Room:
         self.next_enemy += 1
 
     def hurt(self, e, dmg, tower, pierce=False):
+        """Damage an enemy on behalf of a tower, with everything that changes it."""
         if e.hp <= 0:
             return
-        dmg = dmg if pierce else max(dmg * 0.15, dmg - e.armor)
+        st = tower.stats
+        dmg *= 1 + tower.power
+        if e.boss:
+            dmg *= st.get("boss", 1)
+        if e.slow > 0:
+            dmg *= 1 + e.brittle
+        dmg = dmg if pierce or st.get("pierce") else max(dmg * 0.15, dmg - e.armor)
+        self.damage(e, dmg, tower)
+        if st.get("shred"):
+            e.armor = max(0.0, e.armor - st["shred"])
+        if st.get("stun"):
+            e.stun = max(e.stun, st["stun"] / (3 if e.boss else 1))
+        if st.get("burn") and (st["burn"] >= e.burn or e.burn_for <= 0):
+            e.burn, e.burn_for, e.burner = st["burn"], st.get("burn_for", 2.0), tower
+        if st.get("slow"):
+            e.slow, e.slow_for = max(e.slow, st["slow"]), st.get("hold", 1.5)
+            e.brittle = max(e.brittle, st.get("brittle", 0.0))
+
+    def damage(self, e, dmg, tower):
+        """Take health off, credit the tower and its builder, and pay out for a kill."""
+        if e.hp <= 0:
+            return
         dealt = min(e.hp, dmg)
         e.hp -= dmg
+        tower.dmg += dealt
         owner = self.players.get(tower.owner)
         if owner:
             owner.dmg += dealt
         if e.hp <= 0:
+            tower.kills += 1
+            self.kills.append(tower)
             if owner:
                 owner.kills += 1
+            extra = max((m.stats.get("bounty", 0.0) for m in self.towers.values() if m.kind == "mint"
+                         and (m.x - e.x) ** 2 + (m.y - e.y) ** 2 <= m.range ** 2), default=0.0)
             crew = self.crew() or [p for p in self.players.values() if p.seated]
             for p in crew:
-                p.gold += e.bounty / len(crew)
+                p.gold += e.bounty * (1 + extra) / len(crew)
 
     def fire(self, t):
         """One tower's turn: shoot if something's in reach. True if it did."""
         s = t.stats
-        if t.kind == "beacon":
+        mode = s["mode"]
+        if mode in ("support", "income"):
             return False
-        air = D.TOWERS[t.kind]["air"]
+        air, r = s.get("air", False), t.range
         near = [e for e in self.enemies if e.hp > 0 and (air or not e.air)
-                and (e.x - t.x) ** 2 + (e.y - t.y) ** 2 <= s["range"] ** 2]
+                and (e.x - t.x) ** 2 + (e.y - t.y) ** 2 <= r * r]
         if not near:
             return False
-        first = max(near, key=lambda e: e.d - e.length)  # nearest the keep
-        if t.kind == "frost":
+        near.sort(key=lambda e: e.d - e.length, reverse=True)  # nearest the keep first
+        if mode == "aura":
             for e in near:
-                e.slow, e.slow_for = max(e.slow, s["slow"]), s["hold"]
                 self.hurt(e, s["dmg"], t)
             self.shots.append([t.id, t.x, t.y])
-        elif t.kind == "cannon":
-            x, y = first.x, first.y
-            for e in self.enemies:
-                if not e.air and (e.x - x) ** 2 + (e.y - y) ** 2 <= s["splash"] ** 2:
-                    self.hurt(e, s["dmg"], t)
-            self.shots.append([t.id, round(x, 2), round(y, 2)])
-        elif t.kind == "tesla":
-            hit, e = [], first
+        elif mode == "splash":
+            for target in near[:s.get("shots", 1)]:
+                blasts = [(target.x, target.y, s["splash"], s["dmg"])]
+                for i in range(s.get("cluster", 0)):
+                    a = 2 * math.pi * i / s["cluster"] + self.rng.random()
+                    blasts.append((target.x + math.cos(a) * 0.8, target.y + math.sin(a) * 0.8, s["splash"] * 0.6,
+                                   s["dmg"] * 0.4))
+                for x, y, radius, dmg in blasts:
+                    for e in self.enemies:
+                        if not e.air and (e.x - x) ** 2 + (e.y - y) ** 2 <= radius * radius:
+                            self.hurt(e, dmg, t)
+                self.shots.append([t.id, *[round(v, 2) for x, y, _, _ in blasts for v in (x, y)]])
+        elif mode == "chain":
+            hit, e = [], near[0]
             while e is not None and len(hit) < s["chain"]:
                 hit.append(e)
                 self.hurt(e, s["dmg"], t)
-                e = min((o for o in self.enemies if o.hp > 0 and o not in hit
+                e = min((o for o in self.enemies if o.hp > 0 and o not in hit and (air or not o.air)
                          and (o.x - e.x) ** 2 + (o.y - e.y) ** 2 <= 1.7 ** 2),
                         key=lambda o: (o.x - e.x) ** 2 + (o.y - e.y) ** 2, default=None)
             self.shots.append([t.id, *[v for e in hit for v in (round(e.x, 2), round(e.y, 2))]])
         else:
-            self.hurt(first, s["dmg"], t, pierce=D.TOWERS[t.kind].get("pierce", False))
-            self.shots.append([t.id, round(first.x, 2), round(first.y, 2)])
+            for target in near[:s.get("shots", 1)]:
+                self.hurt(target, s["dmg"], t)
+                self.shots.append([t.id, round(target.x, 2), round(target.y, 2)])
         return True
 
     def advance(self, dt):
@@ -389,7 +448,15 @@ class Room:
             if e.slow_for > 0:
                 e.slow_for -= dt
                 if e.slow_for <= 0:
-                    e.slow = 0.0
+                    e.slow = e.brittle = 0.0
+            if e.burn_for > 0:
+                e.burn_for -= dt
+                self.damage(e, e.burn * dt, e.burner)
+                if e.hp <= 0:
+                    continue
+            if e.stun > 0:
+                e.stun -= dt
+                continue
             e.d += e.speed * (1 - e.slow) * dt
             if e.d >= e.length:
                 e.hp = 0
@@ -416,6 +483,9 @@ class Room:
             crew = self.crew() or [p for p in self.players.values() if p.seated]
             for p in crew:  # a little for seeing the wave off
                 p.gold += (20 + 4 * self.wave) / len(crew)
+            for m in self.towers.values():  # mints pay their builders
+                if m.kind == "mint" and m.owner in self.players:
+                    self.players[m.owner].gold += m.stats.get("income", 0)
             if self.wave >= D.WAVES:
                 self.phase = "won"
             else:
@@ -436,12 +506,14 @@ class Room:
             self.everyone({
                 "t": "s",
                 "e": [[e.id, D.KINDS.index(e.kind), round(e.x, 2), round(e.y, 2), round(100 * e.hp / e.max),
-                       int(e.slow > 0)] for e in self.enemies],
-                "f": self.shots,
+                       int(e.slow > 0) | 2 * (e.burn_for > 0) | 4 * (e.stun > 0)] for e in self.enemies],
+                "f": self.shots[-MAX_SHOTS:],
+                "k": {t.id: t.kills for t in set(self.kills)},
                 "g": {p.id: int(p.gold) for p in self.players.values() if p.seated},
                 "n": None if self.fighting else round(max(0.0, self.next_in), 1),
             })
             self.shots = []
+            self.kills = []
 
     async def run(self):
         next_t = time.monotonic()
@@ -473,7 +545,7 @@ class Room:
             nxt = self.wave + 1
             st.update(
                 wave=self.wave, lives=self.lives, fighting=self.fighting, speed=self.speed,
-                towers=[[t.id, t.kind, t.level, t.x, t.y, t.owner, t.spent] for t in self.towers.values()],
+                towers=[t.view() for t in self.towers.values()],
                 coming=[[kind, count] for kind, count, _, _ in D.wave(nxt)] if nxt <= D.WAVES else [])
         self.everyone(st)
 

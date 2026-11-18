@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=1">
+  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=2">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -43,7 +43,8 @@
         <summary>How to play</summary>
         <ul>
           <li>Enemies walk the road to the keep. Each one that gets there costs a life (a Warlord costs five). You share twenty.</li>
-          <li>Pick a tower from the bar, then click or tap a free square to build it. Click a tower to upgrade it (anyone can pay) or sell it (only its builder).</li>
+          <li>Pick a tower from the bar, then click or tap a free square to build it. Click a tower to see its kills and upgrade it (anyone can pay) or sell it (only its builder).</li>
+          <li>Every tower has two upgrade paths of three tiers. The first upgrade picks the path for good. At the end of each path is a <b>final evolution</b>: expensive, a lot stronger, and only one of each can stand on the map at a time.</li>
           <li>Every kill pays everyone equally. If a friend is short, give them gold from the players list.</li>
           <li>Flyers ignore the road and go straight for the keep; cannons and beacons can't touch them.</li>
           <li>Shieldbearers shrug off small hits. Ballistas go straight through armour.</li>
@@ -88,6 +89,7 @@
       <span id="hud-lives"></span>
       <span class="spacer"></span>
       <button id="speed" class="host-only" type="button"></button>
+      <button id="mute" type="button" aria-label="Sound on or off" aria-pressed="false">🔊</button>
       <span>Room <b id="game-code" class="code"></b></span>
     </header>
     <div class="main">
@@ -124,6 +126,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/holdfast/js/main.js?v=1"></script>
+  <script type="module" src="/static/games/holdfast/js/main.js?v=2"></script>
 </body>
 </html>

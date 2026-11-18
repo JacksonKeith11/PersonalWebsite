@@ -3,8 +3,11 @@
     python3 tools/holdfast-sim.py [games per setting, default 3] [--fast]
 
 For each map and difficulty, with 1, 2 and 4 players, builders play whole games: each keeps a
-fixed mix of towers, puts each where it covers the most road, and spends what's left on upgrades
-(a path picked at random, and a final evolution from wave 15 when it nearly has the gold).
+fixed mix of towers, puts each where it covers the most road, and spends what's left on upgrades.
+They play sensibly but simply: each tower's usual path (`PREFER`, single-target for archers and
+ballistas, crowd-control for frost and tesla), something that can see Ghosts before they come,
+sniper ballistas aimed at the strongest enemy (archers aimed that way let flyers past), final evolutions from wave 15 once most of the price is in
+hand, and abilities used when a crowd or a Warlord is on the board.
 They never sell, hand gold over or send a wave early, so a decent human should do better. Prints
 how many games were won, the wave reached and the lives left. `--fast` plays one game of each map
 on normal with two players (a few seconds): `tools/check-all.sh` uses it to see the fight runs.
@@ -25,6 +28,12 @@ MIX = {"archer": 3, "cannon": 2, "tesla": 1.5, "ballista": 1, "frost": 1, "beaco
        "mortar": 0.6, "mint": 0.25}
 
 
+# The path each tower usually takes, and how often (else the other).
+PREFER = {"archer": (0, 0.7), "cannon": (0, 0.6), "frost": (1, 0.6), "ballista": (0, 0.8), "tesla": (1, 0.6),
+          "beacon": (0, 0.7), "brazier": (0, 0.6), "mortar": (0, 0.6), "mint": (0, 0.8)}
+GHOSTS_FROM = 7  # the first wave with Ghosts in it
+
+
 class Builder:
     """One player's hands: spends their own purse."""
 
@@ -38,9 +47,36 @@ class Builder:
             return sum(1 for t in self.room.towers.values() if t.kind != "beacon" and math.hypot(t.x - x, t.y - y) <= r)
         return sum(1 for px, py in self.room.road if math.hypot(px - x, py - y) <= r)
 
+    def plan(self, t):
+        """The path this builder means to take a tower down."""
+        if t.path is not None:
+            return t.path
+        if not hasattr(t, "plan"):
+            path, odds = PREFER[t.kind]
+            t.plan = path if self.rng.random() < odds else 1 - path
+        return t.plan
+
+    def abilities(self):
+        room = self.room
+        if not room.fighting:
+            return
+        foes = [e for e in room.enemies if e.hp > 0]
+        for t in room.towers.values():
+            if t.ability and t.cd <= 0 and (len(foes) >= 8 or any(e.boss for e in foes)):
+                room.use_ability(t)
+
     def think(self):
         room, p = self.room, self.p
         towers = list(room.towers.values())
+        self.abilities()
+        for t in towers:  # sniper ballistas go for the toughest; the rest take the first in line
+            if t.kind == "ballista" and t.path == 0:
+                t.target = "strong"
+        if self.save_for is None and room.wave < GHOSTS_FROM and not any(t.sees for t in towers):
+            spotter = next((t for t in towers if t.kind == "archer" and t.path in (None, 0) and t.tier < 2), None)
+            if spotter and len(towers) >= 4:
+                spotter.plan = 0
+                self.save_for = ("up", spotter.id, spotter.tier)
         if self.save_for is None:
             counts = {k: sum(t.kind == k for t in towers) for k in MIX}
             kind = min(MIX, key=lambda k: (counts[k] + 0.5) / MIX[k])
@@ -49,26 +85,26 @@ class Builder:
             def worth(t):
                 if t.tier < D.EVOLUTION - 1:
                     return True
-                path = t.path if t.path is not None else 0
+                path = self.plan(t)
                 cost = D.TOWERS[t.kind]["paths"][path]["tiers"][D.EVOLUTION - 1]["cost"]
                 return t.tier < D.EVOLUTION and room.wave >= 15 and p.gold >= 0.7 * cost
             ups = [t for t in towers if worth(t)]
             if ups and len(towers) >= 5 and self.rng.random() < 0.55:
-                self.save_for = ("up", self.rng.choice(ups).id)
+                t = self.rng.choice(ups)
+                self.save_for = ("up", t.id, t.tier)
             else:
-                self.save_for = ("build", kind)
-        what, arg = self.save_for
+                self.save_for = ("build", kind, None)
+        what, arg, tier = self.save_for
         if what == "up":
             t = room.towers.get(arg)
-            if t is not None and t.path is None:
-                t.plan = getattr(t, "plan", None) or self.rng.randrange(2)
-            path = t.path if t is not None and t.path is not None else getattr(t, "plan", 0)
-            if t is None or t.tier >= D.EVOLUTION or (t.tier + 1 == D.EVOLUTION and room.evolved(t.kind, path)):
+            path = self.plan(t) if t is not None else 0
+            # gone, or someone else bought the tier this was saving for
+            if t is None or t.tier != tier or t.tier >= D.EVOLUTION or (t.tier + 1 == D.EVOLUTION and room.evolved(t.kind, path)):
                 self.save_for = None
             elif room.upgrade(p, t, path):
                 self.save_for = None
         elif p.gold >= D.TOWERS[arg]["cost"]:
-            spots = [(x, y) for x in range(D.COLS) for y in range(D.ROWS) if room.free(x, y)]
+            spots = [xy for xy in room.buildable if xy not in room.at]
             if spots:
                 best = max(spots, key=lambda s: (self.cover(arg, *s), self.rng.random()))
                 room.build(p, arg, *best)
@@ -79,6 +115,7 @@ def play(map_id, diff, n, seed):
     rng = random.Random(seed)
     room = game.Room("SIM")
     room.send = lambda p, data: None
+    room.saving = False
     room.map, room.diff = map_id, diff
     for i in range(n):
         p = game.Player(i + 1, f"P{i + 1}", "#fff", None, None, None)

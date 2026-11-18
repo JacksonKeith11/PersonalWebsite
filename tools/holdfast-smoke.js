@@ -1,7 +1,8 @@
 // Plays Holdfast in two headless browsers (one phone-sized). The host makes a room, picks a map
 // and difficulty; a friend joins by the link. They build (by click and by tap), are refused a tower on
-// the road, give gold, upgrade each other's towers along a path (the other path closes) and sell
-// their own; kill counts and the mute button work; a wave is fought and its
+// the road, undo a build, aim a tower, give gold, upgrade each other's towers along a path (the other
+// path closes) and sell their own; kill counts and the mute button work; the end screen sums the game
+// up, and the room's records show it; a wave is fought and its
 // enemies, shots and bounties must show up on both screens; then, with every tower sold, the keep
 // falls, the scores come up, and the host takes everyone back to the room. Fails if a page throws or
 // logs an error. About 50 s.
@@ -34,7 +35,7 @@ async function serve() {
   const os = require('os'), fs = require('fs');
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'holdfast-smoke-'));
   const proc = spawn('python3', ['-m', 'uvicorn', 'app.main:app', '--port', String(port), '--log-level', 'warning'],
-    { cwd: path.join(__dirname, '..'), env: { ...process.env, DATA_DIR: data }, stdio: ['ignore', 'inherit', 'inherit'] });
+    { cwd: path.join(__dirname, '..'), env: { ...process.env, DATA_DIR: data, HOLDFAST_DB: path.join(data, 'holdfast.db') }, stdio: ['ignore', 'inherit', 'inherit'] });
   BASE = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 80; i++) {
     try { const r = await fetch(BASE + '/healthz'); if (r.ok) return proc; } catch (e) { /* not up yet */ }
@@ -84,6 +85,7 @@ async function serve() {
     await host.selectOption('#diff', 'hard');
     await friend.waitForFunction(() => document.getElementById('diff').value === 'hard');
     if (await friend.isVisible('#start')) throw new Error('a guest was offered the Start button');
+    if (!(await host.textContent('#records')).includes('No games')) throw new Error('a fresh map already has records');
     await shot(host, '2-lobby');
     await host.click('#start');
     const all = [host, friend];
@@ -115,6 +117,26 @@ async function serve() {
     await tile(friend, 3, 1);
     for (const p of all) await count(p, 3);
     if ((await towers(friend)).some(t => t.x === 2 && t.y === 2)) throw new Error('a tower was built on the road');
+    // Undo: Bo builds an archer in the wrong place and takes it back for a full refund.
+    const before = await gold(friend, 'Bo');
+    const at = (x, y) => `window.holdfast.S.st.towers.some(t => t.x === ${x} && t.y === ${y})`;
+    await friend.keyboard.press('Escape');
+    await pick(friend, 'archer');
+    await tile(friend, 10, 10);
+    await friend.waitForFunction(at(10, 10));
+    await tile(friend, 10, 10);   // clicking the new tower opens its panel
+    await friend.click('#info .undo-btn');
+    await friend.waitForFunction(`!${at(10, 10)}`);
+    if (await gold(friend, 'Bo') !== before) throw new Error('an undone build was not refunded in full');
+    // Targeting: Ada points her archer at the strongest; Bo sees it change.
+    await host.keyboard.press('Escape');
+    await tile(host, 2, 3);
+    await host.click('#info .targets button:has-text("Strong")');
+    await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.x === 2 && t.y === 3 && t.tg === 'strong'));
+    await host.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.x === 2 && t.y === 3 && t.tg === 'strong'));
+    await host.keyboard.press('t');   // T moves on to the next
+    await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.x === 2 && t.y === 3 && t.tg === 'close'));
+    await host.keyboard.press('Escape');
     await shot(host, '3-building');
     await shot(friend, '3-building-phone');
 
@@ -165,12 +187,16 @@ async function serve() {
     for (const p of all) await p.waitForSelector('#end:not([hidden])', { timeout: 60000 });
     if (!(await host.textContent('#end-title')).includes('fallen')) throw new Error('the game ended, but not in defeat');
     if (await host.locator('#end-rows tr').count() !== 2) throw new Error('the scores are missing a player');
+    if (!(await host.textContent('#end-leaks')).includes('Lives lost')) throw new Error('the end screen has no account of the lives lost');
+    if (!(await host.textContent('#end-mvp')).includes('Tower of the game')) throw new Error('the end screen has no tower of the game (sold towers count)');
     const kills = (await st(host)).players.reduce((n, q) => n + q.kills, 0);
     if (!kills) throw new Error('nobody was credited with a kill');
     await shot(host, '5-end');
     await shot(friend, '5-end-phone');
     await host.click('#again');
     for (const p of all) await p.waitForSelector('#lobby:not([hidden])');
+    await host.waitForFunction(() => /^\d/.test(document.querySelector('#records li b')?.textContent || ''));
+    await shot(host, '6-lobby-records');
 
     if (problems.length) throw new Error('page errors:\n  ' + problems.join('\n  '));
     console.log('ok: two players built, gave gold, upgraded and sold; a wave was fought off; the keep fell and the room reopened');

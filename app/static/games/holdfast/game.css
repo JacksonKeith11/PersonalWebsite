@@ -74,3 +74,35 @@ aside p { margin: 0 0 8px; color: var(--dim); font-size: 0.9rem; }
   #palette { grid-template-columns: repeat(3, 1fr); }
   aside { gap: 8px; }
 }
+
+/* the lobby's saves and records */
+.saves, .records { padding-left: 0; margin: 0 0 8px; list-style: none; }
+.saves li, .records li { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule); font-size: 0.92rem; }
+.saves li span, .records li span { flex: 1; }
+.saves button { padding: 4px 10px; font-size: 0.85rem; }
+.records b { width: 3.2em; }
+
+/* abilities, keys, numbers */
+#abilities { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+#abilities button { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; padding: 6px 10px; min-width: 130px; border-color: #ffd75a; }
+#abilities button small { color: var(--dim); }
+#abilities button .fill { position: absolute; left: 0; bottom: 0; height: 3px; background: #ffd75a; }
+#abilities button.ready { background: #4a3b16; }
+.keys { color: var(--dim); font-size: 0.8rem; margin: 8px 0 0; }
+#numbers { padding: 2px 8px; font-size: 0.8rem; }
+#numbers[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-size: 0.8rem; padding: 1px 8px; border-radius: 999px; background: #4a3b16; color: #ffd75a; }
+
+/* the tower panel's extras */
+.targets { display: flex; gap: 4px; margin: 0 0 10px; }
+#game .targets button { flex: 1; padding: 4px 0; font-size: 0.8rem; }
+#game .targets button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+#game .ability-btn { width: 100%; margin-bottom: 8px; background: linear-gradient(135deg, #ffd75a, #ff9f2f); border-color: #ffd75a; color: #2a2000; }
+#game .ability-btn:disabled { background: var(--slate2); color: var(--dim); }
+#game .undo-btn { width: 100%; margin-bottom: 8px; }
+
+/* the end screen */
+.card .record { color: #2f7a43; font-weight: 700; }
+#end-mvp { margin: 0 0 10px; }
+@media (pointer: coarse) { .keys { display: none; } }

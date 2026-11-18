@@ -9,7 +9,8 @@ Co-op tower defence for 1-4 players, each on their own phone or computer (a fift
 joiners watch). Everyone builds on one map, but each player has their own purse. Every kill pays
 everyone who's connected equally, and a player can hand another 25 gold at a time, so the game is
 arguing about who pays for what. Thirty waves; twenty lives between everyone (a Warlord costs
-five). Three maps and three difficulties, picked by the host. Between waves there are 12 seconds
+five). Five maps (Meadow, Crossing, Coil, Knot, where the road crosses itself, and Quarry, which
+can only be built on in a few cleared patches) and three difficulties, picked by the host. Between waves there are 12 seconds
 to build (25 before the first), or the wave comes at once when everyone presses Ready. The host
 can run the game at ×1, ×2 or ×3.
 
@@ -27,9 +28,32 @@ time (selling it frees the place). Anyone may pay to upgrade any tower; only its
 (for 70% of everything spent on it). Every tower counts its kills and damage, shown on its panel.
 
 Every weapon has its own synthesized hit sound (and evolved towers sound bigger); the 🔊 button
-mutes them, remembered per browser. Seven
-enemies: Grunt, Runner, Swarmling, Brute, Shieldbearer (armour), Flyer (ignores the road) and
-Warlord (every tenth wave).
+mutes them, remembered per browser; the 123 button floats damage numbers off enemies.
+
+Eleven enemies: Grunt, Runner, Swarmling, Brute, Shieldbearer (armour), Flyer (ignores the road),
+Warlord (every tenth wave; calls up Grunts as it walks), and four that make the paths matter: Ghost
+(camouflaged: only towers that `detect`, auras, or towers beside a Spyglass beacon can target it;
+from wave 7), Splitter (bursts into Swarmlings; from 9), Mender (heals the enemies around it; from
+12) and Gargoyle (an armoured flyer; from 18).
+
+The owner asked for these in November 2026, all built together:
+- **Targeting**: each tower aims at the first enemy (nearest the keep), the last, the strongest or
+  the closest; anyone may change it.
+- **Abilities**: every final evolution has one (`ABILITIES` in data.py: a strike, a field-wide
+  stun, slow or burn, overdrive, rally, mark, gold, bounty), on a cooldown that only runs while a
+  wave is being fought. Anyone seated may set one off: from the tower's panel, the bar of abilities
+  under the board, or Q.
+- **End-of-game summary**: the tower of the game, each player's best tower (sold ones count), the
+  waves where lives were lost, and whether it's a record.
+- **Endless**: after wave 30 the host can keep going; the wave recipe carries on with every enemy
+  mixed in. **Records**: how far each game got, by map, difficulty and party size (`save.py`),
+  listed in the lobby.
+- **Saves**: the game is saved at the start of every build phase (`data/holdfast.db`) and listed in
+  the lobby of everyone who played in it; the host resumes it. Players who aren't back yet keep their
+  seat, purse and towers until they rejoin. A game that ends deletes its save.
+- **Polish**: the reach an upgrade would give shows while pointing at it; keys (1-9 tower, Z/X buy
+  on a path, Q ability, T targeting, U undo, Space ready, Esc); a build or upgrade can be undone for
+  a full refund for 5 seconds (`UNDO`), by whoever paid; damage numbers.
 
 ## How it works
 
@@ -49,14 +73,21 @@ Warlord (every tenth wave).
   the dead, end the wave), fifteen steps a second, `speed` of them per tick. It has no I/O, so
   `tools/holdfast-sim.py` calls it directly. Shots land the instant they're fired; what the browser
   draws flying is decoration.
-- Messages to the browser: `welcome` (the rules), `map`, `state` (players, towers, wave, lives:
+- Messages to the browser: `welcome` (the rules), `map` (with `build`, the only buildable tiles,
+  on Quarry), `saves` (this browser's saved games), `note`, `state` (players, towers, wave, lives:
   sent when something structural changes; towers as `{id, k, p (path), n (tier), x, y, o (owner),
-  s (spent), kills, dmg}`) and `s`, the snapshot, ten times a second (enemies as `[id, kind index, x,
-  y, health %, flags]` with flags 1 slowed, 2 burning, 4 stunned; the shots since the last one, at
-  most 80; `k`, the kill counts of towers that killed something; every purse; and the seconds to the
-  next wave).
-- From the browser: `set`, `start`, `speed`, `again` (host); `build`, `up` (with `path`, 0 or 1),
-  `sell`, `give`, `ready`.
+  s (spent), kills, dmg, tg (targeting), un ([payer, seconds of undo left] or null)}`; `summary`,
+  `record_new` and `records` once a game ends, `records` in the lobby too) and `s`, the snapshot,
+  ten times a second (enemies as `[id, kind index, x, y, health %, flags, damage since the last
+  snapshot]` with flags 1 slowed, 2 burning, 4 stunned, 8 camouflaged; the shots since the last
+  one, at most 80; `k`, the kill counts of towers that killed something; `a`, evolved towers'
+  ability cooldowns; `x`, abilities used; `gl`, seconds left of Rally, Mark and Bounty Hunt; every
+  purse; and the seconds to the next wave).
+- From the browser: `set`, `start`, `resume`, `speed`, `again`, `endless` (host); `forget`;
+  `build`, `up` (with `path`, 0 or 1), `sell`, `undo`, `target`, `ability`, `give`, `ready`.
+- `app/holdfast/save.py`: saved games and records in SQLite, at `HOLDFAST_DB` (default
+  `data/holdfast.db`; the checks and smoke test point it at a temporary file). Like Kingfall's saves,
+  each carries a `VERSION`; one from another version is deleted when listed (no migrations yet).
 - The browser (`js/main.js`) draws the board on one canvas in tile units and eases enemies between
   snapshots. The menu and lobby are the shared `games/shared/lobby.js` and `lobby.css`.
 
@@ -93,6 +124,18 @@ Warlord (every tenth wave).
   Warlords last a third as long.
 - **Kill counts live on the tower**: sold, they're gone. A burn's damage and kills go to the tower
   that lit it, even after it's sold.
+- **Ability cooldowns, overdrive, Rally, Mark and Bounty Hunt run on fight time** (`Room.fight_t`,
+  which only moves while a wave is on), so build phases don't burn them.
+- **Splitters' Swarmlings and Warlords' Grunts are born mid-step** into `Room.born` and join the
+  enemies at the end of the step, so a loop over enemies never grows under itself.
+- **Menders don't add up**: an enemy near several is healed by the best one only. Stacked, four
+  Menders in a crowd healed 20% a second and nothing could kill them.
+- **The simulator turns saving off** (`room.saving = False`); anything else that makes rooms in a
+  script should too, or point `HOLDFAST_DB` somewhere temporary.
+- **A resumed game's towers keep their owner by browser token**: a tower whose builder never comes
+  back has no owner, so nobody can sell it (anyone can still upgrade it).
+- **Undo only takes back the latest build or upgrade on a tower**, within `UNDO` real seconds (not
+  game seconds), and only for whoever paid.
 - **Sounds are throttled to one per weapon every 70 ms**, or a Storm of Arrows (forty shots a
   second) would roar.
 - **Tiles are whole numbers**: `Room.free` refuses anything that isn't an `int` in range.
@@ -100,14 +143,43 @@ Warlord (every tenth wave).
 
 ## Balance
 
-`python3 tools/holdfast-sim.py` (about a minute for 3 games of every map, difficulty and 1, 2 and
-4 players) plays whole games with simple builders that keep a fixed mix of towers, put each where
-it covers the most road, upgrade along a path picked at random (final evolutions only from wave
-15), and never sell, give gold or send a wave early. A decent human should do better: in
-particular, the builders don't steer paths towards single-target damage before the Warlord waves.
+`python3 tools/holdfast-sim.py` (about a minute and a half for 3 games of every map, difficulty and
+1, 2 and 4 players) plays whole games with simple builders. They keep a fixed mix of towers, put each
+where it covers the most road, take each tower down its usual path (`PREFER`), make sure something
+can see Ghosts before wave 7, aim sniper ballistas at the strongest enemy, save for a final evolution
+only from wave 15 with most of the price in hand, and use abilities when a crowd or a Warlord is on
+the board. They never sell, give gold or send a wave early, and two builders can both upgrade one
+tower (each remembers the tier it was saving for). A decent human should do better.
 
-Latest run (November 2026, after the upgrade paths, final evolutions and three new towers; 3 games
-each, `won` and, if any were lost, the wave reached):
+Latest run (November 2026, after targeting, abilities, the four new enemies, Knot and Quarry, and
+the smarter builders; 3 games each, `won` and, if any were lost, the wave reached):
+
+| | Easy | Normal | Hard |
+|---|---|---|---|
+| Meadow, 1 player | won 3/3 | won 3/3 | won 0/3, wave 14-20 |
+| Meadow, 2 players | won 3/3 | won 1/3, wave 24-30 | won 0/3, wave 11-16 |
+| Meadow, 4 players | won 3/3 | won 0/3, wave 16-20 | won 0/3, wave 10-11 |
+| Crossing, 1 player | won 3/3 | won 3/3 | won 0/3, wave 19-21 |
+| Crossing, 2 players | won 3/3 | won 3/3 | won 0/3, wave 9-19 |
+| Crossing, 4 players | won 3/3 | won 2/3, wave 21-30 | won 0/3, wave 7-8 |
+| Coil, 1 player | won 2/3, wave 29-30 | won 0/3, wave 24-29 | won 0/3, wave 19-20 |
+| Coil, 2 players | won 2/3, wave 29-30 | won 0/3, wave 29-29 | won 0/3, wave 24-29 |
+| Coil, 4 players | won 2/3, wave 29-30 | won 0/3, wave 24-29 | won 0/3, wave 10-20 |
+| Knot, 1 player | won 0/3, wave 24-24 | won 0/3, wave 19-19 | won 0/3, wave 14-14 |
+| Knot, 2 players | won 1/3, wave 19-30 | won 0/3, wave 19-29 | won 0/3, wave 14-19 |
+| Knot, 4 players | won 1/3, wave 24-30 | won 1/3, wave 14-30 | won 0/3, wave 9-24 |
+| Quarry, 1 player | won 3/3 | won 0/3, wave 29-29 | won 0/3, wave 16-29 |
+| Quarry, 2 players | won 3/3 | won 0/3, wave 21-29 | won 0/3, wave 11-14 |
+| Quarry, 4 players | won 3/3 | won 0/3, wave 16-24 | won 0/3, wave 9-11 |
+
+Meadow and Crossing are about where they were (solo normal better), Quarry is fine on easy,
+Coil got harder (it lost its "gentle" label to Meadow) and Knot is the hardest map, lost even on
+easy alone, mostly on the flyer waves. Four-player games are harder than one or two (four builders
+split the gold four ways and each builds less). Hard is lost everywhere by the builders. They
+never reach a final evolution, so abilities barely figure here. If real games feel too hard on
+Knot or Coil, the levers are the flyer waves and Gargoyles (`_extras` in data.py).
+
+The run before these (upgrade paths, final evolutions and three new towers; three maps):
 
 | | Easy | Normal | Hard |
 |---|---|---|---|
@@ -120,11 +192,6 @@ each, `won` and, if any were lost, the wave reached):
 | Coil, 1 player | won 3/3 | won 1/3, wave 20-30 | won 0/3, wave 14-24 |
 | Coil, 2 players | won 2/3, wave 29-30 | won 0/3, wave 19-29 | won 0/3, wave 14-20 |
 | Coil, 4 players | won 3/3 | won 0/3, wave 20-29 | won 0/3, wave 14-24 |
-
-Compared with before: easy and two-player normal are about the same; solo normal is a little
-harder (Meadow 1/3, was 3/3) and hard is much harder for the builders, which spend early gold on
-Mints and Mortars that pay off late. Coil on normal with 2 or 4 players fell at waves 19-29 in all
-six games (it was 1/3 won with 2 before). The builders rarely reach a final evolution (under one a game).
 
 Before the upgrade paths (six towers, three levels each), with the numbers then (and before enemy
 health stopped scaling with players):
@@ -141,10 +208,12 @@ badly across its two roads). Crossing is meant to be the hard map.
 
 ## Checking a change
 
-- `python3 tools/holdfast-check.py` (a second): the room's rules. In `check-all.sh`.
+- `python3 tools/holdfast-check.py` (a few seconds): the room's rules, every tower's and ability's
+  effects, the newer enemies, undo, endless, records, and saving and resuming (into a temporary
+  database). In `check-all.sh`.
 - `python3 tools/holdfast-sim.py --fast` (2 s): one game of each map, to see the fight runs. In
   `check-all.sh`. The full run is for changes to the numbers; run it once, at the end.
-- `node tools/holdfast-smoke.js --serve` (about 50 s): two browsers, one phone-sized, build, fight
-  a wave, lose and reopen the room. In `check-all.sh`; skipped where Playwright isn't installed.
+- `node tools/holdfast-smoke.js --serve` (about 50 s): two browsers, one phone-sized, build, undo,
+  aim, upgrade, fight a wave, lose, read the end summary and see the record in the room. In `check-all.sh`; skipped where Playwright isn't installed.
   `--shots <folder>` saves screenshots.
 - After changing its CSS or JS: `python3 tools/bump-version.py app/static/games/holdfast`.

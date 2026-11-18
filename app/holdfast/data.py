@@ -34,6 +34,11 @@ DIFFICULTY = {"easy": 0.75, "normal": 1.0, "hard": 1.3}  # enemy health
 #            best beacon in reach counts for each, not the sum
 #   income   (mints) gold to the builder at the end of every wave
 #   bounty   (mints) kills in its reach pay everyone this much more
+#   detect   can it see Ghosts (camouflaged)? Auras always can; a lightning chain can jump to one
+#   reveal   (beacons) towers in its reach can see Ghosts too
+#
+# Each final evolution also has an `ability` (ABILITIES, below): a power anyone may trigger, on a
+# cooldown that only runs while a wave is being fought.
 
 
 def tier(name, cost, blurb, **set_):
@@ -47,7 +52,7 @@ TOWERS = {
         "paths": [
             {"name": "Marksman", "tiers": [
                 tier("Sharp Arrows", 60, "Hits much harder.", dmg=22),
-                tier("Longbow", 120, "Reaches further and hits harder still.", range=4.3, dmg=46),
+                tier("Longbow", 120, "Reaches further, hits harder, and spots Ghosts.", range=4.3, dmg=46, detect=True),
                 tier("Bodkin Points", 260, "Arrows punch through armour.", dmg=106, pierce=True),
                 tier("Eagle Eye", 2200, "Final evolution: a sharpshooter who sees the whole road and fells Warlords.",
                      range=9, dmg=565, rate=0.45, boss=2),
@@ -106,7 +111,7 @@ TOWERS = {
         "base": {"mode": "shoot", "range": 6.0, "rate": 2.2, "dmg": 75, "air": True, "pierce": True},
         "paths": [
             {"name": "Siege", "tiers": [
-                tier("Heavy Bolts", 130, "Hits much harder.", dmg=156),
+                tier("Heavy Bolts", 130, "Hits much harder, and spots Ghosts.", dmg=156, detect=True),
                 tier("Steel Bolts", 260, "Hits harder still.", dmg=319),
                 tier("Giant Slayer", 480, "Triple damage to Warlords.", dmg=668, boss=3),
                 tier("Kingslayer", 3400, "Final evolution: one bolt fit to end a Warlord.",
@@ -153,7 +158,7 @@ TOWERS = {
                      boost=0.8, range=3.2, power=0.5),
             ]},
             {"name": "Watch", "tiers": [
-                tier("Spyglass", 120, "Towers beside it reach further.", reach=0.15),
+                tier("Spyglass", 120, "Towers beside it reach further and can see Ghosts.", reach=0.15, reveal=True),
                 tier("Lookout", 220, "Reaches further, and so do they.", reach=0.25, range=2.0),
                 tier("Sharpening Stone", 400, "Towers beside it hit harder.", power=0.25),
                 tier("Lighthouse", 2400, "Final evolution: lights up the field for every tower near it.",
@@ -223,6 +228,57 @@ TOWERS = {
 }
 EVOLUTION = 4  # the tier that's a final evolution
 
+# Final evolutions' abilities, by (tower, path). `do` is what it does (Room.ability):
+#   strike   `dmg` to enemies: the `pick` strongest (by health), "all" of them, or every enemy within
+#            `radius` of the one nearest the keep ("lead"); `ground` only if set. Warlords take
+#            `boss_frac` of their health instead, if that's given.
+#   stun / slow / burn   every enemy (`ground` only if set) for `secs`; slows by `slow`, burns `dps`
+#   overdrive  this tower fires `rate`x as fast for `secs`
+#   rally      every tower fires `rate`x as fast for `secs`
+#   mark       every enemy takes `more` extra damage for `secs`
+#   gold       `gold` to each player now
+#   bounty     kills pay `more` extra for `secs`
+ABILITIES = {
+    ("archer", 0): {"name": "Headshot", "cd": 30, "do": "strike", "pick": 1, "dmg": 4000, "boss_frac": 0.25,
+                    "blurb": "Deals a crushing blow to the toughest enemy on the board."},
+    ("archer", 1): {"name": "Arrow Rain", "cd": 40, "do": "strike", "pick": "all", "dmg": 400,
+                    "blurb": "Arrows fall on every enemy on the board."},
+    ("cannon", 0): {"name": "Doomsday", "cd": 45, "do": "strike", "pick": "lead", "radius": 4, "dmg": 3000, "ground": True,
+                    "blurb": "Flattens everything on the ground around the leading enemy."},
+    ("cannon", 1): {"name": "Bombing Run", "cd": 40, "do": "stun", "secs": 2.5, "ground": True,
+                    "blurb": "Stops every enemy on the ground for 2.5 seconds."},
+    ("frost", 0): {"name": "Freeze the Field", "cd": 45, "do": "stun", "secs": 3,
+                   "blurb": "Freezes every enemy solid for 3 seconds."},
+    ("frost", 1): {"name": "Hailstorm", "cd": 40, "do": "strike", "pick": "all", "dmg": 500,
+                   "blurb": "Hail hammers every enemy on the board."},
+    ("ballista", 0): {"name": "Execute", "cd": 40, "do": "strike", "pick": 1, "dmg": 999999, "boss_frac": 0.3,
+                      "blurb": "Kills the toughest enemy outright (takes 30% off a Warlord)."},
+    ("ballista", 1): {"name": "Overdrive", "cd": 40, "do": "overdrive", "rate": 4, "secs": 6,
+                      "blurb": "Fires four times as fast for 6 seconds."},
+    ("tesla", 0): {"name": "Thunderstorm", "cd": 40, "do": "strike", "pick": "all", "dmg": 350,
+                   "blurb": "Lightning strikes every enemy on the board."},
+    ("tesla", 1): {"name": "Smite", "cd": 35, "do": "stun", "secs": 2,
+                   "blurb": "Stops every enemy for 2 seconds."},
+    ("beacon", 0): {"name": "Rally", "cd": 60, "do": "rally", "rate": 2, "secs": 8,
+                    "blurb": "Every tower fires twice as fast for 8 seconds."},
+    ("beacon", 1): {"name": "Mark Them", "cd": 50, "do": "mark", "more": 0.5, "secs": 8,
+                    "blurb": "Every enemy takes half again as much damage for 8 seconds."},
+    ("brazier", 0): {"name": "Firestorm", "cd": 45, "do": "burn", "dps": 200, "secs": 4,
+                     "blurb": "Sets every enemy on the board ablaze."},
+    ("brazier", 1): {"name": "Tar Flood", "cd": 45, "do": "slow", "slow": 0.7, "secs": 5, "ground": True,
+                     "blurb": "Every enemy on the ground crawls for 5 seconds."},
+    ("mortar", 0): {"name": "Meteor Shower", "cd": 45, "do": "strike", "pick": 8, "dmg": 2500, "ground": True,
+                    "boss_frac": 0.1, "blurb": "Meteors hit the eight toughest enemies on the ground."},
+    ("mortar", 1): {"name": "Carpet of Fire", "cd": 40, "do": "burn", "dps": 120, "secs": 5, "ground": True,
+                    "blurb": "Sets every enemy on the ground burning for 5 seconds."},
+    ("mint", 0): {"name": "Windfall", "cd": 90, "do": "gold", "gold": 400,
+                  "blurb": "400 gold to every player, now."},
+    ("mint", 1): {"name": "Bounty Hunt", "cd": 60, "do": "bounty", "more": 2.0, "secs": 10,
+                  "blurb": "Kills pay three times as much for 10 seconds."},
+}
+for (_kind, _path), _ability in ABILITIES.items():
+    TOWERS[_kind]["paths"][_path]["tiers"][EVOLUTION - 1]["ability"] = _ability
+
 
 def stats(kind, path=None, tiers=0):
     """A tower's numbers with `tiers` bought on `path`."""
@@ -234,7 +290,12 @@ def stats(kind, path=None, tiers=0):
 
 
 # Each enemy: health and bounty before the wave's scaling, speed in tiles a second, armour taken off
-# every hit (ballistas ignore it), lives lost if it gets through.
+# every hit (ballistas ignore it), lives lost if it gets through. Special ones:
+#   camo     only towers that `detect` (or are revealed by a beacon) can target it
+#   heal     mends enemies within 1.5 tiles by this share of their health a second (Menders
+#            don't add up: an enemy near two is mended by one)
+#   split    breaks into this many Swarmlings when it dies
+#   summon   (Warlords) calls up this many Grunts every `every` seconds
 ENEMIES = {
     "grunt": {"name": "Grunt", "hp": 30, "speed": 1.0, "bounty": 5},
     "runner": {"name": "Runner", "hp": 17, "speed": 1.9, "bounty": 4},
@@ -242,7 +303,12 @@ ENEMIES = {
     "brute": {"name": "Brute", "hp": 150, "speed": 0.6, "bounty": 16},
     "shield": {"name": "Shieldbearer", "hp": 60, "speed": 0.8, "bounty": 10, "armor": 5},
     "flyer": {"name": "Flyer", "hp": 22, "speed": 1.3, "bounty": 6, "air": True},
-    "boss": {"name": "Warlord", "hp": 400, "speed": 0.45, "bounty": 120, "armor": 3, "lives": 5},
+    "ghost": {"name": "Ghost", "hp": 26, "speed": 1.15, "bounty": 7, "camo": True},
+    "healer": {"name": "Mender", "hp": 45, "speed": 0.85, "bounty": 12, "heal": 0.02},
+    "splitter": {"name": "Splitter", "hp": 55, "speed": 0.9, "bounty": 8, "split": 3},
+    "gargoyle": {"name": "Gargoyle", "hp": 38, "speed": 0.9, "bounty": 12, "air": True, "armor": 2},
+    "boss": {"name": "Warlord", "hp": 400, "speed": 0.45, "bounty": 120, "armor": 3, "lives": 5,
+             "summon": 1, "every": 12},
 }
 KINDS = list(ENEMIES)  # snapshots name an enemy's kind by its index here
 
@@ -258,8 +324,28 @@ def bounty(wave):
 
 
 def wave(w):
-    """A wave as groups: (kind, how many, seconds between them, seconds before the first)."""
+    """A wave as groups: (kind, how many, seconds between them, seconds before the first). Past
+    wave 30 (endless) the same recipe carries on, with everything mixed in."""
     n = lambda base: round(base * (1 + w / 14))  # noqa: E731
+    return _base_wave(w, n) + _extras(w, n)
+
+
+def _extras(w, n):
+    """The newer enemies, worked into the cycle once the basics are learnt."""
+    c = w % 5
+    out = []
+    if w >= 7 and (c == 2 or w > 30):
+        out.append(("ghost", n(4), 0.8, 2))
+    if w >= 9 and (c == 1 or w > 30):
+        out.append(("splitter", n(3), 1.4, 2))
+    if w >= 12 and (c == 1 or w > 30):
+        out.append(("healer", n(1), 2.5, 4))
+    if w >= 18 and (c == 4 or w > 30):
+        out.append(("gargoyle", max(1, w // 12), 1.5, 3))
+    return out
+
+
+def _base_wave(w, n):
     if w % 10 == 0:
         return [("boss", w // 10, 5.0, 0), ("grunt", n(8), 0.7, 2)]
     c = w % 5
@@ -275,19 +361,37 @@ def wave(w):
 
 
 # Maps: each path is the corners an enemy walks between, as tile (column, row); it starts off the
-# board and ends on the keep. Nothing can be built on a path or a rock.
+# board and ends on the keep. Nothing can be built on a path or a rock; a map with `build` can be
+# built on only there.
 MAPS = {
-    "meadow": {"name": "Meadow", "blurb": "One long, winding road.",
+    "meadow": {"name": "Meadow", "blurb": "One long, winding road. The gentle one.",
                "paths": [[(-1, 2), (4, 2), (4, 8), (9, 8), (9, 3), (14, 3), (14, 9), (19, 9)]],
                "rocks": [(1, 6), (7, 1), (11, 10), (17, 4), (6, 5), (12, 6)]},
     "crossing": {"name": "Crossing", "blurb": "Two roads that meet in the middle. The hard one.",
                  "paths": [[(-1, 1), (6, 1), (6, 6), (13, 6), (13, 10), (19, 10)],
                            [(-1, 10), (6, 10), (6, 6), (13, 6), (13, 10), (19, 10)]],
                  "rocks": [(3, 5), (9, 3), (10, 9), (16, 7), (2, 7), (16, 3)]},
-    "coil": {"name": "Coil", "blurb": "A long spiral in to the keep. The gentle one.",
+    "coil": {"name": "Coil", "blurb": "A long spiral in to the keep.",
              "paths": [[(-1, 1), (17, 1), (17, 10), (2, 10), (2, 4), (13, 4), (13, 7), (7, 7)]],
              "rocks": [(0, 6), (19, 5), (9, 11), (5, 2), (15, 6), (10, 9)]},
+    "knot": {"name": "Knot", "blurb": "A road that crosses itself: towers at the crossing see everything twice. A hard one.",
+             "paths": [[(-1, 3), (14, 3), (14, 9), (8, 9), (8, 1), (17, 1), (17, 10), (19, 10)]],
+             "rocks": [(2, 7), (11, 6), (4, 10), (19, 4), (12, 11), (3, 0)]},
+    "quarry": {"name": "Quarry", "blurb": "Rubble everywhere: only a few patches of cleared ground to build on.",
+               "paths": [[(-1, 6), (5, 6), (5, 2), (12, 2), (12, 9), (19, 9)]],
+               "rocks": [],
+               "build": [(3, 4), (4, 4), (3, 5), (4, 7), (6, 4), (6, 5), (7, 3), (8, 3), (7, 1), (9, 1),
+                         (10, 3), (11, 3), (11, 4), (13, 1), (13, 3), (10, 6), (11, 6), (13, 6), (10, 8),
+                         (11, 8), (13, 8), (14, 8), (15, 10), (17, 8), (16, 10), (1, 5), (2, 7)]},
 }
+
+
+def buildable(m):
+    """The tiles a map can be built on."""
+    road = path_tiles(m)
+    if "build" in m:
+        return {tuple(t) for t in m["build"]} - road
+    return {(x, y) for x in range(COLS) for y in range(ROWS)} - road - {tuple(r) for r in m["rocks"]}
 
 
 def path_tiles(m):

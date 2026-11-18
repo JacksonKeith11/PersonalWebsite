@@ -4,16 +4,21 @@ Everyone builds on one map, each from their own purse; bounties are shared out e
 whoever is connected, and gold can be handed to another player. Thirty waves; twenty lives between
 everyone. The server runs the whole fight (`Room.advance`), fifteen steps a second, and sends
 snapshots of the enemies ten times a second; the browser only draws and asks to build.
+
+After wave 30 the host may carry on into endless waves. The game is saved at the start of every
+build phase (save.py), can be resumed from the lobby, and how far it got goes into the records.
 """
 
 import asyncio
 import logging
 import math
 import random
+import secrets
 import time
 
 from ..rooms import Codes, Refused, clean, dumps, hang_up, push
 from . import data as D
+from . import save as SAVE
 
 log = logging.getLogger("holdfast")
 
@@ -26,6 +31,8 @@ COLORS = ["#e8552f", "#3f8fe8", "#e8b923", "#4fb85f"]
 ROOM_KEEP = 30 * 60
 SPEEDS = (1, 2, 3)
 GIFT = 25
+TARGETS = ("first", "last", "strong", "close")  # which enemy in reach a tower aims at
+UNDO = 5  # real seconds in which a build or upgrade can be taken back for a full refund
 
 
 class Player:
@@ -56,14 +63,29 @@ class Tower:
         self.kills = 0
         self.dmg = 0.0
         self.stats = D.stats(kind)
+        self.target = "first"
+        self.sees = False  # can it target Ghosts?
+        self.cd = 0.0  # seconds of fighting before its ability is ready again
+        self.overdrive = (0.0, 1.0)  # (fight time it lasts until, how much faster)
+        self.undo = None  # (monotonic time it expires, who paid, "build" or "up", cost)
 
     @property
     def range(self):
         return self.stats["range"] * (1 + self.reach)
 
+    @property
+    def ability(self):
+        if self.tier >= D.EVOLUTION:
+            return D.TOWERS[self.kind]["paths"][self.path]["tiers"][D.EVOLUTION - 1].get("ability")
+        return None
+
     def view(self):
+        undo = None
+        if self.undo and self.undo[0] > time.monotonic():
+            undo = [self.undo[1], round(self.undo[0] - time.monotonic(), 1)]
         return {"id": self.id, "k": self.kind, "p": self.path, "n": self.tier, "x": self.x, "y": self.y,
-                "o": self.owner, "s": self.spent, "kills": self.kills, "dmg": round(self.dmg)}
+                "o": self.owner, "s": self.spent, "kills": self.kills, "dmg": round(self.dmg),
+                "tg": self.target, "un": undo}
 
 
 class Enemy:
@@ -83,6 +105,13 @@ class Enemy:
         self.stun = 0.0  # seconds left stopped dead
         self.burn, self.burn_for, self.burner = 0.0, 0.0, None  # damage a second, for how long, from which tower
         self.boss = kind == "boss"
+        self.camo = e.get("camo", False)
+        self.heal = e.get("heal", 0.0)
+        self.split = e.get("split", 0)
+        self.summon, self.every = e.get("summon", 0), e.get("every", 0)
+        self.summon_t = self.every
+        self.wave = wave
+        self.taken = 0.0  # damage since the last snapshot (the browser floats it up)
 
 
 def make_route(points):
@@ -104,6 +133,7 @@ class Room:
         self.diff = "normal"
         self.phase = "lobby"  # lobby, play, won, lost
         self.speed = 1
+        self.saving = True  # the simulator turns saving and records off
         self.task = None
         self.empty_since = None
         self.rng = random.Random()
@@ -126,6 +156,19 @@ class Room:
         self.routes = []
         self.since_snap = 0.0
         self.dirty = False
+        self.buildable = set()
+        self.fight_t = 0.0  # seconds spent fighting, all game (ability cooldowns and effects run on it)
+        self.rally = (0.0, 1.0)  # (fight time until, how much faster every tower fires)
+        self.mark = (0.0, 0.0)  # (until, extra damage every enemy takes)
+        self.bounty_up = (0.0, 0.0)  # (until, extra a kill pays)
+        self.born = []  # enemies born mid-step (split, summoned), joined at the end of it
+        self.effects = []  # abilities used since the last snapshot: [tower id, what it did]
+        self.leaks = {}  # wave -> lives lost in it
+        self.retired = []  # towers sold this game, for the end summary: (name, owner, kills, dmg)
+        self.endless = False
+        self.game_id = None
+        self.summary = None  # the end-of-game summary
+        self.record_new = False
 
     # ------------------------------------------------------------ plumbing
 
@@ -174,10 +217,11 @@ class Room:
         self.empty_since = None
         self.send(p, {"t": "welcome", "you": p.id, "code": self.code, "towers": D.TOWERS, "enemies": D.ENEMIES,
                       "kinds": D.KINDS, "cols": D.COLS, "rows": D.ROWS, "waves": D.WAVES, "gift": GIFT,
-                      "sell": D.SELL_BACK, "max": MAX_PLAYERS,
+                      "sell": D.SELL_BACK, "max": MAX_PLAYERS, "targets": TARGETS, "undo": UNDO,
                       "maps": {k: {"name": m["name"], "blurb": m["blurb"]} for k, m in D.MAPS.items()}})
         if self.phase != "lobby":
             self.send_map(p)
+        self.send_saves(p)
         self.send_state()
         if self.task is None:
             self.task = asyncio.get_running_loop().create_task(self.run())
@@ -217,6 +261,15 @@ class Room:
                     self.diff = msg["diff"]
             elif t == "start" and host:
                 self.start()
+            elif t == "resume" and host:
+                if not self.resume(p, clean(msg.get("id"), 40)):
+                    self.send(p, {"t": "note", "msg": "That saved game can't be loaded any more."})
+                    self.send_saves(p)
+                    return
+            elif t == "forget":
+                SAVE.forget(clean(msg.get("id"), 40), p.token)
+                self.send_saves(p)
+                return
             else:
                 return
         elif self.phase == "play" and p.seated:
@@ -237,10 +290,23 @@ class Room:
                     self.next_in = min(self.next_in, 0.5)
             elif t == "speed" and host and msg.get("v") in SPEEDS:
                 self.speed = msg["v"]
+            elif t == "target" and msg.get("v") in TARGETS and msg.get("id") in self.towers:
+                self.towers[msg["id"]].target = msg["v"]
+            elif t == "ability":
+                if not self.use_ability(self.towers.get(msg.get("id"))):
+                    return
+            elif t == "undo":
+                self.undo(p, self.towers.get(msg.get("id")))
             else:
                 return
+        elif t == "endless" and host and self.phase == "won" and not self.endless:
+            self.endless = True
+            self.phase = "play"
+            self.summary = None
+            self.next_in = D.BUILD_TIME[1]
         elif t == "again" and host and self.phase in ("won", "lost"):
             self.phase = "lobby"
+            self.summary = None
             for q in [q for q in self.players.values() if not q.connected]:
                 del self.players[q.id]
             for i, q in enumerate(self.players.values()):
@@ -251,15 +317,19 @@ class Room:
 
     # ------------------------------------------------------------ a game
 
-    def start(self):
+    def setup_map(self):
         self.clear()
         m = D.MAPS[self.map]
         self.routes = [make_route(path) for path in m["paths"]]
         # flyers cut straight from where a road starts to the keep
         self.flights = [make_route([path[0], path[-1]]) for path in m["paths"]]
-        self.blocked = D.path_tiles(m) | set(map(tuple, m["rocks"]))
+        self.buildable = D.buildable(m)
         self.phase = "play"
         self.speed = 1
+        self.game_id = secrets.token_hex(8)
+
+    def start(self):
+        self.setup_map()
         self.next_in = D.BUILD_TIME[0]
         crew = self.crew()
         for p in self.players.values():
@@ -267,14 +337,15 @@ class Room:
             p.gold = D.START_GOLD[0] / len(crew) + D.START_GOLD[1] if p in crew else 0
         for p in self.players.values():
             self.send_map(p)
+            self.send_saves(p)
 
     def send_map(self, p):
         m = D.MAPS[self.map]
-        self.send(p, {"t": "map", "name": m["name"], "paths": m["paths"], "rocks": m["rocks"]})
+        self.send(p, {"t": "map", "name": m["name"], "paths": m["paths"], "rocks": m["rocks"],
+                      "build": m.get("build")})
 
     def free(self, x, y):
-        return (type(x) is int and type(y) is int and 0 <= x < D.COLS and 0 <= y < D.ROWS
-                and (x, y) not in self.blocked and (x, y) not in self.at)
+        return type(x) is int and type(y) is int and (x, y) in self.buildable and (x, y) not in self.at
 
     def build(self, p, kind, x, y):
         if kind not in D.TOWERS or not self.free(x, y) or p.gold < D.TOWERS[kind]["cost"]:
@@ -285,6 +356,7 @@ class Room:
         t = Tower(self.next_tower, kind, x, y, p.id)
         self.next_tower += 1
         self.towers[t.id] = self.at[(x, y)] = t
+        t.undo = (time.monotonic() + UNDO, p.id, "build", cost)
         self.boosts()
         return t
 
@@ -308,12 +380,35 @@ class Room:
         t.path = path
         t.tier += 1
         t.stats = D.stats(t.kind, path, t.tier)
+        t.undo = (time.monotonic() + UNDO, p.id, "up", cost)
         self.boosts()
         return True
+
+    def undo(self, p, t):
+        """Take back a build or an upgrade made in the last few seconds, for a full refund to whoever
+        paid. Only the latest one on a tower, and only by the player who paid."""
+        if t is None or not t.undo or t.undo[0] < time.monotonic() or t.undo[1] != p.id:
+            return
+        _, _, what, cost = t.undo
+        p.gold += cost
+        p.spent -= cost
+        t.undo = None
+        if what == "build":
+            del self.towers[t.id]
+            del self.at[(t.x, t.y)]
+        else:
+            t.spent -= cost
+            t.tier -= 1
+            if t.tier == 0:
+                t.path = None
+            t.stats = D.stats(t.kind, t.path, t.tier)
+        self.boosts()
 
     def sell(self, p, t):
         if t is None or t.owner != p.id:
             return
+        if t.kills:
+            self.retired.append((self.tower_name(t), t.owner, t.kills, t.dmg))
         p.gold += round(t.spent * D.SELL_BACK)
         del self.towers[t.id]
         del self.at[(t.x, t.y)]
@@ -327,6 +422,7 @@ class Room:
                     if b is not t and math.hypot(b.x - t.x, b.y - t.y) <= b.stats["range"]]
             t.boost, t.reach, t.power = (max((b.get(k, 0.0) for b in near), default=0.0)
                                          for k in ("boost", "reach", "power"))
+            t.sees = bool(t.stats.get("detect") or t.stats["mode"] == "aura" or any(b.get("reveal") for b in near))
 
     def start_wave(self):
         self.wave += 1
@@ -353,6 +449,8 @@ class Room:
             return
         st = tower.stats
         dmg *= 1 + tower.power
+        if self.fight_t < self.mark[0]:
+            dmg *= 1 + self.mark[1]
         if e.boss:
             dmg *= st.get("boss", 1)
         if e.slow > 0:
@@ -375,6 +473,11 @@ class Room:
             return
         dealt = min(e.hp, dmg)
         e.hp -= dmg
+        e.taken += dealt
+        if tower is None:  # an ability's strike
+            if e.hp <= 0:
+                self.killed(e, None)
+            return
         tower.dmg += dealt
         owner = self.players.get(tower.owner)
         if owner:
@@ -384,11 +487,35 @@ class Room:
             self.kills.append(tower)
             if owner:
                 owner.kills += 1
-            extra = max((m.stats.get("bounty", 0.0) for m in self.towers.values() if m.kind == "mint"
-                         and (m.x - e.x) ** 2 + (m.y - e.y) ** 2 <= m.range ** 2), default=0.0)
-            crew = self.crew() or [p for p in self.players.values() if p.seated]
-            for p in crew:
-                p.gold += e.bounty * (1 + extra) / len(crew)
+            self.killed(e, tower)
+
+    def killed(self, e, tower):
+        """Pay out for a kill, and let a Splitter split."""
+        extra = max((m.stats.get("bounty", 0.0) for m in self.towers.values() if m.kind == "mint"
+                     and (m.x - e.x) ** 2 + (m.y - e.y) ** 2 <= m.range ** 2), default=0.0)
+        if self.fight_t < self.bounty_up[0]:
+            extra += self.bounty_up[1]
+        crew = self.crew() or [p for p in self.players.values() if p.seated]
+        for p in crew:
+            p.gold += e.bounty * (1 + extra) / len(crew)
+        for i in range(e.split):
+            child = Enemy(self.next_enemy, "swarm", e.wave, D.DIFFICULTY[self.diff], e.route, e.length)
+            self.next_enemy += 1
+            child.d = max(0.0, e.d - 0.25 * i)
+            child.x, child.y = e.x, e.y
+            self.born.append(child)
+
+    def order(self, t, near):
+        """Enemies in reach, the one this tower wants first."""
+        if t.target == "last":
+            near.sort(key=lambda e: e.length - e.d, reverse=True)
+        elif t.target == "strong":
+            near.sort(key=lambda e: e.hp, reverse=True)
+        elif t.target == "close":
+            near.sort(key=lambda e: (e.x - t.x) ** 2 + (e.y - t.y) ** 2)
+        else:  # first: the one nearest the keep
+            near.sort(key=lambda e: e.length - e.d)
+        return near
 
     def fire(self, t):
         """One tower's turn: shoot if something's in reach. True if it did."""
@@ -397,11 +524,11 @@ class Room:
         if mode in ("support", "income"):
             return False
         air, r = s.get("air", False), t.range
-        near = [e for e in self.enemies if e.hp > 0 and (air or not e.air)
+        near = [e for e in self.enemies if e.hp > 0 and (air or not e.air) and (t.sees or not e.camo)
                 and (e.x - t.x) ** 2 + (e.y - t.y) ** 2 <= r * r]
         if not near:
             return False
-        near.sort(key=lambda e: e.d - e.length, reverse=True)  # nearest the keep first
+        self.order(t, near)
         if mode == "aura":
             for e in near:
                 self.hurt(e, s["dmg"], t)
@@ -441,9 +568,16 @@ class Room:
                 self.start_wave()
             return
         self.wave_t += dt
+        self.fight_t += dt
         while self.spawns and self.spawns[-1][0] <= self.wave_t:
             _, kind, r = self.spawns.pop()
             self.spawn(kind, r)
+        menders = [e for e in self.enemies if e.heal and e.hp > 0]
+        if menders:  # Menders patch up whoever's near them, themselves included (the best one counts)
+            for e in self.enemies:
+                heal = max((m.heal for m in menders if (e.x - m.x) ** 2 + (e.y - m.y) ** 2 <= 1.5 ** 2), default=0)
+                if heal and e.hp > 0:
+                    e.hp = min(e.max, e.hp + e.max * heal * dt)
         for e in self.enemies:
             if e.slow_for > 0:
                 e.slow_for -= dt
@@ -454,6 +588,16 @@ class Room:
                 self.damage(e, e.burn * dt, e.burner)
                 if e.hp <= 0:
                     continue
+            if e.summon:  # a Warlord calls up Grunts behind it
+                e.summon_t -= dt
+                if e.summon_t <= 0:
+                    e.summon_t = e.every
+                    for i in range(e.summon):
+                        g = Enemy(self.next_enemy, "grunt", e.wave, D.DIFFICULTY[self.diff], e.route, e.length)
+                        self.next_enemy += 1
+                        g.d = max(0.0, e.d - 0.3 * (i + 1))
+                        g.x, g.y = e.x, e.y
+                        self.born.append(g)
             if e.stun > 0:
                 e.stun -= dt
                 continue
@@ -461,6 +605,7 @@ class Room:
             if e.d >= e.length:
                 e.hp = 0
                 self.lives -= e.lives
+                self.leaks[self.wave] = self.leaks.get(self.wave, 0) + e.lives
                 self.dirty = True
                 continue
             i = next(i for i, (_, d) in enumerate(e.route) if d > e.d)
@@ -468,14 +613,19 @@ class Room:
             (x1, y1), d1 = e.route[i]
             u = (e.d - d0) / (d1 - d0)
             e.x, e.y = x0 + (x1 - x0) * u, y0 + (y1 - y0) * u
+        rally = self.rally[1] if self.fight_t < self.rally[0] else 1.0
         for t in self.towers.values():
             t.cool -= dt
+            t.cd = max(0.0, t.cd - dt)
             if t.cool <= 0 and self.fire(t):
-                t.cool = t.stats["rate"] / (1 + t.boost)
-        self.enemies = [e for e in self.enemies if e.hp > 0]
+                fast = t.overdrive[1] if self.fight_t < t.overdrive[0] else 1.0
+                t.cool = t.stats["rate"] / (1 + t.boost) / fast / rally
+        self.enemies = [e for e in self.enemies if e.hp > 0] + self.born
+        self.born = []
         if self.lives <= 0:
             self.lives = 0
             self.phase = "lost"
+            self.end_game(False)
             self.dirty = True
         elif not self.spawns and not self.enemies:
             self.fighting = False
@@ -486,10 +636,172 @@ class Room:
             for m in self.towers.values():  # mints pay their builders
                 if m.kind == "mint" and m.owner in self.players:
                     self.players[m.owner].gold += m.stats.get("income", 0)
-            if self.wave >= D.WAVES:
+            if self.wave == D.WAVES and not self.endless:
                 self.phase = "won"
+                self.end_game(True)
             else:
                 self.next_in = D.BUILD_TIME[1]
+                self.save_game()
+
+    # ------------------------------------------------------------ abilities
+
+    def use_ability(self, t):
+        """Set off a final evolution's ability, if it's ready and there's a fight on."""
+        a = t.ability if t else None
+        if a is None or t.cd > 0 or not self.fighting:
+            return False
+        now = self.fight_t
+        ground = a.get("ground", False)
+        foes = [e for e in self.enemies if e.hp > 0 and not (ground and e.air)]
+        do = a["do"]
+        if do == "strike":
+            if a["pick"] == "all":
+                hit = foes
+            elif a["pick"] == "lead":
+                lead = min(foes, key=lambda e: e.length - e.d, default=None)
+                hit = [e for e in foes if lead and (e.x - lead.x) ** 2 + (e.y - lead.y) ** 2 <= a["radius"] ** 2]
+            else:
+                hit = sorted(foes, key=lambda e: e.hp, reverse=True)[:a["pick"]]
+            if not hit:
+                return False
+            for e in hit:
+                dmg = e.max * a["boss_frac"] if e.boss and "boss_frac" in a else a["dmg"]
+                self.damage(e, dmg, t)
+            self.effects.append([t.id, do, *[v for e in hit[:24] for v in (round(e.x, 2), round(e.y, 2))]])
+        else:
+            if do == "stun":
+                for e in foes:
+                    e.stun = max(e.stun, a["secs"] / (3 if e.boss else 1))
+            elif do == "slow":
+                for e in foes:
+                    e.slow, e.slow_for = max(e.slow, a["slow"]), a["secs"]
+            elif do == "burn":
+                for e in foes:
+                    e.burn, e.burn_for, e.burner = a["dps"], a["secs"], t
+            elif do == "overdrive":
+                t.overdrive = (now + a["secs"], a["rate"])
+            elif do == "rally":
+                self.rally = (now + a["secs"], a["rate"])
+            elif do == "mark":
+                self.mark = (now + a["secs"], a["more"])
+            elif do == "gold":
+                for p in self.players.values():
+                    if p.seated:
+                        p.gold += a["gold"]
+            elif do == "bounty":
+                self.bounty_up = (now + a["secs"], a["more"])
+            self.effects.append([t.id, do])
+        t.cd = a["cd"]
+        return True
+
+    # ------------------------------------------------------------ the end, saves and records
+
+    @staticmethod
+    def tower_name(t):
+        """A tower's final evolution's name, or its kind's."""
+        if t.tier >= D.EVOLUTION:
+            return D.TOWERS[t.kind]["paths"][t.path]["tiers"][D.EVOLUTION - 1]["name"]
+        return D.TOWERS[t.kind]["name"]
+
+    def end_game(self, won):
+        """Sum the game up (sold towers count too), put it in the records and drop its save."""
+        seated = [p for p in self.players.values() if p.seated]
+        towers = [(self.tower_name(t), t.owner, t.kills, t.dmg) for t in self.towers.values()] + self.retired
+        towers = sorted((t for t in towers if t[2]), key=lambda t: (t[2], t[3]), reverse=True)
+        best = {}
+        for t in towers:
+            best.setdefault(t[1], t)
+        reached = self.wave if not won else D.WAVES
+        self.summary = {
+            "won": won, "wave": reached, "endless": self.endless,
+            "mvp": towers and {"name": towers[0][0], "owner": towers[0][1], "kills": towers[0][2],
+                               "dmg": round(towers[0][3])} or None,
+            "best": {pid: {"name": n, "kills": k, "dmg": round(d)} for pid, (n, _, k, d) in best.items()},
+            "leaks": sorted([w, n] for w, n in self.leaks.items()),
+        }
+        self.record_new = False
+        if self.saving:
+            self.record_new = SAVE.record(self.map, self.diff, len(seated), reached,
+                                          [p.name for p in seated], won and not self.endless)
+            if self.game_id:
+                SAVE.delete(self.game_id)
+            for p in self.players.values():
+                self.send_saves(p)
+
+    def send_saves(self, p):
+        if self.saving and p.token:
+            self.send(p, {"t": "saves", "list": SAVE.list_for(p.token)})
+
+    def save_game(self):
+        """Save the game at the start of a build phase."""
+        if not self.saving or not self.game_id:
+            return
+        seated = [p for p in self.players.values() if p.seated and p.token]
+        if not seated:
+            return
+        state = {
+            "map": self.map, "diff": self.diff, "wave": self.wave, "lives": self.lives, "endless": self.endless,
+            "leaks": sorted([w, n] for w, n in self.leaks.items()),
+            "players": [{"token": p.token, "name": p.name, "color": p.color, "gold": p.gold, "kills": p.kills,
+                         "dmg": p.dmg, "spent": p.spent} for p in seated],
+            "towers": [{"k": t.kind, "p": t.path, "n": t.tier, "x": t.x, "y": t.y, "s": t.spent, "kills": t.kills,
+                        "dmg": t.dmg, "tg": t.target, "cd": t.cd,
+                        "o": self.players[t.owner].token if t.owner in self.players else None}
+                       for t in self.towers.values()],
+        }
+        names = ", ".join(p.name for p in seated)
+        summary = (f"{D.MAPS[self.map]['name']}, {self.diff}: wave {self.wave + 1} next, "
+                   f"{self.lives} lives. {names}")
+        SAVE.save(self.game_id, [p.token for p in seated], state, summary)
+        for p in self.players.values():
+            self.send_saves(p)
+
+    def resume(self, p, game_id):
+        """Pick up a saved game. Players in the room whose browsers were in it get their purses
+        back; anyone missing keeps a seat (and their towers) to come back to."""
+        state = SAVE.load(game_id, p.token)
+        if not state or state.get("map") not in D.MAPS or state.get("diff") not in D.DIFFICULTY:
+            return False
+        self.map, self.diff = state["map"], state["diff"]
+        self.setup_map()
+        self.game_id = game_id
+        self.wave, self.lives, self.endless = state["wave"], state["lives"], state["endless"]
+        self.leaks = {w: n for w, n in state.get("leaks", [])}
+        self.next_in = D.BUILD_TIME[1]
+        by_token = {}
+        here = {q.token: q for q in self.players.values() if q.token}
+        for q in self.players.values():
+            q.reset()
+            q.seated = False
+        for saved in state["players"]:
+            q = here.get(saved["token"])
+            if q is None:  # not here yet: a seat to come back to
+                q = Player(self.next_id, self.unique_name(saved["name"]), saved["color"], None, saved["token"], None)
+                q.connected = False
+                self.next_id += 1
+                self.players[q.id] = q
+            q.seated = True
+            q.gold, q.kills, q.dmg, q.spent = saved["gold"], saved["kills"], saved["dmg"], saved["spent"]
+            by_token[saved["token"]] = q
+        for q in self.players.values():  # newcomers take any seats left, with a little gold
+            if not q.seated and sum(o.seated for o in self.players.values()) < MAX_PLAYERS:
+                q.seated = True
+                q.gold = D.START_GOLD[1]
+        for saved in state["towers"]:
+            if saved["k"] not in D.TOWERS or not self.free(saved["x"], saved["y"]):
+                continue
+            owner = by_token.get(saved["o"])
+            t = Tower(self.next_tower, saved["k"], saved["x"], saved["y"], owner.id if owner else None)
+            self.next_tower += 1
+            t.path, t.tier = saved["p"], saved["n"]
+            t.stats = D.stats(t.kind, t.path, t.tier)
+            t.spent, t.kills, t.dmg, t.cd = saved["s"], saved["kills"], saved["dmg"], saved.get("cd", 0.0)
+            t.target = saved.get("tg", "first") if saved.get("tg") in TARGETS else "first"
+            self.towers[t.id] = self.at[(t.x, t.y)] = t
+        self.boosts()
+        for q in self.players.values():
+            self.send_map(q)
+        return True
 
     def tick(self):
         if self.phase != "play":
@@ -506,7 +818,11 @@ class Room:
             self.everyone({
                 "t": "s",
                 "e": [[e.id, D.KINDS.index(e.kind), round(e.x, 2), round(e.y, 2), round(100 * e.hp / e.max),
-                       int(e.slow > 0) | 2 * (e.burn_for > 0) | 4 * (e.stun > 0)] for e in self.enemies],
+                       int(e.slow > 0) | 2 * (e.burn_for > 0) | 4 * (e.stun > 0) | 8 * e.camo, round(e.taken)]
+                      for e in self.enemies],
+                "a": {t.id: round(t.cd, 1) for t in self.towers.values() if t.tier >= D.EVOLUTION},
+                "x": self.effects,
+                "gl": [round(max(0.0, until - self.fight_t), 1) for until, _ in (self.rally, self.mark, self.bounty_up)],
                 "f": self.shots[-MAX_SHOTS:],
                 "k": {t.id: t.kills for t in set(self.kills)},
                 "g": {p.id: int(p.gold) for p in self.players.values() if p.seated},
@@ -514,6 +830,9 @@ class Room:
             })
             self.shots = []
             self.kills = []
+            self.effects = []
+            for e in self.enemies:
+                e.taken = 0.0
 
     async def run(self):
         next_t = time.monotonic()
@@ -545,8 +864,12 @@ class Room:
             nxt = self.wave + 1
             st.update(
                 wave=self.wave, lives=self.lives, fighting=self.fighting, speed=self.speed,
-                towers=[t.view() for t in self.towers.values()],
-                coming=[[kind, count] for kind, count, _, _ in D.wave(nxt)] if nxt <= D.WAVES else [])
+                towers=[t.view() for t in self.towers.values()], endless=self.endless,
+                coming=[[kind, count] for kind, count, _, _ in D.wave(nxt)] if nxt <= D.WAVES or self.endless else [])
+        if self.phase in ("won", "lost"):
+            st.update(summary=self.summary, record_new=self.record_new)
+        if self.phase in ("lobby", "won", "lost") and self.saving:
+            st["records"] = SAVE.records(self.map, self.diff)
         self.everyone(st)
 
 

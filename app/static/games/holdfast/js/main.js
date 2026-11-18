@@ -25,7 +25,16 @@ const S = {
   picked: null,        // the kind of tower about to be built
   chosen: null,        // the id of the tower whose panel is open
   hover: null,         // the tile under the pointer
+  cd: {},              // tower id -> seconds until its ability is ready
+  undoUntil: {},       // tower id -> now() its undo runs out (for this player)
+  glow: [0, 0, 0],     // seconds left of Rally, Mark Them and Bounty Hunt
+  blasts: [],          // abilities going off: { do, from, pts, at }
+  floats: [],          // damage numbers: { x, y, n, at }
+  preview: null,       // { x, y, r }: the reach a hovered upgrade would give
+  saves: [],
 };
+let numbers = false;
+try { numbers = localStorage.getItem('holdfast-numbers') === '1'; } catch { /* private mode */ }
 
 const room = startRoom({ key: 'holdfast', path: '/games/holdfast', title: 'Holdfast', show, onMessage: receive });
 const player = id => S.st?.players.find(p => p.id === id);
@@ -57,13 +66,21 @@ function receive(m) {
         for (let k = 0; k <= n; k++) road.add(`${x0 + Math.sign(x1 - x0) * k},${y0 + Math.sign(y1 - y0) * k}`);
       }
     }
-    S.map = { ...m, road, rocks: new Set(m.rocks.map(([x, y]) => `${x},${y}`)) };
+    S.map = { ...m, road, rocks: new Set(m.rocks.map(([x, y]) => `${x},${y}`)),
+      build: m.build ? new Set(m.build.map(([x, y]) => `${x},${y}`)) : null };
     S.enemies.clear();
     S.shots = [];
     S.picked = S.chosen = null;
+  } else if (m.t === 'saves') {
+    S.saves = m.list;
+    if (S.st?.phase === 'lobby') renderLobbyLists();
+  } else if (m.t === 'note') {
+    $('saves-note').textContent = m.msg;
   } else if (m.t === 'state') {
     const was = S.st;
     S.st = m;
+    S.undoUntil = {};
+    for (const t of m.towers || []) if (t.un && t.un[0] === room.you) S.undoUntil[t.id] = now() + t.un[1];
     for (const p of m.players) S.gold[p.id] = p.gold;
     if (was && m.phase === 'play') {
       if (m.fighting && !was.fighting) sound('wave');
@@ -73,11 +90,20 @@ function receive(m) {
     render();
   } else if (m.t === 's') {
     const t = now(), seen = new Set();
-    for (const [id, k, x, y, hp, flags] of m.e) {
+    for (const [id, k, x, y, hp, flags, taken] of m.e) {
       seen.add(id);
       const e = S.enemies.get(id) || { x, y };
       S.enemies.set(id, Object.assign(e, { kind: S.cfg.kinds[k], fx: e.x, fy: e.y, tx: x, ty: y, at: t, hp,
-        slow: flags & 1, burning: flags & 2, stunned: flags & 4 }));
+        slow: flags & 1, burning: flags & 2, stunned: flags & 4, camo: flags & 8 }));
+      if (numbers && taken >= 1) S.floats.push({ x: x + 0.5 + (Math.random() - 0.5) * 0.3, y, n: taken, at: t });
+    }
+    if (S.floats.length > 120) S.floats.splice(0, S.floats.length - 120);
+    S.cd = m.a || {};
+    S.glow = m.gl || [0, 0, 0];
+    for (const [id, what, ...pts] of m.x || []) {
+      const tw = tower(id);
+      S.blasts.push({ do: what, from: tw ? [tw.x, tw.y] : null, pts, at: t });
+      ability(what);
     }
     for (const id of S.enemies.keys()) if (!seen.has(id)) S.enemies.delete(id);
     const heard = new Set();
@@ -96,6 +122,7 @@ function receive(m) {
     S.gold = m.g;
     S.nextIn = m.n;
     renderLive();
+    renderAbilities();
   }
 }
 
@@ -156,6 +183,14 @@ function sound(kind) {
   tone(f0, f1, secs, type);
 }
 
+// An ability going off.
+function ability(what) {
+  if (what === 'strike') { hiss(150, 0.8, 0.8, 0.16, 'lowpass'); tone(200, 40, 0.7, 'sawtooth', 0.07); }
+  else if (what === 'stun') { tone(2000, 3000, 0.4, 'sine', 0.05); tone(1500, 2400, 0.5, 'sine', 0.04, 0.08); }
+  else if (what === 'gold' || what === 'bounty') { for (let i = 0; i < 5; i++) tone(1000 + i * 180, 1400 + i * 180, 0.12, 'triangle', 0.04, i * 0.07); }
+  else { tone(300, 900, 0.5, 'square', 0.04); hiss(800, 1, 0.5, 0.05); }
+}
+
 // A weapon's hit, at most once every 70 ms per weapon so a big defence doesn't roar. Final
 // evolutions sound bigger.
 function hit(kind, big = false) {
@@ -199,11 +234,12 @@ function render() {
     $('map').disabled = $('diff').disabled = !host;
     $('map-blurb').textContent = S.cfg.maps[st.map].blurb;
     $('lobby-note').textContent = host ? '' : `Waiting for ${player(st.host)?.name || 'the host'} to start.`;
+    renderLobbyLists();
     return;
   }
   show('game');
   $('game-code').textContent = room.code;
-  $('hud-wave').textContent = `Wave ${Math.max(1, st.wave)} of ${S.cfg.waves}`;
+  $('hud-wave').textContent = st.endless ? `Wave ${Math.max(1, st.wave)} (endless)` : `Wave ${Math.max(1, st.wave)} of ${S.cfg.waves}`;
   $('hud-lives').textContent = `♥ ${st.lives}`;
   $('hud-lives').classList.toggle('low', st.lives <= 5);
   $('speed').textContent = `Speed ×${st.speed}`;
@@ -213,17 +249,90 @@ function render() {
 
   const over = st.phase !== 'play';
   $('end').hidden = !over;
-  if (over) {
-    $('end-kicker').textContent = st.phase === 'won' ? 'Victory' : `Fell on wave ${st.wave}`;
-    $('end-title').textContent = st.phase === 'won' ? 'The keep holds!' : 'The keep has fallen';
-    $('end-rows').replaceChildren(...st.players.filter(p => p.seated).map(p => {
-      const tr = el('tr'), name = el('td', '', p.name), dot = el('span', 'dot');
-      dot.style.setProperty('--c', p.color);
-      name.prepend(dot);
-      tr.append(name, el('td', '', p.kills), el('td', '', p.dmg.toLocaleString()), el('td', '', p.spent.toLocaleString()));
-      return tr;
+  if (over) renderEnd();
+}
+
+// The end of a game: the result, any record, the MVP tower, each player's best, and where lives went.
+function renderEnd() {
+  const st = S.st, sum = st.summary || {};
+  $('end-kicker').textContent = st.phase === 'won' ? 'Victory' : sum.endless ? `Endless: fell on wave ${st.wave}` : `Fell on wave ${st.wave}`;
+  $('end-title').textContent = st.phase === 'won' ? 'The keep holds!' : 'The keep has fallen';
+  $('end-record').hidden = !st.record_new;
+  $('end-record').textContent = 'A new record for this map and difficulty!';
+  $('end-mvp').textContent = sum.mvp ? `Tower of the game: ${sum.mvp.name}, built by ${player(sum.mvp.owner)?.name || 'someone who left'}, with ${sum.mvp.kills} kills.` : '';
+  $('end-rows').replaceChildren(...st.players.filter(p => p.seated).map(p => {
+    const tr = el('tr'), name = el('td', '', p.name), dot = el('span', 'dot'), best = (sum.best || {})[p.id];
+    dot.style.setProperty('--c', p.color);
+    name.prepend(dot);
+    tr.append(name, el('td', '', p.kills), el('td', '', p.dmg.toLocaleString()), el('td', '', best ? `${best.name} (${best.kills})` : '—'));
+    return tr;
+  }));
+  const leaks = sum.leaks || [];
+  $('end-leaks').textContent = leaks.length ? `Lives lost: ${leaks.map(([w, n]) => `wave ${w} (${n})`).join(', ')}.` : 'Not a single life lost.';
+  $('endless').hidden = st.phase !== 'won' || st.endless;
+}
+
+function renderLobbyLists() {
+  const st = S.st, host = st.host === room.you;
+  $('saves').replaceChildren(...S.saves.map(g => {
+    const li = el('li'), when = new Date(g.when * 1000);
+    li.append(el('span', '', `${g.summary} (${when.toLocaleDateString()} ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`));
+    if (host) {
+      const go = el('button', 'primary', 'Resume');
+      go.type = 'button';
+      go.addEventListener('click', () => room.send({ t: 'resume', id: g.id }));
+      li.append(go);
+    }
+    const del = el('button', '', 'Delete');
+    del.type = 'button';
+    del.addEventListener('click', () => room.send({ t: 'forget', id: g.id }));
+    li.append(del);
+    return li;
+  }));
+  if (!S.saves.length) $('saves-note').textContent = 'Games save between waves; your unfinished ones show up here.';
+  else if (!host) $('saves-note').textContent = 'The host can resume a game you were in.';
+  else $('saves-note').textContent = '';
+  $('records-for').textContent = `${S.cfg.maps[st.map].name}, ${st.diff}`;
+  const recs = st.records || [];
+  $('records').replaceChildren(...(recs.length ? recs.map(r => {
+    const li = el('li');
+    li.append(el('b', '', r.won ? '30 ✓' : `${r.wave}`), el('span', '', `${r.names.join(', ')} (${new Date(r.at * 1000).toLocaleDateString()})`));
+    return li;
+  }) : [el('li', '', 'No games on this map and difficulty yet.')]));
+}
+
+// The bar of final evolutions' abilities, with how long until each is ready.
+function renderAbilities() {
+  const st = S.st, bar = $('abilities');
+  const evolved = (st?.towers || []).filter(t => t.n >= EVOLUTION);
+  bar.hidden = !evolved.length || st.phase !== 'play';
+  if (bar.hidden) return;
+  const want = evolved.map(t => t.id).join(',');
+  if (bar.dataset.ids !== want) {
+    bar.dataset.ids = want;
+    bar.replaceChildren(...evolved.map(t => {
+      const a = abilityOf(t), b = el('button');
+      b.type = 'button';
+      b.dataset.id = t.id;
+      b.append(el('b', '', a.name), el('small', '', towerName(t)), el('i', 'fill'));
+      b.title = a.blurb;
+      b.addEventListener('click', () => useAbility(t.id));
+      return b;
     }));
   }
+  for (const b of bar.children) {
+    const t = tower(+b.dataset.id), left = S.cd[b.dataset.id] ?? 0, a = abilityOf(t);
+    b.classList.toggle('ready', left <= 0 && st.fighting);
+    b.disabled = left > 0 || !st.fighting || !me()?.seated;
+    b.querySelector('.fill').style.width = `${100 * (1 - left / a.cd)}%`;
+    b.querySelector('small').textContent = left > 0 ? `ready in ${Math.ceil(left)} s` : st.fighting ? 'ready' : 'ready when a wave is on';
+  }
+}
+
+const abilityOf = t => t && t.n >= EVOLUTION ? S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].ability : null;
+function useAbility(id) {
+  const t = tower(id);
+  if (t && abilityOf(t) && (S.cd[id] ?? 0) <= 0 && S.st.fighting) room.send({ t: 'ability', id });
 }
 
 // The parts that change with every snapshot: gold, the countdown, what can be afforded.
@@ -235,6 +344,17 @@ function renderLive() {
     : `Wave ${st.wave + 1} in ${Math.ceil(S.nextIn ?? 0)} s`;
   $('coming').textContent = st.fighting ? 'Hold them off.'
     : st.coming.map(([k, n]) => `${n} ${names[k].name}${n > 1 ? 's' : ''}`).join(', ');
+  const chips = ['Rally', 'Mark Them', 'Bounty Hunt'].map((label, i) => S.glow[i] > 0 ? `${label} ${Math.ceil(S.glow[i])} s` : null).filter(Boolean);
+  let box = $('chips');
+  if (!box) { box = el('div', 'chips'); box.id = 'chips'; $('coming').after(box); }
+  box.replaceChildren(...chips.map(c => el('span', 'chip', c)));
+  if (S.chosen != null) {
+    const a = $('info').querySelector('.ability-btn'), left = S.cd[S.chosen] ?? 0;
+    if (a) { a.disabled = left > 0 || !st.fighting; a.textContent = a.dataset.label + (left > 0 ? ` (${Math.ceil(left)} s)` : st.fighting ? '' : ' (when a wave is on)'); }
+    const u = $('info').querySelector('.undo-btn'), until = S.undoUntil[S.chosen];
+    if (u && (!until || until < now())) u.remove();
+    else if (u) u.textContent = `Undo (${Math.ceil(until - now())} s, full refund)`;
+  }
   $('ready').hidden = st.fighting || !seated || st.phase !== 'play';
   $('ready').disabled = !!me()?.ready;
   $('ready').textContent = me()?.ready ? 'Waiting for the others…' : 'Ready: send it now';
@@ -289,7 +409,37 @@ function renderInfo() {
   tally.append('Kills: ', el('b', '', ''), ` · damage ${Number(tw.dmg || 0).toLocaleString()} · built by ${player(tw.o)?.name || 'someone who left'}`);
   tally.querySelector('b').id = 'kills';
   tally.querySelector('b').textContent = tw.kills;
-  const parts = [title, el('p', '', sub), tally, statList(statsOf(kind, tw.p, tw.n))];
+  const parts = [title, el('p', '', sub), tally];
+  const ab = abilityOf(tw);
+  if (ab && me()?.seated) {
+    const b = el('button', 'ability-btn', '');
+    b.type = 'button';
+    b.dataset.label = `${ab.name}: ${ab.blurb}`;
+    b.textContent = b.dataset.label;
+    b.disabled = (S.cd[tw.id] ?? 0) > 0 || !S.st.fighting;
+    b.addEventListener('click', () => useAbility(tw.id));
+    parts.push(b);
+  }
+  if (S.undoUntil[tw.id] > now()) {
+    const u = el('button', 'undo-btn', 'Undo');
+    u.type = 'button';
+    u.addEventListener('click', () => { sound('sell'); room.send({ t: 'undo', id: tw.id }); });
+    parts.push(u);
+  }
+  const st0 = statsOf(kind, tw.p, tw.n);
+  if (!['support', 'income'].includes(st0.mode)) {
+    const row = el('div', 'targets');
+    for (const v of S.cfg.targets) {
+      const b = el('button', '', v[0].toUpperCase() + v.slice(1));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(tw.tg === v));
+      b.title = { first: 'The one nearest the keep', last: 'The one furthest back', strong: 'The one with the most health', close: 'The one nearest this tower' }[v];
+      b.addEventListener('click', () => room.send({ t: 'target', id: tw.id, v }));
+      row.append(b);
+    }
+    parts.push(row);
+  }
+  parts.push(statList(st0));
 
   // the two upgrade paths: the next tier on each, or why not
   const paths = el('div', 'paths');
@@ -313,6 +463,9 @@ function renderInfo() {
         up.dataset.locked = taken ? '1' : '0';
         up.disabled = taken || myGold() < next.cost;
         up.addEventListener('click', () => { sound(evo ? 'evolve' : 'up'); room.send({ t: 'up', id: tw.id, path: pi }); });
+        const r = statsOf(kind, pi, n + 1).range;
+        up.addEventListener('pointerenter', () => { S.preview = { x: tw.x, y: tw.y, r: Math.min(r, 12) }; });
+        up.addEventListener('pointerleave', () => { S.preview = null; });
         col.append(up);
         if (taken) col.append(el('p', 'note', `There's already a ${next.name}: only one at a time.`));
       }
@@ -328,6 +481,7 @@ function renderInfo() {
     parts.push(sell);
   }
   box.replaceChildren(...parts);
+  S.preview = null;
 }
 
 function pick(kind) {
@@ -361,11 +515,29 @@ $('start').addEventListener('click', () => room.send({ t: 'start' }));
 $('again').addEventListener('click', () => room.send({ t: 'again' }));
 $('ready').addEventListener('click', () => room.send({ t: 'ready' }));
 $('speed').addEventListener('click', () => room.send({ t: 'speed', v: S.st.speed % 3 + 1 }));
+$('endless').addEventListener('click', () => room.send({ t: 'endless' }));
+$('numbers').addEventListener('click', () => {
+  numbers = !numbers;
+  try { localStorage.setItem('holdfast-numbers', numbers ? '1' : '0'); } catch { /* private mode */ }
+  $('numbers').setAttribute('aria-pressed', String(numbers));
+  S.floats = [];
+});
+$('numbers').setAttribute('aria-pressed', String(numbers));
+
+// Keys: 1-9 pick a tower to build; with a tower chosen, Z and X buy on its paths, Q sets off its
+// ability, T changes what it aims at, U undoes; Space sends the next wave; Esc puts things away.
 addEventListener('keydown', e => {
-  if ($('game').hidden || e.target.tagName === 'INPUT') return;
-  const kinds = Object.keys(S.cfg.towers);
+  if ($('game').hidden || e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const kinds = Object.keys(S.cfg.towers), tw = S.chosen != null ? tower(S.chosen) : null, k = e.key.toLowerCase();
   if (e.key === 'Escape') { S.chosen = null; if (S.picked) pick(S.picked); else renderInfo(); }
   else if (kinds[+e.key - 1]) pick(kinds[+e.key - 1]);
+  else if (e.key === ' ' && !S.st.fighting && me()?.seated) { e.preventDefault(); room.send({ t: 'ready' }); }
+  else if (tw && (k === 'z' || k === 'x')) {
+    const b = $('info').querySelector(`button[data-path="${k === 'z' ? 0 : 1}"]`);
+    if (b && !b.disabled) b.click();
+  } else if (tw && k === 'q') useAbility(tw.id);
+  else if (tw && k === 't') room.send({ t: 'target', id: tw.id, v: S.cfg.targets[(S.cfg.targets.indexOf(tw.tg) + 1) % S.cfg.targets.length] });
+  else if (tw && k === 'u' && S.undoUntil[tw.id] > now()) room.send({ t: 'undo', id: tw.id });
 });
 
 // ---------------------------------------------------------------- the board
@@ -377,7 +549,8 @@ const tileAt = e => {
 };
 const towerAt = (x, y) => S.st.towers.find(t => t.x === x && t.y === y);
 const free = (x, y) => x >= 0 && y >= 0 && x < S.cfg.cols && y < S.cfg.rows
-  && !S.map.road.has(`${x},${y}`) && !S.map.rocks.has(`${x},${y}`) && !towerAt(x, y);
+  && !S.map.road.has(`${x},${y}`) && !S.map.rocks.has(`${x},${y}`) && (!S.map.build || S.map.build.has(`${x},${y}`))
+  && !towerAt(x, y);
 
 canvas.addEventListener('pointermove', e => { S.hover = tileAt(e); });
 canvas.addEventListener('pointerleave', () => { S.hover = null; });
@@ -404,7 +577,9 @@ const PATH_COLOR = ['#f2c230', '#6fd0ff'];
 const ENEMY = {   // colour and radius, in tiles
   grunt: ['#d9534a', 0.27], runner: ['#f09a3e', 0.2], swarm: ['#b06fd6', 0.14], brute: ['#8f2d2d', 0.4],
   shield: ['#4f7fc9', 0.3], flyer: ['#f3f0e6', 0.24], boss: ['#3a2440', 0.55],
+  ghost: ['#e8f0ff', 0.25], healer: ['#5cc46a', 0.28], splitter: ['#c78a3a', 0.3], gargoyle: ['#6b6f78', 0.3],
 };
+const FLYING = new Set(['flyer', 'gargoyle']);
 
 // A tower, drawn in a 1 x 1 box centred on the origin: its tiers as pips in its path's colour, and
 // a final evolution bigger, gold-rimmed and glowing.
@@ -461,8 +636,15 @@ function frame() {
   // ground: grass, the road, rocks, the keep
   for (let x = 0; x < cols; x++) for (let y = 0; y < rows; y++) {
     const key = `${x},${y}`;
-    ctx.fillStyle = S.map.road.has(key) ? '#c9b48a' : (x + y) % 2 ? '#4a7a3f' : '#4f8244';
+    const rubble = S.map.build && !S.map.road.has(key) && !S.map.build.has(key);
+    ctx.fillStyle = S.map.road.has(key) ? '#c9b48a' : rubble ? ((x + y) % 2 ? '#6b665c' : '#716b60') : (x + y) % 2 ? '#4a7a3f' : '#4f8244';
     ctx.fillRect(x, y, 1.02, 1.02);
+    if (rubble) {   // broken stone: nothing can be built here
+      ctx.fillStyle = '#8a8478';
+      for (const [dx, dy, rr] of [[0.25, 0.3, 0.12], [0.65, 0.55, 0.16], [0.35, 0.75, 0.09]]) {
+        ctx.beginPath(); ctx.arc(x + dx, y + dy, rr, 0, 7); ctx.fill();
+      }
+    }
     if (S.map.rocks.has(key)) {
       ctx.fillStyle = '#7d8590';
       ctx.beginPath(); ctx.ellipse(x + 0.5, y + 0.58, 0.36, 0.28, 0, 0, 7); ctx.fill();
@@ -501,6 +683,13 @@ function frame() {
     ctx.globalAlpha = 1;
   }
   if (chosen) reach(chosen.x, chosen.y, Math.min(statsOf(chosen.k, chosen.p, chosen.n).range, 12), true);
+  if (S.preview) {   // the reach an upgrade being pointed at would give
+    ctx.setLineDash([0.15, 0.1]);
+    ctx.strokeStyle = '#ffd75a';
+    ctx.lineWidth = 0.05;
+    ctx.beginPath(); ctx.arc(S.preview.x + 0.5, S.preview.y + 0.5, S.preview.r, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   for (const tw of S.st.towers) {
     ctx.save();
@@ -510,19 +699,33 @@ function frame() {
   }
 
   // enemies, eased between snapshots; flyers last, so they pass over the rest
-  const list = [...S.enemies.values()].sort((a, b) => (a.kind === 'flyer') - (b.kind === 'flyer'));
+  const list = [...S.enemies.values()].sort((a, b) => FLYING.has(a.kind) - FLYING.has(b.kind));
   for (const e of list) {
     const u = Math.min(1, (t - e.at) / 0.1);
     e.x = e.fx + (e.tx - e.fx) * u;
     e.y = e.fy + (e.ty - e.fy) * u;
-    const [color, r] = ENEMY[e.kind], x = e.x + 0.5, y = e.y + 0.5 - (e.kind === 'flyer' ? 0.25 : 0);
-    if (e.kind === 'flyer') { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 0.4, r * 0.8, r * 0.4, 0, 0, 7); ctx.fill(); }
+    const [color, r] = ENEMY[e.kind], x = e.x + 0.5, y = e.y + 0.5 - (FLYING.has(e.kind) ? 0.25 : 0);
+    if (FLYING.has(e.kind)) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 0.4, r * 0.8, r * 0.4, 0, 0, 7); ctx.fill(); }
     ctx.fillStyle = color;
+    if (e.camo) ctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 4 + e.tx);   // a Ghost: hard to make out
     ctx.beginPath();
     if (e.kind === 'brute') ctx.roundRect(x - r, y - r, r * 2, r * 2, 0.1);
-    else if (e.kind === 'flyer') { ctx.moveTo(x, y - r); ctx.lineTo(x + r * 1.4, y); ctx.lineTo(x, y + r * 0.6); ctx.lineTo(x - r * 1.4, y); }
+    else if (FLYING.has(e.kind)) {
+      const flap = e.kind === 'gargoyle' ? Math.sin(t * 10 + e.tx) * 0.08 : 0;
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r * 1.4, y + flap); ctx.lineTo(x, y + r * 0.6); ctx.lineTo(x - r * 1.4, y + flap);
+    } else if (e.kind === 'ghost') { ctx.arc(x, y - r * 0.2, r, Math.PI, 0); ctx.lineTo(x + r, y + r); for (let i = 3; i >= 0; i--) ctx.lineTo(x - r + i * r * 2 / 3, y + r - (i % 2) * 0.1); }
+    else if (e.kind === 'splitter') { ctx.arc(x - r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x + r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x, y - r * 0.4, r * 0.6, 0, 7); }
     else ctx.arc(x, y, r, 0, 7);
     ctx.fill();
+    ctx.globalAlpha = 1;
+    if (e.kind === 'healer') {   // a white cross, and the ring it mends within
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - r * 0.15, y - r * 0.55, r * 0.3, r * 1.1);
+      ctx.fillRect(x - r * 0.55, y - r * 0.15, r * 1.1, r * 0.3);
+      ctx.strokeStyle = 'rgba(92, 196, 106, 0.35)'; ctx.lineWidth = 0.03;
+      ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 7); ctx.stroke();
+    }
+    if (e.kind === 'gargoyle') { ctx.strokeStyle = '#3a3d44'; ctx.lineWidth = 0.05; ctx.stroke(); }
     if (e.kind === 'shield' || e.kind === 'boss') { ctx.strokeStyle = e.kind === 'boss' ? '#f2c230' : '#cfe0ff'; ctx.lineWidth = 0.07; ctx.stroke(); }
     if (e.slow) { ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = 0.05; ctx.beginPath(); ctx.arc(x, y, r + 0.07, 0, 7); ctx.stroke(); }
     if (e.burning) {   // flickering flames
@@ -575,6 +778,35 @@ function frame() {
     }
   }
   ctx.globalAlpha = 1;
+
+  // abilities: a flash over the board and a burst on everything struck
+  S.blasts = S.blasts.filter(bl => t - bl.at < 0.9);
+  for (const bl of S.blasts) {
+    const age = (t - bl.at) / 0.9;
+    const color = { strike: '255, 215, 90', stun: '200, 240, 255', slow: '120, 90, 40', burn: '255, 110, 30', gold: '255, 215, 90', bounty: '255, 215, 90' }[bl.do] || '255, 255, 255';
+    ctx.fillStyle = `rgba(${color}, ${0.18 * (1 - age)})`;
+    ctx.fillRect(0, 0, cols, rows);
+    ctx.fillStyle = `rgba(${color}, ${0.8 * (1 - age)})`;
+    for (let i = 0; i < bl.pts.length; i += 2) { ctx.beginPath(); ctx.arc(bl.pts[i] + 0.5, bl.pts[i + 1] + 0.5, 0.2 + age * 0.9, 0, 7); ctx.fill(); }
+    if (bl.from && (bl.do === 'overdrive' || bl.do === 'rally' || bl.do === 'mark')) {
+      ctx.strokeStyle = `rgba(${color}, ${1 - age})`; ctx.lineWidth = 0.1;
+      ctx.beginPath(); ctx.arc(bl.from[0] + 0.5, bl.from[1] + 0.5, 0.5 + age * 3, 0, 7); ctx.stroke();
+    }
+  }
+
+  // damage numbers, drifting up
+  if (numbers) {
+    S.floats = S.floats.filter(f => t - f.at < 0.8);
+    ctx.font = 'bold 0.32px sans-serif';
+    ctx.textAlign = 'center';
+    for (const f of S.floats) {
+      const age = (t - f.at) / 0.8;
+      ctx.globalAlpha = 1 - age;
+      ctx.fillStyle = f.n >= 500 ? '#ffd75a' : '#fff';
+      ctx.fillText(f.n >= 10000 ? `${Math.round(f.n / 1000)}k` : String(f.n), f.x, f.y + 0.2 - age * 0.6);
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 requestAnimationFrame(frame);

@@ -12,6 +12,9 @@ used when a crowd or a Warlord is on the board.
 They never sell, hand gold over or send a wave early, so a decent human should do better. Prints
 how many games were won, the wave reached and the lives left. `--fast` plays one game of each map
 on normal with two players (a few seconds): `tools/check-all.sh` uses it to see the fight runs.
+`--bosses <warlord|gravewarden|stormhulk|ironmaw|random>` picks the boss event (default Warlords).
+Builders also buy a tier or two on a tower's other path now and then (crosspathing), but never use
+items.
 """
 
 import math
@@ -25,13 +28,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.holdfast import data as D  # noqa: E402
 from app.holdfast import game  # noqa: E402
 
-MIX = {"archer": 3, "cannon": 2, "tesla": 1.5, "ballista": 1, "frost": 1, "beacon": 0.6, "brazier": 0.8,
-       "mortar": 0.6, "mint": 0.25}
+MIX = {"archer": 2.4, "cannon": 1.5, "tesla": 1.2, "ballista": 1, "frost": 0.8, "beacon": 0.5, "brazier": 0.6,
+       "mortar": 0.5, "mint": 0.25, "bladewheel": 0.8, "trapper": 0.7, "workshop": 0.5, "arcanist": 0.6,
+       "skyhook": 0.4, "alchemist": 0.5}
 
 
 # The path each tower usually takes, and how often (else the other).
 PREFER = {"archer": (0, 0.7), "cannon": (0, 0.6), "frost": (1, 0.6), "ballista": (0, 0.8), "tesla": (1, 0.6),
-          "beacon": (0, 0.7), "brazier": (0, 0.6), "mortar": (0, 0.6), "mint": (0, 0.8)}
+          "beacon": (0, 0.7), "brazier": (0, 0.6), "mortar": (0, 0.6), "mint": (0, 0.8), "bladewheel": (0, 0.5),
+          "trapper": (0, 0.5), "workshop": (0, 0.6), "arcanist": (1, 0.5), "skyhook": (1, 0.6), "alchemist": (1, 0.5)}
 GHOSTS_FROM = 7  # the first wave with Ghosts in it
 
 
@@ -107,7 +112,11 @@ class Builder:
                 return t.tier < D.EVOLUTION - 1
 
             ups = [t for t in towers if worth(t)]
-            if ups and len(towers) >= 5 and self.rng.random() < 0.55:
+            side = [t for t in towers if t.tier >= 3 and t.tiers[1 - t.path] < D.CROSS_MAX]
+            if side and self.rng.random() < 0.15:  # a tier or two on the other path (crosspathing)
+                t = self.rng.choice(side)
+                self.save_for = ("side", t.id, t.tiers[1 - t.path])
+            elif ups and len(towers) >= 5 and self.rng.random() < 0.55:
                 t = self.rng.choice(ups)
                 self.save_for = ("up", t.id, t.tier)
             else:
@@ -115,6 +124,10 @@ class Builder:
         what, arg, tier = self.save_for
         if room.starrer is self and room.leaks.get(room.wave):  # the road needs the gold more
             self.drop()
+        elif what == "side":
+            t = room.towers.get(arg)
+            if t is None or t.path is None or t.tiers[1 - t.path] != tier or room.upgrade(p, t, 1 - t.path):
+                self.drop()
         elif what == "up":
             t = room.towers.get(arg)
             path = self.plan(t) if t is not None else 0
@@ -131,12 +144,12 @@ class Builder:
             self.save_for = None
 
 
-def play(map_id, diff, n, seed):
+def play(map_id, diff, n, seed, bosses="warlord"):
     rng = random.Random(seed)
     room = game.Room("SIM")
     room.send = lambda p, data: None
     room.saving = False
-    room.map, room.diff = map_id, diff
+    room.map, room.diff, room.bosses = map_id, diff, bosses
     for i in range(n):
         p = game.Player(i + 1, f"P{i + 1}", "#fff", None, None, None)
         room.players[p.id] = p
@@ -162,11 +175,12 @@ def play(map_id, diff, n, seed):
 def main():
     fast = "--fast" in sys.argv
     games = next((int(a) for a in sys.argv[1:] if a.isdigit()), 3)
+    bosses = sys.argv[sys.argv.index("--bosses") + 1] if "--bosses" in sys.argv else "warlord"
     t0 = time.time()
     settings = [(m, "normal", 2) for m in D.MAPS] if fast else \
         [(m, d, n) for m in D.MAPS for d in D.DIFFICULTY for n in (1, 2, 4)]
     for map_id, diff, n in settings:
-        rooms = [play(map_id, diff, n, seed) for seed in range(1 if fast else games)]
+        rooms = [play(map_id, diff, n, seed, bosses) for seed in range(1 if fast else games)]
         for room in rooms:
             assert room.phase in ("won", "lost") and 1 <= room.wave <= D.WAVES
             assert all(p.gold >= 0 for p in room.players.values())

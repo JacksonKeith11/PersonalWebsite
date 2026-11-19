@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Holdfast · Jackson Keith</title>
-  <meta name="description" content="Co-op tower defence for one to four players: one map, separate purses, thirty waves.">
+  <meta name="description" content="Co-op tower defence for one to four players: fifteen towers, one map, separate purses, thirty waves and boss events.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=5">
+  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=6">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -44,12 +44,18 @@
         <ul>
           <li>Enemies walk the road to the keep. Each one that gets there costs a life (a Warlord costs five). You share twenty.</li>
           <li>Pick a tower from the bar, then click or tap a free square to build it. Click a tower to see its kills and upgrade it (anyone can pay) or sell it (only its builder).</li>
-          <li>Every tower has two upgrade paths of three tiers. The first upgrade picks the path for good. At the end of each path is a <b>final evolution</b>: expensive, a lot stronger, and only one of each can stand on the map at a time.</li>
+          <li>Every tower has two upgrade paths of four tiers. You can buy on both, but only one path can go past tier 2: the other gives a smaller bonus "on the side". At the end of each path is a <b>final evolution</b>: expensive, a lot stronger, and only one of each can stand on the map at a time.</li>
+          <li>Arrows, bolts and shells really fly: they aim where an enemy is going, can miss, and many go through more than one enemy.</li>
           <li>Every kill pays everyone equally. If a friend is short, give them gold from the players list.</li>
-          <li>Flyers ignore the road and go straight for the keep; cannons and beacons can't touch them.</li>
+          <li>Flyers ignore the road and go straight for the keep; cannons, mortars and beacons can't touch them. Skyhooks are made for them.</li>
+          <li>Some enemies shrug off a kind of damage: Ironclads aren't hurt by sharp things, Cinders by blasts, Frostborn by cold, and Warded by lightning, fire or magic. Some upgrades hurt anything, and so does any tower beside an Alchemist's Solvent Draught.</li>
+          <li>Many enemies burst into smaller ones when they die. Juggernauts and Colossi are huge, slow, and full of Brutes.</li>
           <li>Shieldbearers shrug off small hits. Ballistas go straight through armour.</li>
+          <li>Trappers lay spikes or mines on the road, and Workshops build sentries beside it.</li>
+          <li>Short of help? Buy an item from the bar under the towers: caltrops, tar, a powder keg, a hired archer, a war horn or a frost flask. They come out of your own purse, and each needs a while before you can use it again.</li>
           <li>Between waves, press Ready to send the next one early.</li>
           <li>Ghosts are camouflaged: only some upgrades can see them (and towers next to a Spyglass beacon). Menders heal the enemies around them, Splitters burst into Swarmlings, and Warlords call up Grunts.</li>
+          <li>Every tenth wave brings a boss. The host can pick a boss event instead of Warlords: the Gravewarden, the Stormhulk or the Ironmaw, each with its own tricks when its health falls past a skull.</li>
           <li>Each tower can aim at the first enemy, the last, the strongest or the closest. A final evolution has an ability too: press it (or Q) when it's ready.</li>
           <li>Made a mistake? A build or upgrade can be undone for a full refund for a few seconds.</li>
           <li>Win all thirty waves and the host can keep going into endless waves. Games save between waves: resume them from the room.</li>
@@ -79,6 +85,8 @@
               <option value="hard">Hard</option>
             </select>
           </label>
+          <label class="field-row">Bosses <select id="bosses"></select></label>
+          <p id="boss-blurb" class="note"></p>
           <button id="start" class="primary host-only" type="button">Start</button>
           <p id="lobby-note" class="note"></p>
         </section>
@@ -110,10 +118,12 @@
     </header>
     <div class="main">
       <div class="stage">
+        <div id="bossbar" hidden></div>
         <canvas id="board"></canvas>
         <div id="abilities" role="group" aria-label="Final evolutions' abilities" hidden></div>
         <div id="palette" role="group" aria-label="Towers to build"></div>
-        <p class="keys">Keys: 1-9 pick a tower · Z / X buy on the first / second path · Q ability · T targeting · U undo · Space ready · Esc put away</p>
+        <div id="items" role="group" aria-label="One-use items"></div>
+        <p class="keys">Keys: 1-9, 0 and Shift+1-5 pick a tower · Z / X buy on the first / second path · Q ability · T targeting · U undo · Space ready · Esc put away</p>
       </div>
       <aside>
         <section id="wavebox">
@@ -148,6 +158,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/holdfast/js/main.js?v=5"></script>
+  <script type="module" src="/static/games/holdfast/js/main.js?v=6"></script>
 </body>
 </html>

@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("HOLDFAST_DB", "data/holdfast.db"))
-VERSION = 1
+VERSION = 2  # 2: crosspathing (towers save tiers on both paths) and boss events
 KEEP = 5
 TOP = 5  # records listed per map and difficulty
 _lock = threading.Lock()

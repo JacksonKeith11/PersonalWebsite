@@ -1,7 +1,7 @@
 // Plays Holdfast in two headless browsers (one phone-sized). The host makes a room, picks a map
 // and difficulty; a friend joins by the link. They build (by click and by tap), are refused a tower on
 // the road, undo a build, aim a tower, give gold, upgrade each other's towers along a path (the other
-// path closes) and sell their own; kill counts and the mute button work; the end screen sums the game
+// path stays open for a side tier) and sell their own; a Caltrops item is put on the road; kill counts and the mute button work; the end screen sums the game
 // up, and the room's records show it; a wave is fought and its
 // enemies, shots and bounties must show up on both screens; then, with every tower sold, the keep
 // falls, the scores come up, and the host takes everyone back to the room. Fails if a page throws or
@@ -84,6 +84,9 @@ async function serve() {
     await host.waitForFunction(() => document.querySelectorAll('#seats li').length === 2);
     await host.selectOption('#diff', 'hard');
     await friend.waitForFunction(() => document.getElementById('diff').value === 'hard');
+    await host.selectOption('#bosses', 'stormhulk');
+    await friend.waitForFunction(() => document.getElementById('bosses').value === 'stormhulk' && /lightning/.test(document.getElementById('boss-blurb').textContent));
+    await host.selectOption('#bosses', 'warlord');
     if (await friend.isVisible('#start')) throw new Error('a guest was offered the Start button');
     if (!(await host.textContent('#records')).includes('No games')) throw new Error('a fresh map already has records');
     await shot(host, '2-lobby');
@@ -99,6 +102,7 @@ async function serve() {
     const towers = async p => (await st(p)).towers;
     // click (or, on the phone, tap) the middle of a tile
     const tile = async (p, x, y) => {
+      await p.locator('#board').scrollIntoViewIfNeeded();   // the phone's page is taller than its screen
       const box = await p.locator('#board').boundingBox();
       const px = box.x + (x + 0.5) / 20 * box.width, py = box.y + (y + 0.5) / 12 * box.height;
       if (p === friend) await p.touchscreen.tap(px, py); else await p.mouse.click(px, py);
@@ -152,6 +156,8 @@ async function serve() {
     if (!(await host.textContent('#info')).includes('built by Bo')) throw new Error("the panel doesn't say who built the tower");
     if (await host.locator('#info button', { hasText: 'Sell' }).count()) throw new Error("the host was offered someone else's tower to sell");
     if (await host.locator('#info .paths section').count() !== 2) throw new Error("the tower's two upgrade paths aren't shown");
+    if (await host.locator('#palette button').count() !== 15) throw new Error('the tower bar should hold fifteen towers');
+    if (await host.locator('#items button').count() !== 6) throw new Error('the items bar should hold six items');
     if (!await host.isDisabled('#info button[data-path="0"]')) throw new Error('an upgrade the host cannot afford was on offer');
     if ((await host.textContent('#kills')) !== '0') throw new Error("a new tower's kill count isn't 0");
 
@@ -160,19 +166,26 @@ async function serve() {
     for (const p of all) await p.waitForFunction(() => window.holdfast.S.st.fighting && window.holdfast.S.enemies.size > 0, null, { timeout: 15000 });
     await host.click('#speed');
     await friend.waitForFunction(() => window.holdfast.S.st.speed === 2);
-    await host.waitForFunction(() => window.holdfast.S.shots.length > 0, null, { timeout: 20000 });
+    await host.waitForFunction(() => window.holdfast.S.flying.size > 0 || window.holdfast.S.shots.length > 0, null, { timeout: 20000 });
     await shot(host, '4-wave');
     await shot(friend, '4-wave-phone');
     await friend.waitForFunction(() => window.holdfast.S.gold[window.holdfast.room.you] > 55, null, { timeout: 20000 });
     await host.waitForFunction(() => window.holdfast.S.gold[window.holdfast.room.you] >= 60, null, { timeout: 30000 });
     await host.click('#info button[data-path="0"]');   // now she can: anyone may pay for an upgrade
     await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.x === 3 && t.y === 1 && t.p === 0 && t.n === 1));
-    // the path is chosen: the other one is closed
-    await host.waitForFunction(() => document.querySelector('#info .paths section:nth-child(2)')?.textContent.includes('Closed'));
+    // crosspathing: the other path stays open, offering its first tier "on the side"
+    await host.waitForFunction(() => document.querySelector('#info .paths section:nth-child(2)')?.textContent.includes('On the side'));
+    // projectiles in flight reach the other screen too
+    await friend.waitForFunction(() => window.holdfast.S.flying.size > 0 || window.holdfast.S.shots.length > 0, null, { timeout: 20000 });
     // kill counts come through to both screens, and show on the panel
     await friend.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.kills > 0), null, { timeout: 30000 });
     await host.waitForFunction(() => +document.getElementById('kills').textContent >= 0);
     await shot(host, '4b-upgraded');
+    // the items bar: a Caltrops pile on the road shows up on both screens
+    await host.waitForFunction(() => window.holdfast.S.gold[window.holdfast.room.you] >= 50, null, { timeout: 30000 });
+    await host.click('#items button[data-kind=caltrops]');
+    await tile(host, 1, 2);
+    await friend.waitForFunction(() => window.holdfast.S.traps.length > 0, null, { timeout: 10000 });
     await host.click('#mute');
     if ((await host.getAttribute('#mute', 'aria-pressed')) !== 'true') throw new Error("the mute button didn't mute");
 

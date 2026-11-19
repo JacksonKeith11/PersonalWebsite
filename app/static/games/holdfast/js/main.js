@@ -1,6 +1,6 @@
 // Holdfast in the browser: the lobby, the board (drawn on a canvas from the server's snapshots), the
-// tower bar and the side panels. The server (app/holdfast/game.py) runs the fight; this only draws
-// it and asks to build, upgrade, sell and give.
+// tower bar, the items bar and the side panels. The server (app/holdfast/game.py) runs the fight;
+// this only draws it and asks to build, upgrade, sell, give and use items.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
 
@@ -15,20 +15,28 @@ const show = screen => { for (const id of ['menu', 'lobby', 'game']) $(id).hidde
 const now = () => performance.now() / 1000;
 
 const S = {
-  cfg: null,           // the rules: towers, enemies, board size (from `welcome`)
+  cfg: null,           // the rules: towers, enemies, items, board size (from `welcome`)
   st: null,
   map: null,           // { paths, rocks, road: Set of "x,y" }
-  enemies: new Map(),  // id -> { kind, x, y (drawn), fx, fy (from), tx, ty (to), at, hp, slow }
-  shots: [],           // { kind, pts, at, r }
+  enemies: new Map(),  // id -> { kind, x, y (drawn), fx, fy (from), tx, ty (to), at, hp, flags }
+  shots: [],           // instant shots (auras, lightning): { kind, st, evolved, from, pts, at }
+  flying: new Map(),   // projectiles: id -> { style, kind, evolved, x0, y0, vx, vy, at, life }
+  booms: [],           // blasts: { x, y, r, look, at }
+  traps: [],           // piles on the road: [id, kind code, x, y]
+  sentries: [],        // [id, x, y, workshop id]
+  bosses: [],          // boss events' bosses on the board: [id, kind index, health %, tier, shell %]
+  dazed: {},           // tower id -> seconds a boss has knocked it out for
   gold: {},
+  itemCd: {},          // item -> seconds until this player can use it again
   nextIn: null,
   picked: null,        // the kind of tower about to be built
+  item: null,          // the item about to be used (aimed at the board)
   chosen: null,        // the id of the tower whose panel is open
   hover: null,         // the tile under the pointer
   cd: {},              // tower id -> seconds until its ability is ready
   undoUntil: {},       // tower id -> now() its undo runs out (for this player)
-  glow: [0, 0, 0],     // seconds left of Rally, Mark Them and Bounty Hunt
-  blasts: [],          // abilities going off: { do, from, pts, at }
+  glow: [0, 0, 0, 0],  // seconds left of Rally, Mark Them, Bounty Hunt and Unmake
+  blasts: [],          // abilities, items and boss moves going off: { do, from, pts, at }
   floats: [],          // damage numbers: { x, y, n, at }
   preview: null,       // { x, y, r }: the reach a hovered upgrade would give
   saves: [],
@@ -41,22 +49,39 @@ const player = id => S.st?.players.find(p => p.id === id);
 const me = () => player(room.you);
 const tower = id => S.st?.towers?.find(t => t.id === id);
 
-// A tower's numbers with `tiers` bought on `path` (the same sum as data.stats on the server).
-function statsOf(kind, path = null, tiers = 0) {
-  const def = S.cfg.towers[kind], out = { ...def.base };
-  if (path != null) for (const t of def.paths[path].tiers.slice(0, tiers)) Object.assign(out, t.set);
+// Crosspathing: the main path is the one with more tiers (on a tie, the one bought first); the other
+// path's tiers give only their `cross` bonus. The same sum as data.stats on the server.
+const mainPath = (c, f) => (!c[0] && !c[1] ? null : c[0] !== c[1] ? (c[0] > c[1] ? 0 : 1) : (f === 0 || f === 1 ? f : 0));
+function statsOf(kind, c = [0, 0], f = null) {
+  const def = S.cfg.towers[kind], out = { ...def.base }, m = mainPath(c, f);
+  if (m == null) return out;
+  const mul = new Set(S.cfg.cross_mul), add = new Set(S.cfg.cross_add);
+  for (const t of def.paths[m].tiers.slice(0, c[m])) Object.assign(out, t.set);
+  for (const t of def.paths[1 - m].tiers.slice(0, c[1 - m])) {
+    for (const [k, v] of Object.entries(t.cross)) {
+      if (v === true) out[k] = true;
+      else if (mul.has(k)) out[k] = (out[k] || 0) * v;
+      else if (add.has(k)) out[k] = (out[k] || 0) + v;
+      else out[k] = Math.max(out[k] || 0, v);
+    }
+  }
   return out;
 }
+const towerStats = t => statsOf(t.k, t.c, t.f);
+const canBuy = (c, path) => c[path] + 1 <= EVOLUTION && (c[path] + 1 <= S.cfg.cross_max || c[1 - path] <= S.cfg.cross_max);
 const EVOLUTION = 4;
 // What to call a tower: its final evolution's name, or its kind.
 const towerName = t => (t.n >= EVOLUTION ? S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].name : S.cfg.towers[t.k].name);
 const myGold = () => S.gold[room.you] ?? me()?.gold ?? 0;
+const itemCost = k => Math.round(S.cfg.items[k].cost * (1 + (S.st?.item_wave || 1) / 10));
 
 function receive(m) {
   if (m.t === 'welcome') {
     S.cfg = m;
     buildPalette();
+    buildItems();
     $('map').replaceChildren(...Object.entries(m.maps).map(([id, v]) => { const o = el('option', '', v.name); o.value = id; return o; }));
+    $('bosses').replaceChildren(...Object.entries(m.bosses).map(([id, name]) => { const o = el('option', '', name); o.value = id; return o; }));
   } else if (m.t === 'map') {
     const road = new Set();
     for (const path of m.paths) {
@@ -69,8 +94,11 @@ function receive(m) {
     S.map = { ...m, road, rocks: new Set(m.rocks.map(([x, y]) => `${x},${y}`)),
       build: m.build ? new Set(m.build.map(([x, y]) => `${x},${y}`)) : null };
     S.enemies.clear();
+    S.flying.clear();
     S.shots = [];
-    S.picked = S.chosen = null;
+    S.traps = [];
+    S.sentries = [];
+    S.picked = S.chosen = S.item = null;
   } else if (m.t === 'saves') {
     S.saves = m.list;
     if (S.st?.phase === 'lobby') renderLobbyLists();
@@ -89,41 +117,62 @@ function receive(m) {
     if (was && was.phase === 'play' && m.phase !== 'play' && m.phase !== 'lobby') sound(m.phase === 'won' ? 'win' : 'lose');
     render();
   } else if (m.t === 's') {
-    const t = now(), seen = new Set();
-    for (const [id, k, x, y, hp, flags, taken] of m.e) {
-      seen.add(id);
-      const e = S.enemies.get(id) || { x, y };
-      S.enemies.set(id, Object.assign(e, { kind: S.cfg.kinds[k], fx: e.x, fy: e.y, tx: x, ty: y, at: t, hp,
-        slow: flags & 1, burning: flags & 2, stunned: flags & 4, camo: flags & 8 }));
-      if (numbers && taken >= 1) S.floats.push({ x: x + 0.5 + (Math.random() - 0.5) * 0.3, y, n: taken, at: t });
-    }
-    if (S.floats.length > 120) S.floats.splice(0, S.floats.length - 120);
-    S.cd = m.a || {};
-    S.glow = m.gl || [0, 0, 0];
-    for (const [id, what, ...pts] of m.x || []) {
-      const tw = tower(id);
-      S.blasts.push({ do: what, from: tw ? [tw.x, tw.y] : null, pts, at: t });
-      ability(what);
-    }
-    for (const id of S.enemies.keys()) if (!seen.has(id)) S.enemies.delete(id);
-    const heard = new Set();
-    for (const [id, ...pts] of m.f) {
-      const tw = tower(id);
-      if (!tw) continue;
-      S.shots.push({ kind: tw.k, st: statsOf(tw.k, tw.p, tw.n), evolved: tw.n >= EVOLUTION, from: [tw.x, tw.y], pts, at: t });
-      if (!heard.has(tw.k)) { heard.add(tw.k); hit(tw.k, tw.n >= EVOLUTION); }
-    }
-    let killed = false;
-    for (const [id, kills] of Object.entries(m.k || {})) {
-      const tw = tower(+id);
-      if (tw) { tw.kills = kills; killed = true; }
-    }
-    if (killed) { hit('pop'); if (S.chosen != null && $('kills')) $('kills').textContent = tower(S.chosen)?.kills ?? 0; }
-    S.gold = m.g;
-    S.nextIn = m.n;
-    renderLive();
-    renderAbilities();
+    snapshot(m);
   }
+}
+
+function snapshot(m) {
+  const t = now(), seen = new Set();
+  for (const [id, k, x, y, hp, flags, taken] of m.e) {
+    seen.add(id);
+    const e = S.enemies.get(id) || { x, y };
+    S.enemies.set(id, Object.assign(e, { kind: S.cfg.kinds[k], fx: e.x, fy: e.y, tx: x, ty: y, at: t, hp,
+      slow: flags & 1, burning: flags & 2, stunned: flags & 4, camo: flags & 8, shield: flags & 16, shell: flags & 32, charging: flags & 64 }));
+    if (numbers && taken >= 1) S.floats.push({ x: x + 0.5 + (Math.random() - 0.5) * 0.3, y, n: taken, at: t });
+  }
+  if (S.floats.length > 120) S.floats.splice(0, S.floats.length - 120);
+  for (const id of S.enemies.keys()) if (!seen.has(id)) S.enemies.delete(id);
+  S.cd = m.a || {};
+  S.dazed = m.dz || {};
+  S.glow = m.gl || [0, 0, 0, 0];
+  S.traps = m.tr || [];
+  S.sentries = m.se || [];
+  S.bosses = m.bo || [];
+  S.itemCd = (m.ic || {})[room.you] || {};
+  for (const [id, what, ...pts] of m.x || []) {
+    const tw = tower(id);
+    S.blasts.push({ do: what, from: tw ? [tw.x, tw.y] : null, pts, at: t });
+    ability(what);
+  }
+  const heard = new Set();
+  const listen = tw => { if (tw && !heard.has(tw.k)) { heard.add(tw.k); hit(tw.k, tw.n >= EVOLUTION); } };
+  for (const [id, fx, fy, ...pts] of m.f) {
+    const tw = tower(id);
+    if (!tw) continue;
+    S.shots.push({ kind: tw.k, st: towerStats(tw), evolved: tw.n >= EVOLUTION, from: [fx, fy], pts, at: t });
+    listen(tw);
+  }
+  for (const [id, tid, style, x, y, vx, vy, life] of m.p || []) {
+    const tw = tower(tid);
+    S.flying.set(id, { style, kind: tw?.k, evolved: tw ? tw.n >= EVOLUTION : false, fire: tw ? towerStats(tw).dtype === 'fire' : false,
+      x0: x, y0: y, vx, vy, at: t, life });
+    listen(tw);
+  }
+  for (const id of m.pe || []) S.flying.delete(id);
+  for (const [x, y, r, look] of m.bx || []) S.booms.push({ x, y, r, look, at: t });
+  if (S.booms.length > 120) S.booms.splice(0, S.booms.length - 120);
+  if ((m.bx || []).length) hit('boom');
+  let killed = false;
+  for (const [id, kills] of Object.entries(m.k || {})) {
+    const tw = tower(+id);
+    if (tw) { tw.kills = kills; killed = true; }
+  }
+  if (killed) { hit('pop'); if (S.chosen != null && $('kills')) $('kills').textContent = tower(S.chosen)?.kills ?? 0; }
+  S.gold = m.g;
+  S.nextIn = m.n;
+  renderLive();
+  renderAbilities();
+  renderBoss();
 }
 
 // ---------------------------------------------------------------- sounds
@@ -183,15 +232,19 @@ function sound(kind) {
   tone(f0, f1, secs, type);
 }
 
-// An ability going off.
+// An ability, an item or a boss's move going off.
 function ability(what) {
-  if (what === 'strike') { hiss(150, 0.8, 0.8, 0.16, 'lowpass'); tone(200, 40, 0.7, 'sawtooth', 0.07); }
-  else if (what === 'stun') { tone(2000, 3000, 0.4, 'sine', 0.05); tone(1500, 2400, 0.5, 'sine', 0.04, 0.08); }
+  if (what === 'strike' || what === 'item:keg') { hiss(150, 0.8, 0.8, 0.16, 'lowpass'); tone(200, 40, 0.7, 'sawtooth', 0.07); }
+  else if (what === 'stun' || what === 'item:flask') { tone(2000, 3000, 0.4, 'sine', 0.05); tone(1500, 2400, 0.5, 'sine', 0.04, 0.08); }
   else if (what === 'gold' || what === 'bounty') { for (let i = 0; i < 5; i++) tone(1000 + i * 180, 1400 + i * 180, 0.12, 'triangle', 0.04, i * 0.07); }
+  else if (what === 'zap') { tone(1800, 200, 0.3, 'sawtooth', 0.05); hiss(6000, 1, 0.2, 0.05, 'highpass'); }
+  else if (what === 'skull') { tone(110, 55, 0.9, 'sawtooth', 0.08); tone(165, 82, 0.9, 'square', 0.04, 0.05); }
+  else if (what === 'item:horn') { tone(220, 330, 0.6, 'sawtooth', 0.06); tone(330, 440, 0.5, 'sawtooth', 0.04, 0.3); }
+  else if (what.startsWith('item:')) { tone(500, 700, 0.12, 'triangle', 0.05); }
   else { tone(300, 900, 0.5, 'square', 0.04); hiss(800, 1, 0.5, 0.05); }
 }
 
-// A weapon's hit, at most once every 70 ms per weapon so a big defence doesn't roar. Final
+// A weapon firing, at most once every 70 ms per weapon so a big defence doesn't roar. Final
 // evolutions sound bigger.
 function hit(kind, big = false) {
   const t = performance.now();
@@ -200,12 +253,18 @@ function hit(kind, big = false) {
   const v = big ? 1.6 : 1;
   switch (kind) {
     case 'archer': hiss(3200, 6, 0.06, 0.035 * v); tone(900, 500, 0.05, 'triangle', 0.02 * v); break;
-    case 'cannon': hiss(180, 1, 0.3, 0.12 * v, 'lowpass'); tone(110, 40, 0.25, 'sine', 0.08 * v); break;
+    case 'cannon': hiss(180, 1, 0.3, 0.1 * v, 'lowpass'); tone(110, 40, 0.25, 'sine', 0.07 * v); break;
     case 'frost': tone(1800, 2400, 0.18, 'sine', 0.025 * v); tone(2700, 3600, 0.12, 'sine', 0.015 * v, 0.03); break;
     case 'ballista': tone(260, 90, 0.12, 'square', 0.04 * v); hiss(900, 3, 0.08, 0.05 * v); break;
     case 'tesla': tone(1400, 300, 0.12, 'sawtooth', 0.03 * v); hiss(5000, 2, 0.1, 0.03 * v, 'highpass'); break;
     case 'brazier': hiss(700, 0.6, 0.35, 0.05 * v); break;
-    case 'mortar': hiss(120, 1, 0.45, 0.13 * v, 'lowpass'); tone(80, 30, 0.4, 'sine', 0.09 * v); break;
+    case 'mortar': hiss(120, 1, 0.45, 0.1 * v, 'lowpass'); tone(80, 30, 0.4, 'sine', 0.08 * v); break;
+    case 'bladewheel': hiss(4200, 4, 0.08, 0.03 * v); tone(1200, 1600, 0.06, 'triangle', 0.015 * v); break;
+    case 'workshop': tone(700, 400, 0.05, 'square', 0.02 * v); break;
+    case 'arcanist': tone(600, 1300, 0.15, 'sine', 0.03 * v); tone(900, 1800, 0.1, 'sine', 0.015 * v, 0.04); break;
+    case 'skyhook': tone(420, 120, 0.12, 'square', 0.035 * v); hiss(2000, 2, 0.1, 0.04 * v); break;
+    case 'alchemist': hiss(1500, 3, 0.18, 0.04 * v); tone(300, 500, 0.1, 'sine', 0.02 * v); break;
+    case 'boom': hiss(200, 1, 0.25, 0.06, 'lowpass'); break;
     case 'pop': tone(700, 1200, 0.05, 'triangle', 0.02); break;
   }
 }
@@ -231,8 +290,12 @@ function render() {
     $('seats').replaceChildren(...st.players.map(p => person(p, room.you, !p.seated ? 'Watching' : p.id === st.host ? 'Host' : '')));
     $('map').value = st.map;
     $('diff').value = st.diff;
-    $('map').disabled = $('diff').disabled = !host;
+    $('bosses').value = st.bosses;
+    $('map').disabled = $('diff').disabled = $('bosses').disabled = !host;
     $('map-blurb').textContent = S.cfg.maps[st.map].blurb;
+    $('boss-blurb').textContent = st.bosses === 'warlord' ? 'Every tenth wave: Warlords, one more each time.'
+      : st.bosses === 'random' ? 'Every tenth wave: one of the three bosses, picked at random, a tier tougher each time.'
+        : `Every tenth wave, a tier tougher each time. ${S.cfg.enemies[st.bosses].blurb}`;
     $('lobby-note').textContent = host ? '' : `Waiting for ${player(st.host)?.name || 'the host'} to start.`;
     renderLobbyLists();
     return;
@@ -336,22 +399,50 @@ function useAbility(id) {
   if (t && abilityOf(t) && (S.cd[id] ?? 0) <= 0 && S.st.fighting) room.send({ t: 'ability', id });
 }
 
-// What the next wave brings: each kind drawn as on the board, how many, what's special about it,
-// and a warning when nothing built can deal with it (nothing that sees Ghosts, or hits flyers).
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : word.endsWith('s') ? 'es' : 's'}`;
-function traits(e) {
-  return [e.camo && 'camouflaged', e.air && 'flies', e.armor && 'armoured', e.heal && 'heals others',
-    e.split && `splits in ${e.split}`, (e.lives || 1) > 1 && `costs ${e.lives} lives`, e.summon && 'calls up Grunts'].filter(Boolean);
+// A boss event's boss: its name, tier, health with the skulls marked, and any shell.
+function renderBoss() {
+  const box = $('bossbar'), b = S.bosses[0];
+  box.hidden = !b || S.st?.phase !== 'play';
+  if (box.hidden) return;
+  const [id, k, hp, tier, shell] = b, kind = S.cfg.kinds[k], def = S.cfg.enemies[kind];
+  if (box.dataset.id !== String(id)) {
+    box.dataset.id = id;
+    box.replaceChildren(el('b', '', `${def.name}, tier ${tier}`), el('div', 'bar'));
+    const bar = box.querySelector('.bar');
+    bar.append(el('i', 'hp'), el('i', 'shell'));
+    for (const s of def.skulls || []) { const sk = el('span', 'skull', '☠'); sk.style.left = `${s * 100}%`; bar.append(sk); }
+  }
+  box.querySelector('.hp').style.width = `${hp}%`;
+  box.querySelector('.shell').style.width = `${Math.min(100, shell)}%`;
+  box.classList.toggle('shielded', !!S.enemies.get(id)?.shield);
 }
+
+// What the next wave brings: each kind drawn as on the board, how many, what's special about it,
+// and a warning when nothing built can deal with it (nothing that sees Ghosts, hits flyers, or can
+// hurt an enemy that's immune to what's built).
+const plural = (n, word) => (word.startsWith('The ') ? word : `${n} ${word}${n === 1 ? '' : word.endsWith('s') ? 'es' : 's'}`);
+const listed = a => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+function traits(e) {
+  const kids = (e.children || []).map(([k, n]) => plural(n, S.cfg.enemies[k].name));
+  return [e.event && 'boss event', e.camo && 'camouflaged', e.air && 'flies', e.armor && 'armoured',
+    e.immune && `immune to ${listed(e.immune.map(d => DTYPE[d]))}`, e.heal && 'heals others', kids.length && `bursts into ${listed(kids)}`,
+    (e.lives || 1) > 1 && `costs ${e.lives} lives`, e.summon && 'calls up Grunts'].filter(Boolean);
+}
+// The damage type a tower deals, and whether it can hit flyers.
+const dealt = t => { const s = towerStats(t), w = s.mode === 'sentry' ? s.sentry : s; return { dtype: w.dtype || 'normal', air: !!w.air, any: !!t.ul, attacks: !['support', 'income'].includes(s.mode) }; };
 function renderComing() {
   const st = S.st, box = $('coming'), foes = S.cfg.enemies;
   const counts = new Map();
   for (const [k, n] of st.coming) counts.set(k, (counts.get(k) || 0) + n);
   const kinds = [...counts.keys()];
-  const sight = st.towers.some(t => t.cs), antiAir = st.towers.some(t => statsOf(t.k, t.p, t.n).air);
+  const sight = st.towers.some(t => t.cs), arms = st.towers.map(dealt).filter(d => d.attacks), antiAir = arms.some(d => d.air);
   const warn = [];
-  if (kinds.some(k => foes[k].camo) && !sight) warn.push('Nothing built can see Ghosts. Longbow (Archer), Heavy Bolts (Ballista), a Frost or Brazier, or a tower beside a Spyglass (Beacon) can.');
-  if (kinds.some(k => foes[k].air) && !antiAir) warn.push('Nothing built can hit flyers. Archers, Frost, Ballistas and Teslas can.');
+  if (kinds.some(k => foes[k].camo) && !sight) warn.push('Nothing built can see Ghosts. Longbow (Archer), Heavy Bolts (Ballista), Seer\'s Eye (Arcanist), a Frost or Brazier, or a tower beside a Spyglass (Beacon) can.');
+  if (kinds.some(k => foes[k].air) && !antiAir) warn.push('Nothing built can hit flyers. Archers, Frost, Ballistas, Teslas, Bladewheels, Arcanists and Skyhooks can.');
+  for (const k of kinds) {
+    const imm = foes[k].immune;
+    if (imm && arms.length && !arms.some(d => d.any || !imm.includes(d.dtype))) warn.push(`Nothing built can hurt ${foes[k].name.replace(/^The /, 'the ')}: it's immune to ${listed(imm.map(d => DTYPE[d]))}. Some upgrades hurt anything, and so does a tower beside a Solvent Draught (Alchemist).`);
+  }
   const key = JSON.stringify([st.wave, st.fighting, [...counts], warn]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
@@ -366,13 +457,13 @@ function renderComing() {
     c.scale(56 / 1.4, 56 / 1.4);
     const [color, r] = ENEMY[k] || ['#ccc', 0.27];
     if (foes[k].camo) c.globalAlpha = 0.6;
-    drawEnemyBody(c, k, 0.7, 0.7, 0.25 + r * 0.6, color, 0, true);   // big ones a little bigger
+    drawEnemyBody(c, k, 0.7, 0.7, Math.min(0.6, 0.25 + r * 0.6), color, 0, true);   // big ones a little bigger
     const text = el('span');
     text.append(el('b', '', plural(counts.get(k), foes[k].name)));
     const tr = traits(foes[k]);
     if (tr.length) text.append(el('small', '', tr.join(', ')));
     li.append(icon, text);
-    if (foes[k].camo || foes[k].lives > 1 || foes[k].air) li.classList.add('special');
+    if (foes[k].camo || foes[k].lives > 1 || foes[k].air || foes[k].immune) li.classList.add('special');
     list.append(li);
   }
   box.replaceChildren(head, list, ...warn.map(w => el('p', 'warn', w)));
@@ -383,9 +474,9 @@ function renderLive() {
   const st = S.st;
   if (!st || st.phase === 'lobby') return;
   const gold = myGold(), seated = me()?.seated;
-  $('wave-title').textContent = st.fighting ? `Wave ${st.wave}` : st.wave >= S.cfg.waves ? 'All waves beaten'
+  $('wave-title').textContent = st.fighting ? `Wave ${st.wave}` : st.wave >= S.cfg.waves && !st.endless ? 'All waves beaten'
     : `Wave ${st.wave + 1} in ${Math.ceil(S.nextIn ?? 0)} s`;
-  const chips = ['Rally', 'Mark Them', 'Bounty Hunt'].map((label, i) => S.glow[i] > 0 ? `${label} ${Math.ceil(S.glow[i])} s` : null).filter(Boolean);
+  const chips = ['Rally', 'Mark Them', 'Bounty Hunt', 'Unmake'].map((label, i) => S.glow[i] > 0 ? `${label} ${Math.ceil(S.glow[i])} s` : null).filter(Boolean);
   let box = $('chips');
   if (!box) { box = el('div', 'chips'); box.id = 'chips'; $('coming').after(box); }
   box.replaceChildren(...chips.map(c => el('span', 'chip', c)));
@@ -411,30 +502,73 @@ function renderLive() {
     return li;
   }));
   for (const b of $('palette').children) b.classList.toggle('poor', gold < S.cfg.towers[b.dataset.kind].cost);
+  for (const b of $('items').children) {
+    const k = b.dataset.kind, it = S.cfg.items[k], cost = itemCost(k), left = S.itemCd[k] || 0;
+    b.querySelector('.cost').textContent = left > 0 ? `${Math.ceil(left)} s` : cost;
+    b.disabled = !seated || left > 0 || gold < cost || (it.fight && !st.fighting);
+    b.setAttribute('aria-pressed', String(S.item === k));
+  }
+  if (S.item && $(`items`).querySelector(`[data-kind="${S.item}"]`)?.disabled) S.item = null;
   for (const up of $('info').querySelectorAll('[data-cost]')) up.disabled = up.dataset.locked === '1' || gold < +up.dataset.cost;
 }
 
 const pct = v => `${Math.round(v * 100)}%`;
-const STAT = [['dmg', 'Damage'], ['shots', 'Targets'], ['rate', 'Every', v => `${v} s`], ['range', 'Reach'],
-  ['splash', 'Blast'], ['cluster', 'Extra blasts'], ['chain', 'Jumps to'], ['slow', 'Slows by', pct],
-  ['stun', 'Stuns for', v => `${v} s`], ['burn', 'Burns', v => `${v} a second`], ['shred', 'Strips armour', v => `${v} a hit`],
-  ['brittle', 'Slowed take', v => `${pct(v)} more`], ['boss', 'Against Warlords', v => `×${v}`],
-  ['pierce', 'Ignores armour', () => 'yes'], ['air', 'Hits flyers', v => (v ? 'yes' : 'no')],
-  ['boost', 'Speeds up', pct], ['reach', 'Extends reach', pct], ['power', 'Adds damage', pct],
-  ['income', 'Pays a wave', v => `${v} gold`], ['bounty', 'Kill bonus', pct]];
+const num = v => (typeof v === 'number' ? String(Math.round(v * 100) / 100) : v);
+const DTYPE = { sharp: 'sharp', blast: 'blast', cold: 'cold', energy: 'lightning', fire: 'fire', arcane: 'arcane', normal: 'normal (hurts anything)' };
+const STAT = [['dtype', 'Damage', v => DTYPE[v] || v], ['dmg', 'Damage a hit'], ['shots', 'Shots'], ['rate', 'Every', v => `${num(v)} s`], ['range', 'Reach'],
+  ['pierce', 'Goes through', v => `${num(v)} enemies`], ['splash', 'Blast'], ['cluster', 'Extra blasts'], ['chain', 'Jumps to'],
+  ['slow', 'Slows by', pct], ['stun', 'Stuns for', v => `${num(v)} s`], ['burn', 'Burns', v => `${num(v)} a second`], ['shred', 'Strips armour', v => `${num(v)} a hit`],
+  ['brittle', 'Slowed take', v => `${pct(v)} more`], ['boss', 'Against bosses and blimps', v => `×${num(v)}`],
+  ['ap', 'Ignores armour', () => 'yes'], ['air', 'Hits flyers', v => (v ? 'yes' : 'no')], ['ground', 'Hits the ground', v => (v ? 'yes' : 'no')],
+  ['detect', 'Sees Ghosts', () => 'yes'], ['lob', 'Lobbed', () => 'yes, moving targets can dodge'],
+  ['hits', 'Each pile hurts', v => `${num(v)} enemies`], ['max', 'At a time', num], ['life', 'Each lasts', v => `${num(v)} s`],
+  ['boost', 'Speeds up', pct], ['reach', 'Extends reach', pct], ['power', 'Adds damage', pct], ['reveal', 'Reveals Ghosts', () => 'yes'],
+  ['unlock', 'Towers near it hurt', () => 'every type'],
+  ['income', 'Pays a wave', v => `${num(v)} gold`], ['bounty', 'Kill bonus', pct]];
 
 function statList(stats) {
-  const dl = el('dl');
-  for (const [key, label, fmt = v => v] of STAT) {
-    if (stats[key] == null || (key === 'air' && stats.mode === 'income') || (key === 'air' && stats.mode === 'support')) continue;
+  const dl = el('dl'), quiet = ['support', 'income', 'sentry'].includes(stats.mode);
+  for (const [key, label, fmt = num] of STAT) {
+    if (stats[key] == null || ((key === 'air' || key === 'ground') && quiet) || (key === 'ground' && stats.ground !== false)) continue;
+    if (key === 'dtype' && quiet) continue;
+    if (key === 'boost' && !quiet && stats.mode !== 'support') continue;
     dl.append(el('dt', '', label), el('dd', '', fmt(stats[key])));
   }
+  if (stats.sentry) {
+    const s = stats.sentry;
+    dl.append(el('dt', '', 'Sentries'), el('dd', '', `${num(s.dmg)} ${DTYPE[s.dtype] === DTYPE.normal ? '' : DTYPE[s.dtype] + ' '}damage every ${num(s.rate)} s, reach ${num(s.range)}${s.chain ? `, jumps to ${s.chain}` : ''}${s.splash ? ', blasts' : ''}${s.pierce > 1 ? `, through ${s.pierce}` : ''}${s.detect ? ', sees Ghosts' : ''}`));
+  }
   return dl;
+}
+
+// What a tier gives a tower whose main path is the other one, in words.
+const CROSS_WORD = { dmg: 'damage', range: 'reach', splash: 'blast', burn: 'burning', income: 'income', life: 'life', speed: 'projectile speed',
+  pierce: 'pierce', chain: 'jumps', cluster: 'extra blast', hits: 'hits a pile', max: 'at a time', shred: 'armour stripped a hit', shots: 'shot a volley',
+  slow: 'slows by at least', stun: 'stuns for at least', boost: 'speeds towers beside it by at least', reach: 'extends reach beside it by at least',
+  power: 'adds damage beside it of at least', bounty: 'kill bonus of at least', hold: 'holds for at least', burn_for: 'burns for at least' };
+const CROSS_ON = { detect: 'sees Ghosts', ap: 'ignores armour', reveal: 'reveals Ghosts to towers beside it', ground: 'hits the ground too', unlock: 'towers beside it hurt every type', air: 'hits flyers' };
+function crossText(cross) {
+  const parts = Object.entries(cross).map(([k, v]) => {
+    if (v === true) return CROSS_ON[k] || k;
+    if (k === 'rate') return `${Math.round((1 / v - 1) * 100)}% faster`;
+    if (S.cfg.cross_mul.includes(k)) return `${Math.round((v - 1) * 100)}% ${v >= 1 ? 'more' : 'less'} ${CROSS_WORD[k]}`;
+    if (S.cfg.cross_add.includes(k)) return `+${v} ${CROSS_WORD[k]}`;
+    const shown = ['slow', 'boost', 'reach', 'power', 'bounty'].includes(k) ? pct(v) : ['stun', 'hold', 'burn_for'].includes(k) ? `${v} s` : v;
+    return `${CROSS_WORD[k] || k} ${shown}`;
+  });
+  const s = parts.join(', ');
+  return s ? s[0].toUpperCase() + s.slice(1) : 'Nothing extra';
 }
 
 function renderInfo() {
   const box = $('info'), T = S.cfg.towers;
   const tw = S.chosen != null ? tower(S.chosen) : null;
+  if (S.item && !tw) {
+    const it = S.cfg.items[S.item];
+    const where = { road: 'Click or tap a square of road.', free: 'Click or tap a free square off the road.', any: 'Click or tap anywhere on the board.' }[it.place];
+    box.replaceChildren(el('h2', '', `${it.name} (${itemCost(S.item)} gold)`), el('p', '', it.blurb), el('p', '', where));
+    return;
+  }
   const kind = tw ? tw.k : S.picked;
   if (!kind) { box.replaceChildren(); return; }
   const def = T[kind];
@@ -443,14 +577,15 @@ function renderInfo() {
       el('p', '', 'Click or tap a free square to build it.'));
     return;
   }
-  const evolved = tw.n >= EVOLUTION;
+  const evolved = tw.n >= EVOLUTION, c = tw.c, m = tw.p;
   const title = el('h2', evolved ? 'evolved' : '', towerName(tw));
-  const sub = tw.p == null ? 'Not upgraded yet' : `${def.paths[tw.p].name}, tier ${tw.n}${evolved ? ': final evolution' : ''}`;
+  const sub = m == null ? 'Not upgraded yet' : `${def.paths[m].name}, ${c[0]}-${c[1]}${evolved ? ': final evolution' : ''}`;
   const tally = el('p', 'tally');
   tally.append('Kills: ', el('b', '', ''), ` · damage ${Number(tw.dmg || 0).toLocaleString()} · built by ${player(tw.o)?.name || 'someone who left'}`);
   tally.querySelector('b').id = 'kills';
   tally.querySelector('b').textContent = tw.kills;
   const parts = [title, el('p', '', sub), tally];
+  if (S.dazed[tw.id] > 0) parts.push(el('p', 'warn', `Knocked out by a boss for ${Math.ceil(S.dazed[tw.id])} s.`));
   const ab = abilityOf(tw);
   if (ab && me()?.seated) {
     const b = el('button', 'ability-btn', '');
@@ -467,8 +602,8 @@ function renderInfo() {
     u.addEventListener('click', () => { sound('sell'); room.send({ t: 'undo', id: tw.id }); });
     parts.push(u);
   }
-  const st0 = statsOf(kind, tw.p, tw.n);
-  if (!['support', 'income'].includes(st0.mode)) {
+  const st0 = towerStats(tw);
+  if (!['support', 'income', 'trap', 'sentry'].includes(st0.mode)) {
     const row = el('div', 'targets');
     for (const v of S.cfg.targets) {
       const b = el('button', '', v[0].toUpperCase() + v.slice(1));
@@ -481,21 +616,26 @@ function renderInfo() {
     parts.push(row);
   }
   parts.push(statList(st0));
+  if (tw.ul) parts.push(el('p', 'note', 'A Solvent Draught beside it: it hurts every type.'));
 
-  // the two upgrade paths: the next tier on each, or why not
+  // the two upgrade paths: the next tier on each (in full, or what it gives on the side), or why not
   const paths = el('div', 'paths');
   def.paths.forEach((path, pi) => {
-    const col = el('section', `path${tw.p === pi ? ' taken' : ''}`);
+    const col = el('section', `path${m === pi ? ' taken' : ''}`);
+    const side = m != null && m !== pi && c[m] > S.cfg.cross_max;
     const pips = el('span', 'pips');
-    for (let i = 1; i <= EVOLUTION; i++) pips.append(el('i', tw.p === pi && tw.n >= i ? 'on' : i === EVOLUTION ? 'evo' : ''));
+    for (let i = 1; i <= EVOLUTION; i++) pips.append(el('i', c[pi] >= i ? 'on' : side && i > S.cfg.cross_max ? 'shut' : i === EVOLUTION ? 'evo' : ''));
     col.append(el('h3', '', path.name), pips);
-    const mine = tw.p == null || tw.p === pi, n = mine ? tw.n : 0, next = path.tiers[n];
-    if (!mine) col.append(el('p', 'note', `Closed: this tower took ${def.paths[tw.p].name}.`));
-    else if (!next) col.append(el('p', 'note', 'Fully evolved.'));
+    const next = path.tiers[c[pi]];
+    if (!next) col.append(el('p', 'note', 'Fully evolved.'));
+    else if (!canBuy(c, pi)) col.append(el('p', 'note', `Closed past tier ${S.cfg.cross_max}: ${def.paths[1 - pi].name} went further.`));
     else {
-      const evo = n + 1 === EVOLUTION;
+      const after = [...c];
+      after[pi] += 1;
+      const full = mainPath(after, tw.f ?? pi) === pi, evo = full && after[pi] === EVOLUTION;
       const taken = evo && S.st.towers.some(o => o.id !== tw.id && o.k === kind && o.p === pi && o.n >= EVOLUTION);
-      col.append(el('p', 'next', `${evo ? 'Final evolution: ' : ''}${next.name}`), el('p', 'note', next.blurb.replace(/^Final evolution: /, '')));
+      col.append(el('p', 'next', `${evo ? 'Final evolution: ' : ''}${next.name}`),
+        el('p', 'note', full ? next.blurb.replace(/^Final evolution: /, '') : `On the side: ${crossText(next.cross)}.`));
       if (me()?.seated) {
         const up = el('button', evo ? 'primary evo' : 'primary', `${evo ? 'Evolve' : 'Buy'}: ${next.cost} gold`);
         up.type = 'button';
@@ -504,7 +644,7 @@ function renderInfo() {
         up.dataset.locked = taken ? '1' : '0';
         up.disabled = taken || myGold() < next.cost;
         up.addEventListener('click', () => { sound(evo ? 'evolve' : 'up'); room.send({ t: 'up', id: tw.id, path: pi }); });
-        const r = statsOf(kind, pi, n + 1).range;
+        const r = statsOf(kind, after, tw.f ?? pi).range;
         up.addEventListener('pointerenter', () => { S.preview = { x: tw.x, y: tw.y, r: Math.min(r, 12) }; });
         up.addEventListener('pointerleave', () => { S.preview = null; });
         col.append(up);
@@ -528,17 +668,30 @@ function renderInfo() {
 function pick(kind) {
   S.picked = S.picked === kind ? null : kind;
   S.chosen = null;
+  S.item = null;
   for (const b of $('palette').children) b.setAttribute('aria-pressed', String(b.dataset.kind === S.picked));
   renderInfo();
+  renderLive();
 }
 
+function pickItem(kind) {
+  const it = S.cfg.items[kind];
+  if (it.place === 'none') { room.send({ t: 'item', k: kind }); return; }
+  S.item = S.item === kind ? null : kind;
+  S.picked = S.chosen = null;
+  for (const b of $('palette').children) b.setAttribute('aria-pressed', 'false');
+  renderInfo();
+  renderLive();
+}
+
+const keyName = i => (i < 9 ? String(i + 1) : i === 9 ? '0' : `Shift+${i - 9}`);
 function buildPalette() {
   $('palette').replaceChildren(...Object.entries(S.cfg.towers).map(([kind, def], i) => {
     const b = el('button');
     b.type = 'button';
     b.dataset.kind = kind;
     b.setAttribute('aria-pressed', 'false');
-    b.title = `${def.blurb} (key ${i + 1})`;
+    b.title = `${def.blurb} (key ${keyName(i)})`;
     const icon = document.createElement('canvas');
     icon.width = icon.height = 68;
     const c = icon.getContext('2d');
@@ -550,8 +703,21 @@ function buildPalette() {
   }));
 }
 
+function buildItems() {
+  $('items').replaceChildren(...Object.entries(S.cfg.items).map(([kind, it]) => {
+    const b = el('button');
+    b.type = 'button';
+    b.dataset.kind = kind;
+    b.title = it.blurb;
+    b.append(el('span', '', it.name), el('span', 'cost', it.cost));
+    b.addEventListener('click', () => pickItem(kind));
+    return b;
+  }));
+}
+
 $('map').addEventListener('change', () => room.send({ t: 'set', map: $('map').value }));
 $('diff').addEventListener('change', () => room.send({ t: 'set', diff: $('diff').value }));
+$('bosses').addEventListener('change', () => room.send({ t: 'set', bosses: $('bosses').value }));
 $('start').addEventListener('click', () => room.send({ t: 'start' }));
 $('again').addEventListener('click', () => room.send({ t: 'again' }));
 $('ready').addEventListener('click', () => room.send({ t: 'ready' }));
@@ -565,13 +731,15 @@ $('numbers').addEventListener('click', () => {
 });
 $('numbers').setAttribute('aria-pressed', String(numbers));
 
-// Keys: 1-9 pick a tower to build; with a tower chosen, Z and X buy on its paths, Q sets off its
-// ability, T changes what it aims at, U undoes; Space sends the next wave; Esc puts things away.
+// Keys: 1-9 and 0 pick a tower to build, Shift+1-5 the rest; with a tower chosen, Z and X buy on
+// its paths, Q sets off its ability, T changes what it aims at, U undoes; Space sends the next wave;
+// Esc puts things away.
 addEventListener('keydown', e => {
   if ($('game').hidden || e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
   const kinds = Object.keys(S.cfg.towers), tw = S.chosen != null ? tower(S.chosen) : null, k = e.key.toLowerCase();
-  if (e.key === 'Escape') { S.chosen = null; if (S.picked) pick(S.picked); else renderInfo(); }
-  else if (kinds[+e.key - 1]) pick(kinds[+e.key - 1]);
+  const digit = /^Digit(\d)$/.exec(e.code), d = digit ? (+digit[1] + 9) % 10 : -1;   // Digit1 -> 0 ... Digit0 -> 9
+  if (e.key === 'Escape') { S.chosen = null; S.item = null; if (S.picked) pick(S.picked); else { renderInfo(); renderLive(); } }
+  else if (d >= 0 && kinds[e.shiftKey ? d + 10 : d] && (!e.shiftKey || d < 5)) pick(kinds[e.shiftKey ? d + 10 : d]);
   else if (e.key === ' ' && !S.st.fighting && me()?.seated) { e.preventDefault(); room.send({ t: 'ready' }); }
   else if (tw && (k === 'z' || k === 'x')) {
     const b = $('info').querySelector(`button[data-path="${k === 'z' ? 0 : 1}"]`);
@@ -589,16 +757,23 @@ const tileAt = e => {
   return [Math.floor((e.clientX - r.left) / r.width * S.cfg.cols), Math.floor((e.clientY - r.top) / r.height * S.cfg.rows)];
 };
 const towerAt = (x, y) => S.st.towers.find(t => t.x === x && t.y === y);
-const free = (x, y) => x >= 0 && y >= 0 && x < S.cfg.cols && y < S.cfg.rows
-  && !S.map.road.has(`${x},${y}`) && !S.map.rocks.has(`${x},${y}`) && (!S.map.build || S.map.build.has(`${x},${y}`))
-  && !towerAt(x, y);
+const onBoard = (x, y) => x >= 0 && y >= 0 && x < S.cfg.cols && y < S.cfg.rows;
+const free = (x, y) => onBoard(x, y) && !S.map.road.has(`${x},${y}`) && !S.map.rocks.has(`${x},${y}`)
+  && (!S.map.build || S.map.build.has(`${x},${y}`)) && !towerAt(x, y);
+// Whether the item being aimed can go on this square.
+const itemFits = (kind, x, y) => {
+  const place = S.cfg.items[kind].place;
+  return place === 'road' ? S.map.road.has(`${x},${y}`) : place === 'free' ? free(x, y) : onBoard(x, y);
+};
 
 canvas.addEventListener('pointermove', e => { S.hover = tileAt(e); });
 canvas.addEventListener('pointerleave', () => { S.hover = null; });
 canvas.addEventListener('click', e => {
   if (!S.map || S.st.phase !== 'play') return;
   const [x, y] = tileAt(e), there = towerAt(x, y);
-  if (there) {
+  if (S.item && me()?.seated) {
+    if (itemFits(S.item, x, y)) { room.send({ t: 'item', k: S.item, x, y }); S.item = null; renderInfo(); renderLive(); }
+  } else if (there) {
     if (S.picked) pick(S.picked);
     S.chosen = S.chosen === there.id ? null : there.id;
     renderInfo();
@@ -608,23 +783,27 @@ canvas.addEventListener('click', e => {
     S.chosen = null;
     renderInfo();
   }
-  if (e.pointerType === 'touch') S.hover = S.picked ? [x, y] : null;
+  if (e.pointerType === 'touch') S.hover = S.picked || S.item ? [x, y] : null;
 });
-canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (S.picked) pick(S.picked); });
+canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (S.picked) pick(S.picked); else if (S.item) pickItem(S.item); });
 
 const TOWER_COLOR = { archer: '#7fb069', cannon: '#8a96a3', frost: '#7fd0e8', ballista: '#b08a5a', tesla: '#c9a0f0', beacon: '#f2c230',
-  brazier: '#ff7a2f', mortar: '#a3a9b3', mint: '#f2d14a' };
+  brazier: '#ff7a2f', mortar: '#a3a9b3', mint: '#f2d14a', bladewheel: '#c8d0d8', trapper: '#b58a55', workshop: '#e0954a',
+  arcanist: '#9b7bff', skyhook: '#5fd0c8', alchemist: '#86d455' };
 const PATH_COLOR = ['#f2c230', '#6fd0ff'];
 const ENEMY = {   // colour and radius, in tiles
   grunt: ['#d9534a', 0.27], runner: ['#f09a3e', 0.2], swarm: ['#b06fd6', 0.14], brute: ['#8f2d2d', 0.4],
   shield: ['#4f7fc9', 0.3], flyer: ['#f3f0e6', 0.24], boss: ['#3a2440', 0.55],
   ghost: ['#e8f0ff', 0.25], healer: ['#5cc46a', 0.28], splitter: ['#c78a3a', 0.3], gargoyle: ['#6b6f78', 0.3],
+  ironclad: ['#8d949c', 0.32], cinder: ['#2b2420', 0.22], frostborn: ['#bfe8ff', 0.25], warded: ['#8b5cf6', 0.27],
+  juggernaut: ['#45603f', 0.6], colossus: ['#6a2f2f', 0.75],
+  gravewarden: ['#d8d0b8', 0.62], stormhulk: ['#2f4f8f', 0.64], ironmaw: ['#5b5f66', 0.62],
 };
 const FLYING = new Set(['flyer', 'gargoyle']);
 
-// A tower, drawn in a 1 x 1 box centred on the origin: its tiers as pips in its path's colour, and
-// a final evolution bigger, gold-rimmed and glowing.
-function drawTower(c, kind, path, tier, ring) {
+// A tower, drawn in a 1 x 1 box centred on the origin: its tiers as pips in its path's colour (the
+// main path's above, the side path's below), and a final evolution bigger, gold-rimmed and glowing.
+function drawTower(c, kind, path, tier, ring, side = 0) {
   const evo = tier >= EVOLUTION, t = performance.now() / 1000;
   if (evo) {
     c.fillStyle = `rgba(255, 215, 90, ${0.25 + 0.12 * Math.sin(t * 3)})`;
@@ -654,7 +833,27 @@ function drawTower(c, kind, path, tier, ring) {
     c.fillStyle = '#ffd36b'; c.beginPath(); c.arc(0, 0.08, 0.08, 0, 7); c.fill();
   } else if (kind === 'mortar') { c.fillRect(-0.14, -0.18, 0.28, 0.36); c.fillStyle = '#2a3542'; c.beginPath(); c.ellipse(0, -0.18, 0.14, 0.06, 0, 0, 7); c.fill(); c.fillStyle = TOWER_COLOR[kind]; c.fillRect(-0.24, 0.14, 0.48, 0.08); }
   else if (kind === 'mint') { c.arc(0, 0, 0.22, 0, 7); c.fill(); c.fillStyle = '#8a6a10'; c.font = 'bold 0.3px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', 0, 0.02); }
-  else { c.arc(0, 0, 0.2, 0, 7); c.stroke(); c.beginPath(); c.arc(0, 0, 0.07, 0, 7); c.fill(); }
+  else if (kind === 'bladewheel') {   // a ring of blades
+    const spin = t * 2;
+    for (let i = 0; i < 6; i++) { const a = spin + i * Math.PI / 3; c.moveTo(Math.cos(a) * 0.08, Math.sin(a) * 0.08); c.lineTo(Math.cos(a + 0.35) * 0.28, Math.sin(a + 0.35) * 0.28); c.lineTo(Math.cos(a - 0.1) * 0.24, Math.sin(a - 0.1) * 0.24); c.closePath(); }
+    c.fill(); c.fillStyle = '#2a3542'; c.beginPath(); c.arc(0, 0, 0.07, 0, 7); c.fill();
+  } else if (kind === 'trapper') {   // a caltrop
+    c.lineWidth = 0.07;
+    for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 3; c.moveTo(0, 0); c.lineTo(Math.cos(a) * 0.26, Math.sin(a) * 0.26); }
+    c.stroke(); c.beginPath(); c.arc(0, 0, 0.08, 0, 7); c.fill();
+  } else if (kind === 'workshop') {   // a cog
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; c.rect(Math.cos(a) * 0.2 - 0.05, Math.sin(a) * 0.2 - 0.05, 0.1, 0.1); }
+    c.fill(); c.beginPath(); c.arc(0, 0, 0.18, 0, 7); c.fill(); c.fillStyle = '#2a3542'; c.beginPath(); c.arc(0, 0, 0.07, 0, 7); c.fill();
+  } else if (kind === 'arcanist') {   // a star
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.11 : 0.27; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    c.closePath(); c.fill();
+  } else if (kind === 'skyhook') {   // a harpoon pointing up
+    c.moveTo(0, 0.26); c.lineTo(0, -0.2); c.stroke(); c.beginPath(); c.moveTo(0, -0.3); c.lineTo(0.12, -0.12); c.lineTo(-0.12, -0.12); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, 0.12, 0.16, 0.2, Math.PI - 0.2); c.stroke();
+  } else if (kind === 'alchemist') {   // a flask
+    c.moveTo(-0.06, -0.28); c.lineTo(0.06, -0.28); c.lineTo(0.06, -0.08); c.lineTo(0.22, 0.2); c.lineTo(-0.22, 0.2); c.lineTo(-0.06, -0.08); c.closePath(); c.fill();
+    c.fillStyle = '#2a3542'; c.beginPath(); c.arc(0.05, 0.08, 0.04, 0, 7); c.arc(-0.06, 0.13, 0.03, 0, 7); c.fill();
+  } else { c.arc(0, 0, 0.2, 0, 7); c.stroke(); c.beginPath(); c.arc(0, 0, 0.07, 0, 7); c.fill(); }
   c.restore();
   if (evo) {   // a crown
     c.fillStyle = '#ffd75a';
@@ -662,6 +861,10 @@ function drawTower(c, kind, path, tier, ring) {
   } else if (tier > 0) {
     c.fillStyle = PATH_COLOR[path];
     for (let i = 0; i < tier; i++) { c.beginPath(); c.arc(-0.07 * (tier - 1) + i * 0.14, 0.34, 0.05, 0, 7); c.fill(); }
+  }
+  if (side > 0) {   // the side path's tiers, small, at the top
+    c.fillStyle = PATH_COLOR[1 - path];
+    for (let i = 0; i < side; i++) { c.beginPath(); c.arc(-0.05 * (side - 1) + i * 0.1, evo ? -0.62 : -0.33, 0.035, 0, 7); c.fill(); }
   }
 }
 
@@ -671,6 +874,9 @@ function drawEnemyBody(ctx, kind, x, y, r, color, flap, icon = false) {
   ctx.fillStyle = color;
   ctx.beginPath();
   if (kind === 'brute') ctx.roundRect(x - r, y - r, r * 2, r * 2, 0.1);
+  else if (kind === 'ironclad') ctx.roundRect(x - r, y - r, r * 2, r * 2, 0.05);
+  else if (kind === 'frostborn') { for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } ctx.closePath(); }
+  else if (kind === 'juggernaut' || kind === 'colossus') ctx.ellipse(x, y, r * 1.25, r * 0.8, 0, 0, 7);
   else if (FLYING.has(kind)) {
     const f = kind === 'gargoyle' ? Math.sin(flap) * 0.08 : 0;
     ctx.moveTo(x, y - r); ctx.lineTo(x + r * 1.4, y + f); ctx.lineTo(x, y + r * 0.6); ctx.lineTo(x - r * 1.4, y + f);
@@ -678,6 +884,7 @@ function drawEnemyBody(ctx, kind, x, y, r, color, flap, icon = false) {
   else if (kind === 'splitter') { ctx.arc(x - r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x + r * 0.4, y, r * 0.6, 0, 7); ctx.arc(x, y - r * 0.4, r * 0.6, 0, 7); }
   else ctx.arc(x, y, r, 0, 7);
   ctx.fill();
+  const lw = Math.max(0.04, r * 0.12);
   if (kind === 'healer') {   // a white cross, and the ring it mends within
     const a = ctx.globalAlpha;
     ctx.globalAlpha = 1;
@@ -686,9 +893,64 @@ function drawEnemyBody(ctx, kind, x, y, r, color, flap, icon = false) {
     ctx.fillRect(x - r * 0.55, y - r * 0.15, r * 1.1, r * 0.3);
     if (!icon) { ctx.strokeStyle = 'rgba(92, 196, 106, 0.35)'; ctx.lineWidth = 0.03; ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 7); ctx.stroke(); }
     ctx.globalAlpha = a;
+  } else if (kind === 'ironclad') {   // rivets
+    ctx.fillStyle = '#c7ccd2';
+    for (const [dx, dy] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) { ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, r * 0.13, 0, 7); ctx.fill(); }
+  } else if (kind === 'cinder') { ctx.strokeStyle = '#ff7a2f'; ctx.lineWidth = lw; ctx.stroke(); }
+  else if (kind === 'frostborn') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = lw * 0.7; ctx.stroke(); }
+  else if (kind === 'warded') { ctx.strokeStyle = '#e2d4ff'; ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(x, y, r * 0.65, 0, 7); ctx.stroke(); }
+  else if (kind === 'juggernaut' || kind === 'colossus') {   // plates and a band
+    ctx.strokeStyle = kind === 'colossus' ? '#f2c230' : '#a8c49c'; ctx.lineWidth = lw * 0.6;
+    ctx.beginPath(); ctx.ellipse(x, y, r * 1.25, r * 0.8, 0, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - r * 0.4, y - r * 0.75); ctx.lineTo(x - r * 0.4, y + r * 0.75); ctx.moveTo(x + r * 0.4, y - r * 0.75); ctx.lineTo(x + r * 0.4, y + r * 0.75); ctx.stroke();
+  } else if (kind === 'gravewarden') {   // a skull's eyes
+    ctx.fillStyle = '#2a2220';
+    ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.1, r * 0.2, 0, 7); ctx.arc(x + r * 0.35, y - r * 0.1, r * 0.2, 0, 7); ctx.fill();
+    ctx.fillRect(x - r * 0.3, y + r * 0.35, r * 0.6, r * 0.12);
+  } else if (kind === 'stormhulk') {   // a bolt
+    ctx.fillStyle = '#ffe14d';
+    ctx.beginPath(); ctx.moveTo(x + r * 0.1, y - r * 0.6); ctx.lineTo(x - r * 0.3, y + r * 0.05); ctx.lineTo(x, y + r * 0.05); ctx.lineTo(x - r * 0.15, y + r * 0.6); ctx.lineTo(x + r * 0.3, y - r * 0.1); ctx.lineTo(x, y - r * 0.1); ctx.closePath(); ctx.fill();
+  } else if (kind === 'ironmaw') {   // a jaw of teeth
+    ctx.fillStyle = '#e8e2d0';
+    for (let i = 0; i < 5; i++) { const tx = x - r * 0.5 + i * r * 0.25; ctx.beginPath(); ctx.moveTo(tx, y + r * 0.1); ctx.lineTo(tx + r * 0.12, y + r * 0.4); ctx.lineTo(tx + r * 0.24, y + r * 0.1); ctx.fill(); }
+    ctx.strokeStyle = '#2a2d33'; ctx.lineWidth = lw * 0.6; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
   }
   if (kind === 'gargoyle') { ctx.strokeStyle = '#3a3d44'; ctx.lineWidth = 0.05; ctx.stroke(); }
   if (kind === 'shield' || kind === 'boss') { ctx.strokeStyle = kind === 'boss' ? '#f2c230' : '#cfe0ff'; ctx.lineWidth = 0.07; ctx.stroke(); }
+}
+
+// A projectile in flight, drawn by its style.
+function drawShot(s, t) {
+  const age = t - s.at;
+  if (age > s.life + 0.05) return false;
+  const u = Math.min(age, s.life), x = s.x0 + s.vx * u + 0.5, y = s.y0 + s.vy * u + 0.5;
+  const sp = Math.hypot(s.vx, s.vy) || 1, dx = s.vx / sp, dy = s.vy / sp;
+  const color = s.evolved ? '#ffd75a' : TOWER_COLOR[s.kind] || '#e8edf2';
+  ctx.strokeStyle = ctx.fillStyle = color;
+  switch (s.style) {
+    case 'l': {   // lobbed: an arc, with its shadow on the ground
+      const k = u / s.life, h = Math.sin(Math.PI * k) * 1.4;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, y, 0.1, 0.05, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = s.fire ? '#ff6a2f' : '#3a3f47'; ctx.beginPath(); ctx.arc(x, y - h, 0.12, 0, 7); ctx.fill();
+      break;
+    }
+    case 's': ctx.fillStyle = '#2b2f36'; ctx.beginPath(); ctx.arc(x, y, 0.1, 0, 7); ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 0.03; ctx.stroke(); break;
+    case 'w': {   // a spinning blade
+      const a = t * 20;
+      ctx.lineWidth = 0.05;
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 0.12, y + Math.sin(a) * 0.12); ctx.lineTo(x - Math.cos(a) * 0.12, y - Math.sin(a) * 0.12);
+      ctx.moveTo(x + Math.cos(a + 1.57) * 0.12, y + Math.sin(a + 1.57) * 0.12); ctx.lineTo(x - Math.cos(a + 1.57) * 0.12, y - Math.sin(a + 1.57) * 0.12); ctx.stroke();
+      break;
+    }
+    case 'o': ctx.fillStyle = s.fire ? '#ff8a3a' : color; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(x, y, 0.2, 0, 7); ctx.fill(); ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(x, y, 0.1, 0, 7); ctx.fill(); break;
+    case 'f': ctx.fillStyle = '#86d455'; ctx.beginPath(); ctx.arc(x, y, 0.09, 0, 7); ctx.fill(); break;
+    default: {   // arrows, bolts, harpoons, sentry bolts: a streak along the way it flies
+      const len = { b: 0.45, h: 0.5, c: 0.22 }[s.style] || 0.3;
+      ctx.lineWidth = { b: 0.09, h: 0.07, c: 0.05 }[s.style] || 0.05;
+      ctx.beginPath(); ctx.moveTo(x - dx * len, y - dy * len); ctx.lineTo(x, y); ctx.stroke();
+    }
+  }
+  return true;
 }
 
 function frame() {
@@ -734,7 +996,26 @@ function frame() {
   ctx.fillStyle = '#2a3542';
   ctx.fillRect(kx + 0.38, ky + 0.55, 0.24, 0.35);
 
-  // where a tower would go, and how far it would reach
+  // piles on the road: tar under everything, spikes and mines
+  for (const [, code, x, y] of S.traps) {
+    const cx = x + 0.5, cy = y + 0.5;
+    if (code === 2) {
+      ctx.fillStyle = 'rgba(40, 28, 16, 0.55)';
+      ctx.beginPath(); ctx.arc(cx, cy, S.cfg.items.tar.radius, 0, 7); ctx.fill();
+    } else if (code === 1) {
+      ctx.fillStyle = '#2b2f36'; ctx.beginPath(); ctx.arc(cx, cy, 0.13, 0, 7); ctx.fill();
+      ctx.fillStyle = Math.sin(t * 6 + x * 3) > 0 ? '#ff4a3a' : '#7a2a22'; ctx.beginPath(); ctx.arc(cx, cy, 0.05, 0, 7); ctx.fill();
+    } else {
+      ctx.strokeStyle = '#5a5f66'; ctx.lineWidth = 0.035;
+      ctx.beginPath();
+      for (const [ox, oy] of [[-0.08, -0.04], [0.08, 0.02], [-0.01, 0.08]]) {
+        for (let i = 0; i < 3; i++) { const a = i * 2.1 + ox * 20; ctx.moveTo(cx + ox, cy + oy); ctx.lineTo(cx + ox + Math.cos(a) * 0.07, cy + oy + Math.sin(a) * 0.07); }
+      }
+      ctx.stroke();
+    }
+  }
+
+  // where a tower (or an item) would go, and how far it would reach
   const hover = S.hover, chosen = S.chosen != null ? tower(S.chosen) : null;
   const reach = (x, y, r, ok) => {
     ctx.fillStyle = ok ? 'rgba(255,255,255,0.12)' : 'rgba(255,80,60,0.15)';
@@ -749,7 +1030,11 @@ function frame() {
     ctx.save(); ctx.translate(hover[0] + 0.5, hover[1] + 0.5); drawTower(ctx, S.picked, null, 0, ok ? '#fff' : '#ff5a4a'); ctx.restore();
     ctx.globalAlpha = 1;
   }
-  if (chosen) reach(chosen.x, chosen.y, Math.min(statsOf(chosen.k, chosen.p, chosen.n).range, 12), true);
+  if (S.item && hover && S.st.phase === 'play') {
+    const it = S.cfg.items[S.item];
+    reach(hover[0], hover[1], it.radius || it.splash || it.sentry?.range || 0.45, itemFits(S.item, ...hover));
+  }
+  if (chosen) reach(chosen.x, chosen.y, Math.min(towerStats(chosen).range, 12), true);
   if (S.preview) {   // the reach an upgrade being pointed at would give
     ctx.setLineDash([0.15, 0.1]);
     ctx.strokeStyle = '#ffd75a';
@@ -761,7 +1046,23 @@ function frame() {
   for (const tw of S.st.towers) {
     ctx.save();
     ctx.translate(tw.x + 0.5, tw.y + 0.5);
-    drawTower(ctx, tw.k, tw.p, tw.n, tw.id === S.chosen ? '#fff' : player(tw.o)?.color || '#8a8580');
+    const side = tw.p == null ? 0 : tw.c[1 - tw.p];
+    drawTower(ctx, tw.k, tw.p, tw.n, tw.id === S.chosen ? '#fff' : player(tw.o)?.color || '#8a8580', side);
+    if (S.dazed[tw.id] > 0) {   // knocked out by a boss: dark, with sparks
+      ctx.fillStyle = 'rgba(10, 15, 30, 0.55)'; ctx.beginPath(); ctx.roundRect(-0.45, -0.45, 0.9, 0.9, 0.14); ctx.fill();
+      ctx.strokeStyle = '#9fd0ff'; ctx.lineWidth = 0.04; ctx.beginPath();
+      const j = Math.sin(t * 30) * 0.08;
+      ctx.moveTo(-0.25, -0.3 + j); ctx.lineTo(0, -0.05); ctx.lineTo(-0.1, 0.05); ctx.lineTo(0.25, 0.3 - j); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  for (const [, x, y, pid] of S.sentries) {   // sentries: little turrets in their workshop's colour
+    const owner = player(tower(pid)?.o);
+    ctx.save();
+    ctx.translate(x + 0.5, y + 0.5);
+    ctx.fillStyle = '#2a3542'; ctx.strokeStyle = owner?.color || '#c9d3dd'; ctx.lineWidth = 0.04;
+    ctx.beginPath(); ctx.arc(0, 0, 0.17, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = TOWER_COLOR.workshop; ctx.fillRect(-0.04, -0.2, 0.08, 0.16);
     ctx.restore();
   }
 
@@ -771,11 +1072,18 @@ function frame() {
     const u = Math.min(1, (t - e.at) / 0.1);
     e.x = e.fx + (e.tx - e.fx) * u;
     e.y = e.fy + (e.ty - e.fy) * u;
-    const [color, r] = ENEMY[e.kind], x = e.x + 0.5, y = e.y + 0.5 - (FLYING.has(e.kind) ? 0.25 : 0);
+    const [color, r] = ENEMY[e.kind] || ['#ccc', 0.3], x = e.x + 0.5, y = e.y + 0.5 - (FLYING.has(e.kind) ? 0.25 : 0);
     if (FLYING.has(e.kind)) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 0.4, r * 0.8, r * 0.4, 0, 0, 7); ctx.fill(); }
+    if (e.charging) {   // charging: speed lines behind it
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.04;
+      const ang = Math.atan2(e.ty - e.fy, e.tx - e.fx);
+      for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(x - Math.cos(ang) * r * 1.2 + i * 0.1, y - Math.sin(ang) * r * 1.2); ctx.lineTo(x - Math.cos(ang) * r * 2 + i * 0.1, y - Math.sin(ang) * r * 2); ctx.stroke(); }
+    }
     if (e.camo) ctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 4 + e.tx);   // a Ghost: hard to make out
     drawEnemyBody(ctx, e.kind, x, y, r, color, t * 10 + e.tx);
     ctx.globalAlpha = 1;
+    if (e.shell) { ctx.strokeStyle = '#d9b26a'; ctx.lineWidth = 0.09; ctx.beginPath(); ctx.arc(x, y, r + 0.1, 0, 7); ctx.stroke(); }
+    if (e.shield) { ctx.fillStyle = `rgba(220, 235, 255, ${0.25 + 0.1 * Math.sin(t * 8)})`; ctx.beginPath(); ctx.arc(x, y, r + 0.18, 0, 7); ctx.fill(); }
     if (e.slow) { ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = 0.05; ctx.beginPath(); ctx.arc(x, y, r + 0.07, 0, 7); ctx.stroke(); }
     if (e.burning) {   // flickering flames
       ctx.fillStyle = `rgba(255, ${120 + 60 * Math.sin(t * 20 + e.tx * 9)}, 40, 0.75)`;
@@ -794,50 +1102,56 @@ function frame() {
     }
   }
 
-  // shots, each fading over a moment
-  S.shots = S.shots.filter(s => t - s.at < 0.35);
+  // projectiles in flight
   ctx.lineCap = 'round';
+  for (const [id, s] of S.flying) if (!drawShot(s, t)) S.flying.delete(id);
+
+  // instant shots (auras and lightning), each fading over a moment
+  S.shots = S.shots.filter(s => t - s.at < 0.35);
   for (const s of S.shots) {
     const age = (t - s.at) / 0.35, fx = s.from[0] + 0.5, fy = s.from[1] + 0.5, big = s.evolved ? 1.6 : 1;
     ctx.globalAlpha = 1 - age;
     ctx.strokeStyle = ctx.fillStyle = s.evolved ? '#ffd75a' : TOWER_COLOR[s.kind];
-    if (s.st.mode === 'aura') {   // a pulse from the tower
-      ctx.lineWidth = 0.06 * big;
-      if (s.kind === 'brazier') { ctx.fillStyle = `rgba(255, 110, 30, ${0.25 * (1 - age)})`; ctx.beginPath(); ctx.arc(fx, fy, s.st.range * (0.3 + 0.7 * age), 0, 7); ctx.fill(); }
-      ctx.beginPath(); ctx.arc(fx, fy, s.st.range * age, 0, 7); ctx.stroke();
-    } else if (s.st.mode === 'chain') {
+    if (s.pts.length) {   // lightning
       ctx.lineWidth = 0.07 * big;
       ctx.beginPath(); ctx.moveTo(fx, fy);
       for (let i = 0; i < s.pts.length; i += 2) ctx.lineTo(s.pts[i] + 0.5 + Math.sin(i * 7 + s.at * 90) * 0.08, s.pts[i + 1] + 0.5 + Math.cos(i * 5 + s.at * 70) * 0.08);
       ctx.stroke();
-    } else if (s.st.mode === 'splash') {   // the shell's flight, then a blast at each point
-      const tx = s.pts[0] + 0.5, ty = s.pts[1] + 0.5;
-      ctx.lineWidth = 0.05;
-      ctx.beginPath(); ctx.moveTo(fx, fy);
-      if (s.kind === 'mortar') ctx.quadraticCurveTo((fx + tx) / 2, Math.min(fy, ty) - 2, tx, ty); else ctx.lineTo(tx, ty);
-      ctx.stroke();
-      for (let i = 0; i < s.pts.length; i += 2) {
-        ctx.fillStyle = i ? 'rgba(255, 179, 71, 0.7)' : s.st.burn ? '#ff6a2f' : '#ffb347';
-        ctx.beginPath(); ctx.arc(s.pts[i] + 0.5, s.pts[i + 1] + 0.5, s.st.splash * (i ? 0.6 : 1) * (0.4 + 0.6 * age), 0, 7); ctx.fill();
-      }
-    } else {
-      const tx = s.pts[0] + 0.5, ty = s.pts[1] + 0.5;
-      ctx.lineWidth = (s.kind === 'ballista' ? 0.1 : 0.05) * big;
-      ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(tx, ty); ctx.stroke();
+    } else {   // a pulse from the tower
+      ctx.lineWidth = 0.06 * big;
+      if (s.st.burn || s.st.dtype === 'fire') { ctx.fillStyle = `rgba(255, 110, 30, ${0.25 * (1 - age)})`; ctx.beginPath(); ctx.arc(fx, fy, s.st.range * (0.3 + 0.7 * age), 0, 7); ctx.fill(); }
+      ctx.beginPath(); ctx.arc(fx, fy, s.st.range * age, 0, 7); ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
 
-  // abilities: a flash over the board and a burst on everything struck
+  // blasts
+  S.booms = S.booms.filter(b => t - b.at < 0.35);
+  for (const b of S.booms) {
+    const age = (t - b.at) / 0.35;
+    const c = { fire: '255, 106, 47', acid: '134, 212, 85', blast: '255, 179, 71' }[b.look] || '255, 179, 71';
+    ctx.fillStyle = `rgba(${c}, ${0.7 * (1 - age)})`;
+    ctx.beginPath(); ctx.arc(b.x + 0.5, b.y + 0.5, b.r * (0.4 + 0.6 * age), 0, 7); ctx.fill();
+  }
+
+  // abilities, items and boss moves: a flash over the board and a burst on everything struck
   S.blasts = S.blasts.filter(bl => t - bl.at < 0.9);
   for (const bl of S.blasts) {
-    const age = (t - bl.at) / 0.9;
-    const color = { strike: '255, 215, 90', stun: '200, 240, 255', slow: '120, 90, 40', burn: '255, 110, 30', gold: '255, 215, 90', bounty: '255, 215, 90' }[bl.do] || '255, 255, 255';
-    ctx.fillStyle = `rgba(${color}, ${0.18 * (1 - age)})`;
-    ctx.fillRect(0, 0, cols, rows);
+    const age = (t - bl.at) / 0.9, what = bl.do.startsWith('item:') ? bl.do.slice(5) : bl.do;
+    const color = { strike: '255, 215, 90', stun: '200, 240, 255', flask: '200, 240, 255', slow: '120, 90, 40', burn: '255, 110, 30', gold: '255, 215, 90',
+      bounty: '255, 215, 90', zap: '150, 200, 255', skull: '255, 60, 60', keg: '255, 179, 71', unmake: '200, 160, 255', horn: '255, 215, 90' }[what] || '255, 255, 255';
+    if (what !== 'zap') { ctx.fillStyle = `rgba(${color}, ${(what === 'skull' ? 0.25 : 0.18) * (1 - age)})`; ctx.fillRect(0, 0, cols, rows); }
     ctx.fillStyle = `rgba(${color}, ${0.8 * (1 - age)})`;
-    for (let i = 0; i < bl.pts.length; i += 2) { ctx.beginPath(); ctx.arc(bl.pts[i] + 0.5, bl.pts[i + 1] + 0.5, 0.2 + age * 0.9, 0, 7); ctx.fill(); }
-    if (bl.from && (bl.do === 'overdrive' || bl.do === 'rally' || bl.do === 'mark')) {
+    const rad = what === 'keg' ? S.cfg.items.keg.splash : 0.2 + age * 0.9;
+    if (what !== 'zap') for (let i = 0; i < bl.pts.length; i += 2) { ctx.beginPath(); ctx.arc(bl.pts[i] + 0.5, bl.pts[i + 1] + 0.5, rad, 0, 7); ctx.fill(); }
+    if (what === 'zap' && bl.from && bl.pts.length) {   // a bolt from the boss to the tower it knocks out
+      ctx.strokeStyle = `rgba(${color}, ${1 - age})`; ctx.lineWidth = 0.08;
+      ctx.beginPath(); ctx.moveTo(bl.pts[0] + 0.5, bl.pts[1] + 0.5);
+      const [tx, ty] = bl.from;
+      for (let i = 1; i <= 4; i++) ctx.lineTo(bl.pts[0] + (tx - bl.pts[0]) * i / 4 + 0.5 + (i < 4 ? Math.sin(i * 9 + bl.at * 50) * 0.25 : 0), bl.pts[1] + (ty - bl.pts[1]) * i / 4 + 0.5);
+      ctx.stroke();
+    }
+    if (bl.from && (what === 'overdrive' || what === 'rally' || what === 'mark' || what === 'unmake')) {
       ctx.strokeStyle = `rgba(${color}, ${1 - age})`; ctx.lineWidth = 0.1;
       ctx.beginPath(); ctx.arc(bl.from[0] + 0.5, bl.from[1] + 0.5, 0.5 + age * 3, 0, 7); ctx.stroke();
     }

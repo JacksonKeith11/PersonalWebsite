@@ -4,7 +4,7 @@
 
 import { ARROW_RANGE, BAR_R, BARREL_R, BELT_H, BLINK_H, BULLET_R, CRUMBLE, CRUMBLE_H, DT, FAN_W, HOLE_R, HONEY_W, LEDGE_H, PH, PLANK_H,
   PORTAL_R, PW, RING_R, SPIKE_H, barBalls, barrelAngle, blinkOn, chaseFront, crossbow, fanOf, gusting, jetOn, lavaTop, plankOf,
-  posX, posY, prepare, propOn, shots, spawn, step } from './physics.js?v=6';
+  posX, posY, prepare, propOn, shots, spawn, step } from './physics.js?v=7';
 import { person, startRoom } from '../../shared/lobby.js?v=1';
 
 const $ = id => document.getElementById(id);
@@ -495,8 +495,10 @@ function simulate(now) {
     if (p.ringT !== was.ringT) { sound('ring'); puff(p.x, p.y - PH / 2, 10, '#ffd84a', { speed: 150, up: 20, life: 0.4, size: 4, g: 100 }); }
     if (p.portT !== was.portT) { sound('portal'); puff(p.x, p.y - PH / 2, 12, '#ff9a3d', { speed: 160, up: 20, life: 0.5, size: 5, g: 0 }); }
   }
-  if (now - lastSent > 0.066) {
-    lastSent = now;
+  // by this browser's own clock: race time starts again below zero each round, so measured in it
+  // the next round's reports would wait until it passed the last round's final one
+  if (local() - lastSent > 0.066) {
+    lastSent = local();
     room.send({ t: 'p', v: [Math.round(p.x), Math.round(p.y), p.face, p.ground ? 0 : p.dashT ? 2 : 1, p.dead ? 1 : 0] });
   }
 }

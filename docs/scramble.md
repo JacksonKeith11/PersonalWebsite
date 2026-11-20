@@ -174,6 +174,10 @@ alone on the course only rolls boosts.
 - **Barrels are placed by working out the shot**: `course.fly` steps a shot the way physics.js does
   (gravity, then move; nobody steers during `FLING`) so a blast barrel's next barrel sits on its path,
   and `course.landing` finds where a shot comes down. Change the physics and these must follow.
+- **Time anything round-to-round by the browser's clock (`local()`), not race time**: race time starts
+  again below zero each round. The position reports were once throttled by race time, so from round 2
+  on nobody's browser reported until the new clock passed the last round's final report, and
+  everyone saw everyone else stuck at the start. The smoke test now checks a racer moves in round 2.
 - **`fx.pos`, not `fx.at`**: the browser stamps every effect with `at` (its own clock), so a bomb's
   position travels as `pos`.
 - **The checker's beam keeps a spread of positions** (at most a twelfth of it per 64 px), or states
@@ -214,7 +218,7 @@ alone on the course only rolls boosts.
   item, and the props (where they go, what they do to bots, running out, bombs). Latest runs (November 2026, after the 54 new segments and the props): bots finish in 35-129 s
   (average about 74), and 5-15 of about 105 run out of time; before them, 36-123 s and 6-20. Before the difficulty and item changes it was 26-70 s and
   about 5%. In `check-all.sh`.
-- `node tools/scramble-smoke.js --serve` (about 45 s): two browsers, one phone-sized, and a bot race
-  a round, including grabbing and using an item. In `check-all.sh`; skipped where Playwright isn't
+- `node tools/scramble-smoke.js --serve` (about 50 s): two browsers, one phone-sized, and a bot race
+  a round, including grabbing and using an item, and see each other move in the next. In `check-all.sh`; skipped where Playwright isn't
   installed. `--shots <folder>` saves screenshots.
 - After changing its CSS or JS: `python3 tools/bump-version.py app/static/games/scramble`.

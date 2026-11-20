@@ -153,6 +153,14 @@ async function serve() {
     await shot(friend, '7-results-phone');
     // and the next round starts on its own
     for (const p of all) await p.waitForFunction(() => window.scramble.S.st.round === 2 && window.scramble.S.st.phase === 'race', null, { timeout: 15000 });
+    // and in it, each still sees the other move (positions were once held back for a whole round's length)
+    await host.waitForFunction(() => window.scramble.raceTime() > 0.6, null, { timeout: 10000 });
+    await friend.evaluate(() => document.getElementById('t-right').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
+    await host.waitForFunction(name => {
+      const { S } = window.scramble, who = S.st.players.find(q => q.name === name);
+      return (S.others.get(who.id)?.tx ?? 0) > 200;
+    }, 'Bo', { timeout: 5000 }).catch(() => { throw new Error("in round 2 the host never saw Bo move"); });
+    await friend.evaluate(() => document.getElementById('t-right').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true })));
 
     if (problems.length) throw new Error('page errors:\n  ' + problems.join('\n  '));
     console.log('ok: two players and a bot raced a round: controls, knock-outs, items, the finish and the points all work');

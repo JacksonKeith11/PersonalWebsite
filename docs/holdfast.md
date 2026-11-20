@@ -327,14 +327,62 @@ Earlier in November 2026, also asked for and built together:
 
 `python3 tools/holdfast-sim.py` (about three minutes for 3 games of every map, difficulty and
 1, 2 and 4 players) plays whole games with simple builders. They keep a fixed mix of towers, put each
-where it covers the most road, take each tower down its usual path (`PREFER`), make sure something
-can see Ghosts before wave 7, aim sniper ballistas at the strongest enemy, save for a final evolution
-only from wave 15 with most of the price in hand, and use abilities when a crowd or a Warlord is on
-the board. They never sell, give gold, use items or send a wave early; now and then they buy a tier or two on a
-tower's other path; and two builders can both upgrade one tower (each remembers the tier it was
-saving for). `--bosses <name>` plays a boss event instead of Warlords. A decent human should do better.
+where it covers the most road (every road, shut gates' included: on Breach the stretch all three
+gates end on is the place to be), take each tower down its usual path (`PREFER`), upgrade mostly
+the towers that have done the most damage for their gold (`best_up`), make sure something can see
+Ghosts before wave 7 and that something built can hurt what the next wave brings (`answer`: flyers,
+immunities), aim sniper ballistas at the strongest enemy, save for a final evolution only from wave
+21 while the waves are held, and use abilities when a crowd or something big is on the board
+(single-target kills like Headshot only on the big ones). Teammates top up whoever is shortest of
+their next purchase with 25-gold gifts (`pool`, as real players use Give), heroes are trained when
+the training costs at most a fifth of the purse, and an item is used only when lives are really at
+stake (a big enemy or three most of the way to the keep) and costs at most 30% of the purse. They
+never sell or send a wave early; now and then they buy a tier or two on a tower's other path; and
+two builders can both upgrade one tower. `--bosses <name>` plays a boss event instead of Warlords. A
+decent human should still do better.
 
-Latest run (November 2026, after heroes, split roads and clearer stats; one game each, the
+Latest run (November 2026, after the builders were improved; one game each, 73 s and 13 s for
+Breach after its fix). The builders win 63 of 72, against 51 just before (the table below this one):
+easy 24 of 24, normal 22, hard 17; four-player parties 23 of 24, up from 14. Twin Gates and Breach
+are still the hard maps.
+
+| | Easy | Normal | Hard |
+|---|---|---|---|
+| Meadow, 1 player | won, 17 lives | won, 14 lives | won, 12 lives |
+| Meadow, 2 players | won, 20 lives | won, 14 lives | won, 16 lives |
+| Meadow, 4 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Crossing, 1 player | won, 19 lives | won, 14 lives | wave 28 |
+| Crossing, 2 players | won, 20 lives | won, 20 lives | won, 17 lives |
+| Crossing, 4 players | won, 20 lives | won, 17 lives | won, 17 lives |
+| Coil, 1 player | won, 20 lives | won, 20 lives | won, 20 lives |
+| Coil, 2 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Coil, 4 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Knot, 1 player | won, 19 lives | won, 12 lives | won, 7 lives |
+| Knot, 2 players | won, 20 lives | won, 16 lives | won, 14 lives |
+| Knot, 4 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Quarry, 1 player | won, 20 lives | won, 11 lives | wave 19 |
+| Quarry, 2 players | won, 20 lives | won, 15 lives | won, 2 lives |
+| Quarry, 4 players | won, 20 lives | won, 20 lives | won, 17 lives |
+| Fork, 1 player | won, 20 lives | won, 17 lives | won, 15 lives |
+| Fork, 2 players | won, 17 lives | won, 19 lives | won, 15 lives |
+| Fork, 4 players | won, 20 lives | won, 17 lives | won, 7 lives |
+| Twin Gates, 1 player | won, 15 lives | wave 27 | wave 15 |
+| Twin Gates, 2 players | won, 18 lives | won, 2 lives | wave 15 |
+| Twin Gates, 4 players | won, 17 lives | won, 6 lives | won, 1 lives |
+| Breach, 1 player | won, 8 lives | won, 15 lives | wave 29 |
+| Breach, 2 players | won, 2 lives | wave 25 | wave 22 |
+| Breach, 4 players | won, 15 lives | won, 1 lives | wave 24 |
+
+What each change was worth, in side tests (one or two games each of normal and hard, 1, 2 and 4
+players, on every map): upgrading the towers doing the damage instead of a random one took 27 wins
+in 48 to 37; how often they upgrade rather than build (40%, 55%, 70%) made no difference; counting
+reach up to 6 squares instead of 4 when placing was a little worse. Items as first written (every
+builder firing a Frost Flask, 270 gold by wave 20, whenever anything got 80% of the way to the keep)
+halved the wins, 19 in 48 to 11; limited to real emergencies they're about neutral. Pooling, hero
+training and building answers came out about neutral on their own on these maps. Counting only open
+roads when placing lost every Breach game (0 of 18, against 8 of 18 counting all of them).
+
+The run before (November 2026, after heroes, split roads and clearer stats, with the old builders; one game each, the
 builders putting down a hero each before the first wave; 103 s for the first five maps, 37 s for
 the three new ones). "won, n lives" or the wave a lost game fell on:
 

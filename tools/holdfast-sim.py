@@ -3,19 +3,22 @@
     python3 tools/holdfast-sim.py [games per setting, default 3] [--fast]
 
 For each map and difficulty, with 1, 2 and 4 players, builders play whole games: each keeps a
-fixed mix of towers, puts each where it covers the most road, and spends what's left on upgrades.
+fixed mix of towers, puts each where it covers the most road, and spends what's left on
+upgrades, mostly for the towers that have done the most damage for the gold in them (`best_up`).
 They play sensibly but simply: each tower's usual path (`PREFER`, single-target for archers and
-ballistas, crowd-control for frost and tesla), something that can see Ghosts before they come,
-sniper ballistas aimed at the strongest enemy (archers aimed that way let flyers past), one final
-evolution saved for at a time from wave 21 while the waves are held (`Builder.star`), and abilities
-used when a crowd or a Warlord is on the board.
-They never sell, hand gold over or send a wave early, so a decent human should do better. Prints
-how many games were won, the wave reached and the lives left. `--fast` plays one game of each map
-on normal with two players (a few seconds): `tools/check-all.sh` uses it to see the fight runs.
+ballistas, crowd-control for frost and tesla), something that can see Ghosts before they come, a
+tower that can hurt what the next wave brings when nothing built can (flyers, immunities), sniper
+ballistas aimed at the strongest enemy, one final evolution saved for at a time from wave 21 while
+the waves are held (`Builder.star`), abilities when a crowd or something big is on the board
+(single-target kills only for the big ones), teammates topping up whoever is short of their next
+purchase (`pool`), heroes trained when it's cheap, and an item only when lives are really at stake.
+They never sell or send a wave early, so a decent human should still do better. Prints how many
+games were won, the wave reached and the lives left. `--fast` plays one game of each map on normal
+with two players (a few seconds): `tools/check-all.sh` uses it to see the fight runs.
 `--bosses <warlord|gravewarden|stormhulk|ironmaw|random>` picks the boss event (default Warlords).
-Builders also buy a tier or two on a tower's other path now and then (crosspathing), but never use
-items. Each puts a hero down before the first wave (the four in turn, where it covers the most road),
-never trains it with gold, and uses its abilities like a tower's.
+Builders also buy a tier or two on a tower's other path now and then (crosspathing). Each puts a
+hero down before the first wave (the four in turn, where it covers the most road) and uses its
+abilities like a tower's.
 """
 
 import math
@@ -39,20 +42,130 @@ PREFER = {"archer": (0, 0.7), "cannon": (0, 0.6), "frost": (1, 0.6), "ballista":
           "beacon": (0, 0.7), "brazier": (0, 0.6), "mortar": (0, 0.6), "mint": (0, 0.8), "bladewheel": (0, 0.5),
           "trapper": (0, 0.5), "workshop": (0, 0.6), "arcanist": (1, 0.5), "skyhook": (1, 0.6), "alchemist": (1, 0.5)}
 GHOSTS_FROM = 7  # the first wave with Ghosts in it
+SMART_UPS = True  # upgrade the towers doing the damage (see Builder.best_up)
+# Waves ahead a shut gate's road starts counting for placement. Counting only open roads (2) lost
+# every Breach game: towers by the stretch every gate's road ends on serve all of them.
+LOOK_AHEAD = 99
+COVER_CAP = 4  # reach counted when choosing where a tower goes (mortars reach everywhere)
+UP_ODDS = 0.55  # how often a builder with five towers saves for an upgrade rather than a new tower
+
+
+def road_for(room):
+    """The tiles worth covering: the roads (those open within LOOK_AHEAD waves: all of them), and
+    the lines the flyers take from them."""
+    soon = room.wave + LOOK_AHEAD
+    key = tuple(i for i, w in enumerate(room.opens) if w <= soon)
+    if room.road_key != key:
+        m = D.MAPS[room.map]
+        room.road = sorted(D.path_tiles({"paths": [m["paths"][i] for i in key]}))
+        for i in key:
+            route, length = room.flights[i]
+            (x0, y0), (x1, y1) = route[0][0], route[1][0]
+            room.road += [(x0 + (x1 - x0) * j / length, y0 + (y1 - y0) * j / length) for j in range(0, int(length), 2)]
+        room.road_key = key
+    return room.road
+
+
+def hurts(st, foe):
+    """Can a tower with these numbers hurt this kind of enemy at all?"""
+    w = st.get("sentry", st) if st["mode"] == "sentry" else st
+    if st["mode"] in ("support", "income"):
+        return False
+    if foe.get("air") and (st["mode"] == "trap" or not w.get("air")):
+        return False
+    return w.get("dtype", "normal") == "normal" or w.get("dtype", "normal") not in foe.get("immune", ())
 
 
 class Builder:
-    """One player's hands: spends their own purse."""
+    """One player's hands: spends their own purse (topped up by teammates when it's short)."""
 
     def __init__(self, room, p, rng):
         self.room, self.p, self.rng = room, p, rng
         self.save_for = None
 
     def cover(self, kind, x, y):
-        r = min((D.TOWERS.get(kind) or D.HEROES[kind])["base"]["range"], 4)
+        r = min((D.TOWERS.get(kind) or D.HEROES[kind])["base"]["range"], COVER_CAP)
         if kind in ("beacon", "mint"):
             return sum(1 for t in self.room.towers.values() if t.kind != "beacon" and not t.hero and math.hypot(t.x - x, t.y - y) <= r)
-        return sum(1 for px, py in self.room.road if math.hypot(px - x, py - y) <= r)
+        return sum(1 for px, py in road_for(self.room) if math.hypot(px - x, py - y) <= r)
+
+    def cost(self):
+        """What the current plan costs, or None."""
+        if self.save_for is None:
+            return None
+        what, arg, _ = self.save_for
+        if what == "build":
+            return D.TOWERS[arg]["cost"]
+        t = self.room.towers.get(arg)
+        if t is None or t.path is None and what == "side":
+            return None
+        path = 1 - t.path if what == "side" else self.plan(t)
+        nxt = t.tiers[path]
+        tiers = D.TOWERS[t.kind]["paths"][path]["tiers"]
+        return tiers[nxt]["cost"] if nxt < len(tiers) else None
+
+    def answer(self, towers):
+        """A tower to build for what the next wave brings that nothing built can deal with: flyers
+        with nothing that hits the air, or an enemy immune to everything built."""
+        room = self.room
+        kinds = {k for k, _, _, _ in room.groups(room.wave + 1)}
+        if not towers:
+            return None
+        built = [t.stats for t in towers]
+        for k in sorted(kinds):
+            foe = D.ENEMIES[k]
+            if any(hurts(st, foe) for st in built) or any(t.unlock for t in towers):
+                continue
+            able = [c for c in MIX if hurts(D.TOWERS[c]["base"], foe)]
+            if able:
+                return min(able, key=lambda c: D.TOWERS[c]["cost"])
+        return None
+
+    def items(self):
+        """Only when lives are really at stake (a big enemy, or three or more, most of the way to the
+        keep) and the item costs at most 30% of the purse: a Frost Flask, a Powder Keg on a crowd or a
+        big one, or Caltrops on the road ahead. Firing one whenever anything got 80% of the way there
+        spent so much that the builders won about half as many games."""
+        room, p = self.room, self.p
+        if not room.fighting:
+            return
+        foes = [e for e in room.enemies if e.hp > 0]
+        close = [e for e in foes if e.d / e.length >= 0.8]
+        if not close:
+            return
+        lead = max(close, key=lambda e: e.d / e.length)
+        if not (lead.lives >= 3 and lead.d / lead.length >= 0.85) and len(close) < 3:
+            return
+        wave = max(1, room.wave)
+        cheap = lambda k: D.item_cost(k, wave) <= 0.3 * p.gold  # noqa: E731
+        if cheap("flask") and room.use_item(p, "flask"):
+            return
+        x, y = min(D.COLS - 1, max(0, round(lead.x))), min(D.ROWS - 1, max(0, round(lead.y)))
+        if cheap("keg") and room.use_item(p, "keg", x, y):
+            return
+        if not lead.air and cheap("caltrops"):
+            ahead = game.where(lead.route, min(lead.length - 0.5, lead.d + 1.5))
+            tx, ty = round(ahead[0]), round(ahead[1])
+            if (tx, ty) in room.road_tiles:
+                room.use_item(p, "caltrops", tx, ty)
+
+    def best_up(self, ups):
+        """The tower to upgrade next: weighted by the damage it has done for the gold in it, so the
+        well-placed ones grow (as a player would), with some chance for the rest. Towers that don't
+        deal damage (beacons, mints) get the average."""
+        if not SMART_UPS:
+            return self.rng.choice(ups)
+        fighters = [t for t in ups if t.stats["mode"] not in ("support", "income")]
+        mean = sum(t.dmg / t.spent for t in fighters) / len(fighters) if fighters else 1.0
+        weights = [(t.dmg / t.spent if t in fighters else mean) ** 2 + 1e-6 for t in ups]
+        return self.rng.choices(ups, weights)[0]
+
+    def train(self):
+        """Train the hero when it's cheap next to what's in the purse."""
+        h = self.room.hero_of(self.p)
+        cost = self.room.train_cost(h) if h else None
+        if cost is not None and cost <= 0.2 * self.p.gold:
+            self.room.train(self.p, h)
 
     def plan(self, t):
         """The path this builder means to take a tower down."""
@@ -88,17 +201,23 @@ class Builder:
         if not room.fighting:
             return
         foes = [e for e in room.enemies if e.hp > 0]
-        if len(foes) < 8 and not any(e.boss for e in foes):
+        big = any(e.big for e in foes)
+        if len(foes) < 8 and not big:
             return
         for t in list(room.towers.values()):
-            for n, _ in enumerate(t.abilities):
-                if (t.cd2 if n else t.cd) <= 0:
+            for n, a in enumerate(t.abilities):
+                # a killing blow for one or a few (Headshot, Execute...) waits for a boss or a blimp
+                single = a["do"] == "strike" and isinstance(a.get("pick"), int) and a["pick"] <= 2
+                if (t.cd2 if n else t.cd) <= 0 and (big or not single):
                     room.use_ability(t, n)
 
     def think(self):
         room, p = self.room, self.p
         towers = [t for t in room.towers.values() if not t.hero]
         self.abilities()
+        self.items()
+        if room.starrer is not self:
+            self.train()
         for t in towers:  # sniper ballistas go for the toughest; the rest take the first in line
             if t.kind == "ballista" and t.path == 0:
                 t.target = "strong"
@@ -107,6 +226,10 @@ class Builder:
             if spotter and len(towers) >= 4:
                 spotter.plan = 0
                 self.save_for = ("up", spotter.id, spotter.tier)
+        if self.save_for is None or self.save_for[0] == "build":
+            need = self.answer(towers)
+            if need:
+                self.save_for = ("build", need, None)
         if self.save_for is None:
             self.star()
         if self.save_for is None:
@@ -120,8 +243,8 @@ class Builder:
             if side and self.rng.random() < 0.15:  # a tier or two on the other path (crosspathing)
                 t = self.rng.choice(side)
                 self.save_for = ("side", t.id, t.tiers[1 - t.path])
-            elif ups and len(towers) >= 5 and self.rng.random() < 0.55:
-                t = self.rng.choice(ups)
+            elif ups and len(towers) >= 5 and self.rng.random() < UP_ODDS:
+                t = self.best_up(ups)
                 self.save_for = ("up", t.id, t.tier)
             else:
                 self.save_for = ("build", kind, None)
@@ -148,6 +271,26 @@ class Builder:
             self.save_for = None
 
 
+def pool(builders):
+    """Teammates top up whoever is shortest of their next purchase, as real players use the Give
+    button: without it each builder saved from its own quarter of the income and four-player games
+    fell early with little built. Never towards a final evolution (that builder saves alone)."""
+    if len(builders) < 2:
+        return
+    room = builders[0].room
+    needy = [(b, b.cost()) for b in builders if room.starrer is not b]
+    needy = [(b, c) for b, c in needy if c is not None and c > b.p.gold]
+    if not needy:
+        return
+    b, cost = max(needy, key=lambda bc: bc[0].p.gold / bc[1])
+    for giver in builders:
+        while giver is not b and giver.p.gold >= game.GIFT and b.p.gold < cost and room.starrer is not giver:
+            before = giver.p.gold
+            room.handle(giver.p, {"t": "give", "to": b.p.id})
+            if giver.p.gold == before:  # refused (the game just ended)
+                return
+
+
 def play(map_id, diff, n, seed, bosses="warlord"):
     rng = random.Random(seed)
     room = game.Room("SIM")
@@ -158,11 +301,7 @@ def play(map_id, diff, n, seed, bosses="warlord"):
         p = game.Player(i + 1, f"P{i + 1}", "#fff", None, None, None)
         room.players[p.id] = p
     room.start()
-    # the tiles worth covering: the roads, and the line the flyers take
-    room.road = sorted(D.path_tiles(D.MAPS[map_id]))
-    for route, length in room.flights:
-        (x0, y0), (x1, y1) = route[0][0], route[1][0]
-        room.road += [(x0 + (x1 - x0) * i / length, y0 + (y1 - y0) * i / length) for i in range(0, int(length), 2)]
+    room.road_key = None  # see road_for
     room.starrer = None  # the builder saving for a final evolution
     builders = [Builder(room, p, rng) for p in room.players.values()]
     heroes = list(D.HEROES)
@@ -177,6 +316,7 @@ def play(map_id, diff, n, seed, bosses="warlord"):
         if steps % 8 == 0:
             for b in builders:
                 b.think()
+            pool(builders)
         assert steps < 400_000, "the game never ended"
     return room
 

@@ -39,7 +39,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
 - `app/scramble/` and `app/static/games/scramble/`: Scramble, an obstacle-course race for 1-8 players with bots (a new
   course every round from seventy-five kinds of segment, items to hit each other with or leave on the course; each browser runs its own physics, a FastAPI WebSocket server relays, decides items and scores) at `/games/scramble`
 - `app/holdfast/` and `app/static/games/holdfast/`: Holdfast, co-op tower defence for 1-4 players (one map, separate
-  purses, thirty waves, fifteen towers with two crosspathable upgrade paths and a final evolution each, real projectiles, damage types and immunities, layered enemies, boss events, one-use items, five maps, endless mode, saves and records in `data/holdfast.db`; the fight runs on a FastAPI WebSocket server) at `/games/holdfast`
+  purses, thirty waves, fifteen towers with two crosspathable upgrade paths and a final evolution each, real projectiles, damage types and immunities, layered enemies, boss events, one-use items, a levelling hero each, eight maps (some with forks and gates that open later), endless mode, saves and records in `data/holdfast.db`; the fight runs on a FastAPI WebSocket server) at `/games/holdfast`
 - `app/rooms.py` and `app/static/games/shared/net.js`: what the seven multiplayer games share (the WebSocket loop,
   sending, room codes; the browser's identity and reconnecting socket); `games/shared/lobby.js` and `lobby.css`:
   the menu and lobby Scramble and Holdfast share

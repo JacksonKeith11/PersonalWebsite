@@ -144,3 +144,24 @@ aside p { margin: 0 0 8px; color: var(--dim); font-size: 0.9rem; }
 #bossbar .skull { position: absolute; top: -5px; transform: translateX(-50%); font-size: 0.8rem; color: #fff; text-shadow: 0 0 2px #000; }
 #bossbar.shielded { border-color: #cfe0ff; }
 #info .warn { color: #ffb4a8; }
+
+/* heroes */
+#heroes { display: flex; gap: 6px; align-items: stretch; margin-top: 10px; }
+#heroes .label { align-self: center; color: var(--dim); font-size: 0.8rem; writing-mode: vertical-rl; transform: rotate(180deg); }
+#heroes button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px; font-size: 0.85rem; border-color: #6b5a8a; }
+#heroes button canvas { width: 28px; height: 28px; }
+#heroes button .cost { color: var(--gold); font-size: 0.78rem; font-weight: 700; min-height: 1em; }
+#heroes button.placed { background: #3a2f4a; border-color: #b39ddb; }
+#heroes button[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+#heroes button:disabled { opacity: 0.4; }
+#abilities button.hero { border-color: #b39ddb; }
+#info h2.hero { color: #d1c4e9; }
+#info .levelup { border: 1px solid #6b5a8a; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
+#info .levelup h3 { margin: 0 0 4px; font-size: 0.9rem; }
+#info .levelup p { margin: 0 0 4px; font-size: 0.8rem; }
+
+/* clearer numbers: damage a second, what it can't hurt, what an upgrade changes */
+#info dd.dps { color: var(--text); font-weight: 600; }
+#info dd.blind { color: #ffb4a8; }
+.diff { list-style: none; margin: 0; padding: 0; font-size: 0.76rem; color: #b8e6c0; line-height: 1.3; }
+.diff li::before { content: "▸ "; color: var(--dim); }

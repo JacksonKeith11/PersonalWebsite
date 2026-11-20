@@ -529,6 +529,155 @@ def can_buy(tiers, path):
     return nxt <= EVOLUTION and (nxt <= CROSS_MAX or tiers[1 - path] <= CROSS_MAX)
 
 
+
+# Heroes: each seated player may have one on the board, placed for free, and each hero only once
+# in a room (four heroes for up to four players: stacking the same one, Odas above all, broke the
+# shared income). A hero levels up (1 to
+# HERO_LEVELS) on experience: HERO_XP(wave) at the end of every wave it was on the board for (in a
+# party, each hero gets hero_share(players) of it: more players bring more heroes, and income is
+# shared so they're no richer, so their heroes learn more slowly), and
+# anyone may pay gold to train it (TRAIN_PRICE gold an experience point). Experience belongs to the
+# player, so a hero moved between waves (dismissed and placed again) keeps its level, and so does
+# another hero picked instead. Each level's `set` replaces numbers, as a tower's tiers do (the same
+# numbers as towers, above). Two abilities unlock along the way (`abilities`: [level, ability]); an
+# ability's `dmg`, `gold` and `dps` grow by `grow` of themselves for each level past the one that
+# unlocked it (a `share`d gold ability splits its gold between the players). Heroes can't be sold or
+# upgraded with gold, only trained.
+HERO_LEVELS = 10
+HERO_XP_TO = [0, 60, 150, 280, 450, 680, 980, 1350, 1800, 2400]  # experience to reach each level
+TRAIN_PRICE = 1.0
+
+
+def HERO_XP(wave):
+    return 20 + 6 * wave
+
+
+def hero_share(players):
+    """The share of a wave's experience each hero gets, with this many players seated."""
+    return 2 / (max(1, players) + 1)
+
+
+def lvl(blurb, **set_):
+    return {"blurb": blurb, "set": set_}
+
+
+HEROES = {
+    "wren": {
+        "name": "Wren", "title": "the Ranger", "blurb": "A sharpshooter who grows into a one-woman volley. Hits flyers.",
+        "base": {"mode": "shoot", "range": 3.4, "rate": 0.6, "dmg": 9, "air": True, "dtype": "sharp", "speed": 16,
+                 "pierce": 1},
+        "levels": [
+            lvl("Hits harder.", dmg=12),
+            lvl("Spots Ghosts. Unlocks Piercing Volley.", detect=True),
+            lvl("Arrows go through two enemies.", dmg=16, pierce=2),
+            lvl("Reaches further and shoots faster.", range=4.0, rate=0.5),
+            lvl("Hits harder, and hurts anything.", dmg=24, dtype="normal"),
+            lvl("Unlocks Hunter's Mark."),
+            lvl("Two arrows a shot.", shots=2, dmg=30),
+            lvl("Arrows punch through armour.", dmg=40, ap=True),
+            lvl("Three arrows a shot, and hits bosses harder.", dmg=55, shots=3, boss=1.5, range=4.4),
+        ],
+        "abilities": [
+            [3, {"name": "Piercing Volley", "cd": 40, "do": "strike", "pick": 6, "dmg": 150, "grow": 0.35, "boss_frac": 0.03,
+                 "blurb": "Arrows strike the six toughest enemies on the board."}],
+            [7, {"name": "Hunter's Mark", "cd": 60, "do": "mark", "more": 0.25, "secs": 6,
+                 "blurb": "Every enemy takes a quarter more damage for 6 seconds."}],
+        ],
+    },
+    "brannoc": {
+        "name": "Brannoc", "title": "the Smith", "blurb": "Swings a hammer that blasts the ground, and makes the towers beside him hit harder.",
+        "base": {"mode": "splash", "range": 2.4, "rate": 1.4, "dmg": 18, "splash": 1.0, "air": False, "dtype": "blast",
+                 "speed": 10},
+        "levels": [
+            lvl("Hits harder; towers beside him hit 4% harder.", dmg=24, power=0.04),
+            lvl("Unlocks Shockwave."),
+            lvl("Each blow strips armour for good.", dmg=32, shred=1),
+            lvl("Reaches further; towers beside him hit 7% harder.", range=2.8, power=0.07),
+            lvl("Blows stun what they hit.", dmg=50, stun=0.2),
+            lvl("Unlocks Forge Fire."),
+            lvl("Wider blasts; towers beside him hit 10% harder.", dmg=70, splash=1.2, power=0.1),
+            lvl("Hurts anything, and strips more armour.", dtype="normal", shred=2),
+            lvl("Swings faster and harder; towers beside him hit 12% harder.", dmg=110, rate=1.1, power=0.12, boss=1.5),
+        ],
+        "abilities": [
+            [3, {"name": "Shockwave", "cd": 40, "do": "strike", "pick": "near", "radius": 3, "dmg": 200, "grow": 0.35,
+                 "ground": True, "blurb": "Flattens everything on the ground within three squares of him."}],
+            [7, {"name": "Forge Fire", "cd": 60, "do": "rally", "rate": 1.3, "secs": 6,
+                 "blurb": "Every tower fires 30% faster for 6 seconds."}],
+        ],
+    },
+    "ysolde": {
+        "name": "Ysolde", "title": "the Stormcaller", "blurb": "Lightning that jumps through a crowd. Hits flyers.",
+        "base": {"mode": "chain", "range": 2.8, "rate": 1.2, "dmg": 9, "chain": 3, "air": True, "dtype": "energy"},
+        "levels": [
+            lvl("Hits harder, and jumps to four.", dmg=12, chain=4),
+            lvl("Unlocks Thunderclap."),
+            lvl("Lightning stuns for a moment.", dmg=16, stun=0.1),
+            lvl("Jumps to five, and reaches further.", chain=5, range=3.1),
+            lvl("Hits harder and faster.", dmg=24, rate=1.0),
+            lvl("Unlocks Static Field."),
+            lvl("Jumps to six.", dmg=34, chain=6),
+            lvl("Hurts anything.", dtype="normal"),
+            lvl("A storm: jumps to eight, faster, stuns longer.", dmg=50, chain=8, rate=0.85, stun=0.2),
+        ],
+        "abilities": [
+            [3, {"name": "Thunderclap", "cd": 45, "do": "strike", "pick": "all", "dmg": 80, "grow": 0.35,
+                 "blurb": "Lightning strikes every enemy on the board."}],
+            [7, {"name": "Static Field", "cd": 60, "do": "slow", "slow": 0.4, "secs": 5,
+                 "blurb": "Every enemy on the board moves 40% slower for 5 seconds."}],
+        ],
+    },
+    "oda": {
+        "name": "Oda", "title": "the Quartermaster", "blurb": "Pays you every wave, and kills near her pay everyone more. A modest crossbow. Hits flyers.",
+        "base": {"mode": "shoot", "range": 3.0, "rate": 0.8, "dmg": 7, "air": True, "dtype": "sharp", "speed": 14,
+                 "pierce": 1, "income": 10},
+        "levels": [
+            lvl("Pays more.", income=18),
+            lvl("Unlocks Supply Drop."),
+            lvl("Kills in her reach pay everyone 5% more; hits harder.", bounty=0.05, dmg=10),
+            lvl("Pays more, and reaches further.", income=28, range=3.3),
+            lvl("Spots Ghosts; bolts go through two.", detect=True, dmg=14, pierce=2),
+            lvl("Unlocks Bounty Hunt."),
+            lvl("Pays more; kills near her pay 10% more.", income=40, bounty=0.1),
+            lvl("Hits harder, and hurts anything.", dmg=22, dtype="normal"),
+            lvl("Pays more; kills near her pay 15% more; shoots faster.", income=55, bounty=0.15, rate=0.65),
+        ],
+        "abilities": [
+            [3, {"name": "Supply Drop", "cd": 60, "do": "gold", "gold": 50, "grow": 0.35, "share": True,
+                 "blurb": "Gold now, shared out between everyone."}],
+            [7, {"name": "Bounty Hunt", "cd": 60, "do": "bounty", "more": 0.4, "secs": 8,
+                 "blurb": "Kills pay 40% more for 8 seconds."}],
+        ],
+    },
+}
+
+
+def hero_level(xp):
+    """The level `xp` experience reaches."""
+    return sum(xp >= need for need in HERO_XP_TO)
+
+
+def hero_stats(kind, level):
+    out = dict(HEROES[kind]["base"])
+    for lv in HEROES[kind]["levels"][:max(0, level - 1)]:
+        out.update(lv["set"])
+    return out
+
+
+def hero_abilities(kind, level):
+    """The abilities a hero at `level` has, with their numbers grown for the levels since."""
+    out = []
+    for need, a in HEROES[kind]["abilities"]:
+        if level < need:
+            continue
+        a = dict(a)
+        up = 1 + a.get("grow", 0) * (level - need)
+        for k in ("dmg", "gold", "dps"):
+            if k in a:
+                a[k] = round(a[k] * up)
+        out.append(a)
+    return out
+
 # Each enemy: health and bounty before the wave's scaling, speed in tiles a second, size (radius in
 # tiles, for projectiles), armour taken off every hit (unless `ap`), lives lost if it gets through.
 # Special ones:
@@ -702,7 +851,8 @@ def _base_wave(w, n):
 
 # Maps: each path is the corners an enemy walks between, as tile (column, row); it starts off the
 # board and ends on the keep. Nothing can be built on a path or a rock; a map with `build` can be
-# built on only there.
+# built on only there. Enemies take turns between the open paths, so two paths that share a start
+# make a fork. `opens` (one per path) is the wave a path's gate opens on; it's shut before that.
 MAPS = {
     "meadow": {"name": "Meadow", "blurb": "One long, winding road. The gentle one.",
                "paths": [[(-1, 2), (4, 2), (4, 8), (9, 8), (9, 3), (14, 3), (14, 9), (19, 9)]],
@@ -723,7 +873,26 @@ MAPS = {
                "build": [(3, 4), (4, 4), (3, 5), (4, 7), (6, 4), (6, 5), (7, 3), (8, 3), (7, 1), (9, 1),
                          (10, 3), (11, 3), (11, 4), (13, 1), (13, 3), (10, 6), (11, 6), (13, 6), (10, 8),
                          (11, 8), (13, 8), (14, 8), (15, 10), (17, 8), (16, 10), (1, 5), (2, 7)]},
+    "fork": {"name": "Fork", "blurb": "The road splits around a lake and joins again: every other enemy takes each way.",
+             "paths": [[(-1, 11), (2, 11), (2, 1), (4, 1), (4, 4), (15, 4), (15, 6), (17, 6), (17, 1), (19, 1)],
+                       [(-1, 11), (2, 11), (2, 1), (4, 1), (4, 8), (15, 8), (15, 6), (17, 6), (17, 1), (19, 1)]],
+             "rocks": [(9, 6), (10, 6), (11, 6), (7, 10), (12, 2), (19, 8)]},
+    "twin": {"name": "Twin Gates", "blurb": "Two gates, two roads that only meet at the keep. They run side by side down the middle: towers between them reach both. A hard one.",
+             "paths": [[(-1, 4), (2, 4), (2, 10), (5, 10), (5, 1), (9, 1), (9, 11), (10, 11)],
+                       [(20, 4), (18, 4), (18, 10), (15, 10), (15, 1), (11, 1), (11, 11), (10, 11)]],
+             "rocks": [(3, 1), (17, 1), (7, 6), (13, 6), (0, 11), (19, 11)]},
+    "breach": {"name": "Breach", "blurb": "One road to start with, but the walls give way: a second gate opens on wave 11 and a third on 21. A hard one.",
+               "paths": [[(-1, 5), (5, 5), (5, 2), (10, 2), (10, 9), (16, 9), (16, 4), (19, 4)],
+                         [(13, -1), (13, 6), (10, 6), (10, 9), (16, 9), (16, 4), (19, 4)],
+                         [(-1, 10), (10, 10), (10, 9), (16, 9), (16, 4), (19, 4)]],
+               "opens": [1, 11, 21],
+               "rocks": [(2, 2), (7, 7), (18, 8), (8, 0), (3, 7), (15, 1)]},
 }
+
+
+def opens(m):
+    """The wave each of a map's paths opens on."""
+    return m.get("opens") or [1] * len(m["paths"])
 
 
 def buildable(m):

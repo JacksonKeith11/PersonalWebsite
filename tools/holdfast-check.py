@@ -6,7 +6,7 @@ Pretend browsers join a room and play: building is refused on the road, on rocks
 off the board and without the gold; anyone may upgrade but only the builder may sell; gold can be
 given; Ready sends the wave early; kills pay everyone equally and the snapshots carry the enemies;
 a fifth player watches; a lost keep ends the game and the host reopens the room. Every wave of
-every map is also checked to be made of known enemies. (`tools/holdfast-sim.py` covers balance.)
+every map is also checked to be made of known enemies. Heroes, forks and gates have their own checks. (`tools/holdfast-sim.py` covers balance.)
 """
 
 import asyncio
@@ -104,7 +104,7 @@ async def main():
     view = a.read()["state"]["towers"][0]
     assert {k: v for k, v in view.items() if k != "un"} == {
         "id": t.id, "k": "archer", "p": None, "n": 0, "c": [0, 0], "f": None, "x": 2, "y": 3, "o": a.p.id, "s": 50,
-        "kills": 0, "dmg": 0, "tg": "first", "cs": False, "ul": False}, view
+        "kills": 0, "dmg": 0, "tg": "first", "cs": False, "ul": False, "bo": 0.0, "pw": 0.0, "rc": 0.0}, view
     assert view["un"][0] == a.p.id and 0 < view["un"][1] <= game.UNDO
     # Anyone may upgrade; only the builder may sell.
     b.do(t="up", id=t.id)
@@ -184,10 +184,12 @@ async def main():
     items()
     new_abilities()
     endless_and_stuns()
+    heroes()
+    gates()
     saves()
     print("Holdfast: building, upgrading, crosspathing, evolving, selling, giving, readying, watching, every "
           "tower's effects, projectiles and pierce, immunities, layers, traps, sentries, bosses, items, targeting, "
-          "Ghosts, undo, abilities, Menders, Splitters, summons, endless, records, saving and resuming hold up")
+          "Ghosts, undo, abilities, Menders, Splitters, summons, endless, heroes, forks, gates, records, saving and resuming hold up")
 
 
 def lab():
@@ -769,6 +771,120 @@ def endless_and_stuns():
     assert stunned > 0
 
 
+def heroes():
+    """Heroes: free, one each, placed on free squares; they level on the waves they see (the
+    experience is the player's), anyone may train them, only their owner moves them (between waves),
+    they can't be sold or upgraded, they fight, they unlock two abilities, and each is once in a room."""
+    for kind, h in D.HEROES.items():
+        assert len(h["levels"]) == D.HERO_LEVELS - 1 and len(h["abilities"]) == 2, kind
+        assert all(k in h["base"] for k in ("mode", "range", "rate", "dmg")), kind
+    assert D.HERO_XP_TO == sorted(D.HERO_XP_TO) and D.hero_level(0) == 1 and D.hero_level(10 ** 6) == D.HERO_LEVELS
+    room = game.Room("HER")
+    room.saving = False
+    a, b = Browser(room, "A"), Browser(room, "B")
+    room.task.cancel()
+    a.do(t="start")
+    gold = a.p.gold
+    a.do(t="hero", k="wren", x=2, y=2)  # on the road: refused
+    a.do(t="hero", k="nobody", x=2, y=3)
+    assert not room.towers
+    a.do(t="hero", k="wren", x=2, y=3)
+    h = room.at[(2, 3)]
+    assert h.hero and h.level == 1 and a.p.gold == gold, "a hero is free"
+    a.do(t="hero", k="oda", x=3, y=3)
+    assert len(room.towers) == 1, "one hero each"
+    b.do(t="hero", k="wren", x=3, y=3)
+    assert len(room.towers) == 1, "each hero only once in a room"
+    b.do(t="hero", k="oda", x=3, y=3)
+    assert len(room.towers) == 2
+    hb = room.at[(3, 3)]
+    a.do(t="sell", id=h.id)
+    a.do(t="up", id=h.id, path=0)
+    assert h.id in room.towers and h.tiers == [0, 0], "heroes can't be sold or upgraded"
+    a.read()
+    assert any(t.get("h") and t["lv"] == 1 for t in a.read()["state"]["towers"])
+    # a wave seen: experience for each hero's owner
+    room.wave, room.fighting, room.spawns, room.enemies = 12, True, [], []
+    room.advance(game.STEP)
+    xp = round(D.HERO_XP(12) * D.hero_share(2))  # two players: each hero gets two thirds
+    assert D.hero_share(1) == 1 and a.p.hero_xp == xp and b.p.hero_xp == xp and h.level == 2, (a.p.hero_xp, h.level)
+    assert h.stats["dmg"] == D.HEROES["wren"]["levels"][0]["set"]["dmg"]
+    # training: anyone may pay, up a level at a time
+    b.p.gold = 10000
+    cost = room.train_cost(h)
+    assert cost == math.ceil((D.HERO_XP_TO[2] - a.p.hero_xp) * D.TRAIN_PRICE)
+    b.do(t="train", id=h.id)
+    assert h.level == 3 and b.p.gold == 10000 - cost and [x["name"] for x in h.abilities] == ["Piercing Volley"]
+    for _ in range(10):
+        b.do(t="train", id=h.id)
+    assert h.level == D.HERO_LEVELS and room.train_cost(h) is None and len(h.abilities) == 2
+    assert h.abilities[0]["dmg"] > D.HEROES["wren"]["abilities"][0][1]["dmg"], "abilities grow with the levels"
+    # it fights, and both abilities go off
+    room.fighting = True
+    room.spawns = [(999, "grunt", 0)]
+    e = put(room, "grunt", 2.5, hp=10 ** 6)
+    steps(room, 2)
+    assert h.dmg > 0 and h.kills == 0
+    a.do(t="ability", id=h.id, n=0)
+    a.do(t="ability", id=h.id, n=1)
+    assert h.cd > 0 and h.cd2 > 0 and room.mark[0] > room.fight_t and e.hp < 10 ** 6
+    snap = room.snapshot()
+    assert snap["a"][h.id] > 0 and snap["a2"][h.id] > 0
+    # moving: only its owner, only between waves; the level stays with the player
+    a.do(t="dismiss", id=h.id)
+    assert h.id in room.towers, "a hero moved mid-wave"
+    b.do(t="dismiss", id=h.id)
+    room.fighting, room.enemies, room.spawns = False, [], []
+    b.do(t="dismiss", id=h.id)
+    assert h.id in room.towers, "someone else moved a hero"
+    a.do(t="dismiss", id=h.id)
+    assert h.id not in room.towers
+    a.do(t="hero", k="ysolde", x=5, y=5)
+    assert room.at[(5, 5)].level == D.HERO_LEVELS, "a new hero should come at the player's level"
+    # Brannoc makes towers beside him hit harder; Oda's Supply Drop is shared out
+    b.p.hero_xp = D.HERO_XP_TO[-1]
+    room.level_heroes()
+    room.fighting = True
+    room.spawns = [(999, "grunt", 0)]
+    put(room, "grunt", 2.5, hp=10 ** 6)
+    before = a.p.gold + b.p.gold
+    b.do(t="ability", id=hb.id, n=0)
+    assert round(a.p.gold + b.p.gold - before) == hb.abilities[0]["gold"], "Supply Drop pays its gold once, shared out"
+    room.fighting, room.enemies, room.spawns = False, [], []
+    b.do(t="dismiss", id=hb.id)
+    b.do(t="hero", k="brannoc", x=6, y=3)
+    b.p.hero_xp = D.HERO_XP_TO[-1]
+    room.level_heroes()
+    arch = tower_at(room, b.p, "archer", 7, 3)
+    assert arch.power == D.hero_stats("brannoc", D.HERO_LEVELS)["power"]
+
+
+def gates():
+    """Forks share their enemies; a gate opens on its wave, trappers learn the new road, the browsers
+    are told."""
+    room = fresh("fork")
+    room.fighting = False
+    room.wave = 0
+    room.start_wave()
+    routes = {r for _, _, r in room.spawns}
+    assert routes == {0, 1}, "a fork's enemies should take both ways"
+    room = fresh("breach")
+    room.fighting = False
+    room.wave = 9
+    room.start_wave()
+    assert {r for _, _, r in room.spawns} == {0} and room.open == (0,)
+    pts = len(room.road_pts)
+    room.fighting, room.spawns = False, []
+    room.start_wave()
+    assert room.wave == 11 and room.open == (0, 1) and len(room.road_pts) > pts
+    assert {r for _, _, r in room.spawns} == {0, 1} and [0, "gate"] in room.effects
+    room.fighting, room.spawns, room.wave = False, [], 20
+    room.start_wave()
+    assert room.open == (0, 1, 2) and {r for _, _, r in room.spawns} == {0, 1, 2}
+    for m in D.MAPS.values():
+        assert len(D.opens(m)) == len(m["paths"]) and min(D.opens(m)) == 1
+
+
 def new_abilities():
     """The new towers' final evolutions' abilities do what they say."""
     room = fresh()
@@ -819,6 +935,10 @@ def saves():
     t1 = room.build(a.p, "archer", 2, 3)
     room.upgrade(b.p, t1, 0)
     t1.kills, t1.dmg, t1.target = 7, 300.0, "strong"
+    hero = room.place_hero(a.p, "oda", 5, 5)
+    a.p.hero_xp = D.HERO_XP_TO[4]
+    room.level_heroes()
+    hero.kills = 3
     room.lives, room.leaks = 17, {3: 3}
     room.wave = 4
     room.save_game()
@@ -835,8 +955,10 @@ def saves():
     assert room2.phase == "lobby" and "note" in a2.read()
     a2.do(t="resume", id=gid)
     assert room2.phase == "play" and room2.wave == 4 and room2.lives == 17 and room2.leaks == {3: 3}
-    t = next(iter(room2.towers.values()))
+    t = next(t for t in room2.towers.values() if not t.hero)
     assert (t.kind, t.path, t.tier, t.kills, t.target, t.owner) == ("archer", 0, 1, 7, "strong", a2.p.id)
+    h2 = next(t for t in room2.towers.values() if t.hero)
+    assert (h2.kind, h2.level, h2.kills, h2.owner, a2.p.hero_xp) == ("oda", 5, 3, a2.p.id, D.HERO_XP_TO[4])
     ghost_b = next(q for q in room2.players.values() if q.name == "B")
     assert not ghost_b.connected and ghost_b.seated, "B should have a seat to come back to"
     b2 = Browser(room2, "B")

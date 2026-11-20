@@ -34,6 +34,7 @@ const S = {
   chosen: null,        // the id of the tower whose panel is open
   hover: null,         // the tile under the pointer
   cd: {},              // tower id -> seconds until its ability is ready
+  cd2: {},             // hero id -> seconds until its second ability is ready
   undoUntil: {},       // tower id -> now() its undo runs out (for this player)
   glow: [0, 0, 0, 0],  // seconds left of Rally, Mark Them, Bounty Hunt and Unmake
   blasts: [],          // abilities, items and boss moves going off: { do, from, pts, at }
@@ -67,11 +68,33 @@ function statsOf(kind, c = [0, 0], f = null) {
   }
   return out;
 }
-const towerStats = t => statsOf(t.k, t.c, t.f);
+// A hero's numbers at a level: each level's `set` replaces numbers, as tiers do.
+function heroStats(kind, lv = 1) {
+  const def = S.cfg.heroes[kind], out = { ...def.base };
+  for (const l of def.levels.slice(0, Math.max(0, lv - 1))) Object.assign(out, l.set);
+  return out;
+}
+// A hero's abilities at a level, grown for the levels since each unlocked (as data.hero_abilities).
+function heroAbilities(kind, lv = 1) {
+  return S.cfg.heroes[kind].abilities.filter(([need]) => lv >= need).map(([need, a]) => {
+    const up = 1 + (a.grow || 0) * (lv - need), out = { ...a };
+    for (const k of ['dmg', 'gold', 'dps']) if (k in out) out[k] = Math.round(out[k] * up);
+    return out;
+  });
+}
+const isHero = kind => !!S.cfg?.heroes?.[kind];
+const towerStats = t => (t.h ? heroStats(t.k, t.lv) : statsOf(t.k, t.c, t.f));
 const canBuy = (c, path) => c[path] + 1 <= EVOLUTION && (c[path] + 1 <= S.cfg.cross_max || c[1 - path] <= S.cfg.cross_max);
 const EVOLUTION = 4;
 // What to call a tower: its final evolution's name, or its kind.
-const towerName = t => (t.n >= EVOLUTION ? S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].name : S.cfg.towers[t.k].name);
+const towerName = t => (t.h ? S.cfg.heroes[t.k].name : t.n >= EVOLUTION ? S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].name : S.cfg.towers[t.k].name);
+const myHero = () => S.st?.towers?.find(t => t.h && t.o === room.you);
+// Gold to train a hero up a level (anyone may pay), or null.
+const trainCost = t => {
+  const owner = player(t.o);
+  if (!owner || t.lv >= S.cfg.hero_xp_to.length) return null;
+  return Math.max(1, Math.ceil((S.cfg.hero_xp_to[t.lv] - (owner.hxp || 0)) * S.cfg.train_price));
+};
 const myGold = () => S.gold[room.you] ?? me()?.gold ?? 0;
 const itemCost = k => Math.round(S.cfg.items[k].cost * (1 + (S.st?.item_wave || 1) / 10));
 
@@ -79,6 +102,7 @@ function receive(m) {
   if (m.t === 'welcome') {
     S.cfg = m;
     buildPalette();
+    buildHeroes();
     buildItems();
     $('map').replaceChildren(...Object.entries(m.maps).map(([id, v]) => { const o = el('option', '', v.name); o.value = id; return o; }));
     $('bosses').replaceChildren(...Object.entries(m.bosses).map(([id, name]) => { const o = el('option', '', name); o.value = id; return o; }));
@@ -91,7 +115,7 @@ function receive(m) {
         for (let k = 0; k <= n; k++) road.add(`${x0 + Math.sign(x1 - x0) * k},${y0 + Math.sign(y1 - y0) * k}`);
       }
     }
-    S.map = { ...m, road, rocks: new Set(m.rocks.map(([x, y]) => `${x},${y}`)),
+    S.map = { ...m, opens: m.opens || m.paths.map(() => 1), road, rocks: new Set(m.rocks.map(([x, y]) => `${x},${y}`)),
       build: m.build ? new Set(m.build.map(([x, y]) => `${x},${y}`)) : null };
     S.enemies.clear();
     S.flying.clear();
@@ -133,6 +157,7 @@ function snapshot(m) {
   if (S.floats.length > 120) S.floats.splice(0, S.floats.length - 120);
   for (const id of S.enemies.keys()) if (!seen.has(id)) S.enemies.delete(id);
   S.cd = m.a || {};
+  S.cd2 = m.a2 || {};
   S.dazed = m.dz || {};
   S.glow = m.gl || [0, 0, 0, 0];
   S.traps = m.tr || [];
@@ -241,12 +266,16 @@ function ability(what) {
   else if (what === 'skull') { tone(110, 55, 0.9, 'sawtooth', 0.08); tone(165, 82, 0.9, 'square', 0.04, 0.05); }
   else if (what === 'item:horn') { tone(220, 330, 0.6, 'sawtooth', 0.06); tone(330, 440, 0.5, 'sawtooth', 0.04, 0.3); }
   else if (what.startsWith('item:')) { tone(500, 700, 0.12, 'triangle', 0.05); }
+  else if (what === 'level') { tone(660, 990, 0.15, 'triangle', 0.05); tone(880, 1320, 0.25, 'triangle', 0.05, 0.1); }
+  else if (what === 'gate') { hiss(120, 0.7, 1.2, 0.14, 'lowpass'); tone(90, 45, 1.0, 'sawtooth', 0.06); }
   else { tone(300, 900, 0.5, 'square', 0.04); hiss(800, 1, 0.5, 0.05); }
 }
 
 // A weapon firing, at most once every 70 ms per weapon so a big defence doesn't roar. Final
 // evolutions sound bigger.
+const HERO_SOUND = { wren: 'archer', brannoc: 'cannon', ysolde: 'tesla', oda: 'ballista' };
 function hit(kind, big = false) {
+  kind = HERO_SOUND[kind] || kind;
   const t = performance.now();
   if (muted || t - (lastHit[kind] || 0) < 70) return;
   lastHit[kind] = t;
@@ -365,38 +394,41 @@ function renderLobbyLists() {
   }) : [el('li', '', 'No games on this map and difficulty yet.')]));
 }
 
-// The bar of final evolutions' abilities, with how long until each is ready.
+// The bar of abilities (final evolutions' and heroes'), with how long until each is ready.
+const abilitiesOf = t => (!t ? [] : t.h ? heroAbilities(t.k, t.lv) : t.n >= EVOLUTION ? [S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].ability] : []);
+const cdOf = (id, n) => ((n ? S.cd2 : S.cd)[id] ?? 0);
 function renderAbilities() {
   const st = S.st, bar = $('abilities');
-  const evolved = (st?.towers || []).filter(t => t.n >= EVOLUTION);
-  bar.hidden = !evolved.length || st.phase !== 'play';
+  const slots = (st?.towers || []).flatMap(t => abilitiesOf(t).map((a, n) => ({ t, a, n })));
+  bar.hidden = !slots.length || st.phase !== 'play';
   if (bar.hidden) return;
-  const want = evolved.map(t => t.id).join(',');
+  const want = slots.map(s => `${s.t.id}:${s.n}:${s.a.name}`).join(',');
   if (bar.dataset.ids !== want) {
     bar.dataset.ids = want;
-    bar.replaceChildren(...evolved.map(t => {
-      const a = abilityOf(t), b = el('button');
+    bar.replaceChildren(...slots.map(({ t, a, n }) => {
+      const b = el('button', t.h ? 'hero' : '');
       b.type = 'button';
       b.dataset.id = t.id;
+      b.dataset.n = n;
+      b.dataset.cd = a.cd;
       b.append(el('b', '', a.name), el('small', '', towerName(t)), el('i', 'fill'));
-      b.title = a.blurb;
-      b.addEventListener('click', () => useAbility(t.id));
+      b.title = `${towerName(t)}: ${a.blurb}`;
+      b.addEventListener('click', () => useAbility(t.id, n));
       return b;
     }));
   }
   for (const b of bar.children) {
-    const t = tower(+b.dataset.id), left = S.cd[b.dataset.id] ?? 0, a = abilityOf(t);
+    const left = cdOf(b.dataset.id, +b.dataset.n);
     b.classList.toggle('ready', left <= 0 && st.fighting);
     b.disabled = left > 0 || !st.fighting || !me()?.seated;
-    b.querySelector('.fill').style.width = `${100 * (1 - left / a.cd)}%`;
+    b.querySelector('.fill').style.width = `${100 * (1 - left / +b.dataset.cd)}%`;
     b.querySelector('small').textContent = left > 0 ? `ready in ${Math.ceil(left)} s` : st.fighting ? 'ready' : 'ready when a wave is on';
   }
 }
 
-const abilityOf = t => t && t.n >= EVOLUTION ? S.cfg.towers[t.k].paths[t.p].tiers[EVOLUTION - 1].ability : null;
-function useAbility(id) {
+function useAbility(id, n = 0) {
   const t = tower(id);
-  if (t && abilityOf(t) && (S.cd[id] ?? 0) <= 0 && S.st.fighting) room.send({ t: 'ability', id });
+  if (t && abilitiesOf(t)[n] && cdOf(id, n) <= 0 && S.st.fighting) room.send({ t: 'ability', id, n });
 }
 
 // A boss event's boss: its name, tier, health with the skulls marked, and any shell.
@@ -443,6 +475,9 @@ function renderComing() {
     const imm = foes[k].immune;
     if (imm && arms.length && !arms.some(d => d.any || !imm.includes(d.dtype))) warn.push(`Nothing built can hurt ${foes[k].name.replace(/^The /, 'the ')}: it's immune to ${listed(imm.map(d => DTYPE[d]))}. Some upgrades hurt anything, and so does a tower beside a Solvent Draught (Alchemist).`);
   }
+  const nextWave = st.wave + 1, gates = (S.map?.opens || []).filter(w => w === nextWave && w > 1).length;
+  if (gates) warn.unshift(gates > 1 ? `${gates} new gates open on wave ${nextWave}: enemies will come through them too.`
+    : `A new gate opens on wave ${nextWave}: enemies will come through it too (the darkened road).`);
   const key = JSON.stringify([st.wave, st.fighting, [...counts], warn]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
@@ -481,8 +516,13 @@ function renderLive() {
   if (!box) { box = el('div', 'chips'); box.id = 'chips'; $('coming').after(box); }
   box.replaceChildren(...chips.map(c => el('span', 'chip', c)));
   if (S.chosen != null) {
-    const a = $('info').querySelector('.ability-btn'), left = S.cd[S.chosen] ?? 0;
-    if (a) { a.disabled = left > 0 || !st.fighting; a.textContent = a.dataset.label + (left > 0 ? ` (${Math.ceil(left)} s)` : st.fighting ? ': ready' : ' (when a wave is on)'); }
+    for (const a of $('info').querySelectorAll('.ability-btn')) {
+      const left = cdOf(S.chosen, +a.dataset.n);
+      a.disabled = left > 0 || !st.fighting;
+      a.textContent = a.dataset.label + (left > 0 ? ` (${Math.ceil(left)} s)` : st.fighting ? ': ready' : ' (when a wave is on)');
+    }
+    const tr = $('info').querySelector('.train-btn'), tw = tower(S.chosen);
+    if (tr && tw) { const c = trainCost(tw); tr.disabled = c == null || gold < c; }
     const u = $('info').querySelector('.undo-btn'), until = S.undoUntil[S.chosen];
     if (u) {   // stays in place, greyed out, so nothing below it moves
       const live = until && until > now();
@@ -506,6 +546,14 @@ function renderLive() {
     return li;
   }));
   for (const b of $('palette').children) b.classList.toggle('poor', gold < S.cfg.towers[b.dataset.kind].cost);
+  const mine = myHero();
+  for (const b of $('heroes').querySelectorAll('button')) {
+    const k = b.dataset.kind, theirs = st.towers.find(t => t.h && t.k === k && t.o !== room.you);   // each hero once a room
+    b.disabled = !seated || (mine && mine.k !== k) || !!theirs;
+    b.classList.toggle('placed', mine?.k === k);
+    b.querySelector('.cost').textContent = mine?.k === k ? `level ${mine.lv}` : theirs ? `${player(theirs.o)?.name || 'taken'}'s` : mine ? '' : 'free';
+    b.setAttribute('aria-pressed', String(S.picked === k || (mine?.k === k && S.chosen === mine.id)));
+  }
   for (const b of $('items').children) {
     const k = b.dataset.kind, it = S.cfg.items[k], cost = itemCost(k), left = S.itemCd[k] || 0;
     b.querySelector('.cost').textContent = left > 0 ? `${Math.ceil(left)} s` : cost;
@@ -520,18 +568,61 @@ const pct = v => `${Math.round(v * 100)}%`;
 const num = v => (typeof v === 'number' ? String(Math.round(v * 100) / 100) : v);
 const DTYPE = { sharp: 'sharp', blast: 'blast', cold: 'cold', energy: 'lightning', fire: 'fire', arcane: 'arcane', normal: 'normal (hurts anything)' };
 const STAT = [['dtype', 'Damage', v => DTYPE[v] || v], ['dmg', 'Damage a hit'], ['shots', 'Shots'], ['rate', 'Every', v => `${num(v)} s`], ['range', 'Reach'],
-  ['pierce', 'Goes through', v => `${num(v)} enemies`], ['splash', 'Blast'], ['cluster', 'Extra blasts'], ['chain', 'Jumps to'],
+  ['pierce', 'Goes through', v => `${num(v)} ${v === 1 ? 'enemy' : 'enemies'}`], ['splash', 'Blast'], ['cluster', 'Extra blasts'], ['chain', 'Jumps to'],
   ['slow', 'Slows by', pct], ['stun', 'Stuns for', v => `${num(v)} s`], ['burn', 'Burns', v => `${num(v)} a second`], ['shred', 'Strips armour', v => `${num(v)} a hit`],
   ['brittle', 'Slowed take', v => `${pct(v)} more`], ['boss', 'Against bosses and blimps', v => `×${num(v)}`],
   ['ap', 'Ignores armour', () => 'yes'], ['air', 'Hits flyers', v => (v ? 'yes' : 'no')], ['ground', 'Hits the ground', v => (v ? 'yes' : 'no')],
   ['detect', 'Sees Ghosts', () => 'yes'], ['lob', 'Lobbed', () => 'yes, moving targets can dodge'],
-  ['hits', 'Each pile hurts', v => `${num(v)} enemies`], ['max', 'At a time', num], ['life', 'Each lasts', v => `${num(v)} s`],
+  ['hits', 'Each pile hurts', v => `${num(v)} ${v === 1 ? 'enemy' : 'enemies'}`], ['max', 'At a time', num], ['life', 'Each lasts', v => `${num(v)} s`],
   ['boost', 'Speeds up', pct], ['reach', 'Extends reach', pct], ['power', 'Adds damage', pct], ['reveal', 'Reveals Ghosts', () => 'yes'],
   ['unlock', 'Towers near it hurt', () => 'every type'],
   ['income', 'Pays a wave', v => `${num(v)} gold`], ['bounty', 'Kill bonus', pct]];
 
-function statList(stats) {
+// Damage a second, worked out from the numbers (before armour; bosses and blimps take `boss` times
+// as much): against one enemy, and the most against a crowd. `tw` adds what support towers beside
+// it give (bo: fires faster, pw: hits harder). Null for towers that don't attack.
+const big = v => (v >= 10000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)));
+function dpsOf(s, tw) {
+  if (['support', 'income'].includes(s.mode)) return null;
+  const fast = 1 + (tw?.bo || 0), hard = 1 + (tw?.pw || 0);
+  if (s.mode === 'trap') return { one: s.dmg * hard * s.hits, text: `${big(s.dmg * hard)} to each of ${s.hits} enemies a pile`, pile: true };
+  if (s.mode === 'sentry') {
+    const w = s.sentry, one = w.dmg * hard / w.rate;
+    return { one, text: `${big(one)} a sentry, ${s.max} at a time` };
+  }
+  const per = s.dmg * hard * fast / s.rate, burn = s.burn ? s.burn : 0;
+  const one = per + burn, shots = s.shots || 1, pierce = s.pierce || 1;
+  if (s.mode === 'aura') return { one, text: `${big(one)} to everything in reach` };
+  if (s.mode === 'splash') return { one, text: `${big(one)} to everything in a blast${s.cluster ? `, with ${s.cluster} small blasts round it` : ''}` };
+  if (s.mode === 'chain') return { one, text: `${big(one)} to one, ${big(per * s.chain)} spread over ${s.chain}` };
+  const crowd = per * shots * pierce;
+  return { one, text: crowd > one * 1.05 ? `${big(one)} to one, up to ${big(crowd)} to a crowd` : big(one) };
+}
+// The enemies a tower's hits can't touch: immune to its damage type (unless it hurts anything),
+// flying when it can't hit flyers, or camouflaged when it can't see Ghosts.
+function blindSpots(s, tw) {
+  const w = s.mode === 'sentry' ? s.sentry : s;
+  if (!w || ['support', 'income'].includes(s.mode)) return [];
+  const dtype = w.dtype || 'normal', any = tw?.ul || dtype === 'normal', out = [];
+  for (const [k, e] of Object.entries(S.cfg.enemies)) {
+    if (!any && e.immune?.includes(dtype)) out.push(e.name.replace(/^The /, 'the '));
+  }
+  if (s.mode === 'trap' || !w.air) out.push('flyers');
+  if (w.ground === false) out.push('anything on the ground');
+  const sees = s.mode === 'aura' || s.mode === 'trap' || w.detect || tw?.cs;
+  if (!sees) out.push('Ghosts (it can\'t aim at them)');
+  return out;
+}
+
+function statList(stats, tw = null) {
   const dl = el('dl'), quiet = ['support', 'income', 'sentry'].includes(stats.mode);
+  const d = dpsOf(stats, tw);
+  if (d) dl.append(el('dt', '', d.pile ? 'Each pile' : 'Damage a second'), el('dd', 'dps', d.text));
+  if (tw && (tw.bo || tw.pw)) dl.append(el('dt', '', 'Helped by'), el('dd', '', [tw.bo && `fires ${pct(tw.bo)} faster`, tw.pw && `hits ${pct(tw.pw)} harder`].filter(Boolean).join(', ')));
+  if (!['support', 'income'].includes(stats.mode)) {
+    const blind = blindSpots(stats, tw);
+    dl.append(el('dt', '', 'Can\'t hurt'), el('dd', blind.length ? 'blind' : '', blind.length ? listed(blind) : 'nothing: it hurts every kind'));
+  }
   for (const [key, label, fmt = num] of STAT) {
     if (stats[key] == null || ((key === 'air' || key === 'ground') && quiet) || (key === 'ground' && stats.ground !== false)) continue;
     if (key === 'dtype' && quiet) continue;
@@ -564,6 +655,33 @@ function crossText(cross) {
   return s ? s[0].toUpperCase() + s.slice(1) : 'Nothing extra';
 }
 
+// What buying something would change, in a few short lines: damage a second, the numbers that
+// change, and enemies it could hurt (or no longer could).
+const DIFF_SKIP = new Set(['dmg', 'rate', 'shots', 'dtype', 'speed', 'hold', 'burn_for', 'ground']);
+function changes(before, after, tw) {
+  const out = [], d0 = dpsOf(before, tw), d1 = dpsOf(after, tw);
+  if (d0 && d1 && Math.round(d0.one) !== Math.round(d1.one)) {
+    const up = Math.round((d1.one / d0.one - 1) * 100);
+    out.push(`${d1.pile ? 'Each pile' : 'Damage a second'}: ${big(d0.one)} → ${big(d1.one)} (${up >= 0 ? '+' : ''}${up}%)`);
+  }
+  for (const [key, label, fmt = num] of STAT) {
+    if (DIFF_SKIP.has(key) || after[key] == null || after[key] === before[key]) continue;
+    if (typeof after[key] === 'boolean' || before[key] == null) out.push(`${label}${after[key] === true ? '' : `: ${fmt(after[key])}`}`);
+    else out.push(`${label}: ${fmt(before[key])} → ${fmt(after[key])}`);
+  }
+  const b0 = new Set(blindSpots(before, tw)), b1 = new Set(blindSpots(after, tw));
+  const now = [...b0].filter(x => !b1.has(x) && !x.startsWith('Ghosts'));   // seeing Ghosts has its own line
+  if (now.length) out.push(`Now hurts ${listed(now)}`);
+  const lost = [...b1].filter(x => !b0.has(x));
+  if (lost.length) out.push(`Can't hurt ${listed(lost)} any more`);
+  if (before.sentry && after.sentry) {
+    const s0 = dpsOf({ ...before, mode: 'sentry' }, tw), s1 = dpsOf({ ...after, mode: 'sentry' }, tw);
+    if (s0 && s1 && s0.text !== s1.text && !out.length) out.push(`Sentries: ${s1.text}`);
+  }
+  return out.slice(0, 5);
+}
+const changeList = lines => { const ul = el('ul', 'diff'); for (const l of lines) ul.append(el('li', '', l)); return ul; };
+
 function renderInfo() {
   const box = $('info'), T = S.cfg.towers;
   const tw = S.chosen != null ? tower(S.chosen) : null;
@@ -575,6 +693,7 @@ function renderInfo() {
   }
   const kind = tw ? tw.k : S.picked;
   if (!kind) { box.replaceChildren(); return; }
+  if (isHero(kind)) { renderHero(box, kind, tw); return; }
   const def = T[kind];
   if (!tw) {
     box.replaceChildren(el('h2', '', `${def.name} (${def.cost} gold)`), el('p', '', def.blurb), statList(def.base),
@@ -608,32 +727,10 @@ function renderInfo() {
     } else row.append(el('span', 'note', 'Only its builder can sell it.'));
     parts.push(row);
   }
-  const ab = abilityOf(tw);
-  if (ab && me()?.seated) {
-    const b = el('button', 'ability-btn', '');
-    b.type = 'button';
-    b.dataset.label = ab.name;
-    b.title = ab.blurb;
-    const left = S.cd[tw.id] ?? 0;
-    b.textContent = ab.name + (left > 0 ? ` (${Math.ceil(left)} s)` : S.st.fighting ? ': ready' : ' (when a wave is on)');
-    b.disabled = left > 0 || !S.st.fighting;
-    b.addEventListener('click', () => useAbility(tw.id));
-    parts.push(b, el('p', 'note ability-blurb', ab.blurb));
-  }
+  parts.push(...abilityButtons(tw));
   const st0 = towerStats(tw);
-  if (!['support', 'income', 'trap', 'sentry'].includes(st0.mode)) {
-    const row = el('div', 'targets');
-    for (const v of S.cfg.targets) {
-      const b = el('button', '', v[0].toUpperCase() + v.slice(1));
-      b.type = 'button';
-      b.setAttribute('aria-pressed', String(tw.tg === v));
-      b.title = { first: 'The one nearest the keep', last: 'The one furthest back', strong: 'The one with the most health', close: 'The one nearest this tower' }[v];
-      b.addEventListener('click', () => room.send({ t: 'target', id: tw.id, v }));
-      row.append(b);
-    }
-    parts.push(row);
-  }
-  parts.push(statList(st0));
+  parts.push(...targetRow(tw, st0));
+  parts.push(statList(st0, tw));
   if (tw.ul) parts.push(el('p', 'note', 'A Solvent Draught beside it: it hurts every type.'));
 
   // the two upgrade paths: the next tier on each (in full, or what it gives on the side), or why not
@@ -652,8 +749,10 @@ function renderInfo() {
       after[pi] += 1;
       const full = mainPath(after, tw.f ?? pi) === pi, evo = full && after[pi] === EVOLUTION;
       const taken = evo && S.st.towers.some(o => o.id !== tw.id && o.k === kind && o.p === pi && o.n >= EVOLUTION);
+      const st1 = statsOf(kind, after, tw.f ?? pi);
       col.append(el('p', 'next', `${evo ? 'Final evolution: ' : ''}${next.name}`),
-        el('p', 'note', full ? next.blurb.replace(/^Final evolution: /, '') : `On the side: ${crossText(next.cross)}.`));
+        el('p', 'note', full ? next.blurb.replace(/^Final evolution: /, '') : `On the side: ${crossText(next.cross)}.`),
+        changeList(changes(st0, st1, tw)));
       if (me()?.seated) {
         const up = el('button', evo ? 'primary evo' : 'primary', `${evo ? 'Evolve' : 'Buy'}: ${next.cost} gold`);
         up.type = 'button';
@@ -662,7 +761,7 @@ function renderInfo() {
         up.dataset.locked = taken ? '1' : '0';
         up.disabled = taken || myGold() < next.cost;
         up.addEventListener('click', () => { sound(evo ? 'evolve' : 'up'); room.send({ t: 'up', id: tw.id, path: pi }); });
-        const r = statsOf(kind, after, tw.f ?? pi).range;
+        const r = st1.range;
         up.addEventListener('pointerenter', () => { S.preview = { x: tw.x, y: tw.y, r: Math.min(r, 12) }; });
         up.addEventListener('pointerleave', () => { S.preview = null; });
         col.append(up);
@@ -676,7 +775,101 @@ function renderInfo() {
   S.preview = null;
 }
 
+// A tower's or hero's ability buttons, each with its blurb.
+function abilityButtons(tw) {
+  if (!me()?.seated) return [];
+  return abilitiesOf(tw).flatMap((ab, n) => {
+    const b = el('button', 'ability-btn', '');
+    b.type = 'button';
+    b.dataset.label = ab.name;
+    b.dataset.n = n;
+    b.title = ab.blurb;
+    const left = cdOf(tw.id, n);
+    b.textContent = ab.name + (left > 0 ? ` (${Math.ceil(left)} s)` : S.st.fighting ? ': ready' : ' (when a wave is on)');
+    b.disabled = left > 0 || !S.st.fighting;
+    b.addEventListener('click', () => useAbility(tw.id, n));
+    return [b, el('p', 'note ability-blurb', ab.blurb)];
+  });
+}
+
+// What it aims at: first, last, strong or close (not for towers that don't aim).
+function targetRow(tw, st0) {
+  if (['support', 'income', 'trap', 'sentry'].includes(st0.mode)) return [];
+  const row = el('div', 'targets');
+  for (const v of S.cfg.targets) {
+    const b = el('button', '', v[0].toUpperCase() + v.slice(1));
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(tw.tg === v));
+    b.title = { first: 'The one nearest the keep', last: 'The one furthest back', strong: 'The one with the most health', close: 'The one nearest this tower' }[v];
+    b.addEventListener('click', () => room.send({ t: 'target', id: tw.id, v }));
+    row.append(b);
+  }
+  return [row];
+}
+
+// A hero: about to be placed (no `tw`), or on the board: its level and experience, Move and Train in
+// the fixed row at the top, its abilities, its numbers, and what the next level brings.
+function renderHero(box, kind, tw) {
+  const def = S.cfg.heroes[kind], need = S.cfg.hero_xp_to, top = need.length;
+  if (!tw) {
+    const mine = myHero(), xp = me()?.hxp || 0, lv = need.filter(n => xp >= n).length;
+    box.replaceChildren(el('h2', '', `${def.name} ${def.title} (free)`), el('p', '', def.blurb), statList(heroStats(kind, lv)),
+      el('p', '', mine ? 'You already have a hero on the board. Move yours (between waves) to pick another.'
+        : `Click or tap a free square to put ${def.name} down${lv > 1 ? `, at level ${lv}` : ''}. One hero each, and each hero once in a room; heroes level up as the waves go.`));
+    return;
+  }
+  const owner = player(tw.o), xp = owner?.hxp || 0, lv = tw.lv;
+  const parts = [el('h2', 'hero', `${def.name} ${def.title}`)];
+  const prog = lv >= top ? `Level ${lv}: the top` : `Level ${lv} · ${xp} of ${need[lv]} experience to level ${lv + 1}`;
+  parts.push(el('p', '', prog));
+  const tally = el('p', 'tally');
+  tally.append('Kills: ', el('b', '', ''), ` · damage ${Number(tw.dmg || 0).toLocaleString()} · ${owner?.name || 'someone who left'}'s hero`);
+  tally.querySelector('b').id = 'kills';
+  tally.querySelector('b').textContent = tw.kills;
+  if (S.dazed[tw.id] > 0) tally.append(el('b', 'dazed', ` · knocked out ${Math.ceil(S.dazed[tw.id])} s`));
+  parts.push(tally);
+  if (me()?.seated) {   // the same fixed row as a tower's Undo and Sell
+    const row = el('div', 'actions');
+    if (tw.o === room.you) {
+      const mv = el('button', 'move-btn', 'Move');
+      mv.type = 'button';
+      mv.disabled = S.st.fighting;
+      mv.title = 'Pick your hero up, to put it (or another hero) somewhere else. Only between waves; it keeps its level.';
+      mv.addEventListener('click', () => { room.send({ t: 'dismiss', id: tw.id }); S.chosen = null; });
+      row.append(mv);
+    }
+    const cost = trainCost(tw);
+    const tr = el('button', 'train-btn', cost == null ? 'Fully trained' : `Train: ${cost} gold`);
+    tr.type = 'button';
+    tr.disabled = cost == null || myGold() < cost;
+    tr.title = 'Pay to bring it to the next level now (anyone may)';
+    tr.addEventListener('click', () => { sound('up'); room.send({ t: 'train', id: tw.id }); });
+    row.append(tr);
+    parts.push(row);
+  }
+  parts.push(...abilityButtons(tw));
+  const st0 = towerStats(tw);
+  parts.push(...targetRow(tw, st0), statList(st0, tw));
+  if (lv < top) {
+    const nx = el('section', 'levelup');
+    const unlock = def.abilities.find(([n]) => n === lv + 1);
+    nx.append(el('h3', '', `Level ${lv + 1}`), el('p', 'note', def.levels[lv - 1].blurb), changeList(changes(st0, heroStats(kind, lv + 1), tw)));
+    if (unlock) nx.append(el('p', 'note', `${unlock[1].name}: ${unlock[1].blurb}`));
+    parts.push(nx);
+  }
+  box.replaceChildren(...parts);
+}
+
 function pick(kind) {
+  const mine = myHero();
+  if (isHero(kind) && mine) {   // your hero's already down: its button opens its panel
+    S.picked = S.item = null;
+    S.chosen = S.chosen === mine.id ? null : mine.id;
+    for (const b of $('palette').children) b.setAttribute('aria-pressed', 'false');
+    renderInfo();
+    renderLive();
+    return;
+  }
   S.picked = S.picked === kind ? null : kind;
   S.chosen = null;
   S.item = null;
@@ -709,6 +902,26 @@ function buildPalette() {
     c.setTransform(60, 0, 0, 60, 34, 34);
     drawTower(c, kind, null, 0, '#c9d3dd');
     b.append(icon, el('span', '', def.name), el('span', 'cost', def.cost));
+    b.addEventListener('click', () => pick(kind));
+    return b;
+  }));
+}
+
+// Heroes: free, one each. A hero's button picks it to put down, or opens yours once it's down.
+function buildHeroes() {
+  const box = $('heroes');
+  box.replaceChildren(el('span', 'label', 'Heroes'), ...Object.entries(S.cfg.heroes).map(([kind, def]) => {
+    const b = el('button');
+    b.type = 'button';
+    b.dataset.kind = kind;
+    b.setAttribute('aria-pressed', 'false');
+    b.title = `${def.name} ${def.title}: ${def.blurb} (H picks or opens your hero)`;
+    const icon = document.createElement('canvas');
+    icon.width = icon.height = 56;
+    const c = icon.getContext('2d');
+    c.setTransform(48, 0, 0, 48, 28, 28);
+    drawHero(c, kind, 0, '#c9d3dd');
+    b.append(icon, el('span', '', def.name), el('span', 'cost', 'free'));
     b.addEventListener('click', () => pick(kind));
     return b;
   }));
@@ -752,6 +965,7 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') { S.chosen = null; S.item = null; if (S.picked) pick(S.picked); else { renderInfo(); renderLive(); } }
   else if (d >= 0 && kinds[e.shiftKey ? d + 10 : d] && (!e.shiftKey || d < 5)) pick(kinds[e.shiftKey ? d + 10 : d]);
   else if (e.key === ' ' && !S.st.fighting && me()?.seated) { e.preventDefault(); room.send({ t: 'ready' }); }
+  else if (k === 'h' && me()?.seated) { const mine = myHero(); pick(mine ? mine.k : Object.keys(S.cfg.heroes)[0]); }
   else if (tw && (k === 'z' || k === 'x')) {
     const b = $('info').querySelector(`button[data-path="${k === 'z' ? 0 : 1}"]`);
     if (b && !b.disabled) b.click();
@@ -788,6 +1002,8 @@ canvas.addEventListener('click', e => {
     if (S.picked) pick(S.picked);
     S.chosen = S.chosen === there.id ? null : there.id;
     renderInfo();
+  } else if (S.picked && isHero(S.picked) && me()?.seated) {
+    if (free(x, y) && !myHero()) { sound('evolve'); room.send({ t: 'hero', k: S.picked, x, y }); pick(S.picked); }
   } else if (S.picked && me()?.seated) {
     if (free(x, y) && myGold() >= S.cfg.towers[S.picked].cost) { sound('build'); room.send({ t: 'build', k: S.picked, x, y }); }
   } else {
@@ -800,7 +1016,8 @@ canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (S.picked) 
 
 const TOWER_COLOR = { archer: '#7fb069', cannon: '#8a96a3', frost: '#7fd0e8', ballista: '#b08a5a', tesla: '#c9a0f0', beacon: '#f2c230',
   brazier: '#ff7a2f', mortar: '#a3a9b3', mint: '#f2d14a', bladewheel: '#c8d0d8', trapper: '#b58a55', workshop: '#e0954a',
-  arcanist: '#9b7bff', skyhook: '#5fd0c8', alchemist: '#86d455' };
+  arcanist: '#9b7bff', skyhook: '#5fd0c8', alchemist: '#86d455',
+  wren: '#9be07a', brannoc: '#ff9f5a', ysolde: '#a8c8ff', oda: '#ffd75a' };
 const PATH_COLOR = ['#f2c230', '#6fd0ff'];
 const ENEMY = {   // colour and radius, in tiles
   grunt: ['#d9534a', 0.27], runner: ['#f09a3e', 0.2], swarm: ['#b06fd6', 0.14], brute: ['#8f2d2d', 0.4],
@@ -876,6 +1093,43 @@ function drawTower(c, kind, path, tier, ring, side = 0) {
   if (side > 0) {   // the side path's tiers, small, at the top
     c.fillStyle = PATH_COLOR[1 - path];
     for (let i = 0; i < side; i++) { c.beginPath(); c.arc(-0.05 * (side - 1) + i * 0.1, evo ? -0.62 : -0.33, 0.035, 0, 7); c.fill(); }
+  }
+}
+
+// A hero, in a 1 x 1 box centred on the origin: a round shield in its owner's colour, its emblem, and
+// its level on a gold tab (none on the buttons).
+function drawHero(c, kind, level, ring) {
+  const t = performance.now() / 1000;
+  c.fillStyle = `rgba(255, 255, 255, ${0.1 + 0.05 * Math.sin(t * 2)})`;
+  c.beginPath(); c.arc(0, 0, 0.5, 0, 7); c.fill();
+  c.fillStyle = '#3a2f4a';
+  c.strokeStyle = ring;
+  c.lineWidth = 0.09;
+  c.beginPath(); c.arc(0, 0, 0.42, 0, 7); c.fill(); c.stroke();
+  c.fillStyle = c.strokeStyle = TOWER_COLOR[kind];
+  c.lineWidth = 0.07;
+  c.lineCap = 'round';
+  c.beginPath();
+  if (kind === 'wren') {   // a bow and arrow
+    c.arc(-0.06, 0, 0.24, -1.2, 1.2); c.moveTo(0.03, -0.22); c.lineTo(0.03, 0.22); c.stroke();
+    c.beginPath(); c.moveTo(-0.22, 0); c.lineTo(0.26, 0); c.stroke();
+    c.beginPath(); c.moveTo(0.3, 0); c.lineTo(0.2, -0.07); c.lineTo(0.2, 0.07); c.closePath(); c.fill();
+  } else if (kind === 'brannoc') {   // a hammer
+    c.moveTo(-0.16, 0.24); c.lineTo(0.08, -0.06); c.stroke();
+    c.save(); c.translate(0.1, -0.1); c.rotate(-Math.PI / 4); c.fillRect(-0.2, -0.08, 0.4, 0.16); c.restore();
+  } else if (kind === 'ysolde') {   // a staff crowned with a spark
+    c.moveTo(-0.14, 0.26); c.lineTo(0.08, -0.12); c.stroke();
+    for (let i = 0; i < 4; i++) { const a = t * 3 + i * Math.PI / 2; c.beginPath(); c.moveTo(0.12, -0.16); c.lineTo(0.12 + Math.cos(a) * 0.14, -0.16 + Math.sin(a) * 0.14); c.stroke(); }
+  } else if (kind === 'oda') {   // a coin purse
+    c.arc(0, 0.06, 0.2, 0, 7); c.fill();
+    c.beginPath(); c.moveTo(-0.08, -0.14); c.lineTo(0, -0.24); c.lineTo(0.08, -0.14); c.stroke();
+    c.fillStyle = '#5a4210'; c.font = 'bold 0.22px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', 0, 0.08);
+  }
+  if (level) {
+    c.fillStyle = '#ffd75a';
+    c.beginPath(); c.roundRect(-0.17, 0.3, 0.34, 0.2, 0.06); c.fill();
+    c.fillStyle = '#2a2000'; c.font = 'bold 0.17px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(String(level), 0, 0.405);
   }
 }
 
@@ -992,14 +1246,35 @@ function frame() {
       ctx.beginPath(); ctx.ellipse(x + 0.44, y + 0.5, 0.2, 0.14, 0, 0, 7); ctx.fill();
     }
   }
-  for (const path of S.map.paths) {
+  const upTo = S.st.fighting ? S.st.wave : S.st.wave + 1;   // the wave that's on, or coming
+  S.map.paths.forEach((path, i) => {
     const [sx, sy] = path[0], [nx, ny] = path[1];   // an arrow where they come in
-    const ax = Math.max(0, sx) + 0.5, ay = Math.max(0, sy) + 0.5, dx = Math.sign(nx - sx), dy = Math.sign(ny - sy);
+    const ax = Math.min(cols - 1, Math.max(0, sx)) + 0.5, ay = Math.min(rows - 1, Math.max(0, sy)) + 0.5, dx = Math.sign(nx - sx), dy = Math.sign(ny - sy);
+    const shut = S.map.opens[i] > upTo;
+    if (shut) {   // a gate that hasn't opened: its own stretch of road darkened, a barred gate, and when
+      ctx.fillStyle = 'rgba(30, 20, 10, 0.45)';
+      const mine = new Set(), others = new Set();
+      S.map.paths.forEach((q, j) => {
+        for (let a = 0; a + 1 < q.length; a++) {
+          const [x0, y0] = q[a], [x1, y1] = q[a + 1], n = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+          for (let k = 0; k <= n; k++) (j === i ? mine : S.map.opens[j] <= upTo ? others : null)?.add(`${x0 + Math.sign(x1 - x0) * k},${y0 + Math.sign(y1 - y0) * k}`);
+        }
+      });
+      for (const key of mine) if (!others.has(key)) { const [x, y] = key.split(',').map(Number); ctx.fillRect(x, y, 1.02, 1.02); }
+      ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 0.08;
+      ctx.beginPath();
+      for (const o of [-0.25, 0, 0.25]) { ctx.moveTo(ax + o, ay - 0.35); ctx.lineTo(ax + o, ay + 0.35); }
+      ctx.moveTo(ax - 0.35, ay); ctx.lineTo(ax + 0.35, ay);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd75a'; ctx.font = 'bold 0.3px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`wave ${S.map.opens[i]}`, Math.min(cols - 1.2, Math.max(1.2, ax + dy * 1.1 + dx * 1.2)), Math.min(rows - 0.4, Math.max(0.4, ay + dx * 0.7 + dy * 0.9)));
+      return;
+    }
     ctx.fillStyle = 'rgba(120,60,30,0.55)';
     ctx.beginPath();
     ctx.moveTo(ax + dx * 0.3, ay + dy * 0.3); ctx.lineTo(ax - dx * 0.2 - dy * 0.25, ay - dy * 0.2 - dx * 0.25); ctx.lineTo(ax - dx * 0.2 + dy * 0.25, ay - dy * 0.2 + dx * 0.25);
     ctx.fill();
-  }
+  });
   const [kx, ky] = S.map.paths[0][S.map.paths[0].length - 1];
   ctx.fillStyle = '#6b7684';
   ctx.fillRect(kx + 0.1, ky + 0.25, 0.8, 0.65);
@@ -1035,10 +1310,12 @@ function frame() {
     ctx.beginPath(); ctx.arc(x + 0.5, y + 0.5, r, 0, 7); ctx.fill(); ctx.stroke();
   };
   if (S.picked && hover && S.st.phase === 'play') {
-    const ok = free(...hover);
-    reach(hover[0], hover[1], Math.min(T[S.picked].base.range, 12), ok);
+    const hero = isHero(S.picked), ok = free(...hover) && !(hero && myHero());
+    reach(hover[0], hover[1], Math.min(hero ? heroStats(S.picked, 1).range : T[S.picked].base.range, 12), ok);
     ctx.globalAlpha = 0.6;
-    ctx.save(); ctx.translate(hover[0] + 0.5, hover[1] + 0.5); drawTower(ctx, S.picked, null, 0, ok ? '#fff' : '#ff5a4a'); ctx.restore();
+    ctx.save(); ctx.translate(hover[0] + 0.5, hover[1] + 0.5);
+    if (hero) drawHero(ctx, S.picked, 0, ok ? '#fff' : '#ff5a4a'); else drawTower(ctx, S.picked, null, 0, ok ? '#fff' : '#ff5a4a');
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
   if (S.item && hover && S.st.phase === 'play') {
@@ -1057,8 +1334,9 @@ function frame() {
   for (const tw of S.st.towers) {
     ctx.save();
     ctx.translate(tw.x + 0.5, tw.y + 0.5);
-    const side = tw.p == null ? 0 : tw.c[1 - tw.p];
-    drawTower(ctx, tw.k, tw.p, tw.n, tw.id === S.chosen ? '#fff' : player(tw.o)?.color || '#8a8580', side);
+    const side = tw.p == null ? 0 : tw.c[1 - tw.p], ring = tw.id === S.chosen ? '#fff' : player(tw.o)?.color || '#8a8580';
+    if (tw.h) drawHero(ctx, tw.k, tw.lv, ring);
+    else drawTower(ctx, tw.k, tw.p, tw.n, ring, side);
     if (S.dazed[tw.id] > 0) {   // knocked out by a boss: dark, with sparks
       ctx.fillStyle = 'rgba(10, 15, 30, 0.55)'; ctx.beginPath(); ctx.roundRect(-0.45, -0.45, 0.9, 0.9, 0.14); ctx.fill();
       ctx.strokeStyle = '#9fd0ff'; ctx.lineWidth = 0.04; ctx.beginPath();
@@ -1150,7 +1428,11 @@ function frame() {
   for (const bl of S.blasts) {
     const age = (t - bl.at) / 0.9, what = bl.do.startsWith('item:') ? bl.do.slice(5) : bl.do;
     const color = { strike: '255, 215, 90', stun: '200, 240, 255', flask: '200, 240, 255', slow: '120, 90, 40', burn: '255, 110, 30', gold: '255, 215, 90',
-      bounty: '255, 215, 90', zap: '150, 200, 255', skull: '255, 60, 60', keg: '255, 179, 71', unmake: '200, 160, 255', horn: '255, 215, 90' }[what] || '255, 255, 255';
+      bounty: '255, 215, 90', zap: '150, 200, 255', skull: '255, 60, 60', keg: '255, 179, 71', unmake: '200, 160, 255', horn: '255, 215, 90', level: '255, 215, 90', gate: '120, 60, 30' }[what] || '255, 255, 255';
+    if (what === 'level') {   // a hero levelling up: a gold ring round it
+      if (bl.from) { ctx.strokeStyle = `rgba(${color}, ${1 - age})`; ctx.lineWidth = 0.08; ctx.beginPath(); ctx.arc(bl.from[0] + 0.5, bl.from[1] + 0.5, 0.5 + age, 0, 7); ctx.stroke(); }
+      continue;
+    }
     if (what !== 'zap') { ctx.fillStyle = `rgba(${color}, ${(what === 'skull' ? 0.25 : 0.18) * (1 - age)})`; ctx.fillRect(0, 0, cols, rows); }
     ctx.fillStyle = `rgba(${color}, ${0.8 * (1 - age)})`;
     const rad = what === 'keg' ? S.cfg.items.keg.splash : 0.2 + age * 0.9;

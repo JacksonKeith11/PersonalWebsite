@@ -9,8 +9,9 @@ Co-op tower defence for 1-4 players, each on their own phone or computer (a fift
 joiners watch). Everyone builds on one map, but each player has their own purse. Every kill pays
 everyone who's connected equally, and a player can hand another 25 gold at a time, so the game is
 arguing about who pays for what. Thirty waves; twenty lives between everyone (a Warlord costs
-five). Five maps (Meadow, Crossing, Coil, Knot, where the road crosses itself, and Quarry, which
-can only be built on in a few cleared patches) and three difficulties, picked by the host. Between waves there are 12 seconds
+five). Eight maps (Meadow, Crossing, Coil, Knot, where the road crosses itself, Quarry, which
+can only be built on in a few cleared patches, and three with split roads: Fork, Twin Gates and
+Breach, below) and three difficulties, picked by the host. Between waves there are 12 seconds
 to build (25 before the first), or the wave comes at once when everyone presses Ready. The host
 can run the game at ×1, ×2 or ×3.
 
@@ -76,6 +77,41 @@ The owner asked for these in November 2026, all built together, after a comparis
   Flask (freezes everything for 2 s). Costs and damage grow with the wave; each player waits the
   item's cooldown (fight time) before using the same one again. Keg, Horn and Flask only while a wave
   is on.
+
+Asked for in November 2026, built together (items 2, 5 and 6 of a "next ten improvements" list):
+- **Heroes** (`HEROES` in data.py, `Hero` in game.py). Each seated player may have one hero on the
+  board, placed for free from the Heroes row (or H), and each hero only once in a room: Wren the Ranger (arrows; later sees Ghosts,
+  pierces, hurts anything, three arrows), Brannoc the Smith (a ground-only hammer blast; towers in
+  his reach hit up to 20% harder, through the support `power` number), Ysolde the Stormcaller (chain
+  lightning that jumps to more as she levels, and stuns) and Oda the Quartermaster (a weak crossbow,
+  `income` to her owner every wave, a `bounty` on kills in her reach, and a Supply Drop whose gold
+  is shared out). Levels 1-10: each level's
+  `set` replaces numbers as tiers do. Experience is `HERO_XP(wave)` (20 + 6 a wave) at the end of
+  each wave a hero was on the board for, times `hero_share(players)` (2 / (players + 1): all of it
+  solo, two thirds each for two, two fifths each for four), so `HERO_XP_TO` puts a solo hero at
+  level 10 around wave 26 and a four-player party's at about 8 by wave 30. Or it's bought:
+  anyone may pay to train a hero to its next level (`TRAIN_PRICE`, a gold an experience point).
+  Experience belongs to the player, so their hero can be moved between waves (Move picks it up) or
+  swapped for another and keeps the level. Two abilities each, at levels 3 and 7, whose `dmg`,
+  `gold` and `dps` grow by `grow` a level past the unlock (`hero_abilities`); the second has its
+  own cooldown (`cd2`, sent as `a2`; the `ability` message carries `n`). Heroes can't be sold or
+  upgraded; they count for kills, summaries and the boss's knock-outs like towers.
+- **Split roads.** Enemies take turns between a map's open paths (as they always did on Crossing),
+  so two paths with the same start make a fork. Fork: a long shared start, then the road splits
+  round a lake (the branches four squares apart, so a tower on the island reaches both) and joins
+  again before a shared end. Twin Gates: gates on opposite sides and mirrored roads that only meet at
+  the keep (bottom middle); their last stretches run down the middle two squares apart, where towers
+  reach both lanes. Breach: `opens` gives each path the wave its gate opens on (1, 11 and 21); a shut road is
+  drawn darkened with a barred gate and its wave, the wave box warns the wave before it opens, and
+  a rumble plays when it does. `Room.open_gates` keeps `open` (the open paths) and the road points
+  trappers lay on, which only cover open road.
+- **Clearer stats** (all worked out in the browser from the numbers sent): every tower and hero
+  panel starts with its damage a second (`dpsOf`: against one enemy and the most against a crowd,
+  or "to everything in a blast/reach"; piles and sentries their own way; before armour), what
+  support towers or Brannoc beside it add (`bo`, `pw`, `rc` in the tower's view), and what it can't
+  hurt (`blindSpots`: enemies immune to its type, flyers, anything on the ground, Ghosts it can't aim
+  at). Each next tier on a path, and a hero's next level, lists what it would change (`changes`):
+  damage a second before and after, the numbers that change, and enemies it could newly hurt.
 
 Every weapon has its own synthesized sound (and evolved towers sound bigger); the 🔊 button
 mutes them, remembered per browser; the 123 button floats damage numbers off enemies.
@@ -145,7 +181,8 @@ Earlier in November 2026, also asked for and built together:
   the boss event: sent when something structural changes; towers as `{id, k, p (main path), n (its
   tiers), c ([tiers on each path]), f (path bought first), x, y, o (owner), s (spent), kills, dmg,
   tg (targeting), un ([payer, seconds of undo left] or null), cs (can see Ghosts), ul (hurts every
-  type)}`; `coming`, the next wave's `[kind, count]` groups with the boss event's boss in place;
+  type), bo / pw / rc (faster, harder, further from support towers nearby), and for heroes h: 1 and
+  lv (level)}`; players carry `hxp`, their hero experience; `coming`, the next wave's `[kind, count]` groups with the boss event's boss in place;
   `item_wave`, the wave item prices go by; `summary`, `record_new` and `records` once a game ends,
   `records` in the lobby too) and `s`, the snapshot, ten times a second: `e`, enemies as `[id, kind
   index, x, y, health %, flags, damage since the last snapshot]` with flags 1 slowed, 2 burning,
@@ -155,17 +192,20 @@ Earlier in November 2026, also asked for and built together:
   seconds]` (at most 160; the browser flies them itself) and `pe`, the drawn ones that stopped;
   `bx`, blasts `[x, y, radius, look]`; `tr`, piles `[id, 0 spike / 1 mine / 2 tar, x, y]`; `se`,
   sentries `[id, x, y, workshop id]`; `dz`, towers knocked out and for how long; `k`, kill counts of
-  towers that killed something; `a`, evolved towers' ability cooldowns; `x`, abilities, items and
+  towers that killed something; `a`, evolved towers' and heroes' ability cooldowns, `a2`, heroes'
+  second abilities'; `x`, abilities, items and
   boss moves (`[tower id or 0, what, points...]`); `gl`, seconds left of Rally, Mark, Bounty Hunt and
   Unmake; `g`, every purse; `ic`, each player's item cooldowns; `n`, the seconds to the next wave.
 - From the browser: `set` (map, diff, bosses), `start`, `resume`, `speed`, `again`, `endless`
   (host); `forget`; `build`, `up` (with `path`, 0 or 1), `sell`, `undo`, `target`, `ability`,
-  `item` (`k`, and `x`, `y` unless it isn't aimed), `give`, `ready`.
+  `item` (`k`, and `x`, `y` unless it isn't aimed), `give`, `ready`, `hero` (`k`, `x`, `y`),
+  `dismiss` and `train` (`id`); `ability` takes `n` (0, or 1 for a hero's second).
 - `app/holdfast/save.py`: saved games and records in SQLite, at `HOLDFAST_DB` (default
   `data/holdfast.db`; the checks and smoke test point it at a temporary file). Like Kingfall's saves,
   each carries a `VERSION`; one from another version is deleted when listed (no migrations yet).
-  Version 2 (crosspathing and boss events) dropped every earlier save. Piles and sentries aren't
-  saved: a resumed game starts its build phase without them.
+  Version 2 (crosspathing and boss events) dropped every earlier save. Heroes (`heroes`) and each
+  player's `hxp` were added to version 2 saves as optional keys, so older saves still load (without
+  heroes). Piles and sentries aren't saved: a resumed game starts its build phase without them.
 - The browser (`js/main.js`) draws the board on one canvas in tile units, eases enemies between
   snapshots and flies projectiles along their sent velocity until they stop or run out of time.
   The boss bar is a DOM element over the board. The menu and lobby are the shared
@@ -194,7 +234,15 @@ Earlier in November 2026, also asked for and built together:
 - **Pressure all the way through, not only at the bosses.** Health grows as a polynomial
   (`1 + 0.45w + 0.06w²`), not an exponential: an exponential that's fair at wave 30 is a walkover
   until then.
-- **The panels never lie**: every number shown comes from the data the server sent.
+- **The panels never lie**: every number shown comes from the data the server sent. Damage a
+  second is worked out from those numbers, so it leaves out armour, misses and overkill: it compares
+  choices, it doesn't promise.
+- **Heroes are free, so they're modest.** A level-1 hero is about an Archer; a level-10 one about
+  a tier-3 tower, plus two abilities. The first numbers (level 10 about four tier-3 towers) let
+  every hero alone turn the test builders' hard games from 1 win in 6 to 6 in 6.
+- **Heroes mustn't make parties richer.** More players means more heroes, so each hero is once in
+  a room, experience is split by `hero_share`, and Oda's Supply Drop is shared out: one Oda each
+  in a four-player test multiplied her income by four and won every game.
 - **Works on a phone**: tap to build, the board on top and the panels under it.
 
 ## Gotchas
@@ -260,6 +308,19 @@ Earlier in November 2026, also asked for and built together:
 - **Projectiles are the slow part of the simulator**: the full balance run takes several times as
   long as it did with instant hits (`in_reach` checks distance first for that reason).
 - **Tiles are whole numbers**: `Room.free` refuses anything that isn't an `int` in range.
+- **A hero is a `Tower` underneath** (`Hero` overrides `restat`, `abilities` and `view`), so it
+  sits in `room.towers` and `room.at`. Anything that walks the towers for building plans or prices
+  (the simulator's builders, `D.TOWERS[t.kind]` lookups) must skip `t.hero`. Its level comes from its
+  owner's `hero_xp` (`Room.level_heroes`); a hero whose owner left keeps the level it had.
+- **A hero's `power` (Brannoc) helps the towers beside him, not himself**: `Room.hurt` uses the
+  attacker's `power` from support around it, and `boosts` skips a helper's own square.
+- **Experience is only earned on the board**: a hero picked up between waves earns nothing until
+  it's back, and training gives exactly the experience the next level needs.
+- **Enemies spread over open paths by `(group + i) % open paths`**, so a group of one (a named boss)
+  always takes the first open path of its group's turn. A path whose gate is shut is still road:
+  nothing can be built on it.
+- **The map's entry arrows are clamped onto the board**: Twin Gates' second road starts off the
+  right edge (column 20), and Breach's off the top.
 - The games live in the web process's memory: a deploy ends every game in progress.
 
 ## Balance
@@ -272,6 +333,53 @@ only from wave 15 with most of the price in hand, and use abilities when a crowd
 the board. They never sell, give gold, use items or send a wave early; now and then they buy a tier or two on a
 tower's other path; and two builders can both upgrade one tower (each remembers the tier it was
 saving for). `--bosses <name>` plays a boss event instead of Warlords. A decent human should do better.
+
+Latest run (November 2026, after heroes, split roads and clearer stats; one game each, the
+builders putting down a hero each before the first wave; 103 s for the first five maps, 37 s for
+the three new ones). "won, n lives" or the wave a lost game fell on:
+
+| | Easy | Normal | Hard |
+|---|---|---|---|
+| Meadow, 1 player | won, 16 lives | won, 16 lives | won, 7 lives |
+| Meadow, 2 players | won, 19 lives | won, 17 lives | won, 12 lives |
+| Meadow, 4 players | won, 15 lives | won, 13 lives | won, 10 lives |
+| Crossing, 1 player | won, 18 lives | won, 16 lives | won, 11 lives |
+| Crossing, 2 players | won, 20 lives | won, 9 lives | wave 23 |
+| Crossing, 4 players | won, 10 lives | wave 20 | wave 19 |
+| Coil, 1 player | won, 20 lives | won, 20 lives | won, 20 lives |
+| Coil, 2 players | won, 20 lives | won, 20 lives | won, 19 lives |
+| Coil, 4 players | won, 19 lives | won, 8 lives | won, 15 lives |
+| Knot, 1 player | won, 20 lives | won, 13 lives | won, 9 lives |
+| Knot, 2 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Knot, 4 players | won, 20 lives | won, 19 lives | won, 16 lives |
+| Quarry, 1 player | won, 12 lives | wave 20 | wave 14 |
+| Quarry, 2 players | won, 20 lives | wave 29 | wave 20 |
+| Quarry, 4 players | won, 17 lives | won, 9 lives | wave 14 |
+| Fork, 1 player | won, 17 lives | won, 17 lives | won, 17 lives |
+| Fork, 2 players | won, 20 lives | won, 15 lives | won, 16 lives |
+| Fork, 4 players | won, 17 lives | won, 6 lives | wave 29 |
+| Twin Gates, 1 player | won, 17 lives | won, 6 lives | wave 19 |
+| Twin Gates, 2 players | wave 27 | wave 15 | wave 15 |
+| Twin Gates, 4 players | wave 29 | wave 25 | wave 13 |
+| Breach, 1 player | won, 8 lives | wave 24 | wave 22 |
+| Breach, 2 players | won, 20 lives | won, 19 lives | won, 14 lives |
+| Breach, 4 players | wave 29 | wave 29 | wave 22 |
+
+37 of 45 on the first five maps (28 before heroes, in the last spot check). Heroes help
+parties more than solo builders: in a side test (hard and normal, the first five maps, one game each)
+two- and four-player parties went from 8 wins in 20 without heroes to 14 with one hero each, while
+solo builders did about as well with a hero as without (9 of 10 without, 7-8 with each hero: a hero
+takes the best square, and on Quarry one of the few). That narrows the old gap where parties did
+worse than solo builders. Before the trims, every hero alone (one each, so four Odas for four
+players) took the parties' hard games from 1 win in 6 to 6 in 6, and the first Twin Gates (short
+roads to a keep in the middle, nowhere that reached both) was lost on wave 3 alone even on easy.
+Its second try (mirrored spirals three squares apart) still split the builders' towers into one
+lane each. Fork is a middling map; Twin Gates and Breach are hard ones, like Crossing and Knot: a
+Twin Gates party splits its towers between the lanes, and on Breach the new gates' shorter roads
+arrive on waves 11 and 21. The levers: `HEROES` numbers and `hero_share`; for the maps, how close
+Twin Gates' middle roads run and how long Breach's late roads are.
+
+The run before:
 
 Latest runs (November 2026, after crosspathing, projectiles, the six new towers, immunities,
 layered enemies, boss events and items). First the full run (3 games each, 179 s; it was about 98 s

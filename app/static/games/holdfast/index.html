@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=7">
+  <link rel="stylesheet" href="/static/games/holdfast/game.css?v=10">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -44,6 +44,7 @@
         <ul>
           <li>Enemies walk the road to the keep. Each one that gets there costs a life (a Warlord costs five). You share twenty.</li>
           <li>Pick a tower from the bar, then click or tap a free square to build it. Click a tower to see its kills and upgrade it (anyone can pay) or sell it (only its builder).</li>
+          <li>Each player also gets one <b>hero</b>, for free: Wren the Ranger, Brannoc the Smith, Ysolde the Stormcaller or Oda the Quartermaster. Put yours down from the Heroes row (each hero once in a room). Heroes level up after every wave they're on the board for (up to level 10), unlock two abilities on the way, and anyone can pay to train one sooner. Move yours between waves; it keeps its level.</li>
           <li>Every tower has two upgrade paths of four tiers. You can buy on both, but only one path can go past tier 2: the other gives a smaller bonus "on the side". At the end of each path is a <b>final evolution</b>: expensive, a lot stronger, and only one of each can stand on the map at a time.</li>
           <li>Arrows, bolts and shells really fly: they aim where an enemy is going, can miss, and many go through more than one enemy.</li>
           <li>Every kill pays everyone equally. If a friend is short, give them gold from the players list.</li>
@@ -57,6 +58,8 @@
           <li>Ghosts are camouflaged: only some upgrades can see them (and towers next to a Spyglass beacon). Menders heal the enemies around them, Splitters burst into Swarmlings, and Warlords call up Grunts.</li>
           <li>Every tenth wave brings a boss. The host can pick a boss event instead of Warlords: the Gravewarden, the Stormhulk or the Ironmaw, each with its own tricks when its health falls past a skull.</li>
           <li>Each tower can aim at the first enemy, the last, the strongest or the closest. A final evolution has an ability too: press it (or Q) when it's ready.</li>
+          <li>Click a tower to see its damage a second, what it can't hurt, and what each upgrade would change.</li>
+          <li>Some maps split the road (every other enemy takes each way), have two gates, or open new gates partway through: watch the warning in the wave box.</li>
           <li>Made a mistake? A build or upgrade can be undone for a full refund for a few seconds.</li>
           <li>Win all thirty waves and the host can keep going into endless waves. Games save between waves: resume them from the room.</li>
         </ul>
@@ -120,10 +123,11 @@
       <div class="stage">
         <div id="bossbar" hidden></div>
         <canvas id="board"></canvas>
-        <div id="abilities" role="group" aria-label="Final evolutions' abilities" hidden></div>
+        <div id="abilities" role="group" aria-label="Abilities" hidden></div>
+        <div id="heroes" role="group" aria-label="Heroes"></div>
         <div id="palette" role="group" aria-label="Towers to build"></div>
         <div id="items" role="group" aria-label="One-use items"></div>
-        <p class="keys">Keys: 1-9, 0 and Shift+1-5 pick a tower · Z / X buy on the first / second path · Q ability · T targeting · U undo · Space ready · Esc put away</p>
+        <p class="keys">Keys: 1-9, 0 and Shift+1-5 pick a tower · Z / X buy on the first / second path · Q ability · H your hero · T targeting · U undo · Space ready · Esc put away</p>
       </div>
       <aside>
         <section id="wavebox">
@@ -158,6 +162,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/holdfast/js/main.js?v=7"></script>
+  <script type="module" src="/static/games/holdfast/js/main.js?v=10"></script>
 </body>
 </html>

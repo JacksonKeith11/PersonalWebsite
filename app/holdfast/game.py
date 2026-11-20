@@ -75,23 +75,27 @@ class Player:
         self.spent = 0
         self.ready = False
         self.items = {}  # item -> fight time it can be used again
+        self.hero_xp = 0  # experience: it's the player's, so a hero moved or swapped keeps its level
 
 
 class Tower:
+    hero = False
+
     def __init__(self, tid, kind, x, y, owner):
         self.id, self.kind, self.x, self.y, self.owner = tid, kind, x, y, owner
         self.tiers = [0, 0]  # tiers bought on each path
         self.first = None  # the path bought first (it's the main one on a tie)
-        self.spent = D.TOWERS[kind]["cost"]
+        self.spent = D.TOWERS[kind]["cost"] if kind in D.TOWERS else 0
         self.cool = 0.3
         self.boost = self.reach = self.power = 0.0  # from support towers nearby
         self.unlock = False  # hurts every type, thanks to a support tower nearby
         self.kills = 0
         self.dmg = 0.0
-        self.stats = D.stats(kind)
+        self.restat()
         self.target = "first"
         self.sees = False  # can it target Ghosts?
         self.cd = 0.0  # seconds of fighting before its ability is ready again
+        self.cd2 = 0.0  # the same for a hero's second ability
         self.overdrive = (0.0, 1.0)  # (fight time it lasts until, how much faster)
         self.dazed = 0.0  # fight time until which a boss has knocked it out
         self.undo = None  # (monotonic time it expires, who paid, "build" or "up", cost, path)
@@ -129,13 +133,47 @@ class Tower:
             return D.TOWERS[self.kind]["paths"][self.path]["tiers"][D.EVOLUTION - 1].get("ability")
         return None
 
+    @property
+    def abilities(self):
+        a = self.ability
+        return [a] if a else []
+
     def view(self):
         undo = None
         if self.undo and self.undo[0] > time.monotonic():
             undo = [self.undo[1], round(self.undo[0] - time.monotonic(), 1)]
         return {"id": self.id, "k": self.kind, "p": self.path, "n": self.tier, "c": list(self.tiers),
                 "f": self.first, "x": self.x, "y": self.y, "o": self.owner, "s": self.spent, "kills": self.kills,
-                "dmg": round(self.dmg), "tg": self.target, "un": undo, "cs": self.sees, "ul": self.unlock}
+                "dmg": round(self.dmg), "tg": self.target, "un": undo, "cs": self.sees, "ul": self.unlock,
+                "bo": round(self.boost, 2), "pw": round(self.power, 2), "rc": round(self.reach, 2)}
+
+
+class Hero(Tower):
+    """A player's hero: placed for free, one each, levelled by its owner's experience (data.HEROES).
+    It fights like a tower, but can't be sold or upgraded, only trained, and has up to two abilities."""
+
+    hero = True
+
+    def __init__(self, tid, kind, x, y, owner, level=1):
+        self.level = level
+        super().__init__(tid, kind, x, y, owner)
+
+    def restat(self):
+        self.stats = D.hero_stats(self.kind, self.level)
+
+    @property
+    def abilities(self):
+        return D.hero_abilities(self.kind, self.level)
+
+    @property
+    def ability(self):
+        a = self.abilities
+        return a[0] if a else None
+
+    def view(self):
+        v = super().view()
+        v.update(h=1, lv=self.level)
+        return v
 
 
 class Sentry:
@@ -286,6 +324,8 @@ class Room:
         self.next_tower = self.next_enemy = self.next_shot = self.next_trap = self.next_sentry = 1
         self.routes = []
         self.flights = []
+        self.opens = []  # the wave each path's gate opens on
+        self.open = ()  # the paths open in the latest wave
         self.since_snap = 0.0
         self.dirty = False
         self.buildable = set()
@@ -354,7 +394,8 @@ class Room:
         self.send(p, {"t": "welcome", "you": p.id, "code": self.code, "towers": D.TOWERS, "enemies": D.ENEMIES,
                       "kinds": D.KINDS, "cols": D.COLS, "rows": D.ROWS, "waves": D.WAVES, "gift": GIFT,
                       "sell": D.SELL_BACK, "max": MAX_PLAYERS, "targets": TARGETS, "undo": UNDO,
-                      "items": D.ITEMS, "bosses": D.BOSSES, "evolution": D.EVOLUTION, "cross_max": D.CROSS_MAX,
+                      "items": D.ITEMS, "bosses": D.BOSSES, "heroes": D.HEROES, "hero_xp_to": D.HERO_XP_TO,
+                      "train_price": D.TRAIN_PRICE, "evolution": D.EVOLUTION, "cross_max": D.CROSS_MAX,
                       "cross_mul": sorted(D.CROSS_MUL), "cross_add": sorted(D.CROSS_ADD),
                       "maps": {k: {"name": m["name"], "blurb": m["blurb"]} for k, m in D.MAPS.items()}})
         if self.phase != "lobby":
@@ -433,7 +474,16 @@ class Room:
             elif t == "target" and msg.get("v") in TARGETS and msg.get("id") in self.towers:
                 self.towers[msg["id"]].target = msg["v"]
             elif t == "ability":
-                if not self.use_ability(self.towers.get(msg.get("id"))):
+                n = msg.get("n", 0)
+                if type(n) is not int or not self.use_ability(self.towers.get(msg.get("id")), n):
+                    return
+            elif t == "hero":
+                if not self.place_hero(p, msg.get("k"), msg.get("x"), msg.get("y")):
+                    return
+            elif t == "dismiss":
+                self.dismiss(p, self.towers.get(msg.get("id")))
+            elif t == "train":
+                if not self.train(p, self.towers.get(msg.get("id"))):
                     return
             elif t == "item":
                 if not self.use_item(p, msg.get("k"), msg.get("x"), msg.get("y")):
@@ -466,10 +516,27 @@ class Room:
         self.routes = [make_route(path) for path in m["paths"]]
         # flyers cut straight from where a road starts to the keep
         self.flights = [make_route([path[0], path[-1]]) for path in m["paths"]]
+        self.opens = D.opens(m)
         self.buildable = D.buildable(m)
         self.road_tiles = D.path_tiles(m)
+        self.open_gates(1)
+        self.roadside = sorted((x, y) for x in range(D.COLS) for y in range(D.ROWS) if (x, y) not in self.road_tiles
+                               and any((x + dx, y + dy) in self.road_tiles for dx in (-1, 0, 1) for dy in (-1, 0, 1)))
+        self.phase = "play"
+        self.speed = 1
+        self.game_id = secrets.token_hex(8)
+
+    def open_gates(self, wave):
+        """Which paths are open on `wave`; when that changes, trappers learn the road again (they
+        only lay piles on open road). True if a gate opened."""
+        now_open = tuple(i for i, w in enumerate(self.opens) if w <= wave) or (0,)
+        if now_open == self.open:
+            return False
+        opened = bool(self.open)
+        self.open = now_open
         pts = set()
-        for route, length in self.routes:
+        for i in now_open:
+            route, length = self.routes[i]
             d = 0.0
             while d <= length:
                 x, y, _, _ = where(route, d)
@@ -477,11 +544,9 @@ class Room:
                     pts.add((round(x, 2), round(y, 2)))
                 d += 0.25
         self.road_pts = sorted(pts)
-        self.roadside = sorted((x, y) for x in range(D.COLS) for y in range(D.ROWS) if (x, y) not in self.road_tiles
-                               and any((x + dx, y + dy) in self.road_tiles for dx in (-1, 0, 1) for dy in (-1, 0, 1)))
-        self.phase = "play"
-        self.speed = 1
-        self.game_id = secrets.token_hex(8)
+        for t in self.towers.values():
+            t.spots = (None, [])
+        return opened
 
     def start(self):
         self.setup_map()
@@ -497,7 +562,7 @@ class Room:
     def send_map(self, p):
         m = D.MAPS[self.map]
         self.send(p, {"t": "map", "name": m["name"], "paths": m["paths"], "rocks": m["rocks"],
-                      "build": m.get("build")})
+                      "build": m.get("build"), "opens": self.opens})
 
     def free(self, x, y):
         return type(x) is int and type(y) is int and (x, y) in self.buildable and (x, y) not in self.at
@@ -523,7 +588,7 @@ class Room:
     def upgrade(self, p, t, path):
         """Buy the next tier on `path`. Both paths can be bought, but only one past tier 2 (a tower
         is at most 4-2); a final evolution only if there isn't one already. Anyone may pay."""
-        if t is None or path not in (0, 1) or not D.can_buy(t.tiers, path):
+        if t is None or t.hero or path not in (0, 1) or not D.can_buy(t.tiers, path):
             return False
         nxt = t.tiers[path] + 1
         if nxt == D.EVOLUTION and self.evolved(t.kind, path):
@@ -563,7 +628,7 @@ class Room:
         self.boosts()
 
     def sell(self, p, t):
-        if t is None or t.owner != p.id:
+        if t is None or t.owner != p.id or t.hero:
             return
         if t.kills:
             self.retired.append((self.tower_name(t), t.owner, t.kills, t.dmg))
@@ -571,6 +636,68 @@ class Room:
         del self.towers[t.id]
         del self.at[(t.x, t.y)]
         self.boosts()
+
+    def hero_of(self, p):
+        return next((t for t in self.towers.values() if t.hero and t.owner == p.id), None)
+
+    def place_hero(self, p, kind, x, y):
+        """Put a player's hero on the board, for free: one each, and each hero only once in a room.
+        It comes at the level its owner's experience has reached."""
+        if kind not in D.HEROES or not self.free(x, y) or self.hero_of(p):
+            return None
+        if any(t.hero and t.kind == kind for t in self.towers.values()):
+            return None  # each hero once in a room
+        t = Hero(self.next_tower, kind, x, y, p.id, D.hero_level(p.hero_xp))
+        self.next_tower += 1
+        self.towers[t.id] = self.at[(x, y)] = t
+        self.boosts()
+        return t
+
+    def dismiss(self, p, t):
+        """Take your hero off the board between waves (to put it somewhere else, or pick another).
+        Its experience stays with you."""
+        if t is None or not t.hero or t.owner != p.id or self.fighting:
+            return
+        if t.kills:
+            self.retired.append((self.tower_name(t), t.owner, t.kills, t.dmg))
+        del self.towers[t.id]
+        del self.at[(t.x, t.y)]
+        self.boosts()
+
+    def train_cost(self, t):
+        """Gold to train a hero to its next level, or None if it can't be (top level, no owner)."""
+        owner = self.players.get(t.owner) if t and t.hero else None
+        if owner is None or t.level >= D.HERO_LEVELS:
+            return None
+        return max(1, math.ceil((D.HERO_XP_TO[t.level] - owner.hero_xp) * D.TRAIN_PRICE))
+
+    def train(self, p, t):
+        """Anyone may pay to train a hero up a level."""
+        cost = self.train_cost(t)
+        if cost is None or p.gold < cost:
+            return False
+        p.gold -= cost
+        p.spent += cost
+        owner = self.players[t.owner]
+        owner.hero_xp = max(owner.hero_xp, D.HERO_XP_TO[t.level])
+        self.level_heroes()
+        return True
+
+    def level_heroes(self):
+        """Bring every hero up to the level its owner's experience has reached."""
+        changed = False
+        for t in self.towers.values():
+            owner = self.players.get(t.owner)
+            if t.hero and owner is not None:
+                lv = D.hero_level(owner.hero_xp)
+                if lv != t.level:
+                    t.level = lv
+                    t.restat()
+                    self.effects.append([t.id, "level"])
+                    changed = True
+        if changed:
+            self.boosts()
+            self.dirty = True
 
     def boosts(self):
         """Work out what the support towers in reach do for each tower: the best of each kind counts."""
@@ -605,10 +732,12 @@ class Room:
         self.fighting = True
         for p in self.players.values():
             p.ready = False
+        if self.open_gates(self.wave):
+            self.effects.append([0, "gate"])
         spawns = []
         for g, (kind, count, gap, delay) in enumerate(self.groups(self.wave)):
-            for i in range(count):
-                spawns.append((delay + i * gap, kind, (g + i) % len(self.routes)))
+            for i in range(count):  # enemies take turns between the open paths
+                spawns.append((delay + i * gap, kind, self.open[(g + i) % len(self.open)]))
         self.spawns = sorted(spawns, reverse=True)
         self.dirty = True
 
@@ -1075,6 +1204,7 @@ class Room:
         for t in self.towers.values():
             t.cool -= dt
             t.cd = max(0.0, t.cd - dt)
+            t.cd2 = max(0.0, t.cd2 - dt)
             if t.cool <= 0 and t.dazed <= now and self.fire(t):
                 fast = t.overdrive[1] if now < t.overdrive[0] else 1.0
                 t.cool = t.stats["rate"] / (1 + t.boost) / fast / rally
@@ -1110,6 +1240,11 @@ class Room:
             for m in self.towers.values():  # mints (and other towers with income) pay their builders
                 if m.stats.get("income") and m.owner in self.players:
                     self.players[m.owner].gold += m.stats["income"]
+            share = D.hero_share(sum(p.seated for p in self.players.values()))
+            for h in self.towers.values():  # heroes on the board learn from the wave
+                if h.hero and h.owner in self.players:
+                    self.players[h.owner].hero_xp += round(D.HERO_XP(self.wave) * share)
+            self.level_heroes()
             if self.wave == D.WAVES and not self.endless:
                 self.phase = "won"
                 self.end_game(True)
@@ -1119,10 +1254,12 @@ class Room:
 
     # ------------------------------------------------------------ abilities and items
 
-    def use_ability(self, t):
-        """Set off a final evolution's ability, if it's ready and there's a fight on."""
-        a = t.ability if t else None
-        if a is None or t.cd > 0 or not self.fighting:
+    def use_ability(self, t, n=0):
+        """Set off a final evolution's ability (or a hero's first or second), if it's ready and
+        there's a fight on."""
+        have = t.abilities if t else []
+        a = have[n] if 0 <= n < len(have) else None
+        if a is None or (t.cd2 if n else t.cd) > 0 or not self.fighting:
             return False
         now = self.fight_t
         ground = a.get("ground", False)
@@ -1192,13 +1329,16 @@ class Room:
             elif do == "unmake":
                 self.unmake = now + a["secs"]
             elif do == "gold":
-                for p in self.players.values():
-                    if p.seated:
-                        p.gold += a["gold"]
+                seated = [p for p in self.players.values() if p.seated]
+                for p in seated:
+                    p.gold += a["gold"] / len(seated) if a.get("share") else a["gold"]
             elif do == "bounty":
                 self.bounty_up = (now + a["secs"], a["more"])
             self.effects.append([t.id, do])
-        t.cd = a["cd"]
+        if n:
+            t.cd2 = a["cd"]
+        else:
+            t.cd = a["cd"]
         return True
 
     def use_item(self, p, kind, x=None, y=None):
@@ -1247,7 +1387,9 @@ class Room:
 
     @staticmethod
     def tower_name(t):
-        """A tower's final evolution's name, or its kind's."""
+        """A tower's final evolution's name, or its kind's (a hero's name)."""
+        if t.hero:
+            return D.HEROES[t.kind]["name"]
         if t.tier >= D.EVOLUTION:
             return D.TOWERS[t.kind]["paths"][t.path]["tiers"][D.EVOLUTION - 1]["name"]
         return D.TOWERS[t.kind]["name"]
@@ -1292,11 +1434,14 @@ class Room:
             "map": self.map, "diff": self.diff, "bosses": self.bosses, "wave": self.wave, "lives": self.lives,
             "endless": self.endless, "leaks": sorted([w, n] for w, n in self.leaks.items()),
             "players": [{"token": p.token, "name": p.name, "color": p.color, "gold": p.gold, "kills": p.kills,
-                         "dmg": p.dmg, "spent": p.spent} for p in seated],
+                         "dmg": p.dmg, "spent": p.spent, "hxp": p.hero_xp} for p in seated],
             "towers": [{"k": t.kind, "c": t.tiers, "f": t.first, "x": t.x, "y": t.y, "s": t.spent, "kills": t.kills,
                         "dmg": t.dmg, "tg": t.target, "cd": t.cd,
                         "o": self.players[t.owner].token if t.owner in self.players else None}
-                       for t in self.towers.values()],
+                       for t in self.towers.values() if not t.hero],
+            "heroes": [{"k": t.kind, "x": t.x, "y": t.y, "lv": t.level, "kills": t.kills, "dmg": t.dmg, "tg": t.target,
+                        "cd": t.cd, "cd2": t.cd2, "o": self.players[t.owner].token if t.owner in self.players else None}
+                       for t in self.towers.values() if t.hero],
         }
         names = ", ".join(p.name for p in seated)
         boss = "" if self.bosses == "warlord" else f", {D.BOSSES[self.bosses]}"
@@ -1333,6 +1478,7 @@ class Room:
                 self.players[q.id] = q
             q.seated = True
             q.gold, q.kills, q.dmg, q.spent = saved["gold"], saved["kills"], saved["dmg"], saved["spent"]
+            q.hero_xp = saved.get("hxp", 0)
             by_token[saved["token"]] = q
         for q in self.players.values():  # newcomers take any seats left, with a little gold
             if not q.seated and sum(o.seated for o in self.players.values()) < MAX_PLAYERS:
@@ -1349,6 +1495,17 @@ class Room:
             t.spent, t.kills, t.dmg, t.cd = saved["s"], saved["kills"], saved["dmg"], saved.get("cd", 0.0)
             t.target = saved.get("tg", "first") if saved.get("tg") in TARGETS else "first"
             self.towers[t.id] = self.at[(t.x, t.y)] = t
+        for saved in state.get("heroes", []):
+            if saved["k"] not in D.HEROES or not self.free(saved["x"], saved["y"]):
+                continue
+            owner = by_token.get(saved["o"])
+            level = D.hero_level(owner.hero_xp) if owner else min(D.HERO_LEVELS, max(1, saved.get("lv", 1)))
+            t = Hero(self.next_tower, saved["k"], saved["x"], saved["y"], owner.id if owner else None, level)
+            self.next_tower += 1
+            t.kills, t.dmg, t.cd, t.cd2 = saved["kills"], saved["dmg"], saved.get("cd", 0.0), saved.get("cd2", 0.0)
+            t.target = saved.get("tg", "first") if saved.get("tg") in TARGETS else "first"
+            self.towers[t.id] = self.at[(t.x, t.y)] = t
+        self.open_gates(max(1, self.wave))
         self.boosts()
         for q in self.players.values():
             self.send_map(q)
@@ -1384,7 +1541,8 @@ class Room:
                   for e in self.enemies],
             "bo": [[e.id, kinds[e.kind], round(100 * e.hp / e.max), e.tier, round(100 * e.shell / e.max)]
                    for e in self.enemies if e.event],
-            "a": {t.id: round(t.cd, 1) for t in self.towers.values() if t.tier >= D.EVOLUTION},
+            "a": {t.id: round(t.cd, 1) for t in self.towers.values() if t.tier >= D.EVOLUTION or (t.hero and t.abilities)},
+            "a2": {t.id: round(t.cd2, 1) for t in self.towers.values() if t.hero and len(t.abilities) > 1},
             "dz": {t.id: round(t.dazed - now, 1) for t in self.towers.values() if t.dazed > now},
             "x": self.effects,
             "gl": [round(max(0.0, until - now), 1) for until in (self.rally[0], self.mark[0], self.bounty_up[0], self.unmake)],
@@ -1426,7 +1584,7 @@ class Room:
             "bosses": self.bosses,
             "players": [{"id": p.id, "name": p.name, "color": p.color, "on": p.connected, "seated": p.seated,
                          "gold": int(p.gold), "kills": p.kills, "dmg": round(p.dmg), "spent": p.spent,
-                         "ready": p.ready} for p in self.players.values()],
+                         "ready": p.ready, "hxp": p.hero_xp} for p in self.players.values()],
         }
         if self.phase != "lobby":
             nxt = self.wave + 1

@@ -14,7 +14,8 @@ how many games were won, the wave reached and the lives left. `--fast` plays one
 on normal with two players (a few seconds): `tools/check-all.sh` uses it to see the fight runs.
 `--bosses <warlord|gravewarden|stormhulk|ironmaw|random>` picks the boss event (default Warlords).
 Builders also buy a tier or two on a tower's other path now and then (crosspathing), but never use
-items.
+items. Each puts a hero down before the first wave (the four in turn, where it covers the most road),
+never trains it with gold, and uses its abilities like a tower's.
 """
 
 import math
@@ -48,9 +49,9 @@ class Builder:
         self.save_for = None
 
     def cover(self, kind, x, y):
-        r = min(D.TOWERS[kind]["base"]["range"], 4)
+        r = min((D.TOWERS.get(kind) or D.HEROES[kind])["base"]["range"], 4)
         if kind in ("beacon", "mint"):
-            return sum(1 for t in self.room.towers.values() if t.kind != "beacon" and math.hypot(t.x - x, t.y - y) <= r)
+            return sum(1 for t in self.room.towers.values() if t.kind != "beacon" and not t.hero and math.hypot(t.x - x, t.y - y) <= r)
         return sum(1 for px, py in self.room.road if math.hypot(px - x, py - y) <= r)
 
     def plan(self, t):
@@ -76,7 +77,7 @@ class Builder:
             return
         cost = lambda t: D.TOWERS[t.kind]["paths"][self.plan(t)]["tiers"][D.EVOLUTION - 1]["cost"]  # noqa: E731
         ready = [t for t in room.towers.values()
-                 if t.tier == D.EVOLUTION - 1 and not room.evolved(t.kind, self.plan(t))]
+                 if not t.hero and t.tier == D.EVOLUTION - 1 and not room.evolved(t.kind, self.plan(t))]
         if ready:
             t = min(ready, key=cost)
             self.save_for = ("up", t.id, t.tier)
@@ -87,13 +88,16 @@ class Builder:
         if not room.fighting:
             return
         foes = [e for e in room.enemies if e.hp > 0]
-        for t in room.towers.values():
-            if t.ability and t.cd <= 0 and (len(foes) >= 8 or any(e.boss for e in foes)):
-                room.use_ability(t)
+        if len(foes) < 8 and not any(e.boss for e in foes):
+            return
+        for t in list(room.towers.values()):
+            for n, _ in enumerate(t.abilities):
+                if (t.cd2 if n else t.cd) <= 0:
+                    room.use_ability(t, n)
 
     def think(self):
         room, p = self.room, self.p
-        towers = list(room.towers.values())
+        towers = [t for t in room.towers.values() if not t.hero]
         self.abilities()
         for t in towers:  # sniper ballistas go for the toughest; the rest take the first in line
             if t.kind == "ballista" and t.path == 0:
@@ -161,6 +165,11 @@ def play(map_id, diff, n, seed, bosses="warlord"):
         room.road += [(x0 + (x1 - x0) * i / length, y0 + (y1 - y0) * i / length) for i in range(0, int(length), 2)]
     room.starrer = None  # the builder saving for a final evolution
     builders = [Builder(room, p, rng) for p in room.players.values()]
+    heroes = list(D.HEROES)
+    for i, b in enumerate(builders if heroes else []):
+        kind = heroes[(seed + i) % len(heroes)]
+        spots = [xy for xy in room.buildable if xy not in room.at]
+        room.place_hero(b.p, kind, *max(spots, key=lambda s: (b.cover(kind, *s), rng.random())))
     steps = 0
     while room.phase == "play":
         room.advance(game.STEP)

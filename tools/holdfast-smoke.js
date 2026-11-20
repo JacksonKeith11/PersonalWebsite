@@ -1,6 +1,6 @@
 // Plays Holdfast in two headless browsers (one phone-sized). The host makes a room, picks a map
 // and difficulty; a friend joins by the link. They build (by click and by tap), are refused a tower on
-// the road, undo a build, aim a tower, give gold, upgrade each other's towers along a path (the other
+// the road, undo a build, put a hero down and pick it up, aim a tower, give gold, upgrade each other's towers along a path (the other
 // path stays open for a side tier) and sell their own; a Caltrops item is put on the road; kill counts and the mute button work; the end screen sums the game
 // up, and the room's records show it; a wave is fought and its
 // enemies, shots and bounties must show up on both screens; then, with every tower sold, the keep
@@ -135,6 +135,21 @@ async function serve() {
     await friend.click('#info .undo-btn');
     await friend.waitForFunction(`!${at(10, 10)}`);
     if (await gold(friend, 'Bo') !== before) throw new Error('an undone build was not refunded in full');
+    // Heroes: Bo puts Ysolde down for free, opens her panel from her button, isn't offered a second
+    // hero, and picks her up again (heroes move between waves).
+    await friend.keyboard.press('Escape');
+    await friend.click('#heroes button[data-kind=ysolde]');
+    await tile(friend, 10, 10);
+    await host.waitForFunction(() => window.holdfast.S.st.towers.some(t => t.h && t.k === 'ysolde' && t.lv === 1));
+    if (await gold(friend, 'Bo') !== before) throw new Error('a hero cost gold');
+    await friend.waitForFunction(() => document.querySelector('#heroes button[data-kind=wren]').disabled);
+    await friend.click('#heroes button[data-kind=ysolde]');   // her button opens her panel now
+    await friend.waitForFunction(() => /Level 1/.test(document.getElementById('info').textContent));
+    for (const want of ['Damage a second', "Can't hurt", 'Level 2', 'Train']) {
+      if (!(await friend.textContent('#info')).includes(want)) throw new Error(`the hero's panel has no "${want}"`);
+    }
+    await friend.click('#info .move-btn');
+    await host.waitForFunction(() => !window.holdfast.S.st.towers.some(t => t.h));
     // Targeting: Ada points her archer at the strongest; Bo sees it change.
     await host.keyboard.press('Escape');
     await tile(host, 2, 3);

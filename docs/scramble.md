@@ -18,8 +18,10 @@ get your speed back, so hopping beats running), and the **Caverns** are dark (on
 `darkness()` in `main.js` lights a pool round the racer the camera follows, dimmer ones round the
 others, and glows round saws, boxes, flags, lava and the finish). The countdown and the first seconds
 of the race say so. Each course gets harder along its length,
-from difficulty 0.35 at the first obstacle to 1 at the last (`D_FIRST`), and every kind of segment
-scales with it (wider gaps, thinner pillars, faster saws, extra hazards). Touch a spike or a saw, or
+from difficulty 0.75 at the first obstacle to 1.3 at the last (`D_FIRST`, `D_LAST`), and every kind of segment
+scales with it (wider gaps, thinner pillars, faster saws, extra hazards; past 1 the numbers carry on past
+each segment's "hard" ones, and `more(d)` adds one more of a segment's repeated obstacle past 0.6 and
+another past 1.1). The owner found the old range (0.35 to 1) too easy, some segments crossable by just running. Touch a spike or a saw, or
 fall in a pit, and after 1.2 s you start that segment again from its flag. Racers run through each
 other. Besides running and jumping there's an **air dash** (X, S, K or down; Dash on a phone): a burst
 level and fast for 0.16 s, once per jump, given back on landing or a spring. Once the first racer finishes, the rest get 25 seconds or 70% of the winner's time, whichever
@@ -143,6 +145,12 @@ alone on the course only rolls boosts.
 
 ## Design directives
 
+- **A segment must take attention, and provably so.** `tools/scramble-easy.mjs` plays every segment
+  lazily (holding right, or holding right and jumping on a steady beat, arriving at six different
+  race times) and fails any that more than a fifth of those runs get through, at the first obstacle's
+  difficulty and at the last's. Moving hazards that a runner meets in turn are best timed against
+  each other so nobody gets through them all at a run (the crushers are each a quarter beat on from
+  the last for a runner; the barrels' saws all clear together at one moment to get in).
 - **A segment must be finishable, and provably so.** `tools/scramble-check.mjs` searches the real
   physics for a way through several random builds of every segment, easy and hard, without the dash
   (so the dash is only ever a way to be quicker). A new segment
@@ -180,6 +188,9 @@ alone on the course only rolls boosts.
   everyone saw everyone else stuck at the start. The smoke test now checks a racer moves in round 2.
 - **`fx.pos`, not `fx.at`**: the browser stamps every effect with `at` (its own clock), so a bomb's
   position travels as `pos`.
+- **The checker's state key includes when you got into a barrel**: an automatic barrel fires 0.25 s
+  after, so two racers sitting in the same barrel can have different futures. Without it the search
+  merged them and kept the wrong one, and said a barrel run with saws on it was impossible.
 - **The checker's beam keeps a spread of positions** (at most a twelfth of it per 64 px), or states
   standing on platforms about to vanish crowd out the ones waiting further back for them to come round.
 - **Blinking platforms must move slower than a runner**: the wave advances a platform a quarter
@@ -204,19 +215,25 @@ alone on the course only rolls boosts.
 ## Checking a change
 
 - `node tools/scramble-check.mjs` (about 5 minutes on four cores; 600 courses): every segment can be
-  finished, at difficulty 0.35 and at 1 on three random builds, and at 1 on snow and on the dunes. The
+  finished, at difficulty 0.75 and at 1.3 (`D_FIRST`, `D_LAST`) on three random builds, and at 1.3 on snow and on the dunes. The
   searches run in one worker thread per core. `check-all.sh` runs one build of each
   (`node tools/scramble-check.mjs 1`, about 2 m 20 s); run all three after changing a segment, or
   name the segments to search just those (`node tools/scramble-check.mjs 3 maces swings`). A new
   segment goes in `SEGMENTS` (the newer ones in `MORE`) and must pass it. On ice the search tells states apart by speed in steps of 100 px/s; finer and the
   600 states it keeps fill up with near-copies and it loses the way up the lava (a wider search,
   3000, finds it either way).
+- `node tools/scramble-easy.mjs [variants] [--first] [-v] [segments...]` (about 30 s for three builds of
+  everything): no segment is got through by lazy play, at the last obstacle's difficulty (`--first`:
+  the first's). `check-all.sh` runs both. `-v` lists every segment's shares; after the November 2026
+  pass the worst were about 20% of beats (portals) and 17% of plain runs (saws, maces).
 - `python3 tools/scramble-check.py` (about 5 s): bots race whole games on a fake clock (one human
   standing still, seven bots using items on each other); scoring, finishing, watching, leaving, every
   item (bolts and freezes arriving late, and blocked by a late shield), emotes, hats, records and
   awards; the fork's slow way and the lift, bot dashes, bots waiting for a good moment to use an
-  item, and the props (where they go, what they do to bots, running out, bombs). Latest runs (November 2026, after the 54 new segments and the props): bots finish in 35-129 s
-  (average about 74), and 5-15 of about 105 run out of time; before them, 36-123 s and 6-20. Before the difficulty and item changes it was 26-70 s and
+  item, and the props (where they go, what they do to bots, running out, bombs). Its item-timing
+  checks place the human relative to where `place_bot` actually put the bot, since the ground moves with the course. Latest runs (November 2026, after the harder difficulty range): bots finish in 39-135 s
+  (average about 80), and 9-11 of about 105 run out of time; after the 54 new segments and the props, 35-129 s
+  (average about 74) and 5-15; before them, 36-123 s and 6-20. Before the difficulty and item changes it was 26-70 s and
   about 5%. In `check-all.sh`.
 - `node tools/scramble-smoke.js --serve` (about 50 s): two browsers, one phone-sized, and a bot race
   a round, including grabbing and using an item, and see each other move in the next. In `check-all.sh`; skipped where Playwright isn't

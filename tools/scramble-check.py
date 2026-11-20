@@ -386,18 +386,19 @@ async def main():
     assert not room.traps and not a.read()["state"]["traps"]
     # Bots wait for a good moment: a grapple only once the racer ahead is well ahead (or they've
     # waited long enough), a trap only once someone's close behind.
-    a.do(t="p", v=[3000 + 200, 0, 1, 0, 0])
-    room.place_bot(bot, 3000, 0)
+    room.place_bot(bot, 3000, 0)  # (on the nearest ground at or before 3000: measure from where it is)
+    a.do(t="p", v=[bot.x + 200, 0, 1, 0, 0])
     bot.item, bot.got_at = "grapple", room.now()
     bot.use_at = room.now()
     room.bot_items()
     assert bot.item == "grapple", "grappled someone barely ahead"
-    a.do(t="p", v=[3000 + 600, 0, 1, 0, 0])
+    far = bot.x + 600
+    a.do(t="p", v=[far, 0, 1, 0, 0])
     bot.use_at = room.now()
     room.bot_items()
-    assert bot.item is None and abs(bot.x - 3600) < 300, (bot.item, bot.x)
+    assert bot.item is None and abs(bot.x - far) < 300, (bot.item, bot.x)
     room.place_bot(bot, 3000, 0)
-    a.do(t="p", v=[3000 + 200, 0, 1, 0, 0])
+    a.do(t="p", v=[bot.x + 200, 0, 1, 0, 0])
     bot.item, bot.got_at, bot.use_at = "grapple", room.now() - game.BOT_PATIENCE - 1, room.now()
     room.bot_items()
     assert bot.item is None, "held on to a grapple for ever"

@@ -34,12 +34,13 @@ function solve(P, raw) {
         for (let i = 0; i < HOLD && !p.dead; i++) P.step(p, a, (n * HOLD + i) * P.DT, c);
         if (p.dead || p.x < c.segs[from] - 90) continue;
         if (p.ground && p.x >= goal) return (n + 1) * HOLD * P.DT;
-        // (on ice, how fast you are going matters, as it takes a while to change; finer than this and
+        // (in a barrel, when you got in matters: one that fires by itself does so a set time after.
+        // On ice, how fast you are going matters, as it takes a while to change; finer than this and
         // the search keeps too many ways of going the same speed and loses the way up the lava. Flung
         // from a barrel, nobody steers, so the speed matters then too.)
         const slow = c.theme === 'snow' || p.fling > 0 || c.zones.some(z => z.kind === 2);
         const vx = slow ? Math.round(p.vx / 100) : Math.sign(Math.round(p.vx / 100));
-        const key = `${Math.round(p.x / 8)},${Math.round(p.y / 8)},${Math.round(p.vy / 150)},${vx},${p.held ? 1 : 0},${p.barrel},${times(p.lava)},${times(p.chase)}`;
+        const key = `${Math.round(p.x / 8)},${Math.round(p.y / 8)},${Math.round(p.vy / 150)},${vx},${p.held ? 1 : 0},${p.barrel},${p.barrel >= 0 ? Math.round(p.barrelT * 30) : ''},${times(p.lava)},${times(p.chase)}`;
         if (!seen.has(key)) seen.set(key, p);
       }
     }
@@ -85,9 +86,9 @@ for make in course.SEGMENTS:
         continue
     for theme, n in (("meadow", ${variants}), ("snow", 1), ("desert", 1)):
         for seed in range(n):
-            for d in ((0.35, 1.0) if theme == "meadow" else (1.0,)):
+            for d in ((course.D_FIRST, course.D_LAST) if theme == "meadow" else (course.D_LAST,)):
                 c, legs, risks, alts = course.build(seed + 100 * (theme != "meadow"), 1, [make], d)
-                c["hard"], c["theme"] = d > 0.5, theme
+                c["hard"], c["theme"] = d > course.D_FIRST, theme
                 out.append(c)
 print(json.dumps(out))`], { cwd: root, maxBuffer: 1 << 28 }));
 

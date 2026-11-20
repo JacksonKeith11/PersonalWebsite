@@ -19,7 +19,12 @@ aside { width: 290px; flex: none; display: flex; flex-direction: column; gap: 10
 aside section { background: var(--slate2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 aside h2 { margin: 0 0 6px; font: 600 1rem/1.3 "Source Serif 4", Georgia, serif; }
 aside p { margin: 0 0 8px; color: var(--dim); font-size: 0.9rem; }
-#ready { width: 100%; }
+#ready { width: 100%; flex: none; }
+/* the wave box keeps one height all game (its list scrolls), so the panels under it never move */
+#wavebox { height: 300px; display: flex; flex-direction: column; }
+#wavebox h2 { flex: none; }
+#coming { flex: 1; min-height: 0; overflow-y: auto; }
+#chips { flex: none; min-height: 22px; margin-bottom: 6px; }
 #coming .next-head { margin-bottom: 4px; }
 .foes { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .foes li { display: flex; align-items: center; gap: 8px; }
@@ -53,7 +58,12 @@ aside p { margin: 0 0 8px; color: var(--dim); font-size: 0.9rem; }
 .pips i.on { background: var(--gold); border-color: var(--gold); }
 .pips i.evo { border-color: #ffd75a; border-style: dashed; }
 .pips i.shut { opacity: 0.25; border-style: dotted; }
-#info .sell { width: 100%; }
+#info .actions { display: flex; gap: 6px; align-items: center; height: 34px; margin: 0 0 10px; }
+#game #info .actions button { flex: 1; height: 100%; padding: 0 8px; white-space: nowrap; }
+#game #info .actions .sell { border-color: #a35a4a; }
+#info .actions .note { flex: 1; margin: 0; font-size: 0.8rem; }
+#info .tally .dazed { color: #ffb4a8; }
+#info .ability-blurb { font-size: 0.8rem; }
 #mute { padding: 2px 8px; }
 
 #palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-top: 10px; }
@@ -107,9 +117,8 @@ aside p { margin: 0 0 8px; color: var(--dim); font-size: 0.9rem; }
 .targets { display: flex; gap: 4px; margin: 0 0 10px; }
 #game .targets button { flex: 1; padding: 4px 0; font-size: 0.8rem; }
 #game .targets button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
-#game .ability-btn { width: 100%; margin-bottom: 8px; background: linear-gradient(135deg, #ffd75a, #ff9f2f); border-color: #ffd75a; color: #2a2000; }
+#game .ability-btn { width: 100%; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: linear-gradient(135deg, #ffd75a, #ff9f2f); border-color: #ffd75a; color: #2a2000; }
 #game .ability-btn:disabled { background: var(--slate2); color: var(--dim); }
-#game .undo-btn { width: 100%; margin-bottom: 8px; }
 
 /* the end screen */
 .card .record { color: #2f7a43; font-weight: 700; }

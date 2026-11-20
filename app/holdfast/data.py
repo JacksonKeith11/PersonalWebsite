@@ -625,10 +625,24 @@ def item_power(wave):
     return max(1.0, 0.4 * health(max(1, wave)))
 
 
+# Endless (past WAVES): health also compounds by ENDLESS_GROWTH a wave and enemies walk faster, by
+# ENDLESS_SPEED a wave up to ENDLESS_SPEED_MAX, while bounties keep growing only slowly, so income
+# falls behind and every defence falls in the end. Without this the polynomial alone let the test
+# builders sit at wave 70 and beyond with every evolution built and thousands of gold unspent.
+ENDLESS_GROWTH = 1.2
+ENDLESS_SPEED, ENDLESS_SPEED_MAX = 0.015, 1.5
+STUN_GUARD = 1.0  # after a tower's stun wears off, an enemy shrugs off towers' stuns for this long
+
+
 def health(wave):
     """How much tougher enemies are in a wave than in the first."""
     w = wave - 1
-    return 1 + 0.45 * w + 0.06 * w * w
+    return (1 + 0.45 * w + 0.06 * w * w) * ENDLESS_GROWTH ** max(0, wave - WAVES)
+
+
+def pace(wave):
+    """How much faster enemies walk than usual (only in endless)."""
+    return min(ENDLESS_SPEED_MAX, 1 + ENDLESS_SPEED * max(0, wave - WAVES))
 
 
 def bounty(wave):

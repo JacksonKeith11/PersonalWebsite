@@ -96,7 +96,12 @@ Earlier in November 2026, also asked for and built together:
 - **End-of-game summary**: the tower of the game, each player's best tower (sold ones count), the
   waves where lives were lost, and whether it's a record.
 - **Endless**: after wave 30 the host can keep going; the wave recipe carries on with every enemy
-  mixed in. **Records**: how far each game got, by map, difficulty and party size (`save.py`),
+  mixed in. Health also compounds by `ENDLESS_GROWTH` (20%) a wave on top of the polynomial, and
+  enemies walk faster (`pace`: 1.5% a wave, at most +50%), while bounties grow only slowly, so every
+  defence falls in the end (asked for in November 2026: the test builders sat at wave 71 with all
+  thirty evolutions and 24,000 gold unspent). With 20% they fall on waves 39-44 (one game each on
+  Coil, Knot and Meadow, solo and two players; one two-player Knot game fell on 24); 12% still let
+  them hold past wave 62. **Records**: how far each game got, by map, difficulty and party size (`save.py`),
   listed in the lobby.
 - **Saves**: the game is saved at the start of every build phase (`data/holdfast.db`) and listed in
   the lobby of everyone who played in it; the host resumes it. Players who aren't back yet keep their
@@ -223,6 +228,16 @@ Earlier in November 2026, also asked for and built together:
 - **The main path can change**: a tower at 1-1 whose second path goes to 3 becomes that path's
   tower, and the first path's tiers turn into side bonuses. Undo hands `first` to the other path when
   the first one's last tier is taken back.
+- **Towers' stuns can't lock an enemy forever**: once a tower's stun wears off, an enemy shrugs off
+  towers' stuns for `STUN_GUARD` (1 s) (`Enemy.stun_guard`). Endless defences full of stunning towers
+  (Blizzard, Thunder God, Carpet Bomber, mines, sentries) otherwise held whole waves still. Abilities
+  and the Frost Flask ignore the guard.
+- **Endless waves are long**: big defences slow everything by 70%, so a wave on Coil can take three
+  minutes of game time, and the simulator crawls past wave 50.
+- **The sidebar keeps its layout.** The wave box has a fixed height (its list scrolls), Ready keeps
+  its space when hidden, and Undo and Sell sit in a fixed row at the top of the tower panel, always
+  there (greyed when unusable): the panel used to jump as the coming list, the Ready button and Undo
+  came and went, and a click meant for an upgrade could land on Sell.
 - **The Stormhulk's knock-outs, Rally, Mark, Bounty Hunt, Unmake, sentries' and piles' lives and
   item cooldowns all run on fight time.**
 - **Sentries pack up at the end of a wave; piles stay** until their life or their hits run out.

@@ -207,7 +207,7 @@ class Enemy:
         self.tier = tier
         grow = 1 + D.BOSS_TIER_HP * (tier - 1) if self.event else 1
         self.max = self.hp = e["hp"] * D.health(wave) * mult * grow
-        self.speed = e["speed"]
+        self.speed = e["speed"] * D.pace(wave)
         self.size = e.get("size", 0.3)
         self.armor = e.get("armor", 0) * (1 + wave / 15)
         self.air = e.get("air", False)
@@ -218,6 +218,7 @@ class Enemy:
         self.x, self.y = route[0][0]
         self.slow, self.slow_for, self.brittle = 0.0, 0.0, 0.0
         self.stun = 0.0  # seconds left stopped dead
+        self.stun_guard = 0.0  # fight time until which towers' hits can't stun it again
         self.burn, self.burn_for, self.burner = 0.0, 0.0, None  # damage a second, for how long, from which tower
         self.boss = e.get("boss", False)
         self.big = self.boss or e.get("blimp", False)
@@ -651,8 +652,13 @@ class Room:
         self.damage(e, dmg, credit)
         if st.get("shred"):
             e.armor = max(0.0, e.armor - st["shred"])
-        if st.get("stun"):
-            e.stun = max(e.stun, st["stun"] / (3 if e.big else 1))
+        if st.get("stun") and self.fight_t >= e.stun_guard:
+            secs = st["stun"] / (3 if e.big else 1)
+            if secs > e.stun:
+                # then it shrugs off towers' stuns for a moment: overlapping stuns locked whole endless
+                # waves in place forever
+                e.stun = secs
+                e.stun_guard = self.fight_t + secs + D.STUN_GUARD
         if st.get("burn") and (st["burn"] >= e.burn or e.burn_for <= 0):
             e.burn, e.burn_for, e.burner = st["burn"], st.get("burn_for", 2.0), credit
         if st.get("slow"):

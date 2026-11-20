@@ -482,12 +482,16 @@ function renderLive() {
   box.replaceChildren(...chips.map(c => el('span', 'chip', c)));
   if (S.chosen != null) {
     const a = $('info').querySelector('.ability-btn'), left = S.cd[S.chosen] ?? 0;
-    if (a) { a.disabled = left > 0 || !st.fighting; a.textContent = a.dataset.label + (left > 0 ? ` (${Math.ceil(left)} s)` : st.fighting ? '' : ' (when a wave is on)'); }
+    if (a) { a.disabled = left > 0 || !st.fighting; a.textContent = a.dataset.label + (left > 0 ? ` (${Math.ceil(left)} s)` : st.fighting ? ': ready' : ' (when a wave is on)'); }
     const u = $('info').querySelector('.undo-btn'), until = S.undoUntil[S.chosen];
-    if (u && (!until || until < now())) u.remove();
-    else if (u) u.textContent = `Undo (${Math.ceil(until - now())} s, full refund)`;
+    if (u) {   // stays in place, greyed out, so nothing below it moves
+      const live = until && until > now();
+      u.disabled = !live;
+      u.textContent = live ? `Undo (${Math.ceil(until - now())} s)` : 'Undo';
+    }
   }
-  $('ready').hidden = st.fighting || !seated || st.phase !== 'play';
+  // hidden but keeping its space, so the panels under it don't jump
+  $('ready').style.visibility = st.fighting || !seated || st.phase !== 'play' ? 'hidden' : 'visible';
   $('ready').disabled = !!me()?.ready;
   $('ready').textContent = me()?.ready ? 'Waiting for the others…' : 'Ready: send it now';
   $('purses').replaceChildren(...st.players.filter(p => p.seated).map(p => {
@@ -584,23 +588,37 @@ function renderInfo() {
   tally.append('Kills: ', el('b', '', ''), ` · damage ${Number(tw.dmg || 0).toLocaleString()} · built by ${player(tw.o)?.name || 'someone who left'}`);
   tally.querySelector('b').id = 'kills';
   tally.querySelector('b').textContent = tw.kills;
+  if (S.dazed[tw.id] > 0) tally.append(el('b', 'dazed', ` · knocked out ${Math.ceil(S.dazed[tw.id])} s`));
   const parts = [title, el('p', '', sub), tally];
-  if (S.dazed[tw.id] > 0) parts.push(el('p', 'warn', `Knocked out by a boss for ${Math.ceil(S.dazed[tw.id])} s.`));
+  // Undo and Sell sit in one row of fixed height at the top, away from the upgrade buttons, and are
+  // always there (greyed out when they can't be used), so nothing in the panel moves under the pointer.
+  if (me()?.seated) {
+    const row = el('div', 'actions');
+    const u = el('button', 'undo-btn', 'Undo');
+    u.type = 'button';
+    u.disabled = !(S.undoUntil[tw.id] > now());
+    u.title = 'Take back the latest build or upgrade for a full refund (only for a few seconds, and only who paid)';
+    u.addEventListener('click', () => { sound('sell'); room.send({ t: 'undo', id: tw.id }); });
+    row.append(u);
+    if (tw.o === room.you) {
+      const sell = el('button', 'sell', `Sell for ${Math.round(tw.s * S.cfg.sell)}`);
+      sell.type = 'button';
+      sell.addEventListener('click', () => { sound('sell'); room.send({ t: 'sell', id: tw.id }); S.chosen = null; });
+      row.append(sell);
+    } else row.append(el('span', 'note', 'Only its builder can sell it.'));
+    parts.push(row);
+  }
   const ab = abilityOf(tw);
   if (ab && me()?.seated) {
     const b = el('button', 'ability-btn', '');
     b.type = 'button';
-    b.dataset.label = `${ab.name}: ${ab.blurb}`;
-    b.textContent = b.dataset.label;
-    b.disabled = (S.cd[tw.id] ?? 0) > 0 || !S.st.fighting;
+    b.dataset.label = ab.name;
+    b.title = ab.blurb;
+    const left = S.cd[tw.id] ?? 0;
+    b.textContent = ab.name + (left > 0 ? ` (${Math.ceil(left)} s)` : S.st.fighting ? ': ready' : ' (when a wave is on)');
+    b.disabled = left > 0 || !S.st.fighting;
     b.addEventListener('click', () => useAbility(tw.id));
-    parts.push(b);
-  }
-  if (S.undoUntil[tw.id] > now()) {
-    const u = el('button', 'undo-btn', 'Undo');
-    u.type = 'button';
-    u.addEventListener('click', () => { sound('sell'); room.send({ t: 'undo', id: tw.id }); });
-    parts.push(u);
+    parts.push(b, el('p', 'note ability-blurb', ab.blurb));
   }
   const st0 = towerStats(tw);
   if (!['support', 'income', 'trap', 'sentry'].includes(st0.mode)) {
@@ -654,13 +672,6 @@ function renderInfo() {
     paths.append(col);
   });
   parts.push(paths);
-  if (tw.o === room.you) {
-    const sell = el('button', '', `Sell for ${Math.round(tw.s * S.cfg.sell)}`);
-    sell.type = 'button';
-    sell.className = 'sell';
-    sell.addEventListener('click', () => { sound('sell'); room.send({ t: 'sell', id: tw.id }); S.chosen = null; });
-    parts.push(sell);
-  }
   box.replaceChildren(...parts);
   S.preview = null;
 }

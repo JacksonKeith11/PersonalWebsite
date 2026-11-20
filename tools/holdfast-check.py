@@ -183,6 +183,7 @@ async def main():
     bosses()
     items()
     new_abilities()
+    endless_and_stuns()
     saves()
     print("Holdfast: building, upgrading, crosspathing, evolving, selling, giving, readying, watching, every "
           "tower's effects, projectiles and pierce, immunities, layers, traps, sentries, bosses, items, targeting, "
@@ -750,6 +751,22 @@ def items():
     p.items = {}
     assert not room.use_item(p, "caltrops", 2, 2), "an item with no gold"
     assert D.item_cost("caltrops", 30) > D.item_cost("caltrops", 1)
+
+
+def endless_and_stuns():
+    """Endless grows much tougher and faster past wave 30; towers' stuns can't lock an enemy forever."""
+    assert D.health(40) > 5 * (1 + 0.45 * 39 + 0.06 * 39 ** 2), "endless health should compound"
+    assert D.health(30) == 1 + 0.45 * 29 + 0.06 * 29 ** 2 and D.pace(30) == 1 and 1 < D.pace(40) <= D.ENDLESS_SPEED_MAX
+    room = fresh()
+    p = room.players[1]
+    tower_at(room, p, "frost", 3, 3, 1, 4)  # Blizzard: stunning pulses every 0.55 s
+    e = put(room, "grunt", 5, hp=10 ** 9, speed=0.0001)
+    stunned = 0
+    for _ in range(300):
+        room.advance(game.STEP)
+        stunned += e.stun > 0
+    assert stunned < 0.6 * 300, f"stunned {stunned} of 300 steps: towers' stuns lock enemies"
+    assert stunned > 0
 
 
 def new_abilities():

@@ -62,7 +62,7 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   (3-5 rounds) and is used from the left panel while planning. Powers for "next fight" go in
   `player.next_fx` and are spent at the fight's start. All of it is in `game.py` (`extras`,
   `use_power`, and the odd line in income, rolls and damage).
-- **Augments** (`AUGMENTS`, 64): one of three at rounds 3, 8 and 13, all of one tier (lesser, greater,
+- **Augments** (`AUGMENTS`, 66, with Ancient Armory and Relic Hunter from the roster review): one of three at rounds 3, 8 and 13, all of one tier (lesser, greater,
   grand, by `AUGMENT_TIER_ODDS`), with one reroll. Trait augments (Heart +1, Crest an emblem, Soul +2 to
   a trait's count) are only offered for traits among your units when there are enough of them. Unpicked
   offers are taken (the first) when the fight starts.

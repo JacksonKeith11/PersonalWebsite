@@ -4,8 +4,8 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=1';
-import { isMuted, play, setMuted } from './sound.js?v=1';
+import { Playback } from './fight.js?v=2';
+import { isMuted, play, setMuted } from './sound.js?v=2';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {

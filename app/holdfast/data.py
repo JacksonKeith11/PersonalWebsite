@@ -11,7 +11,7 @@ WAVES = 30
 START_GOLD = (130, 60)  # shared out between the players, plus this much each
 SELL_BACK = 0.7
 BUILD_TIME = (25, 12)  # seconds before the first wave, and between waves
-DIFFICULTY = {"easy": 0.75, "normal": 1.0, "hard": 1.15}  # enemy health
+DIFFICULTY = {"easy": 0.75, "normal": 1.0, "hard": 1.3}  # enemy health
 
 # Each tower has its base numbers and two upgrade paths of four tiers. Both paths can be bought
 # ("crosspathing"), but only one of them past tier 2: a tower is at most 4-2. The path with more
@@ -84,8 +84,8 @@ TOWERS = {
             ]},
             {"name": "Volley", "tiers": [
                 tier("Quick Draw", 70, "Shoots faster.", dict(rate=0.85), rate=0.42, dmg=17),
-                tier("Twin Shot", 150, "Two arrows a shot, at two enemies.", dict(pierce=1), shots=2, dmg=19),
-                tier("Triple Shot", 300, "Three arrows, faster still.", shots=3, rate=0.34, dmg=23),
+                tier("Twin Shot", 150, "Two arrows a shot, at two enemies.", dict(pierce=1), shots=2, dmg=24),
+                tier("Triple Shot", 300, "Three arrows, faster still.", shots=3, rate=0.34, dmg=30),
                 tier("Storm of Arrows", 1400, "Final evolution: eight arrows, five times a second.",
                      shots=8, rate=0.2, dmg=30, range=3.8, pierce=2),
             ]},
@@ -135,7 +135,7 @@ TOWERS = {
         ],
     },
     "ballista": {
-        "name": "Ballista", "cost": 120, "blurb": "Slow and far-reaching. Its bolts go through armour and through three enemies.",
+        "name": "Ballista", "cost": 140, "blurb": "Slow and far-reaching. Its bolts go through armour and through three enemies.",
         "base": {"mode": "shoot", "range": 6.0, "rate": 2.2, "dmg": 75, "air": True, "ap": True, "dtype": "sharp",
                  "speed": 18, "pierce": 3},
         "paths": [
@@ -264,7 +264,7 @@ TOWERS = {
                  "air": True, "dtype": "sharp"},
         "paths": [
             {"name": "Razor", "tiers": [
-                tier("Sharper Blades", 90, "Harder hits, and each blade goes through three.", dict(pierce=1), dmg=16, pierce=3),
+                tier("Sharper Blades", 90, "Harder hits, and each blade goes through three.", dict(pierce=1), dmg=24, pierce=3),
                 tier("More Blades", 180, "Twelve blades a turn.", dict(rate=0.85), shots=12),
                 tier("Whirling Saws", 360, "Faster, harder saws that cut through five.", rate=0.6, dmg=34, pierce=5),
                 tier("Maelstrom", 1700, "Final evolution: a whirlwind of twenty saws, four times a second.",
@@ -291,7 +291,7 @@ TOWERS = {
                 tier("Iron Spikes", 380, "Spikes go through armour and hurt anything.", dmg=48, hits=14, ap=True,
                      dtype="normal"),
                 tier("Spike Storm", 1800, "Final evolution: the road disappears under spikes.",
-                     rate=0.35, hits=25, dmg=120, max=20, life=40),
+                     rate=0.35, hits=25, dmg=120, max=12, life=40),
             ]},
             {"name": "Mines", "tiers": [
                 tier("Blasting Caps", 110, "Lays mines that burst on the first enemy over them.", dict(dmg=1.3),
@@ -317,8 +317,8 @@ TOWERS = {
                 tier("Sentry Guns", 420, "Quick, hard-hitting sentries that see Ghosts; four at a time.", max=4,
                      sentry={"mode": "shoot", "range": 2.8, "rate": 0.4, "dmg": 50, "pierce": 2, "speed": 14,
                              "dtype": "sharp", "air": True, "detect": True}),
-                tier("Clockwork Legion", 1900, "Final evolution: an army of ten clockwork sentries.",
-                     rate=1.2, max=10,
+                tier("Clockwork Legion", 1900, "Final evolution: an army of six clockwork sentries.",
+                     rate=1.2, max=6,
                      sentry={"mode": "shoot", "range": 3.0, "rate": 0.25, "dmg": 110, "pierce": 3, "speed": 16,
                              "dtype": "sharp", "air": True, "detect": True}),
             ]},

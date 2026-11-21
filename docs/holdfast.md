@@ -217,6 +217,9 @@ Earlier in November 2026, also asked for and built together:
 - **More players doesn't mean tougher enemies.** Income is shared, so four players are no richer
   than one (bar 60 starting gold each). Scaling health by player count made four-player games
   much harder than solo ones.
+- **No tower should be the safe pick everywhere.** The Ballista was the best value at every tier
+  and covered everything (armour, flyers, reach), so it went up to 140 gold; strong towers keep a
+  weakness (the Skyhook only hits flyers; the Brazier reaches two squares and can't touch flyers).
 - **Each tier should be worth about what it costs.** Damage per gold stays near the base tower's
   through tiers 1-2, a little better at tier 3 and about twice as good at the final evolution, or
   upgrading is a trap. The evolution is the exception on purpose: at the old prices (about 1.4×)
@@ -341,7 +344,57 @@ never sell or send a wave early; now and then they buy a tier or two on a tower'
 two builders can both upgrade one tower. `--bosses <name>` plays a boss event instead of Warlords. A
 decent human should still do better.
 
-Latest run (November 2026, after the builders were improved; one game each, 73 s and 13 s for
+Latest run (November 2026, after a tower balance pass; one game each, 94 s). From the damage a
+second per 1,000 gold along every path (worked out from the numbers, not measured in games):
+- Hard's enemy health went back from ×1.15 to ×1.3: the improved builders won 17 of 24 hard games.
+- Clockwork Legion (Workshop, Crossbows 4) builds 6 sentries, not 10: ten could put out about 4,400
+  damage a second, against Eagle Eye's 1,256.
+- Spike Storm (Trapper, Spikes 4) keeps 12 piles, not 20 (20 × 25 hits × 120 damage that ignores
+  armour was about 60,000 damage every 40 seconds).
+- Volley got harder arrows: Twin Shot 19 → 24 damage, Triple Shot 23 → 30. It did less than half
+  Marksman's single-target damage for the gold, and small arrows lose most to armour.
+- Sharper Blades (Bladewheel, Razor 1, which Razor 2 builds on) 16 → 24 damage: Razor 2 barely
+  added anything for its 270 gold.
+- The Ballista costs 140, not 120: it was the best value at every tier on both paths and also
+  ignores armour, hits flyers and reaches six squares, so it was the safe pick everywhere.
+
+The builders now win 57 of 72: easy 24 of 24, normal 21, hard 12 (from 63: 24, 22 and 17). Hard is
+lost on Crossing, Quarry, Twin Gates and Breach, and won on the gentler maps.
+
+| | Easy | Normal | Hard |
+|---|---|---|---|
+| Meadow, 1 player | won, 17 lives | won, 13 lives | won, 4 lives |
+| Meadow, 2 players | won, 19 lives | won, 16 lives | won, 4 lives |
+| Meadow, 4 players | won, 20 lives | won, 20 lives | won, 18 lives |
+| Crossing, 1 player | won, 19 lives | won, 14 lives | wave 19 |
+| Crossing, 2 players | won, 19 lives | won, 17 lives | wave 19 |
+| Crossing, 4 players | won, 20 lives | won, 20 lives | wave 24 |
+| Coil, 1 player | won, 20 lives | won, 20 lives | won, 19 lives |
+| Coil, 2 players | won, 20 lives | won, 20 lives | won, 19 lives |
+| Coil, 4 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Knot, 1 player | won, 19 lives | won, 15 lives | won, 3 lives |
+| Knot, 2 players | won, 20 lives | won, 18 lives | wave 29 |
+| Knot, 4 players | won, 20 lives | won, 20 lives | won, 20 lives |
+| Quarry, 1 player | won, 20 lives | won, 9 lives | wave 23 |
+| Quarry, 2 players | won, 20 lives | won, 9 lives | wave 17 |
+| Quarry, 4 players | won, 20 lives | won, 17 lives | wave 29 |
+| Fork, 1 player | won, 20 lives | won, 17 lives | won, 14 lives |
+| Fork, 2 players | won, 14 lives | won, 16 lives | won, 12 lives |
+| Fork, 4 players | won, 20 lives | won, 13 lives | won, 15 lives |
+| Twin Gates, 1 player | won, 13 lives | wave 23 | wave 14 |
+| Twin Gates, 2 players | won, 20 lives | won, 15 lives | wave 15 |
+| Twin Gates, 4 players | won, 4 lives | wave 27 | won, 1 lives |
+| Breach, 1 player | won, 20 lives | won, 16 lives | wave 23 |
+| Breach, 2 players | won, 9 lives | wave 29 | wave 29 |
+| Breach, 4 players | won, 20 lives | won, 6 lives | wave 24 |
+
+Still unmeasured: what each tower actually does in games (sentries and piles depend on enemies
+walking into them, and crowd towers like Tesla's Arc and Storm of Arrows depend on crowd size). A
+tally of damage per gold by tower and path from the builders' games would settle it.
+
+The run before:
+
+After the builders were improved (November 2026; one game each, 73 s and 13 s for
 Breach after its fix). The builders win 63 of 72, against 51 just before (the table below this one):
 easy 24 of 24, normal 22, hard 17; four-player parties 23 of 24, up from 14. Twin Gates and Breach
 are still the hard maps.

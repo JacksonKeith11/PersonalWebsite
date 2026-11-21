@@ -15,7 +15,8 @@ and prices rising; the armory's odds; equipping and taking off; emblems counting
 with the trait; the Crown's extra place; items surviving merges and sales), every commander's power,
 every augment, a draft (lowest HP picks first, each pick holds an item of the round's rarity, the
 rest go back to the pool), and extra abilities (three or four to pick from at 2 and 3 stars, picked once,
-kept through a merge, lost with a sale, each working in a fight) have their own checks.
+kept through a merge, lost with a sale, each working in a fight) have their own checks, and so do the unit
+cards' numbers (traits, items, picks and augments counted on the board; items and picks on the bench).
 The roster review's tricks (taunts, vanishing, pulls, shoves, zones, delayed blows, raising,
 swallowing, executes, wounds, multishot, death bursts, the Hexer's and Chronomancer's effects, saplings)
 each get a staged fight, and some random fights are stepped to make sure no two units share a hex.
@@ -688,6 +689,44 @@ def talents():
     check(golem.burn[0] > 0 and golem.burn[2] is ash, "Kindling's ability burns")
 
 
+def card_numbers():
+    """The unit cards' numbers: a board unit's count its traits, items, picks and augments; a bench unit's
+    only its items and picks; both reach the browser, and fights' start rows carry them too."""
+    room = game.Room("CARD")
+    room.clock = Clock()
+    me, q = browser(room, "Ann", "c")
+    room.handle(me, {"t": "start"})
+    room.handle(me, {"t": "commander", "k": me.offers[0]})
+    for u in me.units():
+        room.sell_unit(me, u)
+    me.commander, me.level = "sage", 5  # a commander that adds nothing to a fight
+    me.team_fx = {"ad": 8}
+    mage = room.new_unit("ember_mage", 2, ["rod", "emblem_ironhold"])
+    me.board = {(3, 0): mage, (2, 3): room.new_unit("iron_recruit"), (4, 3): room.new_unit("iron_sentinel")}
+    bench = room.new_unit("ember_mage", 2, ["rod"])
+    bench["talents"] = ["empowered"]
+    me.bench[0] = bench
+    room.send_state()
+    st = last_state(q)
+    row = next(r for r in st["players"] if r["id"] == me.id)["board"]
+    card = next(r[7] for r in row if r[0] == mage["id"])
+    d = D.UNITS["ember_mage"]
+    check(card["hp"] == round(d["hp"] * 1.8) + 150 and card["ap"] == 125 and card["ad"] == round(d["ad"] * 1.8) + 8,
+          f"a board unit's card counts its items and augments ({card})")
+    check(card["armor"] == d["armor"] + 30, f"and the Ironhold its emblem joins ({card['armor']})")
+    b = st["me"]["bench"][0][5]
+    check(b["armor"] == d["armor"] and b["ap"] == 125 and b["power"] == 0.3, f"a bench unit's: items and picks only ({b})")
+    f = sim.Fight(me.fight_board(), [])
+    check(all(len(r) == 12 and r[11]["hp"] == r[6] for r in f.start), "fights' start rows carry the numbers")
+    lone = game.Room("CRD2")
+    lone.clock = Clock()
+    lone.bots = True
+    lone.start()
+    bot = lone.seated()[0]
+    lone.send_state()
+    check(bot.cards == {}, "nobody to see them: no numbers worked out")
+
+
 def records():
     """A finished match with a person in it is saved; their record and the Hall of Overlords show it."""
     room = game.Room("RECS")
@@ -723,6 +762,7 @@ armory_and_last_person()
 items_in_fights()
 room_items_and_powers()
 talents()
+card_numbers()
 draft()
 room_rules()
 matches()

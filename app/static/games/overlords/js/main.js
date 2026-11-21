@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=16';
-import { isMuted, play, setMuted } from './sound.js?v=16';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=16';
+import { Playback } from './fight.js?v=18';
+import { isMuted, play, setMuted } from './sound.js?v=18';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=18';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -194,10 +194,10 @@ function checkPinned() {
   const u = !mine || !S.st.me ? null : from.b != null ? S.st.me.bench[from.b]
     : S.st.phase === 'fight' ? null : mine.board.find(b => b[3] === from.c && b[4] === from.r);
   if (!u || u[1] !== S.sel.key) { pin(null); return; }
-  const items = from.b != null ? u[3] : u[5], talents = from.b != null ? u[4] : u[6];
-  if (u[2] !== h.star || JSON.stringify([items, talents]) !== JSON.stringify([h.items || [], h.talents || []])
+  const [items, talents, stats] = from.b != null ? [u[3], u[4], u[5]] : [u[5], u[6], u[7]];
+  if (u[2] !== h.star || JSON.stringify([items, talents, stats]) !== JSON.stringify([h.items || [], h.talents || [], h.stats])
       || !!talentOffer(u[0]) !== !!h.offer) {
-    pin({ ...h, star: u[2], items, talents, offer: !!talentOffer(u[0]) }, true, S.sel);
+    pin({ ...h, star: u[2], items, talents, stats, offer: !!talentOffer(u[0]) }, true, S.sel);
   }
 }
 
@@ -246,13 +246,12 @@ function renderItems() {
     b.append(icon('item:' + key, 32));
     b.setAttribute('aria-label', d.name);
     b.classList.toggle('picked', S.pickedItem === i);
-    b.title = `${d.name} (${rarityName(key)}): ${d.text} Drag it onto a unit, or click it and then the unit.`;
     b.addEventListener('pointerdown', e => {
       S.drag = { item: i, key, from: {}, moved: false };
       S.dragStart = { x: e.clientX, y: e.clientY };
       b.releasePointerCapture?.(e.pointerId);
     });
-    hoverInfo(b, () => ({ kind: 'item', item: key }));
+    hoverInfo(b, () => ({ kind: 'item', item: key, bench: true }));
     return b;
   }));
 }
@@ -287,7 +286,7 @@ function renderArmory() {
 // A trait in a line: what it does at each tier (augment cards and emblems).
 function traitLine(t) {
   const def = S.cfg.traits[t];
-  return `${def.name}: ${def.text} (` + def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ') + ')';
+  return `${def.name}: ${def.text} (` + def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}${def.fx[i].who === 'team' ? ' for the whole board' : ''}`).join(' · ') + ')';
 }
 
 // Extra abilities (picked at 2 and 3 stars): the name, with the unit's own ability's name filled in.
@@ -683,9 +682,10 @@ function renderTraits() {
     name.append(icon('trait:' + t, 16), document.createTextNode(def.name));
     li.append(name, el('span', 'lv', next ? `${n} / ${next}` : String(n)));
     const steps = el('span', 'steps');
-    def.levels.forEach((need, i) => steps.append(el('i', i <= level ? 'on' : '', String(need))));
+    def.levels.forEach((need, i) => steps.append(el('i', i === level ? 'on' : i < level ? 'past' : '', String(need))));
     li.append(steps);
-    li.title = def.text;
+    const fx = def.fx[Math.max(0, level)];
+    li.append(el('small', 'fx', (level >= 0 ? '' : `At ${def.levels[0]}: `) + describeFx(fx) + (fx.who === 'team' ? ' (whole board)' : '')));
     hoverInfo(li, () => ({ kind: 'trait', trait: t }), true);
     return li;
   }));
@@ -799,21 +799,14 @@ function info() {
     const d = S.cfg.units[S.hover.key];
     const from = S.sel.from;
     const locked = from.c != null && S.st.phase !== 'plan'; // the board is locked mid-fight
-    if (S.hover.items?.length) { // its items, each with a button to take it off
-      const list = el('ul', 'held');
-      S.hover.items.forEach((it, k) => {
-        const li = el('li');
-        li.style.setProperty('--rc', rarityColor(it));
-        const off = el('button', '', 'Take off');
-        off.type = 'button';
-        off.disabled = locked;
-        off.title = locked ? 'Not while it fights' : 'Back to your item bench';
-        off.addEventListener('click', () => { room.send({ t: 'unequip', from, k }); play('click'); });
-        li.append(icon('item:' + it, 24), el('span', '', S.cfg.items[it].name), off);
-        list.append(li);
-      });
-      box.querySelector('p.items')?.remove(); // the list says it, with the buttons
-      box.append(list);
+    for (const li of box.querySelectorAll('ul.held li')) { // each of its items gets a button to take it off
+      const k = +li.dataset.k;
+      const off = el('button', '', 'Take off');
+      off.type = 'button';
+      off.disabled = locked;
+      off.title = locked ? 'Not while it fights' : 'Back to your items';
+      off.addEventListener('click', () => { room.send({ t: 'unequip', from, k }); play('click'); });
+      li.append(off);
     }
     const offer = talentOffer(S.hover.id);
     if (offer) {
@@ -828,113 +821,242 @@ function info() {
     sell.disabled = locked;
     sell.addEventListener('click', () => { room.send({ t: 'sell', from }); play('sell'); pin(null); });
     row.append(sell);
-    if (touchy()) box.append(el('p', 'note', 'Tap an empty place or bench slot to move it there.'));
-    box.append(row);
+    const hint = touchy() ? el('p', 'note', 'Tap an empty place or bench slot to move it there.') : null;
+    if (COMPACT.matches) { // a phone's card is short and scrolls: what to do with the unit goes under its name
+      box.querySelector('p.kind').after(...[box.querySelector('button.pick'), row, hint].filter(Boolean));
+    } else {
+      if (hint) box.append(hint);
+      box.append(row);
+    }
   }
 }
+
+// ------------------------------------------------------------------ the info card
+// One card for whatever is hovered, long-pressed or tapped: a unit (shop, bench, board or fight), an item or
+// a trait. A unit's numbers are the server's (sim.Unit.stats: traits, items, extra abilities and the
+// commander counted), shown beside what it would have bare; its traits say what they're doing for it.
 
 function infoBody() {
   const box = $('info');
   const h = S.hover;
   if (!h) { box.replaceChildren(); return; }
-  if (h.kind === 'item') {
-    const d = S.cfg.items[h.item];
-    const head = el('h3', 'with-art');
-    head.append(icon('item:' + h.item, 32), document.createTextNode(d.name));
-    const tag = el('p', 'rarity', `${rarityName(h.item)}${d.kind === 'artifact' ? ' artifact' : d.kind === 'emblem' ? ' emblem' : ' item'}`
-      + (h.price ? ` · ${h.price} gold in the armory` : ''));
-    tag.style.setProperty('--rc', rarityColor(h.item));
-    const parts = [head, tag, el('p', '', d.text)];
-    if (d.stats) parts.push(el('p', '', d.stats));
-    if (d.trait) parts.push(el('p', '', traitLine(d.trait)));
-    box.replaceChildren(...parts);
-    return;
+  if (h.kind === 'item') { box.replaceChildren(...itemCard(h)); return; }
+  if (h.kind === 'trait') { box.replaceChildren(...traitCard(h.trait)); return; }
+  const d = S.cfg.units[h.key];
+  box.replaceChildren(...(d ? unitCard(h, d) : []));
+}
+
+function itemCard(h) {
+  const d = S.cfg.items[h.item];
+  const head = el('h3', 'with-art');
+  head.append(icon('item:' + h.item, 32), document.createTextNode(d.name));
+  const kind = { artifact: 'artifact', emblem: 'emblem' }[d.kind] || 'item';
+  const tag = el('p', 'rarity', `${rarityName(h.item)} ${kind}${h.price ? ` · ${h.price} gold` : ''}`);
+  tag.style.setProperty('--rc', rarityColor(h.item));
+  const parts = [head, tag, el('p', 'effect', d.text)];
+  if (d.stats) parts.push(labelled('Also', d.stats));
+  if (d.trait) {
+    const def = S.cfg.traits[d.trait];
+    parts.push(labelled(def.name, def.text), traitTiers(d.trait, me()?.traits?.[d.trait] || 0));
   }
-  if (h.kind === 'trait') {
-    const def = S.cfg.traits[h.trait];
-    const head = el('h3', 'with-art');
-    head.append(icon('trait:' + h.trait, 32), document.createTextNode(def.name));
-    const w = player(S.watch);
-    const fielded = new Set((w?.board || []).map(u => u[1]));
-    const benched = new Set(S.watch === room.you ? (S.st.me?.bench || []).filter(Boolean).map(u => u[1]) : []);
-    const list = el('ul', 'trait-units');
-    const keys = Object.keys(S.cfg.units).filter(k => S.cfg.units[k].cost && S.cfg.units[k].traits.includes(h.trait))
-      .sort((a, b) => S.cfg.units[a].tier - S.cfg.units[b].tier || S.cfg.units[a].name.localeCompare(S.cfg.units[b].name));
-    for (const k of keys) {
-      const u = S.cfg.units[k];
-      const li = el('li', fielded.has(k) ? 'on' : benched.has(k) ? 'bench' : '');
-      li.style.setProperty('--cc', COST_COLORS[u.tier]);
-      li.title = `${u.name} (${u.cost} gold)${fielded.has(k) ? ': on the board' : benched.has(k) ? ': on the bench' : ''}`;
-      li.append(sprite(k, 32), el('span', '', u.name));
-      list.append(li);
-    }
-    box.replaceChildren(head, el('p', '', def.text),
-      el('p', '', def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ')), list);
-    return;
+  const hint = h.price ? (touchy() ? 'Tap to buy: it goes to your items.' : 'Click to buy: it goes to your items.')
+    : h.bench ? (touchy() ? 'Tap it, then one of your units, to give it. ' : 'Drag it onto one of your units, or click it and then the unit. ')
+      + `A unit holds ${S.cfg.rules.max_items}; Take off on the unit's card gives it back.` : '';
+  if (hint) parts.push(el('p', 'note', hint));
+  return parts;
+}
+
+// "Label: text" in a paragraph.
+function labelled(label, text, cls = '') {
+  const p = el('p', cls);
+  p.append(el('b', '', label + ': '), document.createTextNode(text));
+  return p;
+}
+
+// A trait's tiers as a list, the tier reached at `n` units marked.
+function traitTiers(t, n) {
+  const def = S.cfg.traits[t];
+  const level = traitLevel(t, n);
+  const ol = el('ol', 'tiers');
+  def.levels.forEach((need, i) => {
+    const fx = def.fx[i];
+    const li = el('li', i === level ? 'now' : '');
+    li.append(el('b', '', String(need)),
+      el('span', '', describeFx(fx) + (fx.who === 'team' ? ' (every unit on the board)' : ` (${def.name} units)`)));
+    ol.append(li);
+  });
+  return ol;
+}
+
+function traitLevel(t, n) {
+  let level = -1;
+  S.cfg.traits[t].levels.forEach((need, i) => { if (n >= need) level = i; });
+  return level;
+}
+
+// Extra trait counts a player's augments give (Hearts and Souls).
+const augBonus = (p, t) => (p?.augments || []).reduce((n, a) => n + (S.cfg.augments[a]?.trait === t ? S.cfg.augments[a].bonus || 0 : 0), 0);
+
+function traitCard(t) {
+  const def = S.cfg.traits[t];
+  const head = el('h3', 'with-art');
+  head.append(icon('trait:' + t, 32), document.createTextNode(def.name));
+  const w = player(S.watch);
+  const n = w?.traits?.[t] || 0;
+  const level = traitLevel(t, n);
+  const parts = [head, el('p', 'kind', `${def.kind === 'origin' ? 'Origin' : 'Class'}: counts the different ${def.name} units on the board (copies count once)`),
+    el('p', 'effect', def.text), traitTiers(t, n)];
+  if (w) {
+    const who = w.id === room.you ? 'You have' : `${w.name} has`;
+    const bonus = augBonus(w, t);
+    const next = def.levels.find(need => need > n);
+    parts.push(el('p', 'sub', n ? `${who} ${n}${bonus ? ` (${bonus} from augments)` : ''}: ${level >= 0 ? `tier ${def.levels[level]} is on` : 'not on yet'}`
+      + (next ? `; ${next - n} more for ${next}.` : '.') : `${who} none on the board.`));
   }
-  const key = h.key, d = S.cfg.units[key];
-  if (!d) { box.replaceChildren(); return; }
-  const star = h.star || 1, m = [1, 1.8, 3.24][star - 1];
+  const fielded = new Set((w?.board || []).map(u => u[1]));
+  const benched = new Set(S.watch === room.you ? (S.st.me?.bench || []).filter(Boolean).map(u => u[1]) : []);
+  const emblems = (w?.board || []).filter(u => !S.cfg.units[u[1]].traits.includes(t) && u[5].some(i => S.cfg.items[i]?.trait === t)).map(u => u[1]);
+  const list = el('ul', 'trait-units');
+  const keys = Object.keys(S.cfg.units).filter(k => S.cfg.units[k].cost && S.cfg.units[k].traits.includes(t))
+    .sort((a, b) => S.cfg.units[a].tier - S.cfg.units[b].tier || S.cfg.units[a].name.localeCompare(S.cfg.units[b].name));
+  for (const k of [...keys, ...new Set(emblems)]) {
+    const u = S.cfg.units[k];
+    const viaEmblem = !u.traits.includes(t);
+    const li = el('li', fielded.has(k) ? 'on' : benched.has(k) ? 'bench' : '');
+    li.style.setProperty('--cc', COST_COLORS[u.tier]);
+    li.title = `${u.name} (${u.cost} gold)${viaEmblem ? ', with an emblem' : ''}${fielded.has(k) ? ': on the board' : benched.has(k) ? ': on the bench' : ''}`;
+    li.append(sprite(k, 32), el('span', '', u.name + (viaEmblem ? ' (emblem)' : '')));
+    list.append(li);
+  }
+  parts.push(el('p', 'sub', 'Units (gold: on the board, white: on the bench)'), list);
+  return parts;
+}
+
+function unitCard(h, d) {
+  const key = h.key, star = h.star || 1;
+  const st = h.stats || h.live?.stats;
   const title = el('h3', 'with-art');
   title.append(sprite(key, COMPACT.matches ? 48 : 64), document.createTextNode(`${d.name} ${'★'.repeat(star)}`));
-  const kind = d.cost ? `Tier ${d.tier} · ${d.cost} gold · ${d.traits.map(t => S.cfg.traits[t].name).join(', ')}` : 'Not for sale';
-  const dl = el('dl');
-  const live = h.live;
-  const stats = [
-    ['HP', live ? `${Math.round(live.hp)}/${Math.round(live.max)}` : Math.round(d.hp * m)], ['Attack', Math.round(d.ad * m)],
-    ['Speed', d.as], ['Range', d.range], ['Armor', d.armor], ['Resist', d.mr],
-    ['Mana', live ? `${Math.round(live.mana)}/${live.maxmana}` : `${d.start}/${d.mana}`],
-  ];
-  for (const [k, v] of stats) dl.append(el('dt', '', k), el('dd', '', String(v)));
-  const parts = [title, el('p', '', kind), dl];
-  if (h.items?.length) {
-    const its = el('p', 'items');
-    for (const i of h.items) {
-      const one = el('span');
-      one.append(icon('item:' + i, 16), document.createTextNode(S.cfg.items[i].name));
-      its.append(one);
-    }
-    parts.push(its);
+  const parts = [title, el('p', 'kind', d.cost ? `Tier ${d.tier} · ${d.cost} gold${star > 1 ? ` · ${3 ** (star - 1)} copies` : ''}` : 'Not for sale')];
+  const traits = [...d.traits];
+  for (const i of h.items || []) {
+    const t = S.cfg.items[i]?.trait;
+    if (t && !traits.includes(t)) traits.push(t);
   }
+  if (traits.length) parts.push(unitTraits(h, traits, d));
+  parts.push(...statBlock(d, star, st, h.live));
   if (d.ability) {
     const ab = el('p', 'ab');
-    ab.append(el('b', '', d.ability.name + ': '), document.createTextNode(d.ability.text + ' ' + abilityNumbers(d.ability, star)));
+    const nums = abilityNumbers(d.ability, star, st);
+    ab.append(el('b', '', `${d.ability.name} (ability): `), document.createTextNode(`${d.ability.text} ${nums}`));
     parts.push(ab);
   }
-  if (d.passive_text) {
-    const pa = el('p', 'ab');
-    pa.append(el('b', '', 'Always: '), document.createTextNode(d.passive_text));
-    parts.push(pa);
-  }
+  if (d.passive_text) parts.push(labelled('Always', d.passive_text, 'ab'));
   const talents = h.talents || h.live?.talents || [];
-  talents.forEach((tk, i) => {
+  for (const tk of talents) {
     const t = S.cfg.talents[tk];
-    if (!t) return;
-    const ta = el('p', 'ab talent');
-    ta.append(el('b', '', `${talentName(tk, key)} (${'★'.repeat(t.star)}): `), document.createTextNode(t.text));
-    parts.push(ta);
-  });
+    if (t) parts.push(labelled(`${talentName(tk, key)} (${'★'.repeat(t.star)} extra)`, t.text, 'ab talent'));
+  }
   if (d.ability && star < 3 && !talents.length && h.kind !== 'fight' && !talentOffer(h.id)) {
     parts.push(el('p', 'note', 'At 2★ and 3★ it gets an extra ability of your choice.'));
   }
-  box.replaceChildren(...parts);
+  if (h.items?.length) {
+    const list = el('ul', 'held');
+    h.items.forEach((it, k) => {
+      const i = S.cfg.items[it];
+      const li = el('li');
+      li.dataset.k = k;
+      li.style.setProperty('--rc', rarityColor(it));
+      const what = el('span', 'what');
+      what.append(el('b', '', i.name), el('small', '', i.text + (i.stats ? ` ${i.stats}.` : '')));
+      li.append(icon('item:' + it, 24), what);
+      list.append(li);
+    });
+    parts.push(list);
+  }
+  return parts;
 }
 
-function abilityNumbers(ab, star) {
+// The unit's traits: whether each is on for it, and what it gives (or would, fielded).
+function unitTraits(h, traits, d) {
+  const onBoard = h.kind === 'board' || h.kind === 'fight';
+  const counts = h.kind === 'fight' ? S.pb?.res?.traits?.[h.live.side] : h.kind === 'board' ? player(S.watch)?.traits : me()?.traits;
+  const already = (me()?.board || []).some(u => u[1] === h.key);
+  const ul = el('ul', 'unit-traits');
+  for (const t of traits) {
+    const def = S.cfg.traits[t];
+    const n = onBoard ? counts?.[t] || 0 : (counts?.[t] || 0) + (already ? 0 : 1);
+    const level = traitLevel(t, n);
+    const li = el('li', level >= 0 ? 'on' : '');
+    const name = el('b');
+    name.append(icon('trait:' + t, 16), document.createTextNode(`${def.name}${d.traits.includes(t) ? '' : ' (emblem)'} ${n}/${def.levels[Math.max(0, level + (def.levels[level + 1] ? 1 : 0))]}`));
+    const words = fx => describeFx(fx) + (fx.who === 'team' ? ' (whole board)' : '');
+    const need = def.levels[0];
+    const say = level >= 0 ? words(def.fx[level]) : `${n} of ${need}, not on yet (at ${need}: ${words(def.fx[0])})`;
+    li.append(name, el('span', '', onBoard ? say : `Fielded, it makes ${level >= 0 ? `${n}: ` : ''}${say}`));
+    li.title = def.text;
+    ul.append(li);
+  }
+  return ul;
+}
+
+// Its numbers: what it fights with, as tiles, each with the difference from the unit bare (traits, items,
+// extra abilities, augments, the commander). Hover a tile for what it means.
+function statBlock(d, star, st, live) {
+  const m = [1, 1.8, 3.24][star - 1];
+  const base = { hp: Math.round(d.hp * m), ad: Math.round(d.ad * m), as: d.as, range: d.range, armor: d.armor, mr: d.mr,
+    mana: d.start, maxmana: d.mana, ap: 100, crit: 0.25, critdmg: 1.4, dodge: 0, dr: 0, spell_dr: 0, power: 0, regen: 0 };
+  const s = st || base;
+  const box = el('div', 'stats');
+  const tile = (label, value, delta, tip) => {
+    const t = el('div', 'tile');
+    t.append(el('span', 'l', label), el('b', '', value));
+    if (delta) t.append(el('small', delta.startsWith('−') ? 'down' : 'up', delta));
+    t.title = tip;
+    box.append(t);
+  };
+  const diff = (a, b, unit = '') => (Math.round(a - b) ? `${a > b ? '+' : '−'}${Math.abs(Math.round(a - b))}${unit}` : '');
+  tile('HP', live ? `${Math.round(live.hp)}/${Math.round(live.max)}` : String(s.hp), live ? '' : diff(s.hp, base.hp), 'Health.');
+  tile('Attack', String(s.ad), diff(s.ad, base.ad), 'Physical damage each attack (armor reduces it).');
+  tile('Attack speed', `${s.as.toFixed(2)}/s`, diff(s.as / base.as * 100, 100, '%'), 'Attacks a second.');
+  tile('Range', s.range > 1 ? `${s.range} hexes` : 'Melee', '', 'How far away it can attack.');
+  tile('Armor', String(s.armor), diff(s.armor, base.armor), `Takes ${cut(s.armor)}% less physical damage.`);
+  tile('Resist', String(s.mr), diff(s.mr, base.mr), `Magic resist: takes ${cut(s.mr)}% less magic damage.`);
+  const manaDelta = s.maxmana !== base.maxmana ? `${s.maxmana < base.maxmana ? '−' : '+'}${Math.abs(base.maxmana - s.maxmana)} to cast`
+    : diff(s.mana, base.mana, ' at start');
+  tile('Mana', live ? `${Math.round(live.mana)}/${live.maxmana}` : `${s.mana}/${s.maxmana}`, live ? '' : manaDelta,
+    'Starting mana / mana to cast its ability. It gains 10 mana an attack and some when hurt.');
+  tile('Ability power', String(s.ap), diff(s.ap, 100), `Its ability's damage, healing and shields ×${(s.ap / 100).toFixed(2)} (100 is as written).`);
+  tile('Crit', `${Math.round(s.crit * 100)}%`, s.crit !== 0.25 || s.critdmg !== 1.4 ? `×${s.critdmg.toFixed(2)} damage` : '',
+    `${Math.round(s.crit * 100)}% of attacks crit, for ×${s.critdmg.toFixed(2)} damage.`);
+  const more = [`Armor: ${cut(s.armor)}% less physical damage`, `resist: ${cut(s.mr)}% less magic`];
+  if (s.dodge) more.push(`dodges ${Math.round(Math.min(1, s.dodge) * 100)}% of attacks`);
+  if (s.dr) more.push(`takes ${Math.round(s.dr * 100)}% less damage`);
+  if (s.spell_dr) more.push(`${Math.round(Math.min(0.8, s.spell_dr) * 100)}% less from abilities`);
+  if (s.regen) more.push(`regrows ${+(s.regen * 100).toFixed(1)}% HP a second`);
+  if (s.power) more.push(`ability ${Math.round(s.power * 100)}% stronger`);
+  return [box, el('p', 'more', more.join(' · ') + '.')];
+}
+const cut = armor => Math.round(100 - 10000 / (100 + Math.max(0, armor)));
+
+// The numbers in an ability's steps at a star, with its ability power (and an Empowered pick) applied.
+function abilityNumbers(ab, star, st) {
   const bits = [];
   const pct = x => `${Math.round(x * 100)}%`;
+  const power = 1 + (st?.power || 0), spell = (st ? st.ap / 100 : 1) * power;
   const STAT = { ad: 'attack', ap: 'ability power', armor: 'armor', mr: 'resist', hp: 'HP' };
   for (const s of ab.steps) {
     const v = x => (Array.isArray(x) ? x[star - 1] : x);
-    if (s.dmg && s.do === 'zone') bits.push(`${v(s.dmg)} damage a second for ${v(s.secs)} s`);
-    else if (s.dmg) bits.push(`${v(s.dmg)} ${s.type === 'phys' ? 'physical' : s.type === 'true' ? 'true' : 'magic'} damage`);
-    if (s.heal && s.do === 'zone') bits.push(`${v(s.heal)} healing a second`);
-    if (s.amt && ['heal', 'shield'].includes(s.do)) bits.push(`${v(s.amt)} ${s.do === 'heal' ? 'healing' : 'shield'}`);
+    const sp = x => Math.round(v(x) * spell);
+    if (s.dmg && s.do === 'zone') bits.push(`${sp(s.dmg)} damage a second for ${v(s.secs)} s`);
+    else if (s.dmg) bits.push(`${sp(s.dmg)} ${s.type === 'phys' ? 'physical' : s.type === 'true' ? 'true' : 'magic'} damage`);
+    if (s.heal && s.do === 'zone') bits.push(`${sp(s.heal)} healing a second`);
+    if (s.amt && ['heal', 'shield'].includes(s.do)) bits.push(`${sp(s.amt)} ${s.do === 'heal' ? 'healing' : 'shield'}`);
     if (s.do === 'buff' || s.do === 'grow') {
-      const amt = v(s.amt);
+      const amt = v(s.amt) * power;
       const what = ['aspd_pct', 'dodge', 'regen', 'burns', 'thorns'].includes(s.stat)
         ? `+${pct(amt)} ${{ aspd_pct: 'attack speed', dodge: 'dodge', regen: 'HP a second', burns: 'burn a second', thorns: 'of hits back' }[s.stat]}`
-        : `+${amt} ${STAT[s.stat] || s.stat}`;
+        : `+${Math.round(amt)} ${STAT[s.stat] || s.stat}`;
       bits.push(s.do === 'grow' ? `${what} for good` : what);
     }
     if (s.do === 'mana') bits.push(`${v(s.amt)} mana to allies`);
@@ -951,21 +1073,25 @@ function abilityNumbers(ab, star) {
     if (s.execute) bits.push(`finishes below ${pct(v(s.execute))} HP`);
     if (s.delay) bits.push(`lands after ${s.delay} s`);
   }
-  return bits.length ? `(${bits.join(', ')})` : '';
+  return bits.length ? `(${bits.join(', ')}${Math.abs(spell - 1) > 0.005 ? `; ×${spell.toFixed(2)} from ability power` : ''})` : '';
 }
 
+// A trait's (or augment's) effects in words.
+const fxPct = x => `${+(x * 100).toFixed(1)}%`;
+const FX_WORDS = {
+  hp_pct: v => `+${fxPct(v)} max HP`, ad_pct: v => `+${fxPct(v)} attack`, aspd_pct: v => `+${fxPct(v)} attack speed`,
+  armor: v => `+${v} armor`, mr: v => `+${v} magic resist`, ap: v => `+${v} ability power`, ad: v => `+${v} attack`,
+  hp: v => `+${v} HP`, mana: v => `+${v} starting mana`, dodge: v => `dodge ${fxPct(v)} of attacks`,
+  crit: v => `+${fxPct(v)} crit chance`, critdmg: v => `crits ${fxPct(v)} harder`, mana_cut: v => `abilities need ${fxPct(v)} less mana`,
+  burn: v => `attacks burn ${fxPct(v)} of max HP a second for 3 s`, regen: v => `regrow ${fxPct(v)} of max HP a second`,
+  mana_regen: v => `+${v} mana a second`, revive: v => `rise once with ${fxPct(v)} HP`,
+  chill: v => `attackers attack ${fxPct(v)} slower for 2 s`, shield: v => `a ${v} shield for the first 10 s`,
+  duel: v => `+${fxPct(v)} attack speed each attack (up to 8 times)`, double: v => `${fxPct(v)} chance to strike twice`,
+  leap: () => 'leap to the back line at the start', summon_boost: v => `summons get +${fxPct(v)} HP and attack`,
+  spell_dr: v => `take ${fxPct(v)} less from abilities`,
+};
 function describeFx(fx) {
-  const names = {
-    burn: v => `burn ${v * 100}%/s`, regen: v => `regrow ${v * 100}%/s`, mana_regen: v => `+${v} mana/s`,
-    revive: v => `rise with ${v * 100}%`, dodge: v => `${v * 100}% dodge`, armor: v => `+${v} armor`, mr: v => `+${v} resist`,
-    mana_cut: v => `-${v * 100}% mana`, chill: v => `-${v * 100}% attack speed`, shield: v => `${v} shield`,
-    duel: v => `+${v * 100}% speed a hit`, double: v => `${v * 100}% double strike`, ap: v => `+${v}% ability power`,
-    crit: v => `+${v * 100}% crit`, summon_boost: v => `+${v * 100}% summons`, hp_pct: v => `+${v * 100}% HP`,
-    spell_dr: v => `${v * 100}% less from abilities`,
-  };
-  const out = [];
-  for (const [k, v] of Object.entries(fx)) if (names[k]) out.push(names[k](v));
-  return out.join(', ') + (fx.who === 'team' ? ' (everyone)' : '');
+  return Object.entries(fx).filter(([k]) => FX_WORDS[k]).map(([k, v]) => FX_WORDS[k](v)).join(', ');
 }
 
 // ------------------------------------------------------------------ the damage chart
@@ -1716,7 +1842,7 @@ function unitAt(x, y) {
   const i = benchAt(x, y);
   if (i >= 0) {
     const u = st.me?.bench[i];
-    return u ? { kind: 'bench', i, key: u[1], star: u[2], items: u[3], talents: u[4], id: u[0] } : null;
+    return u ? { kind: 'bench', i, key: u[1], star: u[2], items: u[3], talents: u[4], id: u[0], stats: u[5] } : null;
   }
   if (st.phase === 'fight') {
     if (!S.pb || !S.where) return null;
@@ -1731,7 +1857,7 @@ function unitAt(x, y) {
   }
   const h = hexAt(x, y);
   const u = h && player(S.watch)?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0] } : null;
+  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0], stats: u[7] } : null;
 }
 
 // Moves one of your units (from {b} or {c, r}) to the bench slot or own hex at (x, y). False if that's
@@ -1808,11 +1934,11 @@ addEventListener('pointermove', e => {
     const prev = S.hover;
     if (i >= 0) {
       const u = S.st.me?.bench[i];
-      S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3], talents: u?.[4], id: u?.[0] };
+      S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3], talents: u?.[4], id: u?.[0], stats: u?.[5] };
     } else if (h && S.st.phase !== 'fight') {
       const w = player(S.watch);
       const u = w?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-      S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5], talents: u?.[6], id: u?.[0] };
+      S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5], talents: u?.[6], id: u?.[0], stats: u?.[7] };
     } else if (S.st.phase !== 'fight') {
       S.hover = null;
     }
@@ -1832,7 +1958,7 @@ addEventListener('pointerup', e => {
     if (!drag.moved) {
       S.pickedItem = S.pickedItem === drag.item ? null : drag.item;
       renderItems();
-      if (e.pointerType !== 'mouse') pin(S.pickedItem != null ? { kind: 'item', item: drag.key } : null, true);
+      if (e.pointerType !== 'mouse') pin(S.pickedItem != null ? { kind: 'item', item: drag.key, bench: true } : null, true);
       return;
     }
     const p = canvasXY(e);
@@ -1848,8 +1974,8 @@ addEventListener('pointerup', e => {
     const f = drag.from, s0 = S.sel?.from;
     if (s0 && s0.b === f.b && s0.c === f.c && s0.r === f.r) { pin(null); return; }
     const u = drag.unit;
-    const hover = f.b != null ? { kind: 'bench', i: f.b, key: u[1], star: u[2], items: u[3], talents: u[4], id: u[0] }
-      : { kind: 'board', c: f.c, r: f.r, key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0] };
+    const hover = f.b != null ? { kind: 'bench', i: f.b, key: u[1], star: u[2], items: u[3], talents: u[4], id: u[0], stats: u[5] }
+      : { kind: 'board', c: f.c, r: f.r, key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0], stats: u[7] };
     pin(hover, true, { from: f, key: u[1] });
     play('click');
     return;

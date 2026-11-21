@@ -239,7 +239,16 @@ class Unit:
     def row(self):
         """What the browsers are told about a unit at the start or when it's summoned."""
         return [self.id, self.side, self.key, self.star, self.hex[0], self.hex[1], round(self.max),
-                self.maxmana, round(self.mana), self.items, self.talents]
+                self.maxmana, round(self.mana), self.items, self.talents, self.stats()]
+
+    def stats(self):
+        """Its numbers as a fight starts, with traits, items, extra abilities and commanders counted, for
+        the browsers' unit cards (buffs that run out are left out)."""
+        return {"hp": round(self.max), "ad": round(self.ad), "as": round(min(MAX_ASPD, self.base_as * (1 + self.aspd_pct)), 2),
+                "range": self.range, "armor": round(self.armor), "mr": round(self.mr), "mana": round(self.mana),
+                "maxmana": self.maxmana, "ap": round(self.ap), "crit": round(self.crit, 2),
+                "critdmg": round(self.critdmg, 2), "dodge": round(self.dodge, 2), "dr": round(self.dr, 2),
+                "spell_dr": round(self.spell_dr, 2), "power": round(self.cast_power, 2), "regen": round(self.regen, 3)}
 
     def shield(self, now):
         return sum(a for a, until in self.shields if until > now)

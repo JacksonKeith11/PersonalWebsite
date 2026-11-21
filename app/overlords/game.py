@@ -84,6 +84,7 @@ class Player:
         self.oracle_roll = False
         self.cheap_rolls = 0  # the Gambler's 1-gold rerolls left this round
         self.first_roll = False  # the Twinmaker: the round's first shop is being rolled
+        self.cards = {}  # unit id -> its numbers for the unit cards (Room.public)
         self.final = None  # their board when they went out (or won): {"traits", "units"}
         self.hp_log = [D.START_HP]  # HP after each round, for the end screen's chart
 
@@ -100,6 +101,22 @@ class Player:
 
     def shop_size(self):
         return D.SHOP_SIZE + (self.commander == "quartermaster")
+
+    def card_stats(self):
+        """{unit id: sim.Unit.stats()} for the unit cards: board units as their next fight would start them
+        (traits, augments and the commander counted), bench units with their items and picks only."""
+        out = {}
+        f = sim.Fight(self.fight_board(), [], extras=(self.extras(), {}))
+        at = {u.hex: u for u in f.units if not u.summon}
+        for (c, r), u in self.board.items():
+            if (c, r) in at:
+                out[u["id"]] = at[(c, r)].stats()
+        for u in self.bench:
+            if u:
+                f = sim.Fight([{"unit": u["unit"], "star": u["star"], "col": 3, "row": 3, "items": list(u["items"]),
+                                "talents": list(u["talents"])}], [])
+                out[u["id"]] = f.units[0].stats()
+        return out
 
     def traits(self):
         return D.trait_counts([(u["unit"], u["items"]) for u in self.board.values()], self.bonus)
@@ -1089,7 +1106,8 @@ class Room:
         """What only this player sees: their shop, bench, XP, items and pending choices."""
         c = D.COMMANDERS.get(p.commander)
         return {"shop": p.shop, "armory": p.armory, "armory_prices": [self.item_price(k, p) if k else None for k in p.armory],
-                "bench": [[u["id"], u["unit"], u["star"], u["items"], u["talents"]] if u else None for u in p.bench],
+                "bench": [[u["id"], u["unit"], u["star"], u["items"], u["talents"], p.cards.get(u["id"])] if u else None
+                          for u in p.bench],
                 "talent_offers": [{"id": u["id"], "unit": u["unit"], "star": D.TALENT_STARS[len(u["talents"])],
                                    "options": self.talent_offer(u)} for u in self.ordered(p) if self.talent_offer(u)],
                 "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
@@ -1103,10 +1121,14 @@ class Room:
                 "list": self.fights}
 
     def public(self, p):
+        # the unit cards' numbers: worked out only when a person is here to see them (not in bot-only rooms)
+        people = any(q.connected and not q.bot for q in self.players.values())
+        p.cards = p.card_stats() if people and p.seated and p.units() else {}
         return {"id": p.id, "name": p.name, "color": p.color, "bot": p.bot, "on": p.connected,
                 "seated": p.seated, "hp": p.hp, "level": p.level, "gold": p.gold, "alive": p.alive,
                 "place": p.place, "streak": p.streak, "ready": p.ready, "results": p.results[-5:],
-                "board": [[u["id"], u["unit"], u["star"], c, r, u["items"], u["talents"]] for (c, r), u in p.board.items()],
+                "board": [[u["id"], u["unit"], u["star"], c, r, u["items"], u["talents"], p.cards.get(u["id"])]
+                          for (c, r), u in p.board.items()],
                 "bench": sum(1 for u in p.bench if u), "limit": p.limit(),
                 "commander": p.commander, "augments": p.augments, "items": len(p.items),
                 "traits": p.traits(), "final": p.final if self.phase == "over" else None,

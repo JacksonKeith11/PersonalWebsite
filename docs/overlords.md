@@ -309,6 +309,18 @@ matching), the side panels fold away:
   round 5, rerolls when rich or below their panic HP, the commander's power when charged, items on
   their most valuable units (`equip`), and picks of commander, augment, draft and extra abilities
   (`pick_talents`). They act through the same room methods as a browser.
+- **The info card** (`infoBody` in `main.js`: `unitCard`, `itemCard`, `traitCard`; the owner asked for a
+  UI pass in November 2026 so item descriptions, unit stats and trait bonuses read clearly). A unit's
+  numbers are the server's: `Player.card_stats` sets a fight up (`sim.Fight`, not run) with the player's
+  board and `extras` and reads `sim.Unit.stats()` (traits, items, picks, augments and the commander
+  counted; bench units get items and picks only, as they don't fight). They ride as the eighth field of
+  board rows and the sixth of bench rows, and as the twelfth of fights' `start` rows, so fight cards (yours
+  and the enemy's) have them too. The card shows them as tiles beside the bare unit's (green and red),
+  each tile's meaning on hover, armor and resist as damage cut, the unit's traits with what each is doing
+  for it (or would, fielded, for shop and bench units), its ability's numbers times its ability power and
+  Empowered pick, and each item's effect. The trait list says what each trait gives now (or at its first
+  tier); a trait's card lists its tiers with the one reached marked, counts augments, and lists emblem
+  holders. Effects in words: `FX_WORDS` / `describeFx` (every key traits use).
 - Browser: `js/main.js` (screens, canvas, dragging and tapping, the shop, panels and phone sheets), `js/fight.js` (`Playback`:
   rebuilds a fight at any time from its timeline; switching fights catches up silently),
   `js/sound.js` (every sound synthesized with Web Audio; hits rate-limited; mute remembered). The
@@ -356,6 +368,14 @@ matching), the side panels fold away:
 - Marks (abilities' `amp`, Bog Grip's `mark_on_hit`) share `Unit.amp` with the Hexer's hex, so they go
   through `Fight.mark`: a mark never replaces a stronger one that's still on and never shortens one.
   Before November 2026 a Mire Witch's or Forge Hound's mark cut the Hexer's all-fight hex to 4 s.
+- The card numbers are worked out in `Room.public` on every state, so only when a person is in the room
+  (bot-only rooms, as in the checks and the simulator, skip them: a few tenths of a millisecond a player).
+  A new fx key a fight knows should go in `Unit.stats` if it changes a number the card shows.
+- On desktop the info card floats over the left column (`position: absolute` in `.main`), not at the foot
+  of the right one: it needed the height, and over the right column it hid the trait being hovered,
+  which flickered. Phones keep it fixed at the top, at most 42% of the screen and scrolling, with Sell and
+  the pick button moved up under the unit's name: any taller and it covered the hexes tap-to-move needs
+  (the phone check caught it).
 - Trait counts ignore duplicates and summons. Summons and monsters have `"summon": True` and cost 0,
   which keeps them out of the shop and the pool.
 - `Room.clock` is swappable: the check winds it on to play whole matches instantly. Real code must
@@ -375,7 +395,8 @@ matching), the side panels fold away:
   prices by rarity, the Forgemaster's discount, a locked shop keeps it, its odds early and late, no
   monster drops), extra abilities (options at every star for every unit, picking once, kept through a
   merge, lost with a sale, a skipped 2-star pick first, bots picking, and Stalwart, Empowered, Sludge,
-  Bog Grip and Kindling working in a fight), the first fight waiting for a commander, Exit, the match
+  Bog Grip and Kindling working in a fight), the unit cards' numbers (board, bench and fight rows, and
+  none worked out in a room of bots), the first fight waiting for a commander, Exit, the match
   ending when the last person is out, and three whole bot matches with the pool conserved.
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item

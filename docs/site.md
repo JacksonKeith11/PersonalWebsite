@@ -79,7 +79,7 @@ Dockerfiles, `docker-compose.yml`, or anything about how the site is served.
   app/static/style.css`: it bumps every link to it (the public pages, Song Guesser's `index.html`,
   `STYLE` in `app/books/pages.py`) and `ASSET_VERSION`, since the books service worker caches `STYLE`.
   `python3 tools/bump-version.py --check` lists any file linked with two different versions.
-- **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about seven minutes): the app
+- **Before pushing**, `tools/check-all.sh` runs every fast check in the repo (about seven and a half minutes): the app
   imports, cache versions agree, every browser JS file parses (`tools/check-js.sh`), and each game's
   own checks. Browser smoke tests need a running server and live in each area's doc, except Kingfall's
   Sketch Relay's, Scramble's and Holdfast's (`tools/<game>-smoke.js --serve`), which start their own and are in `check-all.sh`; a check that exits

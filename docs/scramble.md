@@ -95,7 +95,8 @@ alone on the course only rolls boosts.
   while touching one jumps again), `barrels` (hold you until a fresh jump press, or by themselves if
   `auto`, then fire you off; nobody steers for `FLING` s), `chasers` (a boulder per racer, like lava),
   `zones` (low gravity, goo, ice, updraft), `ledges` (one-way), `portals`, pad strengths and plat looks.
-  Bots ignore all of it: their routes cross the surfaces and dice (`risk`) stand in for the hazards.
+  Bots see the timed hazards (saws, firebars, cannon shots, crushers, jets: `hazards.py`) and leave
+  the rest to dice (`risk`): their routes cross the surfaces regardless.
 - **Crumbling blocks crumble for each racer separately**: `p.stood` in `physics.js` records when this
   player first stood on each, and a respawn resets it. Other racers' crumbles aren't drawn.
 - **Bots don't run the physics.** Each segment lists the surfaces a bot crosses (`Seg.route`), which
@@ -123,6 +124,21 @@ alone on the course only rolls boosts.
     away (a shield stays up until something hits it, so holding one back gains nothing). Bots are
     caught once by each trap and run slower or faster while frozen or boosted.
   - A swap puts a bot on the nearest ground at or before where it lands (`Room.place_bot`).
+  - **Timed hazards** (the owner asked for bots that react to them): `hazards.py` is a copy of where
+    physics.js puts saws, firebar balls, cannon shots, crushers and jets at any race time
+    (`Hazards.hit`, filed in 256 px buckets). On the ground a bot looks ahead along its legs at its
+    pace (`Room.bot_waits`: at least `BOT_LOOK` + `BOT_LOOK_SKILL` × skill s, and on to somewhere
+    it could stand safely, up to `BOT_LOOK_MAX`), giving hazards 4 px of room and a tick either side,
+    and stands where it is if going would catch it and standing for 0.4 s won't. A hazard that does
+    reach it (`Room.caught_by`, 2 px leniently, as bots' jumps are only roughly people's) it hops
+    over with a chance of its skill + 0.1 (`BOT_DODGE`, 0.2 less if rash; a visible 0.5 s hop, `Room.hop`), or it's
+    knocked out like a person. A bot is sometimes rash on entering a segment (`BOT_RASH`) and looks
+    only 0.3 s ahead, so clumsy bots blunder in. After `BOT_CAUGHT_MAX` catches in one segment it's
+    let through, and after `BOT_WAIT_MAX` s standing it goes on regardless for 2 s, so no bot is stuck
+    for good. In segments with these hazards bots run 1.25× their usual pace (up to flat out:
+    `BOT_HAZARD_PACE`), don't dash (the look-ahead assumes their running pace), and roll the old dice
+    at a fifth of the odds (`HAZARD_DICE`). Segments with no safe place to stand (poppers, cannons
+    along the floor, a firebar sweeping the floor) come down to the hop.
 - **Results**: the server counts each racer's falls, items used, items landed and hits taken
   (`stats` in `state`), gives up to four awards a round (`awards()`: Never fell, Sharpshooter, Most
   bolted, Item hoarder, Bounced back; at most one each, no ties), and keeps the room's best time
@@ -146,9 +162,11 @@ alone on the course only rolls boosts.
 ## Design directives
 
 - **A segment must take attention, and provably so.** `tools/scramble-easy.mjs` plays every segment
-  lazily (holding right, or holding right and jumping on a steady beat, arriving at six different
-  race times) and fails any that more than a fifth of those runs get through, at the first obstacle's
-  difficulty and at the last's. Moving hazards that a runner meets in turn are best timed against
+  lazily (holding right, arriving at 24 different race times; or holding right and jumping on a
+  steady beat, some beats air-dashing in every jump, arriving at six) and fails any that more than 12%
+  of either get through at the last obstacle's difficulty, or 15% at the first's. Evenly spaced
+  obstacles fall to a steady beat, so space them unevenly (the hurdles, swamp, boulder, rope bridge
+  and hexfloor do). Moving hazards that a runner meets in turn are best timed against
   each other so nobody gets through them all at a run (the crushers are each a quarter beat on from
   the last for a runner; the barrels' saws all clear together at one moment to get in).
 - **A segment must be finishable, and provably so.** `tools/scramble-check.mjs` searches the real
@@ -207,8 +225,12 @@ alone on the course only rolls boosts.
   rider off sideways.
 - **A jump key pressed and released between two frames** would be missed by reading held keys, so
   `main.js` latches it (`tapped`) until a physics step has seen it.
-- **Bots pass through saws** and hop spikes on rails; their mistakes are dice (`risk`), not
-  collisions. A segment's `route` must run left to right and join up with its neighbours
+- **`hazards.py` must match physics.js**: bots look ahead and are caught with it. `scramble-easy.mjs`
+  compares the two at 400 random places and times on every build it plays, and fails if they differ.
+  Bots hop spikes on rails, and everything that isn't a timed hazard is still dice (`risk`).
+- **The item tests' bot stands still** (skill 0) **with hazards switched off** (`room._hz` set to an
+  empty `Hazards`), or a saw where it stands knocks it back to its flag mid-test. Their positions
+  come from the bot's route (`place_bot` puts it on the nearest ground before), as the course is random. A segment's `route` must run left to right and join up with its neighbours
   (`tools/scramble-check.py` checks every leg starts where the last ended).
 - The games live in the web process's memory: a deploy ends every race in progress.
 
@@ -222,17 +244,18 @@ alone on the course only rolls boosts.
   segment goes in `SEGMENTS` (the newer ones in `MORE`) and must pass it. On ice the search tells states apart by speed in steps of 100 px/s; finer and the
   600 states it keeps fill up with near-copies and it loses the way up the lava (a wider search,
   3000, finds it either way).
-- `node tools/scramble-easy.mjs [variants] [--first] [-v] [segments...]` (about 30 s for three builds of
-  everything): no segment is got through by lazy play, at the last obstacle's difficulty (`--first`:
-  the first's). `check-all.sh` runs both. `-v` lists every segment's shares; after the November 2026
-  pass the worst were about 20% of beats (portals) and 17% of plain runs (saws, maces).
-- `python3 tools/scramble-check.py` (about 5 s): bots race whole games on a fake clock (one human
+- `node tools/scramble-easy.mjs [variants] [--first] [-v] [segments...]` (about 40 s for three builds of
+  everything, in one worker thread per core): no segment is got through by lazy play, at the last
+  obstacle's difficulty (`--first`: the first's), and `hazards.py` agrees with physics.js.
+  `check-all.sh` runs both. `-v` lists every segment's shares.
+- `python3 tools/scramble-check.py` (about 15 s): bots race whole games on a fake clock (one human
   standing still, seven bots using items on each other); scoring, finishing, watching, leaving, every
   item (bolts and freezes arriving late, and blocked by a late shield), emotes, hats, records and
-  awards; the fork's slow way and the lift, bot dashes, bots waiting for a good moment to use an
-  item, and the props (where they go, what they do to bots, running out, bombs). Its item-timing
-  checks place the human relative to where `place_bot` actually put the bot, since the ground moves with the course. Latest runs (November 2026, after the harder difficulty range): bots finish in 39-135 s
-  (average about 80), and 9-11 of about 105 run out of time; after the 54 new segments and the props, 35-129 s
+  awards; the fork's slow way and the lift, bot dashes, bots waiting for crushers (and caught by
+  them when they don't look, unless they hop), bots waiting for a good moment to use an item, and the props (where they go, what they do to bots, running out, bombs). Its item-timing
+  checks place the human relative to where `place_bot` actually put the bot, since the ground moves with the course. Latest runs (November 2026, once bots saw the timed hazards): bots finish in 37-174 s (average
+  about 90), and 7-17 of about 105 run out of time; after the harder difficulty range, 39-135 s
+  (average about 80) and 9-11; after the 54 new segments and the props, 35-129 s
   (average about 74) and 5-15; before them, 36-123 s and 6-20. Before the difficulty and item changes it was 26-70 s and
   about 5%. In `check-all.sh`.
 - `node tools/scramble-smoke.js --serve` (about 50 s): two browsers, one phone-sized, and a bot race

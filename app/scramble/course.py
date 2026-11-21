@@ -169,7 +169,7 @@ def seg_spikes(r, d):
 
 def seg_saws(r, d):
     s = Seg("saws", 0.8)
-    n = 2 if d < 0.4 else 3 if d < 0.7 else 4 + (d > 1.1)
+    n = 2 if d < 0.4 else 3 if d < 0.7 else 5 + (d > 1.1)
     w = 280 + n * 240
     s.ground(0, w)
     for i in range(n):
@@ -276,18 +276,23 @@ def seg_stones(r, d):
 
 def seg_hurdles(r, d):
     s = Seg("hurdles", 0.7)
-    sw = int(lerp(d, 56, 86))
-    n = 3 + (d > 0.6)
-    s.plats.append([0, 0, 260 * n + 260, DEEP])
-    at = 0
-    for i in range(n):
-        x = 260 * (i + 1) + r.randint(-30, 30)
-        s.plats.append([x, -70, 40, 70])
-        s.spikes.append([x + 40, 0, sw])
-        s.route += [(at, x - 30, 0), (x + 4, x + 36, -70)]
+    n = 3 + more(d)
+    at, x = 0, 0
+    hurdles = []
+    for i in range(n):  # uneven, so it takes looking: no steady beat clears them
+        x += r.randint(int(lerp(d, 200, 190)), int(lerp(d, 300, 330)))
+        sw, hh = r.randint(int(lerp(d, 70, 90)), int(lerp(d, 100, 125))), r.choice([60, 70, 80])
+        hurdles.append((x, sw, hh))
+        x += 40 + sw
+    w = x + 260
+    s.plats.append([0, 0, w, DEEP])
+    for x, sw, hh in hurdles:  # spikes before each (to jump from the right place) and after (to clear)
+        s.plats.append([x, -hh, 40, hh])
+        s.spikes += [[x - 30, 0, 30], [x + 40, 0, sw]]
+        s.route += [(at, x - 56, 0), (x + 4, x + 36, -hh)]
         at = x + 40 + sw + 26
-    s.route.append((at, 260 * n + 260, 0))
-    s.w = 260 * n + 260
+    s.route.append((at, w, 0))
+    s.w = w
     return s
 
 
@@ -410,7 +415,7 @@ def seg_fork(r, d):
             break
         s.ground(x, w, 0, h=24)
         x += w
-        if d > 0.55 and r.random() < 0.5 and x < 760:  # a saw over the next gap
+        if d > 0.55 and r.random() < 0.75 and x < 760:  # a saw over the next gap
             s.saw(x + 60, -70, 24, 0, 40, r.uniform(1.6, 2.2), r.uniform(0, 6.28))
     s.movers.append([905, floor // 2, 90, 22, 0, floor // 2, round(r.uniform(2.8, 3.4), 3), round(r.uniform(0, 6.28), 3)])
     s.ground(1000, 200)
@@ -515,7 +520,9 @@ def seg_cannons(r, d):
     run = int(lerp(d, 560, 760))
     s.ground(0, run)
     s.ground(run, 220, -60)
-    s.cannon(run - 6, -22, -int(lerp(d, 220, 270)), 0, lerp(d, 2.3, 1.8), r.random(), run - 40)
+    s.cannon(run - 6, -22, -int(lerp(d, 220, 270)), 0, lerp(d, 2.1, 1.6), r.random(), run - 40)
+    if d > 0.7:  # a second gun beside it, on another beat
+        s.cannon(run - 6, -22, -int(lerp(d, 180, 220)), 0, lerp(d, 2.9, 2.3), r.random(), run - 40)
     if d > 0.6:  # and another on the wall's top, shooting along it
         s.cannon(run + 214, -82, -230, 0, 2.2, r.random(), 200)
     s.ground(run + 220, 200)
@@ -529,8 +536,8 @@ def seg_crossfire(r, d):
     for _ in range(3):
         top -= 50
         x = s.ground(x, int(lerp(d, 200, 160)), top)
-    s.cannon(x - 6, top - 22, -240, 0, lerp(d, 2.4, 1.9), r.random(), x - 240)
-    s.cannon(x - 6, top - 96, -300, 0, lerp(d, 2.4, 1.9), r.random(), x - 240)
+    s.cannon(x - 6, top - 22, -240, 0, lerp(d, 2.2, 1.6), r.random(), x - 240)
+    s.cannon(x - 6, top - 96, -300, 0, lerp(d, 2.2, 1.6), r.random(), x - 240)
     x = s.ground(x, 200, top)
     s.ground(x, 200)
     return s
@@ -539,12 +546,12 @@ def seg_crossfire(r, d):
 def seg_drips(r, d):
     """Drops falling from the cave roof in columns: slip between them."""
     s = Seg("drips", 0.6)
-    n = 4 + (d > 0.6) * 2
+    n = 4 + more(d) * 2
     w = 220 + n * 110
     spikes = [(200 + 110 * i + 40, int(lerp(d, 30, 44))) for i in range(n) if i % 3 == 2 and d > 0.5]
     s.ground(0, w, spikes=spikes)
     for i in range(n):
-        s.cannon(200 + 110 * i + r.randint(-10, 10), -430, 0, int(lerp(d, 300, 380)), r.uniform(1.6, 2.2), r.random(), 430)
+        s.cannon(200 + 110 * i + r.randint(-10, 10), -430, 0, int(lerp(d, 300, 380)), r.uniform(1.2, 1.7), r.random(), 430)
     return s
 
 
@@ -567,13 +574,15 @@ def seg_ferris(r, d):
     """A wheel of platforms turning over a pit: ride it over the top."""
     s = Seg("ferris", 0.7)
     s.ground(0, 180)
-    R, w = 120, int(lerp(d, 90, 70))
+    R, w = 120, int(lerp(d, 76, 56))
     cx = 180 + 60 + R
-    period, phase = r.uniform(6.5, 7.5) * lerp(d, 1, 0.8), r.uniform(0, 6.28)
+    period, phase = r.uniform(6.5, 7.5) * lerp(d, 1, 0.7), r.uniform(0, 6.28)
     for k in range(4):
         s.movers.append([cx - w // 2, -40, w, 22, R, R, round(period, 3), round(phase + k * math.pi / 2, 3), 1])
     s.route += [(cx - R - w // 2 + 10, cx - R + w // 2 - 10, -40), (cx - w // 2, cx + w // 2, -40 - R),
                 (cx + R - w // 2 + 10, cx + R + w // 2 - 10, -40)]
+    if d > 0.7:  # a firebar turning the other way inside the wheel: ride round it, don't jump through
+        s.bar(cx, -40, 70, 4, -period / 2, r.uniform(0, 6.28))
     s.ground(cx + R + 60 + w // 2, 180)
     return s
 
@@ -582,9 +591,9 @@ def seg_carousel(r, d):
     """Platforms going round a long loop over a pit, forwards on top and back underneath."""
     s = Seg("carousel", 0.7)
     s.ground(0, 180)
-    dx, w = 170, int(lerp(d, 100, 76))
+    dx, w = 170, int(lerp(d, 88, 64))
     cx = 180 + 50 + dx
-    period, phase = r.uniform(4.8, 5.6) * lerp(d, 1, 0.85), r.uniform(0, 6.28)
+    period, phase = r.uniform(4.8, 5.6) * lerp(d, 1, 0.75), r.uniform(0, 6.28)
     for k in range(3):
         s.movers.append([cx - w // 2, -10, w, 22, dx, 60, round(period, 3), round(phase + k * 2 * math.pi / 3, 3), 1])
     s.route += [(cx - dx - w // 2 + 10, cx - dx, -10), (cx - w // 2, cx + w // 2, -70), (cx + dx, cx + dx + w // 2 - 10, -10)]
@@ -627,7 +636,7 @@ def seg_fireballs(r, d):
 def seg_maces(r, d):
     """Spiked balls swinging on chains low across the path."""
     s = Seg("maces", 0.8)
-    n = 2 + more(d) + (d > 0.7)
+    n = 3 + more(d) + (d > 0.7)
     s.ground(0, 300 + n * 280)
     for i in range(n):
         s.saw(280 + i * 280, -30, 24, 210, round(lerp(d, 0.8, 1.0), 2), r.uniform(2.4, 2.9) * lerp(d, 1.1, 0.9),
@@ -756,9 +765,9 @@ def seg_aim(r, d):
     s.ground(0, 180)
     bx, by = 250, -80
     for i, top in enumerate((-40, 0)):
-        s.barrels.append([bx, by, -45, int(lerp(d, 20, 30)), round(r.uniform(2.0, 2.4) * lerp(d, 1.1, 0.9), 3),
+        s.barrels.append([bx, by, -45, int(lerp(d, 20, 30)), round(r.uniform(2.0, 2.4) * lerp(d, 1.0, 0.85), 3),
                           round(r.uniform(0, 6.28), 3), 900, 0])
-        tol = lerp(d, 10, 7)  # degrees either side of -45 that land you
+        tol = lerp(d, 8.5, 6.5)  # degrees either side of -45 that land you
         a, b = landing(bx, by, -45 - tol, 900, top), landing(bx, by, -45 + tol, 900, top)
         lo, hi = int(min(a, b)), int(max(a, b))
         if i == 0:
@@ -794,13 +803,15 @@ def seg_boulder(r, d):
     """A boulder rolling after you down a run of hurdles: don't stop."""
     s = Seg("boulder", 0.8)
     n = 4 + (d > 0.6)
-    w = 400 + n * 230
-    spikes = [(300 + i * 230 + 100, int(lerp(d, 40, 70))) for i in range(n) if i % 2]
+    gaps = [r.randint(230, 300) for _ in range(n)]  # uneven, so it takes looking
+    at = [300 + sum(gaps[:i]) for i in range(n)]
+    w = 400 + sum(gaps)
+    spikes = [(at[i] + 70, int(lerp(d, 60, 100))) for i in range(n) if i % 2]
     s.ground(0, w, spikes=spikes)
     for i in range(n):
         if i % 2 == 0:
-            x = 300 + i * 230
-            s.plats.append([x, -int(lerp(d, 40, 70)), 40, 70])
+            x = at[i]
+            s.plats.append([x, -int(lerp(d, 55, 80)), 50, 80])
     # the bots' route over the hurdles: rebuild it from the blocks
     s.route = []
     at = 0
@@ -813,7 +824,7 @@ def seg_boulder(r, d):
             s.route += [(at, a - 30, 0), (a + 4, b - 4, top)]
             at = b + 30
     s.route.append((at, w, 0))
-    s.chasers.append([0, w - 80, 230, int(lerp(d, 225, 255))])
+    s.chasers.append([0, w - 80, 230, int(lerp(d, 225, 262))])
     return s
 
 
@@ -936,14 +947,17 @@ def seg_hexfloor(r, d):
     """Two floors of tiles over a pit, each giving way: drop through the top to the bottom."""
     s = Seg("hexfloor", 0.8)
     x0 = s.ground(0, 170)
-    n = int(lerp(d, 9, 11))
-    w, gap = 58, int(lerp(d, 10, 18))
+    n = int(lerp(d, 9, 12))
+    w, gap = 58, int(lerp(d, 32, 44))
+    x = x0 + 40
     for i in range(n):
-        s.crumbles.append([x0 + 40 + i * (w + gap), -110, w])
-        s.route.append((x0 + 40 + i * (w + gap), x0 + 40 + i * (w + gap) + w, -110))
+        tw = r.randint(int(lerp(d, 40, 32)), w)  # tiles of all sizes
+        s.crumbles.append([x, -110, tw])
+        s.route.append((x, x + tw, -110))
         if i < n - 1:
-            s.crumbles.append([x0 + 40 + i * (w + gap) + (w + gap) // 2, 0, w])
-    s.ground(x0 + 40 + n * (w + gap) + 60, 170)
+            s.crumbles.append([x + (tw + gap) // 2, 0, tw])
+        x += tw + gap
+    s.ground(x + 60, 170)
     return s
 
 
@@ -1071,8 +1085,9 @@ def seg_portals(r, d):
     s.ground(0, 900)
     s.plats.append([420, -420, 100, 420])
     s.portals.append([300, -100, 640, -140])  # (a jump up to it)
-    s.saw(300, -100, 21, int(lerp(d, 56, 64)), int(lerp(d, 56, 64)), r.uniform(1.8, 2.2) * lerp(d, 1.1, 0.9),
-          r.uniform(0, 6.28), 1)  # circling it
+    period, phase = r.uniform(1.8, 2.2) * lerp(d, 1.0, 0.8), r.uniform(0, 6.28)
+    for k in range(1 + (d > 0.7)):  # circling it
+        s.saw(300, -100, 21, int(lerp(d, 56, 64)), int(lerp(d, 56, 64)), period, phase + k * math.pi, 1)
     # spikes where you come out: go in on the way up of a jump to carry over them
     sw = int(lerp(d, 110, 170))
     s.spikes.append([600, 0, sw])
@@ -1120,7 +1135,7 @@ def seg_ceiling(r, d):
     n = 1 + more(d)
     w = int(lerp(d, 380, 480))
     s.ground(0, 160 + n * (w + 120) + 80,
-             spikes=[(160 + i * (w + 120) + w // 2 - 20, 40) for i in range(n)] if d > 0.9 else ())  # to hop under it
+             spikes=[(160 + i * (w + 120) + w // 2 - 20, 40) for i in range(n)] if d > 0.7 else ())  # to hop under it
     for i in range(n):
         s.crusher(160 + i * (w + 120), -550, w, 400, 0, 140, r.uniform(3.4, 4.0) * lerp(d, 1.1, 0.85), r.uniform(0, 6.28), 0)
     return s
@@ -1141,9 +1156,13 @@ def seg_elevators(r, d):
 def seg_swamp(r, d):
     """Sticky goo that slows running: hop across it (hops keep your speed)."""
     s = Seg("swamp", 0.5)
-    n = 3 + (d > 0.6)
-    w = 300 + n * 260
-    spikes = [(220 + 260 * i, int(lerp(d, 40, 70))) for i in range(n)]
+    n = 3 + more(d)
+    spikes, x = [], 220
+    for _ in range(n):  # uneven, so it takes looking
+        sw = r.randint(int(lerp(d, 50, 70)), int(lerp(d, 75, 100)))
+        spikes.append((x, sw))
+        x += sw + r.randint(int(lerp(d, 170, 150)), int(lerp(d, 260, 240)))
+    w = x + 120
     s.ground(0, w, spikes=spikes)
     s.zone(150, -10, w - 260, 20, 1)
     return s

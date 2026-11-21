@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The fast checks, before a push (every push to main goes live). About seven minutes.
+# The fast checks, before a push (every push to main goes live). About seven and a half minutes.
 #     tools/check-all.sh
 # The other games' browser smoke tests need a running server and aren't included: see each area's doc.
 # Kingfall's, Sketch Relay's, Scramble's and Holdfast's start their own server, and are skipped where Playwright isn't installed.

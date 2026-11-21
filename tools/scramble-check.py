@@ -119,6 +119,39 @@ async def main():
         took.append((bot.fin, dashed))
     assert took[0][1] == 0 and took[1][1] > 0 and took[1][0] < took[0][0], took
 
+    # Bots and the timed hazards: one that looks waits for the crushers and gets through untouched;
+    # one that doesn't look is caught (as a person would be) unless it hops them; after
+    # BOT_CAUGHT_MAX catches in a segment it's let through.
+    def hazard_run(seed, chance, looks=True):
+        c, legs, risks, alts = C.build(seed, 1, [C.seg_crushers], 1.0)
+        room = game.Room("HAZ")
+        room.course, room.legs, room.risks, room.alts = c, legs, [0] * 3, {}
+        bot = game.Player(1, "Bot", "#fff", bot=True)
+        bot.skill, room.t0, room.ends, room.order = 0.8, clock.t, None, []
+        room.players = {1: bot}
+        if not looks:
+            room.bot_waits = lambda *a: False
+        game.random.random = lambda: chance
+        stood = hopped = 0
+        try:
+            while not bot.fin and room.now() < 120:
+                x = bot.x
+                room.move_bot(bot, game.TICK)
+                stood += bot.x == x and not bot.dead
+                hopped += bot.air and bot.leg < len(legs) and legs[bot.leg][0] == "run"
+                clock.t += game.TICK
+        finally:
+            game.random.random = random_was
+        return bot, stood, hopped
+
+    for seed in range(3):
+        bot, stood, _ = hazard_run(seed, 0.99)  # never rash, never hops
+        assert bot.fin and not bot.falls and stood > 10, ("didn't wait for the crushers", seed, bot.falls, stood)
+    bot, stood, _ = hazard_run(0, 0.99, looks=False)
+    assert bot.fin and bot.falls == game.BOT_CAUGHT_MAX, ("a crusher should catch a bot that doesn't look", bot.falls)
+    bot, stood, hopped = hazard_run(0, 0.0, looks=False)  # hops everything
+    assert bot.fin and not bot.falls and hopped, ("a bot that hops shouldn't be caught", bot.falls, hopped)
+
     # Left alone, every bot gets to the end of every course, however clumsy it is.
     room = game.Room("TEST")
     for seed in range(30):
@@ -248,6 +281,7 @@ async def main():
     a.do(t="start")
     bot = next(p for p in room.players.values() if p.bot)
     bot.skill = 0.0  # stays put unless something moves it
+    room._hz_for, room._hz, room.hazard_segs = room.course, game.Hazards({}), set()  # (nor a saw catches it)
     run(room, game.COUNTDOWN + 0.5)
     boxes = room.course["boxes"]
     assert boxes and all(len(bx) == 2 for bx in boxes) and len(boxes) == (len(room.course["segs"]) - 1) // 2
@@ -328,7 +362,8 @@ async def main():
     # A bolt on its way can still be blocked by a shield put up in time.
     a.p.fin = None
     a.do(t="p", v=[1000, 0, 1, 0, 0])
-    room.place_bot(bot, 1300, 0)
+    # (on ground ahead of A: the course is random, and a bot's place comes from its route)
+    room.place_bot(bot, next(L[1] + 5 for L in room.legs if L[0] == "run" and L[1] >= 1200), 0)
     bot.item = "shield"
     a.p.item = "bolt"
     room.use(a.p)
@@ -392,7 +427,7 @@ async def main():
     bot.use_at = room.now()
     room.bot_items()
     assert bot.item == "grapple", "grappled someone barely ahead"
-    far = bot.x + 600
+    far = next(L[1] + 10 for L in room.legs if L[0] == "run" and L[1] >= bot.x + 600)  # (on ground)
     a.do(t="p", v=[far, 0, 1, 0, 0])
     bot.use_at = room.now()
     room.bot_items()
@@ -472,7 +507,7 @@ async def main():
     assert [q[0] for q in room.props] == [52] and not room.traps
     run(room, game.KNOCKOUT + 0.1)
     room.place_bot(bot, 3000, 0)
-    bot.x, bot.shield = 3060, True
+    bot.x, bot.y, bot.shield = 3060, 0.0, True
     fx = use(a, "bomb")
     assert fx["blocked"] == [bot.id] and not bot.dead and not bot.shield, fx
     # Bots put props down when someone's close behind, plank whenever, bomb when someone's near.

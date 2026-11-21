@@ -20,6 +20,7 @@ import time
 
 from ..rooms import Codes, Refused, clean, dumps, hang_up, push
 from . import course as C
+from .hazards import BUCKET, Hazards
 
 log = logging.getLogger("scramble")
 
@@ -61,8 +62,24 @@ EMOTE_GAP = 1.2  # seconds between one racer's emotes
 RECORD_LEAST = 1.0  # a segment run quicker than this isn't believed (no segment is that short)
 TRAP_LIFE, TRAP_W = 12, 40
 DASH_PACE = 1.3  # a bot dashing across a jump gets over it this much quicker
-ICE_RISK = 1.15
-BOT_PATIENCE = 8  # seconds a bot waits for a good moment to use an item  # bots fluff segments this much more often on snow's ice
+ICE_RISK = 1.15  # bots fluff segments this much more often on snow's ice
+# Bots and the timed hazards (saws, firebars, cannons, crushers, jets: hazards.py): on the ground, a
+# bot looks BOT_LOOK s ahead (more if it's good, BOT_LOOK_SKILL x skill) and waits where it stands
+# if going on would catch it and standing won't; a hazard catches a bot as it would a person. On
+# entering a segment a bot may be rash (a chance of (1 - skill) x BOT_RASH) and look only 0.3 s ahead.
+# Otherwise it looks on to somewhere it could stand safely (up to BOT_LOOK_MAX s), and it goes
+# through segments with these hazards BOT_HAZARD_PACE times quicker than elsewhere (up to flat out): the
+# gaps in them are sized for people running flat out.
+# Each time one catches it in a segment it looks further ahead; after
+# BOT_CAUGHT_MAX times it's let through that segment (so no bot is stuck for good), and after
+# BOT_WAIT_MAX s waiting it goes anyway. Segments with these hazards roll the old dice at
+# HAZARD_DICE of the odds, since the hazards themselves now trip bots up. A hazard that reaches a
+# bot anyway (one it couldn't wait out, like a firebar sweeping the floor) it hops over, as a person
+# would, with a chance of its skill + BOT_DODGE (less RASH_DODGE if rash): a hop of HOP_T s, HOP_H high.
+BOT_LOOK, BOT_LOOK_SKILL, BOT_LOOK_MAX, BOT_RASH, BOT_CAUGHT_MAX, BOT_WAIT_MAX, HAZARD_DICE = 0.4, 0.8, 4.0, 0.5, 3, 4.0, 0.2
+BOT_HAZARD_PACE = 1.25
+BOT_DODGE, RASH_DODGE, HOP_T, HOP_H = 0.1, 0.2, 0.5, 70
+BOT_PATIENCE = 8  # seconds a bot waits for a good moment to use an item
 GRAB_REACH = 120  # how far from a box a browser may claim it from (it's checked loosely)
 
 
@@ -124,6 +141,11 @@ class Player:
         self.ride = None  # (boards at, gets off at): riding a lift
         self.dashing = False  # dashing across the jump they're on
         self.got_at = 0.0  # race time they got the item they hold
+        self.waited = 0.0  # seconds they've stood waiting for a hazard to pass
+        self.bold_until = 0.0  # waited too long: going on regardless until then
+        self.hop_until = 0.0  # hopping over a hazard (out of its way) until then
+        self.rash = False  # not looking ahead much in the segment they're in
+        self.caught = {}  # segment: times a hazard has caught them there
 
 
 class Room:
@@ -412,12 +434,22 @@ class Room:
             self.timed(p)
             return
         theme = self.course.get("theme")
-        pace = dt * p.skill * self.speed(p)
+        hz = self.hazards()
+        pace = dt * (min(1.0, p.skill * BOT_HAZARD_PACE) if legs[p.leg][7] in self.hazard_segs else p.skill) * self.speed(p)
         if legs[p.leg][0] == "run" and theme == "desert":
             pace *= (1 + C.SAND) / 2  # the sand slows bots too (half as much: people can hop it)
         if p.dashing:
             pace *= DASH_PACE
         pace *= self.props_on_bot(p)
+        if legs[p.leg][0] == "run" and self.bot_waits(p, legs, pace, hz):
+            p.waited += dt
+            p.air = 0
+            p.x, p.y = leg_at(legs[p.leg], p.leg_t)
+            self.hop(p)
+            self.timed(p)
+            self.caught_by(p, legs, hz)
+            return
+        p.waited = 0.0
         p.leg_t += pace
         while True:
             kind, x0, y0, x1, y1, secs, arc, seg = legs[p.leg]
@@ -430,21 +462,26 @@ class Room:
             p.leg += 1
             nxt = legs[p.leg]
             # a long jump: a bot that's any good dashes across it
-            p.dashing = nxt[0] == "jump" and nxt[3] - nxt[1] > 150 and random.random() < p.skill - 0.2
+            # (not where there are hazards to time: it looks ahead at its running pace)
+            p.dashing = (nxt[0] == "jump" and nxt[3] - nxt[1] > 150 and random.random() < p.skill - 0.2
+                         and not (hz.near(nxt[1]) or hz.near(nxt[3])))
             if nxt[7] != seg:  # a new segment: will this one go wrong?
                 seg = nxt[7]
                 mine = [i for i, leg in enumerate(legs) if leg[7] == seg and leg[0] == "jump"]
                 risk = self.risks[seg] * (1.05 - p.skill) * 1.3 * (ICE_RISK if theme == "snow" else 1)
+                if seg in self.hazard_segs:
+                    risk *= HAZARD_DICE
                 bad = mine and seg not in p.calm and random.random() < risk
                 p.fail_leg = random.choice(mine) if bad else None
+                p.rash = random.random() < (1 - p.skill) * BOT_RASH
             if nxt[0] == "ride":
                 self.ride(p, nxt)
                 self.timed(p)
                 return
         u = p.leg_t / secs if secs else 1.0
-        p.x = x0 + (x1 - x0) * u
-        p.y = y0 + (y1 - y0) * u - 4 * arc * u * (1 - u)
+        p.x, p.y = leg_at(legs[p.leg], p.leg_t)
         p.air = (2 if p.dashing and 0.25 < u < 0.7 else 1) if kind == "jump" else 0
+        self.hop(p)
         p.face = 1
         if not p.air:
             p.safe = (p.x, p.y)
@@ -454,6 +491,8 @@ class Room:
         if p.leg == p.fail_leg and u > 0.55:
             p.fail_leg, p.dead, p.down = None, 1, KNOCKOUT
             p.falls += 1
+        if self.caught_by(p, legs, hz):
+            return
         if p.item is None:
             for i, (bx, _) in enumerate(self.course["boxes"]):
                 if i not in p.boxes and abs(p.x - bx) < 20:
@@ -466,6 +505,80 @@ class Room:
                 p.falls += 1
         if p.x >= self.course["finish"]:
             self.finished(p)
+
+    def hazards(self):
+        """The course's timed hazards (built once a course), and which segments have any."""
+        if getattr(self, "_hz_for", None) is not self.course:
+            self._hz_for, self._hz = self.course, Hazards(self.course)
+            segs = [*self.course["segs"], self.course["length"]]
+            self.hazard_segs = {i for i in range(len(segs) - 1)
+                                if any(self._hz.near_x.get(k) for k in range(segs[i] // BUCKET, segs[i + 1] // BUCKET + 1))}
+        return self._hz
+
+    def bot_waits(self, p, legs, pace, hz):
+        """Should a bot on the ground stand where it is this tick? Yes if carrying on would run it
+        into a hazard within the time it looks ahead and standing still for half a second won't."""
+        now = self.now()
+        if now < p.bold_until:
+            return False
+        if p.waited > BOT_WAIT_MAX:
+            p.bold_until, p.waited = now + 2.0, 0.0
+            return False
+        seg = legs[p.leg][7]
+        tries = p.caught.get(seg, 0)
+        if tries >= BOT_CAUGHT_MAX:
+            return False
+        rash = p.rash and not tries
+        look = 0.3 if rash else BOT_LOOK + BOT_LOOK_SKILL * p.skill + 0.4 * tries
+        pad = 0.0 if rash else 4.0
+        stand = round(0.4 / TICK)
+
+        def safe_to_stand(x, y, at):
+            return not any(hz.hit(x, y, at + i * TICK, pad) for i in range(stand + 1))
+
+        leg, t = p.leg, p.leg_t
+        for k in range(1, round((look if rash else BOT_LOOK_MAX) / TICK) + 1):
+            t += pace
+            while t >= legs[leg][5]:
+                if leg + 1 == len(legs) or legs[leg + 1][0] == "ride":
+                    return False
+                t -= legs[leg][5]
+                leg += 1
+            # (the k-th step on is taken k - 1 ticks from now: this tick's move happens now; and it's
+            # checked a tick either way, as things can switch on between ticks)
+            x, y, at = *leg_at(legs[leg], t), now + (k - 1) * TICK
+            if hz.hit(x, y, at, pad) or (not rash and (hz.hit(x, y, at + TICK, pad) or hz.hit(x, y, at - TICK, pad))):
+                break
+            # far enough, and somewhere it could stop if it had to: going on is fine
+            if k * TICK >= look and (rash or (legs[leg][0] == "run" and safe_to_stand(x, y, at))):
+                return False
+        else:
+            return False
+        return safe_to_stand(p.x, p.y, now)
+
+    def caught_by(self, p, legs, hz):
+        """A hazard catches a bot as it would a person (a little leniently: the bots' jumps are
+        only roughly people's). Knocks it out and returns True if so."""
+        seg = legs[p.leg][7]
+        now = self.now()
+        if now < p.hop_until or p.caught.get(seg, 0) >= BOT_CAUGHT_MAX or not hz.hit(p.x, p.y, now, -2.0):
+            return False
+        if random.random() < p.skill + BOT_DODGE - (RASH_DODGE if p.rash else 0):
+            p.hop_until = now + HOP_T
+            self.hop(p)
+            return False
+        p.caught = {**p.caught, seg: p.caught.get(seg, 0) + 1}
+        p.fail_leg, p.dead, p.down, p.dashing = None, 1, KNOCKOUT, False
+        p.falls += 1
+        return True
+
+    def hop(self, p):
+        """Lift a hopping bot off its route (only where it's drawn: it's out of the hazards' way)."""
+        left = p.hop_until - self.now()
+        if left > 0:
+            u = 1 - left / HOP_T
+            p.y -= 4 * HOP_H * u * (1 - u)
+            p.air = max(p.air, 1)
 
     def props_on_bot(self, p):
         """What other racers' props do to a bot: honey and fans slow it; a crossbow or a black hole
@@ -810,6 +923,13 @@ class Room:
         if self.phase == "results":
             st["next"] = round(max(0.0, self.until - time.monotonic()), 1)
         self.everyone(st)
+
+
+def leg_at(leg, t):
+    """Where a bot is `t` seconds (at flat out) into a run or jump leg."""
+    kind, x0, y0, x1, y1, secs, arc, _ = leg
+    u = min(1.0, t / secs) if secs else 1.0
+    return x0 + (x1 - x0) * u, y0 + (y1 - y0) * u - 4 * arc * u * (1 - u)
 
 
 def awards(racers):

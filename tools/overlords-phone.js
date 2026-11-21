@@ -1,8 +1,8 @@
 // Plays Overlords on an emulated phone (touch, portrait, then landscape), against three bots. Picks a
 // commander; long-presses a shop card (its card shows, nothing is bought); taps one to buy; taps a bench
 // unit, then a hex, to move it onto the board; taps the board unit and sells it from its card; opens and
-// closes the traits and commander sheets; taps a unit in the fight to follow it; and checks the page never
-// scrolls sideways or down. Fails if a page throws or logs an error. About 40 s.
+// closes the traits and commander sheets; taps a unit in the fight to follow it; exits the match from the
+// header; and checks the page never scrolls sideways or down. Fails if a page throws or logs an error. About 40 s.
 //
 //     node tools/overlords-phone.js [http://localhost:8080]    against a running server
 //     node tools/overlords-phone.js --serve                    starts its own (tools/check-all.sh does this)
@@ -158,6 +158,12 @@ async function play(browser, device, tag) {
   } else check(false, `${tag}: a unit in the fight to tap`);
   d = await dims();
   check(d[0] <= d[1] && d[2] <= d[3], `${tag}: still fits during the fight (${d})`);
+  // Exit: asked first, then back on the menu
+  await p.tap('#exit');
+  await p.waitForSelector('#exit-confirm:not([hidden])');
+  await p.tap('#exit-yes');
+  await p.waitForSelector('#menu:not([hidden])', { timeout: 5000 });
+  check(true, `${tag}: Exit leaves the match for the menu`);
   check(!errs.length, `${tag}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
   await ctx.close();
 }

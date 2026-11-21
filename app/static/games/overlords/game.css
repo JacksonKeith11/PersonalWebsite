@@ -18,7 +18,9 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #game button.primary { background: var(--gold); border-color: var(--gold); color: #2a2000; }
 #game button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
 #game button small { opacity: 0.7; font-weight: 400; }
-#mute, #speed { padding: 4px 10px; }
+#mute, #speed, #exit { padding: 4px 10px; }
+#game .overlay button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+#exit-confirm .card { max-width: 440px; }
 
 .main { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px; }
 .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -231,7 +233,7 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
   .wide-only, .top .title, .top .room, #hud-gold small, #itembar .label, .odds, .shop-buttons .key { display: none; }
   .top { gap: 4px 10px; padding: 5px 10px; font-size: 0.85rem; flex-wrap: wrap; }
   .top .spacer { flex: 1 0 0; }
-  #mute, #speed { padding: 2px 8px; font-size: 0.85rem; }
+  #mute, #speed, #exit { padding: 2px 8px; font-size: 0.85rem; }
   .main { flex-direction: column; gap: 6px; padding: 6px 8px 8px; }
   aside { display: contents; }
 

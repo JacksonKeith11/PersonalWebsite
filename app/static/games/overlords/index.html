@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/overlords/game.css?v=10">
+  <link rel="stylesheet" href="/static/games/overlords/game.css?v=11">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -53,8 +53,9 @@
           <li>Monster rounds drop item components. Drag one onto a unit: two components on one unit combine into a stronger item, and a unit holds three. A Sigil with another component makes an emblem (its holder gains that trait); two Sigils make a Crown, one more place on your board. Artifacts (from the round-11 golems, the last draft and some augments) are unique items no recipe makes.</li>
           <li>Every unit has its own trick: some taunt, pull, shove, vanish, mark their targets or leave burning ground. Hover a unit, a shop card or a trait to read about it (on a phone, tap a unit or trait, or press and hold a shop card).</li>
           <li>During a fight the right panel charts each unit's damage dealt, taken and healed; it keeps the last fight while you plan.</li>
-          <li>At the start you pick a commander: a passive, and a power that charges over a few rounds (use it from the left panel while planning).</li>
+          <li>At the start you pick a commander: a passive, and a power that charges over a few rounds (use it from the left panel while planning). The first fight waits until everyone has picked.</li>
           <li>At rounds 3, 8 and 13 you pick one of three augments; at rounds 4, 9 and 14 everyone drafts a unit holding a component from a shared set, the lowest HP picking first.</li>
+          <li>Exit (top right) leaves a match for good: you're knocked out on the spot.</li>
           <li>Keys: D reroll · F buy XP · E sell the unit under the pointer · Space ready.</li>
         </ul>
       </details>
@@ -109,6 +110,7 @@
       <span id="hud-level"></span>
       <button id="speed" type="button" title="Play fights at double speed (they still end together)" aria-pressed="false">Fights 1×</button>
       <button id="mute" type="button" aria-label="Sound on or off" aria-pressed="false">🔊</button>
+      <button id="exit" type="button" title="Leave this game">Exit</button>
       <span class="room">Room <b id="game-code" class="code"></b></span>
     </header>
     <div class="main">
@@ -195,6 +197,17 @@
       </div>
     </div>
     <button id="choose-show" class="primary" type="button" hidden></button>
+    <div id="exit-confirm" class="overlay" hidden>
+      <div class="card">
+        <p class="kicker">Leave the game</p>
+        <h2>Exit this match?</h2>
+        <p id="exit-text"></p>
+        <div class="row">
+          <button id="exit-yes" class="primary" type="button">Exit the match</button>
+          <button id="exit-no" type="button">Keep playing</button>
+        </div>
+      </div>
+    </div>
     <div id="end" class="overlay" hidden>
       <div class="card">
         <p class="kicker" id="end-kicker"></p>
@@ -213,6 +226,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/overlords/js/main.js?v=10"></script>
+  <script type="module" src="/static/games/overlords/js/main.js?v=11"></script>
 </body>
 </html>

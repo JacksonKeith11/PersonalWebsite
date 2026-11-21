@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=10';
-import { isMuted, play, setMuted } from './sound.js?v=10';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=10';
+import { Playback } from './fight.js?v=11';
+import { isMuted, play, setMuted } from './sound.js?v=11';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=11';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -162,6 +162,7 @@ function sounds(before, st) {
 function render() {
   const st = S.st;
   if (!st || !S.cfg) return;
+  if (S.exiting && !seatedMe()?.alive) { leaveRoom(); return; } // the forfeit went through
   document.body.classList.toggle('host', st.host === room.you);
   if (st.phase === 'lobby') {
     show('lobby');
@@ -286,7 +287,8 @@ function renderChoose() {
   $('choose').hidden = !mode || S.chooseHidden === key;
   $('choose-show').hidden = !mode || S.chooseHidden !== key;
   $('choose-show').textContent = mode === 'commander' ? 'Choose your commander' : 'Choose your augment';
-  $('choose-note').textContent = `If you haven't chosen when the fight starts, the first is taken for you.`;
+  $('choose-note').textContent = mode === 'commander' ? 'The first fight waits until everyone has chosen.'
+    : `If you haven't chosen when the fight starts, the first is taken for you.`;
   if (key === S.chooseKey) return;
   S.chooseKey = key;
   if (!mode) return;
@@ -404,7 +406,9 @@ function renderHud() {
     $('hud-gold').title = inc ? `Next round: ${inc[0]} income, ${inc[1]} interest (1 for every 10 gold you keep)`
       + (inc[2] ? `, ${inc[2]} for your ${mine.streak > 0 ? 'winning' : 'losing'} streak` : '') : '';
     const need = st.me?.need;
-    $('hud-level').textContent = `Level ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · ${mine.board.length}/${mine.limit} on board`;
+    $('hud-level').textContent = COMPACT.matches
+      ? `Lv ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · Board ${mine.board.length}/${mine.limit}`
+      : `Level ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · ${mine.board.length}/${mine.limit} on board`;
     $('hud-level').title = 'Your level is how many units may stand on your board. Buy XP to level up; you also get 2 XP a round.';
   } else {
     $('hud-hp').textContent = 'Watching';
@@ -448,7 +452,9 @@ function tickHud() {
   const st = S.st;
   if (!st || st.phase === 'lobby') return;
   const left = Math.max(0, Math.ceil(S.endsAt - now()));
-  const phase = st.phase === 'plan' ? `Planning · ${left}s` : st.phase === 'fight' ? 'Fighting'
+  const waiting = st.phase === 'plan' && left <= 0 && st.choosing?.length;
+  const phase = waiting ? (st.choosing.includes(room.you) ? 'Waiting for you' : 'Waiting')
+    : st.phase === 'plan' ? `Planning · ${left}s` : st.phase === 'fight' ? 'Fighting'
     : st.phase === 'draft' ? `Draft · ${left}s` : 'Game over';
   $('hud-phase').textContent = phase;
   $('hud-phase').classList.toggle('hurry', st.phase === 'plan' && left <= 5);
@@ -477,6 +483,11 @@ function banner() {
     const parts = [];
     if (S.watch !== room.you && w) parts.push(`Looking at <b>${esc(w.name)}</b>'s board`);
     if (mine && st.round > 1 && S.watch === room.you) parts.push(mine.dmg ? `<span class="lost">Last fight cost you ${mine.dmg} HP</span>` : '<span class="won">You won your last fight</span>');
+    if (st.choosing?.length && S.endsAt - now() <= 0) {
+      const names = st.choosing.filter(id => id !== room.you).map(id => esc(player(id)?.name));
+      if (st.choosing.includes(room.you)) parts.push('<span class="hint">Everyone is waiting for you to choose a commander</span>');
+      if (names.length) parts.push(`<span class="hint">Waiting for ${names.join(' and ')} to choose a commander</span>`);
+    }
     if (st.pve) parts.push('Monsters this round');
     const mine2 = seatedMe();
     const waiting = (st.me?.bench || []).filter(Boolean).length;
@@ -1737,6 +1748,25 @@ $('speed').addEventListener('click', () => {
   renderHud();
 });
 $('again').addEventListener('click', () => room.send({ t: 'again' }));
+
+// Exit: someone still in the match is asked first (they're knocked out for good); anyone else just leaves.
+const leaveRoom = () => { location.href = '/games/overlords'; };
+$('exit').addEventListener('click', () => {
+  const mine = seatedMe();
+  if (!mine || !mine.alive || !['plan', 'fight', 'draft'].includes(S.st?.phase)) { leaveRoom(); return; }
+  const standing = S.st.players.filter(p => p.seated && p.alive).length;
+  $('exit-text').textContent = `You'll be knocked out now and finish ${ordinal(standing)} of ${S.st.players.filter(p => p.seated).length}`
+    + `, and your units go back to the pool. You can't come back into this match.`;
+  $('exit-confirm').hidden = false;
+  play('click');
+});
+$('exit-no').addEventListener('click', () => { $('exit-confirm').hidden = true; play('click'); });
+$('exit-yes').addEventListener('click', () => {
+  room.send({ t: 'forfeit' });
+  $('exit-yes').disabled = true;
+  S.exiting = true;
+  setTimeout(leaveRoom, 1500); // in case the answer never comes
+});
 $('start').addEventListener('click', () => room.send({ t: 'start' }));
 $('bots').addEventListener('change', () => room.send({ t: 'set', bots: $('bots').checked }));
 $('bot-level').addEventListener('change', () => room.send({ t: 'set', level: $('bot-level').value }));

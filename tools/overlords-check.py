@@ -256,6 +256,7 @@ def room_rules():
     room.handle(me, {"t": "set", "bots": True, "level": "normal"})
     room.handle(me, {"t": "start"})
     check(room.phase == "plan" and len(room.seated()) == 4, "the host starts with three bots")
+    room.handle(me, {"t": "commander", "k": me.offers[0]})
     check(sum(1 for u in me.bench if u) == 1, "everyone starts with a free unit")
     full = sum(D.POOL[D.UNITS[k]["tier"]] for k in D.shop_units())
     check(copies(room) == full, "the pool and the players hold every copy")
@@ -469,6 +470,52 @@ def draft():
     check(copies(room) == full, "unpicked options go back to the pool")
 
 
+def commander_wait_and_exit():
+    """The first fight waits for a connected person still choosing a commander (no auto-pick), but not for
+    one who has left. Exit knocks a person out on the spot; when only bots are left standing, it's over."""
+    room = game.Room("WAIT")
+    room.rng.seed(5)
+    room.clock = Clock()
+    ann, qa = browser(room, "Ann", "tok-a")
+    bo, qb = browser(room, "Bo", "tok-b")
+    room.handle(ann, {"t": "start"})
+    room.handle(bo, {"t": "commander", "k": bo.offers[0]})
+    for _ in range(3):
+        room.clock.t = room.ends + 5
+        room.tick()
+    check(room.phase == "plan" and room.round == 1 and not ann.commander, "the first fight waits while Ann chooses")
+    st = last_state(qa)
+    check(st and st["choosing"] == [ann.id], "the browsers are told who everyone waits for")
+    room.handle(ann, {"t": "commander", "k": ann.offers[1]})
+    room.tick()
+    check(room.phase == "fight" and ann.commander, "the fight starts as soon as Ann has chosen")
+    # someone who leaves while choosing gets the first offer
+    room = game.Room("WAIT2")
+    room.rng.seed(6)
+    room.clock = Clock()
+    ann, qa = browser(room, "Ann", "tok-a")
+    bo, qb = browser(room, "Bo", "tok-b")
+    room.handle(ann, {"t": "start"})
+    room.handle(ann, {"t": "commander", "k": ann.offers[0]})
+    first = bo.offers[0]
+    room.clock.t = room.ends + 5
+    room.tick()
+    check(room.phase == "plan", "the first fight waits for Bo")
+    room.leave(bo, qb)
+    room.tick()
+    check(room.phase == "fight" and bo.commander == first, "Bo left: he gets the first offer and the fight starts")
+    # Exit: Bo forfeits; Ann is the only person standing with two bots
+    full = copies(room)
+    bo.connected, bo.queue = True, qb  # back, and presses Exit
+    room.handle(bo, {"t": "forfeit"})
+    check(not bo.alive and bo.place == 4 and not bo.units(), "Exit knocks Bo out in last place")
+    check(copies(room) == full, "his units go back to the pool")
+    check(room.phase == "fight", "the match goes on while a person is standing")
+    room.handle(ann, {"t": "forfeit"})
+    check(room.phase == "over" and ann.place == 3, "when only bots are left, the match ends")
+    check(sorted(p.place for p in room.seated()) == [1, 2, 3, 4], "everyone has a place")
+
+
 def records():
     """A finished match with a person in it is saved; their record and the Hall of Overlords show it."""
     room = game.Room("RECS")
@@ -479,6 +526,8 @@ def records():
     while room.phase != "over" and room.round < 40:
         room.clock.t = room.ends + 0.01
         room.tick()
+        if me.offers and not me.commander:
+            room.handle(me, {"t": "commander", "k": me.offers[0]})
         if room.phase == "plan" and me.alive:  # Ann plays like a normal bot
             me.bot = "normal"
             game.B.play(room, me, room.rng)
@@ -497,6 +546,7 @@ def records():
 data()
 art()
 records()
+commander_wait_and_exit()
 items_in_fights()
 room_items_and_powers()
 draft()

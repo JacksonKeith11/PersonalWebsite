@@ -156,6 +156,7 @@ class Room:
         self.empty_since = None
         self.clock = time.monotonic  # the checks swap in a clock they can wind on
         self.saving = True  # the checks and the simulator turn records off
+        self.holding = False  # the first fight's timer has run out, but someone is still choosing a commander
 
     # ------------------------------------------------------------ plumbing
 
@@ -267,6 +268,9 @@ class Room:
                 self.to_lobby()
             else:
                 return
+        elif p.seated and p.alive and self.phase in ("plan", "fight", "draft") and t == "forfeit":
+            self.forfeit(p)
+            return
         elif p.seated and p.alive and self.phase == "draft" and t == "pick":
             if not self.pick(p, msg.get("i")):
                 return
@@ -496,24 +500,50 @@ class Room:
         out = sorted((p for p in self.alive() if p.hp <= 0), key=lambda p: p.hp)
         left = len(self.alive())
         for p in out:
-            p.alive = False
-            p.place = left
+            self.knock_out(p, left)
             left -= 1
-            p.final = self.snapshot(p)
-            for u in p.units():
-                self.pool[u["unit"]] += 3 ** (u["star"] - 1)
-            p.board, p.bench = {}, [None] * D.BENCH
-        alive = self.alive()
-        if len(alive) <= 1:
-            for p in alive:
-                p.place = 1
-                p.final = self.snapshot(p)
-            self.phase = "over"
-            self.fights = []
-            self.save_match()
-            self.send_state()
+        if len(self.alive()) <= 1:
+            self.finish()
             return
         self.next_round()
+
+    def knock_out(self, p, place):
+        p.alive = False
+        p.place = place
+        p.ready = False
+        p.final = self.snapshot(p)
+        for u in p.units():
+            self.pool[u["unit"]] += 3 ** (u["star"] - 1)
+        p.board, p.bench = {}, [None] * D.BENCH
+
+    def finish(self):
+        """The match is over: whoever is still standing is placed by HP (first, when one is left)."""
+        rest = sorted(self.alive(), key=lambda p: -p.hp)
+        for i, p in enumerate(rest):
+            p.place = i + 1
+            p.final = self.snapshot(p)
+            if i:
+                p.alive = False
+        self.phase = "over"
+        self.fights = []
+        self.draft = None
+        self.save_match()
+        self.send_state()
+
+    def forfeit(self, p):
+        """A person leaves the match with the Exit button: knocked out on the spot, in the last place
+        still open, their units back in the pool. If that leaves nobody but bots standing, the match ends
+        there (the bots placed by HP)."""
+        self.knock_out(p, len(self.alive()))
+        p.hp = min(p.hp, 0)
+        alive = self.alive()
+        if len(alive) <= 1 or not any(q.bot is None for q in alive):
+            self.finish()
+            return
+        humans = [q for q in alive if q.bot is None and q.connected]
+        if self.phase == "plan" and humans and all(q.ready for q in humans):
+            self.ends = min(self.ends, self.clock() + 1)
+        self.send_state()
 
     def snapshot(self, p):
         return {"traits": {t: n for t, n in p.traits().items() if D.trait_level(t, n) >= 0},
@@ -531,9 +561,19 @@ class Room:
         except Exception:
             log.exception("overlords: couldn't save the match in room %s", self.code)
 
+    def choosing(self):
+        """People still choosing a commander. The first fight waits for them as long as they're connected
+        (the owner asked for no auto-pick while someone thinks); anyone who has left gets the first offer."""
+        return [p for p in self.alive() if p.bot is None and p.connected and not p.commander and p.offers]
+
     def tick(self):
         if self.phase == "plan" and self.clock() >= self.ends:
-            self.begin_fight()
+            if not self.choosing():
+                self.holding = False
+                self.begin_fight()
+            elif not self.holding:  # tell the browsers once that the timer has run out and who we wait for
+                self.holding = True
+                self.send_state()
         elif self.phase == "fight" and self.clock() >= self.ends:
             self.end_fight()
         elif self.phase == "draft":
@@ -1023,6 +1063,7 @@ class Room:
                 "left": round(max(0.0, self.ends - self.clock()), 1) if self.phase in ("plan", "fight", "draft") else None,
                 "bots": self.bots, "level": self.bot_level, "pve": self.round in D.PVE,
                 "next_pve": self.round + 1 in D.PVE, "settled": self.settled,
+                "choosing": [p.id for p in self.choosing()] if self.phase == "plan" else [],
                 "players": [self.public(p) for p in self.players.values()]}
         if self.phase == "draft" and self.draft:
             d = self.draft

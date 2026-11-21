@@ -58,7 +58,10 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
 - **Commanders** (`COMMANDERS`, 16; the roster review added the Gambler, the Hexer, the Chronomancer and
   the Twinmaker, and gave the Warlord, Archmage, Blademaster and Survivor passives that do more than add
   a stat): three offered at the start, picked on a screen before the first
-  fight (the first is taken if none is picked). A passive, and a power that charges a round at a time
+  fight. The first fight waits for everyone still connected to pick (the owner asked for no auto-pick
+  while someone thinks): when the timer runs out, `tick` holds the phase while `choosing()` is non-empty,
+  the browsers get `state.choosing` and say who they wait for; anyone who disconnects gets the first
+  offer, so a vanished player can't stall the room (the checks' rooms must pick for their people). A passive, and a power that charges a round at a time
   (3-5 rounds) and is used from the left panel while planning. Powers for "next fight" go in
   `player.next_fx` and are spent at the fight's start. All of it is in `game.py` (`extras`,
   `use_power`, and the odd line in income, rolls and damage).
@@ -195,6 +198,15 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
 - **HP over the match** (end screen): every player's HP after each round (`Player.hp_log`, sent only
   when the match is over), a line each in their colour, named at the end, a round's numbers on hover.
 
+### Leaving a match
+
+The **Exit** button in the header asks first (if you're still in the match), then sends `forfeit` and
+goes back to the menu. `Room.forfeit` knocks the player out on the spot (`knock_out`: the last place
+still open, units back to the pool), as if their HP had hit 0; they can't come back in, though they can
+watch if they rejoin the room. If that leaves only bots standing, the match ends there (`finish`: the bots
+placed by HP) and is recorded. Closing the tab instead keeps the seat, as before: the board fights on
+untended and the browser can rejoin.
+
 ### Phones
 
 (November 2026, the owner asked for it to be more mobile friendly.) Below 820 px of width or 560 px of
@@ -302,7 +314,7 @@ matching), the side panels fold away:
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
   dragged onto a unit when one dropped.
 - `node tools/overlords-phone.js --serve` (~15 s, in `check-all.sh`): an emulated phone with touch,
-  upright then on its side: the page fits the screen, a long press shows a shop card without buying, a tap
+  upright then on its side: the page fits the screen, Exit, a long press shows a shop card without buying, a tap
   buys, tap-to-move onto the board, Sell from the card, the traits and commander sheets, a tap on a unit in
   the fight.
 - `python3 tools/overlords-sim.py [N] [--level L]`: whole bot matches (a quarter of a second each):

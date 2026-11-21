@@ -1,12 +1,18 @@
 """Runs Overlords fights headlessly, to see how units and traits do.
 
     python3 tools/overlords-fight.py [fights, default 400] [--size N] [--seed S]
+    python3 tools/overlords-fight.py --traits [fights per tier, default 150] [--size N]
     python3 tools/overlords-fight.py --show SEED [--size N]    one fight's events, readable
 
-Random boards of `--size` different units (default 6; a third of them two-star) fight each other.
-Prints each unit's and each active trait's win rate (a unit's is the share of fights its side won),
-how long fights last, how many hit the time cap, and how long one fight takes to simulate. A unit or
-trait far from 50% is worth a look, though a random board says little about one built around it.
+Units: random boards of `--size` different units (default 6; a third of them two-star) each fight
+a board of the same costs and stars made of other units, so a unit's win rate (the share of fights
+its side won) measures it against units of its own cost: 50% is right for every cost. Also prints
+how long fights last, how many hit the time cap and how long one fight takes to simulate.
+
+Traits (`--traits`): for each trait at each of its tiers, boards of `--size` (default 7) holding
+exactly that many of its units, the rest random, fight cost-matched boards without it. A trait's
+tier should win more the higher it is, roughly 55-65% at its first tier and 65-80% at its top
+(the boards were built around it, the opponents weren't).
 """
 
 import random
@@ -69,6 +75,46 @@ def res_key(res, uid):
             return e[2][2]
 
 
+def matched(rng, board, avoid=()):
+    """A board of the same costs and stars as `board`, at the same places, made of other units."""
+    used, out = set(avoid) | {b["unit"] for b in board}, []
+    for b in board:
+        cost = D.UNITS[b["unit"]]["cost"]
+        options = [k for k in D.shop_units() if D.UNITS[k]["cost"] == cost and k not in used
+                   and not any(t in avoid for t in D.UNITS[k]["traits"])]
+        if not options:
+            options = [k for k in D.shop_units() if D.UNITS[k]["cost"] == cost and k not in used] or [b["unit"]]
+        k = rng.choice(options)
+        used.add(k)
+        out.append({"unit": k, "star": b["star"]})
+    return [{"unit": u["unit"], "star": u["star"], "col": c, "row": r} for u, c, r in bots.arrange(out)]
+
+
+def traits(n, size, seed):
+    rng = random.Random(seed)
+    started, fights = time.perf_counter(), 0
+    print(f"traits on boards of {size} vs cost-matched boards, {n} fights a tier:")
+    for trait, t in D.TRAITS.items():
+        members = [k for k in D.shop_units() if trait in D.UNITS[k]["traits"]]
+        row = []
+        for need in t["levels"]:
+            wins = 0
+            for i in range(n):
+                picked = rng.sample(members, need)
+                rest = [k for k in D.shop_units() if k not in picked and trait not in D.UNITS[k]["traits"]]
+                picked += rng.sample(rest, max(0, size - need))
+                units = [{"unit": k, "star": 2 if rng.random() < 0.3 else 1} for k in picked]
+                home = [{"unit": u["unit"], "star": u["star"], "col": c, "row": r} for u, c, r in bots.arrange(units)]
+                away = matched(rng, home, avoid=(trait,))
+                side = i % 2  # swap sides half the time
+                res = sim.fight(home, away, rng.randrange(1 << 30)) if side == 0 else sim.fight(away, home, rng.randrange(1 << 30))
+                wins += res["winner"] == side
+                fights += 1
+            row.append(f"{need}: {100 * wins / n:4.0f}%")
+        print(f"  {t['name']:12} " + "   ".join(row))
+    print(f"({fights} fights, {time.perf_counter() - started:.0f} s)")
+
+
 def report(n, size, seed):
     rng = random.Random(seed)
     unit_w, unit_n = defaultdict(int), defaultdict(int)
@@ -76,7 +122,8 @@ def report(n, size, seed):
     times, capped, draws = [], 0, 0
     started = time.perf_counter()
     for i in range(n):
-        boards = [bots.random_board(rng, size), bots.random_board(rng, size)]
+        home = bots.random_board(rng, size)
+        boards = [home, matched(rng, home)]
         res = sim.fight(boards[0], boards[1], rng.randrange(1 << 30))
         times.append(res["time"])
         capped += res["time"] >= sim.TIME_CAP
@@ -109,6 +156,10 @@ if __name__ == "__main__":
     size = arg("--size", 6)
     if "--show" in sys.argv:
         show(arg("--show", 1), size)
+    elif "--traits" in sys.argv:
+        i = sys.argv.index("--traits")
+        n = int(sys.argv[i + 1]) if len(sys.argv) > i + 1 and sys.argv[i + 1].isdigit() else 150
+        traits(n, arg("--size", 7), arg("--seed", 1))
     else:
         n = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 400
         report(n, size, arg("--seed", 1))

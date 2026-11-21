@@ -133,6 +133,7 @@ class Unit:
         self.ability = u["ability"]
         self.traits = u["traits"]
         self.summon = bool(u.get("summon"))
+        self.static = bool(u.get("static"))  # never moves (turrets)
         self.ap = 100.0
         self.crit = 0.25
         self.critdmg = 1.4
@@ -374,6 +375,8 @@ class Fight:
                     self.attack(u, t)
                     u.next_atk = now + 1 / u.attack_speed(now)
                 continue
+            if u.static:
+                continue
             step = None
             for f in sorted(foes, key=lambda f: (dist(u.hex, f.hex), f.id)):
                 step = self.path_step(u, f)
@@ -402,7 +405,8 @@ class Fight:
         for _ in range(hits):
             if not t.alive:
                 break
-            if t.dodge and self.rng.random() < t.dodge:
+            dodge = t.stat("dodge", self.t)
+            if dodge and self.rng.random() < dodge:
                 self.ev("x", t.id)
                 continue
             crit = self.rng.random() < u.crit
@@ -501,6 +505,8 @@ class Fight:
                     break
                 hit.append(min(left, key=lambda f: (dist(f.hex, hit[-1].hex), f.id)))
             return hit
+        if name == "lowest_enemy":
+            return [min(foes, key=lambda f: (f.hp / f.max, f.id))] if foes else []
         friends = self.friends(u)
         if name == "lowest_ally":
             return [min(friends, key=lambda f: (f.hp / f.max, f.id))]
@@ -515,8 +521,9 @@ class Fight:
     def step_hit(self, u, st):
         kind = st.get("type", "magic")
         amount = at_star(st["dmg"], u.star) * u.ap / 100
+        drained = 0.0
         for f in self.select(u, st["to"]):
-            self.deal(u, f, amount, kind)
+            drained += self.deal(u, f, amount, kind)
             if not f.alive:
                 continue
             if "stun" in st:
@@ -527,6 +534,10 @@ class Fight:
                 f.slow = (at_star(st["slow"], u.star), self.t + SLOW_SECS)
             if "burn" in st:
                 f.burn = (f.max * at_star(st["burn"], u.star), self.t + BURN_SECS, u)
+        if "heal_frac" in st and drained and u.alive:
+            gain = min(drained * at_star(st["heal_frac"], u.star), u.max - u.hp)
+            u.hp += gain
+            self.ev("h", u.id, round(gain))
 
     def step_heal(self, u, st):
         amount = at_star(st["amt"], u.star) * u.ap / 100
@@ -548,16 +559,23 @@ class Fight:
             f.buffs.append([st["stat"], amount, self.t + at_star(st["secs"], u.star)])
 
     def step_summon(self, u, st):
-        h = self.free_near(u.hex)
-        if h is None:
-            return
-        s = self.add(u.side, st["unit"], u.star, h)
-        if u.summon_boost:
-            s.max *= 1 + u.summon_boost
-            s.hp = s.max
-            s.ad *= 1 + u.summon_boost
-        s.next_atk = self.t + 0.5
-        self.ev("sp", s.row())
+        for _ in range(at_star(st.get("count", 1), u.star)):
+            h = self.free_near(u.hex)
+            if h is None:
+                return
+            s = self.add(u.side, st["unit"], u.star, h)
+            if u.summon_boost:
+                s.max *= 1 + u.summon_boost
+                s.hp = s.max
+                s.ad *= 1 + u.summon_boost
+            s.next_atk = self.t + 0.5
+            self.ev("sp", s.row())
+
+    def step_mana(self, u, st):
+        amount = at_star(st["amt"], u.star)
+        for f in self.select(u, st["to"]):
+            if f is not u and f.ability:
+                f.mana = min(f.maxmana, f.mana + amount)
 
     def step_dash(self, u, st):
         picked = self.select(u, st["to"])

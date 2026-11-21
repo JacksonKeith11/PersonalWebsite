@@ -7,15 +7,17 @@ are either one value or a list of three, one per star. See sim.Fight.step_* and 
 
 Steps:
     hit     damage `dmg` of `type` (magic by default, also phys and true); optional `stun` (seconds),
-            `slow` (fraction of attack speed lost for 3 s) and `burn` (fraction of the target's max
-            hp per second for 3 s)
+            `slow` (fraction of attack speed lost for 3 s), `burn` (fraction of the target's max
+            hp per second for 3 s) and `heal_frac` (the caster heals that share of the damage done)
     heal    heal `amt`
     shield  a shield of `amt` for `secs`
-    buff    `stat` (aspd_pct, ad, armor, mr) up by `amt` for `secs`
-    summon  `unit` (a key in UNITS with "summon": True) at the caster's star, next to the caster
-    dash    jump next to the farthest enemy and make it the target
+    buff    `stat` (aspd_pct, ad, armor, mr, dodge) up by `amt` for `secs`
+    summon  `count` (default 1) of `unit` (a key in UNITS with "summon": True) at the caster's star,
+            next to the caster; a unit with "static": True never moves
+    dash    jump next to the unit `to` picks (farthest, lowest_enemy...) and make it the target
+    mana    give other allies `amt` mana
 Selectors: target, self, around_target:R, around_self:R, line:L, nearest:N, farthest, random:N,
-chain:N, lowest_ally, allies_near:R, allies, enemies. Ability damage and healing scale with ap
+chain:N, lowest_enemy (the most hurt), lowest_ally, allies_near:R, allies, enemies. Ability damage and healing scale with ap
 (100 = as written).
 
 A trait counts the different units carrying it on a board (two copies of one unit count once).
@@ -206,8 +208,138 @@ UNITS = {
     "star_queen": U("Star Queen", 5, ["starlit", "mystic"], 900, 68, 0.7, 4, 30, 40, 100, 30,
                     A("Starfall Ward", "Shields the whole board for 5 s.",
                       {"do": "shield", "to": "allies", "amt": [300, 450, 2000], "secs": 5})),
+    # ================================================================ the rest of the roster
+    # ---------------------------------------------------------------- cost 1
+    "ember_squire": U("Ember Squire", 1, ["emberforged", "vanguard"], 700, 62, 0.6, 1, 45, 25, 80, 30,
+                      A("Ember Guard", "Shields itself, then flares, scorching enemies beside it.",
+                        {"do": "shield", "to": "self", "amt": [250, 375, 550], "secs": 4},
+                        {"do": "hit", "to": "around_self:1", "dmg": [120, 180, 270]})),
+    "thornling": U("Thornling", 1, ["thornwood", "ranger"], 480, 66, 0.7, 4, 15, 15, 70, 0,
+                   A("Thorn Shot", "A barbed shot at its target.",
+                     {"do": "hit", "to": "target", "type": "phys", "dmg": [180, 270, 400]})),
+    "bone_rattler": U("Bone Rattler", 1, ["gravebound", "duelist"], 580, 70, 0.75, 1, 25, 20, 60, 0,
+                      A("Gnaw", "Bites its target and heals for half the damage.",
+                        {"do": "hit", "to": "target", "type": "phys", "dmg": [160, 240, 360], "heal_frac": 0.5})),
+    "iron_recruit": U("Iron Recruit", 1, ["ironhold", "warden"], 720, 60, 0.6, 1, 45, 30, 80, 30,
+                      A("Brace", "Braces for 5 s: far more armor and magic resist.",
+                        {"do": "buff", "to": "self", "stat": "armor", "amt": [40, 60, 90], "secs": 5},
+                        {"do": "buff", "to": "self", "stat": "mr", "amt": [40, 60, 90], "secs": 5})),
+    "tide_scout": U("Tide Scout", 1, ["tidecallers", "ranger"], 480, 62, 0.7, 4, 15, 20, 70, 10,
+                    A("Splash", "Water that splashes through three enemies.",
+                      {"do": "hit", "to": "chain:3", "dmg": [120, 180, 270]})),
+    "sky_sprite": U("Sky Sprite", 1, ["skyborne", "assassin"], 500, 70, 0.8, 1, 20, 20, 60, 0,
+                    A("Pounce", "Pounces on the most hurt enemy.",
+                      {"do": "dash", "to": "lowest_enemy"},
+                      {"do": "hit", "to": "target", "type": "phys", "dmg": [170, 255, 380]})),
+    "marsh_lurker": U("Marsh Lurker", 1, ["mirefolk", "assassin"], 520, 68, 0.75, 1, 20, 20, 60, 0,
+                      A("Ambush", "A strike that ignores armor and slows.",
+                        {"do": "hit", "to": "target", "type": "true", "dmg": [150, 225, 340], "slow": 0.3})),
+    "star_novice": U("Starlit Novice", 1, ["starlit", "arcanist"], 460, 50, 0.65, 3, 15, 20, 70, 20,
+                     A("Starbolt", "A bolt of starlight at its target.",
+                       {"do": "hit", "to": "target", "dmg": [220, 330, 500]})),
+    "grave_digger": U("Grave Digger", 1, ["gravebound", "warden"], 700, 58, 0.6, 1, 40, 25, 90, 40,
+                      A("Shovel", "Clangs its target with a shovel, stunning it.",
+                        {"do": "hit", "to": "target", "dmg": [140, 210, 320], "stun": [1.25, 1.5, 1.75]})),
+    "forge_hound": U("Forge Hound", 1, ["emberforged", "duelist"], 560, 70, 0.8, 1, 25, 20, 60, 0,
+                     A("Searing Bite", "A bite that leaves its target burning.",
+                       {"do": "hit", "to": "target", "dmg": [140, 210, 320], "burn": 0.04})),
+    # ---------------------------------------------------------------- cost 2
+    "cinder_rogue": U("Cinder Rogue", 2, ["emberforged", "assassin"], 600, 80, 0.8, 1, 25, 20, 60, 0,
+                      A("Flashstep", "Flashes to the farthest enemy and cuts it, setting it alight.",
+                        {"do": "dash", "to": "farthest"},
+                        {"do": "hit", "to": "target", "type": "phys", "dmg": [220, 330, 500], "burn": 0.02})),
+    "moss_brute": U("Moss Brute", 2, ["thornwood", "warden"], 850, 66, 0.6, 1, 40, 30, 90, 40,
+                    A("Overgrow", "Regrows HP and tangles enemies beside it.",
+                      {"do": "heal", "to": "self", "amt": [300, 450, 700]},
+                      {"do": "hit", "to": "around_self:1", "dmg": [100, 150, 220], "slow": 0.25})),
+    "ghoul_reaver": U("Ghoul Reaver", 2, ["gravebound", "assassin"], 620, 80, 0.8, 1, 25, 20, 60, 0,
+                      A("Feast", "Tears into the most hurt enemy, healing for part of it.",
+                        {"do": "dash", "to": "lowest_enemy"},
+                        {"do": "hit", "to": "target", "type": "phys", "dmg": [240, 360, 540], "heal_frac": 0.4})),
+    "iron_crossbow": U("Iron Crossbow", 2, ["ironhold", "ranger"], 560, 78, 0.7, 4, 25, 20, 80, 0,
+                       A("Piercing Bolt", "A bolt through everything in a line.",
+                         {"do": "hit", "to": "line:5", "type": "phys", "dmg": [200, 300, 450]})),
+    "reef_guard": U("Reef Guard", 2, ["tidecallers", "vanguard"], 820, 66, 0.6, 1, 45, 35, 90, 40,
+                    A("Undertow", "Drags at the enemies beside it, stunning them.",
+                      {"do": "hit", "to": "around_self:1", "dmg": [120, 180, 270], "stun": [1, 1.25, 1.5]})),
+    "gale_dancer": U("Gale Dancer", 2, ["skyborne", "duelist"], 650, 78, 0.8, 1, 30, 20, 70, 0,
+                     A("Whirlwind", "Spins through the enemies beside it and speeds up for 4 s.",
+                       {"do": "hit", "to": "around_self:1", "type": "phys", "dmg": [120, 180, 270]},
+                       {"do": "buff", "to": "self", "stat": "aspd_pct", "amt": [0.5, 0.7, 1.0], "secs": 4})),
+    "bog_shaman": U("Bog Shaman", 2, ["mirefolk", "mystic"], 600, 54, 0.65, 3, 20, 30, 80, 30,
+                    A("Peat Poultice", "Heals itself and every ally within 2 hexes.",
+                      {"do": "heal", "to": "allies_near:2", "amt": [150, 225, 340]})),
+    "thorn_dryad": U("Thorn Dryad", 2, ["thornwood", "mystic"], 580, 56, 0.65, 3, 20, 30, 80, 20,
+                     A("Briar Lash", "Lashes the two nearest enemies, rooting them briefly.",
+                       {"do": "hit", "to": "nearest:2", "dmg": [180, 270, 400], "stun": 0.75})),
+    "iron_duelist": U("Iron Duelist", 2, ["ironhold", "duelist"], 680, 78, 0.75, 1, 40, 25, 70, 0,
+                      A("Riposte", "Raises a guard and hits harder for 4 s.",
+                        {"do": "shield", "to": "self", "amt": [220, 330, 500], "secs": 3},
+                        {"do": "buff", "to": "self", "stat": "ad", "amt": [35, 55, 85], "secs": 4})),
+    "star_archer": U("Starlit Archer", 2, ["starlit", "ranger"], 560, 76, 0.75, 4, 20, 20, 70, 0,
+                     A("Moonvolley", "Arrows at four random enemies.",
+                       {"do": "hit", "to": "random:4", "type": "phys", "dmg": [130, 195, 290]})),
+    # ---------------------------------------------------------------- cost 3
+    "lava_giant": U("Lava Giant", 3, ["emberforged", "warden"], 1000, 76, 0.6, 1, 45, 35, 100, 40,
+                    A("Eruption", "Erupts, burning every enemy within 2 hexes.",
+                      {"do": "hit", "to": "around_self:2", "dmg": [200, 300, 480], "burn": 0.03})),
+    "thorn_stalker": U("Thorn Stalker", 3, ["thornwood", "assassin"], 720, 96, 0.8, 1, 30, 25, 60, 0,
+                       A("Bramble Trap", "Snares its target in brambles and strikes.",
+                         {"do": "hit", "to": "target", "type": "phys", "dmg": [320, 480, 760], "stun": 1})),
+    "wight_mage": U("Wight Mage", 3, ["gravebound", "arcanist"], 680, 54, 0.7, 4, 25, 30, 80, 20,
+                    A("Soul Siphon", "Draws out its target's soul, healing for half.",
+                      {"do": "hit", "to": "target", "dmg": [320, 480, 760], "heal_frac": 0.5})),
+    "iron_warlord": U("Iron Warlord", 3, ["ironhold", "vanguard", "duelist"], 950, 86, 0.7, 1, 50, 35, 90, 30,
+                      A("War Cry", "Allies within 2 hexes attack faster for 4 s; it shields itself.",
+                        {"do": "buff", "to": "allies_near:2", "stat": "aspd_pct", "amt": [0.3, 0.4, 0.6], "secs": 4},
+                        {"do": "shield", "to": "self", "amt": [300, 450, 700], "secs": 4})),
+    "tidebinder": U("Tidebinder", 3, ["tidecallers", "arcanist"], 680, 54, 0.7, 4, 25, 30, 90, 30,
+                    A("Riptide Bind", "Water binds everything round its target.",
+                      {"do": "hit", "to": "around_target:1", "dmg": [260, 390, 620], "stun": 1.25})),
+    "cloud_monk": U("Cloud Monk", 3, ["skyborne", "mystic"], 800, 76, 0.75, 1, 35, 40, 80, 20,
+                    A("Calm Palm", "A palm strike that stuns, and calm that gives nearby allies mana.",
+                      {"do": "hit", "to": "target", "dmg": [260, 390, 600], "stun": 1.25},
+                      {"do": "mana", "to": "allies_near:2", "amt": [20, 25, 35]})),
+    "mire_hag": U("Mire Hag", 3, ["mirefolk", "summoner"], 720, 54, 0.7, 3, 25, 30, 90, 30,
+                  A("Bog Brood", "Calls up two bog imps.",
+                    {"do": "summon", "unit": "bog_imp", "count": 2})),
+    "star_warden": U("Star Warden", 3, ["starlit", "warden"], 950, 70, 0.65, 1, 45, 40, 90, 30,
+                     A("Starshield", "Shields itself and the allies beside it for 4 s.",
+                       {"do": "shield", "to": "allies_near:1", "amt": [250, 375, 600], "secs": 4})),
+    # ---------------------------------------------------------------- cost 4
+    "phoenix_knight": U("Phoenix Knight", 4, ["emberforged", "vanguard", "duelist"], 1050, 96, 0.7, 1, 50, 40, 100, 40,
+                        A("Rebirth Flame", "Bursts into flame, burning enemies beside it and healing itself.",
+                          {"do": "hit", "to": "around_self:1", "dmg": [300, 450, 1100], "burn": 0.04},
+                          {"do": "heal", "to": "self", "amt": [300, 450, 1100]})),
+    "elder_oak": U("Elder Oak", 4, ["thornwood", "warden", "vanguard"], 1300, 76, 0.55, 1, 55, 45, 110, 50,
+                   A("Root Grasp", "Roots burst up, stunning every enemy within 2 hexes.",
+                     {"do": "hit", "to": "around_self:2", "dmg": [150, 225, 700], "stun": [1.5, 2, 4]})),
+    "lich": U("Lich", 4, ["gravebound", "summoner", "arcanist"], 850, 60, 0.7, 4, 30, 40, 100, 30,
+              A("Raise Dead", "Raises two skeletons and blasts its target.",
+                {"do": "summon", "unit": "skeleton", "count": 2},
+                {"do": "hit", "to": "target", "dmg": [250, 375, 1000]})),
+    "iron_engineer": U("Iron Engineer", 4, ["ironhold", "summoner"], 850, 66, 0.7, 3, 35, 35, 90, 40,
+                       A("Deploy Turret", "Builds a turret that never moves but shoots far.",
+                         {"do": "summon", "unit": "turret"})),
+    "kraken_caller": U("Kraken Caller", 4, ["tidecallers", "assassin"], 850, 106, 0.8, 1, 35, 30, 70, 0,
+                       A("Kraken Grasp", "Tentacles drag it to the most hurt enemy, which is crushed and held.",
+                         {"do": "dash", "to": "lowest_enemy"},
+                         {"do": "hit", "to": "target", "type": "phys", "dmg": [450, 675, 1500], "stun": 1})),
+    # ---------------------------------------------------------------- cost 5
+    "tempest_roc": U("Tempest Roc", 5, ["skyborne", "ranger"], 1000, 100, 0.8, 4, 30, 30, 90, 20,
+                     A("Tempest", "Storm feathers rake five random enemies; it attacks faster for 5 s.",
+                       {"do": "hit", "to": "random:5", "type": "phys", "dmg": [300, 450, 2000]},
+                       {"do": "buff", "to": "self", "stat": "aspd_pct", "amt": [0.5, 0.7, 2.0], "secs": 5})),
+    "mire_mother": U("Mire Mother", 5, ["mirefolk", "summoner", "arcanist"], 1100, 66, 0.7, 3, 35, 45, 110, 40,
+                     A("Spawning Pool", "Spawns three mire spawn and floods the ground round its target.",
+                       {"do": "summon", "unit": "mire_spawn", "count": 3},
+                       {"do": "hit", "to": "around_target:1", "dmg": [200, 300, 1200], "slow": 0.4})),
     # ---------------------------------------------------------------- summons (never in the shop)
     "treant": U("Treant", 0, [], 900, 80, 0.6, 1, 40, 30, 0, 0, None, summon=True),
+    "bog_imp": U("Bog Imp", 0, [], 380, 50, 0.8, 1, 15, 15, 0, 0, None, summon=True),
+    "skeleton": U("Skeleton", 0, [], 450, 60, 0.75, 1, 25, 10, 0, 0, None, summon=True),
+    "turret": U("Turret", 0, [], 650, 75, 0.8, 4, 40, 40, 0, 0, None, summon=True, static=True),
+    "mire_spawn": U("Mire Spawn", 0, [], 520, 55, 0.7, 1, 25, 25, 0, 0, None, summon=True),
     # ---------------------------------------------------------------- monsters (monster rounds)
     "wolf": U("Wolf", 0, [], 320, 32, 0.8, 1, 15, 15, 0, 0, None, summon=True),
     "bandit": U("Bandit", 0, [], 650, 60, 0.7, 1, 25, 20, 0, 0, None, summon=True),
@@ -216,8 +348,8 @@ UNITS = {
 }
 
 SELECTORS = ("target", "self", "around_target", "around_self", "line", "nearest", "farthest", "random",
-             "chain", "lowest_ally", "allies_near", "allies", "enemies")
-STEPS = ("hit", "heal", "shield", "buff", "summon", "dash")
+             "chain", "lowest_enemy", "lowest_ally", "allies_near", "allies", "enemies")
+STEPS = ("hit", "heal", "shield", "buff", "summon", "dash", "mana")
 PLAIN_STATS = ("hp_pct", "ad_pct", "aspd_pct", "armor", "mr", "ap", "dodge", "crit", "critdmg", "mana_cut")
 SPECIAL = ("burn", "regen", "mana_regen", "revive", "chill", "shield", "duel", "double", "leap", "summon_boost")
 

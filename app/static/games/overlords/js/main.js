@@ -312,8 +312,15 @@ function abilityNumbers(ab, star) {
     const v = x => (Array.isArray(x) ? x[star - 1] : x);
     if (s.dmg) bits.push(`${v(s.dmg)} ${s.type === 'phys' ? 'physical' : s.type === 'true' ? 'true' : 'magic'} damage`);
     if (s.amt && s.do !== 'buff') bits.push(`${v(s.amt)} ${s.do === 'heal' ? 'healing' : 'shield'}`);
-    if (s.do === 'buff') bits.push(`+${Math.round(v(s.amt) * 100)}% attack speed`);
+    if (s.do === 'buff') {
+      const amt = v(s.amt);
+      bits.push(s.stat === 'aspd_pct' ? `+${Math.round(amt * 100)}% attack speed` : s.stat === 'dodge' ? `+${Math.round(amt * 100)}% dodge`
+        : `+${amt} ${{ ad: 'attack', armor: 'armor', mr: 'resist' }[s.stat] || s.stat}`);
+    }
+    if (s.do === 'mana') bits.push(`${v(s.amt)} mana to allies`);
+    if (s.do === 'summon') bits.push(`${v(s.count || 1)} × ${S.cfg.units[s.unit].name}`);
     if (s.stun) bits.push(`${v(s.stun)} s stun`);
+    if (s.heal_frac) bits.push(`heals ${Math.round(v(s.heal_frac) * 100)}% of it`);
   }
   return bits.length ? `(${bits.join(', ')})` : '';
 }

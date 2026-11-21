@@ -48,7 +48,7 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   the menu and lobby Scramble, Holdfast and Overlords share
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
-  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `scramble-*`, Scramble's; `holdfast-*`, Holdfast's; `overlords-*`, Overlords'; `check-all.sh`, every fast check, and
+  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `scramble-*`, Scramble's; `holdfast-*`, Holdfast's; `overlords-*` plus `overlords-art/`, Overlords'; `check-all.sh`, every fast check, and
   `bump-version.py`, the cache versions)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
@@ -72,7 +72,7 @@ up front. Read the matching one before you change something in that area:
 | `app/relay/`, `app/static/games/relay/`, `tools/relay-*` | `docs/relay.md` |
 | `app/scramble/`, `app/static/games/scramble/`, `tools/scramble-*` | `docs/scramble.md` |
 | `app/holdfast/`, `app/static/games/holdfast/`, `tools/holdfast-*` | `docs/holdfast.md` |
-| `app/overlords/`, `app/static/games/overlords/`, `tools/overlords-*` | `docs/overlords.md` |
+| `app/overlords/`, `app/static/games/overlords/`, `tools/overlords-*`, `tools/overlords-art/` | `docs/overlords.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

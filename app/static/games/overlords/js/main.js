@@ -4,8 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=3';
-import { isMuted, play, setMuted } from './sound.js?v=3';
+import { Playback } from './fight.js?v=5';
+import { isMuted, play, setMuted } from './sound.js?v=5';
+import { ATLAS_URL, POSES, ROWS } from './atlas.js?v=5';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -25,6 +26,9 @@ const S = {
   endsAt: 0,         // now() when the current phase's timer runs out
   fights: [],        // this round's fights: { home, away, pve, ghost, res }
   fightT0: 0,        // now() at the fights' t = 0
+  ft: 0,             // the fight's time as played here: runs at S.speed, so it can be ahead of the server
+  speed: 1,          // fight playback speed (1 or 2), remembered
+  lastFrame: 0,
   watch: null,       // the player whose board or fight is shown
   pb: null,          // the watched fight's Playback
   drag: null,        // { from: {b} | {c, r}, unit, x, y }
@@ -59,6 +63,7 @@ function receive(m) {
   } else if (m.t === 'fights') {
     S.fights = m.list;
     S.fightT0 = now() - m.elapsed;
+    S.ft = m.elapsed;
     makePlayback();
     if (m.elapsed < 1) play('fight');
   } else if (m.t === 'note') {
@@ -270,6 +275,8 @@ function renderHud() {
   $('ready').disabled = !can || st.phase !== 'plan';
   $('ready').textContent = mine?.ready ? 'Not ready' : 'Ready';
   $('mute').textContent = isMuted() ? '🔇' : '🔊';
+  $('speed').textContent = `Fights ${S.speed}×`;
+  $('speed').setAttribute('aria-pressed', String(S.speed === 2));
   $('mute').setAttribute('aria-pressed', String(isMuted()));
 }
 
@@ -291,7 +298,7 @@ function banner() {
     const f = fightOf(S.watch);
     if (!f) { b.textContent = w ? `${w.name} isn't fighting this round.` : ''; return; }
     const home = player(f.home), away = f.pve ? null : player(f.away);
-    const t = now() - S.fightT0;
+    const t = S.ft;
     let text = `<b>${esc(home?.name)}</b> vs <b>${f.pve ? 'Monsters' : esc(away?.name) + (f.ghost ? ' (a copy)' : '')}</b>`;
     if (t >= f.res.time) {
       const winner = f.res.winner;
@@ -491,7 +498,7 @@ function makePlayback() {
   const f = fightOf(S.watch);
   if (!f) return;
   S.pb = new Playback(f, S.fightT0, S.cfg, play);
-  S.pb.advance(now() - S.fightT0, true);
+  S.pb.advance(S.ft, true);
   S.pb.flip = f.away === S.watch && !f.pve; // the watched player's board goes at the bottom
 }
 
@@ -557,34 +564,86 @@ function short(name) {
   return words.length > 1 ? words.map(w => w[0]).join('').slice(0, 3) : name.slice(0, 3);
 }
 
+// The sprite atlas (tools/overlords-art/build.py): a row per unit, a 32x32 column per pose.
+const atlas = new Image();
+atlas.src = ATLAS_URL;
+const ORIGIN_COLORS = {
+  emberforged: '#ff8a3a', thornwood: '#a0d060', tidecallers: '#7fe3e0', gravebound: '#b48aff',
+  skyborne: '#fff6a0', ironhold: '#ffb84a', starlit: '#e8e0ff', mirefolk: '#c8e070',
+};
+const unitColor = key => ORIGIN_COLORS[(S.cfg.units[key].traits || []).find(t => ORIGIN_COLORS[t])] || '#ffe9a0';
+
+// A unit at (x, y), the middle of its hex: a ground ring in its owner's colour (filled by tier), the
+// sprite standing on it in a pose, facing right unless `flip`, then stars, bars and items above and
+// below. opts: ring, alpha, pose, flip, bob, flash, stunned, burning, monster, friend, bars, items.
 function drawUnit(x, y, key, star, opts = {}) {
   const d = S.cfg.units[key];
-  const R = G.R * 0.62;
+  const R = G.R;
+  const big = d.tier >= 4 || ['lava_giant', 'iron_colossus', 'moss_brute', 'mire_mother', 'tempest_roc', 'elder_oak',
+    'stone_golem', 'bandit_chief'].includes(key);
+  const size = R * (big ? 2.45 : 2.1);
+  const feet = y + R * 0.5;
   ctx.save();
   ctx.globalAlpha = opts.alpha ?? 1;
+  // the ground ring
   ctx.beginPath();
-  ctx.arc(x, y, R, 0, Math.PI * 2);
-  ctx.fillStyle = d.tier ? COST_COLORS[d.tier] : (d.ability === null && opts.monster ? MONSTER_COLOR : '#5c7a4a');
+  ctx.ellipse(x, feet - R * 0.04, R * 0.6, R * 0.24, 0, 0, Math.PI * 2);
+  ctx.fillStyle = d.tier ? COST_COLORS[d.tier] + '88' : (opts.monster ? MONSTER_COLOR + '88' : '#5c7a4a88');
   ctx.fill();
-  ctx.lineWidth = Math.max(2, G.R * 0.1);
+  ctx.lineWidth = Math.max(2, R * 0.08);
   ctx.strokeStyle = opts.ring || '#11151e';
   ctx.stroke();
-  if (opts.flash) {
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  // the sprite
+  const row = ROWS[key];
+  const top = feet - size * 30.5 / 32 - (opts.bob || 0);
+  if (atlas.complete && atlas.naturalWidth && row != null) {
+    const col = Math.max(0, POSES.indexOf(opts.pose || 'idle'));
+    ctx.imageSmoothingEnabled = false;
+    if (opts.flip) {
+      ctx.save();
+      ctx.translate(x, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(atlas, col * 32, row * 32, 32, 32, -size / 2, top, size, size);
+      ctx.restore();
+    } else {
+      ctx.drawImage(atlas, col * 32, row * 32, 32, 32, x - size / 2, top, size, size);
+    }
+    if (opts.flash) {
+      ctx.globalAlpha = (opts.alpha ?? 1) * 0.35;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(x, feet - size * 0.45, size * 0.3, size * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = opts.alpha ?? 1;
+    }
+  } else { // the atlas hasn't loaded: a token with the unit's initials
+    ctx.beginPath();
+    ctx.arc(x, y, R * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = d.tier ? COST_COLORS[d.tier] : '#5c7a4a';
     ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `700 ${Math.round(R * 0.4)}px "Source Sans 3", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(short(d.name), x, y);
   }
-  ctx.fillStyle = '#fff';
-  ctx.font = `700 ${Math.round(R * 0.62)}px "Source Sans 3", sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(short(d.name), x, y + 1);
+  const head = feet - size * 0.95;
+  if (opts.burning) {
+    for (let i = 0; i < 3; i++) {
+      const fx = x + Math.sin(now() * 9 + i * 2.1) * R * 0.25, fy = feet - size * (0.25 + 0.2 * i) - ((now() * 30 + i * 7) % 6);
+      ctx.fillStyle = i % 2 ? '#ffd23f' : '#ff7a1a';
+      ctx.fillRect(fx - 2, fy - 2, 4, 4);
+    }
+  }
   if (star > 1) {
     ctx.fillStyle = star === 3 ? '#7ff0ff' : '#ffd75a';
-    ctx.font = `${Math.round(R * 0.55)}px sans-serif`;
-    ctx.fillText('★'.repeat(star), x, y - R - R * 0.75);
+    ctx.font = `${Math.round(R * 0.36)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('★'.repeat(star), x, head - (opts.bars ? R * 0.42 : R * 0.1));
   }
   if (opts.bars) {
-    const bw = R * 1.9, bx = x - bw / 2, byy = y - R - R * 0.38;
+    const bw = R * 1.15, bx = x - bw / 2, byy = head - R * 0.18;
     const { hp, max, mana, maxmana, shield } = opts.bars;
     ctx.fillStyle = '#11151e';
     ctx.fillRect(bx - 1, byy - 1, bw + 2, 9);
@@ -600,10 +659,10 @@ function drawUnit(x, y, key, star, opts = {}) {
     }
   }
   if (opts.items?.length) {
-    const sz = Math.max(7, R * 0.42), gap = 2;
+    const sz = Math.max(6, R * 0.24), gap = 2;
     const total = opts.items.length * sz + (opts.items.length - 1) * gap;
     opts.items.forEach((it, i) => {
-      const ix = x - total / 2 + i * (sz + gap), iy = y + R * 0.72;
+      const ix = x - total / 2 + i * (sz + gap), iy = feet + R * 0.12;
       ctx.fillStyle = ITEM_COLORS[S.cfg.items[it]?.kind] || '#666';
       ctx.fillRect(ix, iy, sz, sz);
       ctx.strokeStyle = '#11151e';
@@ -611,19 +670,26 @@ function drawUnit(x, y, key, star, opts = {}) {
       ctx.strokeRect(ix, iy, sz, sz);
     });
   }
-  if (opts.stunned) {
-    ctx.strokeStyle = '#ffe14a';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.arc(x, y, R + 4, 0, Math.PI * 2);
-    ctx.stroke();
+  if (opts.stunned) { // stars circling the head
+    for (let i = 0; i < 3; i++) {
+      const a = now() * 5 + (i * Math.PI * 2) / 3;
+      ctx.fillStyle = '#ffe14a';
+      ctx.font = `${Math.round(R * 0.3)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('✦', x + Math.cos(a) * R * 0.4, head + R * 0.15 + Math.sin(a) * R * 0.12);
+    }
   }
   ctx.restore();
 }
 
+// a gentle idle bob, out of step from unit to unit
+const bob = id => Math.round(Math.sin(now() * 2.6 + id * 1.7)) * (G.R / 22);
+
 function draw() {
   requestAnimationFrame(draw);
+  const t = now();
+  if (S.lastFrame && S.st?.phase === 'fight') S.ft += (t - S.lastFrame) * S.speed;
+  S.lastFrame = t;
   tickHud();
   const st = S.st;
   if (!st || !S.cfg || st.phase === 'lobby' || $('game').hidden) return;
@@ -700,13 +766,13 @@ function drawBoard(p) {
   for (const [id, key, star, c, r, items] of p.board) {
     if (S.drag?.unit && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you) continue;
     const [x, y] = hexXY(c, r);
-    drawUnit(x, y, key, star, { ring: p.color, items });
+    drawUnit(x, y, key, star, { ring: p.color, items, bob: bob(id) });
   }
 }
 
 function drawFight() {
   const pb = S.pb;
-  const t = now() - S.fightT0;
+  const t = Math.min(S.ft, pb.res.time + 5);
   pb.advance(t);
   const f = pb.fight;
   const flip = pb.flip;
@@ -734,14 +800,21 @@ function drawFight() {
     }
     where.set(u.id, [x, y]);
   }
-  for (const u of pb.units.values()) {
-    const fade = u.alive ? 1 : Math.max(0, 1 - (t - u.deadAt) / 0.45);
+  // the living draw back to front, the fallen beneath them
+  const order = [...pb.units.values()].sort((a, b) => (a.alive - b.alive) || (where.get(a.id)[1] - where.get(b.id)[1]));
+  for (const u of order) {
+    const fade = u.alive ? 1 : Math.max(0, 1 - (t - u.deadAt - 0.6) / 0.5);
     if (fade <= 0) continue;
     const [x, y] = where.get(u.id);
+    const tgt = pb.units.get(u.target);
+    if (tgt && tgt.alive && where.get(tgt.id)) u.flip = where.get(tgt.id)[0] < x - 2;
+    const pose = !u.alive ? 'fallen' : t - u.castAt < 0.35 ? 'cast' : t - u.attackAt < 0.18 ? 'attack'
+      : t - u.hitAt < 0.12 ? 'hurt' : 'idle';
     drawUnit(x, y, u.key, u.star, {
       ring: colorOf(u.side), alpha: fade, flash: t - u.hitAt < 0.07, stunned: u.alive && t < u.stunUntil,
-      monster: f.pve && u.side === 1, friend: u.side === friendSide, items: u.items,
-      bars: { hp: u.hp, max: u.max, mana: u.mana, maxmana: u.maxmana, shield: u.shield },
+      monster: f.pve && u.side === 1, friend: u.side === friendSide, items: u.items, pose, flip: u.flip,
+      burning: u.alive && t < u.burnUntil, bob: pose === 'idle' && u.alive ? bob(u.id) : 0,
+      bars: u.alive ? { hp: u.hp, max: u.max, mana: u.mana, maxmana: u.maxmana, shield: u.shield } : null,
     });
   }
   for (const fx of pb.fx) {
@@ -784,6 +857,55 @@ function drawFight() {
           ctx.font = `600 ${Math.round(G.R * 0.4)}px "Source Sans 3", sans-serif`;
           ctx.textAlign = 'center';
           ctx.fillText(fx.name, p[0], p[1] + G.R * 1.05);
+        }
+      }
+    } else if (fx.kind === 'bolt') {
+      const a = where.get(fx.from), b = where.get(fx.to);
+      if (a && b) {
+        const lift = G.R * 0.5;
+        const x = a[0] + (b[0] - a[0]) * Math.min(1, k * 1.6), y = a[1] - lift + (b[1] - a[1]) * Math.min(1, k * 1.6);
+        ctx.globalAlpha = 1 - k * 0.6;
+        ctx.strokeStyle = unitColor(fx.key);
+        ctx.lineWidth = Math.max(2, G.R * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(a[0] + (x - a[0]) * 0.6, a[1] - lift + (y - a[1] + lift) * 0.6);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(2, G.R * 0.1), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (fx.kind === 'area') {
+      const p = where.get(fx.id);
+      if (p) {
+        ctx.globalAlpha = (1 - k) * 0.55;
+        ctx.fillStyle = unitColor(fx.key);
+        ctx.beginPath();
+        ctx.ellipse(p[0], p[1] + G.R * 0.2, G.w * (fx.r + 0.5) * (0.4 + 0.6 * k), G.w * (fx.r + 0.5) * 0.55 * (0.4 + 0.6 * k), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (fx.kind === 'line') {
+      const a = where.get(fx.from), b = where.get(fx.to);
+      if (a && b) {
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        const reach = G.w * fx.n;
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = unitColor(fx.key);
+        ctx.lineWidth = G.R * 0.5 * (1 - k * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(a[0] + ((b[0] - a[0]) / len) * reach, a[1] + ((b[1] - a[1]) / len) * reach);
+        ctx.stroke();
+      }
+    } else if (fx.kind === 'heal') {
+      const p = where.get(fx.id);
+      if (p) {
+        ctx.globalAlpha = 1 - k;
+        ctx.fillStyle = '#7be08a';
+        for (let i = 0; i < 4; i++) {
+          const a = i * 1.7 + fx.at;
+          ctx.fillRect(p[0] + Math.cos(a) * G.R * 0.4 - 1.5, p[1] - G.R * (0.2 + k * 0.8) + Math.sin(a) * 4, 3, 3);
         }
       }
     } else if (fx.kind === 'jump') {
@@ -931,6 +1053,12 @@ $('reroll').addEventListener('click', () => act('reroll', 'reroll'));
 $('lock').addEventListener('click', () => act('lock', 'click'));
 $('ready').addEventListener('click', () => act('ready', 'click'));
 $('mute').addEventListener('click', () => { setMuted(!isMuted()); renderHud(); });
+try { S.speed = localStorage.getItem('overlords-speed') === '2' ? 2 : 1; } catch { /* private mode */ }
+$('speed').addEventListener('click', () => {
+  S.speed = S.speed === 1 ? 2 : 1;
+  try { localStorage.setItem('overlords-speed', String(S.speed)); } catch { /* private mode */ }
+  renderHud();
+});
 $('again').addEventListener('click', () => room.send({ t: 'again' }));
 $('start').addEventListener('click', () => room.send({ t: 'start' }));
 $('bots').addEventListener('change', () => room.send({ t: 'set', bots: $('bots').checked }));

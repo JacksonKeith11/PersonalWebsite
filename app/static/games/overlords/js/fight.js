@@ -20,7 +20,7 @@ export class Playback {
   addUnit([id, side, key, star, c, r, max, maxmana, mana, items = []]) {
     this.units.set(id, {
       id, side, key, star, c, r, fc: c, fr: r, moveAt: -9, hp: max, max, mana, maxmana, shield: 0, items,
-      alive: true, deadAt: 0, stunUntil: 0, attackAt: -9, castAt: -9, hitAt: -9, target: 0,
+      alive: true, deadAt: 0, stunUntil: 0, attackAt: -9, castAt: -9, hitAt: -9, target: 0, burnUntil: 0,
       range: this.cfg.units[key].range,
     });
   }
@@ -58,6 +58,7 @@ export class Playback {
         const v = U.get(e[3]);
         u.attackAt = t;
         u.target = e[3];
+        u.lastStrike = 'a';
         if (u.mana < u.maxmana) u.mana = Math.min(u.maxmana, u.mana + 10);
         if (v && u.range > 1) this.fx.push({ kind: 'shot', at: t, from: u.id, to: v.id, side: u.side, life: 0.22 });
         this.sound(u.range > 1 ? 'shot' : 'hit');
@@ -68,7 +69,12 @@ export class Playback {
         break;
       case 'd': {
         u.hp = e[7];
+        if (e[5] === 3) { u.burnUntil = t + 0.5; break; }
         u.hitAt = t;
+        const src = U.get(e[2]);
+        if (src && src.castAt === t && src.id !== u.id) { // a spell landing: a bolt from its caster
+          this.fx.push({ kind: 'bolt', at: t, from: src.id, to: u.id, key: src.key, life: 0.3 });
+        }
         if (e[5] !== 3) {
           const colors = ['#ffb070', '#8fc4ff', '#ffffff'];
           this.fx.push({ kind: 'text', at: t, id: u.id, text: String(e[4]), color: colors[e[5]], big: !!e[6], life: 0.8 });
@@ -76,15 +82,28 @@ export class Playback {
         }
         break;
       }
-      case 'c':
+      case 'c': {
         u.mana = 0;
         u.castAt = t;
-        this.fx.push({ kind: 'cast', at: t, id: u.id, target: e[3], name: this.cfg.units[u.key].ability?.name, life: 1.0 });
+        if (e[3]) u.target = e[3];
+        const ab = this.cfg.units[u.key].ability;
+        this.fx.push({ kind: 'cast', at: t, id: u.id, target: e[3], name: ab?.name, life: 1.0 });
+        for (const st of ab?.steps || []) { // areas and lines show where the ability lands
+          const [sel, n] = (st.to || '').split(':');
+          if (st.do !== 'hit') continue;
+          if (sel === 'around_target' && e[3]) this.fx.push({ kind: 'area', at: t, id: e[3], r: +n, key: u.key, life: 0.5 });
+          if (sel === 'around_self') this.fx.push({ kind: 'area', at: t, id: u.id, r: +n, key: u.key, life: 0.5 });
+          if (sel === 'line' && e[3]) this.fx.push({ kind: 'line', at: t, from: u.id, to: e[3], n: +n, key: u.key, life: 0.4 });
+        }
         this.sound('cast');
         break;
+      }
       case 'h':
         u.hp = Math.min(u.max, u.hp + e[3]);
-        if (e[3] > 0) this.fx.push({ kind: 'text', at: t, id: u.id, text: '+' + e[3], color: '#7be08a', life: 0.8 });
+        if (e[3] > 0) {
+          this.fx.push({ kind: 'text', at: t, id: u.id, text: '+' + e[3], color: '#7be08a', life: 0.8 });
+          this.fx.push({ kind: 'heal', at: t, id: u.id, life: 0.6 });
+        }
         this.sound('heal');
         break;
       case 's':

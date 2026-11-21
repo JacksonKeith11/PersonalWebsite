@@ -18,7 +18,7 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #game button.primary { background: var(--gold); border-color: var(--gold); color: #2a2000; }
 #game button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
 #game button small { opacity: 0.7; font-weight: 400; }
-#mute { padding: 4px 10px; }
+#mute, #speed { padding: 4px 10px; }
 
 .main { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px; }
 .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }

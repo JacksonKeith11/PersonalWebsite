@@ -228,6 +228,14 @@ def matches(n=3):
     print(f"bot matches: {rounds} rounds, about {sum(secs) / len(secs) / 60:.0f} minutes each at full timers")
 
 
+def art():
+    """Every unit, summon and monster has a row in the sprite atlas (tools/overlords-art/build.py)."""
+    text = (Path(__file__).resolve().parent.parent / "app/static/games/overlords/js/atlas.js").read_text()
+    rows = json.loads(text.split("export const ROWS = ", 1)[1].split(";", 1)[0])
+    missing = [k for k in D.UNITS if k not in rows]
+    check(not missing, f"no sprite for {missing}: run tools/overlords-art/build.py")
+
+
 def items_in_fights():
     foes = [{"unit": "iron_colossus", "star": 1, "col": c, "row": 3} for c in (2, 3, 4)]
     for item, d in D.ITEMS.items():
@@ -349,6 +357,7 @@ def draft():
 
 
 data()
+art()
 items_in_fights()
 room_items_and_powers()
 draft()

@@ -831,7 +831,7 @@ class Room:
                 self.pool[k] -= 1
                 p.bench[free] = self.new_unit(k)
                 self.merge(p, k)
-        p.hp += a.get("heal", 0)
+        p.hp = max(p.hp, min(D.START_HP, p.hp + a.get("heal", 0)))
         for k, v in a.get("team", {}).items():
             p.team_fx[k] = p.team_fx.get(k, 0) + v
         if a.get("bonus"):

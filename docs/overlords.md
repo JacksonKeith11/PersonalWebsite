@@ -95,11 +95,41 @@ records only (no unlocks), and all four extra systems, at the large size:
 3. ~~The full roster: 50 units across the five costs, all 16 traits filled out~~ (done, with a first
    balance pass)
 4. ~~Items, 12 commanders, 64 augments, shared drafts~~ (done, with the non-linear prices)
-5. Art and sound: sprites from `tools/overlords-art/` (reusing Kingfall's `pix.py`/`anim.py`), idle,
-   attack, cast and death frames, ability effects, a fight speed toggle
+5. ~~Art: sprites for every unit, poses, ability effects, a fight speed toggle~~ (done; the sounds were
+   already synthesized in step 2)
 6. Records in `data/overlords.db`, one big balance run, this doc, the games page, README and CLAUDE.md
 
-Not on the games page yet (the owner can play it at `/games/overlords`); list it once it has art.
+Not on the games page yet (the owner can play it at `/games/overlords`): step 6 lists it.
+
+### Art
+
+- 59 sprites (50 units, 5 summons, 4 monsters), one 32x32 drawing each, by code in
+  `tools/overlords-art/` (`units1.py`: Emberforged, Thornwood, Tidecallers, Gravebound; `units2.py`:
+  Skyborne, Ironhold, Starlit, Mirefolk, the other summons and the monsters). They use Roguelike
+  Tactics' kit and renderer (`tools/threefold-art/kit.py`: flat material letters, then outline and cel
+  shading by code; `docs/game-art.md` has the rules: matte, muted, dark outlines, chunky), with
+  Overlords' own humanoid builder (`Fig`: normal, short for dwarves, big, small; heads, helms, hoods,
+  hats, crowns, beards, capes, wings) and weapons and creature parts in `kit.py`.
+- Each origin has a palette (`kit.ORIGIN`) so a trait reads at a glance: Emberforged charcoal and
+  fire, Thornwood bark and leaves, Tidecallers teal and coral, Gravebound bone and violet, Skyborne
+  pale blue, white and gold, Ironhold steel and brass dwarves, Starlit midnight and silver elves
+  (pointed ears), Mirefolk olive frogfolk.
+- Five poses per sprite, derived from the drawing as Saltbound does (`kit.poses`): idle, attack (leans
+  in), cast (leans back), hurt, fallen (lies down). `python3 tools/overlords-art/build.py` writes the
+  atlas (`art/units.png`, a row a sprite, a column a pose) and `js/atlas.js` (rows, poses, and the PNG's
+  hash in its URL, since Cloudflare caches `/static`). Never edit either by hand; preview with
+  `python3 tools/overlords-art/sheet.py out.png [names] [--poses]`. After a build, bump the game's
+  `?v=` as usual. `overlords-check.py` fails if a unit has no sprite.
+- In the browser (`drawUnit`): the sprite stands on a ring in its owner's colour (filled by tier), big
+  units (tier 4-5 and the giants) drawn larger; it bobs when idle, faces whoever it last attacked,
+  takes the attack/cast/hurt pose for a moment after each, lies down and fades when it dies. Spells
+  draw from the ability's data: a bolt in the caster's origin colour to each target hit at the moment
+  of the cast, a burst for `around_target`/`around_self`, a beam for `line`; heals sparkle, burning
+  flickers, stuns circle the head with stars.
+- **Fights 1×/2×** (header, remembered): plays fights at double speed. The server's timing doesn't
+  change; a fast player just sees the result sooner and waits for the others.
+- The owner hasn't reviewed the looks yet (in the other games the owner picks from options): expect
+  changes unit by unit.
 
 ## How it works
 

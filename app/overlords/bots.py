@@ -9,7 +9,8 @@ keep more, level sooner and spend everything once their HP runs low.
 
 Bots also pick a commander (`pick_commander`), augments (`pick_augment`: hearts and souls of traits
 they field, else gold, items or stats), draft picks (`pick_draft`: the unit they value most), use
-their commander's power when it's charged, and put items on their units: components on their most
+their commander's power when it's charged, buy from the armory with gold left over after units
+(artifacts first, while their units have room), and put items on their units: components on their most
 valuable unit (so they combine), emblems on a unit that lacks the trait, Crowns on anyone.
 """
 
@@ -113,6 +114,13 @@ def play(room, p, rng):
             rolls += 1
         else:
             break
+
+    # the armory, with the gold left over: artifacts first, while their units have room for items
+    room_for = sum(D.MAX_ITEMS - len(u["items"]) for u in p.units())
+    stock = sorted(((room.item_price(k, p), i) for i, k in enumerate(p.armory) if k), reverse=True)
+    for price, i in stock:
+        if len(p.items) < room_for and p.gold - price >= keep:
+            room.buy_item(p, i)
 
     # the commander's power, when charged
     if p.commander and p.charge >= D.COMMANDERS[p.commander]["charge"]:

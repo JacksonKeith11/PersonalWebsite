@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/overlords/game.css?v=11">
+  <link rel="stylesheet" href="/static/games/overlords/game.css?v=13">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -48,9 +48,10 @@
           <li>Every unit has an origin and one or two classes. Field enough different units sharing one and its trait switches on (see the list on the right).</li>
           <li>Then everyone fights at once. Your units move and attack on their own, and cast their ability when their mana fills. Lose and you lose HP: more for every enemy left standing.</li>
           <li>Some rounds are monster rounds, everyone against the same monsters, for gold.</li>
+          <li>Once every person in the room is knocked out, the match ends: the bots don't play it out.</li>
           <li>You earn gold every round, plus 1 for every 10 you've saved (up to 5), plus a bonus for a winning or losing streak.</li>
           <li>Click a player on the left to watch their fight, or to see their board while you plan.</li>
-          <li>Monster rounds drop item components. Drag one onto a unit: two components on one unit combine into a stronger item, and a unit holds three. A Sigil with another component makes an emblem (its holder gains that trait); two Sigils make a Crown, one more place on your board. Artifacts (from the round-11 golems, the last draft and some augments) are unique items no recipe makes.</li>
+          <li>Buy item components in the armory, beside your items (3 gold each; new stock every round, and from round 11 an artifact too). Monster rounds pay gold. Drag a component onto a unit: two components on one unit combine into a stronger item, and a unit holds three. A Sigil with another component makes an emblem (its holder gains that trait); two Sigils make a Crown, one more place on your board. Artifacts (8 gold in the armory from round 11, the last draft and some augments) are unique items no recipe makes.</li>
           <li>Every unit has its own trick: some taunt, pull, shove, vanish, mark their targets or leave burning ground. Hover a unit, a shop card or a trait to read about it (on a phone, tap a unit or trait, or press and hold a shop card).</li>
           <li>During a fight the right panel charts each unit's damage dealt, taken and healed; it keeps the last fight while you plan.</li>
           <li>At the start you pick a commander: a passive, and a power that charges over a few rounds (use it from the left panel while planning). The first fight waits until everyone has picked.</li>
@@ -147,6 +148,7 @@
         <div id="itembar">
           <span class="label">Items</span>
           <div id="items" role="group" aria-label="Your items"></div>
+          <div id="armory" role="group" aria-label="The armory: items for sale" hidden></div>
           <span id="odds" class="odds"></span>
           <div id="sheet-tabs" class="sheet-tabs" role="group" aria-label="Panels">
             <button type="button" data-sheet="traits">Traits</button>
@@ -226,6 +228,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/overlords/js/main.js?v=11"></script>
+  <script type="module" src="/static/games/overlords/js/main.js?v=13"></script>
 </body>
 </html>

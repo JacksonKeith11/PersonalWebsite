@@ -94,7 +94,7 @@ PVE = {
     6: [("bandit", 1, 2, 3), ("bandit", 1, 4, 3), ("bandit", 1, 3, 2), ("bandit_chief", 1, 3, 1)],
     11: [("stone_golem", 1, 2, 3), ("stone_golem", 1, 4, 3), ("bandit_chief", 2, 3, 1)],
 }
-PVE_GOLD = {1: 2, 2: 2, 6: 3, 11: 4}
+PVE_GOLD = {1: 3, 2: 4, 6: 6, 11: 8}  # more than before the armory, when monsters also dropped components
 
 TRAITS = {
     # ---------------------------------------------------------------- origins
@@ -465,7 +465,7 @@ SPECIAL = ("burn", "regen", "mana_regen", "revive", "chill", "shield", "duel", "
            "horn", "echo_first", "fallen_rally")
 
 # ------------------------------------------------------------------ items
-# Components drop from monster rounds and come with draft picks. Two components on one unit combine
+# Components are bought in the armory (below) and come with draft picks. Two components on one unit combine
 # into an item (its `fx` plus both components' stats). A Sigil with another component makes that
 # component's emblem (the holder gains the trait); two Sigils make a Crown (one more unit may stand on
 # the board). A unit holds up to MAX_ITEMS. `fx` keys are the plain stats and specials sim.py knows
@@ -481,7 +481,7 @@ COMPONENTS = {
     "belt": {"name": "Belt", "fx": {"hp": 180}, "text": "+180 HP"},
     "sigil": {"name": "Sigil", "fx": {"hp": 80}, "text": "+80 HP; with another component, an emblem"},
 }
-COMPONENT_WEIGHT = {"sigil": 0.5}  # how often each drops (others 1)
+COMPONENT_WEIGHT = {"sigil": 0.5}  # how often each is offered or given (others 1)
 _RECIPES = [
     # Each finished item does one thing of its own (the roster review made the plain-stat ones into tricks).
     ("greatsword", "Executioner's Greatsword", "sword", "sword", {"crit": 0.15, "critdmg": 0.2, "low_bonus": 0.25},
@@ -514,7 +514,7 @@ _RECIPES = [
     ("second_wind", "Second Wind", "cloak", "belt", {"regen": 0.02}, "Regrows 2% of its max HP every second."),
     ("colossus_belt", "Colossus Belt", "belt", "belt", {"grow_hp": [0.02, 0.3]}, "Grows: 2% more max HP every second, up to 30%."),
 ]
-# Artifacts: no recipe. One drops from the golems of monster round 11, the Grand augment Ancient Armory
+# Artifacts: no recipe. The armory sells one a round from ARTIFACT_ROUND, the Grand augment Ancient Armory
 # gives one, the Forgemaster's power can forge one, and the last draft's units hold them.
 ARTIFACTS = [
     ("hourglass", "Stopped Hourglass", {"armor": 20, "mr": 20, "last_stand": [0.3, 2.0, 0.25]},
@@ -573,10 +573,14 @@ def artifacts():
     return [k for k, i in ITEMS.items() if i["kind"] == "artifact"]
 
 
-# Components a monster round drops to a winner (a loser gets one if it drops two or more), and the rounds
-# whose winners get an artifact instead of the last component.
-PVE_DROPS = {1: 1, 2: 1, 6: 2, 11: 2}
-PVE_ARTIFACT = (11,)
+# The armory: items bought for gold, beside the unit shop (the owner asked for this in November 2026, in
+# place of components dropping from monster rounds). Each round it offers ARMORY_SIZE components (drawn by
+# COMPONENT_WEIGHT, repeats allowed), and from ARTIFACT_ROUND one artifact too. It refreshes with each new
+# round (rerolls don't touch it); a locked shop keeps it. A bought slot stays empty until the next round.
+ARMORY_SIZE = 3
+COMPONENT_PRICE = 3
+ARTIFACT_PRICE = 8
+ARTIFACT_ROUND = 11
 
 # ------------------------------------------------------------------ commanders
 # Each player picks one of three at the start: a passive, and a power that charges over `charge`
@@ -604,7 +608,8 @@ COMMANDERS = {
                  "power": "Heal 6 HP.", "charge": 5},
     "blademaster": {"name": "The Blademaster", "passive": "Each attack your units make speeds them up 2%, up to 20%.",
                     "power": "Next fight, your units attack 40% faster for the first 6 s.", "charge": 3},
-    "forgemaster": {"name": "The Forgemaster", "passive": "Start with two components.",
+    "forgemaster": {"name": "The Forgemaster", "passive": "Start with two components, and the armory sells you "
+                                                          "components for 2 gold instead of 3.",
                     "power": "Forge a random finished item (one time in four, an artifact).", "charge": 5},
     "oracle": {"name": "The Oracle", "passive": "From level 5, your shop rolls as if you were a level higher.",
                "power": "A free reroll that favours units you already own.", "charge": 2},
@@ -664,7 +669,8 @@ for _t, _d in TRAITS.items():
     AUGMENTS["heart_" + _t] = {"tier": 1, "name": _d["name"] + " Heart", "trait": _t, "bonus": 1,
                                "text": f"Counts as one more {_d['name']} unit, if you field one."}
     AUGMENTS["crest_" + _t] = {"tier": 2, "name": _d["name"] + " Crest", "trait": _t, "emblem": _t,
-                               "text": f"Gain a {_d['name']} Emblem."}
+                               "text": f"Gain {'an' if _d['name'][0] in 'AEIOU' else 'a'} {_d['name']} Emblem: "
+                                       f"the unit holding it counts as {_d['name']} too."}
     AUGMENTS["soul_" + _t] = {"tier": 3, "name": _d["name"] + " Soul", "trait": _t, "bonus": 2,
                               "text": f"Counts as two more {_d['name']} units, if you field one."}
 AUGMENT_CHOICES = 3

@@ -516,6 +516,59 @@ def commander_wait_and_exit():
     check(sorted(p.place for p in room.seated()) == [1, 2, 3, 4], "everyone has a place")
 
 
+def armory_and_last_person():
+    """Items are bought in the armory; monsters only give gold. When the last person is knocked out and
+    only bots stand, the match ends at once."""
+    room = game.Room("ARMS")
+    room.rng.seed(8)
+    room.clock = Clock()
+    ann, q = browser(room, "Ann", "tok-a")
+    room.handle(ann, {"t": "start"})
+    room.handle(ann, {"t": "commander", "k": next(k for k in ann.offers if k not in ("forgemaster", "alchemist"))})
+    check(len(ann.armory) == D.ARMORY_SIZE and all(D.ITEMS[k]["kind"] == "component" for k in ann.armory),
+          "the armory offers components")
+    st = last_state(q)
+    check(st and st["me"]["armory"] == ann.armory, "the browser sees the armory")
+    ann.gold = D.COMPONENT_PRICE + 1
+    key = ann.armory[0]
+    room.handle(ann, {"t": "buy_item", "i": 0})
+    check(ann.items == [key] and ann.gold == 1 and ann.armory[0] is None, "buying a component")
+    room.handle(ann, {"t": "buy_item", "i": 1})
+    check(len(ann.items) == 1 and ann.armory[1], "not without the gold")
+    room.handle(ann, {"t": "buy_item", "i": 0})
+    check(len(ann.items) == 1, "nor twice")
+    ann.locked = True
+    kept = list(ann.armory)
+    for p in room.seated():
+        p.hp = 99
+    room.clock.t = room.ends + 0.01
+    room.tick()
+    room.clock.t = room.ends + 0.01
+    room.tick()
+    check(room.round == 2 and ann.armory == kept, "a locked shop keeps the armory")
+    check(len(ann.items) == 1, "monsters drop no components")
+    room.round = D.ARTIFACT_ROUND - 1
+    room.clock.t = room.ends + 0.01
+    room.tick()
+    room.clock.t = room.ends + 0.01
+    room.tick()
+    check(room.round == D.ARTIFACT_ROUND and D.ITEMS[ann.armory[-1]]["kind"] == "artifact"
+          and len(ann.armory) == D.ARMORY_SIZE + 1, "an artifact for sale from round %d" % D.ARTIFACT_ROUND)
+    # Ann goes out: the bots' match ends there
+    for _ in range(40):
+        if room.phase == "over":
+            break
+        ann.hp = 1
+        for p in room.seated():
+            if p is not ann:
+                p.hp = 99
+        ann.board = {}
+        room.clock.t = room.ends + 0.01
+        room.tick()
+    check(room.phase == "over" and ann.place == 4, "the last person out ends the match at once")
+    check(sorted(p.place for p in room.seated()) == [1, 2, 3, 4], "everyone has a place")
+
+
 def records():
     """A finished match with a person in it is saved; their record and the Hall of Overlords show it."""
     room = game.Room("RECS")
@@ -547,6 +600,7 @@ data()
 art()
 records()
 commander_wait_and_exit()
+armory_and_last_person()
 items_in_fights()
 room_items_and_powers()
 draft()

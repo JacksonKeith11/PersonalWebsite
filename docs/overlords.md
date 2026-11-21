@@ -24,8 +24,11 @@ Everyone has their own 7x4 hex board, a bench of 8 and a shop of 5. Each round:
 
 Losing costs `loss_damage`: 1 + round / 3, plus each surviving enemy's stars, plus 3 more per round
 from round 16. A fight that hits the 30 s cap is lost by both. Players start on 60 HP; last one
-standing wins. Rounds 1, 2, 6 and 11 are monster rounds (`PVE`): everyone fights the same monsters,
-for gold (`PVE_GOLD`). Income each round: 3, 4, then 5 gold, plus 1 per 10 saved (up to 5), plus
+standing wins, except that once every person in the room is out, the match ends there and the bots
+still standing are placed by HP (`only_bots_left`, `finish`; the owner asked for a loss to end it at once
+rather than wait on the bots). A room of bots alone, as in the checks and the simulator, plays out.
+Rounds 1, 2, 6 and 11 are monster rounds (`PVE`): everyone fights the same monsters, for gold
+(`PVE_GOLD`: 3, 4, 6 and 8 to a winner; nothing else since the armory). Income each round: 3, 4, then 5 gold, plus 1 per 10 saved (up to 5), plus
 1-3 for a win or loss streak of 2+. Everyone starts with one free 1-cost unit. Before each fight,
 bench units fill any empty board places up to the level (`fill_board`), so forgetting to place isn't
 fatal. Copies come out of a shared pool (`POOL`, by tier) and go back when sold or when their owner
@@ -38,9 +41,14 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
 
 ### Items, commanders, augments and drafts
 
-- **Items** (`ITEMS`): 8 components (Sword, Bow, Rod, Tear, Vest, Cloak, Belt, Sigil) drop from monster
-  rounds (`PVE_DROPS`: 1, 1, 2 and 2 to a winner; a loser gets 1 where 2 drop) and come with draft
-  picks. They wait on the item bench (`player.items`) until dragged onto a unit (or clicked, then the
+- **Items** (`ITEMS`): 8 components (Sword, Bow, Rod, Tear, Vest, Cloak, Belt, Sigil) are bought in the
+  **armory** and come with draft picks (until November 2026 they dropped from monster rounds; the owner
+  asked for them in the shop instead). The armory (`Player.armory`, `stock_armory`, `buy_item`, beside the
+  item bench) offers `ARMORY_SIZE` (3) components a round at `COMPONENT_PRICE` (3 gold; 2 for the
+  Forgemaster), drawn by `COMPONENT_WEIGHT` (Sigils half as often), and from `ARTIFACT_ROUND` (11) one
+  artifact too, at `ARTIFACT_PRICE` (8). It restocks each round (rerolls don't touch it), a locked shop
+  keeps it, and a bought slot stays empty until the next round. Bots buy from it with the gold left
+  after units, artifacts first, while their units have room. Items wait on the item bench (`player.items`) until dragged onto a unit (or clicked, then the
   unit). A unit holds 3; a component dropped on a unit already holding one combines (`combine`) into one
   of 28 finished items (both components' stats plus an effect of its own: since the roster review none
   is a plain stat bump: the Twin Bow strikes a second enemy, the Storm Rod calls lightning every third
@@ -51,8 +59,8 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   the merged unit, the rest back to the item bench) and come back when a unit is sold.
 - **Artifacts** (`ARTIFACTS`, 9, kind `artifact`): items no recipe makes, each a trick of its own
   (the Stopped Hourglass slips out of time once, the Soulreaver grows with kills, the Phoenix Feather
-  revives, the Echoing Tome casts twice, the Seed of the Elder Grove grows saplings...). From the round-11
-  golems (`PVE_ARTIFACT`: in place of the second component), the round-14 draft (`DRAFT_ARTIFACTS`: its
+  revives, the Echoing Tome casts twice, the Seed of the Elder Grove grows saplings...). From the armory
+  (one a round from round 11), the round-14 draft (`DRAFT_ARTIFACTS`: its
   units hold artifacts), the augments Ancient Armory and Relic Hunter (which costs 6 HP), and the
   Forgemaster's power (one time in four).
 - **Commanders** (`COMMANDERS`, 16; the roster review added the Gambler, the Hexer, the Chronomancer and
@@ -67,8 +75,10 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   `use_power`, and the odd line in income, rolls and damage).
 - **Augments** (`AUGMENTS`, 66, with Ancient Armory and Relic Hunter from the roster review): one of three at rounds 3, 8 and 13, all of one tier (lesser, greater,
   grand, by `AUGMENT_TIER_ODDS`), with one reroll. Trait augments (Heart +1, Crest an emblem, Soul +2 to
-  a trait's count) are only offered for traits among your units when there are enough of them. Unpicked
-  offers are taken (the first) when the fight starts.
+  a trait's count) are only offered for traits among your units when there are enough of them. Their
+  cards also say what the trait does at each tier (`traitLine` in `main.js`; the owner asked for the
+  emblems to be explained), as do emblems' info cards, and the augments in the commander panel show the
+  trait on hover or tap. Unpicked offers are taken (the first) when the fight starts.
 - **Drafts** (`DRAFT_ROUNDS`: 4, 9 and 14): a phase `draft` before planning. One unit per player plus
   two (tiers by `DRAFT_TIERS`), each holding a random component, held out of the pool; lowest HP picks
   first, 8 s a person (then at random), bots after 0.8 s. A pick with no bench room is sold on the spot
@@ -308,11 +318,12 @@ matching), the side panels fold away:
   delayed blows, raising, swallowing, executes, wounds, multishot, death bursts, the Hexer and
   Chronomancer, saplings), nobody ever sharing a hex, determinism, board rotation, 300 random fights finish, the room's rules
   (buying, merging, limits, moving, selling, the locked board), equipping and combining, emblems, the
-  Crown, every commander power, every augment, a draft, and three whole bot matches with the pool
-  conserved.
+  Crown, every commander power, every augment, a draft, the armory (buying, prices, a locked shop keeps
+  it, the round-11 artifact, no monster drops), the first fight waiting for a commander, Exit, the match
+  ending when the last person is out, and three whole bot matches with the pool conserved.
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
-  bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
-  dragged onto a unit when one dropped.
+  bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, a component
+  bought in the armory and dragged onto a unit.
 - `node tools/overlords-phone.js --serve` (~15 s, in `check-all.sh`): an emulated phone with touch,
   upright then on its side: the page fits the screen, Exit, a long press shows a shop card without buying, a tap
   buys, tap-to-move onto the board, Sell from the card, the traits and commander sheets, a tap on a unit in
@@ -333,6 +344,8 @@ commanders; ~4 minutes to rerun all three):
   traits 59-84%, the top tiers of 6 at 60-84%. Worth a look: Assassin 2 (38%) and Mirefolk 2 (43%) are
   weak first tiers; Arcanist (50/50/60%) is still the flattest ladder, Warden (51/58/64%) and Vanguard
   (52/57/68%) rise slowly.
-- Whole bot matches (`overlords-sim.py 400`): 17.6 rounds (15-20), about 17 minutes at full timers.
-  Commanders' average place 2.19 (Twinmaker) to 2.80 (Oracle). These are bots' numbers: bots use powers
+- Whole bot matches, after the armory (`overlords-sim.py 300`, November 2026): 17.9 rounds (15-21),
+  about 17 minutes at full timers. Commanders' average place 2.20 (Twinmaker) to 2.77 (Blademaster), and
+  the Oracle at 3.08, the one outlier (it was already the lowest, 2.80, before the armory). The Forgemaster
+  fell to 3.18 when anyone could buy components, so its passive got cheaper components (2 gold): 2.24. These are bots' numbers: bots use powers
   as soon as they're charged and don't plan around the Oracle's, the Merchant's or the Gambler's economy.

@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=11';
-import { isMuted, play, setMuted } from './sound.js?v=11';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=11';
+import { Playback } from './fight.js?v=13';
+import { isMuted, play, setMuted } from './sound.js?v=13';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=13';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -176,6 +176,7 @@ function render() {
   renderShop();
   renderTraits();
   renderItems();
+  renderArmory();
   renderCommander();
   renderChoose();
   renderDraft();
@@ -232,7 +233,7 @@ function renderItems() {
   const box = $('items'), st = S.st;
   const items = st.me?.items || [];
   if (S.pickedItem != null && S.pickedItem >= items.length) S.pickedItem = null;
-  if (!items.length) { box.replaceChildren(el('span', 'none', 'None yet: monster rounds drop components.')); return; }
+  if (!items.length) { box.replaceChildren(el('span', 'none', 'None yet: buy some in the armory')); return; }
   box.replaceChildren(...items.map((key, i) => {
     const d = S.cfg.items[key];
     const b = el('button', 'item ' + d.kind);
@@ -250,6 +251,38 @@ function renderItems() {
     hoverInfo(b, () => ({ kind: 'item', item: key }));
     return b;
   }));
+}
+
+// The armory: components (and from round 11 an artifact) for gold. A tap or click buys; hover or a long
+// press shows what it makes.
+function renderArmory() {
+  const box = $('armory'), st = S.st, mine = seatedMe();
+  const stock = st.me?.armory || [];
+  box.hidden = !mine || !mine.alive || !stock.length;
+  if (box.hidden) return;
+  box.replaceChildren(el('span', 'armory-label', 'Armory'), ...stock.map((key, i) => {
+    if (!key) {
+      const gone = el('span', 'slot');
+      gone.title = 'Bought: new stock next round';
+      return gone;
+    }
+    const d = S.cfg.items[key];
+    const price = st.me.armory_prices?.[i] ?? S.cfg.rules.component_price;
+    const b = el('button', 'buy-item ' + d.kind);
+    b.type = 'button';
+    b.append(icon('item:' + key, 24), el('span', 'price', `${price}g`));
+    b.setAttribute('aria-label', `Buy ${d.name} for ${price} gold`);
+    b.disabled = mine.gold < price;
+    b.addEventListener('click', () => { room.send({ t: 'buy_item', i }); play('buy'); });
+    hoverInfo(b, () => ({ kind: 'item', item: key, price }));
+    return b;
+  }));
+}
+
+// A trait in a line: what it does at each tier (augment cards and emblems).
+function traitLine(t) {
+  const def = S.cfg.traits[t];
+  return `${def.name}: ${def.text} (` + def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ') + ')';
 }
 
 function renderCommander() {
@@ -273,6 +306,7 @@ function renderCommander() {
     const a = S.cfg.augments[k];
     const li = el('li');
     li.append(el('b', '', a.name), el('small', '', ` · ${a.text}`));
+    if (a.trait) hoverInfo(li, () => ({ kind: 'trait', trait: a.trait }), true);
     return li;
   }));
 }
@@ -320,6 +354,7 @@ function renderChoose() {
       if (a.trait) head.append(icon('trait:' + a.trait, 32));
       head.append(el('b', '', a.name));
       b.append(el('span', 'tag', S.cfg.augTiers[a.tier]), head, el('span', '', a.text));
+      if (a.trait) b.append(el('small', 'about', traitLine(a.trait)));
       b.addEventListener('click', () => { room.send({ t: 'augment', k }); play('star'); });
       return b;
     }));
@@ -734,6 +769,8 @@ function infoBody() {
     const head = el('h3', 'with-art');
     head.append(icon('item:' + h.item, 32), document.createTextNode(d.name));
     const parts = [head, el('p', '', d.text)];
+    if (h.price) parts.push(el('p', '', `In the armory for ${h.price} gold.`));
+    if (d.trait) parts.push(el('p', '', traitLine(d.trait)));
     if (d.from) parts.push(el('p', '', `From ${d.from.map(c => S.cfg.items[c].name).join(' + ')}.`));
     if (d.kind === 'artifact') parts.push(el('p', '', 'An artifact: no recipe makes it. Monster round 11, the last draft, '
       + 'the Ancient Armory and Relic Hunter augments and the Forgemaster find them.'));

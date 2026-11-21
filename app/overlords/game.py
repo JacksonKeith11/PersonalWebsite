@@ -12,7 +12,7 @@ board ({(col, row): unit}, in their own coordinates, row 3 at the front). Three 
 one star merge into one a star higher, wherever the first one on the board stood. Copies come out
 of the room's shared pool when bought and go back when sold or when their owner is knocked out.
 
-Around that (step 4 of the plan in docs/overlords.md): items (components drop from monster rounds
+Around that (step 4 of the plan in docs/overlords.md): items (components bought in the armory
 and come with draft picks; a unit holds three, and two components on one unit combine), a commander
 each (picked from three in round 1: a passive and a power that charges over rounds), augments (one
 of three at D.AUGMENT_ROUNDS), and shared drafts (phase "draft" before planning at D.DRAFT_ROUNDS:
@@ -59,6 +59,7 @@ class Player:
         self.bench = [None] * D.BENCH
         self.board = {}
         self.shop = [None] * D.SHOP_SIZE
+        self.armory = []  # items for sale this round (None once bought)
         self.locked = False
         self.streak = 0  # wins in a row (positive) or losses (negative)
         self.alive = True
@@ -218,7 +219,8 @@ class Room:
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
                           "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
                           "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
-                          "draft_turn": D.DRAFT_TURN},
+                          "draft_turn": D.DRAFT_TURN, "component_price": D.COMPONENT_PRICE,
+                          "artifact_price": D.ARTIFACT_PRICE, "artifact_round": D.ARTIFACT_ROUND},
                 "items": D.ITEMS, "commanders": D.COMMANDERS, "augments": D.AUGMENTS,
                 "aug_tiers": D.AUGMENT_TIER_NAMES}
 
@@ -282,6 +284,8 @@ class Room:
                 ok = self.reroll(p)
             elif t == "xp":
                 ok = self.buy_xp(p)
+            elif t == "buy_item":
+                ok = self.buy_item(p, msg.get("i"))
             elif t == "lock":
                 p.locked = not p.locked
                 ok = True
@@ -378,6 +382,8 @@ class Room:
                 p.first_roll = True
                 self.roll(p)
                 p.first_roll = False
+            if not p.locked or not any(p.armory):
+                self.stock_armory(p)
             p.locked = False
             p.ready = False
             if rnd in D.AUGMENT_ROUNDS:
@@ -467,17 +473,10 @@ class Room:
             home = self.players[f["home"]]
             if f["pve"]:
                 won = res["winner"] == 0
-                drops = D.PVE_DROPS.get(rnd, 0)
                 if won:
                     home.gold += D.PVE_GOLD[rnd]
-                    if rnd in D.PVE_ARTIFACT:
-                        self.give_components(home, drops - 1)
-                        home.items.append(self.rng.choice(D.artifacts()))
-                    else:
-                        self.give_components(home, drops)
                 else:
                     hurt[home.id] = hurt.get(home.id, 0) + D.loss_damage(rnd, res["survivors"][1])
-                    self.give_components(home, 1 if drops >= 2 else 0)
                 home.results.append("w" if won else "l")
                 continue
             away = self.players[f["away"]]
@@ -502,10 +501,15 @@ class Room:
         for p in out:
             self.knock_out(p, left)
             left -= 1
-        if len(self.alive()) <= 1:
+        if len(self.alive()) <= 1 or self.only_bots_left():
             self.finish()
             return
         self.next_round()
+
+    def only_bots_left(self):
+        """True when people played but none is still standing: the bots' match isn't worth waiting for
+        (the owner asked for a loss to end it at once). A match of bots alone plays out."""
+        return any(p.bot is None for p in self.seated()) and not any(p.bot is None for p in self.alive())
 
     def knock_out(self, p, place):
         p.alive = False
@@ -537,7 +541,7 @@ class Room:
         self.knock_out(p, len(self.alive()))
         p.hp = min(p.hp, 0)
         alive = self.alive()
-        if len(alive) <= 1 or not any(q.bot is None for q in alive):
+        if len(alive) <= 1 or self.only_bots_left():
             self.finish()
             return
         humans = [q for q in alive if q.bot is None and q.connected]
@@ -785,6 +789,29 @@ class Room:
             p.board[(c, r)] = u
 
     # ------------------------------------------------------------ items
+
+    def stock_armory(self, p):
+        keys = sorted(D.COMPONENTS)
+        weights = [D.COMPONENT_WEIGHT.get(k, 1) for k in keys]
+        p.armory = self.rng.choices(keys, weights, k=D.ARMORY_SIZE)
+        if self.round >= D.ARTIFACT_ROUND:
+            p.armory.append(self.rng.choice(D.artifacts()))
+
+    def item_price(self, key, p=None):
+        if D.ITEMS[key]["kind"] == "artifact":
+            return D.ARTIFACT_PRICE
+        return D.COMPONENT_PRICE - (p is not None and p.commander == "forgemaster")
+
+    def buy_item(self, p, i):
+        if type(i) is not int or not 0 <= i < len(p.armory) or not p.armory[i]:
+            return False
+        price = self.item_price(p.armory[i], p)
+        if p.gold < price:
+            return False
+        p.gold -= price
+        p.items.append(p.armory[i])
+        p.armory[i] = None
+        return True
 
     def give_components(self, p, n):
         keys = sorted(D.COMPONENTS)
@@ -1037,7 +1064,8 @@ class Room:
     def private(self, p):
         """What only this player sees: their shop, bench, XP, items and pending choices."""
         c = D.COMMANDERS.get(p.commander)
-        return {"shop": p.shop, "bench": [[u["id"], u["unit"], u["star"], u["items"]] if u else None for u in p.bench],
+        return {"shop": p.shop, "armory": p.armory, "armory_prices": [self.item_price(k, p) if k else None for k in p.armory],
+                "bench": [[u["id"], u["unit"], u["star"], u["items"]] if u else None for u in p.bench],
                 "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
                 "items": p.items, "offers": p.offers, "charge": p.charge,
                 "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,

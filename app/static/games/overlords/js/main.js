@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=7';
-import { isMuted, play, setMuted } from './sound.js?v=7';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=7';
+import { Playback } from './fight.js?v=9';
+import { isMuted, play, setMuted } from './sound.js?v=9';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=9';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -139,7 +139,7 @@ function render() {
 
 // ------------------------------------------------------------------ items, commander, augments, draft
 
-const ITEM_COLORS = { component: '#5b6478', item: '#8a6a2a', emblem: '#2f7a6a', crown: '#b08a1a' };
+const ITEM_COLORS = { component: '#5b6478', item: '#8a6a2a', emblem: '#2f7a6a', crown: '#b08a1a', artifact: '#8a2a4a' };
 
 function renderItems() {
   const box = $('items'), st = S.st;
@@ -153,7 +153,8 @@ function renderItems() {
     b.append(icon('item:' + key, 32));
     b.setAttribute('aria-label', d.name);
     b.classList.toggle('picked', S.pickedItem === i);
-    b.title = `${d.name}: ${d.text}`;
+    b.title = `${d.name}: ${d.text} Drag it onto a unit, or click it and then the unit.`
+      + (d.kind === 'component' ? ' Two components on one unit combine.' : '');
     b.addEventListener('pointerdown', e => {
       S.drag = { item: i, key, from: {}, moved: false };
       S.dragStart = { x: e.clientX, y: e.clientY };
@@ -197,7 +198,10 @@ function renderChoose() {
   if (mine && mine.alive && me_ && !mine.commander && me_.offers?.length && st.phase !== 'over') mode = 'commander';
   else if (mine && mine.alive && me_?.aug_offer?.length && st.phase !== 'over') mode = 'augment';
   const key = mode ? mode + (mode === 'commander' ? me_.offers.join() : me_.aug_offer.join()) + me_.aug_rerolled : '';
-  $('choose').hidden = !mode;
+  $('choose').hidden = !mode || S.chooseHidden === key;
+  $('choose-show').hidden = !mode || S.chooseHidden !== key;
+  $('choose-show').textContent = mode === 'commander' ? 'Choose your commander' : 'Choose your augment';
+  $('choose-note').textContent = `If you haven't chosen when the fight starts, the first is taken for you.`;
   if (key === S.chooseKey) return;
   S.chooseKey = key;
   if (!mode) return;
@@ -243,14 +247,16 @@ function renderDraft() {
   const mineTurn = d.turn === room.you;
   $('draft-title').textContent = mineTurn ? 'Your pick!' : `Draft: ${turn?.name || '…'} is picking`;
   const order = d.order.map(id => player(id)?.name).join(' → ');
-  $('draft-note').textContent = `Lowest HP picks first: ${order}. Each unit comes holding a component.`;
+  const holds = d.options.some(o => S.cfg.items[o[1]]?.kind === 'artifact') ? 'an artifact' : 'a component';
+  $('draft-note').textContent = `Lowest HP picks first: ${order}. Each unit comes holding ${holds}.`;
   $('draft-options').replaceChildren(...d.options.map(([key, item, by], i) => {
     const u = S.cfg.units[key], it = S.cfg.items[item];
     const b = el('button', by ? 'taken' : '');
     b.type = 'button';
     b.style.setProperty('--cc', COST_COLORS[u.tier]);
     const hold = el('span', 'hold');
-    hold.append(icon('item:' + item, 24), document.createTextNode(`holding a ${it.name}`));
+    hold.append(icon('item:' + item, 24), document.createTextNode(`holding ${/^[AEIOU]/.test(it.name) ? 'an' : 'a'} ${it.name}`));
+    hold.title = it.text;
     b.append(sprite(key, 64), el('b', '', u.name), el('small', '', u.traits.map(t => S.cfg.traits[t].name).join(' · ')), hold);
     if (by) b.append(el('span', 'by', `taken by ${player(by)?.name || '?'}`));
     b.disabled = !mineTurn || !!by;
@@ -308,9 +314,13 @@ function renderHud() {
   if (mine) {
     $('hud-hp').innerHTML = `HP <b>${Math.max(0, mine.hp)}</b>`;
     $('hud-hp').classList.toggle('low', mine.hp <= 20);
-    $('hud-gold').innerHTML = `Gold <b>${mine.gold}</b>`;
+    const inc = st.me?.income;
+    $('hud-gold').innerHTML = `Gold <b>${mine.gold}</b>` + (inc && mine.alive ? ` <small>+${inc[0] + inc[1] + inc[2]} next round</small>` : '');
+    $('hud-gold').title = inc ? `Next round: ${inc[0]} income, ${inc[1]} interest (1 for every 10 gold you keep)`
+      + (inc[2] ? `, ${inc[2]} for your ${mine.streak > 0 ? 'winning' : 'losing'} streak` : '') : '';
     const need = st.me?.need;
     $('hud-level').textContent = `Level ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · ${mine.board.length}/${mine.limit} on board`;
+    $('hud-level').title = 'Your level is how many units may stand on your board. Buy XP to level up; you also get 2 XP a round.';
   } else {
     $('hud-hp').textContent = 'Watching';
     $('hud-gold').textContent = $('hud-level').textContent = '';
@@ -318,16 +328,35 @@ function renderHud() {
   const can = mine && mine.alive && st.me;
   $('xp').disabled = !can || mine.gold < S.cfg.rules.xp_cost || mine.level >= S.cfg.rules.max_level;
   const free = st.me?.free_rerolls || 0;
-  $('reroll').disabled = !can || (mine.gold < S.cfg.rules.reroll && !free);
-  $('reroll').innerHTML = free ? `Reroll <small>free ×${free} · D</small>` : `Reroll <small>2g · D</small>`;
+  const rc = st.me?.reroll_cost ?? S.cfg.rules.reroll;
+  $('reroll').disabled = !can || (mine.gold < rc && !free);
+  $('reroll').innerHTML = free ? `Reroll <small>free ×${free} · D</small>` : `Reroll <small>${rc}g · D</small>`;
   $('lock').disabled = !can;
   $('lock').setAttribute('aria-pressed', String(!!st.me?.locked));
   $('ready').disabled = !can || st.phase !== 'plan';
-  $('ready').textContent = mine?.ready ? 'Not ready' : 'Ready';
+  $('ready').textContent = mine?.ready ? 'Ready ✓' : 'Ready';
+  $('ready').title = mine?.ready ? 'Click again if you are not ready after all.' : 'End planning early once everyone is ready (Space).';
+  $('lock').textContent = st.me?.locked ? 'Shop locked' : 'Lock shop';
+  $('lock').title = 'A locked shop keeps the same units into the next round.';
+  renderOdds();
   $('mute').textContent = isMuted() ? '🔇' : '🔊';
   $('speed').textContent = `Fights ${S.speed}×`;
   $('speed').setAttribute('aria-pressed', String(S.speed === 2));
   $('mute').setAttribute('aria-pressed', String(isMuted()));
+}
+
+// What the shop can roll at your level (the Oracle rolls a level higher): a chip a tier.
+function renderOdds() {
+  const mine = seatedMe(), box = $('odds');
+  if (!mine || !mine.alive) { box.replaceChildren(); return; }
+  const level = Math.min(S.cfg.rules.max_level, mine.level + (mine.commander === 'oracle' && mine.level >= 5 ? 1 : 0));
+  const odds = S.cfg.rules.odds[level];
+  box.replaceChildren(el('span', 'label', 'Shop odds'), ...odds.map((pct, i) => {
+    const chip = el('span', 'chip' + (pct ? '' : ' none'), `${pct}%`);
+    chip.style.setProperty('--cc', COST_COLORS[i + 1]);
+    chip.title = `Tier ${i + 1} (${[1, 2, 3, 5, 8][i]} gold): ${pct}% of each slot at level ${level}`;
+    return chip;
+  }));
 }
 
 function tickHud() {
@@ -364,6 +393,15 @@ function banner() {
     if (S.watch !== room.you && w) parts.push(`Looking at <b>${esc(w.name)}</b>'s board`);
     if (mine && st.round > 1 && S.watch === room.you) parts.push(mine.dmg ? `<span class="lost">Last fight cost you ${mine.dmg} HP</span>` : '<span class="won">You won your last fight</span>');
     if (st.pve) parts.push('Monsters this round');
+    const mine2 = seatedMe();
+    const waiting = (st.me?.bench || []).filter(Boolean).length;
+    if (mine2?.alive && S.watch === room.you && waiting >= S.cfg.rules.bench) {
+      parts.push('<span class="hint">Your bench is full: drag a unit onto the shop to sell it</span>');
+    }
+    if (mine2?.alive && S.watch === room.you && mine2.board.length < mine2.limit && waiting) {
+      const free = mine2.limit - mine2.board.length;
+      parts.push(`<span class="hint">${free} empty place${free === 1 ? '' : 's'} on your board: filled from your bench when the fight starts</span>`);
+    }
     b.innerHTML = parts.join(' · ');
   } else {
     b.textContent = '';
@@ -394,6 +432,12 @@ function renderPlayers() {
     sub.append(el('span', '', `Lv ${p.level}`), el('span', '', `${p.gold}g`));
     if (Math.abs(p.streak) >= 2) sub.append(el('span', p.streak > 0 ? 'w' : 'l', `${p.streak > 0 ? 'win' : 'loss'} streak ${Math.abs(p.streak)}`));
     if (st.phase === 'plan' && p.ready && !p.bot) sub.append(el('span', 'w', 'ready'));
+    if (p.results?.length) {
+      const dots = el('span', 'results');
+      dots.title = 'Their last fights: won, lost or drawn';
+      for (const r of p.results) dots.append(el('i', r, ''));
+      sub.append(dots);
+    }
     li.append(dot, name, hp, bar, sub);
     li.addEventListener('click', () => { S.watch = p.id; makePlayback(); render(); play('click'); });
     return li;
@@ -422,8 +466,15 @@ function renderShop() {
       tr.append(one);
     }
     b.append(sprite(key, 64), el('b', '', d.name), tr, el('span', 'cost', `${d.cost}g`));
-    if (owned[key]) b.classList.add('pair');
-    b.disabled = !mine.alive || mine.gold < d.cost;
+    const n = owned[key] || 0;
+    if (n) {
+      b.classList.add('pair');
+      b.classList.toggle('merge', n >= 2);
+      b.append(el('span', 'copies', n >= 2 ? '★★ on buy' : `${n} of 3`));
+    }
+    const benchFull = !st.me.bench.some(x => !x) && n < 2;
+    b.disabled = !mine.alive || mine.gold < d.cost || benchFull;
+    b.title = benchFull ? 'Your bench is full: sell or place a unit first.' : mine.gold < d.cost ? `Costs ${d.cost} gold.` : '';
     b.addEventListener('click', () => { room.send({ t: 'buy', i }); play('buy'); });
     b.addEventListener('pointerenter', () => { S.hover = { kind: 'shop', key }; info(); });
     b.addEventListener('pointerleave', () => { if (S.hover?.kind === 'shop') { S.hover = null; info(); } });
@@ -561,6 +612,8 @@ function info() {
     head.append(icon('item:' + h.item, 32), document.createTextNode(d.name));
     const parts = [head, el('p', '', d.text)];
     if (d.from) parts.push(el('p', '', `From ${d.from.map(c => S.cfg.items[c].name).join(' + ')}.`));
+    if (d.kind === 'artifact') parts.push(el('p', '', 'An artifact: no recipe makes it. Monster round 11, the last draft, '
+      + 'the Ancient Armory and Relic Hunter augments and the Forgemaster find them.'));
     if (d.kind === 'component') {
       const makes = Object.entries(S.cfg.items).filter(([, x]) => x.from && x.from.includes(h.item))
         .map(([, x]) => `${x.name} (+ ${S.cfg.items[x.from[0] === h.item ? x.from[1] : x.from[0]].name})`);
@@ -573,8 +626,22 @@ function info() {
     const def = S.cfg.traits[h.trait];
     const head = el('h3', 'with-art');
     head.append(icon('trait:' + h.trait, 32), document.createTextNode(def.name));
+    const w = player(S.watch);
+    const fielded = new Set((w?.board || []).map(u => u[1]));
+    const benched = new Set(S.watch === room.you ? (S.st.me?.bench || []).filter(Boolean).map(u => u[1]) : []);
+    const list = el('ul', 'trait-units');
+    const keys = Object.keys(S.cfg.units).filter(k => S.cfg.units[k].cost && S.cfg.units[k].traits.includes(h.trait))
+      .sort((a, b) => S.cfg.units[a].tier - S.cfg.units[b].tier || S.cfg.units[a].name.localeCompare(S.cfg.units[b].name));
+    for (const k of keys) {
+      const u = S.cfg.units[k];
+      const li = el('li', fielded.has(k) ? 'on' : benched.has(k) ? 'bench' : '');
+      li.style.setProperty('--cc', COST_COLORS[u.tier]);
+      li.title = `${u.name} (${u.cost} gold)${fielded.has(k) ? ': on the board' : benched.has(k) ? ': on the bench' : ''}`;
+      li.append(sprite(k, 32), el('span', '', u.name));
+      list.append(li);
+    }
     box.replaceChildren(head, el('p', '', def.text),
-      el('p', '', def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ')));
+      el('p', '', def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ')), list);
     return;
   }
   const key = h.key, d = S.cfg.units[key];
@@ -606,24 +673,44 @@ function info() {
     ab.append(el('b', '', d.ability.name + ': '), document.createTextNode(d.ability.text + ' ' + abilityNumbers(d.ability, star)));
     parts.push(ab);
   }
+  if (d.passive_text) {
+    const pa = el('p', 'ab');
+    pa.append(el('b', '', 'Always: '), document.createTextNode(d.passive_text));
+    parts.push(pa);
+  }
   box.replaceChildren(...parts);
 }
 
 function abilityNumbers(ab, star) {
   const bits = [];
+  const pct = x => `${Math.round(x * 100)}%`;
+  const STAT = { ad: 'attack', ap: 'ability power', armor: 'armor', mr: 'resist', hp: 'HP' };
   for (const s of ab.steps) {
     const v = x => (Array.isArray(x) ? x[star - 1] : x);
-    if (s.dmg) bits.push(`${v(s.dmg)} ${s.type === 'phys' ? 'physical' : s.type === 'true' ? 'true' : 'magic'} damage`);
-    if (s.amt && s.do !== 'buff') bits.push(`${v(s.amt)} ${s.do === 'heal' ? 'healing' : 'shield'}`);
-    if (s.do === 'buff') {
+    if (s.dmg && s.do === 'zone') bits.push(`${v(s.dmg)} damage a second for ${v(s.secs)} s`);
+    else if (s.dmg) bits.push(`${v(s.dmg)} ${s.type === 'phys' ? 'physical' : s.type === 'true' ? 'true' : 'magic'} damage`);
+    if (s.heal && s.do === 'zone') bits.push(`${v(s.heal)} healing a second`);
+    if (s.amt && ['heal', 'shield'].includes(s.do)) bits.push(`${v(s.amt)} ${s.do === 'heal' ? 'healing' : 'shield'}`);
+    if (s.do === 'buff' || s.do === 'grow') {
       const amt = v(s.amt);
-      bits.push(s.stat === 'aspd_pct' ? `+${Math.round(amt * 100)}% attack speed` : s.stat === 'dodge' ? `+${Math.round(amt * 100)}% dodge`
-        : `+${amt} ${{ ad: 'attack', armor: 'armor', mr: 'resist' }[s.stat] || s.stat}`);
+      const what = ['aspd_pct', 'dodge', 'regen', 'burns', 'thorns'].includes(s.stat)
+        ? `+${pct(amt)} ${{ aspd_pct: 'attack speed', dodge: 'dodge', regen: 'HP a second', burns: 'burn a second', thorns: 'of hits back' }[s.stat]}`
+        : `+${amt} ${STAT[s.stat] || s.stat}`;
+      bits.push(s.do === 'grow' ? `${what} for good` : what);
     }
     if (s.do === 'mana') bits.push(`${v(s.amt)} mana to allies`);
-    if (s.do === 'summon') bits.push(`${v(s.count || 1)} × ${S.cfg.units[s.unit].name}`);
+    if (s.do === 'summon' || s.do === 'raise') bits.push(`${v(s.count || 1)} × ${S.cfg.units[s.unit].name}`);
+    if (s.do === 'taunt') bits.push(`taunts for ${v(s.secs)} s`);
+    if (s.do === 'vanish') bits.push(`out of reach for ${v(s.secs)} s`);
+    if (s.do === 'devour') bits.push(`swallowed for ${v(s.secs)} s`);
     if (s.stun) bits.push(`${v(s.stun)} s stun`);
-    if (s.heal_frac) bits.push(`heals ${Math.round(v(s.heal_frac) * 100)}% of it`);
+    if (s.heal_frac) bits.push(`heals ${pct(v(s.heal_frac))} of it`);
+    if (s.amp) bits.push(`+${pct(v(s.amp))} damage taken for ${s.amp_secs || 4} s`);
+    if (s.wound) bits.push(`heals half for ${s.wound} s`);
+    if (s.mana_burn) bits.push(`drains ${v(s.mana_burn)} mana`);
+    if (s.knock) bits.push(`knocks ${s.knock} hex${s.knock > 1 ? 'es' : ''} back`);
+    if (s.execute) bits.push(`finishes below ${pct(v(s.execute))} HP`);
+    if (s.delay) bits.push(`lands after ${s.delay} s`);
   }
   return bits.length ? `(${bits.join(', ')})` : '';
 }
@@ -635,6 +722,7 @@ function describeFx(fx) {
     mana_cut: v => `-${v * 100}% mana`, chill: v => `-${v * 100}% attack speed`, shield: v => `${v} shield`,
     duel: v => `+${v * 100}% speed a hit`, double: v => `${v * 100}% double strike`, ap: v => `+${v}% ability power`,
     crit: v => `+${v * 100}% crit`, summon_boost: v => `+${v * 100}% summons`, hp_pct: v => `+${v * 100}% HP`,
+    spell_dr: v => `${v * 100}% less from abilities`,
   };
   const out = [];
   for (const [k, v] of Object.entries(fx)) if (names[k]) out.push(names[k](v));
@@ -680,6 +768,9 @@ function renderMeter() {
   box.hidden = !f;
   if (!f) return;
   const upto = live ? Math.min(S.ft, f.res.time) : f.res.time;
+  const key = [f.home, f.away, f.res.time, f.res.events.length, S.watch, S.meterTab, live, Math.round(upto * 4)].join('|');
+  if (key === S.meterKey) return; // nothing new to show
+  S.meterKey = key;
   const mySide = f.home === S.watch ? 0 : 1;
   const name = side => (side === 0 ? player(f.home)?.name : f.pve ? 'Monsters' : player(f.away)?.name) || '?';
   $('meter-title').textContent = live ? 'Damage' : 'Damage, last fight';
@@ -732,6 +823,7 @@ function renderMeter() {
 for (const b of document.querySelectorAll('#meter .tabs button')) {
   b.addEventListener('click', () => {
     S.meterTab = b.dataset.tab;
+    S.meterKey = null;
     for (const x of document.querySelectorAll('#meter .tabs button')) x.setAttribute('aria-pressed', String(x === b));
     renderMeter();
     play('click');
@@ -781,6 +873,13 @@ function layout() {
 function hexXY(c, r) {
   const rows = S.cfg.rules.rows;
   return [G.ox + G.w * (c + 0.5 * (r & 1)) + G.w / 2, G.oy + 1.5 * G.R * (rows - 1 - r) + G.R];
+}
+
+// hexes apart, as sim.py's dist (odd-r offset coordinates)
+function hexDist([ac, ar], [bc, br]) {
+  const aq = ac - (ar - (ar & 1)) / 2, bq = bc - (br - (br & 1)) / 2;
+  const dq = aq - bq, dr = ar - br;
+  return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
 }
 
 function hexPath(x, y, R) {
@@ -951,6 +1050,44 @@ function drawUnit(x, y, key, star, opts = {}) {
       }
     });
   }
+  if (opts.marked) { // a reticle: it takes more damage
+    ctx.strokeStyle = '#e080ff';
+    ctx.lineWidth = 2;
+    const ry = feet - size * 0.42, rr = R * 0.42;
+    ctx.beginPath();
+    ctx.arc(x, ry, rr, 0, Math.PI * 2);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      ctx.moveTo(x + dx * rr * 0.6, ry + dy * rr * 0.6);
+      ctx.lineTo(x + dx * rr * 1.3, ry + dy * rr * 1.3);
+    }
+    ctx.stroke();
+  }
+  if (opts.taunting) { // a red ring at its feet: enemies must attack it
+    ctx.strokeStyle = '#ff6a4a';
+    ctx.lineWidth = Math.max(2, R * 0.08);
+    ctx.beginPath();
+    ctx.ellipse(x, feet - R * 0.04, R * 0.78, R * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (opts.parrying) { // a glint of steel
+    ctx.strokeStyle = '#eef3ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + R * 0.35, feet - size * 0.45, R * 0.35, -1.2, 1.2);
+    ctx.stroke();
+  }
+  if (opts.wounded) { // a cracked green cross: it heals half as much
+    const wx = x - R * 0.55, wy = head + R * 0.35, a = R * 0.12;
+    ctx.fillStyle = '#5aa84a';
+    ctx.fillRect(wx - a, wy - a * 3, a * 2, a * 6);
+    ctx.fillRect(wx - a * 3, wy - a, a * 6, a * 2);
+    ctx.strokeStyle = '#ff5a4a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx - a * 3, wy + a * 3);
+    ctx.lineTo(wx + a * 3, wy - a * 3);
+    ctx.stroke();
+  }
   if (opts.stunned) { // stars circling the head
     for (let i = 0; i < 3; i++) {
       const a = now() * 5 + (i * Math.PI * 2) / 3;
@@ -1087,11 +1224,42 @@ function drawFight() {
     }
     where.set(u.id, [x, y]);
   }
+  // areas on the ground: lingering zones in the caster's colour, and a pulsing ring where a blow will land
+  for (const z of pb.zones) {
+    const { cols: C, rows: Rw } = S.cfg.rules;
+    for (let c = 0; c < C; c++) {
+      for (let r = 0; r < Rw; r++) {
+        if (hexDist([c, r], [z.c, z.r]) > z.rad) continue;
+        const [x, y] = hexXY(...view([c, r]));
+        hexPath(x, y, G.R * 0.9);
+        ctx.save();
+        if (z.kind === 'warn') {
+          const k = Math.min(1, (t - z.at) / Math.max(0.1, z.until - z.at));
+          ctx.globalAlpha = 0.25 + 0.5 * k;
+          ctx.strokeStyle = '#ff7a4a';
+          ctx.lineWidth = 2 + 2 * k;
+          ctx.setLineDash([5, 4]);
+          ctx.stroke();
+          ctx.globalAlpha = 0.12 + 0.2 * k;
+          ctx.fillStyle = '#ff5a2a';
+          ctx.fill();
+        } else {
+          const left = z.until - t;
+          ctx.globalAlpha = 0.28 * Math.min(1, left / 0.4) * (0.85 + 0.15 * Math.sin(t * 6 + c + r));
+          ctx.fillStyle = z.key ? unitColor(z.key) : '#a0d060';
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+  }
   // the living draw back to front, the fallen beneath them
   const order = [...pb.units.values()].sort((a, b) => (a.alive - b.alive) || (where.get(a.id)[1] - where.get(b.id)[1]));
   for (const u of order) {
-    const fade = u.alive ? 1 : Math.max(0, 1 - (t - u.deadAt - 0.6) / 0.5);
+    let fade = u.alive ? 1 : Math.max(0, 1 - (t - u.deadAt - 0.6) / 0.5);
     if (fade <= 0) continue;
+    const hidden = u.alive && t < u.hiddenUntil;
+    if (hidden) fade = u.devoured ? 0.12 : 0.3 + 0.1 * Math.sin(t * 12);
     const [x, y] = where.get(u.id);
     const tgt = pb.units.get(u.target);
     if (tgt && tgt.alive && where.get(tgt.id)) u.flip = where.get(tgt.id)[0] < x - 2;
@@ -1101,6 +1269,8 @@ function drawFight() {
       ring: colorOf(u.side), alpha: fade, flash: t - u.hitAt < 0.07, stunned: u.alive && t < u.stunUntil,
       monster: f.pve && u.side === 1, friend: u.side === friendSide, items: u.items, pose, flip: u.flip,
       burning: u.alive && t < u.burnUntil, bob: pose === 'idle' && u.alive ? bob(u.id) : 0,
+      taunting: u.alive && t < u.tauntUntil, marked: u.alive && t < u.markUntil, wounded: u.alive && t < u.woundUntil,
+      parrying: u.alive && t < u.parryUntil,
       bars: u.alive ? { hp: u.hp, max: u.max, mana: u.mana, maxmana: u.maxmana, shield: u.shield } : null,
     });
   }
@@ -1179,6 +1349,22 @@ function drawFight() {
         }
         ctx.restore();
       }
+    } else if (fx.kind === 'zap') { // an item's lightning: a jagged line
+      const a = where.get(fx.from), b = where.get(fx.to);
+      if (a && b) {
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = '#fff6a0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const ax = a[0], ay = a[1] - G.R * 0.6, bx = b[0], by = b[1] - G.R * 0.5;
+        ctx.moveTo(ax, ay);
+        for (let i = 1; i < 6; i++) {
+          const f = i / 6;
+          ctx.lineTo(ax + (bx - ax) * f + (Math.sin(i * 7 + fx.at * 13) * G.R * 0.25), ay + (by - ay) * f);
+        }
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+      }
     } else if (fx.kind === 'area') {
       const p = where.get(fx.id);
       if (p) {
@@ -1229,7 +1415,7 @@ function drawFight() {
   if (S.mouse && !S.drag) {
     let best = null, bd = G.R * 0.7;
     for (const u of pb.units.values()) {
-      if (!u.alive) continue;
+      if (!u.alive || (u.devoured && pb.t < u.hiddenUntil)) continue;
       const [x, y] = where.get(u.id);
       const d = Math.hypot(x - S.mouse.x, y - S.mouse.y);
       if (d < bd) { bd = d; best = u; }
@@ -1288,6 +1474,10 @@ addEventListener('pointermove', e => {
   if (S.drag?.item != null && S.dragStart && Math.hypot(e.clientX - S.dragStart.x, e.clientY - S.dragStart.y) > 6) S.drag.moved = true;
   const overShop = S.drag?.unit && document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar');
   $('shop').classList.toggle('sell', !!overShop);
+  if (S.drag?.unit) {
+    const [, key, star] = S.drag.unit;
+    $('shop').dataset.sell = `Sell for ${S.cfg.units[key].cost * 3 ** (star - 1)} gold`;
+  }
   if (!inside) {
     if (S.hover && ['board', 'bench'].includes(S.hover.kind)) { S.hover = null; info(); }
     return;
@@ -1368,6 +1558,8 @@ $('bots').addEventListener('change', () => room.send({ t: 'set', bots: $('bots')
 $('bot-level').addEventListener('change', () => room.send({ t: 'set', level: $('bot-level').value }));
 $('power').addEventListener('click', () => { room.send({ t: 'power' }); play('cast'); });
 $('choose-reroll').addEventListener('click', () => { room.send({ t: 'aug_reroll' }); play('reroll'); });
+$('choose-hide').addEventListener('click', () => { S.chooseHidden = S.chooseKey; renderChoose(); play('click'); });
+$('choose-show').addEventListener('click', () => { S.chooseHidden = null; renderChoose(); play('click'); });
 
 addEventListener('keydown', e => {
   if ($('game').hidden || e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;

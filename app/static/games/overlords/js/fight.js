@@ -11,6 +11,7 @@ export class Playback {
     this.onEvent = onEvent;
     this.units = new Map();
     this.fx = []; // { kind, at, life, ... } short-lived effects to draw
+    this.zones = []; // { side, c, r, rad, at, until, kind, key } areas on the ground (sim.py's z events)
     this.i = 0;
     this.t = -1;
     this.quiet = false;
@@ -21,6 +22,7 @@ export class Playback {
     this.units.set(id, {
       id, side, key, star, c, r, fc: c, fr: r, moveAt: -9, hp: max, max, mana, maxmana, shield: 0, items,
       alive: true, deadAt: 0, stunUntil: 0, attackAt: -9, castAt: -9, hitAt: -9, target: 0, burnUntil: 0,
+      hiddenUntil: 0, devoured: false, tauntUntil: 0, markUntil: 0, woundUntil: 0, parryUntil: 0, zapAt: -9,
       range: this.cfg.units[key].range,
     });
   }
@@ -35,6 +37,7 @@ export class Playback {
     while (this.i < ev.length && ev[this.i][1] <= t) this.apply(ev[this.i++]);
     this.t = t;
     this.fx = this.fx.filter(f => t - f.at < f.life);
+    this.zones = this.zones.filter(z => z.until > t);
     this.quiet = false;
   }
 
@@ -43,8 +46,9 @@ export class Playback {
   apply(e) {
     const [kind, t] = e;
     const U = this.units;
-    const u = kind === 'sp' || kind === 'v' ? null : U.get(kind === 'd' ? e[3] : e[2]);
-    if (!u && kind !== 'sp' && kind !== 'v') return;
+    const free = kind === 'sp' || kind === 'v' || kind === 'z';
+    const u = free ? null : U.get(kind === 'd' ? e[3] : e[2]);
+    if (!u && !free) return;
     switch (kind) {
       case 'm': // a unit only sets off once its last step is done, so it starts from a whole hex
         u.fc = u.c; u.fr = u.r;
@@ -74,6 +78,8 @@ export class Playback {
         const src = U.get(e[2]);
         if (src && src.castAt === t && src.id !== u.id) { // a spell landing: a bolt from its caster
           this.fx.push({ kind: 'bolt', at: t, from: src.id, to: u.id, key: src.key, life: 0.3 });
+        } else if (src && src.zapAt === t) { // an item's lightning
+          this.fx.push({ kind: 'zap', at: t, from: src.id, to: u.id, life: 0.3 });
         }
         if (e[5] !== 3) {
           const colors = ['#ffb070', '#8fc4ff', '#ffffff'];
@@ -114,6 +120,26 @@ export class Playback {
         u.stunUntil = t + e[3];
         this.sound('stun');
         break;
+      case 'b': { // a status (sim.py lists them)
+        const [, , , what, secs] = e;
+        if (what === 'vanish') { u.hiddenUntil = t + secs; this.fx.push({ kind: 'ring', at: t, id: u.id, color: '#b9a6ff', life: 0.5 }); }
+        else if (what === 'devour') { u.hiddenUntil = t + secs; u.devoured = true; this.sound('hit'); }
+        else if (what === 'taunt') { u.tauntUntil = t + secs; this.fx.push({ kind: 'text', at: t, id: u.id, text: 'Taunt!', color: '#ff9a7a', life: 1.0 }); }
+        else if (what === 'mark') u.markUntil = t + secs;
+        else if (what === 'wound') u.woundUntil = t + secs;
+        else if (what === 'parry') u.parryUntil = t + secs;
+        else if (what === 'grow') this.fx.push({ kind: 'text', at: t, id: u.id, text: '▲', color: '#f2c230', life: 0.8 });
+        else if (what === 'cleanse') this.fx.push({ kind: 'ring', at: t, id: u.id, color: '#bff4ff', life: 0.5 });
+        else if (what === 'zap') u.zapAt = t;
+        else if (what === 'burst') { u.castAt = t; this.fx.push({ kind: 'area', at: t, id: u.id, r: 1, key: u.key, life: 0.5 }); }
+        break;
+      }
+      case 'z': { // an area on the ground: a lingering zone, or where a delayed blow will land
+        const [, , side, c, r, rad, secs, what, caster] = e;
+        this.zones.push({ side, c, r, rad, at: t, until: t + secs, kind: what, key: U.get(caster)?.key });
+        if (what === 'warn') this.sound('cast');
+        break;
+      }
       case 'sp': {
         this.addUnit(e[2]);
         this.fx.push({ kind: 'ring', at: t, id: e[2][0], color: '#7be08a', life: 0.6 });
@@ -125,6 +151,7 @@ export class Playback {
         this.sound('rise');
         break;
       case 'k':
+        u.devoured = false;
         u.alive = false;
         u.deadAt = t;
         u.hp = 0;

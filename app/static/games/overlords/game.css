@@ -45,6 +45,7 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #items .item.item { border-color: #b08a3a; }
 #items .item.emblem { border-color: #2f9a8a; }
 #items .item.crown { border-color: #e0b830; }
+#items .item.artifact { border-color: #d0507a; box-shadow: 0 0 8px rgba(208, 80, 122, 0.45); }
 #items .item.picked { outline: 2px solid var(--gold); }
 #items .none { color: var(--dim); font-size: 0.85rem; }
 #commander-box button { width: 100%; margin: 4px 0; }
@@ -84,13 +85,17 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 .shop-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 230px; flex: none; }
 .shop-buttons button { padding: 6px 8px; }
 #shop { flex: 1; display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 8px; border-radius: 8px; }
+#shop { position: relative; }
 #shop.sell { outline: 2px dashed #ff8b7b; outline-offset: 3px; }
+#shop.sell::after { content: attr(data-sell); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(40, 16, 16, 0.82); color: #ffb0a0; font-weight: 700; font-size: 1.1rem; border-radius: 8px; z-index: 5; pointer-events: none; }
 #shop .card { height: 86px; padding: 6px 8px; border-radius: 8px; text-align: left; display: flex; flex-direction: column; gap: 2px; border-width: 2px; border-color: var(--cc); position: relative; }
 #shop .card b { font-size: 0.95rem; padding-right: 22px; line-height: 1.2; }
 #shop .card .tr { font-size: 0.75rem; color: var(--dim); font-weight: 400; }
 #shop .card .cost { position: absolute; right: 8px; top: 6px; color: var(--gold); }
 #shop .card.pair { box-shadow: 0 0 0 2px var(--gold) inset; }
-#shop .card.pair::after { content: "pair"; position: absolute; right: 8px; bottom: 6px; font-size: 0.7rem; color: var(--gold); }
+#shop .card .copies { position: absolute; right: 6px; bottom: 4px; z-index: 2; font-size: 0.7rem; color: var(--gold); font-weight: 700; text-shadow: 0 1px 2px #11151e, 0 0 3px #11151e; }
+#shop .card.merge { box-shadow: 0 0 0 2px var(--gold) inset, 0 0 12px rgba(242, 194, 48, 0.45); }
 #shop .empty { border: 1px dashed var(--line); border-radius: 8px; }
 #shop .sold { display: flex; align-items: center; justify-content: center; color: #ff8b7b; font-weight: 700; }
 
@@ -103,6 +108,7 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 .traits .steps i { font-style: normal; font-size: 0.72rem; padding: 0 4px; border-radius: 3px; border: 1px solid var(--line); }
 .traits .steps i.on { border-color: var(--gold); color: var(--gold); }
 #info:empty { display: none; }
+#info { position: sticky; bottom: 0; z-index: 3; box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.45); }
 #info h3 { margin: 0 0 4px; font-size: 1rem; }
 #info p { margin: 0 0 6px; font-size: 0.85rem; color: var(--dim); }
 #info p.ab b { color: var(--text); }
@@ -137,7 +143,6 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
   background: linear-gradient(90deg, var(--slate2) 30%, rgba(37, 43, 58, 0.55) 60%, rgba(37, 43, 58, 0) 85%); }
 #shop .card > b, #shop .card > .tr, #shop .card > .cost { position: relative; z-index: 2; text-shadow: 0 1px 2px #11151e, 0 0 3px #11151e; }
 #shop .card > .cost { position: absolute; }
-#shop .card.pair::after { z-index: 2; text-shadow: 0 1px 2px #11151e; }
 #shop .card:hover:not(:disabled)::before { background: linear-gradient(90deg, #313a50 30%, rgba(49, 58, 80, 0.55) 60%, rgba(49, 58, 80, 0) 85%); }
 .traits li b { display: inline-flex; align-items: center; gap: 4px; }
 #commander-name { display: flex; align-items: center; gap: 8px; }
@@ -178,9 +183,30 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 .end-rows .swatch, .hp-chart .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
 /* narrow shop cards (six slots, or a small window): smaller names, trait icons without their names */
 #shop .card { container-type: inline-size; }
-@container (max-width: 110px) {
+@container (max-width: 92px) {
   #shop .card > b { font-size: 0.82rem; padding-right: 0; margin-top: 12px; }
   #shop .card > .cost { top: 3px; left: 8px; right: auto; font-size: 0.8rem; }
   #shop .card .tr { flex-direction: row; gap: 3px; }
   #shop .card .tr span { font-size: 0; }
 }
+
+/* shop odds, beside the items */
+.odds { margin-left: auto; display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.odds .label { color: var(--dim); margin-right: 2px; }
+.odds .chip { border: 1px solid var(--cc); color: var(--text); border-radius: 4px; padding: 0 5px; }
+.odds .chip.none { opacity: 0.35; }
+#hud-gold small { color: var(--dim); font-weight: 400; }
+#banner .hint { color: #e8c87a; font-weight: 400; }
+.players .sub .results { display: inline-flex; gap: 2px; align-items: center; margin-left: auto; }
+.players .sub .results i { width: 7px; height: 7px; border-radius: 2px; background: #5a6274; }
+.players .sub .results i.w { background: #6fd17e; }
+.players .sub .results i.l { background: #e0605a; }
+
+/* a trait's units, in the info panel */
+.trait-units { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; font-size: 0.76rem; color: var(--dim); }
+.trait-units li { display: flex; align-items: center; gap: 3px; border-left: 3px solid var(--cc); padding-left: 3px; }
+.trait-units li .sprite { margin: -6px -2px -6px -4px; }
+.trait-units li.on { color: var(--gold); font-weight: 600; }
+.trait-units li.bench { color: var(--text); }
+#choose-show { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 20; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5); }
+#choose-note { margin: 8px 0 0; font-size: 0.82rem; }

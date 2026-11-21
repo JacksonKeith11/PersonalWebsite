@@ -14,6 +14,9 @@ a copy, and print how long a match would take in real time. Items (every one in 
 emblems counting and refused on a unit with the trait; the Crown's extra place; items surviving
 merges and sales), every commander's power, every augment, and a draft (lowest HP picks first, each
 pick holds its component, the rest go back to the pool) have their own checks.
+The roster review's tricks (taunts, vanishing, pulls, shoves, zones, delayed blows, raising,
+swallowing, executes, wounds, multishot, death bursts, the Hexer's and Chronomancer's effects, saplings)
+each get a staged fight, and some random fights are stepped to make sure no two units share a hex.
 (`tools/overlords-fight.py` covers balance.)
 """
 
@@ -102,6 +105,92 @@ def determinism_and_geometry():
     check(sim.fight([], [])["winner"] is None, "two empty boards")
 
 
+def B(unit, c, r, star=1, items=()):
+    return {"unit": unit, "star": star, "col": c, "row": r, "items": list(items)}
+
+
+def mechanics():
+    """The roster review's tricks each do what they say."""
+    def first(f, key, side=0):
+        return next(u for u in f.units if u.key == key and u.side == side)
+
+    def cast(f, u):
+        u.target = f.nearest(u, f.foes(u))
+        u.mana = u.maxmana
+        f.cast(u)
+
+    f = sim.Fight([B("bramble_guard", 3, 3)], [B("wolf", 2, 3), B("wolf", 4, 3)], 1)
+    g = first(f, "bramble_guard")
+    cast(f, g)
+    check(all(w.taunt[0] is g for w in f.units if w.side == 1), "a taunt makes enemies attack the taunter")
+    f = sim.Fight([B("marsh_lurker", 3, 3)], [B("wolf", 3, 3)], 1)
+    m, w = first(f, "marsh_lurker"), first(f, "wolf", 1)
+    cast(f, m)
+    check(m not in f.foes(w) and f.later, "a vanished unit can't be targeted, and its blow is on the way")
+    f.t += 1.1
+    f.tick()
+    check(any(e[0] == "d" and e[2] == m.id for e in f.events), "the delayed blow lands")
+    f = sim.Fight([B("toad_brawler", 3, 3)], [B("wolf", 0, 0), B("wolf", 3, 3)], 1)
+    t = first(f, "toad_brawler")
+    far = max((u for u in f.units if u.side == 1), key=lambda u: sim.dist(u.hex, t.hex))
+    cast(f, t)
+    check(sim.dist(far.hex, t.hex) == 1, "a pull drags the farthest enemy next to the caster")
+    f = sim.Fight([B("cloud_monk", 3, 3)], [B("wolf", 3, 3)], 1)
+    c, w = first(f, "cloud_monk"), first(f, "wolf", 1)
+    f.jump(w, sim.free_hex if False else next(n for n in sim.neighbours(c.hex) if n not in f.occ and n[1] > c.hex[1]))
+    before = sim.dist(c.hex, w.hex)
+    cast(f, c)
+    check(sim.dist(c.hex, w.hex) > before, "a knockback shoves the target away")
+    f = sim.Fight([B("thorn_dryad", 3, 0)], [B("stone_golem", 3, 3)], 1)
+    d, s_ = first(f, "thorn_dryad"), first(f, "stone_golem", 1)
+    cast(f, d)
+    hp = s_.hp
+    for _ in range(20):
+        f.tick()
+        f.t += sim.DT
+    check(f.zones and s_.hp < hp, "a zone hurts enemies standing in it")
+    f = sim.Fight([B("lich", 3, 0)], [B("wolf", 3, 3)], 1)
+    li = first(f, "lich")
+    f.corpses.append((0, 5))
+    cast(f, li)
+    check(any(u.key == "skeleton" and u.hex == (0, 5) for u in f.units), "raise brings skeletons up where units fell")
+    f = sim.Fight([B("bog_colossus", 3, 3)], [B("bandit", 3, 3)], 1)
+    b, x = first(f, "bog_colossus"), first(f, "bandit", 1)
+    cast(f, b)
+    check(x.hidden(f.t) and x.stun > f.t, "a swallowed unit can't act or be reached")
+    f = sim.Fight([B("grave_digger", 3, 3)], [B("bandit", 3, 3)], 1)
+    gd, x = first(f, "grave_digger"), first(f, "bandit", 1)
+    x.hp = x.max * 0.25
+    cast(f, gd)
+    check(not x.alive, "an execute finishes a target left below its threshold")
+    f = sim.Fight([B("thornling", 3, 3)], [B("bandit", 3, 3)], 1)
+    th, x = first(f, "thornling"), first(f, "bandit", 1)
+    cast(f, th)
+    x.hp = 100
+    f.heal(x, 200, x)
+    check(x.alive and round(x.hp) == 200, "a wounded unit heals half as much")
+    f = sim.Fight([B("star_archer", 3, 0)], [B("bandit", 2, 3), B("bandit", 3, 3)], 1)
+    a = first(f, "star_archer")
+    f.attack(a, f.nearest(a, f.foes(a)))
+    check(sum(e[0] == "a" for e in f.events) == 2, "multishot strikes a second enemy")
+    f = sim.Fight([B("bone_rattler", 3, 3)], [B("wolf", 3, 3)], 1)
+    r, w = first(f, "bone_rattler"), first(f, "wolf", 1)
+    f.jump(w, next(n for n in sim.neighbours(r.hex) if n not in f.occ))
+    hp = w.hp
+    f.die(r)
+    check(w.hp < hp, "a death burst hurts the enemies beside it")
+    f = sim.Fight([B("ashling", 3, 3, 2), B("ember_mage", 3, 0)], [B("ashling", 3, 3, 2), B("ember_mage", 3, 0)], 1,
+                  ({"hex_strongest": 0.2, "drain": [0.5, 8]}, {}))
+    foe = [u for u in f.units if u.side == 1]
+    check(any(u.amp[0] == 0.2 for u in foe) and all(u.mana == 0 and u.mana_slow[0] == 0.5 for u in foe),
+          "the Hexer's and the Chronomancer's effects reach the enemy")
+    f = sim.Fight([B("sky_lancer", 3, 3, 1, ["world_seed"])], [B("stone_golem", 3, 3)], 1)
+    for _ in range(int(6.2 / sim.DT)):
+        f.tick()
+        f.t += sim.DT
+    check(any(u.key == "sapling" for u in f.units), "the Seed of the Elder Grove grows a sapling")
+
+
 def random_fights(n=300):
     rng = random.Random(11)
     capped = 0
@@ -116,6 +205,15 @@ def random_fights(n=300):
                 check(alive.get(e[2], True), f"fight {i}: a unit died twice")
                 alive[e[2]] = False
         check(len(json.dumps(res)) < 400_000, f"fight {i}: timeline too big to send")
+        if i % 25 == 0:  # nobody ever shares a hex (raising, pulls and shoves move units about)
+            f = sim.Fight(bots.random_board(rng, size), bots.random_board(rng, size), i)
+            while f.t < sim.TIME_CAP and f.alive(0) and f.alive(1):
+                f.tick()
+                f.t += sim.DT
+                living = [u for u in f.units if u.alive]
+                if len({u.hex for u in living}) != len(living) or set(f.occ) != {u.hex for u in living}:
+                    check(False, f"fight {i}: two units on one hex, or the board's record is wrong, at {f.t:.2f}")
+                    break
     check(capped < n * 0.05, f"{capped} of {n} fights hit the time cap")
 
 
@@ -313,6 +411,9 @@ def room_items_and_powers():
     for key in D.COMMANDERS:
         me.commander, me.charge, me.gold, me.level, me.xp = key, 99, 50, 3, 0
         me.bench = [None] * D.BENCH
+        if key == "twinmaker":  # it twins a unit you have
+            me.bench[0] = room.new_unit("ashling")
+            room.pool["ashling"] -= 1
         before = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, me.xp, dict(me.next_fx))
         ok = room.use_power(me)
         after = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, me.xp, dict(me.next_fx))
@@ -402,6 +503,7 @@ draft()
 room_rules()
 matches()
 every_ability_fires()
+mechanics()
 determinism_and_geometry()
 random_fights()
 if failures:

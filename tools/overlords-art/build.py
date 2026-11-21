@@ -17,11 +17,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import units1  # noqa: E402
 import units2  # noqa: E402
+import units3  # noqa: E402
 import icons  # noqa: E402
 import portraits  # noqa: E402
 
 SPRITES = {}
-for _mod in (units1, units2):
+for _mod in (units1, units2, units3):
     for _name in dir(_mod):
         _f = getattr(_mod, _name)
         if callable(_f) and getattr(_f, '__module__', None) == _mod.__name__ and not _name.startswith('_') \

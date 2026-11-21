@@ -763,6 +763,116 @@ def p_feather():
     return g.strings(), p
 
 
+# ------------------------------------------------------------------ artifacts (no recipe)
+def hourglass():
+    p = P(glow='#ffe8a0')
+    g = G(p)
+    g.rect(3, 1, 12, 2, 'w')
+    g.rect(3, 13, 12, 14, 'w')
+    g.rows(4, 3, [(0, 7), (1, 6), (2, 5), (3, 4), (3, 4), (2, 5), (1, 6), (0, 7), (0, 7), (0, 7)], 'i')
+    g.rows(5, 3, [(0, 5), (1, 4), (2, 3)], 'y')
+    g.rows(4, 10, [(1, 6), (0, 7), (0, 7)], 'y')
+    g.px(7, 7, '*')
+    g.px(7, 8, 'y')
+    g.line(3, 3, 3, 12, 'g')
+    g.line(12, 3, 12, 12, 'g')
+    return g.strings(), p
+
+
+def soulreaver():
+    p = P(glow='#9ff0c0')
+    g = G(p)
+    g.line(4, 14, 9, 2, 'w', 2)
+    g.rows(3, 1, [(5, 9), (2, 11), (0, 5), (0, 2), (0, 1)], 'm')
+    g.rows(3, 1, [(9, 9), (11, 11)], 'l')
+    g.px(4, 4, '*')
+    g.px(3, 5, '*')
+    return g.strings(), p
+
+
+def phoenix_feather():
+    p = P(glow='#fff2a0')
+    g = G(p)
+    g.line(3, 14, 11, 2, 'k')
+    g.rows(6, 1, [(4, 6), (2, 7), (1, 7), (0, 6), (-1, 5), (-2, 4), (-2, 3), (-2, 2), (-1, 1)], 'f')
+    g.rows(7, 3, [(2, 4), (0, 4), (-1, 3), (-1, 2)], 'y')
+    g.px(9, 4, '*')
+    return g.strings(), p
+
+
+def warhorn():
+    p = P()
+    g = G(p)
+    g.rows(1, 4, [(10, 13), (8, 13), (6, 13), (4, 12), (2, 11), (1, 9), (0, 7), (0, 4)], 'h')
+    g.rect(11, 3, 14, 4, 'g')
+    g.rect(12, 5, 14, 9, 'g')
+    g.line(2, 11, 6, 8, 'k')
+    g.px(1, 12, 'g')
+    return g.strings(), p
+
+
+def witherbloom():
+    p = P(glow='#e0ffa0')
+    g = G(p)
+    g.line(7, 14, 7, 7, 'n')
+    g.px(5, 11, 'n')
+    g.px(9, 10, 'n')
+    for dx, dy in ((0, -3), (3, -1), (2, 2), (-2, 2), (-3, -1)):
+        g.ell(7.5 + dx, 5 + dy, 1.6, 1.6, 'v')
+    g.ell(7.5, 5, 1.4, 1.4, 'p')
+    g.px(7, 5, '*')
+    return g.strings(), p
+
+
+def echo_tome():
+    p = P(glow='#8ad0ff')
+    g = G(p)
+    g.rect(1, 4, 9, 13, 'b')
+    g.rect(2, 13, 9, 13, 'h')
+    g.rect(1, 4, 2, 13, 'B')
+    g.px(5, 8, '*')
+    for r in (2, 4):
+        for a in range(-2, 3):
+            g.px(10 + r, 8 + a * (r // 2), 'z')
+    g.px(11, 5, 'z')
+    g.px(11, 11, 'z')
+    return g.strings(), p
+
+
+def executioner():
+    p = P(glow='#ff6a5a')
+    g = G(p)
+    g.line(3, 14, 9, 3, 'w', 2)
+    g.rows(7, 1, [(1, 6), (0, 7), (0, 7), (0, 7), (1, 7), (2, 6), (3, 5)], 'd')
+    g.rows(7, 1, [(6, 6), (7, 7), (7, 7), (7, 7), (7, 7), (6, 6)], 'l')
+    g.px(10, 4, '*')
+    return g.strings(), p
+
+
+def world_seed():
+    p = P(glow='#e0ffa0')
+    g = G(p)
+    g.ell(7.5, 10.5, 4, 3.5, 'k')
+    g.ell(6.5, 9.5, 1.5, 1, 'K')
+    g.line(8, 7, 8, 3, 'n')
+    g.ell(10.5, 3.5, 2.2, 1.4, 'n')
+    g.ell(5.5, 4.5, 2, 1.3, 'n')
+    g.px(8, 2, '*')
+    return g.strings(), p
+
+
+def quicksilver():
+    p = P(glow='#ffffff')
+    g = G(p)
+    g.rect(6, 1, 9, 4, 'h')
+    g.rect(5, 1, 10, 1, 'k')
+    g.ell(7.5, 9.5, 5, 4.6, 'i')
+    g.ell(7.5, 10.5, 4, 3, 'm')
+    g.px(5, 8, '*')
+    g.px(9, 11, 'l')
+    return g.strings(), p
+
+
 ITEM_ICONS = {
     'sword': sword_c, 'bow': bow_c, 'rod': rod_c, 'tear': tear_c, 'vest': vest_c, 'cloak': cloak_c, 'belt': belt_c,
     'sigil': sigil_c, 'greatsword': greatsword, 'ravager': ravager, 'spellblade': spellblade, 'mana_edge': mana_edge,
@@ -771,7 +881,9 @@ ITEM_ICONS = {
     'archstaff': archstaff, 'ember_mantle': ember_mantle, 'spellward': spellward, 'lifebloom': lifebloom,
     'chalice': chalice, 'frost_aegis': frost_aegis, 'mana_ward': mana_ward, 'bell': bell, 'bastion': bastion,
     'twin_ward': twin_ward, 'spiked_hide': spiked_hide, 'veil': veil, 'second_wind': second_wind,
-    'colossus_belt': colossus_belt, 'crown': crown,
+    'colossus_belt': colossus_belt, 'crown': crown, 'hourglass': hourglass, 'soulreaver': soulreaver,
+    'phoenix_feather': phoenix_feather, 'warhorn': warhorn, 'witherbloom': witherbloom, 'echo_tome': echo_tome,
+    'executioner': executioner, 'world_seed': world_seed, 'quicksilver': quicksilver,
 }
 PROJECTILES = {
     'arrow': p_arrow, 'bolt': p_bolt, 'fire': p_fire, 'water': p_water, 'bone': p_bone, 'star': p_star,

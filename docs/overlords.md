@@ -42,12 +42,22 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   rounds (`PVE_DROPS`: 1, 1, 2 and 2 to a winner; a loser gets 1 where 2 drop) and come with draft
   picks. They wait on the item bench (`player.items`) until dragged onto a unit (or clicked, then the
   unit). A unit holds 3; a component dropped on a unit already holding one combines (`combine`) into one
-  of 28 finished items (both components' stats plus an effect: crits, life-steal, splash, thorns, shred,
-  stun immunity...). A Sigil with another component makes that component's emblem (seven, `EMBLEM_FROM`:
+  of 28 finished items (both components' stats plus an effect of its own: since the roster review none
+  is a plain stat bump: the Twin Bow strikes a second enemy, the Storm Rod calls lightning every third
+  attack, the Grimoire grows with each cast, Bastion Plate taunts at the start, the Colossus Belt grows
+  HP...). A Sigil with another component makes that component's emblem (seven, `EMBLEM_FROM`:
   the holder gains the trait, refused on a unit that has it); two Sigils make a Crown (one more place on
   the board, `Player.limit`). Augment crests give emblems of any trait. Items follow merges (up to 3 on
   the merged unit, the rest back to the item bench) and come back when a unit is sold.
-- **Commanders** (`COMMANDERS`, 12): three offered at the start, picked on a screen before the first
+- **Artifacts** (`ARTIFACTS`, 9, kind `artifact`): items no recipe makes, each a trick of its own
+  (the Stopped Hourglass slips out of time once, the Soulreaver grows with kills, the Phoenix Feather
+  revives, the Echoing Tome casts twice, the Seed of the Elder Grove grows saplings...). From the round-11
+  golems (`PVE_ARTIFACT`: in place of the second component), the round-14 draft (`DRAFT_ARTIFACTS`: its
+  units hold artifacts), the augments Ancient Armory and Relic Hunter (which costs 6 HP), and the
+  Forgemaster's power (one time in four).
+- **Commanders** (`COMMANDERS`, 16; the roster review added the Gambler, the Hexer, the Chronomancer and
+  the Twinmaker, and gave the Warlord, Archmage, Blademaster and Survivor passives that do more than add
+  a stat): three offered at the start, picked on a screen before the first
   fight (the first is taken if none is picked). A passive, and a power that charges a round at a time
   (3-5 rounds) and is used from the left panel while planning. Powers for "next fight" go in
   `player.next_fx` and are spent at the fight's start. All of it is in `game.py` (`extras`,
@@ -61,14 +71,14 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   first, 8 s a person (then at random), bots after 0.8 s. A pick with no bench room is sold on the spot
   and its component kept. What's left goes back to the pool.
 - In a fight these reach `sim.Fight` as each side's `extras`: `bonus` (augment trait counts), `team`
-  (fx for everyone), `front`, `revive_first`, `summon` and `rally`.
+  (fx for everyone), `front`, `revive_first`, `summon`, `rally`, `fallen_rally` (the Warlord), and the
+  ones aimed at the *other* side: `hex_strongest`, `hex_all` (the Hexer) and `drain` (the Chronomancer).
 
 ### Units and traits
 
-50 units (13, 13, 11, 8 and 5 at tiers 1-5), five summons (Treant, Bog Imp, Skeleton, Turret, Mire
-Spawn) and four monsters, all in `app/overlords/data.py`. Each unit has one origin and one or two
-classes. Every trait can reach its top tier: origins with a 6 have 7 units, those topping at 4 have
-5-6, and classes have 6-8. A trait counts the
+60 units (13, 14, 14, 11 and 8 at tiers 1-5), six summons (Treant, Bog Imp, Skeleton, Turret, Mire
+Spawn, Sapling) and four monsters, all in `app/overlords/data.py`. Each unit has one origin and one or
+two classes. Every trait can reach its top tier: origins have 6-9 units, classes 6-10. A trait counts the
 *different* units carrying it on the board and switches on at thresholds (2/4/6 or 2/4). 16 traits:
 origins Emberforged (attacks burn), Thornwood (regrow HP), Tidecallers (mana each second), Gravebound
 (rise once), Skyborne (dodge), Ironhold (armor and resist), Starlit (cheaper abilities), Mirefolk
@@ -77,12 +87,27 @@ origins Emberforged (attacks burn), Thornwood (regrow HP), Tidecallers (mana eac
 regrowth: resist alone did nothing, since most damage is physical), Assassin (leap to the back line,
 crits), Summoner (stronger summons), Warden (max HP).
 
-Abilities are data: a list of steps (`hit`, `heal`, `shield`, `buff`, `summon`, `dash`, `mana`), each
-aimed by a selector (`target`, `around_target:1`, `line:5`, `chain:5`, `lowest_enemy`, `lowest_ally`,
-...). A hit can drain (`heal_frac`); a summon can bring several (`count`); a `static` summon (the
-Turret) never moves. The docstring at
-the top of `data.py` lists them all. A new unit needs no new code unless it needs a new step or
-selector (add it to `sim.Fight.step_*` / `select` and to `STEPS` / `SELECTORS`).
+Abilities are data: a list of steps (`hit`, `heal`, `shield`, `buff`, `summon`, `dash`, `mana`, and
+since the roster review `grow`, `taunt`, `vanish`, `cleanse`, `pull`, `zone`, `raise`, `devour`), each
+aimed by a selector (`target`, `around_target:1`, `line:5`, `chain:5`, `cluster:1`, `lowest_enemy`,
+`highest_hp`, `lowest_ally`, `nearest_allies:2`, ...). A hit can drain (`heal_frac`), mark (`amp`),
+wound, burn mana, knock back, execute, hit harder on the hurt (`missing`) or refund mana on a kill; any
+step can land later (`delay`, marked on the ground first). A summon can bring several (`count`); a
+`static` summon (the Turret) never moves. A unit can also have a `passive` (fx, as items give) with a
+`passive_text`. The docstring at the top of `data.py` lists them all. A new unit needs no new code
+unless it needs a new step or selector (add it to `sim.Fight.step_*` / `select` and to `STEPS` /
+`SELECTORS`, and teach `fight.js` and `abilityNumbers` in `main.js` any new event or field).
+
+**The roster review** (November 2026, the owner asked for units, items and commanders that are more
+interesting and unique): every unit got a trick of its own (Bramble Guard and Bog Knight taunt, Marsh
+Lurker vanishes and strikes from the mud, the Toad Brawler and Kraken Caller pull, Iron Sentinel, Cloud
+Monk and Wind Archer knock back, the Mire Witch and Forge Hound mark, Thornling wounds,
+Ember Mage's meteor lands where enemies bunch, Thorn Dryad, Lava Giant and Ember Wyrm leave burning
+ground, Starlit Novice and Rune Smith grow, the Lich and Bone Tyrant raise the fallen, the Bog
+Colossus swallows, Grave Digger, Sky Sprite and Grave Knight execute, Ghoul Reaver chains kills...), ten
+units were added (Toad Brawler; Cinder Priest, Bog Knight, Wind Archer; Moonshadow, Bog Colossus, Rune
+Smith; Ember Wyrm, Old Mossheart, Bone Tyrant: tier 5 had no Emberforged, Thornwood or Gravebound
+unit), the items and commanders above changed, and nine artifacts came in.
 
 ## The plan (from the owner's answers)
 
@@ -117,9 +142,10 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
 
 ### Art
 
-- 59 sprites (50 units, 5 summons, 4 monsters), one 32x32 drawing each, by code in
+- 70 sprites (60 units, 6 summons, 4 monsters), one 32x32 drawing each, by code in
   `tools/overlords-art/` (`units1.py`: Emberforged, Thornwood, Tidecallers, Gravebound; `units2.py`:
-  Skyborne, Ironhold, Starlit, Mirefolk, the other summons and the monsters). They use Roguelike
+  Skyborne, Ironhold, Starlit, Mirefolk, the other summons and the monsters; `units3.py`: the ten units
+  of the roster review and the Sapling). They use Roguelike
   Tactics' kit and renderer (`tools/threefold-art/kit.py`: flat material letters, then outline and cel
   shading by code; `docs/game-art.md` has the rules: matte, muted, dark outlines, chunky), with
   Overlords' own humanoid builder (`Fig`: normal, short for dwarves, big, small; heads, helms, hoods,
@@ -215,6 +241,17 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
 
 - The fights message is sent *before* the state that switches to the fight phase, so the browser
   builds its Playback when that state arrives (and on `fights` if the phase is already fight).
+- Untargetable units (vanished, swallowed, or the Hourglass's moment out of time) are left out of
+  `Fight.foes`, so nothing aims at or hits them; zones and burning still reach them. A side whose units
+  are all out of reach doesn't lose: the fight goes on until they come back.
+- A knockback on a melee unit shoves its own target out of reach, so it has to walk after it: the first
+  balance run had the Iron Colossus and Gale Dancer weak for it, and they lost theirs. Knockbacks suit
+  ranged units and short stuns.
+- Monsters and summons are `summon: True`; executes work on them too (an early version skipped them,
+  which made executes do nothing in monster rounds).
+- `raise` puts skeletons where units fell (`Fight.corpses`); two units can fall on the same hex, so
+  each spot is checked free as it's used (doubling up once broke the board's record, `occ`). The check
+  steps random fights and fails if two units ever share a hex.
 - `d` events carry the HP left after shields; shields soak damage first, so the number shown can
   exceed the HP lost. `v` snapshots every 0.5 s correct HP, mana and shields.
 - During a draft, `Room.ends` follows the current pick's deadline, so code (and the checks' clock)
@@ -231,7 +268,9 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
 ## Checks and numbers
 
 - `python3 tools/overlords-check.py` (~5 s, in `check-all.sh`): data, every ability fires at every
-  star, every item in a fight, determinism, board rotation, 300 random fights finish, the room's rules
+  star, every item in a fight, each of the roster review's tricks (taunts, vanishing, pulls, shoves, zones,
+  delayed blows, raising, swallowing, executes, wounds, multishot, death bursts, the Hexer and
+  Chronomancer, saplings), nobody ever sharing a hex, determinism, board rotation, 300 random fights finish, the room's rules
   (buying, merging, limits, moving, selling, the locked board), equipping and combining, emblems, the
   Crown, every commander power, every augment, a draft, and three whole bot matches with the pool
   conserved.
@@ -245,18 +284,15 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
   same costs (50% is right at every cost); `--traits [N]` each trait at each tier against
   cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
-Latest numbers (November 2026, the final run of the plan: everything in; ~3 minutes to rerun all three):
-- Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 12 ms a fight, average
-  21 s, 1% hit the cap. 43 of 50 units within 42-58% of their tier; just outside, all within 40-61%:
-  Ashling 41%, Marsh Lurker 41%, Thorn Stalker 41%, Iron Engineer 41%, Kraken Caller 41% (weak), Tide
-  Acolyte 61%, Tidebinder 59% (strong).
-- Traits, 120 fights a tier (`--traits 120`, about ±4.5%): first tiers 40-60%, the 4-tiers of the 2/4
-  traits 52-87%, the top tiers of 6 at 70-92%. Worth a look: Mystic doesn't rise from 2 (55%) to 4
-  (52%), the only trait that doesn't; Arcanist (41/52/70%) and Assassin (44/50/73%) are the weakest
-  ladders, Gravebound 6 (92%) and Ironhold 6 (88%) the strongest tops.
-- Whole bot matches (`overlords-sim.py 400`): 17.6 rounds (14-20), about 17 minutes at full timers,
-  close to the ~20 the owner wanted (people take longer than bots' instant turns). Commanders' average
-  place 2.30 (Sage) to 2.71 (Merchant), after one tuning pass (the Sage won 44% at first). These are
-  bots' numbers: bots use powers as soon as they're charged and don't plan around the Oracle's or the
-  Merchant's economy, so people may find those better than this says. Bots favour trait augments;
-  crests place best.
+Latest numbers (November 2026, after the roster review: 60 units, the new items, artifacts and
+commanders; ~4 minutes to rerun all three):
+- Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 16 ms a fight, average
+  21 s, 1.4% hit the cap. 56 of 60 units within 42-58% of their tier; just outside: Tide Acolyte 60%,
+  Phoenix Knight 60%, Bone Tyrant 59% (strong), Mire Mother 42% (weak).
+- Traits, 120 fights a tier (`--traits 120`, about ±4.5%): first tiers 38-58%, the 4-tiers of the 2/4
+  traits 59-84%, the top tiers of 6 at 60-84%. Worth a look: Assassin 2 (38%) and Mirefolk 2 (43%) are
+  weak first tiers; Arcanist (50/50/60%) is still the flattest ladder, Warden (51/58/64%) and Vanguard
+  (52/57/68%) rise slowly.
+- Whole bot matches (`overlords-sim.py 400`): 17.6 rounds (15-20), about 17 minutes at full timers.
+  Commanders' average place 2.19 (Twinmaker) to 2.80 (Oracle). These are bots' numbers: bots use powers
+  as soon as they're charged and don't plan around the Oracle's, the Merchant's or the Gambler's economy.

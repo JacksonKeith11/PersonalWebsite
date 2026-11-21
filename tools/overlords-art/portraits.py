@@ -238,5 +238,81 @@ def oracle():
     return g.strings(), p
 
 
+def gambler():
+    p = pal(SKIN, GOLD, {'c': '#2a4a3a', 'k': '#1a1a20', 'h': '#3a2a20', 'x': '#e8e0d0', 'r': '#c8443a'})
+    g = G(p)
+    bust(g, 'c')
+    g.rows(11, 21, [(2, 7), (3, 6), (4, 5)], 'x')  # a shirt front
+    g.px(15, 23, 'r')  # a red bow tie
+    g.px(16, 23, 'r')
+    g.rect(8, 6, 23, 7, 'k')  # a short-brimmed hat
+    g.rect(10, 1, 21, 5, 'k')
+    g.rect(10, 5, 21, 5, 'r')
+    g.rect(11, 14, 20, 14, 'h')  # a thin moustache
+    g.px(18, 11, 'S')  # a wink
+    g.px(13, 12, 'e')
+    g.rect(23, 24, 27, 28, 'x')  # two dice
+    g.rect(25, 19, 28, 22, 'x')
+    for x, y in ((24, 25), (26, 27), (26, 20), (27, 21)):
+        g.px(x, y, 'e')
+    return g.strings(), p
+
+
+def hexer():
+    p = pal(SKIN_DARK, GOLD, {'c': '#3a2a4a', 'h': '#c8c8d0', 'x': '#8a3a8a', '*': '#e080ff', 'u': '#d8d0c0'})
+    g = G(p)
+    bust(g, 'c', eyes='*')
+    g.ell(15.5, 8, 7.5, 5, 'h')  # wild grey hair
+    g.rect(8, 8, 10, 20, 'h')
+    g.rect(21, 8, 23, 20, 'h')
+    g.ell(15.5, 13, 5.6, 5.5, 's')
+    g.px(13, 12, '*')
+    g.px(18, 12, '*')
+    g.rect(14, 16, 17, 16, 'S')
+    for x in (12, 15, 18):  # a necklace of little bones
+        g.px(x, 24, 'u')
+    g.line(24, 31, 27, 18, 'w')  # a crooked wand
+    g.px(27, 17, '*')
+    g.px(26, 16, 'x')
+    g.px(28, 16, 'x')
+    return g.strings(), p
+
+
+def chronomancer():
+    p = pal(SKIN, GOLD, {'c': '#2a3a6a', 'h': '#eeeae0', 'y': '#ffe08a', '*': '#9ff0ff', 'w': '#6a4a2e'})
+    g = G(p)
+    bust(g, 'c')
+    g.rect(9, 4, 22, 7, 'h')  # white hair, swept back
+    g.rect(8, 7, 9, 13, 'h')
+    g.rect(22, 7, 23, 13, 'h')
+    g.ell(12.5, 12, 2, 2, 'g')  # a monocle
+    g.px(12, 12, '*')
+    g.rect(13, 15, 18, 15, 'h')
+    g.ell(25.5, 25, 4, 4, 'g')  # a pocket watch
+    g.ell(25.5, 25, 2.8, 2.8, 'y')
+    g.line(25, 25, 25, 23, 'e')
+    g.line(25, 25, 27, 25, 'e')
+    g.line(22, 21, 18, 23, 'g')
+    return g.strings(), p
+
+
+def twinmaker():
+    p = pal(SKIN, GOLD, {'c': '#6a4a2a', 'h': '#a8603a', 'x': '#d8c8a0', 'z': '#7ad0ff', 'm': '#8a929c'})
+    g = G(p)
+    bust(g, 'c')
+    g.rect(11, 22, 20, 31, 'x')  # an apron
+    g.rows(9, 3, [(2, 10), (0, 12), (0, 12)], 'h')  # red hair
+    g.rect(9, 6, 10, 10, 'h')
+    g.ell(18.5, 12, 2.4, 2.2, 'm')  # a jeweller's loupe
+    g.px(18, 12, 'z')
+    g.rect(21, 11, 23, 12, 'm')
+    g.rect(14, 15, 17, 15, 'S')
+    for x in (3, 26):  # two little dolls, one each side
+        g.ell(x + 2, 22, 1.8, 1.8, 's')
+        g.rect(x + 1, 24, x + 3, 28, 'z')
+    return g.strings(), p
+
+
 PORTRAITS = {k: globals()[k] for k in ('quartermaster', 'warlord', 'necromancer', 'alchemist', 'merchant', 'sage',
-                                       'beastmaster', 'archmage', 'survivor', 'blademaster', 'forgemaster', 'oracle')}
+                                       'beastmaster', 'archmage', 'survivor', 'blademaster', 'forgemaster', 'oracle',
+                                       'gambler', 'hexer', 'chronomancer', 'twinmaker')}

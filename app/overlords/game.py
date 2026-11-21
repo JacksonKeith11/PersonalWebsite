@@ -81,6 +81,8 @@ class Player:
         self.next_fx = {}  # extras for the next fight only (commander powers)
         self.free_rerolls = 0
         self.oracle_roll = False
+        self.cheap_rolls = 0  # the Gambler's 1-gold rerolls left this round
+        self.first_roll = False  # the Twinmaker: the round's first shop is being rolled
         self.final = None  # their board when they went out (or won): {"traits", "units"}
         self.hp_log = [D.START_HP]  # HP after each round, for the end screen's chart
 
@@ -108,18 +110,25 @@ class Player:
             team[k] = team.get(k, 0) + v
         c = self.commander
         if c == "archmage":
-            add("ap", 20)
+            add("echo_first", 0.5)
         if c == "blademaster":
-            add("aspd_pct", 0.08)
+            add("frenzy", 0.02)
+        if c == "survivor" and self.hp < 25:
+            add("hp_pct", 0.15)
         if c == "beastmaster":
-            add("summon_boost", 0.3)
+            add("summon_boost", 0.4)
+        if c == "chronomancer":
+            add("mana", 20)
         for k, v in self.next_fx.get("team", {}).items():
             add(k, v)
         ex = {"bonus": dict(self.bonus), "team": team,
               "revive_first": max(self.revive_first, 0.4 if c == "necromancer" else 0.0)}
         if c == "warlord":
             ex["front"] = {"hp_pct": 0.12}
-        for k in ("summon", "rally"):
+            ex["fallen_rally"] = 0.1
+        if c == "hexer":
+            ex["hex_strongest"] = 0.3
+        for k in ("summon", "rally", "hex_all", "drain"):
             if k in self.next_fx:
                 ex[k] = self.next_fx[k]
         return ex
@@ -357,12 +366,14 @@ class Room:
                 self.level_up(p)
                 if p.commander:
                     p.charge = min(D.COMMANDERS[p.commander]["charge"], p.charge + 1)
-            cap = p.interest_cap + 2 * (p.commander == "merchant")
-            p.gold += D.income(rnd) + min(cap, p.gold // D.INTEREST_PER) + D.streak_gold(p.streak)
+            p.gold += sum(self.income_parts(p, rnd))
             if p.commander == "alchemist" and rnd in (5, 10, 15):
                 self.give_components(p, 1)
+            p.cheap_rolls = 1
             if not p.locked or not any(p.shop):
+                p.first_roll = True
                 self.roll(p)
+                p.first_roll = False
             p.locked = False
             p.ready = False
             if rnd in D.AUGMENT_ROUNDS:
@@ -372,6 +383,11 @@ class Room:
             self.start_draft()
         else:
             self.start_plan()
+
+    def income_parts(self, p, rnd):
+        """(round income, interest, streak gold) a player gets at the start of round `rnd`."""
+        cap = p.interest_cap + 2 * (p.commander == "merchant")
+        return D.income(rnd), min(cap, p.gold // D.INTEREST_PER), D.streak_gold(p.streak)
 
     def start_plan(self):
         rnd = self.round
@@ -450,7 +466,11 @@ class Room:
                 drops = D.PVE_DROPS.get(rnd, 0)
                 if won:
                     home.gold += D.PVE_GOLD[rnd]
-                    self.give_components(home, drops)
+                    if rnd in D.PVE_ARTIFACT:
+                        self.give_components(home, drops - 1)
+                        home.items.append(self.rng.choice(D.artifacts()))
+                    else:
+                        self.give_components(home, drops)
                 else:
                     hurt[home.id] = hurt.get(home.id, 0) + D.loss_damage(rnd, res["survivors"][1])
                     self.give_components(home, 1 if drops >= 2 else 0)
@@ -544,21 +564,29 @@ class Room:
         return None
 
     def roll(self, p):
-        level = p.level + (p.commander == "oracle")
+        level = p.level + (p.commander == "oracle" and p.level >= 5)
         p.shop = [self.draw(level) for _ in range(p.shop_size())]
         if p.oracle_roll:  # the Oracle's power: slots favour units already owned
             p.oracle_roll = False
             owned = sorted({u["unit"] for u in p.units() if self.pool.get(u["unit"], 0) > 0})
             if owned:
-                p.shop = [self.rng.choice(owned) if self.rng.random() < 0.6 else k for k in p.shop]
+                p.shop = [self.rng.choice(owned) if self.rng.random() < 0.75 else k for k in p.shop]
+        if p.commander == "twinmaker" and p.first_roll:  # the round's first shop has a unit already owned
+            owned = sorted({u["unit"] for u in p.units() if self.pool.get(u["unit"], 0) > 0})
+            if owned and not any(k in owned for k in p.shop):
+                p.shop[self.rng.randrange(len(p.shop))] = self.rng.choice(owned)
+
+    def reroll_cost(self, p):
+        return 1 if p.commander == "gambler" and p.cheap_rolls > 0 else D.REROLL
 
     def reroll(self, p):
         if p.free_rerolls:
             p.free_rerolls -= 1
-        elif p.gold < D.REROLL:
+        elif p.gold < self.reroll_cost(p):
             return False
         else:
-            p.gold -= D.REROLL
+            p.gold -= self.reroll_cost(p)
+            p.cheap_rolls -= 1
         p.locked = False
         self.roll(p)
         return True
@@ -801,10 +829,32 @@ class Room:
         elif c == "blademaster":
             p.next_fx["rally"] = [0.4, 6.0]
         elif c == "forgemaster":
-            p.items.append(self.rng.choice(D.completed_items()))
+            p.items.append(self.rng.choice(D.artifacts() if self.rng.random() < 0.25 else D.completed_items()))
         elif c == "oracle":
             p.oracle_roll = True
             self.roll(p)
+        elif c == "gambler":
+            p.gold += self.rng.randint(1, 8)
+        elif c == "hexer":
+            p.next_fx["hex_all"] = [0.25, 10.0]
+        elif c == "chronomancer":
+            p.next_fx["drain"] = [0.5, 8.0]
+        elif c == "twinmaker":
+            ones = {}
+            for u in p.units():
+                if u["star"] == 1 and self.pool.get(u["unit"], 0) > 0:
+                    ones[u["unit"]] = ones.get(u["unit"], 0) + 1
+            free = next((j for j, u in enumerate(p.bench) if u is None), None)
+            if not ones or (free is None and max(ones.values()) < 2):
+                return False
+            key = max(sorted(ones), key=lambda k: (ones[k], D.UNITS[k]["cost"]))
+            self.pool[key] -= 1
+            if free is not None:
+                p.bench[free] = self.new_unit(key)
+                self.merge(p, key)
+            else:  # a full bench, but the twin makes a third copy
+                spare = [x for x in p.units() if x["unit"] == key and x["star"] == 1]
+                self.combine(p, spare[:2])
         if not team:
             p.next_fx.pop("team", None)
         p.charge = 0
@@ -847,6 +897,8 @@ class Room:
         self.give_components(p, a.get("components", 0))
         for _ in range(a.get("items", 0)):
             p.items.append(self.rng.choice(D.completed_items()))
+        for _ in range(a.get("artifacts", 0)):
+            p.items.append(self.rng.choice(D.artifacts()))
         for tier in a.get("units", ()):
             free = next((j for j, u in enumerate(p.bench) if u is None), None)
             keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == tier and self.pool.get(k, 0) > 0]
@@ -855,7 +907,8 @@ class Room:
                 self.pool[k] -= 1
                 p.bench[free] = self.new_unit(k)
                 self.merge(p, k)
-        p.hp = max(p.hp, min(D.START_HP, p.hp + a.get("heal", 0)))
+        if a.get("heal"):  # a heal, or a price in HP (never the last of it)
+            p.hp = max(1, min(max(p.hp, D.START_HP) if a["heal"] < 0 else D.START_HP, p.hp + a["heal"]))
         for k, v in a.get("team", {}).items():
             p.team_fx[k] = p.team_fx.get(k, 0) + v
         if a.get("bonus"):
@@ -881,7 +934,10 @@ class Room:
                 break
             k = self.rng.choice(keys)
             self.pool[k] -= 1
-            comp = self.rng.choices(sorted(D.COMPONENTS), [D.COMPONENT_WEIGHT.get(c, 1) for c in sorted(D.COMPONENTS)])[0]
+            if self.round in D.DRAFT_ARTIFACTS:
+                comp = self.rng.choice(D.artifacts())
+            else:
+                comp = self.rng.choices(sorted(D.COMPONENTS), [D.COMPONENT_WEIGHT.get(c, 1) for c in sorted(D.COMPONENTS)])[0]
             options.append({"unit": k, "item": comp, "by": None})
         self.phase = "draft"
         self.draft = {"options": options, "order": [p.id for p in order], "turn": 0,
@@ -945,7 +1001,8 @@ class Room:
                 "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
                 "items": p.items, "offers": p.offers, "charge": p.charge,
                 "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,
-                "aug_rerolled": p.aug_rerolled, "free_rerolls": p.free_rerolls, "next_fx": bool(p.next_fx)}
+                "aug_rerolled": p.aug_rerolled, "free_rerolls": p.free_rerolls, "next_fx": bool(p.next_fx),
+                "income": self.income_parts(p, self.round + 1), "reroll_cost": self.reroll_cost(p)}
 
     def fights_msg(self):
         return {"t": "fights", "round": self.round, "elapsed": round(self.clock() - self.fight_started, 2),

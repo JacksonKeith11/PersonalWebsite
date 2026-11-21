@@ -105,7 +105,7 @@ class Player:
             team[k] = team.get(k, 0) + v
         c = self.commander
         if c == "archmage":
-            add("ap", 15)
+            add("ap", 20)
         if c == "blademaster":
             add("aspd_pct", 0.08)
         if c == "beastmaster":
@@ -349,7 +349,7 @@ class Room:
         rnd = self.round
         for p in self.alive():
             if rnd > 1:
-                p.xp += D.PASSIVE_XP + (p.commander == "sage")
+                p.xp += D.PASSIVE_XP + (p.commander == "sage" and rnd % 2 == 0)
                 self.level_up(p)
                 if p.commander:
                     p.charge = min(D.COMMANDERS[p.commander]["charge"], p.charge + 1)
@@ -465,7 +465,7 @@ class Room:
         for p in self.alive():
             dmg = hurt.get(p.id, 0)
             if p.commander == "survivor":
-                dmg = round(dmg * 0.75)
+                dmg = round(dmg * 0.85)
             p.hp -= dmg
             self.settled.append({"id": p.id, "dmg": dmg})
         out = sorted((p for p in self.alive() if p.hp <= 0), key=lambda p: p.hp)
@@ -747,7 +747,7 @@ class Room:
             return False
         team = p.next_fx.setdefault("team", {})
         if c == "quartermaster":
-            p.free_rerolls += 2
+            p.free_rerolls += 3
         elif c == "warlord":
             team["shield"] = team.get("shield", 0) + 300
         elif c == "necromancer":
@@ -766,14 +766,14 @@ class Room:
         elif c == "sage":
             if p.level >= D.MAX_LEVEL:
                 return False
-            p.xp += 6
+            p.xp += 5
             self.level_up(p)
         elif c == "beastmaster":
             p.next_fx["summon"] = ["treant", max([u["star"] for u in p.units()] or [1])]
         elif c == "archmage":
             team["mana"] = team.get("mana", 0) + 40
         elif c == "survivor":
-            p.hp = min(D.START_HP, p.hp + 8)
+            p.hp = min(D.START_HP, p.hp + 6)
         elif c == "blademaster":
             p.next_fx["rally"] = [0.4, 6.0]
         elif c == "forgemaster":

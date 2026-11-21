@@ -462,7 +462,7 @@ PVE_DROPS = {1: 1, 2: 1, 6: 2, 11: 2}
 # rounds and is used during planning. game.py does what they say.
 COMMANDERS = {
     "quartermaster": {"name": "The Quartermaster", "passive": "Your shop has six slots.",
-                      "power": "Two free rerolls.", "charge": 3},
+                      "power": "Three free rerolls.", "charge": 3},
     "warlord": {"name": "The Warlord", "passive": "Units on your front row have 12% more HP.",
                 "power": "Next fight, every unit of yours starts with a 300 shield.", "charge": 4},
     "necromancer": {"name": "The Necromancer", "passive": "The first of your units to die each fight rises with 40% HP.",
@@ -471,19 +471,19 @@ COMMANDERS = {
                   "power": "Brew a random component.", "charge": 4},
     "merchant": {"name": "The Merchant", "passive": "Interest goes up to 7 gold instead of 5.",
                  "power": "Gain 4 gold.", "charge": 3},
-    "sage": {"name": "The Sage", "passive": "One more XP every round.", "power": "Gain 6 XP.", "charge": 4},
+    "sage": {"name": "The Sage", "passive": "One more XP every other round.", "power": "Gain 5 XP.", "charge": 4},
     "beastmaster": {"name": "The Beastmaster", "passive": "Your summons have 30% more HP and attack.",
                     "power": "Next fight, a Treant (at your highest star) fights for you.", "charge": 3},
-    "archmage": {"name": "The Archmage", "passive": "Your units have 15 more ability power.",
+    "archmage": {"name": "The Archmage", "passive": "Your units have 20 more ability power.",
                  "power": "Next fight, every unit of yours starts with 40 more mana.", "charge": 3},
-    "survivor": {"name": "The Survivor", "passive": "You lose 25% less HP when you lose a fight.",
-                 "power": "Heal 8 HP.", "charge": 5},
+    "survivor": {"name": "The Survivor", "passive": "You lose 15% less HP when you lose a fight.",
+                 "power": "Heal 6 HP.", "charge": 5},
     "blademaster": {"name": "The Blademaster", "passive": "Your units attack 8% faster.",
                     "power": "Next fight, your units attack 40% faster for the first 6 s.", "charge": 3},
     "forgemaster": {"name": "The Forgemaster", "passive": "Start with two components.",
                     "power": "Forge a random finished item.", "charge": 5},
     "oracle": {"name": "The Oracle", "passive": "Your shop rolls as if you were a level higher.",
-               "power": "A free reroll that favours units you already own.", "charge": 3},
+               "power": "A free reroll that favours units you already own.", "charge": 2},
 }
 COMMANDER_CHOICES = 3
 

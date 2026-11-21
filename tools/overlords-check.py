@@ -293,9 +293,9 @@ def room_items_and_powers():
     for key in D.COMMANDERS:
         me.commander, me.charge, me.gold, me.level, me.xp = key, 99, 50, 3, 0
         me.bench = [None] * D.BENCH
-        before = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, dict(me.next_fx))
+        before = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, me.xp, dict(me.next_fx))
         ok = room.use_power(me)
-        after = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, dict(me.next_fx))
+        after = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, me.xp, dict(me.next_fx))
         check(ok and me.charge == 0, f"{key}: the power works when charged")
         check(key in ("oracle", "survivor") or before != after, f"{key}: the power did something")
         me.next_fx = {}

@@ -184,5 +184,10 @@ Latest numbers (November 2026, all 50 units, after the first balance pass; ~1 mi
 - Traits, 120 fights a tier (about ±4.5%): every trait rises tier by tier; first tiers 41-58%, the
   4-tiers of the 2/4 traits 59-86%, the top tiers of 6 at 76-91%. Lowest first tiers (41-43%):
   Duelist, Ranger, Assassin, Arcanist, Summoner, Mirefolk. Gravebound 6 (91%) is the strongest top.
-- Bot matches take 17-18 rounds, about 15 minutes at full timers (the target is ~20: lengthen with
-  more rounds or lower loss damage once items and augments are in).
+- Whole bot matches (400, `tools/overlords-sim.py`, ~2 minutes; November 2026, after items,
+  commanders, augments and drafts): 17.6 rounds (15-20), about 17 minutes at full timers, close to
+  the ~20 the owner wanted (people take longer than bots' instant turns). Commanders' average place,
+  after one tuning pass (the Sage won 44% at first): 2.29 (Sage) to 2.73 (Merchant); Quartermaster
+  2.69 and Oracle 2.65 are the weaker end. These are bots' numbers: bots use powers as soon as
+  they're charged and don't plan around the Oracle's or the Merchant's economy, so people may find
+  those better than this says. Bots favour trait augments; crests place best (2.35-2.74).

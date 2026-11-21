@@ -7,8 +7,8 @@ Read this before changing anything in `app/overlords/`, `app/static/games/overlo
 
 An auto-battler for 2-4 players (the owner asked for one "like Dota Underlords, TFT or Guildrun" in
 November 2026; the name Underlords is Valve's, so it's Overlords). Bots fill the empty seats unless
-the host turns them off (easy, normal or hard); anyone joining after the start watches. Desktop
-first: the page needs about 1000 px of width and drags with a mouse.
+the host turns them off (easy, normal or hard); anyone joining after the start watches. Built
+desktop first; since November 2026 it also plays on phones, upright or on their side (see **Phones**).
 
 Everyone has their own 7x4 hex board, a bench of 8 and a shop of 5. Each round:
 
@@ -195,6 +195,26 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
 - **HP over the match** (end screen): every player's HP after each round (`Player.hp_log`, sent only
   when the match is over), a line each in their colour, named at the end, a round's numbers on hover.
 
+### Phones
+
+(November 2026, the owner asked for it to be more mobile friendly.) Below 820 px of width or 560 px of
+height (`COMPACT` in `main.js`, the same media query as the block at the end of `game.css`; keep them
+matching), the side panels fold away:
+- Upright: the header wraps to two lines, the players become a strip above the board (portrait and HP;
+  tap to watch), and items, the shop's four buttons and the five cards sit below it. On its side: players
+  down the left, the board in the middle (the banner over its empty top), items and shop on the right.
+- **Sheets**: Traits, Commander (it reads "Power ⚡" when the power is ready) and Damage open from the
+  buttons beside the items, one at a time, from the bottom (on its side, from the right):
+  `body[data-sheet]`, set by `openSheet`; the sections are moved by CSS only (`aside { display:
+  contents }`), so desktop and phone share one set of elements.
+- **Touch**: dragging still works (the canvas is `touch-action: none`). A tap on your unit picks it up
+  (`S.sel`, outlined in gold, your half tinted); a tap on an empty hex or bench slot moves it there, a tap
+  on it again puts it down; its info card has **Sell**. A tap on any other unit, on a trait, or on a unit in
+  a fight shows its card (`S.pinned`: it stays, with a close button, a fight unit's numbers live), and a
+  long press does the same for shop cards and items without buying or picking (`hoverInfo`). The info card
+  floats over the top of the board; opening a sheet closes it. Mouse hover is unchanged, and the tap rules
+  apply only to touch and pens (`pointerType`), so a desktop click never moves a unit.
+
 ## How it works
 
 - `data.py`: units, traits, the match's numbers and helpers (`trait_counts`, `trait_level`,
@@ -217,7 +237,7 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
   round 5, rerolls when rich or below their panic HP, the commander's power when charged, items on
   their most valuable units (`equip`), and picks of commander, augment and draft. They act through the
   same room methods as a browser.
-- Browser: `js/main.js` (screens, canvas, dragging, the shop, panels), `js/fight.js` (`Playback`:
+- Browser: `js/main.js` (screens, canvas, dragging and tapping, the shop, panels and phone sheets), `js/fight.js` (`Playback`:
   rebuilds a fight at any time from its timeline; switching fights catches up silently),
   `js/sound.js` (every sound synthesized with Web Audio; hits rate-limited; mute remembered). The
   menu and lobby are the shared `games/shared/lobby.js`. `?debug` exposes `window.OV` for the smoke
@@ -238,6 +258,10 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
   Warlord once had the same shield line).
 
 ## Gotchas
+
+- On touch, `pointerleave` fires as the finger lifts, so hover handlers must ignore touch (`hoverInfo`
+  does) or every card flashes and vanishes. Disabled buttons get no pointer events at all, so a long press
+  can't show a draft option that isn't yours to pick.
 
 - The fights message is sent *before* the state that switches to the fight phase, so the browser
   builds its Playback when that state arrives (and on `fights` if the phase is already fight).
@@ -277,6 +301,10 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
   dragged onto a unit when one dropped.
+- `node tools/overlords-phone.js --serve` (~15 s, in `check-all.sh`): an emulated phone with touch,
+  upright then on its side: the page fits the screen, a long press shows a shop card without buying, a tap
+  buys, tap-to-move onto the board, Sell from the card, the traits and commander sheets, a tap on a unit in
+  the fight.
 - `python3 tools/overlords-sim.py [N] [--level L]`: whole bot matches (a quarter of a second each):
   rounds and minutes, each commander's average place (2.5 is even), the most picked augments.
   `--fast` plays 4.

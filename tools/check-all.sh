@@ -42,4 +42,5 @@ run "Holdfast: a game on each map"   python3 tools/holdfast-sim.py --fast
 run "Holdfast: in two browsers"      node tools/holdfast-smoke.js --serve
 run "Overlords: rules, fights, bots" python3 tools/overlords-check.py
 run "Overlords: in two browsers"     node tools/overlords-smoke.js --serve
+run "Overlords: on a phone"         node tools/overlords-phone.js --serve
 exit $fail

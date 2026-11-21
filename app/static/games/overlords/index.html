@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/overlords/game.css?v=9">
+  <link rel="stylesheet" href="/static/games/overlords/game.css?v=10">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -43,7 +43,7 @@
         <summary>How to play</summary>
         <ul>
           <li>Each round starts with planning: buy units from your shop (click a card), reroll it for 2 gold, or buy 4 XP for 4 gold. Your level is how many units you can field, and higher levels find pricier units.</li>
-          <li>Drag units between your bench and the bottom half of the board. Drop one on the shop to sell it.</li>
+          <li>Drag units between your bench and the bottom half of the board. Drop one on the shop to sell it. On a phone you can also tap a unit, then tap where it should go; its card has a Sell button.</li>
           <li>Three copies of a unit merge into a two-star; three two-stars make a three-star.</li>
           <li>Every unit has an origin and one or two classes. Field enough different units sharing one and its trait switches on (see the list on the right).</li>
           <li>Then everyone fights at once. Your units move and attack on their own, and cast their ability when their mana fills. Lose and you lose HP: more for every enemy left standing.</li>
@@ -51,7 +51,7 @@
           <li>You earn gold every round, plus 1 for every 10 you've saved (up to 5), plus a bonus for a winning or losing streak.</li>
           <li>Click a player on the left to watch their fight, or to see their board while you plan.</li>
           <li>Monster rounds drop item components. Drag one onto a unit: two components on one unit combine into a stronger item, and a unit holds three. A Sigil with another component makes an emblem (its holder gains that trait); two Sigils make a Crown, one more place on your board. Artifacts (from the round-11 golems, the last draft and some augments) are unique items no recipe makes.</li>
-          <li>Every unit has its own trick: some taunt, pull, shove, vanish, mark their targets or leave burning ground. Hover a unit, a shop card or a trait to read about it.</li>
+          <li>Every unit has its own trick: some taunt, pull, shove, vanish, mark their targets or leave burning ground. Hover a unit, a shop card or a trait to read about it (on a phone, tap a unit or trait, or press and hold a shop card).</li>
           <li>During a fight the right panel charts each unit's damage dealt, taken and healed; it keeps the last fight while you plan.</li>
           <li>At the start you pick a commander: a passive, and a power that charges over a few rounds (use it from the left panel while planning).</li>
           <li>At rounds 3, 8 and 13 you pick one of three augments; at rounds 4, 9 and 14 everyone drafts a unit holding a component from a shared set, the lowest HP picking first.</li>
@@ -100,7 +100,7 @@
 
   <div id="game" class="screen" hidden>
     <header class="top">
-      <b>Overlords</b>
+      <b class="title">Overlords</b>
       <span id="hud-round"></span>
       <span id="hud-phase"></span>
       <span class="spacer"></span>
@@ -109,15 +109,17 @@
       <span id="hud-level"></span>
       <button id="speed" type="button" title="Play fights at double speed (they still end together)" aria-pressed="false">Fights 1×</button>
       <button id="mute" type="button" aria-label="Sound on or off" aria-pressed="false">🔊</button>
-      <span>Room <b id="game-code" class="code"></b></span>
+      <span class="room">Room <b id="game-code" class="code"></b></span>
     </header>
     <div class="main">
       <aside class="left">
         <section>
           <h2>Players</h2>
           <ul id="players" class="players"></ul>
-          <p class="note">Click a player to watch their fight or see their board.</p>
+          <p class="note wide-only">Click a player to watch their fight or see their board.</p>
         </section>
+        <div id="cmd-sheet" class="sheet">
+        <button class="sheet-close" type="button" aria-label="Close">×</button>
         <section id="commander-box" hidden>
           <h2 id="commander-name"></h2>
           <p id="commander-passive" class="note"></p>
@@ -128,6 +130,7 @@
           <h2>Augments</h2>
           <ul id="augments" class="augments"></ul>
         </section>
+        </div>
       </aside>
       <div class="stage">
         <div id="banner"></div>
@@ -143,10 +146,15 @@
           <span class="label">Items</span>
           <div id="items" role="group" aria-label="Your items"></div>
           <span id="odds" class="odds"></span>
+          <div id="sheet-tabs" class="sheet-tabs" role="group" aria-label="Panels">
+            <button type="button" data-sheet="traits">Traits</button>
+            <button type="button" data-sheet="cmd">Commander</button>
+            <button type="button" data-sheet="meter">Damage</button>
+          </div>
         </div>
         <div id="shopbar">
           <div class="shop-buttons">
-            <button id="xp" type="button">Buy XP <small>4g · F</small></button>
+            <button id="xp" type="button">Buy XP <small>4g<span class="key"> · F</span></small></button>
             <button id="reroll" type="button">Reroll <small>2g · D</small></button>
             <button id="lock" type="button" aria-pressed="false">Lock shop</button>
             <button id="ready" class="primary" type="button">Ready</button>
@@ -155,11 +163,13 @@
         </div>
       </div>
       <aside class="right">
-        <section>
+        <section id="traits-box" class="sheet">
+          <button class="sheet-close" type="button" aria-label="Close">×</button>
           <h2 id="traits-title">Traits</h2>
           <ul id="traits" class="traits"></ul>
         </section>
-        <section id="meter" hidden>
+        <section id="meter" class="sheet" hidden>
+          <button class="sheet-close" type="button" aria-label="Close">×</button>
           <h2 id="meter-title">Damage</h2>
           <div class="tabs" role="group" aria-label="What the chart shows">
             <button type="button" data-tab="dealt" aria-pressed="true">Dealt</button>
@@ -203,6 +213,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/overlords/js/main.js?v=9"></script>
+  <script type="module" src="/static/games/overlords/js/main.js?v=10"></script>
 </body>
 </html>

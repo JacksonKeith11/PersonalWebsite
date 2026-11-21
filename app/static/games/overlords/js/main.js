@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=9';
-import { isMuted, play, setMuted } from './sound.js?v=9';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=9';
+import { Playback } from './fight.js?v=10';
+import { isMuted, play, setMuted } from './sound.js?v=10';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=10';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -17,6 +17,46 @@ const el = (tag, cls, text) => {
 };
 const show = screen => { for (const id of ['menu', 'lobby', 'game']) $(id).hidden = id !== screen; };
 const now = () => performance.now() / 1000;
+
+// Phones and small windows (game.css's media query must match): side panels fold into sheets, and a tap
+// does what hovering does with a mouse.
+const COMPACT = matchMedia('(max-width: 820px), (max-height: 560px)');
+const COARSE = matchMedia('(pointer: coarse)');
+let lastPointer = 'mouse'; // the kind of the latest press: 'mouse', 'touch' or 'pen'
+addEventListener('pointerdown', e => { lastPointer = e.pointerType || 'mouse'; }, true);
+const touchy = () => lastPointer !== 'mouse';
+
+// Shows `what()` in the info card: on hover with a mouse; with touch, on a long press (which then
+// swallows the click), or on a tap too where `tap` is set. A card shown by touch stays until closed.
+function hoverInfo(elem, what, tap = false) {
+  let shown = null, timer = 0, start = null, long = false;
+  elem.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { shown = what(); pin(shown, false); } });
+  elem.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && S.hover === shown && !S.pinned) pin(null); });
+  elem.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;
+    long = false;
+    start = { x: e.clientX, y: e.clientY };
+    clearTimeout(timer);
+    timer = setTimeout(() => { long = true; pin(what(), true); play('click'); }, 450);
+  });
+  elem.addEventListener('pointermove', e => {
+    if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) clearTimeout(timer);
+  });
+  for (const ev of ['pointerup', 'pointercancel']) elem.addEventListener(ev, () => { clearTimeout(timer); start = null; });
+  elem.addEventListener('contextmenu', e => { if (touchy()) e.preventDefault(); });
+  elem.addEventListener('click', e => {
+    if (long) { long = false; e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (tap && touchy()) pin(what(), true);
+  }, true);
+}
+
+// Sets what the info card shows; `pinned` (by touch) keeps it until closed or replaced.
+function pin(hover, pinned = false, sel = null) {
+  S.hover = hover;
+  S.pinned = !!hover && pinned;
+  S.sel = hover ? sel : null;
+  info();
+}
 // Pixel art as an element: a 16x16 icon (item:<key>, trait:<key>), a commander's portrait or a unit's
 // idle sprite (32x32), scaled to `px` with crisp pixels.
 function sheetEl(url, cell, cols, i, px, cls = 'ico') {
@@ -53,6 +93,10 @@ const S = {
   lastFights: [],    // the previous round's fights, for the damage chart while planning
   meterTab: 'dealt', // what the damage chart shows: dealt, taken or healed
   meterAt: 0,        // now() when the chart was last drawn
+  pinned: false,     // the info card was opened by touch: it stays until closed or replaced
+  sel: null,         // a unit tapped to move: { from: {b} | {c, r}, key }; the next tap says where it goes
+  over: null,        // the bench slot or hex under a dragging pointer: { kind: 'bench', i } | { kind: 'board', c, r }
+  where: null,       // the watched fight's unit positions this frame (id -> [x, y]), for taps
 };
 
 const room = startRoom({ key: 'overlords', path: '/games/overlords', title: 'Overlords', show, onMessage: receive });
@@ -135,6 +179,48 @@ function render() {
   renderChoose();
   renderDraft();
   renderEnd();
+  renderSheets();
+  checkPinned();
+}
+
+// Drops a tapped unit or fight unit from the info card once it's gone (moved, sold, merged, the fight over).
+function checkPinned() {
+  const h = S.hover;
+  if (h?.kind === 'fight' && S.st.phase !== 'fight') { pin(null); return; }
+  if (!S.sel) return;
+  const mine = seatedMe(), from = S.sel.from;
+  const u = !mine || !S.st.me ? null : from.b != null ? S.st.me.bench[from.b]
+    : S.st.phase === 'fight' ? null : mine.board.find(b => b[3] === from.c && b[4] === from.r);
+  if (!u || u[1] !== S.sel.key) { pin(null); return; }
+  const items = from.b != null ? u[3] : u[5];
+  if (u[2] !== h.star || JSON.stringify(items || []) !== JSON.stringify(h.items || [])) {
+    pin({ ...h, star: u[2], items }, true, S.sel);
+  }
+}
+
+// The sheet buttons beside the items (phones): which have something to show, and the power when it's ready.
+function renderSheets() {
+  const tabs = document.querySelectorAll('#sheet-tabs button');
+  const has = { traits: true, cmd: !$('commander-box').hidden || !$('augments-box').hidden, meter: !$('meter').hidden };
+  const mine = seatedMe(), me_ = S.st.me;
+  const powerReady = mine?.alive && me_ && S.st.phase === 'plan' && !me_.next_fx && me_.charge >= (me_.charge_need ?? 99);
+  for (const b of tabs) {
+    b.disabled = !has[b.dataset.sheet];
+    b.setAttribute('aria-pressed', String(document.body.dataset.sheet === b.dataset.sheet));
+    if (b.dataset.sheet === 'cmd') {
+      b.classList.toggle('ready', !!powerReady);
+      b.textContent = powerReady ? 'Power ⚡' : mine?.commander ? 'Commander' : 'Augments';
+    }
+  }
+  const open = document.body.dataset.sheet;
+  if (open && !has[open]) openSheet('');
+}
+
+function openSheet(name) {
+  if (name && S.pinned) pin(null); // a sheet and a tapped unit's card together would hide the board
+  if (name) document.body.dataset.sheet = name;
+  else delete document.body.dataset.sheet;
+  for (const b of document.querySelectorAll('#sheet-tabs button')) b.setAttribute('aria-pressed', String(name === b.dataset.sheet));
 }
 
 // ------------------------------------------------------------------ items, commander, augments, draft
@@ -160,8 +246,7 @@ function renderItems() {
       S.dragStart = { x: e.clientX, y: e.clientY };
       b.releasePointerCapture?.(e.pointerId);
     });
-    b.addEventListener('pointerenter', () => { S.hover = { kind: 'item', item: key }; info(); });
-    b.addEventListener('pointerleave', () => { if (S.hover?.kind === 'item') { S.hover = null; info(); } });
+    hoverInfo(b, () => ({ kind: 'item', item: key }));
     return b;
   }));
 }
@@ -261,7 +346,7 @@ function renderDraft() {
     if (by) b.append(el('span', 'by', `taken by ${player(by)?.name || '?'}`));
     b.disabled = !mineTurn || !!by;
     b.addEventListener('click', () => { room.send({ t: 'pick', i }); play('buy'); });
-    b.addEventListener('pointerenter', () => { S.hover = { kind: 'shop', key }; info(); });
+    hoverInfo(b, () => ({ kind: 'shop', key }));
     return b;
   }));
 }
@@ -330,7 +415,7 @@ function renderHud() {
   const free = st.me?.free_rerolls || 0;
   const rc = st.me?.reroll_cost ?? S.cfg.rules.reroll;
   $('reroll').disabled = !can || (mine.gold < rc && !free);
-  $('reroll').innerHTML = free ? `Reroll <small>free ×${free} · D</small>` : `Reroll <small>${rc}g · D</small>`;
+  $('reroll').innerHTML = free ? `Reroll <small>free ×${free}<span class="key"> · D</span></small>` : `Reroll <small>${rc}g<span class="key"> · D</span></small>`;
   $('lock').disabled = !can;
   $('lock').setAttribute('aria-pressed', String(!!st.me?.locked));
   $('ready').disabled = !can || st.phase !== 'plan';
@@ -340,7 +425,7 @@ function renderHud() {
   $('lock').title = 'A locked shop keeps the same units into the next round.';
   renderOdds();
   $('mute').textContent = isMuted() ? '🔇' : '🔊';
-  $('speed').textContent = `Fights ${S.speed}×`;
+  $('speed').textContent = COMPACT.matches ? `${S.speed}×` : `Fights ${S.speed}×`;
   $('speed').setAttribute('aria-pressed', String(S.speed === 2));
   $('mute').setAttribute('aria-pressed', String(isMuted()));
 }
@@ -396,7 +481,7 @@ function banner() {
     const mine2 = seatedMe();
     const waiting = (st.me?.bench || []).filter(Boolean).length;
     if (mine2?.alive && S.watch === room.you && waiting >= S.cfg.rules.bench) {
-      parts.push('<span class="hint">Your bench is full: drag a unit onto the shop to sell it</span>');
+      parts.push(`<span class="hint">Your bench is full: ${COARSE.matches ? 'tap a unit and press Sell' : 'drag a unit onto the shop to sell it'}</span>`);
     }
     if (mine2?.alive && S.watch === room.you && mine2.board.length < mine2.limit && waiting) {
       const free = mine2.limit - mine2.board.length;
@@ -422,7 +507,9 @@ function renderPlayers() {
     dot.classList.add('dot');
     dot.style.setProperty('--c', p.color);
     if (p.commander) dot.title = S.cfg.commanders[p.commander].name;
-    const name = el('span', 'name', p.name + (p.id === room.you ? ' (you)' : '') + (p.bot ? ' 🤖' : ''));
+    const name = el('span', 'name', p.name);
+    if (p.id === room.you) name.append(el('span', 'extra', ' (you)'));
+    if (p.bot) name.append(el('span', 'extra', ' 🤖'));
     const hp = el('span', 'hp', p.alive ? String(Math.max(0, p.hp)) : `#${p.place}`);
     const bar = el('span', 'bar');
     const fill = el('i');
@@ -439,7 +526,13 @@ function renderPlayers() {
       sub.append(dots);
     }
     li.append(dot, name, hp, bar, sub);
-    li.addEventListener('click', () => { S.watch = p.id; makePlayback(); render(); play('click'); });
+    li.addEventListener('click', () => {
+      S.watch = p.id;
+      if (S.hover?.kind === 'fight' || S.hover?.kind === 'board') pin(null);
+      makePlayback();
+      render();
+      play('click');
+    });
     return li;
   }));
 }
@@ -476,8 +569,7 @@ function renderShop() {
     b.disabled = !mine.alive || mine.gold < d.cost || benchFull;
     b.title = benchFull ? 'Your bench is full: sell or place a unit first.' : mine.gold < d.cost ? `Costs ${d.cost} gold.` : '';
     b.addEventListener('click', () => { room.send({ t: 'buy', i }); play('buy'); });
-    b.addEventListener('pointerenter', () => { S.hover = { kind: 'shop', key }; info(); });
-    b.addEventListener('pointerleave', () => { if (S.hover?.kind === 'shop') { S.hover = null; info(); } });
+    hoverInfo(b, () => ({ kind: 'shop', key }));
     return b;
   }));
 }
@@ -502,8 +594,7 @@ function renderTraits() {
     def.levels.forEach((need, i) => steps.append(el('i', i <= level ? 'on' : '', String(need))));
     li.append(steps);
     li.title = def.text;
-    li.addEventListener('pointerenter', () => { S.hover = { kind: 'trait', trait: t }; info(); });
-    li.addEventListener('pointerleave', () => { if (S.hover?.kind === 'trait') { S.hover = null; info(); } });
+    hoverInfo(li, () => ({ kind: 'trait', trait: t }), true);
     return li;
   }));
   if (!rows.length) $('traits').replaceChildren(el('li', '', 'No units on the board yet.'));
@@ -601,8 +692,29 @@ function hpChart(players) {
 
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n / 10) === 1 ? 0 : n % 10] || 'th');
 
-// The info panel: what's under the pointer.
+// The info card: what's under the pointer, or what was tapped (with a close button, and Sell for your units).
 function info() {
+  infoBody();
+  const box = $('info');
+  box.classList.toggle('pinned', S.pinned);
+  if (!box.childElementCount) return;
+  const close = el('button', 'sheet-close', '×');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Close');
+  close.addEventListener('click', () => { pin(null); play('click'); });
+  box.prepend(close);
+  if (S.sel && S.hover?.key) {
+    const d = S.cfg.units[S.hover.key];
+    const row = el('div', 'sell-row');
+    const sell = el('button', 'sell', `Sell for ${d.cost * 3 ** ((S.hover.star || 1) - 1)} gold`);
+    sell.type = 'button';
+    sell.addEventListener('click', () => { room.send({ t: 'sell', from: S.sel.from }); play('sell'); pin(null); });
+    row.append(sell);
+    box.append(el('p', 'note', 'Tap an empty place or bench slot to move it there.'), row);
+  }
+}
+
+function infoBody() {
   const box = $('info');
   const h = S.hover;
   if (!h) { box.replaceChildren(); return; }
@@ -648,7 +760,7 @@ function info() {
   if (!d) { box.replaceChildren(); return; }
   const star = h.star || 1, m = [1, 1.8, 3.24][star - 1];
   const title = el('h3', 'with-art');
-  title.append(sprite(key, 64), document.createTextNode(`${d.name} ${'★'.repeat(star)}`));
+  title.append(sprite(key, COMPACT.matches ? 48 : 64), document.createTextNode(`${d.name} ${'★'.repeat(star)}`));
   const kind = d.cost ? `Tier ${d.tier} · ${d.cost} gold · ${d.traits.map(t => S.cfg.traits[t].name).join(', ')}` : 'Not for sale';
   const dl = el('dl');
   const live = h.live;
@@ -765,7 +877,7 @@ function renderMeter() {
   const box = $('meter');
   const live = S.st.phase === 'fight';
   const f = live ? fightOf(S.watch) : S.lastFights.find(x => x.home === S.watch || (x.away === S.watch && !x.ghost));
-  box.hidden = !f;
+  if (box.hidden !== !f) { box.hidden = !f; renderSheets(); }
   if (!f) return;
   const upto = live ? Math.min(S.ft, f.res.time) : f.res.time;
   const key = [f.home, f.away, f.res.time, f.res.events.length, S.watch, S.meterTab, live, Math.round(upto * 4)].join('|');
@@ -1130,11 +1242,12 @@ function draw() {
         ctx.fillStyle = pat;
       } else ctx.fillStyle = own ? '#2c3650' : '#262b3c';
       ctx.fill();
-      if (dragging && planning && own && S.watch === room.you) {
+      if ((dragging || S.sel) && planning && own && S.watch === room.you) {
         ctx.fillStyle = 'rgba(120, 150, 220, 0.18)';
         ctx.fill();
       }
-      if (S.hover?.kind === 'board' && S.hover.c === c && S.hover.r === r && dragging) {
+      if ((S.over?.kind === 'board' && S.over.c === c && S.over.r === r && dragging)
+        || (S.sel && S.sel.from.c === c && S.sel.from.r === r && planning && S.watch === room.you)) {
         ctx.strokeStyle = '#f2c230';
         ctx.lineWidth = 2;
         ctx.stroke();
@@ -1157,15 +1270,15 @@ function draw() {
     st.me.bench.forEach((u, i) => {
       const b = G.bench[i];
       ctx.fillStyle = '#1f2433';
-      ctx.strokeStyle = S.hover?.kind === 'bench' && S.hover.i === i && dragging ? '#f2c230' : '#3a4258';
+      ctx.strokeStyle = (S.over?.kind === 'bench' && S.over.i === i && dragging) || S.sel?.from.b === i ? '#f2c230' : '#3a4258';
       ctx.lineWidth = 2;
       roundRect(b.x - b.s / 2 + 3, b.y - b.s / 2 + 3, b.s - 6, b.s - 6, 8);
       ctx.fill();
       ctx.stroke();
-      if (u && !(S.drag && S.drag.from.b === i)) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3] });
+      if (u && !(S.drag && S.drag.from.b === i && (S.drag.moved || !touchy()))) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3] });
     });
   }
-  if (S.drag?.unit && S.mouse) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
+  if (S.drag?.unit && S.mouse && (S.drag.moved || !touchy())) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
   if (S.drag?.item != null && S.mouse && S.drag.moved) {
     ctx.imageSmoothingEnabled = false;
     if (!drawIcon('item:' + S.drag.key, S.mouse.x - 16, S.mouse.y - 16, 32)) {
@@ -1188,7 +1301,7 @@ function roundRect(x, y, w, h, r) {
 function drawBoard(p) {
   if (!p) return;
   for (const [id, key, star, c, r, items] of p.board) {
-    if (S.drag?.unit && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you) continue;
+    if (S.drag?.unit && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you && (S.drag.moved || !touchy())) continue;
     const [x, y] = hexXY(c, r);
     drawUnit(x, y, key, star, { ring: p.color, items, bob: bob(id) });
   }
@@ -1411,8 +1524,16 @@ function drawFight() {
     }
     ctx.restore();
   }
-  // hover info for fight units follows them
-  if (S.mouse && !S.drag) {
+  S.where = where;
+  // a fight unit tapped (touch) stays in the info card, its numbers live
+  if (S.pinned && S.hover?.kind === 'fight') {
+    const u = pb.units.get(S.hover.uid);
+    if (u && Math.round(now() * 4) !== S.lastInfo) {
+      S.lastInfo = Math.round(now() * 4);
+      S.hover = { ...S.hover, live: u, star: u.star, items: u.items };
+      info();
+    }
+  } else if (S.mouse && !S.drag) { // hover info for fight units follows them
     let best = null, bd = G.R * 0.7;
     for (const u of pb.units.values()) {
       if (!u.alive || (u.devoured && pb.t < u.hiddenUntil)) continue;
@@ -1447,22 +1568,76 @@ function myUnitAt(x, y) {
   return u ? { from: { c: h[0], r: h[1] }, unit: u } : null;
 }
 
+// What's at a canvas point, for the info card: a unit on your bench, on the watched board, or in the fight.
+function unitAt(x, y) {
+  const st = S.st;
+  const i = benchAt(x, y);
+  if (i >= 0) {
+    const u = st.me?.bench[i];
+    return u ? { kind: 'bench', i, key: u[1], star: u[2], items: u[3] } : null;
+  }
+  if (st.phase === 'fight') {
+    if (!S.pb || !S.where) return null;
+    let best = null, bd = G.R * 0.8;
+    for (const u of S.pb.units.values()) {
+      const pos = S.where.get(u.id);
+      if (!pos || !u.alive || (u.devoured && S.pb.t < u.hiddenUntil)) continue;
+      const d = Math.hypot(pos[0] - x, pos[1] - y);
+      if (d < bd) { bd = d; best = u; }
+    }
+    return best ? { kind: 'fight', uid: best.id, key: best.key, star: best.star, live: best, items: best.items } : null;
+  }
+  const h = hexAt(x, y);
+  const u = h && player(S.watch)?.board.find(b => b[3] === h[0] && b[4] === h[1]);
+  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5] } : null;
+}
+
+// Moves one of your units (from {b} or {c, r}) to the bench slot or own hex at (x, y). False if that's
+// neither (a refused move, say over the limit, still counts as handled).
+function moveTo(from, x, y) {
+  const i = benchAt(x, y);
+  if (i >= 0) {
+    if (from.b !== i) room.send({ t: 'move', from, to: { b: i } });
+    return true;
+  }
+  const h = hexAt(x, y);
+  if (h && h[1] < S.cfg.rules.rows / 2 && S.st.phase !== 'fight' && S.watch === room.you) {
+    const mine = seatedMe();
+    const toEmpty = !mine.board.some(b => b[3] === h[0] && b[4] === h[1]);
+    if (from.b != null && toEmpty && mine.board.length >= mine.limit) { play('deny'); return true; }
+    if (from.c !== h[0] || from.r !== h[1]) room.send({ t: 'move', from, to: { c: h[0], r: h[1] } });
+    return true;
+  }
+  return false;
+}
+
 canvas.addEventListener('pointerdown', e => {
   if (!S.st || !S.cfg) return;
+  if (COMPACT.matches) openSheet('');
   const p = canvasXY(e);
   const got = myUnitAt(p.x, p.y);
+  const touch = e.pointerType !== 'mouse';
   if (got && S.pickedItem != null) { // an item was picked from the strip: put it on this unit
     room.send({ t: 'equip', i: S.pickedItem, to: got.from });
     S.pickedItem = null;
     play('buy');
     renderItems();
+    if (touch) pin(null);
     return;
   }
+  if (touch && S.sel && !got && moveTo(S.sel.from, p.x, p.y)) { pin(null); return; } // a tapped unit's destination
   if (got) {
-    S.drag = got;
+    S.drag = { ...got, moved: false };
+    S.dragStart = { x: e.clientX, y: e.clientY };
     S.mouse = p;
     canvas.setPointerCapture(e.pointerId);
-    play('click');
+    if (!touch) play('click');
+    return;
+  }
+  if (touch) { // a tap on anything else: read about the unit there, or close the card
+    const u = unitAt(p.x, p.y);
+    pin(u, true);
+    if (u) play('click');
   }
 });
 
@@ -1470,43 +1645,50 @@ addEventListener('pointermove', e => {
   if (!S.st || !S.cfg || $('game').hidden) return;
   const p = canvasXY(e);
   const inside = p.x >= 0 && p.y >= 0 && p.x <= canvas.clientWidth && p.y <= canvas.clientHeight;
-  S.mouse = inside || S.drag ? p : null;
-  if (S.drag?.item != null && S.dragStart && Math.hypot(e.clientX - S.dragStart.x, e.clientY - S.dragStart.y) > 6) S.drag.moved = true;
-  const overShop = S.drag?.unit && document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar');
+  const mouse = e.pointerType === 'mouse';
+  S.mouse = (inside && mouse) || S.drag ? p : null;
+  if (S.drag && S.dragStart && Math.hypot(e.clientX - S.dragStart.x, e.clientY - S.dragStart.y) > 8) S.drag.moved = true;
+  const overShop = S.drag?.unit && S.drag.moved && document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar');
   $('shop').classList.toggle('sell', !!overShop);
   if (S.drag?.unit) {
     const [, key, star] = S.drag.unit;
     $('shop').dataset.sell = `Sell for ${S.cfg.units[key].cost * 3 ** (star - 1)} gold`;
   }
   if (!inside) {
-    if (S.hover && ['board', 'bench'].includes(S.hover.kind)) { S.hover = null; info(); }
+    S.over = null;
+    if (mouse && S.hover && ['board', 'bench'].includes(S.hover.kind)) pin(null);
     return;
   }
   const i = benchAt(p.x, p.y);
   const h = hexAt(p.x, p.y);
-  const prev = S.hover;
-  if (i >= 0) {
-    const u = S.st.me?.bench[i];
-    S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3] };
-  } else if (h && S.st.phase !== 'fight') {
-    const w = player(S.watch);
-    const u = w?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-    S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5] };
-  } else if (S.st.phase !== 'fight') {
-    S.hover = null;
+  S.over = i >= 0 ? { kind: 'bench', i } : h ? { kind: 'board', c: h[0], r: h[1] } : null;
+  if (mouse) {
+    const prev = S.hover;
+    if (i >= 0) {
+      const u = S.st.me?.bench[i];
+      S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3] };
+    } else if (h && S.st.phase !== 'fight') {
+      const w = player(S.watch);
+      const u = w?.board.find(b => b[3] === h[0] && b[4] === h[1]);
+      S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5] };
+    } else if (S.st.phase !== 'fight') {
+      S.hover = null;
+    }
+    if (prev?.key !== S.hover?.key || prev?.star !== S.hover?.star || S.pinned) { S.pinned = false; S.sel = null; info(); }
+    canvas.style.cursor = S.drag ? 'grabbing' : myUnitAt(p.x, p.y) ? 'grab' : 'default';
   }
-  if (prev?.key !== S.hover?.key || prev?.star !== S.hover?.star) info();
-  canvas.style.cursor = S.drag ? 'grabbing' : myUnitAt(p.x, p.y) ? 'grab' : 'default';
 });
 
 addEventListener('pointerup', e => {
   if (!S.drag) return;
   const drag = S.drag;
   S.drag = null;
+  S.over = null;
   if (drag.item != null) { // an item from the strip: dropped on a unit, or a click that picks it
     if (!drag.moved) {
       S.pickedItem = S.pickedItem === drag.item ? null : drag.item;
       renderItems();
+      if (e.pointerType !== 'mouse') pin(S.pickedItem != null ? { kind: 'item', item: drag.key } : null, true);
       return;
     }
     const p = canvasXY(e);
@@ -1518,25 +1700,27 @@ addEventListener('pointerup', e => {
     return;
   }
   $('shop').classList.remove('sell');
-  if (document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar')) {
+  if (!drag.moved && e.pointerType !== 'mouse') { // a tap on your unit: pick it up (tap it again to put it down)
+    const f = drag.from, s0 = S.sel?.from;
+    if (s0 && s0.b === f.b && s0.c === f.c && s0.r === f.r) { pin(null); return; }
+    const u = drag.unit;
+    const hover = f.b != null ? { kind: 'bench', i: f.b, key: u[1], star: u[2], items: u[3] }
+      : { kind: 'board', c: f.c, r: f.r, key: u[1], star: u[2], items: u[5] };
+    pin(hover, true, { from: f, key: u[1] });
+    play('click');
+    return;
+  }
+  if (drag.moved && document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar')) {
     room.send({ t: 'sell', from: drag.from });
     play('sell');
+    if (S.sel) pin(null);
     return;
   }
   const p = canvasXY(e);
-  const i = benchAt(p.x, p.y);
-  if (i >= 0) {
-    if (drag.from.b !== i) room.send({ t: 'move', from: drag.from, to: { b: i } });
-    return;
-  }
-  const h = hexAt(p.x, p.y);
-  if (h && h[1] < S.cfg.rules.rows / 2 && S.st.phase !== 'fight' && S.watch === room.you) {
-    const mine = seatedMe();
-    const toEmpty = !mine.board.some(b => b[3] === h[0] && b[4] === h[1]);
-    if (drag.from.b != null && toEmpty && mine.board.length >= mine.limit) { play('deny'); return; }
-    room.send({ t: 'move', from: drag.from, to: { c: h[0], r: h[1] } });
-  }
+  if (moveTo(drag.from, p.x, p.y) && S.sel) pin(null);
 });
+
+addEventListener('pointercancel', () => { S.drag = null; S.over = null; $('shop').classList.remove('sell'); });
 
 // ------------------------------------------------------------------ buttons and keys
 
@@ -1560,6 +1744,10 @@ $('power').addEventListener('click', () => { room.send({ t: 'power' }); play('ca
 $('choose-reroll').addEventListener('click', () => { room.send({ t: 'aug_reroll' }); play('reroll'); });
 $('choose-hide').addEventListener('click', () => { S.chooseHidden = S.chooseKey; renderChoose(); play('click'); });
 $('choose-show').addEventListener('click', () => { S.chooseHidden = null; renderChoose(); play('click'); });
+for (const b of document.querySelectorAll('#sheet-tabs button')) {
+  b.addEventListener('click', () => { openSheet(document.body.dataset.sheet === b.dataset.sheet ? '' : b.dataset.sheet); play('click'); });
+}
+for (const b of document.querySelectorAll('.sheet .sheet-close')) b.addEventListener('click', () => { openSheet(''); play('click'); });
 
 addEventListener('keydown', e => {
   if ($('game').hidden || e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1574,5 +1762,6 @@ addEventListener('keydown', e => {
 });
 
 addEventListener('resize', () => { if (S.st) render(); });
+COMPACT.addEventListener('change', () => { openSheet(''); if (S.st) { render(); info(); } });
 if (window.OV) Object.assign(window.OV, { G, hexXY, receive });
 requestAnimationFrame(draw);

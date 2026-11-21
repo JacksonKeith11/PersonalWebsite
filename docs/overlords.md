@@ -221,17 +221,18 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
   same costs (50% is right at every cost); `--traits [N]` each trait at each tier against
   cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
-Latest numbers (November 2026, all 50 units, after the first balance pass; ~1 minute to rerun):
-- Units, 2000 cost-matched 7-unit fights: 10 ms a fight, average 20.8 s, 1% hit the cap. 44 of 50
-  units within 42-58% of their cost; just outside: Ashling 41%, Kraken Caller 40% (weak), Tide
-  Acolyte 59%, Storm Herald 60%, Moss Brute 58%, Lava Giant 58% (strong).
-- Traits, 120 fights a tier (about ±4.5%): every trait rises tier by tier; first tiers 41-58%, the
-  4-tiers of the 2/4 traits 59-86%, the top tiers of 6 at 76-91%. Lowest first tiers (41-43%):
-  Duelist, Ranger, Assassin, Arcanist, Summoner, Mirefolk. Gravebound 6 (91%) is the strongest top.
-- Whole bot matches (400, `tools/overlords-sim.py`, ~2 minutes; November 2026, after items,
-  commanders, augments and drafts): 17.6 rounds (15-20), about 17 minutes at full timers, close to
-  the ~20 the owner wanted (people take longer than bots' instant turns). Commanders' average place,
-  after one tuning pass (the Sage won 44% at first): 2.29 (Sage) to 2.73 (Merchant); Quartermaster
-  2.69 and Oracle 2.65 are the weaker end. These are bots' numbers: bots use powers as soon as
-  they're charged and don't plan around the Oracle's or the Merchant's economy, so people may find
-  those better than this says. Bots favour trait augments; crests place best (2.35-2.74).
+Latest numbers (November 2026, the final run of the plan: everything in; ~3 minutes to rerun all three):
+- Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 12 ms a fight, average
+  21 s, 1% hit the cap. 43 of 50 units within 42-58% of their tier; just outside, all within 40-61%:
+  Ashling 41%, Marsh Lurker 41%, Thorn Stalker 41%, Iron Engineer 41%, Kraken Caller 41% (weak), Tide
+  Acolyte 61%, Tidebinder 59% (strong).
+- Traits, 120 fights a tier (`--traits 120`, about ±4.5%): first tiers 40-60%, the 4-tiers of the 2/4
+  traits 52-87%, the top tiers of 6 at 70-92%. Worth a look: Mystic doesn't rise from 2 (55%) to 4
+  (52%), the only trait that doesn't; Arcanist (41/52/70%) and Assassin (44/50/73%) are the weakest
+  ladders, Gravebound 6 (92%) and Ironhold 6 (88%) the strongest tops.
+- Whole bot matches (`overlords-sim.py 400`): 17.6 rounds (14-20), about 17 minutes at full timers,
+  close to the ~20 the owner wanted (people take longer than bots' instant turns). Commanders' average
+  place 2.30 (Sage) to 2.71 (Merchant), after one tuning pass (the Sage won 44% at first). These are
+  bots' numbers: bots use powers as soon as they're charged and don't plan around the Oracle's or the
+  Merchant's economy, so people may find those better than this says. Bots favour trait augments;
+  crests place best.

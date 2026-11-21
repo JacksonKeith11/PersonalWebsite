@@ -97,9 +97,23 @@ records only (no unlocks), and all four extra systems, at the large size:
 4. ~~Items, 12 commanders, 64 augments, shared drafts~~ (done, with the non-linear prices)
 5. ~~Art: sprites for every unit, poses, ability effects, a fight speed toggle~~ (done; the sounds were
    already synthesized in step 2)
-6. Records in `data/overlords.db`, one big balance run, this doc, the games page, README and CLAUDE.md
+6. ~~Records in `data/overlords.db`, one big balance run, this doc, the games page, README and
+   CLAUDE.md~~ (done, November 2026: the plan is complete)
 
-Not on the games page yet (the owner can play it at `/games/overlords`): step 6 lists it.
+Listed on the games page (after Holdfast) as made for a computer with a mouse.
+
+### Records
+
+`save.py`, SQLite at `data/overlords.db` (`OVERLORDS_DB` overrides it; the check and the smoke test
+use a temporary one). Only records, no unlocks, as the owner chose. A finished match with at least
+one person in it is saved: each player's place, commander, augments, final traits and final board
+(taken when they go out, `Player.final`). People are known by their browser's token, stored hashed
+(`save.who`), so the record follows a browser, not a name. The lobby shows your record (games, wins,
+top-two finishes, average place, favourite commander and trait, the last five matches) and the Hall
+of Overlords (most wins, then the best average place, under each browser's latest name); the end
+screen shows every player's commander and final traits and your updated record. Records are read only
+in the lobby and at the end (`send_state`), and a database error never stops a match (logged).
+`Room.saving` is off in the checks' and the simulator's rooms.
 
 ### Art
 

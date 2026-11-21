@@ -35,6 +35,7 @@ def match(seed, level):
     room.clock = Clock()
     room.bot_level = level
     room.bots = True
+    room.saving = False
     room.start()
     start = room.clock.t
     while room.phase != "over" and room.round < 40:

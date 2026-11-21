@@ -250,6 +250,32 @@ function renderLobby() {
   $('lobby-note').textContent = host
     ? (st.bots ? `Bots will fill ${Math.max(0, S.cfg.rules.max - n)} empty seat${S.cfg.rules.max - n === 1 ? '' : 's'}.` : n < 2 ? 'Without bots you need a friend to play against.' : '')
     : 'Waiting for the host to start.';
+  renderRecords();
+}
+
+const traitList = traits => Object.entries(traits || {}).sort((a, b) => b[1] - a[1])
+  .map(([t, n]) => `${S.cfg.traits[t]?.name || t} ${n}`).join(', ');
+const when = at => new Date(at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function renderRecords() {
+  const st = S.st, rec = st.record;
+  const box = $('my-record');
+  if (!rec) box.replaceChildren(el('p', 'note', 'No finished matches yet: play one to start your record.'));
+  else {
+    const head = el('p', '', `${rec.games} match${rec.games === 1 ? '' : 'es'}, ${rec.wins} win${rec.wins === 1 ? '' : 's'}, `
+      + `${rec.top2} top-two finish${rec.top2 === 1 ? '' : 'es'}, average place ${rec.avg}.`);
+    const fav = el('p', 'note', [rec.commander && `Favourite commander: ${S.cfg.commanders[rec.commander]?.name}`,
+      rec.trait && `most played trait: ${S.cfg.traits[rec.trait]?.name}`].filter(Boolean).join(' · '));
+    const list = el('ul');
+    for (const r of rec.recent) {
+      list.append(el('li', '', `${when(r.at)}: ${ordinal(r.place)} of ${r.of} after ${r.rounds} rounds`
+        + (r.commander ? ` as ${S.cfg.commanders[r.commander]?.name}` : '') + (traitList(r.traits) ? ` (${traitList(r.traits)})` : '')));
+    }
+    box.replaceChildren(head, fav, list);
+  }
+  const leaders = st.leaders || [];
+  $('leaders').replaceChildren(...(leaders.length ? leaders.map(l => el('li', '', `${l.name}: ${l.wins} win${l.wins === 1 ? '' : 's'} in ${l.games} (average ${l.avg})`))
+    : [el('li', 'note', 'Nobody has won yet.')]));
 }
 
 function renderHud() {
@@ -406,7 +432,14 @@ function renderEnd() {
   const mine = seatedMe();
   $('end-kicker').textContent = `After ${st.round} rounds`;
   $('end-title').textContent = mine ? (mine.place === 1 ? 'You are the last overlord standing!' : `You came ${ordinal(mine.place)}`) : `${ranked[0]?.name} wins`;
-  $('end-rows').replaceChildren(...ranked.map(p => el('li', '', `${p.name}${p.bot ? ' (bot)' : ''}${p.place === 1 ? ` · ${p.hp} HP left` : ''}`)));
+  $('end-rows').replaceChildren(...ranked.map(p => {
+    const li = el('li', '', `${p.name}${p.bot ? ' (bot)' : ''}${p.place === 1 ? ` · ${p.hp} HP left` : ''}`);
+    const parts = [p.commander && S.cfg.commanders[p.commander]?.name, traitList(p.final?.traits)].filter(Boolean);
+    if (parts.length) li.append(el('small', '', parts.join(' · ')));
+    return li;
+  }));
+  const rec = st.record;
+  $('end-record').textContent = rec ? `Your record: ${rec.wins} win${rec.wins === 1 ? '' : 's'} in ${rec.games} match${rec.games === 1 ? '' : 'es'}, average place ${rec.avg}.` : '';
 }
 
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n / 10) === 1 ? 0 : n % 10] || 'th');

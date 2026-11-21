@@ -19,15 +19,19 @@ pick holds its component, the rest go back to the pool) have their own checks.
 
 import asyncio
 import json
+import os
 import random
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+os.environ["OVERLORDS_DB"] = os.path.join(tempfile.mkdtemp(prefix="overlords-check-"), "overlords.db")
 
 from app.overlords import bots  # noqa: E402
 from app.overlords import data as D  # noqa: E402
 from app.overlords import game  # noqa: E402
+from app.overlords import save as SAVE  # noqa: E402
 from app.overlords import sim  # noqa: E402
 
 failures = []
@@ -203,6 +207,7 @@ def matches(n=3):
         room = game.Room("SIM%d" % i)
         room.rng.seed(i)
         room.clock = Clock()
+        room.saving = False
         watcher, q = browser(room, "Watcher", "w")
         room.handle(watcher, {"t": "start"})
         watcher.seated = False  # lets the bots play it out: the watcher's seat goes to a bot
@@ -356,8 +361,34 @@ def draft():
     check(copies(room) == full, "unpicked options go back to the pool")
 
 
+def records():
+    """A finished match with a person in it is saved; their record and the Hall of Overlords show it."""
+    room = game.Room("RECS")
+    room.rng.seed(3)
+    room.clock = Clock()
+    me, q = browser(room, "Ann", "tok-ann")
+    room.handle(me, {"t": "start"})
+    while room.phase != "over" and room.round < 40:
+        room.clock.t = room.ends + 0.01
+        room.tick()
+        if room.phase == "plan" and me.alive:  # Ann plays like a normal bot
+            me.bot = "normal"
+            game.B.play(room, me, room.rng)
+            me.bot = None
+    check(room.phase == "over", "the recorded match ended")
+    st = last_state(q)
+    rec = st.get("record") if st else None
+    check(rec and rec["games"] == 1 and rec["recent"][0]["place"] == me.place, "Ann's record shows the match")
+    check(st and all(p.get("final") is not None for p in st["players"] if p["seated"]), "everyone's final board is shown")
+    check(SAVE.stats("someone-else") is None, "a stranger has no record")
+    lead = SAVE.leaders()
+    check(not lead or lead[0]["wins"] == 1, "the Hall of Overlords counts wins")
+    check(me.place != 1 or (lead and lead[0]["name"] == "Ann"), "a win puts Ann in the Hall")
+
+
 data()
 art()
+records()
 items_in_fights()
 room_items_and_powers()
 draft()

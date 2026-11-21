@@ -33,7 +33,7 @@ async function serve() {
   const os = require('os'), fs = require('fs');
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'overlords-smoke-'));
   const proc = spawn('python3', ['-m', 'uvicorn', 'app.main:app', '--port', String(port), '--log-level', 'warning'],
-    { cwd: path.join(__dirname, '..'), env: { ...process.env, DATA_DIR: data }, stdio: ['ignore', 'inherit', 'inherit'] });
+    { cwd: path.join(__dirname, '..'), env: { ...process.env, DATA_DIR: data, OVERLORDS_DB: path.join(data, 'overlords.db') }, stdio: ['ignore', 'inherit', 'inherit'] });
   BASE = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 80; i++) {
     try { const r = await fetch(BASE + '/healthz'); if (r.ok) return proc; } catch (e) { /* not up yet */ }

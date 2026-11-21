@@ -27,6 +27,7 @@ import time
 from ..rooms import Codes, Refused, clean, dumps, hang_up, push
 from . import bots as B
 from . import data as D
+from . import save as SAVE
 from . import sim
 
 log = logging.getLogger("overlords")
@@ -80,6 +81,7 @@ class Player:
         self.next_fx = {}  # extras for the next fight only (commander powers)
         self.free_rerolls = 0
         self.oracle_roll = False
+        self.final = None  # their board when they went out (or won): {"traits", "units"}
 
     def units(self):
         return list(self.board.values()) + [u for u in self.bench if u]
@@ -143,6 +145,7 @@ class Room:
         self.task = None
         self.empty_since = None
         self.clock = time.monotonic  # the checks swap in a clock they can wind on
+        self.saving = True  # the checks and the simulator turn records off
 
     # ------------------------------------------------------------ plumbing
 
@@ -474,6 +477,7 @@ class Room:
             p.alive = False
             p.place = left
             left -= 1
+            p.final = self.snapshot(p)
             for u in p.units():
                 self.pool[u["unit"]] += 3 ** (u["star"] - 1)
             p.board, p.bench = {}, [None] * D.BENCH
@@ -481,11 +485,29 @@ class Room:
         if len(alive) <= 1:
             for p in alive:
                 p.place = 1
+                p.final = self.snapshot(p)
             self.phase = "over"
             self.fights = []
+            self.save_match()
             self.send_state()
             return
         self.next_round()
+
+    def snapshot(self, p):
+        return {"traits": {t: n for t, n in p.traits().items() if D.trait_level(t, n) >= 0},
+                "units": [[u["unit"], u["star"], u["items"]] for u in p.board.values()]}
+
+    def save_match(self):
+        seated = self.seated()
+        if not self.saving or not any(p.bot is None for p in seated):
+            return
+        try:
+            SAVE.record(self.round, [{"token": p.token if p.bot is None else None, "name": p.name, "bot": p.bot,
+                                      "place": p.place, "commander": p.commander, "augments": p.augments,
+                                      "traits": (p.final or {}).get("traits", {}),
+                                      "units": [u[:2] for u in (p.final or {}).get("units", [])]} for p in seated])
+        except Exception:
+            log.exception("overlords: couldn't save the match in room %s", self.code)
 
     def tick(self):
         if self.phase == "plan" and self.clock() >= self.ends:
@@ -914,6 +936,15 @@ class Room:
 
     # ------------------------------------------------------------ what the browsers see
 
+    def private(self, p):
+        """What only this player sees: their shop, bench, XP, items and pending choices."""
+        c = D.COMMANDERS.get(p.commander)
+        return {"shop": p.shop, "bench": [[u["id"], u["unit"], u["star"], u["items"]] if u else None for u in p.bench],
+                "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
+                "items": p.items, "offers": p.offers, "charge": p.charge,
+                "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,
+                "aug_rerolled": p.aug_rerolled, "free_rerolls": p.free_rerolls, "next_fx": bool(p.next_fx)}
+
     def fights_msg(self):
         return {"t": "fights", "round": self.round, "elapsed": round(self.clock() - self.fight_started, 2),
                 "list": self.fights}
@@ -925,7 +956,7 @@ class Room:
                 "board": [[u["id"], u["unit"], u["star"], c, r, u["items"]] for (c, r), u in p.board.items()],
                 "bench": sum(1 for u in p.bench if u), "limit": p.limit(),
                 "commander": p.commander, "augments": p.augments, "items": len(p.items),
-                "traits": p.traits()}
+                "traits": p.traits(), "final": p.final if self.phase == "over" else None}
 
     def send_state(self):
         base = {"t": "state", "phase": self.phase, "host": self.host, "round": self.round,
@@ -938,20 +969,26 @@ class Room:
             base["draft"] = {"options": [[o["unit"], o["item"], o["by"]] for o in d["options"]],
                              "order": d["order"], "turn": d["order"][d["turn"]] if d["turn"] < len(d["order"]) else None,
                              "left": round(max(0.0, d["turn_ends"] - self.clock()), 1)}
+        records = self.phase in ("lobby", "over") and self.saving
+        if records:
+            try:
+                base["leaders"] = SAVE.leaders()
+            except Exception:
+                log.exception("overlords: couldn't read the records")
+                records = False
         text = None
         for p in self.players.values():
             if not p.connected or p.bot:
                 continue
+            if records:  # each person's own record, in the lobby and at the end
+                try:
+                    mine = SAVE.stats(p.token)
+                except Exception:
+                    mine = None
+                self.send(p, dumps(dict(base, record=mine, me=self.private(p) if p.seated else None)))
+                continue
             if p.seated:
-                c = D.COMMANDERS.get(p.commander)
-                mine = dict(base, me={"shop": p.shop, "bench": [[u["id"], u["unit"], u["star"], u["items"]] if u else None
-                                                               for u in p.bench],
-                                      "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
-                                      "items": p.items, "offers": p.offers, "charge": p.charge,
-                                      "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,
-                                      "aug_rerolled": p.aug_rerolled, "free_rerolls": p.free_rerolls,
-                                      "next_fx": bool(p.next_fx)})
-                self.send(p, dumps(mine))
+                self.send(p, dumps(dict(base, me=self.private(p))))
             else:
                 text = text or dumps(base)
                 self.send(p, text)

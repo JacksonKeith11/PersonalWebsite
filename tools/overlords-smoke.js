@@ -3,7 +3,7 @@
 // and sells one by dropping it on the shop; a full board refuses another unit. Both press Ready and
 // the fight starts at once: each sees their own fight played back on the canvas, the friend switches
 // to watching another fight, and the mute button works. When the fights end, everyone's HP and the
-// next round's shop arrive (the damage chart shows during the fight); a component bought in the armory is
+// next round's shop arrive (the damage chart shows during the fight); an item bought in the armory is
 // dragged onto a unit. Fails if a page throws or logs an error. About 40 s.
 //
 //     node tools/overlords-smoke.js [http://localhost:8080]    against a running server
@@ -171,14 +171,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     m = await me(host);
     expect(m.me.shop.filter(Boolean).length > 0 && m.gold > 0, 'a new shop and income');
     expect(await S(host, () => window.OV.S.st.settled.length === 4), 'every player settled');
-    // buy a component in the armory, then put it on a unit by dragging it from the item strip
+    // buy an item in the armory, then put it on a unit by dragging it from the item strip
     m = await me(host);
-    expect(m.me.armory.length === 3, 'the armory has three components');
+    expect(m.me.armory.length === 4, 'the armory has four items');
     if (m.gold >= m.me.armory_prices[0]) {
       await host.click('#armory .buy-item');
       await host.waitForFunction(n => window.OV.S.st.me.items.length === n + 1, m.me.items.length, { timeout: 3000 });
       m = await me(host);
-      expect(m.me.items.length >= 1, 'a component bought in the armory');
+      expect(m.me.items.length >= 1, 'an item bought in the armory');
     }
     if (m.me.items.length) {
       const target = m.board.length ? await hexXY(host, m.board[0][3], m.board[0][4]) : await benchXY(host, m.me.bench.findIndex(Boolean));

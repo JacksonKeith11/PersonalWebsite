@@ -43,17 +43,20 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #itembar .hint { color: var(--dim); font-size: 0.78rem; margin-left: auto; }
 #items { display: flex; gap: 6px; flex-wrap: wrap; }
 #items .item { width: 40px; height: 40px; padding: 2px; border-radius: 6px; border-width: 2px; touch-action: none; display: flex; align-items: center; justify-content: center; }
-#items .item.component { border-color: #5b6478; }
-#items .item.item { border-color: #b08a3a; }
-#items .item.emblem { border-color: #2f9a8a; }
-#items .item.crown { border-color: #e0b830; }
-#items .item.artifact { border-color: #d0507a; box-shadow: 0 0 8px rgba(208, 80, 122, 0.45); }
+/* items wear their rarity (main.js RARITY_COLORS): Common, Rare, Epic, Legendary */
+#game #items .item, #game #armory .buy-item { border-color: var(--rc); }
+#game #items .item.r4, #game #armory .buy-item.r4 { box-shadow: 0 0 8px rgba(232, 154, 48, 0.5); }
+#game #items .item.r3, #game #armory .buy-item.r3 { box-shadow: 0 0 6px rgba(164, 86, 212, 0.4); }
+#info p.rarity { color: var(--rc); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+#info ul.held { list-style: none; margin: 4px 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+#info ul.held li { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; border-left: 3px solid var(--rc); padding-left: 6px; }
+#info ul.held li span:not(.ico) { flex: 1; min-width: 0; }
+#game #info ul.held button { padding: 3px 8px; font-size: 0.78rem; }
 #items .item.picked { outline: 2px solid var(--gold); }
 #items .none { color: var(--dim); font-size: 0.85rem; }
 #armory { display: flex; align-items: center; gap: 4px; margin-left: 10px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 8px; }
 #armory .armory-label { color: var(--dim); font-size: 0.8rem; margin-right: 2px; }
-#game #armory .buy-item { display: flex; align-items: center; gap: 3px; padding: 2px 6px 2px 3px; border-width: 2px; border-color: #5b6478; }
-#game #armory .buy-item.artifact { border-color: #d0507a; box-shadow: 0 0 6px rgba(208, 80, 122, 0.4); }
+#game #armory .buy-item { display: flex; align-items: center; gap: 3px; padding: 2px 6px 2px 3px; border-width: 2px; }
 #armory .price { color: var(--gold); font-weight: 700; font-size: 0.8rem; }
 #armory .slot { width: 52px; height: 32px; border: 1px dashed var(--line); border-radius: 6px; }
 .choices3 small.about { font-size: 0.8rem; line-height: 1.35; border-top: 1px solid var(--rule); padding-top: 6px; }

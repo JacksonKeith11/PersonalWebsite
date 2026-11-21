@@ -10,8 +10,9 @@ keep more, level sooner and spend everything once their HP runs low.
 Bots also pick a commander (`pick_commander`), augments (`pick_augment`: hearts and souls of traits
 they field, else gold, items or stats), draft picks (`pick_draft`: the unit they value most), use
 their commander's power when it's charged, buy from the armory with gold left over after units
-(artifacts first, while their units have room), and put items on their units: components on their most
-valuable unit (so they combine), emblems on a unit that lacks the trait, Crowns on anyone.
+(the dearest first, while their units have room or it beats an item they hold), and put items on their
+units: the rarest on their most valuable units, emblems only for traits they aim for, swapping a weaker
+item off a full unit for a better one.
 """
 
 import random
@@ -117,9 +118,12 @@ def play(room, p, rng):
 
     # the armory, with the gold left over: artifacts first, while their units have room for items
     room_for = sum(D.MAX_ITEMS - len(u["items"]) for u in p.units())
-    stock = sorted(((room.item_price(k, p), i) for i, k in enumerate(p.armory) if k), reverse=True)
+    stock = sorted(((room.item_price(k, p), i) for i, k in enumerate(p.armory)
+                    if k and (D.ITEMS[k]["kind"] != "emblem" or D.ITEMS[k]["trait"] in (p.plan or []))), reverse=True)
     for price, i in stock:
-        if len(p.items) < room_for and p.gold - price >= keep:
+        weakest = min([D.ITEMS[it]["rarity"] for u in p.units() for it in u["items"]] or [9])
+        better = D.ITEMS[p.armory[i]]["rarity"] > weakest  # worth swapping in even when every slot is full
+        if (len(p.items) < room_for or better) and p.gold - price >= keep:
             room.buy_item(p, i)
 
     # the commander's power, when charged
@@ -140,24 +144,40 @@ def play(room, p, rng):
 
 
 def equip(room, p):
-    """Puts the bot's items on its board: emblems where they add a trait, Crowns anywhere, components
-    and finished items on the most valuable units first (components onto one holding a component,
-    so they combine)."""
+    """Puts the bot's items on its board, rarest first onto its most valuable units: emblems only for
+    the traits it aims for, where they add the trait. When a unit is full, a rarer item from the bench
+    takes the place of its least rare one (which goes back to the bench)."""
     board = sorted(p.board.items(), key=lambda kv: -value(p, kv[1]["unit"], kv[1]["star"]))
-    for _ in range(len(p.items)):
+    usable = lambda item: D.ITEMS[item]["kind"] != "emblem" or D.ITEMS[item]["trait"] in (p.plan or [])
+    for _ in range(len(p.items) + 2 * D.MAX_ITEMS * len(board)):
+        order = sorted((i for i, it in enumerate(p.items) if usable(it)), key=lambda i: -D.ITEMS[p.items[i]]["rarity"])
         done = False
-        for i, item in enumerate(p.items):
-            kind = D.ITEMS[item]["kind"]
+        for i in order:
             for (c, r), u in board:
-                where = {"c": c, "r": r}
-                if kind == "emblem" and D.ITEMS[item]["trait"] not in (p.plan or []):
-                    continue
-                if room.equip(p, i, where, False):
+                if room.equip(p, i, {"c": c, "r": r}, False):
                     done = True
                     break
             if done:
                 break
-        if not done:
+        if done:
+            continue
+        # every unit full (or refusing): swap a weaker item out for the rarest one waiting
+        best = order[0] if order else None
+        if best is None or D.ITEMS[p.items[best]]["kind"] == "emblem":
+            break
+        rarity = D.ITEMS[p.items[best]]["rarity"]
+        swap = None
+        for (c, r), u in board:
+            for k, it in enumerate(u["items"]):
+                if D.ITEMS[it]["kind"] == "item" and D.ITEMS[it]["rarity"] < rarity:
+                    swap = (c, r, k)
+                    break
+            if swap:
+                break
+        if not swap or not room.unequip(p, {"c": swap[0], "r": swap[1]}, swap[2], False):
+            break
+        item = p.items[best]
+        if not room.equip(p, p.items.index(item), {"c": swap[0], "r": swap[1]}, False):
             break
 
 

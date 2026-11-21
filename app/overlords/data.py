@@ -94,7 +94,7 @@ PVE = {
     6: [("bandit", 1, 2, 3), ("bandit", 1, 4, 3), ("bandit", 1, 3, 2), ("bandit_chief", 1, 3, 1)],
     11: [("stone_golem", 1, 2, 3), ("stone_golem", 1, 4, 3), ("bandit_chief", 2, 3, 1)],
 }
-PVE_GOLD = {1: 3, 2: 4, 6: 6, 11: 8}  # more than before the armory, when monsters also dropped components
+PVE_GOLD = {1: 3, 2: 4, 6: 6, 11: 8}  # items come from the armory, so monsters pay in gold only
 
 TRAITS = {
     # ---------------------------------------------------------------- origins
@@ -465,57 +465,65 @@ SPECIAL = ("burn", "regen", "mana_regen", "revive", "chill", "shield", "duel", "
            "horn", "echo_first", "fallen_rally")
 
 # ------------------------------------------------------------------ items
-# Components are bought in the armory (below) and come with draft picks. Two components on one unit combine
-# into an item (its `fx` plus both components' stats). A Sigil with another component makes that
-# component's emblem (the holder gains the trait); two Sigils make a Crown (one more unit may stand on
-# the board). A unit holds up to MAX_ITEMS. `fx` keys are the plain stats and specials sim.py knows
+# Items are bought whole in the armory (no components or recipes since November 2026: the owner asked
+# for items bought directly, in rarity tiers of rising power). A unit holds up to MAX_ITEMS; an item can
+# be taken off again (back to the item bench). `fx` keys are the plain stats and specials sim.py knows
 # (flat ad, hp and mana are added; the rest as in traits).
+#   1 Common     plain stats
+#   2 Rare       a trick of its own and one stat
+#   3 Epic       a stronger trick and two stats; emblems (the holder gains a trait) are Epic too
+#   4 Legendary  artifacts (a trick no other item has, with stats), and the Crown (one more board place)
 MAX_ITEMS = 3
-COMPONENTS = {
-    "sword": {"name": "Sword", "fx": {"ad": 12}, "text": "+12 attack"},
-    "bow": {"name": "Bow", "fx": {"aspd_pct": 0.12}, "text": "+12% attack speed"},
-    "rod": {"name": "Rod", "fx": {"ap": 15}, "text": "+15 ability power"},
-    "tear": {"name": "Tear", "fx": {"mana": 15}, "text": "+15 starting mana"},
-    "vest": {"name": "Vest", "fx": {"armor": 25}, "text": "+25 armor"},
-    "cloak": {"name": "Cloak", "fx": {"mr": 25}, "text": "+25 magic resist"},
-    "belt": {"name": "Belt", "fx": {"hp": 180}, "text": "+180 HP"},
-    "sigil": {"name": "Sigil", "fx": {"hp": 80}, "text": "+80 HP; with another component, an emblem"},
+RARITIES = {1: "Common", 2: "Rare", 3: "Epic", 4: "Legendary"}
+ITEM_PRICE = {1: 2, 2: 4, 3: 6, 4: 9}
+_S = {  # the stat lines items are built from
+    "atk": {"ad": 12}, "spd": {"aspd_pct": 0.12}, "ap": {"ap": 15}, "mana": {"mana": 15},
+    "arm": {"armor": 25}, "res": {"mr": 25}, "hp": {"hp": 180},
 }
-COMPONENT_WEIGHT = {"sigil": 0.5}  # how often each is offered or given (others 1)
-_RECIPES = [
-    # Each finished item does one thing of its own (the roster review made the plain-stat ones into tricks).
-    ("greatsword", "Executioner's Greatsword", "sword", "sword", {"crit": 0.15, "critdmg": 0.2, "low_bonus": 0.25},
-     "Crits more, and does 25% more damage to enemies below half HP."),
-    ("ravager", "Ravager", "sword", "bow", {"frenzy": 0.05}, "Each attack makes it 5% faster, up to 10 times."),
-    ("spellblade", "Spellblade", "sword", "rod", {"ability_crit": 1, "crit": 0.15}, "Its abilities can crit."),
-    ("mana_edge", "Mana Edge", "sword", "tear", {"mana_on_hit": 6}, "Each attack gives 6 more mana."),
-    ("sunder_axe", "Sunder Axe", "sword", "vest", {"shred": 30}, "Attacks strip 30 armor from the target for 3 s."),
-    ("hexblade", "Hexblade", "sword", "cloak", {"omnivamp": 0.2}, "Heals for 20% of all the damage it does."),
-    ("cleaver", "Titan Cleaver", "sword", "belt", {"splash": 0.35}, "Attacks also hit enemies beside the target for 35%."),
-    ("twin_bow", "Twin Bow", "bow", "bow", {"multishot": 0.6}, "Each attack also strikes a second enemy near the target for 60%."),
-    ("storm_rod", "Storm Rod", "bow", "rod", {"every3": 110}, "Every third attack calls lightning down on three enemies (110 magic damage each)."),
-    ("harp", "Quickcast Harp", "bow", "tear", {"mana_on_hit": 4, "aspd_pct": 0.1}, "Faster attacks that give 4 more mana."),
-    ("duel_guard", "Duelist's Guard", "bow", "vest", {"dodge": 0.25}, "Dodges a quarter of attacks."),
-    ("galeband", "Galeband", "bow", "cloak", {"chill_on_hit": 0.25}, "Attacks slow the target's attacks by 25% for 2 s."),
-    ("giant_bane", "Giant's Bane", "bow", "belt", {"pct_hit": 0.03}, "Attacks deal 3% of the target's max HP more."),
-    ("grimoire", "Grand Grimoire", "rod", "rod", {"cast_grow_ap": 12}, "Each cast leaves it 12 ability power stronger for the rest of the fight."),
-    ("archstaff", "Archmage Staff", "rod", "tear", {"cast_mana": 25}, "After casting, starts again with 25 mana."),
-    ("ember_mantle", "Ember Mantle", "rod", "vest", {"aura": 0.012}, "Burns enemies beside it for 1.2% of their max HP a second."),
-    ("spellward", "Spellward", "rod", "cloak", {"spell_dr": 0.3, "shield": 150}, "Abilities do 30% less to it, and it starts with a 150 shield."),
-    ("lifebloom", "Lifebloom Staff", "rod", "belt", {"cast_heal": 180}, "Each cast also heals the most hurt ally for 180."),
-    ("chalice", "Overflowing Chalice", "tear", "tear", {"cast_share": 20}, "After casting, the two nearest allies get 20 mana."),
-    ("frost_aegis", "Frost Aegis", "tear", "vest", {"chill": 0.3}, "Whoever attacks it attacks 30% slower for 2 s."),
-    ("mana_ward", "Mana Ward", "tear", "cloak", {"team_mana": 20}, "Allies beside it start with 20 more mana."),
-    ("bell", "Redemption Bell", "tear", "belt", {"low_heal": 300}, "The first time it falls below half HP, heals allies within 2 hexes for 300."),
-    ("bastion", "Bastion Plate", "vest", "vest", {"taunt_start": 3, "dr": 0.08}, "Enemies within 3 hexes must attack it for the first 3 s; takes 8% less damage."),
-    ("twin_ward", "Twin Ward", "vest", "cloak", {"dr": 0.08, "shield": 200}, "Takes 8% less damage and starts with a 200 shield."),
-    ("spiked_hide", "Spiked Hide", "vest", "belt", {"thorns": 0.35}, "Attackers take 35% of their hit back as magic damage."),
-    ("veil", "Veil of Stillness", "cloak", "cloak", {"cc_immune": 1}, "Can't be stunned or swallowed."),
-    ("second_wind", "Second Wind", "cloak", "belt", {"regen": 0.02}, "Regrows 2% of its max HP every second."),
-    ("colossus_belt", "Colossus Belt", "belt", "belt", {"grow_hp": [0.02, 0.3]}, "Grows: 2% more max HP every second, up to 30%."),
+_COMMON = [
+    ("sword", "Iron Sword", {"ad": 20}, "+20 attack."),
+    ("bow", "Recurve Bow", {"aspd_pct": 0.2}, "+20% attack speed."),
+    ("rod", "Oak Rod", {"ap": 25}, "+25 ability power."),
+    ("tear", "Mana Tear", {"mana": 25}, "+25 starting mana."),
+    ("vest", "Chain Vest", {"armor": 40}, "+40 armor."),
+    ("cloak", "Warding Cloak", {"mr": 40}, "+40 magic resist."),
+    ("belt", "Giant's Belt", {"hp": 300}, "+300 HP."),
 ]
-# Artifacts: no recipe. The armory sells one a round from ARTIFACT_ROUND, the Grand augment Ancient Armory
-# gives one, the Forgemaster's power can forge one, and the last draft's units hold them.
+# (key, name, rarity, stat lines, effect fx, text): the stat lines' numbers are added to the effect.
+_TRICKS = [
+    # rare: one stat line
+    ("mana_edge", "Mana Edge", 2, ["atk"], {"mana_on_hit": 6}, "Each attack gives 6 more mana."),
+    ("sunder_axe", "Sunder Axe", 2, ["atk"], {"shred": 30}, "Attacks strip 30 armor from the target for 3 s."),
+    ("hexblade", "Hexblade", 2, ["atk"], {"omnivamp": 0.2}, "Heals for 20% of all the damage it does."),
+    ("cleaver", "Titan Cleaver", 2, ["hp"], {"splash": 0.35}, "Attacks also hit enemies beside the target for 35%."),
+    ("harp", "Quickcast Harp", 2, ["mana"], {"mana_on_hit": 4, "aspd_pct": 0.1}, "Faster attacks that give 4 more mana."),
+    ("duel_guard", "Duelist's Guard", 2, ["spd"], {"dodge": 0.25}, "Dodges a quarter of attacks."),
+    ("galeband", "Galeband", 2, ["spd"], {"chill_on_hit": 0.25}, "Attacks slow the target's attacks by 25% for 2 s."),
+    ("giant_bane", "Giant's Bane", 2, ["spd"], {"pct_hit": 0.03}, "Attacks deal 3% of the target's max HP more."),
+    ("spellward", "Spellward", 2, ["res"], {"spell_dr": 0.3, "shield": 150}, "Abilities do 30% less to it, and it starts with a 150 shield."),
+    ("chalice", "Overflowing Chalice", 2, ["mana"], {"cast_share": 20}, "After casting, the two nearest allies get 20 mana."),
+    ("frost_aegis", "Frost Aegis", 2, ["arm"], {"chill": 0.3}, "Whoever attacks it attacks 30% slower for 2 s."),
+    ("mana_ward", "Mana Ward", 2, ["res"], {"team_mana": 20}, "Allies beside it start with 20 more mana."),
+    ("twin_ward", "Twin Ward", 2, ["arm"], {"dr": 0.08, "shield": 200}, "Takes 8% less damage and starts with a 200 shield."),
+    ("second_wind", "Second Wind", 2, ["hp"], {"regen": 0.02}, "Regrows 2% of its max HP every second."),
+    # epic: two stat lines
+    ("greatsword", "Executioner's Greatsword", 3, ["atk", "atk"], {"crit": 0.15, "critdmg": 0.2, "low_bonus": 0.25},
+     "Crits more, and does 25% more damage to enemies below half HP."),
+    ("ravager", "Ravager", 3, ["atk", "spd"], {"frenzy": 0.05}, "Each attack makes it 5% faster, up to 10 times."),
+    ("spellblade", "Spellblade", 3, ["atk", "ap"], {"ability_crit": 1, "crit": 0.15}, "Its abilities can crit."),
+    ("twin_bow", "Twin Bow", 3, ["spd", "spd"], {"multishot": 0.6}, "Each attack also strikes a second enemy near the target for 60%."),
+    ("storm_rod", "Storm Rod", 3, ["spd", "ap"], {"every3": 110}, "Every third attack calls lightning down on three enemies (110 magic damage each)."),
+    ("grimoire", "Grand Grimoire", 3, ["ap", "ap"], {"cast_grow_ap": 12}, "Each cast leaves it 12 ability power stronger for the rest of the fight."),
+    ("archstaff", "Archmage Staff", 3, ["ap", "mana"], {"cast_mana": 25}, "After casting, starts again with 25 mana."),
+    ("ember_mantle", "Ember Mantle", 3, ["ap", "arm"], {"aura": 0.012}, "Burns enemies beside it for 1.2% of their max HP a second."),
+    ("lifebloom", "Lifebloom Staff", 3, ["ap", "hp"], {"cast_heal": 180}, "Each cast also heals the most hurt ally for 180."),
+    ("bell", "Redemption Bell", 3, ["mana", "hp"], {"low_heal": 300}, "The first time it falls below half HP, heals allies within 2 hexes for 300."),
+    ("bastion", "Bastion Plate", 3, ["arm", "arm"], {"taunt_start": 3, "dr": 0.08}, "Enemies within 3 hexes must attack it for the first 3 s; takes 8% less damage."),
+    ("spiked_hide", "Spiked Hide", 3, ["arm", "hp"], {"thorns": 0.35}, "Attackers take 35% of their hit back as magic damage."),
+    ("veil", "Veil of Stillness", 3, ["res", "res"], {"cc_immune": 1}, "Can't be stunned or swallowed."),
+    ("colossus_belt", "Colossus Belt", 3, ["hp", "hp"], {"grow_hp": [0.02, 0.3]}, "Grows: 2% more max HP every second, up to 30%."),
+]
+# Artifacts (Legendary): tricks no other item has.
 ARTIFACTS = [
     ("hourglass", "Stopped Hourglass", {"armor": 20, "mr": 20, "last_stand": [0.3, 2.0, 0.25]},
      "The first time it falls below 30% HP, it slips out of time for 2 s (nothing can reach it) and heals 25%."),
@@ -529,8 +537,6 @@ ARTIFACTS = [
     ("world_seed", "Seed of the Elder Grove", {"hp": 200, "summon_every": ["sapling", 6]}, "Every 6 s, a sapling grows beside it and fights."),
     ("quicksilver", "Quicksilver Draught", {"mana": 200, "aspd_pct": 0.2}, "Starts the fight with full mana, and attacks 20% faster."),
 ]
-EMBLEM_FROM = {"sword": "duelist", "bow": "ranger", "rod": "arcanist", "tear": "mystic", "vest": "vanguard",
-               "cloak": "warden", "belt": "summoner"}
 
 
 def _sum_fx(*fxs):
@@ -541,46 +547,53 @@ def _sum_fx(*fxs):
     return out
 
 
+_STAT_TEXT = {"ad": "+{:g} attack", "aspd_pct": "+{:g}% attack speed", "ap": "+{:g} ability power",
+              "mana": "+{:g} mana", "armor": "+{:g} armor", "mr": "+{:g} magic resist", "hp": "+{:g} HP"}
 ITEMS = {}
-for _k, _c in COMPONENTS.items():
-    ITEMS[_k] = {"name": _c["name"], "kind": "component", "from": None, "fx": dict(_c["fx"]), "text": _c["text"]}
-for _k, _name, _a, _b, _fx, _text in _RECIPES:
-    ITEMS[_k] = {"name": _name, "kind": "item", "from": [_a, _b],
-                 "fx": _sum_fx(COMPONENTS[_a]["fx"], COMPONENTS[_b]["fx"], _fx), "text": _text}
+for _k, _name, _fx, _text in _COMMON:
+    ITEMS[_k] = {"name": _name, "kind": "item", "rarity": 1, "fx": dict(_fx), "text": _text}
+for _k, _name, _r, _lines, _fx, _text in _TRICKS:
+    _stats = _sum_fx(*[_S[x] for x in _lines])
+    ITEMS[_k] = {"name": _name, "kind": "item", "rarity": _r, "fx": _sum_fx(_stats, _fx), "text": _text,
+                 "stats": ", ".join(_STAT_TEXT[n].format(v * 100 if n == "aspd_pct" else v) for n, v in _stats.items())}
 for _k, _name, _fx, _text in ARTIFACTS:
-    ITEMS[_k] = {"name": _name, "kind": "artifact", "from": None, "fx": dict(_fx), "text": _text}
-for _t in TRAITS:  # every trait has an emblem; seven can be made with a Sigil, the rest come from augments
-    _comp = next((c for c, t in EMBLEM_FROM.items() if t == _t), None)
-    ITEMS["emblem_" + _t] = {"name": TRAITS[_t]["name"] + " Emblem", "kind": "emblem", "trait": _t,
-                             "from": ["sigil", _comp] if _comp else None,
-                             "fx": _sum_fx(COMPONENTS["sigil"]["fx"], COMPONENTS[_comp]["fx"]) if _comp else {"hp": 150},
-                             "text": f"Its holder is also {TRAITS[_t]['name']}."}
-ITEMS["crown"] = {"name": "Crown", "kind": "crown", "from": ["sigil", "sigil"], "fx": {"hp": 160},
+    ITEMS[_k] = {"name": _name, "kind": "artifact", "rarity": 4, "fx": dict(_fx), "text": _text}
+for _t in TRAITS:  # every trait has an emblem
+    ITEMS["emblem_" + _t] = {"name": TRAITS[_t]["name"] + " Emblem", "kind": "emblem", "rarity": 3, "trait": _t,
+                             "fx": {"hp": 150}, "text": f"Its holder is also {TRAITS[_t]['name']}.", "stats": "+150 HP"}
+ITEMS["crown"] = {"name": "Crown", "kind": "crown", "rarity": 4, "fx": {"hp": 160}, "stats": "+160 HP",
                   "text": "One more unit may stand on your board while its holder does."}
-RECIPE = {tuple(sorted(i["from"])): k for k, i in ITEMS.items() if i["from"]}
 
 
-def combine(a, b):
-    """The item two components make, or None."""
-    return RECIPE.get(tuple(sorted((a, b))))
-
-
-def completed_items():
-    return [k for k, i in ITEMS.items() if i["kind"] == "item"]
+def items_of(rarity, kinds=None):
+    """Item keys of a rarity (and of the given kinds)."""
+    return [k for k, i in ITEMS.items() if i["rarity"] == rarity and (kinds is None or i["kind"] in kinds)]
 
 
 def artifacts():
-    return [k for k, i in ITEMS.items() if i["kind"] == "artifact"]
+    return items_of(4, ("artifact",))
 
 
-# The armory: items bought for gold, beside the unit shop (the owner asked for this in November 2026, in
-# place of components dropping from monster rounds). Each round it offers ARMORY_SIZE components (drawn by
-# COMPONENT_WEIGHT, repeats allowed), and from ARTIFACT_ROUND one artifact too. It refreshes with each new
-# round (rerolls don't touch it); a locked shop keeps it. A bought slot stays empty until the next round.
-ARMORY_SIZE = 3
-COMPONENT_PRICE = 3
-ARTIFACT_PRICE = 8
-ARTIFACT_ROUND = 11
+# The armory: items bought whole, beside the unit shop (the owner asked for items in the shop in
+# November 2026, then for whole items in rarity tiers). Each round it offers ARMORY_SIZE items, each slot's
+# rarity drawn by ARMORY_ODDS for the round (repeats allowed); within Epic an emblem one time in
+# EMBLEM_SHARE, within Legendary a Crown one time in CROWN_SHARE. It restocks each new round (rerolls
+# don't touch it), a locked shop keeps it, and a bought slot stays empty until the next round.
+ARMORY_SIZE = 4
+ARMORY_ODDS = [  # (from round, % for Common, Rare, Epic, Legendary)
+    (1, (70, 30, 0, 0)),
+    (4, (40, 45, 15, 0)),
+    (8, (20, 45, 30, 5)),
+    (12, (5, 35, 45, 15)),
+    (16, (0, 25, 50, 25)),
+]
+EMBLEM_SHARE = 4
+CROWN_SHARE = 8
+
+
+def armory_odds(rnd):
+    return next(odds for start, odds in reversed(ARMORY_ODDS) if rnd >= start)
+
 
 # ------------------------------------------------------------------ commanders
 # Each player picks one of three at the start: a passive, and a power that charges over `charge`
@@ -593,8 +606,8 @@ COMMANDERS = {
                 "power": "Next fight, every unit of yours starts with a 300 shield.", "charge": 4},
     "necromancer": {"name": "The Necromancer", "passive": "The first of your units to die each fight rises with 40% HP.",
                     "power": "Raise a random tier-2 unit onto your bench.", "charge": 4},
-    "alchemist": {"name": "The Alchemist", "passive": "A free component at rounds 5, 10 and 15.",
-                  "power": "Brew a random component.", "charge": 4},
+    "alchemist": {"name": "The Alchemist", "passive": "A free Rare item at rounds 5, 10 and 15.",
+                  "power": "Brew a random Rare item.", "charge": 4},
     "merchant": {"name": "The Merchant", "passive": "Interest goes up to 7 gold instead of 5.",
                  "power": "Gain 4 gold.", "charge": 3},
     "sage": {"name": "The Sage", "passive": "One more XP every other round.", "power": "Gain 5 XP.", "charge": 4},
@@ -608,9 +621,9 @@ COMMANDERS = {
                  "power": "Heal 6 HP.", "charge": 5},
     "blademaster": {"name": "The Blademaster", "passive": "Each attack your units make speeds them up 2%, up to 20%.",
                     "power": "Next fight, your units attack 40% faster for the first 6 s.", "charge": 3},
-    "forgemaster": {"name": "The Forgemaster", "passive": "Start with two components, and the armory sells you "
-                                                          "components for 2 gold instead of 3.",
-                    "power": "Forge a random finished item (one time in four, an artifact).", "charge": 5},
+    "forgemaster": {"name": "The Forgemaster", "passive": "Start with a Common item, and the armory sells you "
+                                                          "everything for 1 gold less.",
+                    "power": "Forge a random Epic item (one time in four, a Legendary artifact).", "charge": 5},
     "oracle": {"name": "The Oracle", "passive": "From level 5, your shop rolls as if you were a level higher.",
                "power": "A free reroll that favours units you already own.", "charge": 2},
     # added in the roster review (November 2026)
@@ -631,7 +644,7 @@ COMMANDER_CHOICES = 3
 # ------------------------------------------------------------------ augments
 # One of three at AUGMENT_ROUNDS (one free reroll each time). All three offered are the same tier
 # (1 lesser, 2 greater, 3 grand), drawn by AUGMENT_TIER_ODDS. game.py does what they say: `gold`,
-# `xp`, `components`, `items` (random finished), `units` (random of a tier), `heal` (HP), `team`
+# `xp`, `items` (a random item of each rarity listed), `units` (random of a tier), `heal` (HP), `team`
 # (fx for all your units in every fight), `bonus` (+n to a trait you field), `emblem` (that trait's
 # emblem item), `interest` (more interest cap), `revive_first` (the first of your units to die each
 # fight rises with that share of HP), `crown` (a Crown item).
@@ -642,13 +655,13 @@ AUGMENTS = {
     # lesser
     "pocket_change": {"tier": 1, "name": "Pocket Change", "text": "Gain 6 gold.", "gold": 6},
     "study": {"tier": 1, "name": "Late-Night Study", "text": "Gain 8 XP.", "xp": 8},
-    "spare_parts": {"tier": 1, "name": "Spare Parts", "text": "Gain a random component.", "components": 1},
+    "spare_parts": {"tier": 1, "name": "Spare Parts", "text": "Gain a random Rare item.", "items": [2]},
     "recruits": {"tier": 1, "name": "Fresh Recruits", "text": "Gain two random tier-1 units.", "units": [1, 1]},
     "thick_skin": {"tier": 1, "name": "Thick Skin", "text": "Heal 8 HP.", "heal": 8},
     "whetstone": {"tier": 1, "name": "Whetstone", "text": "Your units have 8 more attack.", "team": {"ad": 8}},
     # greater
     "treasure": {"tier": 2, "name": "Buried Treasure", "text": "Gain 15 gold.", "gold": 15},
-    "armory": {"tier": 2, "name": "Armory", "text": "Gain two random components.", "components": 2},
+    "armory": {"tier": 2, "name": "Armory", "text": "Gain a random Epic item.", "items": [3]},
     "fast_track": {"tier": 2, "name": "Fast Track", "text": "Gain 14 XP.", "xp": 14},
     "battle_hardened": {"tier": 2, "name": "Battle Hardened", "text": "Your units have 120 more HP.", "team": {"hp": 120}},
     "rich": {"tier": 2, "name": "Rich Get Richer", "text": "Gain 6 gold; interest goes 2 higher.", "gold": 6, "interest": 2},
@@ -656,14 +669,14 @@ AUGMENTS = {
                     "revive_first": 0.3},
     # grand
     "hoard": {"tier": 3, "name": "Dragon's Hoard", "text": "Gain 30 gold.", "gold": 30},
-    "arsenal": {"tier": 3, "name": "Arsenal", "text": "Gain a random finished item and a component.", "items": 1, "components": 1},
+    "arsenal": {"tier": 3, "name": "Arsenal", "text": "Gain two random Epic items.", "items": [3, 3]},
     "crowned": {"tier": 3, "name": "Crowned", "text": "Gain a Crown: one more unit on your board.", "crown": 1},
     "titanic": {"tier": 3, "name": "Titanic Strength", "text": "Your units have 12% more HP and 10 more attack.",
                 "team": {"hp_pct": 0.12, "ad": 10}},
-    "ancient_armory": {"tier": 3, "name": "Ancient Armory", "text": "Gain a random artifact: an item no recipe makes.",
+    "ancient_armory": {"tier": 3, "name": "Ancient Armory", "text": "Gain a random Legendary artifact.",
                        "artifacts": 1},
-    "relic_hunter": {"tier": 2, "name": "Relic Hunter", "text": "Gain a random artifact; lose 6 HP.", "artifacts": 1,
-                     "heal": -6},
+    "relic_hunter": {"tier": 2, "name": "Relic Hunter", "text": "Gain a random Legendary artifact; lose 6 HP.",
+                     "artifacts": 1, "heal": -6},
 }
 for _t, _d in TRAITS.items():
     AUGMENTS["heart_" + _t] = {"tier": 1, "name": _d["name"] + " Heart", "trait": _t, "bonus": 1,
@@ -676,11 +689,11 @@ for _t, _d in TRAITS.items():
 AUGMENT_CHOICES = 3
 
 # ------------------------------------------------------------------ shared drafts
-# At DRAFT_ROUNDS, before planning, everyone picks one unit (each holding a component) from a shared
+# At DRAFT_ROUNDS, before planning, everyone picks one unit (each holding an item) from a shared
 # set, lowest HP first. DRAFT_TIERS: the tiers on offer that round.
 DRAFT_ROUNDS = (4, 9, 14)
 DRAFT_TIERS = {4: (1, 2), 9: (2, 3), 14: (3, 4)}
-DRAFT_ARTIFACTS = (14,)  # in these drafts the units hold artifacts, not components
+DRAFT_ITEM_RARITY = {4: 2, 9: 3, 14: 4}  # the rarity of the items the draft's units hold (14: artifacts)
 DRAFT_TURN = 8  # seconds a person has for their pick
 DRAFT_EXTRA = 2  # options beyond one each
 

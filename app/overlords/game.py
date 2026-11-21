@@ -12,8 +12,8 @@ board ({(col, row): unit}, in their own coordinates, row 3 at the front). Three 
 one star merge into one a star higher, wherever the first one on the board stood. Copies come out
 of the room's shared pool when bought and go back when sold or when their owner is knocked out.
 
-Around that (step 4 of the plan in docs/overlords.md): items (components bought in the armory
-and come with draft picks; a unit holds three, and two components on one unit combine), a commander
+Around that (step 4 of the plan in docs/overlords.md): items (bought whole in the armory, in four
+rarities, and held by draft picks; a unit holds three, and they can be taken off again), a commander
 each (picked from three in round 1: a passive and a power that charges over rounds), augments (one
 of three at D.AUGMENT_ROUNDS), and shared drafts (phase "draft" before planning at D.DRAFT_ROUNDS:
 lowest HP picks first). What commanders and augments do in a fight reaches sim.py as `extras`.
@@ -219,8 +219,8 @@ class Room:
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
                           "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
                           "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
-                          "draft_turn": D.DRAFT_TURN, "component_price": D.COMPONENT_PRICE,
-                          "artifact_price": D.ARTIFACT_PRICE, "artifact_round": D.ARTIFACT_ROUND},
+                          "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
+                          "armory_odds": D.ARMORY_ODDS},
                 "items": D.ITEMS, "commanders": D.COMMANDERS, "augments": D.AUGMENTS,
                 "aug_tiers": D.AUGMENT_TIER_NAMES}
 
@@ -300,6 +300,8 @@ class Room:
                 ok = True
             elif t == "equip":
                 ok = self.equip(p, msg.get("i"), msg.get("to"), fighting)
+            elif t == "unequip":
+                ok = self.unequip(p, msg.get("from"), msg.get("k"), fighting)
             elif t == "commander":
                 ok = self.choose_commander(p, msg.get("k"))
             elif t == "augment":
@@ -376,7 +378,7 @@ class Room:
                     p.charge = min(D.COMMANDERS[p.commander]["charge"], p.charge + 1)
             p.gold += sum(self.income_parts(p, rnd))
             if p.commander == "alchemist" and rnd in (5, 10, 15):
-                self.give_components(p, 1)
+                p.items.append(self.random_item(2))
             p.cheap_rolls = 1
             if not p.locked or not any(p.shop):
                 p.first_roll = True
@@ -790,17 +792,22 @@ class Room:
 
     # ------------------------------------------------------------ items
 
+    def random_item(self, rarity, kinds=None):
+        """A random item of a rarity: within Epic an emblem one time in EMBLEM_SHARE, within Legendary
+        a Crown one time in CROWN_SHARE (unless `kinds` says which)."""
+        if kinds is None:
+            if rarity == 3:
+                kinds = ("emblem",) if self.rng.randrange(D.EMBLEM_SHARE) == 0 else ("item",)
+            elif rarity == 4:
+                kinds = ("crown",) if self.rng.randrange(D.CROWN_SHARE) == 0 else ("artifact",)
+        return self.rng.choice(D.items_of(rarity, kinds))
+
     def stock_armory(self, p):
-        keys = sorted(D.COMPONENTS)
-        weights = [D.COMPONENT_WEIGHT.get(k, 1) for k in keys]
-        p.armory = self.rng.choices(keys, weights, k=D.ARMORY_SIZE)
-        if self.round >= D.ARTIFACT_ROUND:
-            p.armory.append(self.rng.choice(D.artifacts()))
+        odds = D.armory_odds(max(1, self.round))
+        p.armory = [self.random_item(self.rng.choices((1, 2, 3, 4), odds)[0]) for _ in range(D.ARMORY_SIZE)]
 
     def item_price(self, key, p=None):
-        if D.ITEMS[key]["kind"] == "artifact":
-            return D.ARTIFACT_PRICE
-        return D.COMPONENT_PRICE - (p is not None and p.commander == "forgemaster")
+        return D.ITEM_PRICE[D.ITEMS[key]["rarity"]] - (p is not None and p.commander == "forgemaster")
 
     def buy_item(self, p, i):
         if type(i) is not int or not 0 <= i < len(p.armory) or not p.armory[i]:
@@ -813,38 +820,36 @@ class Room:
         p.armory[i] = None
         return True
 
-    def give_components(self, p, n):
-        keys = sorted(D.COMPONENTS)
-        weights = [D.COMPONENT_WEIGHT.get(k, 1) for k in keys]
-        for _ in range(n):
-            p.items.append(self.rng.choices(keys, weights)[0])
-
     def equip(self, p, i, where, fighting):
-        """Puts item i from the item bench on the unit at `where`: onto a free slot, or combined with a
-        component it already holds. Emblems can't go on a unit that already has their trait."""
+        """Puts item i from the item bench on the unit at `where`, if it has a free slot. Emblems can't go
+        on a unit that already has their trait."""
         if type(i) is not int or not 0 <= i < len(p.items):
             return False
         s = self.spot(p, where)
         if s is None or (fighting and s[0] == "board"):
             return False
         u = self.at(p, s)
-        if u is None:
+        if u is None or len(u["items"]) >= D.MAX_ITEMS:
             return False
         item = p.items[i]
-        held = next((j for j, x in enumerate(u["items"]) if D.ITEMS[x]["kind"] == "component"), None)
-        if D.ITEMS[item]["kind"] == "component" and held is not None:
-            made = D.combine(u["items"][held], item)
-            rest = u["items"][:held] + u["items"][held + 1:]
-            if not made or (D.ITEMS[made].get("trait") in D.unit_traits(u["unit"], rest)):
-                return False
-            u["items"][held] = made
-        else:
-            if len(u["items"]) >= D.MAX_ITEMS:
-                return False
-            if D.ITEMS[item].get("trait") in D.unit_traits(u["unit"], u["items"]):
-                return False
-            u["items"].append(item)
+        if D.ITEMS[item].get("trait") in D.unit_traits(u["unit"], u["items"]):
+            return False
+        u["items"].append(item)
         p.items.pop(i)
+        return True
+
+    def unequip(self, p, where, k, fighting):
+        """Takes item k off the unit at `where`, back to the item bench. Not from the board mid-fight, and
+        not a Crown that's holding a board place in use."""
+        s = self.spot(p, where)
+        if s is None or (fighting and s[0] == "board"):
+            return False
+        u = self.at(p, s)
+        if u is None or type(k) is not int or not 0 <= k < len(u["items"]):
+            return False
+        if u["items"][k] == "crown" and s[0] == "board" and len(p.board) >= p.limit():
+            return False
+        p.items.append(u["items"].pop(k))
         return True
 
     # ------------------------------------------------------------ commanders
@@ -855,7 +860,7 @@ class Room:
         p.commander = key
         p.offers = []
         if key == "forgemaster":
-            self.give_components(p, 2)
+            p.items.append(self.random_item(1))
         if key == "quartermaster":
             p.shop.append(self.draw(p.level))
         return True
@@ -879,7 +884,7 @@ class Room:
             p.bench[free] = self.new_unit(key)
             self.merge(p, key)
         elif c == "alchemist":
-            self.give_components(p, 1)
+            p.items.append(self.random_item(2))
         elif c == "merchant":
             p.gold += 4
         elif c == "sage":
@@ -896,7 +901,7 @@ class Room:
         elif c == "blademaster":
             p.next_fx["rally"] = [0.4, 6.0]
         elif c == "forgemaster":
-            p.items.append(self.rng.choice(D.artifacts() if self.rng.random() < 0.25 else D.completed_items()))
+            p.items.append(self.random_item(4, ("artifact",)) if self.rng.random() < 0.25 else self.random_item(3, ("item",)))
         elif c == "oracle":
             p.oracle_roll = True
             self.roll(p)
@@ -961,11 +966,10 @@ class Room:
         if a.get("xp"):
             p.xp += a["xp"]
             self.level_up(p)
-        self.give_components(p, a.get("components", 0))
-        for _ in range(a.get("items", 0)):
-            p.items.append(self.rng.choice(D.completed_items()))
+        for rarity in a.get("items", ()):
+            p.items.append(self.random_item(rarity, ("item",)))
         for _ in range(a.get("artifacts", 0)):
-            p.items.append(self.rng.choice(D.artifacts()))
+            p.items.append(self.random_item(4, ("artifact",)))
         for tier in a.get("units", ()):
             free = next((j for j, u in enumerate(p.bench) if u is None), None)
             keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == tier and self.pool.get(k, 0) > 0]
@@ -990,7 +994,7 @@ class Room:
     # ------------------------------------------------------------ shared drafts
 
     def start_draft(self):
-        """Everyone picks one unit holding a component, lowest HP first (ties at random)."""
+        """Everyone picks one unit holding an item, lowest HP first (ties at random)."""
         alive = self.alive()
         order = sorted(alive, key=lambda p: (p.hp, self.rng.random()))
         tiers = D.DRAFT_TIERS[self.round]
@@ -1001,11 +1005,9 @@ class Room:
                 break
             k = self.rng.choice(keys)
             self.pool[k] -= 1
-            if self.round in D.DRAFT_ARTIFACTS:
-                comp = self.rng.choice(D.artifacts())
-            else:
-                comp = self.rng.choices(sorted(D.COMPONENTS), [D.COMPONENT_WEIGHT.get(c, 1) for c in sorted(D.COMPONENTS)])[0]
-            options.append({"unit": k, "item": comp, "by": None})
+            rarity = D.DRAFT_ITEM_RARITY[self.round]
+            item = self.random_item(rarity, ("artifact",) if rarity == 4 else ("item",))
+            options.append({"unit": k, "item": item, "by": None})
         self.phase = "draft"
         self.draft = {"options": options, "order": [p.id for p in order], "turn": 0,
                       "turn_ends": self.clock() + D.DRAFT_TURN, "turn_start": self.clock()}
@@ -1040,7 +1042,7 @@ class Room:
         if free is not None:
             p.bench[free] = u
             self.merge(p, o["unit"])
-        else:  # no room: the unit is sold on the spot and its component kept
+        else:  # no room: the unit is sold on the spot and its item kept
             p.gold += D.UNITS[o["unit"]]["cost"]
             self.pool[o["unit"]] += 1
             p.items.append(o["item"])

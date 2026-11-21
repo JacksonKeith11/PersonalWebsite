@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=13';
-import { isMuted, play, setMuted } from './sound.js?v=13';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=13';
+import { Playback } from './fight.js?v=15';
+import { isMuted, play, setMuted } from './sound.js?v=15';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=15';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -30,7 +30,7 @@ const touchy = () => lastPointer !== 'mouse';
 // swallows the click), or on a tap too where `tap` is set. A card shown by touch stays until closed.
 function hoverInfo(elem, what, tap = false) {
   let shown = null, timer = 0, start = null, long = false;
-  elem.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { shown = what(); pin(shown, false); } });
+  elem.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && !S.pinned) { shown = what(); pin(shown, false); } });
   elem.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && S.hover === shown && !S.pinned) pin(null); });
   elem.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') return;
@@ -227,7 +227,10 @@ function openSheet(name) {
 
 // ------------------------------------------------------------------ items, commander, augments, draft
 
-const ITEM_COLORS = { component: '#5b6478', item: '#8a6a2a', emblem: '#2f7a6a', crown: '#b08a1a', artifact: '#8a2a4a' };
+// Item rarities: Common, Rare, Epic, Legendary (the same hues as the unit tiers 1, 3, 4 and 5).
+const RARITY_COLORS = { 1: '#8d96a5', 2: '#3a82d6', 3: '#a456d4', 4: '#e89a30' };
+const rarityColor = key => RARITY_COLORS[S.cfg.items[key]?.rarity] || '#666';
+const rarityName = key => S.cfg.rules.rarities[S.cfg.items[key]?.rarity] || '';
 
 function renderItems() {
   const box = $('items'), st = S.st;
@@ -236,13 +239,13 @@ function renderItems() {
   if (!items.length) { box.replaceChildren(el('span', 'none', 'None yet: buy some in the armory')); return; }
   box.replaceChildren(...items.map((key, i) => {
     const d = S.cfg.items[key];
-    const b = el('button', 'item ' + d.kind);
+    const b = el('button', 'item r' + d.rarity);
+    b.style.setProperty('--rc', rarityColor(key));
     b.type = 'button';
     b.append(icon('item:' + key, 32));
     b.setAttribute('aria-label', d.name);
     b.classList.toggle('picked', S.pickedItem === i);
-    b.title = `${d.name}: ${d.text} Drag it onto a unit, or click it and then the unit.`
-      + (d.kind === 'component' ? ' Two components on one unit combine.' : '');
+    b.title = `${d.name} (${rarityName(key)}): ${d.text} Drag it onto a unit, or click it and then the unit.`;
     b.addEventListener('pointerdown', e => {
       S.drag = { item: i, key, from: {}, moved: false };
       S.dragStart = { x: e.clientX, y: e.clientY };
@@ -253,8 +256,8 @@ function renderItems() {
   }));
 }
 
-// The armory: components (and from round 11 an artifact) for gold. A tap or click buys; hover or a long
-// press shows what it makes.
+// The armory: whole items for gold, their rarities by the round. A tap or click buys; hover or a long press
+// shows what it does.
 function renderArmory() {
   const box = $('armory'), st = S.st, mine = seatedMe();
   const stock = st.me?.armory || [];
@@ -267,11 +270,12 @@ function renderArmory() {
       return gone;
     }
     const d = S.cfg.items[key];
-    const price = st.me.armory_prices?.[i] ?? S.cfg.rules.component_price;
-    const b = el('button', 'buy-item ' + d.kind);
+    const price = st.me.armory_prices?.[i] ?? S.cfg.rules.item_price[d.rarity];
+    const b = el('button', 'buy-item r' + d.rarity);
+    b.style.setProperty('--rc', rarityColor(key));
     b.type = 'button';
     b.append(icon('item:' + key, 24), el('span', 'price', `${price}g`));
-    b.setAttribute('aria-label', `Buy ${d.name} for ${price} gold`);
+    b.setAttribute('aria-label', `Buy ${d.name} (${rarityName(key)}) for ${price} gold`);
     b.disabled = mine.gold < price;
     b.addEventListener('click', () => { room.send({ t: 'buy_item', i }); play('buy'); });
     hoverInfo(b, () => ({ kind: 'item', item: key, price }));
@@ -369,7 +373,8 @@ function renderDraft() {
   const mineTurn = d.turn === room.you;
   $('draft-title').textContent = mineTurn ? 'Your pick!' : `Draft: ${turn?.name || '…'} is picking`;
   const order = d.order.map(id => player(id)?.name).join(' → ');
-  const holds = d.options.some(o => S.cfg.items[o[1]]?.kind === 'artifact') ? 'an artifact' : 'a component';
+  const r = S.cfg.items[d.options[0]?.[1]]?.rarity;
+  const holds = r ? `${r === 2 ? 'a' : 'an'} ${S.cfg.rules.rarities[r]} item` : 'an item';
   $('draft-note').textContent = `Lowest HP picks first: ${order}. Each unit comes holding ${holds}.`;
   $('draft-options').replaceChildren(...d.options.map(([key, item, by], i) => {
     const u = S.cfg.units[key], it = S.cfg.items[item];
@@ -751,12 +756,32 @@ function info() {
   box.prepend(close);
   if (S.sel && S.hover?.key) {
     const d = S.cfg.units[S.hover.key];
+    const from = S.sel.from;
+    const locked = from.c != null && S.st.phase !== 'plan'; // the board is locked mid-fight
+    if (S.hover.items?.length) { // its items, each with a button to take it off
+      const list = el('ul', 'held');
+      S.hover.items.forEach((it, k) => {
+        const li = el('li');
+        li.style.setProperty('--rc', rarityColor(it));
+        const off = el('button', '', 'Take off');
+        off.type = 'button';
+        off.disabled = locked;
+        off.title = locked ? 'Not while it fights' : 'Back to your item bench';
+        off.addEventListener('click', () => { room.send({ t: 'unequip', from, k }); play('click'); });
+        li.append(icon('item:' + it, 24), el('span', '', S.cfg.items[it].name), off);
+        list.append(li);
+      });
+      box.querySelector('p.items')?.remove(); // the list says it, with the buttons
+      box.append(list);
+    }
     const row = el('div', 'sell-row');
     const sell = el('button', 'sell', `Sell for ${d.cost * 3 ** ((S.hover.star || 1) - 1)} gold`);
     sell.type = 'button';
-    sell.addEventListener('click', () => { room.send({ t: 'sell', from: S.sel.from }); play('sell'); pin(null); });
+    sell.disabled = locked;
+    sell.addEventListener('click', () => { room.send({ t: 'sell', from }); play('sell'); pin(null); });
     row.append(sell);
-    box.append(el('p', 'note', 'Tap an empty place or bench slot to move it there.'), row);
+    if (touchy()) box.append(el('p', 'note', 'Tap an empty place or bench slot to move it there.'));
+    box.append(row);
   }
 }
 
@@ -768,17 +793,12 @@ function infoBody() {
     const d = S.cfg.items[h.item];
     const head = el('h3', 'with-art');
     head.append(icon('item:' + h.item, 32), document.createTextNode(d.name));
-    const parts = [head, el('p', '', d.text)];
-    if (h.price) parts.push(el('p', '', `In the armory for ${h.price} gold.`));
+    const tag = el('p', 'rarity', `${rarityName(h.item)}${d.kind === 'artifact' ? ' artifact' : d.kind === 'emblem' ? ' emblem' : ' item'}`
+      + (h.price ? ` · ${h.price} gold in the armory` : ''));
+    tag.style.setProperty('--rc', rarityColor(h.item));
+    const parts = [head, tag, el('p', '', d.text)];
+    if (d.stats) parts.push(el('p', '', d.stats));
     if (d.trait) parts.push(el('p', '', traitLine(d.trait)));
-    if (d.from) parts.push(el('p', '', `From ${d.from.map(c => S.cfg.items[c].name).join(' + ')}.`));
-    if (d.kind === 'artifact') parts.push(el('p', '', 'An artifact: no recipe makes it. Monster round 11, the last draft, '
-      + 'the Ancient Armory and Relic Hunter augments and the Forgemaster find them.'));
-    if (d.kind === 'component') {
-      const makes = Object.entries(S.cfg.items).filter(([, x]) => x.from && x.from.includes(h.item))
-        .map(([, x]) => `${x.name} (+ ${S.cfg.items[x.from[0] === h.item ? x.from[1] : x.from[0]].name})`);
-      parts.push(el('p', '', 'Makes: ' + makes.join(', ')));
-    }
     box.replaceChildren(...parts);
     return;
   }
@@ -1202,10 +1222,12 @@ function drawUnit(x, y, key, star, opts = {}) {
     const total = opts.items.length * sz + (opts.items.length - 1) * gap;
     opts.items.forEach((it, i) => {
       const ix = x - total / 2 + i * (sz + gap), iy = feet + R * 0.12;
-      ctx.fillStyle = '#11151ecc';
+      ctx.fillStyle = rarityColor(it); // a frame in the item's rarity
+      ctx.fillRect(ix - 2, iy - 2, sz + 4, sz + 4);
+      ctx.fillStyle = '#11151e';
       ctx.fillRect(ix - 1, iy - 1, sz + 2, sz + 2);
       if (!drawIcon('item:' + it, ix, iy, sz)) {
-        ctx.fillStyle = ITEM_COLORS[S.cfg.items[it]?.kind] || '#666';
+        ctx.fillStyle = rarityColor(it);
         ctx.fillRect(ix, iy, sz, sz);
       }
     });
@@ -1290,7 +1312,7 @@ function draw() {
         ctx.fillStyle = pat;
       } else ctx.fillStyle = own ? '#2c3650' : '#262b3c';
       ctx.fill();
-      if ((dragging || S.sel) && planning && own && S.watch === room.you) {
+      if ((dragging || (S.sel && touchy())) && planning && own && S.watch === room.you) {
         ctx.fillStyle = 'rgba(120, 150, 220, 0.18)';
         ctx.fill();
       }
@@ -1330,7 +1352,7 @@ function draw() {
   if (S.drag?.item != null && S.mouse && S.drag.moved) {
     ctx.imageSmoothingEnabled = false;
     if (!drawIcon('item:' + S.drag.key, S.mouse.x - 16, S.mouse.y - 16, 32)) {
-      ctx.fillStyle = ITEM_COLORS[S.cfg.items[S.drag.key].kind];
+      ctx.fillStyle = rarityColor(S.drag.key);
       ctx.fillRect(S.mouse.x - 12, S.mouse.y - 12, 24, 24);
     }
   }
@@ -1581,7 +1603,7 @@ function drawFight() {
       S.hover = { ...S.hover, live: u, star: u.star, items: u.items };
       info();
     }
-  } else if (S.mouse && !S.drag) { // hover info for fight units follows them
+  } else if (S.mouse && !S.drag && !S.pinned) { // hover info for fight units follows them
     let best = null, bd = G.R * 0.7;
     for (const u of pb.units.values()) {
       if (!u.alive || (u.devoured && pb.t < u.hiddenUntil)) continue;
@@ -1686,7 +1708,7 @@ canvas.addEventListener('pointerdown', e => {
     const u = unitAt(p.x, p.y);
     pin(u, true);
     if (u) play('click');
-  }
+  } else if (S.pinned) pin(null); // a click away from a clicked unit lets go of it
 });
 
 addEventListener('pointermove', e => {
@@ -1704,13 +1726,13 @@ addEventListener('pointermove', e => {
   }
   if (!inside) {
     S.over = null;
-    if (mouse && S.hover && ['board', 'bench'].includes(S.hover.kind)) pin(null);
+    if (mouse && !S.pinned && S.hover && ['board', 'bench'].includes(S.hover.kind)) pin(null);
     return;
   }
   const i = benchAt(p.x, p.y);
   const h = hexAt(p.x, p.y);
   S.over = i >= 0 ? { kind: 'bench', i } : h ? { kind: 'board', c: h[0], r: h[1] } : null;
-  if (mouse) {
+  if (mouse && !S.pinned) {
     const prev = S.hover;
     if (i >= 0) {
       const u = S.st.me?.bench[i];
@@ -1722,7 +1744,9 @@ addEventListener('pointermove', e => {
     } else if (S.st.phase !== 'fight') {
       S.hover = null;
     }
-    if (prev?.key !== S.hover?.key || prev?.star !== S.hover?.star || S.pinned) { S.pinned = false; S.sel = null; info(); }
+    if (prev?.key !== S.hover?.key || prev?.star !== S.hover?.star) info();
+  }
+  if (mouse) {
     canvas.style.cursor = S.drag ? 'grabbing' : myUnitAt(p.x, p.y) ? 'grab' : 'default';
   }
 });
@@ -1748,7 +1772,7 @@ addEventListener('pointerup', e => {
     return;
   }
   $('shop').classList.remove('sell');
-  if (!drag.moved && e.pointerType !== 'mouse') { // a tap on your unit: pick it up (tap it again to put it down)
+  if (!drag.moved) { // a tap or click on your unit: its card stays, with Sell and Take off (touch: tap where it goes)
     const f = drag.from, s0 = S.sel?.from;
     if (s0 && s0.b === f.b && s0.c === f.c && s0.r === f.r) { pin(null); return; }
     const u = drag.unit;
@@ -1819,6 +1843,7 @@ for (const b of document.querySelectorAll('.sheet .sheet-close')) b.addEventList
 addEventListener('keydown', e => {
   if ($('game').hidden || e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  if (k === 'escape' && S.pinned) { pin(null); return; }
   if (k === 'd' && !$('reroll').disabled) act('reroll', 'reroll');
   else if (k === 'f' && !$('xp').disabled) act('xp');
   else if (k === ' ' && !$('ready').disabled) { e.preventDefault(); act('ready', 'click'); }

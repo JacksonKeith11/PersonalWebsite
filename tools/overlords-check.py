@@ -10,10 +10,11 @@ hundred random fights finish inside the time cap without errors.
 Then the room: a pretend browser joins and the host starts with bots; buying, merging three copies
 into a star, the bench and board limits, moving and selling all follow the rules; whole matches of
 bots play to one winner on a clock the check winds on, with the shared pool never gaining or losing
-a copy, and print how long a match would take in real time. Items (every one in a fight; combining;
-emblems counting and refused on a unit with the trait; the Crown's extra place; items surviving
-merges and sales), every commander's power, every augment, and a draft (lowest HP picks first, each
-pick holds its component, the rest go back to the pool) have their own checks.
+a copy, and print how long a match would take in real time. Items (every one in a fight; rarities
+and prices rising; the armory's odds; equipping and taking off; emblems counting and refused on a unit
+with the trait; the Crown's extra place; items surviving merges and sales), every commander's power,
+every augment, and a draft (lowest HP picks first, each pick holds an item of the round's rarity, the
+rest go back to the pool) have their own checks.
 The roster review's tricks (taunts, vanishing, pulls, shoves, zones, delayed blows, raising,
 swallowing, executes, wounds, multishot, death bursts, the Hexer's and Chronomancer's effects, saplings)
 each get a staged fight, and some random fights are stepped to make sure no two units share a hex.
@@ -369,7 +370,11 @@ def items_in_fights():
     check(not any(e[0] == "st" and e[2] == ash for e in res["events"]), "the Veil stops stuns")
     counts = D.trait_counts([("ashling", ["emblem_ranger"]), ("thornling", [])])
     check(counts.get("ranger") == 2, "an emblem counts towards its trait")
-    check(D.combine("sword", "bow") == "ravager" and D.combine("sigil", "sigil") == "crown", "recipes")
+    check(all(i.get("rarity") in D.RARITIES for i in D.ITEMS.values()), "every item has a rarity")
+    check(all(D.ITEM_PRICE[r] < D.ITEM_PRICE[r + 1] for r in (1, 2, 3)), "rarer items cost more")
+    check(all(len(D.items_of(r)) >= 5 for r in D.RARITIES), "every rarity has items to sell")
+    check(all(sum(o) == 100 for _, o in D.ARMORY_ODDS), "the armory's odds add up")
+    check(D.armory_odds(1)[3] == 0 and D.armory_odds(30)[3] > 0, "Legendary items come late")
 
 
 def room_items_and_powers():
@@ -388,16 +393,20 @@ def room_items_and_powers():
     me.shop = ["ashling"] * len(me.shop)
     room.handle(me, {"t": "buy", "i": 0})
     room.handle(me, {"t": "move", "from": {"b": 0}, "to": {"c": 3, "r": 3}})
-    me.items = ["sword", "bow", "sigil", "sigil", "emblem_duelist", "emblem_ranger"]
-    room.handle(me, {"t": "equip", "i": 0, "to": {"c": 3, "r": 3}})
+    me.items = ["ravager", "crown", "emblem_duelist", "emblem_ranger"]
     room.handle(me, {"t": "equip", "i": 0, "to": {"c": 3, "r": 3}})
     unit = me.board[(3, 3)]
-    check(unit["items"] == ["ravager"], f"two components combine (got {unit['items']})")
+    check(unit["items"] == ["ravager"], f"an item goes on a unit (got {unit['items']})")
     check(not room.equip(me, me.items.index("emblem_duelist"), {"c": 3, "r": 3}, False), "no emblem for a trait it has")
-    room.handle(me, {"t": "equip", "i": me.items.index("sigil"), "to": {"c": 3, "r": 3}})
-    room.handle(me, {"t": "equip", "i": me.items.index("sigil"), "to": {"c": 3, "r": 3}})
+    room.handle(me, {"t": "equip", "i": me.items.index("crown"), "to": {"c": 3, "r": 3}})
     check("crown" in unit["items"] and me.limit() == me.level + 1, "a Crown adds a place on the board")
     check(room.equip(me, me.items.index("emblem_ranger"), {"c": 3, "r": 3}, False), "a third item fits")
+    # taking items off
+    room.handle(me, {"t": "unequip", "from": {"c": 3, "r": 3}, "k": unit["items"].index("emblem_ranger")})
+    check("emblem_ranger" in me.items and "emblem_ranger" not in unit["items"], "an item comes off, back to the item bench")
+    check(not room.unequip(me, {"c": 3, "r": 3}, 9, False) and not room.unequip(me, {"b": 7}, 0, False), "nonsense is refused")
+    check(not room.unequip(me, {"c": 3, "r": 3}, 0, True), "nothing comes off the board mid-fight")
+    room.equip(me, me.items.index("emblem_ranger"), {"c": 3, "r": 3}, False)
     me.items.append("vest")
     check(not room.equip(me, me.items.index("vest"), {"c": 3, "r": 3}, False), "three items at most")
     # merging keeps items; selling returns them
@@ -466,7 +475,7 @@ def draft():
             room.clock.t += 1
             room.tick()
     check(room.phase == "plan", "the draft ends in planning")
-    check(all(any(u["items"] for u in p.units()) for p in room.seated()), "every pick holds its component")
+    check(all(any(u["items"] for u in p.units()) for p in room.seated()), "every pick holds its item")
     check(copies(room) == full, "unpicked options go back to the pool")
 
 
@@ -525,14 +534,14 @@ def armory_and_last_person():
     ann, q = browser(room, "Ann", "tok-a")
     room.handle(ann, {"t": "start"})
     room.handle(ann, {"t": "commander", "k": next(k for k in ann.offers if k not in ("forgemaster", "alchemist"))})
-    check(len(ann.armory) == D.ARMORY_SIZE and all(D.ITEMS[k]["kind"] == "component" for k in ann.armory),
-          "the armory offers components")
+    check(len(ann.armory) == D.ARMORY_SIZE and all(D.ITEMS[k]["rarity"] <= 2 for k in ann.armory),
+          "the armory offers Common and Rare items in round 1")
     st = last_state(q)
     check(st and st["me"]["armory"] == ann.armory, "the browser sees the armory")
-    ann.gold = D.COMPONENT_PRICE + 1
     key = ann.armory[0]
+    ann.gold = room.item_price(key) + 1
     room.handle(ann, {"t": "buy_item", "i": 0})
-    check(ann.items == [key] and ann.gold == 1 and ann.armory[0] is None, "buying a component")
+    check(ann.items == [key] and ann.gold == 1 and ann.armory[0] is None, "buying an item")
     room.handle(ann, {"t": "buy_item", "i": 1})
     check(len(ann.items) == 1 and ann.armory[1], "not without the gold")
     room.handle(ann, {"t": "buy_item", "i": 0})
@@ -546,14 +555,21 @@ def armory_and_last_person():
     room.clock.t = room.ends + 0.01
     room.tick()
     check(room.round == 2 and ann.armory == kept, "a locked shop keeps the armory")
-    check(len(ann.items) == 1, "monsters drop no components")
-    room.round = D.ARTIFACT_ROUND - 1
-    room.clock.t = room.ends + 0.01
-    room.tick()
-    room.clock.t = room.ends + 0.01
-    room.tick()
-    check(room.round == D.ARTIFACT_ROUND and D.ITEMS[ann.armory[-1]]["kind"] == "artifact"
-          and len(ann.armory) == D.ARMORY_SIZE + 1, "an artifact for sale from round %d" % D.ARTIFACT_ROUND)
+    check(len(ann.items) == 1, "monsters drop no items")
+    seen = {r: 0 for r in D.RARITIES}
+    for rnd in (2, 20):  # the armory's rarities follow the round
+        room.round = rnd
+        for _ in range(200):
+            room.stock_armory(ann)
+            for k in ann.armory:
+                seen[D.ITEMS[k]["rarity"]] += rnd == 20
+        check(rnd == 20 or all(D.ITEMS[k]["rarity"] <= 2 for k in ann.armory), "early armories are Common and Rare")
+    check(seen[1] == 0 and seen[4] > 0 and seen[3] > seen[2], "late armories run Epic and Legendary")
+    check(room.item_price("hourglass") == D.ITEM_PRICE[4] and room.item_price("sword") == D.ITEM_PRICE[1], "prices by rarity")
+    ann.commander = "forgemaster"
+    check(room.item_price("sword", ann) == D.ITEM_PRICE[1] - 1, "the Forgemaster pays a gold less")
+    ann.commander = None
+    room.round = 2
     # Ann goes out: the bots' match ends there
     for _ in range(40):
         if room.phase == "over":

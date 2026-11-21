@@ -342,16 +342,32 @@ def pick_commander(p, rng):
     return rng.choice(p.offers)
 
 
+def build_outlook(p, count):
+    """How many a `per` build-around would count on the bot's board once it's built: what it counts now,
+    plus what the traits it aims for should add (its board grows by a unit or two after each augment
+    round). Before late November 2026 bots went by the count now alone and almost never took Kinship or
+    Spellweave, which reward a board still to come."""
+    n = p.build_count(count)
+    if count.startswith("gold"):
+        return n / 3
+    plan = set(p.plan or [])
+    if count.startswith("units:") and plan & set(count[6:].split(",")):
+        n += 2
+    elif count == "kin" and any(D.TRAITS[t]["kind"] == "origin" for t in plan):
+        n += 2
+    return n
+
+
 def pick_augment(p, offer, rng):
     """Hearts and souls of a trait the bot fields or aims for, then crests of one; build-arounds by how
-    much its board would get from them now; then the rest."""
+    much its board should get from them (`build_outlook`); then the rest."""
     mine = set(p.traits()) | set(p.plan or [])
     def score(k):
         a = D.AUGMENTS[k]
         if a.get("trait"):
             return 3 if a["trait"] in mine else 0
         if "per" in a:
-            return 1 + 0.5 * min(5, p.build_count(a["per"]["count"]) / (3 if a["per"]["count"].startswith("gold") else 1))
+            return 1 + 0.5 * min(5, build_outlook(p, a["per"]["count"]))
         if "when" in a:
             return 3.5 if p.build_count("origins") >= a["when"]["origins"] - 1 else 0.5
         if "stars" in a:
@@ -366,8 +382,8 @@ AUCTION_LIKES = {"econ": "war_banner", "fast": "legion", "tempo": "item"}  # eac
 
 def auction_bids(room, p, lots, rng):
     """Sealed bids on the auction's lots: each lot's worth to the bot (a unit by `value`, plus its item;
-    more for its style's favourite, AUCTION_LIKES), with some luck so bots don't all want the same lot
-    the best lots first, never more than its gold."""
+    more for its style's favourite, AUCTION_LIKES), with some luck so bots don't all want the same lot,
+    each bid no more than its gold (it can only win one)."""
     worth = []
     for lot in lots:
         if lot["kind"] == "unit":
@@ -383,15 +399,14 @@ def auction_bids(room, p, lots, rng):
                                                    and p.plan and p.plan[0] in D.UNITS[lot["unit"]]["traits"]):
             w *= 1.6
         worth.append(w * rng.uniform(0.7, 1.3))
-    bids, left = [0] * len(lots), p.gold
-    for i in sorted(range(len(lots)), key=lambda i: -worth[i]):
+    bids = [0] * len(lots)
+    for i in range(len(lots)):
         b = round(worth[i] * rng.uniform(0.5, 1.0))
         if p.bot == "easy":
             b = rng.randint(0, 10)
-        b = min(b, left)
+        b = min(b, p.gold)
         if b >= lots[i]["min"]:
             bids[i] = b
-            left -= b
     return bids
 
 

@@ -145,6 +145,21 @@ class Player:
             return sum(1 for n in origins if n)
         return 0
 
+    def build_progress(self):
+        """What each of this player's build-around augments counts right now ({augment: n}), so the
+        browsers can say what it gives before the fight: `per` its count, `when` origins fielded,
+        `stars` units of at least that star."""
+        out = {}
+        for k in self.augments:
+            a = D.AUGMENTS.get(k, {})
+            if "per" in a:
+                out[k] = self.build_count(a["per"]["count"])
+            elif "when" in a:
+                out[k] = self.build_count("origins")
+            elif "stars" in a:
+                out[k] = sum(1 for u in self.board.values() if u["star"] >= a["stars"]["min"])
+        return out
+
     def build_arounds(self, team, front):
         """Adds what this player's build-around augments give this fight (`per` and `when`) to the team's
         and the front row's fx."""
@@ -295,6 +310,7 @@ class Room:
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
                           "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
                           "pve_boards": D.PVE, "interest_per": D.INTEREST_PER, "max_interest": D.MAX_INTEREST,
+                          "spoils_per": D.SPOILS_PER, "spoils_max": D.SPOILS_MAX,
                           "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
                           "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
                           "armory_odds": D.ARMORY_ODDS},
@@ -576,7 +592,7 @@ class Room:
     def end_fight(self):
         rnd = self.round
         self.settled = []
-        hurt = {}
+        hurt, spoils = {}, {}
         for f in self.fights:
             res = f["res"]
             home = self.players[f["home"]]
@@ -591,6 +607,9 @@ class Room:
             away = self.players[f["away"]]
             sides = [(home, 0)] if f["ghost"] else [(home, 0), (away, 1)]
             for p, side in sides:
+                gold = D.spoils(res["fallen"][1 - side])  # gold for the enemy units brought down
+                p.gold += gold
+                spoils[p.id] = spoils.get(p.id, 0) + gold
                 if res["winner"] == side:
                     p.streak = max(1, p.streak + 1)
                     p.results.append("w")
@@ -604,7 +623,7 @@ class Room:
                 dmg = round(dmg * 0.85)
             p.hp -= dmg
             p.hp_log.append(max(0, p.hp))
-            self.settled.append({"id": p.id, "dmg": dmg})
+            self.settled.append({"id": p.id, "dmg": dmg, "gold": spoils.get(p.id, 0)})
         out = sorted((p for p in self.alive() if p.hp <= 0), key=lambda p: p.hp)
         left = len(self.alive())
         for p in out:
@@ -1237,12 +1256,13 @@ class Room:
         self.send_state()
 
     def bid(self, p, bids):
-        """Player p's sealed bids, one a lot (0 for none): each 0 or at least the lot's minimum, together
-        no more than their gold. A new set replaces the last, until the auction closes."""
+        """Player p's sealed bids, one a lot (0 for none): each 0 or at least the lot's minimum, and each
+        no more than their gold (they win one lot at most, so never pay two). A new set replaces the
+        last, until the auction closes."""
         a = self.auction
         if a is None or not isinstance(bids, list) or len(bids) != len(a["lots"]):
             return False
-        if any(type(b) is not int or b < 0 or 0 < b < lot["min"] for b, lot in zip(bids, a["lots"])) or sum(bids) > p.gold:
+        if any(type(b) is not int or b < 0 or 0 < b < lot["min"] or b > p.gold for b, lot in zip(bids, a["lots"])):
             return False
         a["bids"][p.id] = list(bids)
         return True
@@ -1338,7 +1358,8 @@ class Room:
                 "board": [[u["id"], u["unit"], u["star"], c, r, u["items"], u["talents"], p.cards.get(u["id"])]
                           for (c, r), u in p.board.items()],
                 "bench": sum(1 for u in p.bench if u), "limit": p.limit(),
-                "commander": p.commander, "augments": p.augments, "items": len(p.items),
+                "commander": p.commander, "augments": p.augments, "build": p.build_progress(),
+                "items": len(p.items),
                 "traits": p.traits(), "final": p.final if self.phase == "over" else None,
                 "hp_log": p.hp_log if self.phase == "over" else None}
 

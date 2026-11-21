@@ -4,9 +4,10 @@
 
 Every match runs on a clock wound on instantly (as tools/overlords-check.py does). Prints how many
 rounds a match lasts and how long that would take at full timers, then each commander's average
-place (2.5 is even among four) and how often it won, and the augments picked most and how they
-placed. Commanders and augments far from 2.5 are worth a look. `--fast` plays 4 matches (seconds).
-About a second a match.
+place (2.5 is even among four) and how often it won, the augments picked most and how they placed
+(and the build-arounds, however rarely), how often each kind of auction lot sold and for how much,
+and the spoils paid a fight. Commanders and augments far from 2.5 are worth a look. `--fast` plays 4
+matches (seconds). About a second a match.
 """
 
 import random
@@ -27,6 +28,28 @@ class Clock:
 
     def __call__(self):
         return self.t
+
+
+LOTS = defaultdict(list)  # lot kind (or auction augment) -> prices paid, 0 for unsold
+SPOILS = []  # gold each player took from a fight against a player
+
+
+def watch():
+    resolve, end = game.Room.resolve_auction, game.Room.end_fight
+
+    def resolve_auction(self):
+        lots = self.auction["lots"]
+        resolve(self)
+        for i, by, price in self.auction_results["results"]:
+            lot = lots[i]
+            LOTS[lot.get("augment") or lot["kind"]].append(price if by else 0)
+
+    def end_fight(self):
+        pvp = self.round not in D.PVE
+        end(self)
+        if pvp:
+            SPOILS.extend(s["gold"] for s in self.settled)
+    game.Room.resolve_auction, game.Room.end_fight = resolve_auction, end_fight
 
 
 def match(seed, level):
@@ -72,8 +95,21 @@ def main():
     for a in sorted(common, key=lambda a: sum(aug_places[a]) / len(aug_places[a])):
         ps = aug_places[a]
         print(f"  {D.AUGMENTS[a]['name']:22} {sum(ps) / len(ps):.2f}  {len(ps)}")
+    builds = [a for a in aug_places if any(k in D.AUGMENTS[a] for k in ("per", "when", "stars", "convert"))]
+    print("\nbuild-around augments (average place, times):")
+    for a in sorted(builds, key=lambda a: sum(aug_places[a]) / len(aug_places[a])):
+        ps = aug_places[a]
+        print(f"  {D.AUGMENTS[a]['name']:22} {sum(ps) / len(ps):.2f}  {len(ps)}")
+    print("\nauction lots (sold, average price when sold):")
+    for k, v in sorted(LOTS.items(), key=lambda kv: kv[0]):
+        sold = [x for x in v if x]
+        name = D.AUGMENTS[k]["name"] if k in D.AUGMENTS else {"unit": "unit", "item": "relic"}[k]
+        print(f"  {name:22} {100 * len(sold) / len(v):3.0f}% of {len(v)}  {sum(sold) / max(1, len(sold)):.1f} gold")
+    if SPOILS:
+        print(f"\nspoils: {sum(SPOILS) / len(SPOILS):.2f} gold a player a fight against a player")
 
 
 if __name__ == "__main__":
     random.seed(0)
+    watch()
     main()

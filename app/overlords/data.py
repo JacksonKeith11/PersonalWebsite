@@ -73,6 +73,16 @@ RESULT_PAUSE = 3.0  # seconds after the last fight ends before the next round
 START_LEVEL = 1
 
 
+# Spoils (the owner asked for gold earned in fights, after Guildrun, late November 2026): after a fight
+# against a player, 1 gold for every SPOILS_PER of their units yours brought down, at most SPOILS_MAX
+# (summons don't count; monster rounds pay PVE_GOLD instead).
+SPOILS_PER, SPOILS_MAX = 3, 3
+
+
+def spoils(fallen):
+    return min(SPOILS_MAX, fallen // SPOILS_PER)
+
+
 def income(rnd):
     return 3 if rnd == 1 else 4 if rnd == 2 else 5
 
@@ -864,13 +874,15 @@ DRAFT_EXTRA = 2  # options beyond one each
 # At AUCTION_ROUNDS (the monster rounds that close each act), before planning, three lots go under a
 # sealed-bid auction: a two-star unit of AUCTION_UNIT's tier holding an item of its rarity, a relic (won
 # nowhere else) and an auction augment (tier 4). Everyone bids on any of them at once, at least
-# AUCTION_MIN each, the bids together no more than their gold; the highest bid of all takes its lot and
-# pays what it bid (ties to the lower HP), and so on down, nobody winning more than one lot (so saving
-# up can't buy the lot). AUCTION_TIME seconds, or until every person has bid.
+# AUCTION_MIN each, each bid no more than their gold (as nobody wins more than one lot, they never pay
+# two: until late November 2026 the bids together had to fit, and the augment went unsold half the time);
+# the highest bid of all takes its lot and pays what it bid (ties to the lower HP), and so on down,
+# nobody winning more than one lot (so saving up can't buy the lot). AUCTION_TIME seconds, or until
+# every person has bid.
 AUCTION_ROUNDS = (6, 11)
 AUCTION_UNIT = {6: (3, 3), 11: (4, 4)}  # round: (unit tier, item rarity)
 AUCTION_MIN = 3
-AUCTION_LOT_MIN = {"legion": 12}  # lots with a higher reserve than AUCTION_MIN (by augment)
+AUCTION_LOT_MIN = {"legion": 10}  # lots with a higher reserve than AUCTION_MIN (by augment)
 AUCTION_TIME = 25
 
 

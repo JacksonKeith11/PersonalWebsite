@@ -573,6 +573,7 @@ class Fight:
             "events": self.events,
             "traits": self.traits,
             "survivors": [[[u.key, u.star] for u in side if not u.summon] for side in left],
+            "fallen": [sum(1 for u in self.units if u.side == s and not u.summon and not u.alive) for s in (0, 1)],
             "dmg": {u.id: round(u.dmg_done) for u in self.units},
         }
 

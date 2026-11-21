@@ -315,7 +315,8 @@ def room_rules():
 
 def pairing():
     """Opponents are paired when planning starts; the fights follow those pairs; hard bots arrange
-    against the board they'll meet; someone leaving mid-plan gets everyone paired again."""
+    against the board they'll meet; spoils are paid for the units brought down; someone leaving mid-plan
+    gets everyone paired again."""
     room = game.Room("PAIR")
     room.rng.seed(5)
     room.clock = Clock()
@@ -351,8 +352,19 @@ def pairing():
     room.tick()
     check(room.phase == "fight" and [(f["home"], f["away"], f["ghost"]) for f in room.fights] == pairs,
           "the fights are the pairs shown while planning")
+    want = {}
+    for f in room.fights:
+        res = f["res"]
+        boards = [len(room.players[f["home"]].board), len(room.players[f["away"]].board)]
+        check(all(res["fallen"][s] == boards[s] - len(res["survivors"][s]) for s in (0, 1)),
+              "a fight counts each side's fallen units (summons left out)")
+        for pid, side in [(f["home"], 0)] + ([] if f["ghost"] else [(f["away"], 1)]):
+            want[pid] = want.get(pid, 0) + min(D.SPOILS_MAX, res["fallen"][1 - side] // D.SPOILS_PER)
     room.clock.t = room.ends + 0.01
     room.tick()
+    got = {s_["id"]: s_["gold"] for s_ in room.settled}
+    check(got == {i: want.get(i, 0) for i in got} and any(got.values()),
+          f"spoils: 1 gold for every {D.SPOILS_PER} enemy units brought down ({got})")
     while not (room.phase == "plan" and room.round not in D.PVE):
         room.clock.t = room.ends + 0.01
         room.tick()
@@ -396,9 +408,9 @@ def auction():
     check(st and st["phase"] == "auction" and len(st["auction"]["lots"]) == 3 and "bids" not in st["auction"],
           "the browsers see the lots but not the bids")
     me.gold = 200
-    check(not room.bid(me, [150, 30, 21]) and not room.bid(me, [2, 0, 0]) and not room.bid(me, [5, 5]),
-          "bids over your gold, under the minimum or the wrong length are refused")
-    check(room.bid(me, [150, 30, 20]), "a fair set of bids is taken")
+    check(not room.bid(me, [201, 0, 0]) and not room.bid(me, [2, 0, 0]) and not room.bid(me, [5, 5]),
+          "a bid over your gold, under the minimum or the wrong length is refused")
+    check(room.bid(me, [150, 140, 120]), "each bid may be up to all your gold (one lot at most, so one paid)")
     room.handle(me, {"t": "buy", "i": 0})
     check(me.gold == 200, "no shopping during the auction")
     room.tick()  # every person has bid: it closes at once
@@ -466,6 +478,14 @@ def build_arounds():
     sentinel = p.board[(3, 3)]["id"]
     check(cards[sentinel]["ad"] > bare[sentinel]["ad"] and cards[sentinel]["hp"] > bare[sentinel]["hp"],
           "the unit cards count build-arounds")
+    room.players[p.id] = p
+    pub = room.public(p)
+    check(pub["build"] == {"spellweave": casters, "shield_wall": 3, "war_chest": 10, "elite_guard": 2}
+          and "giants_heart" not in pub["build"], f"the browsers see what each build-around counts now ({pub['build']})")
+    del room.players[p.id]
+    p.plan = ["arcanist", "vanguard"]
+    check(bots.build_outlook(p, "units:arcanist,mystic,summoner") == casters + 2,
+          "bots count on the traits they aim for when weighing a build-around")
     f = sim.Fight([B("iron_sentinel", 3, 3, 1, ["belt", "vest"])], [B("wolf", 3, 3)], 1,
                   ({"convert": {"hp_to_ad": [200, 20], "res_to_ap": 0.5}}, {}))
     u = next(u for u in f.units if u.key == "iron_sentinel")

@@ -108,6 +108,7 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 .augments { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; display: flex; flex-direction: column; gap: 3px; }
 .augments li { cursor: default; }
 .augments li small { color: var(--dim); }
+.augments li small.now { display: block; color: #7be08a; }
 .overlay .card.wide { min-width: 640px; max-width: 860px; }
 .choices3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 #game .choices3 button { background: #fff; color: var(--fg); border: 2px solid var(--rule); text-align: left; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; }

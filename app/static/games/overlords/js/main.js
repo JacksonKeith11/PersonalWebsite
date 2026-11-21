@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=23';
-import { isMuted, play, setMuted } from './sound.js?v=23';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=23';
+import { Playback } from './fight.js?v=24';
+import { isMuted, play, setMuted } from './sound.js?v=24';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=24';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -315,15 +315,35 @@ function renderCommander() {
     $('power').classList.toggle('primary', ready && st.phase === 'plan');
     $('power-text').textContent = c.power;
   }
-  const augs = (S.watch === room.you ? mine : player(S.watch))?.augments || [];
+  const owner = S.watch === room.you ? mine : player(S.watch);
+  const augs = owner?.augments || [];
   $('augments-box').hidden = !augs.length;
   $('augments').replaceChildren(...augs.map(k => {
     const a = S.cfg.augments[k];
     const li = el('li');
     li.append(el('b', '', a.name), el('small', '', ` · ${a.text}`));
+    const now = buildNow(a, owner.build?.[k]);
+    if (now) li.append(el('small', 'now', now));
     if (a.trait) hoverInfo(li, () => ({ kind: 'trait', trait: a.trait }), true);
     return li;
   }));
+}
+
+// What a build-around augment gives on this board right now (Player.build_progress counts it).
+const COUNT_WORDS = { front: 'on the front row', kin: 'of your most common origin' };
+function buildNow(a, n) {
+  if (n == null) return '';
+  if (a.per) {
+    const m = Math.min(n, a.per.max ?? n), what = a.per.count;
+    const fx = Object.fromEntries(Object.entries(a.per.fx).map(([k, v]) => [k, +(v * m).toFixed(3)]));
+    const counted = what.startsWith('gold:') ? `${n * +what.slice(5)}+ gold held`
+      : what.startsWith('units:') ? `${n} ${what.slice(6).split(',').map(t => S.cfg.traits[t].name).join(', ').replace(/, ([^,]*)$/, ' or $1')} unit${n === 1 ? '' : 's'}`
+      : `${n} ${COUNT_WORDS[what] || ''}`;
+    return `Now: ${counted}, so ${m ? describeFx(fx) : 'nothing yet'}${a.per.max && n >= a.per.max ? ' (the most)' : ''}`;
+  }
+  if (a.when) return `Now: ${n} of ${a.when.origins} origins${n >= a.when.origins ? ', so it is on' : ''}`;
+  if (a.stars) return `Now: ${n} unit${n === 1 ? '' : 's'} at ${a.stars.min}★ or more on the board`;
+  return '';
 }
 
 function renderChoose() {
@@ -443,7 +463,7 @@ function renderAuction() {
   const key = `${st.round}`;
   if (!S.bids || S.bids.key !== key) S.bids = { key, v: st.me?.bids ? [...st.me.bids] : a.lots.map(() => 0), sent: !!st.me?.bids };
   const bids = S.bids.v, min = a.min;
-  $('auction-note').textContent = `Bid on any of these, in secret, at least ${min} gold each (or more where a lot says). The highest bid takes a lot and pays what it bid (a tie goes to the lower HP), and nobody wins more than one lot: your highest winning bid counts. Unsold lots are lost.`;
+  $('auction-note').textContent = `Bid on any of these, in secret, at least ${min} gold each (or more where a lot says), each up to all your gold. The highest bid takes a lot and pays what it bid (a tie goes to the lower HP), and nobody wins more than one lot, so you only ever pay one bid: your highest winning one. Unsold lots are lost.`;
   const lots = $('auction-lots');
   if (lots.dataset.key !== key) { // build the cards once an auction; the bid boxes are updated in place
     lots.dataset.key = key;
@@ -489,7 +509,7 @@ function renderAuction() {
       if (least > min) what.append(el('small', 'kind', `Bids start at ${least} gold`));
       const set = v => { S.bids.v[i] = v <= 0 ? 0 : Math.max(least, Math.floor(v)); S.bids.sent = false; renderAuction(); };
       less.addEventListener('click', () => set(bids[i] <= least ? 0 : bids[i] - 1));
-      more.addEventListener('click', () => set(bids[i] ? bids[i] + 1 : least));
+      more.addEventListener('click', () => set(Math.min(Math.max(least, seatedMe()?.gold ?? 0), bids[i] ? bids[i] + 1 : least)));
       box.addEventListener('change', () => set(+box.value || 0));
       bidder.append(less, box, more);
       card.append(art, what, bidder);
@@ -497,9 +517,9 @@ function renderAuction() {
     }));
   }
   [...lots.querySelectorAll('.lot input')].forEach((box, i) => { if (document.activeElement !== box) box.value = bids[i]; });
-  const total = bids.reduce((x, y) => x + y, 0);
-  const over = total > mine.gold;
-  $('auction-total').innerHTML = `Your bids: <b class="${over ? 'over' : ''}">${total}</b> of ${mine.gold} gold`;
+  const top = Math.max(0, ...bids); // you win one lot at most, so each bid only has to fit your gold
+  const over = top > mine.gold;
+  $('auction-total').innerHTML = `Your top bid: <b class="${over ? 'over' : ''}">${top}</b> of ${mine.gold} gold`;
   $('auction-send').disabled = over;
   $('auction-send').textContent = S.bids.sent ? 'Bids placed ✓' : 'Place bids';
   const others = (a.bid || []).filter(id => id !== room.you).map(id => esc(player(id)?.name));
@@ -648,7 +668,10 @@ function banner() {
     const mine2 = seatedMe();
     const parts = [];
     if (S.watch !== room.you && w) parts.push(`Looking at <b>${esc(w.name)}</b>'s board`);
-    if (mine && st.round > 1 && S.watch === room.you) parts.push(mine.dmg ? `<span class="lost">Last fight cost you ${mine.dmg} HP</span>` : '<span class="won">You won your last fight</span>');
+    if (mine && st.round > 1 && S.watch === room.you) {
+      parts.push(mine.dmg ? `<span class="lost">Last fight cost you ${mine.dmg} HP</span>` : '<span class="won">You won your last fight</span>');
+      if (mine.gold) parts.push(`<span class="won">+${mine.gold} gold in spoils</span> (1 for every ${S.cfg.rules.spoils_per} units you brought down)`);
+    }
     if (st.choosing?.length && S.endsAt - now() <= 0) {
       const names = st.choosing.filter(id => id !== room.you).map(id => esc(player(id)?.name));
       if (st.choosing.includes(room.you)) parts.push('<span class="hint">Everyone is waiting for you to choose a commander</span>');

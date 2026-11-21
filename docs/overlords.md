@@ -33,17 +33,22 @@ is knocked out.
 
 ### Units and traits
 
-15 units so far (three per cost, 1-5), one summon (Treant) and four monsters, all in
-`app/overlords/data.py`. Each unit has one origin and one or two classes. A trait counts the
+50 units (13, 13, 11, 8 and 5 at costs 1-5), five summons (Treant, Bog Imp, Skeleton, Turret, Mire
+Spawn) and four monsters, all in `app/overlords/data.py`. Each unit has one origin and one or two
+classes. Every trait can reach its top tier: origins with a 6 have 7 units, those topping at 4 have
+5-6, and classes have 6-8. A trait counts the
 *different* units carrying it on the board and switches on at thresholds (2/4/6 or 2/4). 16 traits:
 origins Emberforged (attacks burn), Thornwood (regrow HP), Tidecallers (mana each second), Gravebound
 (rise once), Skyborne (dodge), Ironhold (armor and resist), Starlit (cheaper abilities), Mirefolk
 (attackers are chilled); classes Vanguard (shield at the start), Duelist (attack speed stacks), Ranger
-(double strikes), Arcanist (the board's ability power), Mystic (the board's resist), Assassin (leap to
-the back line, crits), Summoner (stronger summons), Warden (max HP).
+(double strikes), Arcanist (the board's ability power), Mystic (the board's resist and a little
+regrowth: resist alone did nothing, since most damage is physical), Assassin (leap to the back line,
+crits), Summoner (stronger summons), Warden (max HP).
 
-Abilities are data: a list of steps (`hit`, `heal`, `shield`, `buff`, `summon`, `dash`), each aimed by
-a selector (`target`, `around_target:1`, `line:6`, `chain:5`, `lowest_ally`, ...). The docstring at
+Abilities are data: a list of steps (`hit`, `heal`, `shield`, `buff`, `summon`, `dash`, `mana`), each
+aimed by a selector (`target`, `around_target:1`, `line:5`, `chain:5`, `lowest_enemy`, `lowest_ally`,
+...). A hit can drain (`heal_frac`); a summon can bring several (`count`); a `static` summon (the
+Turret) never moves. The docstring at
 the top of `data.py` lists them all. A new unit needs no new code unless it needs a new step or
 selector (add it to `sim.Fight.step_*` / `select` and to `STEPS` / `SELECTORS`).
 
@@ -55,7 +60,8 @@ records only (no unlocks), and all four extra systems, at the large size:
 1. ~~The combat engine on 15 units~~ (done: `sim.py`, `tools/overlords-fight.py`)
 2. ~~The match loop: shop, bench, board, economy, levels, matchups, bots; a placeholder client
    (coloured tokens), live watching of any fight, synthesized sound~~ (done)
-3. The full roster: 50 units across the five costs, all 16 traits filled out
+3. ~~The full roster: 50 units across the five costs, all 16 traits filled out~~ (done, with a first
+   balance pass)
 4. Items (8 components from monster rounds and drafts, 36 combined, 3 a unit), 12 commanders (picked
    from 3 at the start: a passive and an active that charges over rounds), ~60 augments in three tiers
    (1 of 3 at rounds 3, 8 and 13, one free reroll), and a shared draft at rounds 4, 9 and 14 (lowest
@@ -101,7 +107,11 @@ Not on the games page yet (the owner can play it at `/games/overlords`); list it
   selector over special-casing a unit in the sim.
 - Original names and designs only: the genre is fine, another game's units, traits or look are not.
 - Balance at the end of a batch (CLAUDE.md): change everything first, then run
-  `tools/overlords-fight.py` once.
+  `tools/overlords-fight.py` once. Aim for units at 43-57% against their own cost, and traits at
+  roughly 55-65% at their first tier rising to 80-90% at a top tier of 6 (a board built around a trait
+  against boards that aren't).
+- When matching strings to edit `data.py`, beware lines two units share (Bramble Guard and Iron
+  Warlord once had the same shield line).
 
 ## Gotchas
 
@@ -124,8 +134,9 @@ Not on the games page yet (the owner can play it at `/games/overlords`); list it
   limits, moving, selling, the locked board), and three whole bot matches with the pool conserved.
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
   bots, buy/drag/sell, a fight played back and watched, the next round.
-- `python3 tools/overlords-fight.py [N] [--size S]`: unit and trait win rates on random boards;
-  `--show SEED` prints one fight.
+- `python3 tools/overlords-fight.py [N] [--size S]`: each unit's win rate against boards of the
+  same costs (50% is right at every cost); `--traits [N]` each trait at each tier against
+  cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
 Latest numbers (November 2026, 15 units, 800 random 6-unit fights): 7 ms a fight, average 18.6 s,
 1% hit the cap. Win rate rises with cost (1-cost 39-45%, 5-cost 54-63%). Worth a look in the

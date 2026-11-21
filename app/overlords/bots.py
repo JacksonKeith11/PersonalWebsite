@@ -3,8 +3,9 @@ and the balance tools all use `arrange`).
 
 A bot picks two traits to aim for at the start and plays its turn the moment a planning phase
 begins, through the same room methods a browser's messages reach (`buy`, `reroll`, `buy_xp`,
-`sell`), then sets its board directly. None banks gold for interest (spending it won, see ROLL_ABOVE).
-Its level decides how carefully: easy bots spend at random and level late; normal ones buy what's
+`sell`), then sets its board directly. Each plays a style (STYLES: spend it all, save for interest,
+level fast, or go all in on one trait), picked at random when the match starts. Its level decides how
+carefully: easy bots spend at random and level late; normal ones buy what's
 worth it and level on a schedule; hard ones level sooner, reroll everything once their HP runs low,
 and try a few arrangements of their board against the one they fight next (`place`: Room.pair_up
 decides opponents when planning starts), keeping the one that does best.
@@ -33,9 +34,20 @@ CORNERS = [0, 6, 1, 5, 2, 4, 3]
 LEVEL_PLAN = {"easy": {3: 3, 6: 4, 9: 5, 12: 6, 15: 7},
               "normal": {2: 3, 4: 4, 6: 5, 9: 6, 12: 7, 15: 8},
               "hard": {2: 3, 4: 4, 5: 5, 8: 6, 11: 7, 13: 8}}
-# Bots don't bank gold for interest: in head-to-heads (November 2026) bots that spent it all beat ones
-# keeping 20-30 gold from round 5, 2.18 to 2.82 in average place. They reroll only above ROLL_ABOVE.
-ROLL_ABOVE = 50
+# How a bot plays, picked at random when its match starts (easy bots shop at random whatever theirs):
+#   tempo:  spends everything, levels on schedule;
+#   econ:   banks gold from round 4, a step of interest more each round up to its cap, levels with
+#           what's over, and spends it all
+#           once it's on level 8 or its HP runs low;
+#   fast:   levels a round early all match and favours dear units;
+#   trait:  goes all in on one trait, the one it has most units of by round 5 (its units, emblem and
+#           augments first).
+# A reroller (staying low to three-star cheap units) was tried and dropped: with about 7 gold a round it
+# reached 8 of the 9 copies by round 11, too late to pay, and placed last (3.1-3.3) in every economy tried.
+STYLES = ("tempo", "econ", "fast", "trait")
+ROLL_ABOVE = 50  # anyone rerolls with more gold than this over what they keep
+ECON_FROM, ECON_SPEND_HP = 4, 30
+TRAIT_PICK_BY = 5  # all-in trait bots settle on their trait by this round
 LEFT = list(range(7))
 RIGHT = LEFT[::-1]
 # Hard bots' arrangements to try against their next opponent: (front-row order, back-row order).
@@ -86,12 +98,38 @@ def random_board(rng, size, max_cost=5, two_star=0.3):
 
 def value(p, key, star=1):
     """How much a bot wants a unit: its worth in gold, more for its chosen traits and for copies it
-    already has (towards a star)."""
+    already has (towards a star). All-in trait bots want their main trait's units more; fast levellers dear ones."""
     d = D.UNITS[key]
     v = d["cost"] * 3 ** (star - 1)
     v += 2.5 * sum(t in p.plan for t in d["traits"])
     have = sum(1 for u in p.units() if u["unit"] == key and u["star"] == star)
+    if p.style == "trait" and p.plan and p.plan[0] in d["traits"]:
+        v += 4
+    if p.style == "fast":
+        v += max(0, d["tier"] - 2)
     return v + 2 * have
+
+
+def keep_gold(p, rnd, panic):
+    """Gold the bot won't spend on units, rerolls or items this round (it may dip 10 under it for XP)."""
+    if panic:
+        return 0
+    if p.style == "econ":
+        cap = (p.interest_cap + 2 * (p.commander == "merchant")) * D.INTEREST_PER
+        spend = p.level >= D.MAX_LEVEL or p.hp < ECON_SPEND_HP
+        return 0 if rnd < ECON_FROM or spend else min(cap, D.INTEREST_PER * (rnd - ECON_FROM + 1))
+    return 0
+
+
+def level_plan(p):
+    """{round: level} the bot aims for, by its level and style."""
+    plan = dict(LEVEL_PLAN[p.bot])
+    if p.style == "fast":
+        plan = {max(1, r - 1): lv for r, lv in plan.items()}
+    if p.commander == "oracle" and p.bot != "easy":  # it reaches 5 a round early: its passive starts there
+        first5 = min(r for r, lv in plan.items() if lv >= 5)
+        plan[max(1, first5 - 1)] = max(plan.get(first5 - 1, 0), 5)
+    return plan
 
 
 def worth(p, u):
@@ -103,22 +141,26 @@ def play(room, p, rng):
     level = p.bot
     if not p.plan:
         p.plan = rng.sample([t for t in D.TRAITS], 2)
+    if not p.style:
+        p.style = rng.choice(STYLES)
+    if p.style == "trait" and room.round <= TRAIT_PICK_BY:  # commit to the trait it's furthest along
+        have = D.trait_counts([(u["unit"], u["items"]) for u in p.units()])
+        best = max(D.TRAITS, key=lambda t: (have.get(t, 0), t == p.plan[0]))
+        if have.get(best, 0) > have.get(p.plan[0], 0):
+            p.plan = [best, p.plan[0] if p.plan[0] != best else p.plan[1]]
     rnd = room.round
     sloppy = level == "easy"
     panic = p.hp < PANIC_HP[level]
+    keep = 0 if sloppy else keep_gold(p, rnd, panic)
 
     # powers that help the shopping go first
     charged = p.commander and p.charge >= D.COMMANDERS[p.commander]["charge"]
     if charged and (p.commander in SHOP_POWERS or sloppy):
         charged = not room.use_power(p)
 
-    # level up on schedule (the Oracle reaches 5 a round early: its passive starts there)
-    plan = dict(LEVEL_PLAN[level])
-    if p.commander == "oracle" and not sloppy:
-        first5 = min(r for r, lv in plan.items() if lv >= 5)
-        plan[max(1, first5 - 1)] = max(plan.get(first5 - 1, 0), 5)
-    want = max([lv for r, lv in plan.items() if rnd >= r] or [1])
-    while p.level < min(want, D.MAX_LEVEL) and p.gold >= D.XP_COST:
+    # level up on schedule
+    want = max([lv for r, lv in level_plan(p).items() if rnd >= r] or [1])
+    while p.level < min(want, D.MAX_LEVEL) and p.gold - D.XP_COST >= keep - 10:
         if not room.buy_xp(p):
             break
 
@@ -136,12 +178,12 @@ def play(room, p, rng):
             for v, i, k in options:
                 cost = D.UNITS[k]["cost"]
                 good = v >= 3 + rnd * 0.25 or sloppy or panic
-                if good and p.gold >= cost and room.buy(p, i):
+                if good and p.gold - cost >= keep and room.buy(p, i):
                     bought = True
                     break
         cost = 0 if p.free_rerolls else room.reroll_cost(p)
-        free_ish = not sloppy and (cost == 0 or (cost < D.REROLL and p.gold >= cost)) and rolls < 12
-        rich = p.gold - cost >= (ROLL_ABOVE if not panic else 0) and rolls < 8
+        free_ish = not sloppy and (cost == 0 or (cost < D.REROLL and p.gold - cost >= keep)) and rolls < 12
+        rich = p.gold - cost >= keep + (ROLL_ABOVE if not panic else 0) and rolls < 8
         desperate = panic and p.gold >= cost and rolls < 12
         if (free_ish or rich or desperate) and any(u is None for u in p.bench):
             if not room.reroll(p):
@@ -157,7 +199,7 @@ def play(room, p, rng):
     for price, i in stock:
         weakest = min([D.ITEMS[it]["rarity"] for u in p.units() for it in u["items"]] or [9])
         better = D.ITEMS[p.armory[i]]["rarity"] > weakest  # worth swapping in even when every slot is full
-        if (len(p.items) < room_for or better) and p.gold >= price:
+        if (len(p.items) < room_for or better) and p.gold - price >= keep:
             room.buy_item(p, i)
 
     # fight powers, against players (monsters aren't worth one)

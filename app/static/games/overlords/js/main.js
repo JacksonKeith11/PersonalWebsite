@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=19';
-import { isMuted, play, setMuted } from './sound.js?v=19';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=19';
+import { Playback } from './fight.js?v=20';
+import { isMuted, play, setMuted } from './sound.js?v=20';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=20';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -483,7 +483,7 @@ function renderHud() {
     $('hud-hp').classList.toggle('low', mine.hp <= 20);
     const inc = st.me?.income;
     $('hud-gold').innerHTML = `Gold <b>${mine.gold}</b>` + (inc && mine.alive ? ` <small>+${inc[0] + inc[1] + inc[2]} next round</small>` : '');
-    $('hud-gold').title = inc ? `Next round: ${inc[0]} income, ${inc[1]} interest (1 for every 10 gold you keep)`
+    $('hud-gold').title = inc ? `Next round: ${inc[0]} income, ${inc[1]} interest (1 for every ${S.cfg.rules.interest_per} gold you keep, up to ${S.cfg.rules.max_interest})`
       + (inc[2] ? `, ${inc[2]} for your ${mine.streak > 0 ? 'winning' : 'losing'} streak` : '') : '';
     const need = st.me?.need;
     $('hud-level').textContent = COMPACT.matches
@@ -617,6 +617,14 @@ function foeUnits() {
     ({ key, star, items, talents, stats, id, c: cols - 1 - c, r: rows - 1 - r, own: [c, r], owner: p.id }));
 }
 
+// How each bot plays (bots.STYLES), for the 🤖's tooltip.
+const BOT_STYLES = {
+  tempo: 'spends all its gold each round',
+  econ: 'saves gold for interest, then spends it late',
+  fast: 'levels up early and buys dear units',
+  trait: 'goes all in on one trait',
+};
+
 function renderPlayers() {
   const st = S.st;
   const list = st.players.filter(p => p.seated).sort((a, b) => (b.alive - a.alive) || (b.hp - a.hp) || ((a.place || 0) - (b.place || 0)));
@@ -631,7 +639,11 @@ function renderPlayers() {
     if (p.commander) dot.title = S.cfg.commanders[p.commander].name;
     const name = el('span', 'name', p.name);
     if (p.id === room.you) name.append(el('span', 'extra', ' (you)'));
-    if (p.bot) name.append(el('span', 'extra', ' 🤖'));
+    if (p.bot) {
+      const tag = el('span', 'extra', ' 🤖');
+      tag.title = `A ${p.bot} bot${BOT_STYLES[p.style] ? ` that ${BOT_STYLES[p.style]}` : ''}`;
+      name.append(tag);
+    }
     const hp = el('span', 'hp', p.alive ? String(Math.max(0, p.hp)) : `#${p.place}`);
     const bar = el('span', 'bar');
     const fill = el('i');
@@ -1571,11 +1583,25 @@ function draw() {
 
   if (st.phase === 'fight' && S.pb) drawFight();
   else {
-    for (const u of foeUnits()) {
+    const foes = foeUnits();
+    for (const u of foes) {
       const [x, y] = hexXY(u.c, u.r);
       drawUnit(x, y, u.key, u.star, { ring: u.monster ? MONSTER_COLOR : player(u.owner)?.color, items: u.items, flip: true, alpha: 0.5, monster: u.monster });
     }
     drawBoard(player(S.watch));
+    // your front row stands in front of (and partly hides) whoever is right across the line, so their
+    // hexes are outlined on top of everything: where each of them will start is always plain
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = 2;
+    for (const u of foes) {
+      const [x, y] = hexXY(u.c, u.r);
+      hexPath(x, y, G.R * 0.9);
+      ctx.strokeStyle = u.monster ? MONSTER_COLOR : player(u.owner)?.color || '#ff9a5a';
+      ctx.globalAlpha = 0.85;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // the bench (always yours)

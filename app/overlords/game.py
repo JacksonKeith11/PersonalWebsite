@@ -67,6 +67,7 @@ class Player:
         self.ready = False
         self.last_opp = None
         self.plan = None
+        self.style = None  # bots: how they play (bots.STYLES)
         self.results = []  # "w", "l" or "d" each round
         self.items = []  # the item bench: item keys not on a unit
         self.commander = None
@@ -236,7 +237,7 @@ class Room:
                           "odds": D.SHOP_ODDS, "start_hp": D.START_HP, "max": MAX_PLAYERS,
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
                           "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
-                          "pve_boards": D.PVE,
+                          "pve_boards": D.PVE, "interest_per": D.INTEREST_PER, "max_interest": D.MAX_INTEREST,
                           "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
                           "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
                           "armory_odds": D.ARMORY_ODDS},
@@ -1150,7 +1151,8 @@ class Room:
         # the unit cards' numbers: worked out only when a person is here to see them (not in bot-only rooms)
         people = any(q.connected and not q.bot for q in self.players.values())
         p.cards = p.card_stats() if people and p.seated and p.units() else {}
-        return {"id": p.id, "name": p.name, "color": p.color, "bot": p.bot, "on": p.connected,
+        return {"id": p.id, "name": p.name, "color": p.color, "bot": p.bot, "style": p.style if p.bot else None,
+                "on": p.connected,
                 "seated": p.seated, "hp": p.hp, "level": p.level, "gold": p.gold, "alive": p.alive,
                 "place": p.place, "streak": p.streak, "ready": p.ready, "results": p.results[-5:],
                 "board": [[u["id"], u["unit"], u["star"], c, r, u["items"], u["talents"], p.cards.get(u["id"])]

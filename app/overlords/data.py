@@ -66,7 +66,8 @@ LEVEL_XP = {1: 2, 2: 2, 3: 6, 4: 10, 5: 20, 6: 32, 7: 50}  # XP from each level 
 SHOP_ODDS = {1: (100, 0, 0, 0, 0), 2: (100, 0, 0, 0, 0), 3: (75, 25, 0, 0, 0), 4: (55, 30, 15, 0, 0),
              5: (45, 33, 20, 2, 0), 6: (30, 40, 25, 5, 0), 7: (19, 30, 35, 15, 1), 8: (15, 20, 35, 25, 5)}
 POOL = {1: 12, 2: 10, 3: 9, 4: 7, 5: 5}  # copies of each unit in a room, by tier
-INTEREST_PER, MAX_INTEREST = 10, 5
+# 1 gold per 6 saved, at most 5 (was per 10): saving now pays (docs/overlords.md, Checks and numbers)
+INTEREST_PER, MAX_INTEREST = 6, 5
 PLAN_TIME, FIRST_PLAN = 30, 20
 RESULT_PAUSE = 3.0  # seconds after the last fight ends before the next round
 START_LEVEL = 1
@@ -138,7 +139,7 @@ TRAITS = {
     "duelist": {
         "name": "Duelist", "kind": "class", "levels": [2, 4, 6],
         "text": "Each Duelist attack speeds up their attacks, stacking up to 8 times.",
-        "fx": [{"duel": 0.09}, {"duel": 0.11}, {"duel": 0.12}]},
+        "fx": [{"duel": 0.13}, {"duel": 0.14}, {"duel": 0.16}]},
     "ranger": {
         "name": "Ranger", "kind": "class", "levels": [2, 4],
         "text": "Ranger attacks have a chance to strike twice.",
@@ -155,9 +156,9 @@ TRAITS = {
                {"who": "team", "mr": 50, "regen": 0.018, "spell_dr": 0.2}]},
     "assassin": {
         "name": "Assassin", "kind": "class", "levels": [2, 4, 6],
-        "text": "Assassins leap to the enemy's back line at the start, and crit more often and harder.",
-        "fx": [{"leap": 1, "crit": 0.4, "critdmg": 0.6}, {"leap": 1, "crit": 0.45, "critdmg": 0.65},
-               {"leap": 1, "crit": 0.5, "critdmg": 0.75}]},
+        "text": "Assassins leap to the enemy's back line at the start, dodge some attacks, and crit more often and harder.",
+        "fx": [{"leap": 1, "crit": 0.4, "critdmg": 0.6, "dodge": 0.15}, {"leap": 1, "crit": 0.42, "critdmg": 0.62, "dodge": 0.18},
+               {"leap": 1, "crit": 0.45, "critdmg": 0.65, "dodge": 0.22}]},
     "summoner": {
         "name": "Summoner", "kind": "class", "levels": [2, 4],
         "text": "What Summoners call up has more HP and damage.",
@@ -189,7 +190,7 @@ UNITS = {
     # wounds, vanishing, lingering ground, delayed blows, executes, growth, raising the fallen,
     # swallowing. `passive` (fx, as items use) and `passive_text` are what a unit always has.
     # ---------------------------------------------------------------- cost 1
-    "ashling": U("Ashling", 1, ["emberforged", "duelist"], 640, 68, 0.75, 1, 30, 20, 60, 0,
+    "ashling": U("Ashling", 1, ["emberforged", "duelist"], 640, 68, 0.75, 1, 30, 20, 50, 0,
                  A("Flurry", "Attacks far faster for 4 s, and every hit meanwhile sets its target burning.",
                    {"do": "buff", "to": "self", "stat": "aspd_pct", "amt": [0.8, 1.0, 1.3], "secs": 4},
                    {"do": "buff", "to": "self", "stat": "burns", "amt": [0.02, 0.03, 0.04], "secs": 4})),
@@ -257,14 +258,14 @@ UNITS = {
                     A("Overgrow", "Regrows HP and tangles enemies beside it.",
                       {"do": "heal", "to": "self", "amt": [250, 375, 580]},
                       {"do": "hit", "to": "around_self:1", "dmg": [100, 150, 220], "slow": 0.25})),
-    "ghoul_reaver": U("Ghoul Reaver", 2, ["gravebound", "assassin"], 620, 80, 0.8, 1, 25, 20, 60, 0,
+    "ghoul_reaver": U("Ghoul Reaver", 2, ["gravebound", "assassin"], 580, 80, 0.8, 1, 25, 20, 60, 0,
                       A("Feast", "Tears into the most hurt enemy, healing for part of it. A kill refills its mana.",
                         {"do": "dash", "to": "lowest_enemy"},
-                        {"do": "hit", "to": "target", "type": "phys", "dmg": [230, 345, 520], "heal_frac": 0.4,
+                        {"do": "hit", "to": "target", "type": "phys", "dmg": [205, 310, 520], "heal_frac": 0.4,
                          "refund": True})),
-    "iron_crossbow": U("Iron Crossbow", 2, ["ironhold", "ranger"], 560, 78, 0.7, 4, 25, 20, 80, 0,
+    "iron_crossbow": U("Iron Crossbow", 2, ["ironhold", "ranger"], 560, 78, 0.7, 4, 25, 20, 70, 0,
                        A("Piercing Bolt", "A bolt through everything in a line.",
-                         {"do": "hit", "to": "line:5", "type": "phys", "dmg": [200, 300, 450]})),
+                         {"do": "hit", "to": "line:5", "type": "phys", "dmg": [260, 390, 580]})),
     "reef_guard": U("Reef Guard", 2, ["tidecallers", "vanguard"], 820, 66, 0.6, 1, 45, 35, 90, 40,
                     A("Undertow", "Drags at the enemies beside it, stunning them.",
                       {"do": "hit", "to": "around_self:1", "dmg": [120, 180, 270], "stun": [1, 1.25, 1.5]})),
@@ -282,12 +283,12 @@ UNITS = {
     "iron_duelist": U("Iron Duelist", 2, ["ironhold", "duelist"], 680, 78, 0.75, 1, 40, 25, 70, 0,
                       A("Riposte", "Parries every attack for 1.5 s and hits harder for 4 s.",
                         {"do": "buff", "to": "self", "stat": "dodge", "amt": 1.0, "secs": 1.5},
-                        {"do": "buff", "to": "self", "stat": "ad", "amt": [35, 55, 85], "secs": 4})),
+                        {"do": "buff", "to": "self", "stat": "ad", "amt": [45, 70, 100], "secs": 4})),
     "star_archer": U("Starlit Archer", 2, ["starlit", "ranger"], 560, 76, 0.75, 4, 20, 20, 70, 0,
                      A("Moonvolley", "Arrows at four random enemies.",
                        {"do": "hit", "to": "random:4", "type": "phys", "dmg": [110, 165, 250]}),
-                     passive={"multishot": 0.3},
-                     passive_text="Each attack also strikes a second enemy near its target for 30%."),
+                     passive={"multishot": 0.2},
+                     passive_text="Each attack also strikes a second enemy near its target for 20%."),
     "toad_brawler": U("Toad Brawler", 2, ["mirefolk", "duelist"], 700, 74, 0.75, 1, 35, 25, 70, 0,
                       A("Tongue Lash", "Lashes out its tongue, dragging the farthest enemy over to be punched and dazed.",
                         {"do": "pull", "to": "farthest"},
@@ -345,7 +346,7 @@ UNITS = {
                      A("Gust Arrow", "An arrow on a gale: it knocks its target two hexes back and slows it.",
                        {"do": "hit", "to": "target", "type": "phys", "dmg": [300, 450, 700], "knock": 2, "slow": 0.3})),
     # ---------------------------------------------------------------- cost 4
-    "thorn_shaman": U("Thorn Shaman", 4, ["thornwood", "summoner"], 850, 74, 0.7, 3, 30, 30, 80, 40,
+    "thorn_shaman": U("Thorn Shaman", 4, ["thornwood", "summoner"], 920, 74, 0.7, 3, 30, 30, 70, 40,
                       A("Call the Grove", "Calls up a Treant beside itself.",
                         {"do": "summon", "unit": "treant"})),
     "grave_knight": U("Grave Knight", 4, ["gravebound", "vanguard", "warden"], 1000, 94, 0.65, 1, 50, 40, 100, 40,

@@ -29,7 +29,7 @@ standing wins, except that once every person in the room is out, the match ends 
 still standing are placed by HP (`only_bots_left`, `finish`; the owner asked for a loss to end it at once
 rather than wait on the bots). A room of bots alone, as in the checks and the simulator, plays out.
 Rounds 1, 2, 6 and 11 are monster rounds (`PVE`): everyone fights the same monsters, for gold
-(`PVE_GOLD`: 3, 4, 6 and 8 to a winner; no items, which come from the armory). Income each round: 3, 4, then 5 gold, plus 1 per 10 saved (up to 5), plus
+(`PVE_GOLD`: 3, 4, 6 and 8 to a winner; no items, which come from the armory). Income each round: 3, 4, then 5 gold, plus 1 per 6 saved (up to 5; per 10 until late November 2026, see Gotchas), plus
 1-3 for a win or loss streak of 2+. Everyone starts with one free 1-cost unit. Before each fight,
 bench units fill any empty board places up to the level (`fill_board`), so forgetting to place isn't
 fatal. Copies come out of a shared pool (`POOL`, by tier) and go back when sold or when their owner
@@ -313,13 +313,19 @@ matching), the side panels fold away:
   mirrored as `to_grid` does), its units' cards on hover or tap (`foeAt`: `foe: true`, `owner`, their
   traits). On monster rounds the monsters show there instead (`rules.pve_boards`).
 - `bots.py`: `arrange` (melee in front, toughest in the middle; ranged at the back, assassins last;
-  the column orders can be changed) and the bots' turn (`play`): two traits to aim for, a level schedule
-  (the Oracle reaches 5 a round early), no gold banked for interest, free and cheap rerolls whenever they
-  help, more when rich or below their panic HP, shop powers (gold, rerolls, XP, units, items) before
+  the column orders can be changed) and the bots' turn (`play`): a style (`STYLES`, below), two traits to
+  aim for, a level schedule (the Oracle reaches 5 a round early), gold kept by style (`keep_gold`), free and
+  cheap rerolls whenever they help, more when rich or below their panic HP, shop powers (gold, rerolls, XP, units, items) before
   shopping and fight powers only against players, items where they fit (`equip`, `fit`), and picks of
   commander, augment, draft and extra abilities (`pick_talents`). Then `place`, once every bot has played
   (`start_plan`): hard bots fight the board they meet next (or the monsters) with each of `SHAPES` on
   one seed and keep the arrangement that ends best. They act through the same room methods as a browser.
+- **Bot styles** (the owner asked for bots that play differently, November 2026): each bot gets one at
+  random when the match starts (`Player.style`, shown in the 🤖's tooltip): `tempo` spends everything;
+  `econ` banks gold from round 4, a step of interest more each round up to its cap, levels with what's
+  over and spends it all at level 8 or under 30 HP; `fast` levels a round early all match and favours dear
+  units; `trait` goes all in on whichever trait it has most units of by round 5. A fifth, a reroller
+  (stay low, three-star cheap units), was tried and dropped: see Gotchas.
 - **The info card** (`infoBody` in `main.js`: `unitCard`, `itemCard`, `traitCard`; the owner asked for a
   UI pass in November 2026 so item descriptions, unit stats and trait bonuses read clearly). A unit's
   numbers are the server's: `Player.card_stats` sets a fight up (`sim.Fight`, not run) with the player's
@@ -387,13 +393,21 @@ matching), the side panels fold away:
   which flickered. Phones keep it fixed at the top, at most 42% of the screen and scrolling, with Sell and
   the pick button moved up under the unit's name: any taller and it covered the hexes tap-to-move needs
   (the phone check caught it).
-- Bots don't bank gold for interest. Head-to-heads (two new bots against two old in each match, seats
-  alternated, November 2026): normal bots that spent everything placed 2.18 on average against 2.82 for
-  ones keeping 20-30 gold from round 5; keeping 10 still lost (2.35 against 2.65). Interest is weak
-  next to spending in this economy: worth knowing before tuning `income` or `MAX_INTEREST`. Using shop
-  powers before shopping was worth about 0.07 of a place (the Oracle's reroll used to come after the
-  bot had shopped, so the next round's roll threw it away); matching items to units, nothing measurable.
-  Hard bots against the old hard bots: 1.97 against 3.03 (79% of wins); without `place`, 2.07.
+- **Interest** was 1 per 10 saved, and saving lost: in head-to-heads normal bots that spent everything
+  placed 2.18 against 2.82 for ones keeping 20-30 gold. So the owner asked for saving to be worth it, and
+  the style tournament (`tools/overlords-styles.py`: every match seats the four styles, shuffled; 300
+  normal matches a try, about ±0.07) chose 1 per 6 (`INTEREST_PER`): per 10 had the saver last at 2.82, per 8 at 2.73, per 7 at 2.56,
+  per 6 at 2.45 (second, and winning as often as the leader), per 5 first at 2.24 (too much). Dearer XP
+  (5 gold) made the saver worse. Retest with the tournament before touching `income`, interest or XP.
+- **Three-stars of cheap units are out of reach.** The reroller bot kept 10 gold, stayed on level 5 and
+  rerolled the rest for up to three cheap targets: with about 7 gold a round it reached 8 of 9 copies of
+  its best by round 11, too late, and placed 3.1-3.3 whatever was tried (level 6, 1-gold rerolls, pools
+  of 18/15/12/8/6). Tier 4 and 5 can't three-star at all (pools of 7 and 5; 9 copies needed). Making it a
+  real strategy would take a much richer economy; the owner hasn't asked for that.
+- Measured bot changes: shop powers before shopping were worth about 0.07 of a place (the Oracle's reroll
+  used to come after the bot had shopped, so the next round's roll threw it away); matching items to
+  units, nothing measurable. Hard bots against the old hard bots: 1.97 against 3.03 (79% of wins);
+  without `place`, 2.07.
 - `place` runs `len(SHAPES)` real fights per hard bot per round (about 25 ms a bot), on the server's
   loop; normal and easy bots run none, so the simulator's default (normal) stays quick.
 - A unit can die in its own turn (an Ember Mantle's burn kills a foe whose death burst kills the holder),
@@ -433,27 +447,28 @@ matching), the side panels fold away:
 - `python3 tools/overlords-sim.py [N] [--level L]`: whole bot matches (a quarter of a second each):
   rounds and minutes, each commander's average place (2.5 is even), the most picked augments.
   `--fast` plays 4.
+- `python3 tools/overlords-styles.py [N] [--level L]`: the bot style tournament (two minutes for 300
+  normal matches): each style's average place. Rerun it before changing income, interest, XP or prices.
 - `python3 tools/overlords-fight.py [N] [--size S]`: each unit's win rate against boards of the
   same costs (50% is right at every cost); `--traits [N]` each trait at each tier against
   cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
-Latest numbers (late November 2026, after the balance pass that came with smarter bots and the next-opponent
-preview; ~4 minutes to rerun all three):
-- Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 17.5 ms a fight, average
-  21 s, 0.9% hit the cap. The last run's outliers are back in range (Tide Acolyte, Phoenix Knight; Bone
-  Tyrant 56%) after a Tide Acolyte heal and Phoenix Knight self-heal cut and a shorter Bone Tyrant stun.
-  Mire Mother's buff (ability damage 260/390 at 1-2 stars) overshot to 58% with 100 mana, so her mana went
-  back to 110: 50.5% in 800 fights holding her. Outside 42-58% (each unit is about ±2.5% at ~400 fights):
-  Ashling 40%, Iron Crossbow 40%, Thorn Shaman 41% (weak), Starlit Archer 58%.
-- Traits, 120 fights a tier (`--traits 120`, about ±4.5%; a 300-a-tier spot run of five traits showed a
-  first tier move 8 points between seeds with nothing changed): first tiers 40-58%, the 4-tiers of the 2/4
-  traits 66-83%, the top tiers of 6 at 69-85%. This pass raised Assassin (crit), Mirefolk (chill),
-  Arcanist (40/75/140 team ability power), Warden (more HP, and damage reduction from 4) and Vanguard
-  (bigger shields): Arcanist now 53/62/81%, Warden 55/65/85%, Vanguard 50/60/71%, Mirefolk 58/74%.
-  Assassin 2 is still the weakest first tier (40% here, 48% at 300 a tier), though boards that happen to
-  field two assassins win 53% in the unit run.
-- Whole bot matches (`overlords-sim.py 300`, normal bots, 115 s): 17.6 rounds (15-20), about 16 minutes at
-  full timers. Commanders 2.10 (Twinmaker, charge now 6) to 2.84 (Merchant), no outliers left: the
-  Oracle went from 3.22 to 2.32 once bots used its reroll before shopping. The Merchant is lowest because
-  bots no longer bank gold, so its higher interest cap does nothing for them: a bot artifact, not a
-  balance finding. About ±0.15 of noise at ~75 matches a commander.
+Latest numbers (late November 2026, after interest went to 1 per 6, bot styles and a second balance pass;
+~6 minutes to rerun the three tools, plus the style tournament):
+- Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 18 ms a fight, average
+  21 s, 1.7% hit the cap. 58 of 60 within 42-58% (each about ±2.5% at ~400 fights): just outside,
+  Thornling 40% (weak) and Bone Tyrant 58.5%. This pass: Duelist's stacks 0.13/0.14/0.16 (was
+  0.09/0.11/0.12; Duelist 2 was 38%), Ashling 50 mana, Iron Crossbow's bolt 260/390/580 and 70 mana, Iron
+  Duelist's Riposte 45/70/100 attack, Thorn Shaman 920 HP and 70 mana, Starlit Archer's passive 20%, Ghoul
+  Reaver 580 HP and a smaller Feast; Assassins gained dodge (15/18/22%), which also lifted Ghoul Reaver and
+  Marsh Lurker. A scratch spot test (800 fights with the unit always fielded) agrees with the tool within
+  noise (Ghoul Reaver 61% in both before its trim).
+- Traits, 120 fights a tier (`--traits 120`, about ±4.5%, and noisier than that in practice: Assassin 2
+  read 42% here and 56% in a 300-a-tier spot run): first tiers 42-57%, the 4-tiers of the 2/4 traits
+  58-82%, the top tiers of 6 at 66-82%. Every ladder rises.
+- Whole bot matches (`overlords-sim.py 300`, normal bots, a random style each): 17.4 rounds (14-21), about
+  16 minutes at full timers. Commanders 2.17 (Twinmaker) to 2.78 (Hexer), the tightest spread yet; the
+  Merchant is back mid-table (2.48) now that saving pays. About ±0.15 of noise at ~75 matches a commander.
+- The style tournament (`overlords-styles.py 300`; every match seats the four styles, shuffled), interest per 6:
+  normal bots, 300 matches: fast 2.31, econ 2.43 (the most wins, 100 of 300), trait 2.58, tempo 2.68.
+  Hard bots, 120 matches: fast 2.27, trait 2.35, tempo 2.59, econ 2.78 (about ±0.1).

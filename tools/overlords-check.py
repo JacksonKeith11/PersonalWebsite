@@ -388,6 +388,7 @@ def matches(n=3):
         check(room.phase == "over", f"match {i} never ended")
         places = sorted(p.place for p in room.seated())
         check(places == [1, 2, 3, 4], f"match {i}: places {places}")
+        check(all(p.style in game.B.STYLES for p in room.seated()), f"match {i}: every bot plays a style")
         secs.append(room.clock.t - start)
         rounds.append(room.round)
         while not q.empty():

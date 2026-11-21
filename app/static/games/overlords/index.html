@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/overlords/game.css?v=6">
+  <link rel="stylesheet" href="/static/games/overlords/game.css?v=7">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -157,6 +157,16 @@
           <h2 id="traits-title">Traits</h2>
           <ul id="traits" class="traits"></ul>
         </section>
+        <section id="meter" hidden>
+          <h2 id="meter-title">Damage</h2>
+          <div class="tabs" role="group" aria-label="What the chart shows">
+            <button type="button" data-tab="dealt" aria-pressed="true">Dealt</button>
+            <button type="button" data-tab="taken" aria-pressed="false">Taken</button>
+            <button type="button" data-tab="healed" aria-pressed="false">Healing</button>
+          </div>
+          <p id="meter-legend" class="legend"></p>
+          <div id="meter-rows"></div>
+        </section>
         <section id="info"></section>
       </aside>
     </div>
@@ -173,6 +183,10 @@
         <p class="kicker" id="end-kicker"></p>
         <h2 id="end-title"></h2>
         <ol id="end-rows" class="end-rows"></ol>
+        <figure id="end-chart" class="hp-chart" hidden>
+          <figcaption>Everyone's HP after each round</figcaption>
+          <div class="plot"></div>
+        </figure>
         <p id="end-record" class="note"></p>
         <div class="row">
           <button id="again" class="host-only" type="button">Back to the room</button>
@@ -182,6 +196,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/overlords/js/main.js?v=6"></script>
+  <script type="module" src="/static/games/overlords/js/main.js?v=7"></script>
 </body>
 </html>

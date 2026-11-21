@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=6';
-import { isMuted, play, setMuted } from './sound.js?v=6';
-import { ATLAS_URL, POSES, ROWS } from './atlas.js?v=6';
+import { Playback } from './fight.js?v=7';
+import { isMuted, play, setMuted } from './sound.js?v=7';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=7';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -17,6 +17,21 @@ const el = (tag, cls, text) => {
 };
 const show = screen => { for (const id of ['menu', 'lobby', 'game']) $(id).hidden = id !== screen; };
 const now = () => performance.now() / 1000;
+// Pixel art as an element: a 16x16 icon (item:<key>, trait:<key>), a commander's portrait or a unit's
+// idle sprite (32x32), scaled to `px` with crisp pixels.
+function sheetEl(url, cell, cols, i, px, cls = 'ico') {
+  const s = el('span', cls);
+  s.style.width = s.style.height = px + 'px';
+  if (i == null) return s;
+  const k = px / cell;
+  s.style.backgroundImage = `url(${url})`;
+  s.style.backgroundSize = `${cols * cell * k}px auto`;
+  s.style.backgroundPosition = `${-(i % cols) * px}px ${-Math.floor(i / cols) * px}px`;
+  return s;
+}
+const icon = (name, px = 32) => sheetEl(ICONS_URL, 16, ICON_COLS, ICONS[name], px);
+const portrait = (key, px = 48) => sheetEl(PORTRAITS_URL, 32, Object.keys(PORTRAITS).length + 2, PORTRAITS[key], px, 'ico portrait');
+const sprite = (key, px = 64) => sheetEl(ATLAS_URL, 32, POSES.length, ROWS[key] == null ? null : ROWS[key] * POSES.length, px, 'ico sprite');
 const COST_COLORS = { 0: '#7a3a3a', 1: '#8d96a5', 2: '#46a856', 3: '#3a82d6', 4: '#a456d4', 5: '#e89a30' };
 const MONSTER_COLOR = '#9a4a4a';
 
@@ -35,6 +50,9 @@ const S = {
   hover: null,       // what the pointer is over: { kind: 'board'|'bench'|'fight'|'shop', ... }
   mouse: null,       // { x, y } on the canvas
   prev: null,        // last state's numbers for this player, to know when to play sounds
+  lastFights: [],    // the previous round's fights, for the damage chart while planning
+  meterTab: 'dealt', // what the damage chart shows: dealt, taken or healed
+  meterAt: 0,        // now() when the chart was last drawn
 };
 
 const room = startRoom({ key: 'overlords', path: '/games/overlords', title: 'Overlords', show, onMessage: receive });
@@ -57,7 +75,12 @@ function receive(m) {
     S.st = m;
     S.endsAt = m.left != null ? now() + m.left : 0;
     if (!player(S.watch) || (before && before.phase === 'lobby' && m.phase !== 'lobby')) S.watch = room.you;
-    if (m.phase !== 'fight') { S.fights = []; S.pb = null; } else if (!S.pb) makePlayback();
+    if (m.phase !== 'fight') {
+      if (S.fights.length) S.lastFights = S.fights; // the damage chart keeps showing the last round's fights
+      S.fights = [];
+      S.pb = null;
+    } else if (!S.pb) makePlayback();
+    if (m.phase === 'lobby') S.lastFights = [];
     sounds(before, m);
     render();
   } else if (m.t === 'fights') {
@@ -117,12 +140,6 @@ function render() {
 // ------------------------------------------------------------------ items, commander, augments, draft
 
 const ITEM_COLORS = { component: '#5b6478', item: '#8a6a2a', emblem: '#2f7a6a', crown: '#b08a1a' };
-const itemLabel = key => {
-  const d = S.cfg.items[key];
-  if (d.kind === 'emblem') return S.cfg.traits[d.trait].name.slice(0, 2);
-  if (d.kind === 'crown') return '♛';
-  return d.name.split(' ').map(w => w[0]).join('').slice(0, 2);
-};
 
 function renderItems() {
   const box = $('items'), st = S.st;
@@ -131,9 +148,10 @@ function renderItems() {
   if (!items.length) { box.replaceChildren(el('span', 'none', 'None yet: monster rounds drop components.')); return; }
   box.replaceChildren(...items.map((key, i) => {
     const d = S.cfg.items[key];
-    const b = el('button', 'item', itemLabel(key));
+    const b = el('button', 'item ' + d.kind);
     b.type = 'button';
-    b.style.background = ITEM_COLORS[d.kind];
+    b.append(icon('item:' + key, 32));
+    b.setAttribute('aria-label', d.name);
     b.classList.toggle('picked', S.pickedItem === i);
     b.title = `${d.name}: ${d.text}`;
     b.addEventListener('pointerdown', e => {
@@ -153,7 +171,7 @@ function renderCommander() {
   box.hidden = !mine || !mine.commander;
   if (!box.hidden) {
     const c = S.cfg.commanders[mine.commander];
-    $('commander-name').textContent = c.name;
+    $('commander-name').replaceChildren(portrait(mine.commander, 40), document.createTextNode(c.name));
     $('commander-passive').textContent = c.passive;
     const charge = st.me?.charge ?? 0, need = st.me?.charge_need ?? c.charge;
     const ready = charge >= need;
@@ -192,7 +210,9 @@ function renderChoose() {
       const c = S.cfg.commanders[k];
       const b = el('button');
       b.type = 'button';
-      b.append(el('b', '', c.name), el('span', '', c.passive), el('small', '', `Power (every ${c.charge} rounds): ${c.power}`));
+      const head = el('span', 'head');
+      head.append(portrait(k, 64), el('b', '', c.name));
+      b.append(head, el('span', '', c.passive), el('small', '', `Power (every ${c.charge} rounds): ${c.power}`));
       b.addEventListener('click', () => { room.send({ t: 'commander', k }); play('level'); });
       return b;
     }));
@@ -205,7 +225,10 @@ function renderChoose() {
       const a = S.cfg.augments[k];
       const b = el('button');
       b.type = 'button';
-      b.append(el('span', 'tag', S.cfg.augTiers[a.tier]), el('b', '', a.name), el('span', '', a.text));
+      const head = el('span', 'head');
+      if (a.trait) head.append(icon('trait:' + a.trait, 32));
+      head.append(el('b', '', a.name));
+      b.append(el('span', 'tag', S.cfg.augTiers[a.tier]), head, el('span', '', a.text));
       b.addEventListener('click', () => { room.send({ t: 'augment', k }); play('star'); });
       return b;
     }));
@@ -226,8 +249,9 @@ function renderDraft() {
     const b = el('button', by ? 'taken' : '');
     b.type = 'button';
     b.style.setProperty('--cc', COST_COLORS[u.tier]);
-    b.append(el('b', '', u.name), el('small', '', u.traits.map(t => S.cfg.traits[t].name).join(' · ')),
-      el('span', '', `holding a ${it.name}`));
+    const hold = el('span', 'hold');
+    hold.append(icon('item:' + item, 24), document.createTextNode(`holding a ${it.name}`));
+    b.append(sprite(key, 64), el('b', '', u.name), el('small', '', u.traits.map(t => S.cfg.traits[t].name).join(' · ')), hold);
     if (by) b.append(el('span', 'by', `taken by ${player(by)?.name || '?'}`));
     b.disabled = !mineTurn || !!by;
     b.addEventListener('click', () => { room.send({ t: 'pick', i }); play('buy'); });
@@ -356,8 +380,10 @@ function renderPlayers() {
     li.classList.toggle('watched', p.id === S.watch);
     li.classList.toggle('out', !p.alive);
     li.classList.toggle('off', !p.bot && !p.on);
-    const dot = el('span', 'dot');
+    const dot = p.commander ? portrait(p.commander, 24) : el('span', 'dot');
+    dot.classList.add('dot');
     dot.style.setProperty('--c', p.color);
+    if (p.commander) dot.title = S.cfg.commanders[p.commander].name;
     const name = el('span', 'name', p.name + (p.id === room.you ? ' (you)' : '') + (p.bot ? ' 🤖' : ''));
     const hp = el('span', 'hp', p.alive ? String(Math.max(0, p.hp)) : `#${p.place}`);
     const bar = el('span', 'bar');
@@ -389,7 +415,13 @@ function renderShop() {
     const b = el('button', 'card');
     b.type = 'button';
     b.style.setProperty('--cc', COST_COLORS[d.tier]);
-    b.append(el('b', '', d.name), el('span', 'tr', d.traits.map(t => S.cfg.traits[t].name).join(' · ')), el('span', 'cost', `${d.cost}g`));
+    const tr = el('span', 'tr');
+    for (const t of d.traits) {
+      const one = el('span');
+      one.append(icon('trait:' + t, 16), document.createTextNode(S.cfg.traits[t].name));
+      tr.append(one);
+    }
+    b.append(sprite(key, 64), el('b', '', d.name), tr, el('span', 'cost', `${d.cost}g`));
     if (owned[key]) b.classList.add('pair');
     b.disabled = !mine.alive || mine.gold < d.cost;
     b.addEventListener('click', () => { room.send({ t: 'buy', i }); play('buy'); });
@@ -412,7 +444,9 @@ function renderTraits() {
   $('traits').replaceChildren(...rows.map(({ t, n, def, level }) => {
     const li = el('li', level >= 0 ? 'on' : '');
     const next = def.levels.find(need => need > n);
-    li.append(el('b', '', def.name), el('span', 'lv', next ? `${n} / ${next}` : String(n)));
+    const name = el('b');
+    name.append(icon('trait:' + t, 16), document.createTextNode(def.name));
+    li.append(name, el('span', 'lv', next ? `${n} / ${next}` : String(n)));
     const steps = el('span', 'steps');
     def.levels.forEach((need, i) => steps.append(el('i', i <= level ? 'on' : '', String(need))));
     li.append(steps);
@@ -433,13 +467,85 @@ function renderEnd() {
   $('end-kicker').textContent = `After ${st.round} rounds`;
   $('end-title').textContent = mine ? (mine.place === 1 ? 'You are the last overlord standing!' : `You came ${ordinal(mine.place)}`) : `${ranked[0]?.name} wins`;
   $('end-rows').replaceChildren(...ranked.map(p => {
-    const li = el('li', '', `${p.name}${p.bot ? ' (bot)' : ''}${p.place === 1 ? ` · ${p.hp} HP left` : ''}`);
+    const li = el('li');
+    const sw = el('i', 'swatch');
+    sw.style.background = p.color;
+    li.append(sw, document.createTextNode(`${p.name}${p.bot ? ' (bot)' : ''}${p.place === 1 ? ` · ${p.hp} HP left` : ''}`));
     const parts = [p.commander && S.cfg.commanders[p.commander]?.name, traitList(p.final?.traits)].filter(Boolean);
     if (parts.length) li.append(el('small', '', parts.join(' · ')));
     return li;
   }));
+  hpChart(ranked);
   const rec = st.record;
   $('end-record').textContent = rec ? `Your record: ${rec.wins} win${rec.wins === 1 ? '' : 's'} in ${rec.games} match${rec.games === 1 ? '' : 'es'}, average place ${rec.avg}.` : '';
+}
+
+// The end screen's line chart: each player's HP after each round, in their colour, named at the end of
+// their line; hovering shows a round's numbers.
+function hpChart(players) {
+  const fig = $('end-chart');
+  const logs = players.filter(p => p.hp_log?.length > 1);
+  fig.hidden = !logs.length;
+  if (!logs.length) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const W = 460, H = 190, L = 30, R = 92, T = 10, B = 24;
+  const rounds = Math.max(...logs.map(p => p.hp_log.length - 1));
+  const top = S.cfg.rules.start_hp;
+  const x = i => L + ((W - L - R) * i) / Math.max(1, rounds);
+  const y = hp => T + ((H - T - B) * (1 - Math.max(0, hp) / top));
+  const svg = mk('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': "Each player's HP after each round" });
+  for (const hp of [0, top / 2, top]) { // a recessive grid
+    svg.append(mk('line', { x1: L, x2: W - R, y1: y(hp), y2: y(hp), class: 'grid' }));
+    svg.append(mk('text', { x: L - 6, y: y(hp) + 4, class: 'axis', 'text-anchor': 'end' }, String(hp)));
+  }
+  const step = Math.max(1, Math.ceil(rounds / 8));
+  for (let i = 0; i <= rounds; i += step) svg.append(mk('text', { x: x(i), y: H - 6, class: 'axis', 'text-anchor': 'middle' }, String(i)));
+  const ends = [];
+  for (const p of logs) {
+    const pts = p.hp_log.map((hp, i) => `${x(i).toFixed(1)},${y(hp).toFixed(1)}`).join(' ');
+    svg.append(mk('polyline', { points: pts, class: 'line', stroke: p.color }));
+    const last = p.hp_log.length - 1;
+    svg.append(mk('circle', { cx: x(last), cy: y(p.hp_log[last]), r: 4, fill: p.color, class: 'end' }));
+    ends.push({ p, x: x(last), y: y(p.hp_log[last]) });
+  }
+  ends.sort((a, b) => a.y - b.y); // names at the line ends, nudged apart and kept inside the plot
+  const ly = ends.map(e => e.y + 4);
+  for (let i = 1; i < ly.length; i++) ly[i] = Math.max(ly[i], ly[i - 1] + 13);
+  const over = ly.length ? ly[ly.length - 1] - (H - B + 2) : 0;
+  if (over > 0) {
+    for (let i = 0; i < ly.length; i++) ly[i] -= over;
+    for (let i = ly.length - 2; i >= 0; i--) ly[i] = Math.min(ly[i], ly[i + 1] - 13);
+  }
+  ends.forEach((e, i) => svg.append(mk('text', { x: e.x + 8, y: ly[i], class: 'name' }, e.p.name.slice(0, 14))));
+  const cross = mk('line', { y1: T, y2: H - B, class: 'cross', visibility: 'hidden' });
+  svg.append(cross);
+  const tip = el('div', 'tip');
+  tip.hidden = true;
+  svg.addEventListener('pointermove', ev => {
+    const r = svg.getBoundingClientRect();
+    const px = ((ev.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(rounds, Math.round(((px - L) / (W - L - R)) * rounds)));
+    cross.setAttribute('x1', x(i));
+    cross.setAttribute('x2', x(i));
+    cross.setAttribute('visibility', 'visible');
+    tip.hidden = false;
+    tip.replaceChildren(el('b', '', i ? `After round ${i}` : 'Start'), ...logs.map(p => {
+      const line = el('span');
+      const sw = el('i', 'swatch');
+      sw.style.background = p.color;
+      line.append(sw, document.createTextNode(`${p.name}: ${p.hp_log[i] != null ? p.hp_log[i] + ' HP' : 'out'}`));
+      return line;
+    }));
+    tip.style.left = `${(x(i) / W) * 100}%`;
+  });
+  svg.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+  fig.querySelector('.plot').replaceChildren(svg, tip);
 }
 
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n / 10) === 1 ? 0 : n % 10] || 'th');
@@ -451,7 +557,9 @@ function info() {
   if (!h) { box.replaceChildren(); return; }
   if (h.kind === 'item') {
     const d = S.cfg.items[h.item];
-    const parts = [el('h3', '', d.name), el('p', '', d.text)];
+    const head = el('h3', 'with-art');
+    head.append(icon('item:' + h.item, 32), document.createTextNode(d.name));
+    const parts = [head, el('p', '', d.text)];
     if (d.from) parts.push(el('p', '', `From ${d.from.map(c => S.cfg.items[c].name).join(' + ')}.`));
     if (d.kind === 'component') {
       const makes = Object.entries(S.cfg.items).filter(([, x]) => x.from && x.from.includes(h.item))
@@ -463,14 +571,17 @@ function info() {
   }
   if (h.kind === 'trait') {
     const def = S.cfg.traits[h.trait];
-    box.replaceChildren(el('h3', '', def.name), el('p', '', def.text),
+    const head = el('h3', 'with-art');
+    head.append(icon('trait:' + h.trait, 32), document.createTextNode(def.name));
+    box.replaceChildren(head, el('p', '', def.text),
       el('p', '', def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ')));
     return;
   }
   const key = h.key, d = S.cfg.units[key];
   if (!d) { box.replaceChildren(); return; }
   const star = h.star || 1, m = [1, 1.8, 3.24][star - 1];
-  const title = el('h3', '', `${d.name} ${'★'.repeat(star)}`);
+  const title = el('h3', 'with-art');
+  title.append(sprite(key, 64), document.createTextNode(`${d.name} ${'★'.repeat(star)}`));
   const kind = d.cost ? `Tier ${d.tier} · ${d.cost} gold · ${d.traits.map(t => S.cfg.traits[t].name).join(', ')}` : 'Not for sale';
   const dl = el('dl');
   const live = h.live;
@@ -481,7 +592,15 @@ function info() {
   ];
   for (const [k, v] of stats) dl.append(el('dt', '', k), el('dd', '', String(v)));
   const parts = [title, el('p', '', kind), dl];
-  if (h.items?.length) parts.push(el('p', '', 'Items: ' + h.items.map(i => S.cfg.items[i].name).join(', ')));
+  if (h.items?.length) {
+    const its = el('p', 'items');
+    for (const i of h.items) {
+      const one = el('span');
+      one.append(icon('item:' + i, 16), document.createTextNode(S.cfg.items[i].name));
+      its.append(one);
+    }
+    parts.push(its);
+  }
   if (d.ability) {
     const ab = el('p', 'ab');
     ab.append(el('b', '', d.ability.name + ': '), document.createTextNode(d.ability.text + ' ' + abilityNumbers(d.ability, star)));
@@ -520,6 +639,103 @@ function describeFx(fx) {
   const out = [];
   for (const [k, v] of Object.entries(fx)) if (names[k]) out.push(names[k](v));
   return out.join(', ') + (fx.who === 'team' ? ' (everyone)' : '');
+}
+
+// ------------------------------------------------------------------ the damage chart
+// Each unit's damage dealt (by type), damage taken, or healing and shielding given, in the watched
+// player's fight: live as it plays, and the last round's fight while planning. From the fight's events
+// (sim.py: d carries the source and type, h and s the healer).
+
+const DMG_TYPES = [ // validated as a set against the panel's dark surface (dataviz: orange, blue, green, gold)
+  { name: 'Physical', color: '#bf6f2c' }, { name: 'Magic', color: '#4a86e0' },
+  { name: 'True', color: '#33a07e' }, { name: 'Burn', color: '#b08a20' },
+];
+
+function tally(res, upto) {
+  const rows = new Map();
+  const add = ([id, side, key, star]) => rows.set(id, { id, side, key, star, dealt: [0, 0, 0, 0], taken: 0, healed: 0 });
+  for (const r of res.start) add(r);
+  for (const e of res.events) {
+    if (e[1] > upto) break;
+    if (e[0] === 'sp') add(e[2]);
+    else if (e[0] === 'd') {
+      const src = rows.get(e[2]), dst = rows.get(e[3]);
+      if (src && src.side !== dst?.side) src.dealt[e[5]] += e[4];
+      if (dst) dst.taken += e[4];
+    } else if (e[0] === 'h' && e[4] != null) {
+      const src = rows.get(e[4]);
+      if (src) src.healed += e[3];
+    } else if (e[0] === 's' && e[5] != null) {
+      const src = rows.get(e[5]);
+      if (src) src.healed += e[3];
+    }
+  }
+  return [...rows.values()];
+}
+
+function renderMeter() {
+  const box = $('meter');
+  const live = S.st.phase === 'fight';
+  const f = live ? fightOf(S.watch) : S.lastFights.find(x => x.home === S.watch || (x.away === S.watch && !x.ghost));
+  box.hidden = !f;
+  if (!f) return;
+  const upto = live ? Math.min(S.ft, f.res.time) : f.res.time;
+  const mySide = f.home === S.watch ? 0 : 1;
+  const name = side => (side === 0 ? player(f.home)?.name : f.pve ? 'Monsters' : player(f.away)?.name) || '?';
+  $('meter-title').textContent = live ? 'Damage' : 'Damage, last fight';
+  const tab = S.meterTab;
+  const value = r => (tab === 'dealt' ? r.dealt.reduce((a, b) => a + b, 0) : r[tab]);
+  const rows = tally(f.res, upto);
+  const top = Math.max(1, ...rows.map(value));
+  const legend = $('meter-legend');
+  if (tab === 'dealt') {
+    legend.replaceChildren(...DMG_TYPES.map(d => {
+      const sw = el('span');
+      const i = el('i');
+      i.style.background = d.color;
+      sw.append(i, document.createTextNode(d.name));
+      return sw;
+    }));
+  } else legend.replaceChildren(document.createTextNode(tab === 'taken' ? 'Before shields soak it.' : 'Heals and shields given.'));
+  const groups = [mySide, 1 - mySide].map(side => {
+    const g = el('div', 'meter-side');
+    g.append(el('h3', '', name(side)));
+    const list = rows.filter(r => r.side === side).sort((a, b) => value(b) - value(a) || a.id - b.id);
+    for (const r of list) {
+      const v = value(r);
+      const row = el('div', 'meter-row');
+      const d = S.cfg.units[r.key];
+      const label = el('div', 'meter-top');
+      label.append(el('span', '', d.name + (r.star > 1 ? ' ' + '★'.repeat(r.star) : '')), el('b', '', String(Math.round(v))));
+      const bar = el('div', 'meter-bar');
+      const parts = tab === 'dealt' ? r.dealt.map((x, i) => [x, DMG_TYPES[i].color]) : [[v, tab === 'taken' ? '#c85a5a' : '#4aa86a']];
+      for (const [x, color] of parts) {
+        if (x <= 0) continue;
+        const seg = el('i');
+        seg.style.width = `${(100 * x) / top}%`;
+        seg.style.background = color;
+        bar.append(seg);
+      }
+      const text = el('div', 'meter-text');
+      text.append(label, bar);
+      row.append(sprite(r.key, 32), text);
+      row.title = tab === 'dealt'
+        ? `${d.name}: ` + DMG_TYPES.map((t, i) => `${t.name} ${Math.round(r.dealt[i])}`).join(' · ')
+        : `${d.name}: ${Math.round(v)} ${tab === 'taken' ? 'damage taken' : 'healing and shields'}`;
+      g.append(row);
+    }
+    return g;
+  });
+  $('meter-rows').replaceChildren(...groups);
+}
+
+for (const b of document.querySelectorAll('#meter .tabs button')) {
+  b.addEventListener('click', () => {
+    S.meterTab = b.dataset.tab;
+    for (const x of document.querySelectorAll('#meter .tabs button')) x.setAttribute('aria-pressed', String(x === b));
+    renderMeter();
+    play('click');
+  });
 }
 
 // ------------------------------------------------------------------ fights
@@ -600,6 +816,37 @@ function short(name) {
 // The sprite atlas (tools/overlords-art/build.py): a row per unit, a 32x32 column per pose.
 const atlas = new Image();
 atlas.src = ATLAS_URL;
+const iconSheet = new Image();
+iconSheet.src = ICONS_URL;
+const pics = new Image();
+pics.src = PORTRAITS_URL;
+const drawIcon = (name, x, y, size) => {
+  const i = ICONS[name];
+  if (i == null || !iconSheet.complete || !iconSheet.naturalWidth) return false;
+  ctx.drawImage(iconSheet, (i % ICON_COLS) * 16, Math.floor(i / ICON_COLS) * 16, 16, 16, x, y, size, size);
+  return true;
+};
+// What a ranged unit's attacks look like in flight: by unit, else by origin (proj:<kind> icons).
+const PROJ = {
+  grave_archer: 'bone', iron_crossbow: 'bolt', iron_engineer: 'bolt', turret: 'shell', ember_mage: 'fire',
+  storm_herald: 'feather', tempest_roc: 'feather', thornling: 'arrow', tide_scout: 'arrow', star_archer: 'arrow',
+};
+const PROJ_ORIGIN = {
+  emberforged: 'fire', thornwood: 'leaf', tidecallers: 'water', gravebound: 'shadow', skyborne: 'feather',
+  ironhold: 'bolt', starlit: 'star', mirefolk: 'spit',
+};
+const projOf = key => PROJ[key] || PROJ_ORIGIN[(S.cfg.units[key]?.traits || []).find(t => PROJ_ORIGIN[t])] || 'arrow';
+// the battlefield's ground: a pattern per half, cut from the portraits sheet once it has loaded
+const ground = {};
+function groundPattern(which) {
+  if (ground[which]) return ground[which];
+  if (!pics.complete || !pics.naturalWidth) return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  c.getContext('2d').drawImage(pics, (which === 'home' ? GROUND_HOME : GROUND_AWAY) * 32, 0, 32, 32, 0, 0, 32, 32);
+  ground[which] = ctx.createPattern(c, 'repeat');
+  return ground[which];
+}
 const ORIGIN_COLORS = {
   emberforged: '#ff8a3a', thornwood: '#a0d060', tidecallers: '#7fe3e0', gravebound: '#b48aff',
   skyborne: '#fff6a0', ironhold: '#ffb84a', starlit: '#e8e0ff', mirefolk: '#c8e070',
@@ -692,15 +939,16 @@ function drawUnit(x, y, key, star, opts = {}) {
     }
   }
   if (opts.items?.length) {
-    const sz = Math.max(6, R * 0.24), gap = 2;
+    const sz = Math.max(10, Math.round(R * 0.36)), gap = 2;
     const total = opts.items.length * sz + (opts.items.length - 1) * gap;
     opts.items.forEach((it, i) => {
       const ix = x - total / 2 + i * (sz + gap), iy = feet + R * 0.12;
-      ctx.fillStyle = ITEM_COLORS[S.cfg.items[it]?.kind] || '#666';
-      ctx.fillRect(ix, iy, sz, sz);
-      ctx.strokeStyle = '#11151e';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(ix, iy, sz, sz);
+      ctx.fillStyle = '#11151ecc';
+      ctx.fillRect(ix - 1, iy - 1, sz + 2, sz + 2);
+      if (!drawIcon('item:' + it, ix, iy, sz)) {
+        ctx.fillStyle = ITEM_COLORS[S.cfg.items[it]?.kind] || '#666';
+        ctx.fillRect(ix, iy, sz, sz);
+      }
     });
   }
   if (opts.stunned) { // stars circling the head
@@ -726,6 +974,7 @@ function draw() {
   tickHud();
   const st = S.st;
   if (!st || !S.cfg || st.phase === 'lobby' || $('game').hidden) return;
+  if (t - S.meterAt > 0.25) { S.meterAt = t; renderMeter(); }
   layout();
   const cw = canvas.clientWidth, ch = canvas.clientHeight;
   ctx.clearRect(0, 0, cw, ch);
@@ -738,9 +987,16 @@ function draw() {
       const [x, y] = hexXY(c, r);
       hexPath(x, y, G.R * 0.96);
       const own = r < rows / 2;
-      ctx.fillStyle = own ? '#2c3650' : '#262b3c';
-      if (dragging && planning && own && S.watch === room.you) ctx.fillStyle = '#34405e';
+      const pat = groundPattern(own ? 'home' : 'away');
+      if (pat) {
+        pat.setTransform(new DOMMatrix().scaleSelf(G.R / 20, G.R / 20));
+        ctx.fillStyle = pat;
+      } else ctx.fillStyle = own ? '#2c3650' : '#262b3c';
       ctx.fill();
+      if (dragging && planning && own && S.watch === room.you) {
+        ctx.fillStyle = 'rgba(120, 150, 220, 0.18)';
+        ctx.fill();
+      }
       if (S.hover?.kind === 'board' && S.hover.c === c && S.hover.r === r && dragging) {
         ctx.strokeStyle = '#f2c230';
         ctx.lineWidth = 2;
@@ -774,13 +1030,11 @@ function draw() {
   }
   if (S.drag?.unit && S.mouse) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
   if (S.drag?.item != null && S.mouse && S.drag.moved) {
-    ctx.fillStyle = ITEM_COLORS[S.cfg.items[S.drag.key].kind];
-    ctx.fillRect(S.mouse.x - 12, S.mouse.y - 12, 24, 24);
-    ctx.fillStyle = '#fff';
-    ctx.font = '700 11px "Source Sans 3", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(itemLabel(S.drag.key), S.mouse.x, S.mouse.y);
+    ctx.imageSmoothingEnabled = false;
+    if (!drawIcon('item:' + S.drag.key, S.mouse.x - 16, S.mouse.y - 16, 32)) {
+      ctx.fillStyle = ITEM_COLORS[S.cfg.items[S.drag.key].kind];
+      ctx.fillRect(S.mouse.x - 12, S.mouse.y - 12, 24, 24);
+    }
   }
 }
 
@@ -857,11 +1111,18 @@ function drawFight() {
     if (fx.kind === 'shot') {
       const a = where.get(fx.from), b = where.get(fx.to);
       if (a && b) {
-        const x = a[0] + (b[0] - a[0]) * k, y = a[1] + (b[1] - a[1]) * k;
-        ctx.fillStyle = fx.side === friendSide ? '#d6f5ff' : '#ffd6c9';
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(2.5, G.R * 0.1), 0, Math.PI * 2);
-        ctx.fill();
+        const lift = G.R * 0.55;
+        const x = a[0] + (b[0] - a[0]) * k, y = a[1] - lift + (b[1] - a[1]) * k;
+        const sz = Math.max(12, G.R * 0.75);
+        ctx.translate(x, y);
+        ctx.rotate(Math.atan2(b[1] - a[1], b[0] - a[0]));
+        ctx.imageSmoothingEnabled = false;
+        if (!drawIcon('proj:' + projOf(fx.key), -sz / 2, -sz / 2, sz)) {
+          ctx.fillStyle = fx.side === friendSide ? '#d6f5ff' : '#ffd6c9';
+          ctx.beginPath();
+          ctx.arc(0, 0, Math.max(2.5, G.R * 0.1), 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     } else if (fx.kind === 'text') {
       const p = where.get(fx.id);
@@ -904,10 +1165,19 @@ function drawFight() {
         ctx.moveTo(a[0] + (x - a[0]) * 0.6, a[1] - lift + (y - a[1] + lift) * 0.6);
         ctx.lineTo(x, y);
         ctx.stroke();
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(2, G.R * 0.1), 0, Math.PI * 2);
-        ctx.fill();
+        const sz = Math.max(12, G.R * 0.8);
+        ctx.globalAlpha = 1;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.atan2(b[1] - a[1], b[0] - a[0]));
+        ctx.imageSmoothingEnabled = false;
+        if (!drawIcon('proj:' + PROJ_ORIGIN[(S.cfg.units[fx.key]?.traits || []).find(t => PROJ_ORIGIN[t])], -sz / 2, -sz / 2, sz)) {
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(0, 0, Math.max(2, G.R * 0.1), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
     } else if (fx.kind === 'area') {
       const p = where.get(fx.id);
@@ -966,7 +1236,7 @@ function drawFight() {
     }
     const was = S.hover;
     if (best) {
-      S.hover = { kind: 'fight', key: best.key, star: best.star, live: best };
+      S.hover = { kind: 'fight', key: best.key, star: best.star, live: best, items: best.items };
       if (!was || was.live !== best || Math.round(now() * 4) !== S.lastInfo) { S.lastInfo = Math.round(now() * 4); info(); }
     } else if (was?.kind === 'fight') { S.hover = null; info(); }
   }
@@ -1112,5 +1382,5 @@ addEventListener('keydown', e => {
 });
 
 addEventListener('resize', () => { if (S.st) render(); });
-if (window.OV) Object.assign(window.OV, { G, hexXY });
+if (window.OV) Object.assign(window.OV, { G, hexXY, receive });
 requestAnimationFrame(draw);

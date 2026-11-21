@@ -234,11 +234,18 @@ def matches(n=3):
 
 
 def art():
-    """Every unit, summon and monster has a row in the sprite atlas (tools/overlords-art/build.py)."""
+    """Every unit, summon and monster has a row in the sprite atlas, every item and trait an icon and every
+    commander a portrait (tools/overlords-art/build.py)."""
     text = (Path(__file__).resolve().parent.parent / "app/static/games/overlords/js/atlas.js").read_text()
     rows = json.loads(text.split("export const ROWS = ", 1)[1].split(";", 1)[0])
     missing = [k for k in D.UNITS if k not in rows]
     check(not missing, f"no sprite for {missing}: run tools/overlords-art/build.py")
+    icons = json.loads(text.split("export const ICONS = ", 1)[1].split(";", 1)[0])
+    missing = [k for k in D.ITEMS if "item:" + k not in icons] + [t for t in D.TRAITS if "trait:" + t not in icons]
+    check(not missing, f"no icon for {missing}: draw one in tools/overlords-art/icons.py and build")
+    pics = json.loads(text.split("export const PORTRAITS = ", 1)[1].split(";", 1)[0])
+    missing = [k for k in D.COMMANDERS if k not in pics]
+    check(not missing, f"no portrait for {missing}: draw one in tools/overlords-art/portraits.py and build")
 
 
 def items_in_fights():

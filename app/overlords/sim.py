@@ -21,10 +21,11 @@ Events, each a list starting [kind, time]:
     x  [x, t, id]                               dodged an attack
     d  [d, t, source id, id, amount, type, crit, hp left]
                                                 took damage (type 0 phys, 1 magic, 2 true, 3 burn);
-                                                shields soak it before hp, so hp left may not drop
+                                                shields soak it before hp, so hp left may not drop;
+                                                burning is told in lumps (BURN_LUMP), not every tick
     c  [c, t, id, target id or 0]               cast its ability
-    h  [h, t, id, amount]                       healed
-    s  [s, t, id, amount, secs]                 shielded
+    h  [h, t, id, amount, healer id]            healed
+    s  [s, t, id, amount, secs, caster id]      shielded
     st [st, t, id, secs]                        stunned
     sp [sp, t, unit row]                        summoned (a unit row like the start's)
     r  [r, t, id, hp]                           rose again (Gravebound)
@@ -56,6 +57,7 @@ MAX_ASPD = 3.0
 DUEL_STACKS = 8
 FRENZY_STACKS = 10
 SHRED_SECS = 3.0
+BURN_LUMP = 20  # burn damage is told in events of about this much
 TYPES = {"phys": 0, "magic": 1, "true": 2, "burn": 3}
 
 DIRS = ((1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1))
@@ -186,6 +188,7 @@ class Unit:
         self.dr = 0.0
         self.thorns = 0.0
         self.cc_immune = False
+        self.burn_told = {}  # source id -> burn damage not yet in an event
 
     def row(self):
         """What the browsers are told about a unit at the start or when it's summoned."""
@@ -543,7 +546,12 @@ class Fight:
                 rest -= take
         dst.shields = [sh for sh in dst.shields if sh[0] > 0 and sh[1] > now]
         dst.hp -= rest
-        if kind != "burn" or amount >= 1:
+        if kind == "burn":  # burning ticks every DT: told in lumps of BURN_LUMP per source, or when it dies
+            key = src.id if src else 0
+            dst.burn_told[key] = dst.burn_told.get(key, 0.0) + amount
+            if dst.burn_told[key] >= BURN_LUMP or dst.hp <= 0:
+                self.ev("d", key, dst.id, round(dst.burn_told.pop(key)), 3, 0, max(0, round(dst.hp)))
+        else:
             self.ev("d", src.id if src else 0, dst.id, round(amount), TYPES[kind], int(crit), max(0, round(dst.hp)))
         if dst.ability and kind != "burn" and now >= dst.mana_lock:
             dst.mana = min(dst.maxmana, dst.mana + min(MANA_HURT_MAX, amount * MANA_FROM_HURT))
@@ -559,7 +567,7 @@ class Fight:
                 if dist(f.hex, dst.hex) <= 2:
                     gain = min(dst.low_heal, f.max - f.hp)
                     f.hp += gain
-                    self.ev("h", f.id, round(gain))
+                    self.ev("h", f.id, round(gain), dst.id)
         return amount
 
     def die(self, u):
@@ -593,7 +601,7 @@ class Fight:
             f = min(self.friends(u), key=lambda f: (f.hp / f.max, f.id))
             gain = min(u.cast_heal * u.ap / 100, f.max - f.hp)
             f.hp += gain
-            self.ev("h", f.id, round(gain))
+            self.ev("h", f.id, round(gain), u.id)
         u.busy = self.t + CAST_LOCK
         u.mana_lock = self.t + MANA_LOCK
         if u.cast_mana:
@@ -666,21 +674,21 @@ class Fight:
         if "heal_frac" in st and drained and u.alive:
             gain = min(drained * at_star(st["heal_frac"], u.star), u.max - u.hp)
             u.hp += gain
-            self.ev("h", u.id, round(gain))
+            self.ev("h", u.id, round(gain), u.id)
 
     def step_heal(self, u, st):
         amount = at_star(st["amt"], u.star) * u.ap / 100
         for f in self.select(u, st["to"]):
             gain = min(amount, f.max - f.hp)
             f.hp += gain
-            self.ev("h", f.id, round(gain))
+            self.ev("h", f.id, round(gain), u.id)
 
     def step_shield(self, u, st):
         amount = at_star(st["amt"], u.star) * u.ap / 100
         secs = at_star(st["secs"], u.star)
         for f in self.select(u, st["to"]):
             f.shields.append([amount, self.t + secs])
-            self.ev("s", f.id, round(amount), secs)
+            self.ev("s", f.id, round(amount), secs, u.id)
 
     def step_buff(self, u, st):
         amount = at_star(st["amt"], u.star)

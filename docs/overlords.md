@@ -140,10 +140,34 @@ in the lobby and at the end (`send_state`), and a database error never stops a m
   draw from the ability's data: a bolt in the caster's origin colour to each target hit at the moment
   of the cast, a burst for `around_target`/`around_self`, a beam for `line`; heals sparkle, burning
   flickers, stuns circle the head with stars.
+- **Icons and portraits** (November 2026, the owner asked for more art): `icons.py` draws 16x16 icons
+  on a 16x16 grid (the same letters, shading and outline): every item (emblems are the trait's glyph in a
+  gold badge), every trait's glyph, and the projectiles ranged attacks and spells fly as (`proj:*`,
+  chosen in `main.js` `PROJ`, by unit, else by origin). `portraits.py` draws each commander as a 32x32
+  bust, facing the viewer. `build.py` writes them to `art/icons.png` and `art/portraits.png` (with the
+  two ground tiles the board's hexes are filled with, `GROUND`), and their maps to `js/atlas.js`
+  (`ICONS`, `PORTRAITS`). In the page, `icon()`, `portrait()` and `sprite()` in `main.js` make an
+  element from a sheet (crisp, at any size): items on the item bench and under units, trait icons in
+  the trait list and on shop cards, the unit's sprite on shop cards (behind a gradient, so the name
+  stays readable), in drafts, in the info panel and the damage chart, commanders' portraits on the
+  choice screen, the commander panel and the players list. `overlords-check.py` fails if an item,
+  trait or commander has no art.
 - **Fights 1×/2×** (header, remembered): plays fights at double speed. The server's timing doesn't
   change; a fast player just sees the result sooner and waits for the others.
 - The owner hasn't reviewed the looks yet (in the other games the owner picks from options): expect
   changes unit by unit.
+
+### Charts
+
+- **Damage** (right panel, the owner asked for damage charts): each unit's damage dealt (stacked by
+  type: physical, magic, true, burn; a colour set checked for colour-blind readers against the panel),
+  damage taken (before shields soak it), or healing and shields given, for the watched player's fight:
+  live as it plays back, then the last round's fight while planning (`S.lastFights`). Built from the
+  fight's events (`tally` in `main.js`): `d` carries its source and type, `h` and `s` their healer.
+  Burning ticks every 0.05 s, so the sim tells it in lumps of `BURN_LUMP` per source (before, a tick
+  under 1 HP was never told at all).
+- **HP over the match** (end screen): every player's HP after each round (`Player.hp_log`, sent only
+  when the match is over), a line each in their colour, named at the end, a round's numbers on hover.
 
 ## How it works
 

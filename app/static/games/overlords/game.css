@@ -40,7 +40,11 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #itembar .label { color: var(--dim); font-size: 0.85rem; }
 #itembar .hint { color: var(--dim); font-size: 0.78rem; margin-left: auto; }
 #items { display: flex; gap: 6px; flex-wrap: wrap; }
-#items .item { width: 34px; height: 34px; padding: 0; border-radius: 6px; font: 700 0.8rem/1 "Source Sans 3", sans-serif; touch-action: none; }
+#items .item { width: 40px; height: 40px; padding: 2px; border-radius: 6px; border-width: 2px; touch-action: none; display: flex; align-items: center; justify-content: center; }
+#items .item.component { border-color: #5b6478; }
+#items .item.item { border-color: #b08a3a; }
+#items .item.emblem { border-color: #2f9a8a; }
+#items .item.crown { border-color: #e0b830; }
 #items .item.picked { outline: 2px solid var(--gold); }
 #items .none { color: var(--dim); font-size: 0.85rem; }
 #commander-box button { width: 100%; margin: 4px 0; }
@@ -61,12 +65,13 @@ aside h2 { margin: 0 0 6px; font: 600 1rem/1.3 "Source Serif 4", Georgia, serif;
 aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 
 .players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.players li { padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; display: grid; grid-template-columns: 12px 1fr auto; gap: 2px 8px; align-items: center; }
+.players li { padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; display: grid; grid-template-columns: 24px 1fr auto; gap: 2px 8px; align-items: center; }
 .players li:hover { background: #2d3446; }
 .players li.watched { border-color: var(--gold); }
 .players li.out { opacity: 0.45; }
 .players li.off .name { font-style: italic; }
-.players .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.players .dot { width: 12px; height: 12px; border-radius: 50%; background-color: var(--c); }
+.players .dot.portrait { width: 24px; height: 24px; border-radius: 5px; box-shadow: 0 0 0 2px var(--c); background-color: #3a3448; }
 .players .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .players .hp { font-variant-numeric: tabular-nums; font-weight: 700; }
 .players .bar { grid-column: 2 / 4; height: 5px; background: #11151e; border-radius: 3px; overflow: hidden; }
@@ -117,3 +122,65 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 #my-record li, .records li { margin-bottom: 3px; }
 .overlay .row { display: flex; gap: 10px; margin-top: 14px; }
 #game .overlay button { background: #fff; color: var(--accent); border-color: var(--accent); }
+
+/* pixel art from the sheets (main.js: icon, portrait, sprite) */
+.ico { display: inline-block; flex: none; image-rendering: pixelated; background-repeat: no-repeat; vertical-align: middle; }
+.ico.portrait { border-radius: 6px; background-color: #3a3448; }
+.with-art { display: flex; align-items: center; gap: 8px; }
+#info h3.with-art .sprite { margin: -10px 0 -6px -8px; }
+#info p.items { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+#info p.items span, #shop .card .tr span { display: inline-flex; align-items: center; gap: 3px; }
+#shop .card .tr { display: flex; flex-direction: column; gap: 1px; }
+#shop .card { overflow: hidden; }
+#shop .card .sprite { position: absolute; right: -4px; bottom: -2px; pointer-events: none; z-index: 0; }
+#shop .card::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, var(--slate2) 30%, rgba(37, 43, 58, 0.55) 60%, rgba(37, 43, 58, 0) 85%); }
+#shop .card > b, #shop .card > .tr, #shop .card > .cost { position: relative; z-index: 2; text-shadow: 0 1px 2px #11151e, 0 0 3px #11151e; }
+#shop .card > .cost { position: absolute; }
+#shop .card.pair::after { z-index: 2; text-shadow: 0 1px 2px #11151e; }
+#shop .card:hover:not(:disabled)::before { background: linear-gradient(90deg, #313a50 30%, rgba(49, 58, 80, 0.55) 60%, rgba(49, 58, 80, 0) 85%); }
+.traits li b { display: inline-flex; align-items: center; gap: 4px; }
+#commander-name { display: flex; align-items: center; gap: 8px; }
+.choices3 .head { display: flex; align-items: center; gap: 10px; }
+#draft-options button .sprite { align-self: center; margin: -6px 0 -4px; }
+#draft-options button .hold { display: inline-flex; align-items: center; gap: 4px; }
+
+/* the damage chart (main.js renderMeter) */
+#meter .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+#meter .tabs button { flex: 1; padding: 3px 6px; font-size: 0.8rem; }
+#meter .legend { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0 0 6px; font-size: 0.74rem; color: var(--dim); }
+#meter .legend span { display: inline-flex; align-items: center; gap: 4px; }
+#meter .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.meter-side h3 { margin: 8px 0 2px; font-size: 0.8rem; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.meter-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.meter-row .sprite { margin: -4px 0; }
+.meter-text { flex: 1; min-width: 0; }
+.meter-top { display: flex; justify-content: space-between; gap: 6px; font-size: 0.78rem; }
+.meter-top span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter-top b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.meter-bar { display: flex; gap: 2px; height: 6px; margin-top: 2px; }
+.meter-bar i { display: block; height: 100%; min-width: 2px; }
+.meter-bar i:last-child { border-radius: 0 3px 3px 0; }
+
+/* the end screen's HP chart (main.js hpChart) */
+.hp-chart { margin: 6px 0 4px; }
+.hp-chart figcaption { font-size: 0.8rem; color: var(--muted); margin-bottom: 2px; }
+.hp-chart .plot { position: relative; }
+.hp-chart svg { width: 100%; max-width: 460px; display: block; overflow: visible; }
+.hp-chart .grid { stroke: rgba(0, 0, 0, 0.1); stroke-width: 1; }
+.hp-chart .axis { font-size: 10px; fill: var(--muted); }
+.hp-chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.hp-chart .end { stroke: var(--paper); stroke-width: 2; }
+.hp-chart .name { font-size: 11px; fill: var(--fg); }
+.hp-chart .cross { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1; }
+.hp-chart .tip { position: absolute; top: 0; transform: translateX(10px); background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.78rem; display: flex; flex-direction: column; pointer-events: none; white-space: nowrap; }
+.end-rows .swatch, .hp-chart .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+/* narrow shop cards (six slots, or a small window): smaller names, trait icons without their names */
+#shop .card { container-type: inline-size; }
+@container (max-width: 110px) {
+  #shop .card > b { font-size: 0.82rem; padding-right: 0; margin-top: 12px; }
+  #shop .card > .cost { top: 3px; left: 8px; right: auto; font-size: 0.8rem; }
+  #shop .card .tr { flex-direction: row; gap: 3px; }
+  #shop .card .tr span { font-size: 0; }
+}

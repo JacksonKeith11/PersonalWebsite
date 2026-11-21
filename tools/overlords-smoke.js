@@ -3,7 +3,7 @@
 // and sells one by dropping it on the shop; a full board refuses another unit. Both press Ready and
 // the fight starts at once: each sees their own fight played back on the canvas, the friend switches
 // to watching another fight, and the mute button works. When the fights end, everyone's HP and the
-// next round's shop arrive. Fails if a page throws or logs an error. About 40 s.
+// next round's shop arrive (the damage chart shows during the fight). Fails if a page throws or logs an error. About 40 s.
 //
 //     node tools/overlords-smoke.js [http://localhost:8080]    against a running server
 //     node tools/overlords-smoke.js --serve                    starts its own (tools/check-all.sh does this)
@@ -149,6 +149,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await sleep(2500);
     expect(await S(friend, () => window.OV.S.pb.t > 1 && window.OV.S.pb.i > 0), 'the fight plays back');
     expect((await friend.textContent('#banner')).includes('vs'), 'the banner names the fight');
+    await sleep(400);
+    expect(await S(friend, () => !document.getElementById('meter').hidden && document.querySelectorAll('#meter .meter-row').length > 0),
+      'the damage chart lists the fight\'s units');
     await shot(friend, '4-fight');
     // watch a bot's fight
     const rows = await friend.$$('#players li');

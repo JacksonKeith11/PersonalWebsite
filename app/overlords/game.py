@@ -82,6 +82,7 @@ class Player:
         self.free_rerolls = 0
         self.oracle_roll = False
         self.final = None  # their board when they went out (or won): {"traits", "units"}
+        self.hp_log = [D.START_HP]  # HP after each round, for the end screen's chart
 
     def units(self):
         return list(self.board.values()) + [u for u in self.bench if u]
@@ -470,6 +471,7 @@ class Room:
             if p.commander == "survivor":
                 dmg = round(dmg * 0.85)
             p.hp -= dmg
+            p.hp_log.append(max(0, p.hp))
             self.settled.append({"id": p.id, "dmg": dmg})
         out = sorted((p for p in self.alive() if p.hp <= 0), key=lambda p: p.hp)
         left = len(self.alive())
@@ -956,7 +958,8 @@ class Room:
                 "board": [[u["id"], u["unit"], u["star"], c, r, u["items"]] for (c, r), u in p.board.items()],
                 "bench": sum(1 for u in p.bench if u), "limit": p.limit(),
                 "commander": p.commander, "augments": p.augments, "items": len(p.items),
-                "traits": p.traits(), "final": p.final if self.phase == "over" else None}
+                "traits": p.traits(), "final": p.final if self.phase == "over" else None,
+                "hp_log": p.hp_log if self.phase == "over" else None}
 
     def send_state(self):
         base = {"t": "state", "phase": self.phase, "host": self.host, "round": self.round,

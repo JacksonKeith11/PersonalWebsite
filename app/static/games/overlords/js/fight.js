@@ -60,7 +60,7 @@ export class Playback {
         u.target = e[3];
         u.lastStrike = 'a';
         if (u.mana < u.maxmana) u.mana = Math.min(u.maxmana, u.mana + 10);
-        if (v && u.range > 1) this.fx.push({ kind: 'shot', at: t, from: u.id, to: v.id, side: u.side, life: 0.22 });
+        if (v && u.range > 1) this.fx.push({ kind: 'shot', at: t, from: u.id, to: v.id, side: u.side, key: u.key, life: 0.22 });
         this.sound(u.range > 1 ? 'shot' : 'hit');
         break;
       }
@@ -69,7 +69,7 @@ export class Playback {
         break;
       case 'd': {
         u.hp = e[7];
-        if (e[5] === 3) { u.burnUntil = t + 0.5; break; }
+        if (e[5] === 3) { u.burnUntil = t + 1.5; break; } // burning comes in lumps (sim.BURN_LUMP)
         u.hitAt = t;
         const src = U.get(e[2]);
         if (src && src.castAt === t && src.id !== u.id) { // a spell landing: a bolt from its caster

@@ -67,6 +67,7 @@ MAX_ASPD = 3.0
 DUEL_STACKS = 8
 FRENZY_STACKS = 10
 SHRED_SECS = 3.0
+MARK_SECS = 3.0  # mark_on_hit (an extra ability)
 BURN_LUMP = 20  # burn damage is told in events of about this much
 TYPES = {"phys": 0, "magic": 1, "true": 2, "burn": 3}
 
@@ -229,11 +230,16 @@ class Unit:
         self.cast_share = 0.0
         self.horn = None  # [attack speed, seconds, radius]
         self.echo_first = 0.0  # the Archmage: the first cast echoes at this strength
+        # extra abilities (picked at 2 and 3 stars)
+        self.talents = []
+        self.cast_power = 0.0  # its ability is this much stronger
+        self.cast_burn = 0.0  # its ability burns what it hits (share of max hp a second)
+        self.mark_on_hit = 0.0  # its attacks make the target take this much more damage for MARK_SECS
 
     def row(self):
         """What the browsers are told about a unit at the start or when it's summoned."""
         return [self.id, self.side, self.key, self.star, self.hex[0], self.hex[1], round(self.max),
-                self.maxmana, round(self.mana), self.items]
+                self.maxmana, round(self.mana), self.items, self.talents]
 
     def shield(self, now):
         return sum(a for a, until in self.shields if until > now)
@@ -276,6 +282,7 @@ class Fight:
                 u = self.add(side, b["unit"], b.get("star", 1), h)
                 u.items = [i for i in b.get("items", ()) if i in D.ITEMS][:D.MAX_ITEMS]
                 u.traits = D.unit_traits(u.key, u.items)
+                u.talents = [t for t in b.get("talents", ()) if t in D.TALENTS][:len(D.TALENT_STARS)]
                 u.own_row = b["row"]
         for u in self.units:
             passive = D.UNITS[u.key].get("passive")
@@ -288,6 +295,8 @@ class Fight:
         for u in self.units:
             for i in u.items:
                 self.give(u, D.ITEMS[i]["fx"])
+            for t in u.talents:
+                self.give(u, D.TALENTS[t]["fx"])
         self.first_revive = [0.0, 0.0]
         self.fallen_rally = [extras[s].get("fallen_rally", 0.0) for s in (0, 1)]  # the Warlord
         for side in (0, 1):
@@ -425,11 +434,11 @@ class Fight:
             elif k == "summon_boost":
                 u.summon_boost += v
             elif k in ("multishot", "death_burst", "guard_aura", "taunt_start", "every3", "execute", "wound_on_hit",
-                       "echo", "low_bonus", "cast_share"):
+                       "echo", "low_bonus", "cast_share", "cast_burn", "mark_on_hit"):
                 setattr(u, k, max(getattr(u, k), v))
             elif k == "echo_first":
                 u.echo_first = max(u.echo_first, v)
-            elif k in ("spell_dr", "cast_grow_ap"):
+            elif k in ("spell_dr", "cast_grow_ap", "cast_power"):
                 setattr(u, k, getattr(u, k) + v)
             elif k in ("on_kill", "grow_hp", "last_stand", "summon_every", "horn"):
                 setattr(u, k, list(v))
@@ -648,6 +657,8 @@ class Fight:
                     self.deal(u, other, dmg * u.multishot, "phys")
             if t.alive and u.execute and t.hp < t.max * u.execute:
                 self.deal(u, t, t.hp + t.shield(self.t) + 1, "true")
+            if t.alive and u.mark_on_hit:
+                self.mark(t, u.mark_on_hit, MARK_SECS)
             if t.alive and u.wound_on_hit:
                 t.wound_until = self.t + u.wound_on_hit
             if t.alive and u.pct_hit:
@@ -677,6 +688,12 @@ class Fight:
                 self.deal(u, f, u.every3, "magic")
         if t.chills:
             u.slow = (max(t.chills, u.slow[0] if u.slow[1] > self.t else 0), self.t + CHILL_SECS)
+
+    def mark(self, f, amp, secs):
+        """f takes `amp` more damage for `secs`, unless a stronger mark (or the Hexer's hex) is still on."""
+        if f.amp[1] > self.t and f.amp[0] >= amp:
+            return
+        f.amp = (amp, max(f.amp[1], self.t + secs))
 
     def deal(self, src, dst, amount, kind, crit=False, spell=False):
         if not dst.alive or amount <= 0:
@@ -774,14 +791,15 @@ class Fight:
         self.ev("c", u.id, t.id if t else 0)
         u.cast_crit = u.critdmg if u.ability_crit and self.rng.random() < u.crit else 1.0
         u.refund = False
+        power = 1.0 + u.cast_power
         for step in u.ability["steps"]:
-            self.run_step(u, step, 1.0)
+            self.run_step(u, step, power)
         echo = max(u.echo, u.echo_first)
         u.echo_first = 0.0
         if echo:  # the Echoing Tome, or the Archmage's first cast: the whole ability again, weaker
             for step in u.ability["steps"]:
                 if step["do"] not in ("summon", "raise", "dash", "pull", "vanish", "devour"):
-                    self.run_step(u, step, echo)
+                    self.run_step(u, step, echo * power)
         if u.cast_heal and self.friends(u):
             f = min(self.friends(u), key=lambda f: (f.hp / f.max, f.id))
             self.heal(f, u.cast_heal * u.ap / 100, u)
@@ -892,7 +910,7 @@ class Fight:
                     u.refund = True
                 continue
             if "amp" in st:
-                f.amp = (max(at_star(st["amp"], u.star), f.amp[0] if f.amp[1] > self.t else 0), self.t + st.get("amp_secs", 4))
+                self.mark(f, at_star(st["amp"], u.star), st.get("amp_secs", 4))
                 self.ev("b", f.id, "mark", st.get("amp_secs", 4))
             if "wound" in st:
                 f.wound_until = self.t + st["wound"]
@@ -907,8 +925,8 @@ class Fight:
                 self.ev("st", f.id, secs)
             if "slow" in st:
                 f.slow = (at_star(st["slow"], u.star), self.t + SLOW_SECS)
-            if "burn" in st:
-                f.burn = (f.max * at_star(st["burn"], u.star), self.t + BURN_SECS, u)
+            if "burn" in st or u.cast_burn:  # Kindling and Inferno Heart burn whatever the ability hits
+                f.burn = (f.max * max(at_star(st.get("burn", 0), u.star), u.cast_burn), self.t + BURN_SECS, u)
         if "heal_frac" in st and drained and u.alive:
             self.heal(u, drained * at_star(st["heal_frac"], u.star), u)
 
@@ -1012,10 +1030,7 @@ class Fight:
                 return
             self.corpses = [h for h in self.corpses if h != spot]
             s = self.add(u.side, st["unit"], u.star, spot)
-            if u.summon_boost:
-                s.max *= 1 + u.summon_boost
-                s.hp = s.max
-                s.ad *= 1 + u.summon_boost
+            self.boost_summon(u, s, power)
             s.base_max = s.max
             s.next_atk = self.t + 0.5
             self.ev("sp", s.row())
@@ -1033,16 +1048,21 @@ class Fight:
             f.hidden_until = self.t + secs
             self.ev("b", f.id, "devour", secs)
 
+    def boost_summon(self, u, s, power=1.0):
+        """Summoner boosts, and an Empowered ability (power above 1), make what u calls up stronger."""
+        m = (1 + u.summon_boost) * max(1.0, power)
+        if m != 1:
+            s.max *= m
+            s.hp = s.max
+            s.ad *= m
+
     def step_summon(self, u, st, power=1.0):
         for _ in range(at_star(st.get("count", 1), u.star)):
             h = self.free_near(u.hex)
             if h is None:
                 return
             s = self.add(u.side, st["unit"], u.star, h)
-            if u.summon_boost:
-                s.max *= 1 + u.summon_boost
-                s.hp = s.max
-                s.ad *= 1 + u.summon_boost
+            self.boost_summon(u, s, power)
             s.base_max = s.max
             s.next_atk = self.t + 0.5
             self.ev("sp", s.row())

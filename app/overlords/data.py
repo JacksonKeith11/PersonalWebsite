@@ -462,7 +462,118 @@ SPECIAL = ("burn", "regen", "mana_regen", "revive", "chill", "shield", "duel", "
            # the roster review: units' passives, items and artifacts
            "multishot", "death_burst", "guard_aura", "taunt_start", "every3", "on_kill", "execute", "wound_on_hit",
            "grow_hp", "echo", "spell_dr", "last_stand", "summon_every", "low_bonus", "cast_grow_ap", "cast_share",
-           "horn", "echo_first", "fallen_rally")
+           "horn", "echo_first", "fallen_rally",
+           # extra abilities
+           "cast_power", "cast_burn", "mark_on_hit")
+
+# ------------------------------------------------------------------ extra abilities
+# Every unit has its own ability (above). When three copies merge into a 2-star, and again at 3 stars,
+# its owner picks one extra ability for it (the owner asked for Guildrun's choice of abilities at each
+# rank in November 2026). The options at a star are the extra ability of each of the unit's own traits
+# at that star, plus one that strengthens the unit's own ability ("{ability}" in its name becomes that
+# ability's name), so units sharing traits share options but every unit has three or four. `fx` is
+# what items use (sim.Fight.give); new keys for these: cast_power (its ability's damage, healing,
+# shields, buffs and summons are that much stronger), cast_burn (its ability sets what it hits burning,
+# a share of max HP a second for 3 s), mark_on_hit (its attacks make the target take that much more
+# damage for 3 s). Picks stay with the unit (selling loses them); a merge keeps the first copy's.
+TALENTS = {
+    # 2 stars
+    "kindling": {"star": 2, "trait": "emberforged", "name": "Kindling", "fx": {"burn": 0.02, "cast_burn": 0.03},
+                 "text": "Its attacks set the target burning (2% of max HP a second), and its ability burns "
+                         "whatever it hits (3% a second)."},
+    "deep_roots": {"star": 2, "trait": "thornwood", "name": "Deep Roots", "fx": {"regen": 0.02, "hp": 100},
+                   "text": "Regrows 2% of its max HP every second, and has 100 more HP."},
+    "flowing": {"star": 2, "trait": "tidecallers", "name": "Flowing Tide", "fx": {"mana_regen": 5, "mana": 15},
+                "text": "Gains 5 mana every second and starts with 15 more."},
+    "undying": {"star": 2, "trait": "gravebound", "name": "Undying", "fx": {"revive": 0.4},
+                "text": "The first time it falls, it rises again with 40% HP."},
+    "featherstep": {"star": 2, "trait": "skyborne", "name": "Featherstep", "fx": {"dodge": 0.2, "aspd_pct": 0.08},
+                    "text": "Dodges 20% of attacks and attacks 8% faster."},
+    "iron_skin": {"star": 2, "trait": "ironhold", "name": "Iron Skin", "fx": {"dr": 0.12},
+                  "text": "Takes 12% less damage from everything."},
+    "starlight": {"star": 2, "trait": "starlit", "name": "Starlight", "fx": {"mana_cut": 0.2},
+                  "text": "Its ability needs 20% less mana."},
+    "sludge": {"star": 2, "trait": "mirefolk", "name": "Sludge", "fx": {"chill_on_hit": 0.3, "chill": 0.2},
+               "text": "Its attacks slow the target's attacks by 30% for 2 s, and whoever attacks it is slowed by 20%."},
+    "bulwark": {"star": 2, "trait": "vanguard", "name": "Bulwark", "fx": {"shield": 400, "armor": 15},
+                "text": "Starts each fight with a 400 shield (for 10 s), and has 15 more armor."},
+    "momentum": {"star": 2, "trait": "duelist", "name": "Momentum", "fx": {"frenzy": 0.05},
+                 "text": "Each attack makes it 5% faster, up to 10 times."},
+    "split_shot": {"star": 2, "trait": "ranger", "name": "Split Shot", "fx": {"multishot": 0.45},
+                   "text": "Each attack also strikes a second enemy near the target for 45%."},
+    "focus": {"star": 2, "trait": "arcanist", "name": "Arcane Focus", "fx": {"ap": 35},
+              "text": "+35 ability power: its ability hits harder and heals more."},
+    "mending": {"star": 2, "trait": "mystic", "name": "Mending", "fx": {"cast_heal": 300},
+                "text": "Each cast also heals the most hurt ally for 300."},
+    "ambusher": {"star": 2, "trait": "assassin", "name": "Ambusher", "fx": {"low_bonus": 0.3, "crit": 0.1},
+                 "text": "Does 30% more damage to enemies below half HP, and crits 10% more often."},
+    "brood": {"star": 2, "trait": "summoner", "name": "Bigger Brood", "fx": {"summon_boost": 0.3, "ap": 15},
+              "text": "What it calls up has 30% more HP and attack, and it has 15 more ability power."},
+    "stalwart": {"star": 2, "trait": "warden", "name": "Stalwart", "fx": {"hp_pct": 0.16},
+                 "text": "16% more max HP."},
+    "empowered": {"star": 2, "trait": None, "name": "Empowered {ability}", "fx": {"cast_power": 0.3},
+                  "text": "Its own ability is 30% stronger: damage, healing, shields, buffs and what it calls up."},
+    # 3 stars
+    "inferno": {"star": 3, "trait": "emberforged", "name": "Inferno Heart", "fx": {"aura": 0.02, "cast_burn": 0.04},
+                "text": "Enemies beside it burn for 2% of their max HP a second, and its ability burns whatever "
+                        "it hits (4% a second)."},
+    "thornmail": {"star": 3, "trait": "thornwood", "name": "Thornmail", "fx": {"thorns": 0.4, "regen": 0.02},
+                  "text": "Attackers take 40% of their hit back as magic damage, and it regrows 2% of its max HP a second."},
+    "surge": {"star": 3, "trait": "tidecallers", "name": "Tidal Surge", "fx": {"cast_share": 30, "cast_mana": 25},
+              "text": "After each cast, the two nearest allies get 30 mana and it starts again with 25."},
+    "death_knell": {"star": 3, "trait": "gravebound", "name": "Death Knell", "fx": {"revive": 0.5, "death_burst": 300},
+                    "text": "The first time it falls, it rises with 50% HP; when it falls for good, it bursts over the "
+                            "enemies beside it (300 magic damage)."},
+    "tailwind": {"star": 3, "trait": "skyborne", "name": "Tailwind", "fx": {"aspd_pct": 0.3, "dodge": 0.15},
+                 "text": "Attacks 30% faster and dodges 15% of attacks."},
+    "unbreakable": {"star": 3, "trait": "ironhold", "name": "Unbreakable", "fx": {"cc_immune": 1, "dr": 0.2},
+                    "text": "Can't be stunned or swallowed, and takes 20% less damage."},
+    "supernova": {"star": 3, "trait": "starlit", "name": "Supernova", "fx": {"cast_grow_ap": 25, "mana_cut": 0.15},
+                  "text": "Each cast leaves it 25 ability power stronger for the rest of the fight, and its ability "
+                          "needs 15% less mana."},
+    "bog_grip": {"star": 3, "trait": "mirefolk", "name": "Bog Grip", "fx": {"mark_on_hit": 0.25, "chill": 0.3},
+                 "text": "Its attacks mark the target to take 25% more damage for 3 s, and whoever attacks it is "
+                         "slowed by 30%."},
+    "challenge": {"star": 3, "trait": "vanguard", "name": "Challenge", "fx": {"taunt_start": 3, "shield": 900, "dr": 0.12},
+                  "text": "Enemies within 3 hexes must attack it for the first 3 s; it starts with a 900 shield and takes "
+                          "12% less damage."},
+    "executioner": {"star": 3, "trait": "duelist", "name": "Executioner", "fx": {"execute": 0.15, "frenzy": 0.06},
+                    "text": "Its attacks finish enemies below 15% HP, and each attack makes it 6% faster (up to 10)."},
+    "deadeye": {"star": 3, "trait": "ranger", "name": "Deadeye", "fx": {"pct_hit": 0.04, "crit": 0.2},
+                "text": "Attacks deal 4% of the target's max HP more, and crit 20% more often."},
+    "spellsurge": {"star": 3, "trait": "arcanist", "name": "Spellsurge", "fx": {"ability_crit": 1, "crit": 0.3, "critdmg": 0.3, "ap": 50, "mana_cut": 0.1},
+                   "text": "Its ability can crit; it crits 30% more often and 30% harder, has 50 more ability power, "
+                           "and its ability needs 10% less mana."},
+    "sanctuary": {"star": 3, "trait": "mystic", "name": "Sanctuary", "fx": {"low_heal": 500, "spell_dr": 0.25},
+                  "text": "Abilities do 25% less to it; the first time it falls below half HP, it heals allies within "
+                          "2 hexes for 500."},
+    "shadowstep": {"star": 3, "trait": "assassin", "name": "Shadowstep", "fx": {"last_stand": [0.3, 1.5, 0.3], "critdmg": 0.3},
+                   "text": "The first time it falls below 30% HP, it slips out of reach for 1.5 s and heals 30%; its "
+                           "crits hit 30% harder."},
+    "grove_call": {"star": 3, "trait": "summoner", "name": "Grove Call", "fx": {"summon_every": ["sapling", 4], "hp": 200},
+                   "text": "Every 4 s, a sapling grows beside it and fights; it has 200 more HP."},
+    "colossal": {"star": 3, "trait": "warden", "name": "Colossal", "fx": {"hp_pct": 0.1, "grow_hp": [0.03, 0.3]},
+                 "text": "10% more max HP, and it grows 3% more every second, up to 30%."},
+    "mastered": {"star": 3, "trait": None, "name": "Mastered {ability}", "fx": {"cast_power": 0.3, "mana_cut": 0.2},
+                 "text": "Its own ability is 30% stronger and needs 20% less mana."},
+}
+TALENT_STARS = (2, 3)
+
+
+def talent_options(key, star):
+    """The extra abilities a unit can pick from on reaching `star`: its traits' (in order), then its own
+    ability's."""
+    if star not in TALENT_STARS or not UNITS[key].get("ability"):
+        return []
+    traits = UNITS[key]["traits"]
+    mine = sorted((k for k, t in TALENTS.items() if t["star"] == star and t["trait"] in traits),
+                  key=lambda k: traits.index(TALENTS[k]["trait"]))
+    return mine + [k for k, t in TALENTS.items() if t["star"] == star and t["trait"] is None]
+
+
+def talent_name(tkey, key):
+    return TALENTS[tkey]["name"].replace("{ability}", UNITS[key]["ability"]["name"])
+
 
 # ------------------------------------------------------------------ items
 # Items are bought whole in the armory (no components or recipes since November 2026: the owner asked

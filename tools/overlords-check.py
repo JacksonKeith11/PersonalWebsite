@@ -13,8 +13,9 @@ bots play to one winner on a clock the check winds on, with the shared pool neve
 a copy, and print how long a match would take in real time. Items (every one in a fight; rarities
 and prices rising; the armory's odds; equipping and taking off; emblems counting and refused on a unit
 with the trait; the Crown's extra place; items surviving merges and sales), every commander's power,
-every augment, and a draft (lowest HP picks first, each pick holds an item of the round's rarity, the
-rest go back to the pool) have their own checks.
+every augment, a draft (lowest HP picks first, each pick holds an item of the round's rarity, the
+rest go back to the pool), and extra abilities (three or four to pick from at 2 and 3 stars, picked once,
+kept through a merge, lost with a sale, each working in a fight) have their own checks.
 The roster review's tricks (taunts, vanishing, pulls, shoves, zones, delayed blows, raising,
 swallowing, executes, wounds, multishot, death bursts, the Hexer's and Chronomancer's effects, saplings)
 each get a staged fight, and some random fights are stepped to make sure no two units share a hex.
@@ -585,6 +586,108 @@ def armory_and_last_person():
     check(sorted(p.place for p in room.seated()) == [1, 2, 3, 4], "everyone has a place")
 
 
+def talents():
+    """Extra abilities: three or four to pick from at 2 and 3 stars, picked once, kept through a merge,
+    lost with a sale, and working in a fight."""
+    for key, t in D.TALENTS.items():
+        check(t["star"] in D.TALENT_STARS and t["text"] and (t["trait"] is None or t["trait"] in D.TRAITS), f"talent {key}")
+        check(("{ability}" in t["name"]) == (t["trait"] is None), f"talent {key}: only the own-ability ones name it")
+        for k in t["fx"]:
+            check(k in D.PLAIN_STATS or k in D.SPECIAL, f"talent {key}: unknown effect {k}")
+    for trait in D.TRAITS:
+        for star in D.TALENT_STARS:
+            check(sum(t["trait"] == trait and t["star"] == star for t in D.TALENTS.values()) == 1, f"{trait}: one at {star}")
+    for key in D.shop_units():
+        for star in D.TALENT_STARS:
+            opts = D.talent_options(key, star)
+            check(3 <= len(opts) <= 4 and len(set(opts)) == len(opts), f"{key}: options at {star} stars ({opts})")
+    check(D.talent_options("ashling", 1) == [] and D.talent_options("treant", 2) == [], "none at 1 star or for summons")
+    check(D.talent_name("empowered", "ashling") == "Empowered Flurry", "the own-ability one is named after it")
+
+    room = game.Room("TLNT")
+    room.clock = Clock()
+    me, q = browser(room, "Ann", "t")
+    room.handle(me, {"t": "start"})
+    room.handle(me, {"t": "commander", "k": me.offers[0]})
+    for u in me.units():
+        room.sell_unit(me, u)
+    me.gold, me.level = 200, 5
+    me.shop = ["ashling"] * len(me.shop)
+    for i in range(3):
+        room.handle(me, {"t": "buy", "i": i})
+    two = next(u for u in me.units() if u["unit"] == "ashling")
+    check(two["star"] == 2 and room.talent_offer(two) == D.talent_options("ashling", 2), "a 2-star has picks waiting")
+    st = last_state(q)
+    offers = st["me"]["talent_offers"] if st else []
+    check(offers and offers[0]["id"] == two["id"] and offers[0]["star"] == 2, "the browser is told what's waiting")
+    check(not room.choose_talent(me, two["id"], "mastered"), "a 3-star pick is refused at 2 stars")
+    check(not room.choose_talent(me, two["id"], "split_shot"), "another trait's pick is refused")
+    check(not room.choose_talent(me, 9999, "kindling"), "an unknown unit is refused")
+    room.handle(me, {"t": "talent", "id": two["id"], "k": "kindling"})
+    check(two["talents"] == ["kindling"] and not room.talent_offer(two), "picked once")
+    check(not room.choose_talent(me, two["id"], "momentum"), "no second pick at 2 stars")
+    st = last_state(q)
+    bench = [b for b in st["me"]["bench"] if b and b[0] == two["id"]] if st else []
+    check(bench and bench[0][4] == ["kindling"] and not st["me"]["talent_offers"], "the bench shows it")
+    # two more 2-stars (one with a pick, one without) merge into a 3-star that keeps the first's
+    for _ in range(2):
+        me.shop = ["ashling"] * len(me.shop)
+        for i in range(3):
+            room.handle(me, {"t": "buy", "i": i})
+    later = [u for u in me.units() if u["unit"] == "ashling"]
+    check(len(later) == 1 and later[0]["star"] == 3, f"three 2-stars make a 3-star ({[u['star'] for u in later]})")
+    three = later[0]
+    check(three["talents"] == ["kindling"], f"the 3-star keeps the first copy's pick ({three['talents']})")
+    check(room.talent_offer(three) == D.talent_options("ashling", 3), "and has its 3-star pick waiting")
+    check(room.choose_talent(me, three["id"], "executioner") and three["talents"] == ["kindling", "executioner"], "3-star pick")
+    # a 3-star that skipped its 2-star pick picks that first
+    skip = room.new_unit("thornling", 3)
+    me.bench[me.bench.index(None)] = skip
+    check(room.talent_offer(skip) == D.talent_options("thornling", 2), "a skipped 2-star pick comes first")
+    gold = me.gold
+    room.sell_unit(me, three)
+    check(me.gold > gold and "kindling" not in str(me.units()), "selling loses its picks")
+    # bots pick theirs
+    bot = next(p for p in room.seated() if p.bot)
+    bu = room.new_unit("iron_recruit", 2)
+    bot.bench[0] = bu
+    bots.pick_talents(room, bot, random.Random(1))
+    check(len(bu["talents"]) == 1 and bu["talents"][0] in D.talent_options("iron_recruit", 2), "bots pick")
+
+    # in a fight
+    dummy = [{"unit": "iron_colossus", "col": 3, "row": 3}]
+    plain = sim.Fight([B("iron_recruit", 3, 3, 2)], dummy)
+    tough = sim.Fight([dict(B("iron_recruit", 3, 3, 2), talents=["stalwart"])], dummy)
+    hp = lambda f: next(u.max for u in f.units if u.key == "iron_recruit")
+    check(abs(hp(tough) / hp(plain) - (1 + D.TALENTS["stalwart"]["fx"]["hp_pct"])) < 0.01, "Stalwart adds HP")
+    check(any(r[10] == ["stalwart"] for r in tough.start), "the browsers see picks")
+    junk = sim.Fight([dict(B("iron_recruit", 3, 3, 2), talents=["nonsense", "stalwart"])], dummy)
+    check(next(u for u in junk.units if u.key == "iron_recruit").talents == ["stalwart"], "unknown picks are dropped")
+    dmg = {}
+    for tal in ([], ["empowered"]):
+        f = sim.Fight([dict(B("thornling", 3, 0, 2), talents=tal)], [{"unit": "stone_golem", "col": 3, "row": 0}], seed=4)
+        r = f.run()
+        me_id = next(row[0] for row in r["start"] if row[2] == "thornling")
+        dmg[bool(tal)] = max((e[4] for e in r["events"] if e[0] == "d" and e[2] == me_id and e[5] == 0), default=0)
+    check(dmg[True] > dmg[False] * 1.2, f"Empowered abilities hit harder ({dmg})")
+    f = sim.Fight([dict(B("forge_hound", 3, 3, 2), talents=["sludge"])], [{"unit": "stone_golem", "col": 3, "row": 3}], seed=1)
+    f.units.sort(key=lambda u: u.id)
+    hound, golem = f.units
+    f.attack(hound, golem)
+    check(golem.slow[0] >= 0.3, "Sludge slows")
+    f = sim.Fight([dict(B("toad_brawler", 3, 3, 3), talents=["sludge", "bog_grip"])], [{"unit": "stone_golem", "col": 3, "row": 3}])
+    f.units.sort(key=lambda u: u.id)
+    toad, golem = f.units
+    f.attack(toad, golem)
+    check(golem.amp[0] == 0.25 and golem.amp[1] > f.t, "Bog Grip marks")
+    f = sim.Fight([dict(B("ashling", 3, 3, 2), talents=["kindling"])], [{"unit": "stone_golem", "col": 3, "row": 3}])
+    f.units.sort(key=lambda u: u.id)
+    ash, golem = f.units
+    ash.target = golem
+    f.step_hit(ash, {"do": "hit", "to": "target", "dmg": 10})
+    check(golem.burn[0] > 0 and golem.burn[2] is ash, "Kindling's ability burns")
+
+
 def records():
     """A finished match with a person in it is saved; their record and the Hall of Overlords show it."""
     room = game.Room("RECS")
@@ -619,6 +722,7 @@ commander_wait_and_exit()
 armory_and_last_person()
 items_in_fights()
 room_items_and_powers()
+talents()
 draft()
 room_rules()
 matches()

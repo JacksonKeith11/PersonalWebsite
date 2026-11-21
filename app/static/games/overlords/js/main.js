@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=15';
-import { isMuted, play, setMuted } from './sound.js?v=15';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=15';
+import { Playback } from './fight.js?v=16';
+import { isMuted, play, setMuted } from './sound.js?v=16';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=16';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -110,7 +110,7 @@ const seatedMe = () => { const m = me(); return m && m.seated ? m : null; };
 function receive(m) {
   if (m.t === 'welcome') {
     S.cfg = { units: m.units, traits: m.traits, rules: m.rules, items: m.items, commanders: m.commanders,
-              augments: m.augments, augTiers: m.aug_tiers };
+              augments: m.augments, augTiers: m.aug_tiers, talents: m.talents };
     $('room-code').textContent = m.code;
     $('game-code').textContent = m.code;
     S.watch = m.you;
@@ -194,9 +194,10 @@ function checkPinned() {
   const u = !mine || !S.st.me ? null : from.b != null ? S.st.me.bench[from.b]
     : S.st.phase === 'fight' ? null : mine.board.find(b => b[3] === from.c && b[4] === from.r);
   if (!u || u[1] !== S.sel.key) { pin(null); return; }
-  const items = from.b != null ? u[3] : u[5];
-  if (u[2] !== h.star || JSON.stringify(items || []) !== JSON.stringify(h.items || [])) {
-    pin({ ...h, star: u[2], items }, true, S.sel);
+  const items = from.b != null ? u[3] : u[5], talents = from.b != null ? u[4] : u[6];
+  if (u[2] !== h.star || JSON.stringify([items, talents]) !== JSON.stringify([h.items || [], h.talents || []])
+      || !!talentOffer(u[0]) !== !!h.offer) {
+    pin({ ...h, star: u[2], items, talents, offer: !!talentOffer(u[0]) }, true, S.sel);
   }
 }
 
@@ -289,6 +290,16 @@ function traitLine(t) {
   return `${def.name}: ${def.text} (` + def.levels.map((n, i) => `${n}: ${describeFx(def.fx[i])}`).join(' · ') + ')';
 }
 
+// Extra abilities (picked at 2 and 3 stars): the name, with the unit's own ability's name filled in.
+const talentName = (tk, key) => S.cfg.talents[tk].name.replace('{ability}', S.cfg.units[key].ability?.name || 'Ability');
+const talentOffer = id => S.st?.me?.talent_offers?.find(o => o.id === id);
+
+function chooseTalent(id) {
+  S.talentFor = id;
+  S.chooseHidden = null;
+  renderChoose();
+}
+
 function renderCommander() {
   const st = S.st, mine = seatedMe();
   const box = $('commander-box');
@@ -321,16 +332,27 @@ function renderChoose() {
   let mode = null;
   if (mine && mine.alive && me_ && !mine.commander && me_.offers?.length && st.phase !== 'over') mode = 'commander';
   else if (mine && mine.alive && me_?.aug_offer?.length && st.phase !== 'over') mode = 'augment';
-  const key = mode ? mode + (mode === 'commander' ? me_.offers.join() : me_.aug_offer.join()) + me_.aug_rerolled : '';
+  let offer = null;
+  if (!mode && mine && mine.alive && me_?.talent_offers?.length && ['plan', 'fight'].includes(st.phase)) {
+    mode = 'talent';
+    offer = talentOffer(S.talentFor) || me_.talent_offers[0];
+  }
+  const key = !mode ? '' : mode === 'talent' ? `talent${offer.id}:${offer.star}`
+    : mode + (mode === 'commander' ? me_.offers.join() : me_.aug_offer.join()) + me_.aug_rerolled;
   $('choose').hidden = !mode || S.chooseHidden === key;
   $('choose-show').hidden = !mode || S.chooseHidden !== key;
-  $('choose-show').textContent = mode === 'commander' ? 'Choose your commander' : 'Choose your augment';
+  $('choose-show').textContent = mode === 'commander' ? 'Choose your commander' : mode === 'talent'
+    ? `Choose an extra ability${me_.talent_offers.length > 1 ? ` (${me_.talent_offers.length} waiting)` : ''}` : 'Choose your augment';
+  $('choose-show').classList.toggle('talent', mode === 'talent'); // phones: the + on the unit and its card instead
+  $('choose-hide').textContent = mode === 'talent' ? 'Later' : 'Look at the board first';
   $('choose-note').textContent = mode === 'commander' ? 'The first fight waits until everyone has chosen.'
+    : mode === 'talent' ? 'It fights without one until you choose. You can also choose from its card.'
     : `If you haven't chosen when the fight starts, the first is taken for you.`;
   if (key === S.chooseKey) return;
   S.chooseKey = key;
   if (!mode) return;
   const opts = $('choose-options');
+  opts.classList.toggle('four', mode === 'talent' && offer.options.length > 3);
   if (mode === 'commander') {
     $('choose-kicker').textContent = 'Before the first fight';
     $('choose-title').textContent = 'Choose your commander';
@@ -343,6 +365,25 @@ function renderChoose() {
       head.append(portrait(k, 64), el('b', '', c.name));
       b.append(head, el('span', '', c.passive), el('small', '', `Power (every ${c.charge} rounds): ${c.power}`));
       b.addEventListener('click', () => { room.send({ t: 'commander', k }); play('level'); });
+      return b;
+    }));
+  } else if (mode === 'talent') {
+    const u = S.cfg.units[offer.unit];
+    $('choose-kicker').textContent = `${u.name} reached ${'★'.repeat(offer.star)}`;
+    $('choose-title').textContent = 'Choose an extra ability';
+    $('choose-reroll').hidden = true;
+    const own = el('p', 'own-ab');
+    const said = el('span');
+    said.append(el('b', '', u.ability.name + ': '), document.createTextNode(u.ability.text));
+    own.append(sprite(offer.unit, 40), said);
+    opts.replaceChildren(own, ...offer.options.map(k => {
+      const t = S.cfg.talents[k];
+      const b = el('button');
+      b.type = 'button';
+      const head = el('span', 'head');
+      head.append(t.trait ? icon('trait:' + t.trait, 32) : sprite(offer.unit, 32), el('b', '', talentName(k, offer.unit)));
+      b.append(el('span', 'tag', t.trait ? S.cfg.traits[t.trait].name : 'Its own ability'), head, el('span', '', t.text));
+      b.addEventListener('click', () => { room.send({ t: 'talent', id: offer.id, k }); play('star'); S.talentFor = null; });
       return b;
     }));
   } else {
@@ -774,6 +815,13 @@ function info() {
       box.querySelector('p.items')?.remove(); // the list says it, with the buttons
       box.append(list);
     }
+    const offer = talentOffer(S.hover.id);
+    if (offer) {
+      const pick = el('button', 'primary pick', `Choose its ${'★'.repeat(offer.star)} extra ability`);
+      pick.type = 'button';
+      pick.addEventListener('click', () => { chooseTalent(offer.id); play('click'); });
+      box.append(pick);
+    }
     const row = el('div', 'sell-row');
     const sell = el('button', 'sell', `Sell for ${d.cost * 3 ** ((S.hover.star || 1) - 1)} gold`);
     sell.type = 'button';
@@ -857,6 +905,17 @@ function infoBody() {
     const pa = el('p', 'ab');
     pa.append(el('b', '', 'Always: '), document.createTextNode(d.passive_text));
     parts.push(pa);
+  }
+  const talents = h.talents || h.live?.talents || [];
+  talents.forEach((tk, i) => {
+    const t = S.cfg.talents[tk];
+    if (!t) return;
+    const ta = el('p', 'ab talent');
+    ta.append(el('b', '', `${talentName(tk, key)} (${'★'.repeat(t.star)}): `), document.createTextNode(t.text));
+    parts.push(ta);
+  });
+  if (d.ability && star < 3 && !talents.length && h.kind !== 'fight' && !talentOffer(h.id)) {
+    parts.push(el('p', 'note', 'At 2★ and 3★ it gets an extra ability of your choice.'));
   }
   box.replaceChildren(...parts);
 }
@@ -1232,6 +1291,19 @@ function drawUnit(x, y, key, star, opts = {}) {
       }
     });
   }
+  if (opts.pick) { // an extra ability waiting to be chosen: a pulsing gold plus by its head
+    const px = x + R * 0.62, py = head + R * 0.55, pr = R * (0.24 + 0.03 * Math.sin(now() * 6));
+    ctx.fillStyle = '#f2c230';
+    ctx.strokeStyle = '#11151e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#11151e';
+    ctx.fillRect(px - pr * 0.55, py - pr * 0.16, pr * 1.1, pr * 0.32);
+    ctx.fillRect(px - pr * 0.16, py - pr * 0.55, pr * 0.32, pr * 1.1);
+  }
   if (opts.marked) { // a reticle: it takes more damage
     ctx.strokeStyle = '#e080ff';
     ctx.lineWidth = 2;
@@ -1345,7 +1417,7 @@ function draw() {
       roundRect(b.x - b.s / 2 + 3, b.y - b.s / 2 + 3, b.s - 6, b.s - 6, 8);
       ctx.fill();
       ctx.stroke();
-      if (u && !(S.drag && S.drag.from.b === i && (S.drag.moved || !touchy()))) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3] });
+      if (u && !(S.drag && S.drag.from.b === i && (S.drag.moved || !touchy()))) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3], pick: !!talentOffer(u[0]) });
     });
   }
   if (S.drag?.unit && S.mouse && (S.drag.moved || !touchy())) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
@@ -1373,7 +1445,7 @@ function drawBoard(p) {
   for (const [id, key, star, c, r, items] of p.board) {
     if (S.drag?.unit && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you && (S.drag.moved || !touchy())) continue;
     const [x, y] = hexXY(c, r);
-    drawUnit(x, y, key, star, { ring: p.color, items, bob: bob(id) });
+    drawUnit(x, y, key, star, { ring: p.color, items, bob: bob(id), pick: p.id === room.you && !!talentOffer(id) });
   }
 }
 
@@ -1644,7 +1716,7 @@ function unitAt(x, y) {
   const i = benchAt(x, y);
   if (i >= 0) {
     const u = st.me?.bench[i];
-    return u ? { kind: 'bench', i, key: u[1], star: u[2], items: u[3] } : null;
+    return u ? { kind: 'bench', i, key: u[1], star: u[2], items: u[3], talents: u[4], id: u[0] } : null;
   }
   if (st.phase === 'fight') {
     if (!S.pb || !S.where) return null;
@@ -1659,7 +1731,7 @@ function unitAt(x, y) {
   }
   const h = hexAt(x, y);
   const u = h && player(S.watch)?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5] } : null;
+  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0] } : null;
 }
 
 // Moves one of your units (from {b} or {c, r}) to the bench slot or own hex at (x, y). False if that's
@@ -1736,11 +1808,11 @@ addEventListener('pointermove', e => {
     const prev = S.hover;
     if (i >= 0) {
       const u = S.st.me?.bench[i];
-      S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3] };
+      S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3], talents: u?.[4], id: u?.[0] };
     } else if (h && S.st.phase !== 'fight') {
       const w = player(S.watch);
       const u = w?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-      S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5] };
+      S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5], talents: u?.[6], id: u?.[0] };
     } else if (S.st.phase !== 'fight') {
       S.hover = null;
     }
@@ -1776,8 +1848,8 @@ addEventListener('pointerup', e => {
     const f = drag.from, s0 = S.sel?.from;
     if (s0 && s0.b === f.b && s0.c === f.c && s0.r === f.r) { pin(null); return; }
     const u = drag.unit;
-    const hover = f.b != null ? { kind: 'bench', i: f.b, key: u[1], star: u[2], items: u[3] }
-      : { kind: 'board', c: f.c, r: f.r, key: u[1], star: u[2], items: u[5] };
+    const hover = f.b != null ? { kind: 'bench', i: f.b, key: u[1], star: u[2], items: u[3], talents: u[4], id: u[0] }
+      : { kind: 'board', c: f.c, r: f.r, key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0] };
     pin(hover, true, { from: f, key: u[1] });
     play('click');
     return;

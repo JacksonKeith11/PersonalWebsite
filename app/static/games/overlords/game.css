@@ -159,6 +159,11 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 .traits li b { display: inline-flex; align-items: center; gap: 4px; }
 #commander-name { display: flex; align-items: center; gap: 8px; }
 .choices3 .head { display: flex; align-items: center; gap: 10px; }
+.choices3.four { grid-template-columns: repeat(4, 1fr); }
+.choices3 .own-ab { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.88rem; color: var(--muted); }
+.choices3 .own-ab b { font: 600 0.95rem/1.2 "Source Sans 3", sans-serif; color: var(--fg); }
+#info p.ab.talent b { color: #f2c230; }
+#game #info button.pick { width: 100%; margin: 2px 0 6px; }
 #draft-options button .sprite { align-self: center; margin: -6px 0 -4px; }
 #draft-options button .hold { display: inline-flex; align-items: center; gap: 4px; }
 
@@ -307,12 +312,13 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
   .overlay { align-items: flex-start; overflow-y: auto; padding: 10px; z-index: 40; }
   .overlay .card, .overlay .card.wide { min-width: 0; width: 100%; max-width: 560px; margin: auto; padding: 18px 16px; }
   .overlay h2 { font-size: 1.4rem; }
-  .choices3 { grid-template-columns: 1fr; gap: 8px; }
+  .choices3, .choices3.four { grid-template-columns: 1fr; gap: 8px; }
   #game .choices3 button { min-height: 0; padding: 10px 12px; }
   .overlay .row { flex-wrap: wrap; }
   #draft { position: fixed; inset: 56px 8px 8px; z-index: 25; padding: 12px 14px; }
   #draft-options { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
   #choose-show { top: auto; bottom: 12px; }
+  #choose-show.talent { display: none; }
 }
 
 /* a phone on its side: players down the left, the board in the middle, items and shop on the right */

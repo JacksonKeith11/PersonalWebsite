@@ -91,8 +91,8 @@ class Player:
         return list(self.board.values()) + [u for u in self.bench if u]
 
     def fight_board(self):
-        return [{"unit": u["unit"], "star": u["star"], "col": c, "row": r, "items": list(u["items"])}
-                for (c, r), u in self.board.items()]
+        return [{"unit": u["unit"], "star": u["star"], "col": c, "row": r, "items": list(u["items"]),
+                 "talents": list(u["talents"])} for (c, r), u in self.board.items()]
 
     def limit(self):
         """How many units may stand on the board: the level, plus one for each Crown standing there."""
@@ -222,7 +222,7 @@ class Room:
                           "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
                           "armory_odds": D.ARMORY_ODDS},
                 "items": D.ITEMS, "commanders": D.COMMANDERS, "augments": D.AUGMENTS,
-                "aug_tiers": D.AUGMENT_TIER_NAMES}
+                "aug_tiers": D.AUGMENT_TIER_NAMES, "talents": D.TALENTS}
 
     def leave(self, p, queue):
         if p.queue is not queue or not p.connected:
@@ -302,6 +302,8 @@ class Room:
                 ok = self.equip(p, msg.get("i"), msg.get("to"), fighting)
             elif t == "unequip":
                 ok = self.unequip(p, msg.get("from"), msg.get("k"), fighting)
+            elif t == "talent":
+                ok = self.choose_talent(p, msg.get("id"), msg.get("k"))
             elif t == "commander":
                 ok = self.choose_commander(p, msg.get("k"))
             elif t == "augment":
@@ -363,7 +365,7 @@ class Room:
         self.send_state()
 
     def new_unit(self, key, star=1, items=()):
-        u = {"id": self.next_unit, "unit": key, "star": star, "items": list(items)}
+        u = {"id": self.next_unit, "unit": key, "star": star, "items": list(items), "talents": []}
         self.next_unit += 1
         return u
 
@@ -688,6 +690,8 @@ class Room:
 
     def combine(self, p, units):
         keep = units[0]
+        if not keep["talents"]:  # a merge keeps the first copy's extra abilities, else the first picked
+            keep["talents"] = list(next((u["talents"] for u in units if u["talents"]), []))
         for u in units[1:]:
             self.remove(p, u)
             for i in u["items"]:  # the copies' items go to the merged unit, or back to the item bench
@@ -697,6 +701,24 @@ class Room:
                     p.items.append(i)
         keep["star"] += 1
         self.merge(p, keep["unit"])
+
+    # ------------------------------------------------------------ extra abilities
+
+    @staticmethod
+    def talent_offer(u):
+        """The extra abilities unit u may pick from now ([] when nothing is waiting): the next star in
+        D.TALENT_STARS it has reached without a pick."""
+        n = len(u["talents"])
+        if n >= len(D.TALENT_STARS) or u["star"] < D.TALENT_STARS[n]:
+            return []
+        return D.talent_options(u["unit"], D.TALENT_STARS[n])
+
+    def choose_talent(self, p, uid, k):
+        u = next((u for u in p.units() if u["id"] == uid), None)
+        if u is None or k not in self.talent_offer(u):
+            return False
+        u["talents"].append(k)
+        return True
 
     def remove(self, p, unit):
         for h, u in list(p.board.items()):
@@ -1067,7 +1089,9 @@ class Room:
         """What only this player sees: their shop, bench, XP, items and pending choices."""
         c = D.COMMANDERS.get(p.commander)
         return {"shop": p.shop, "armory": p.armory, "armory_prices": [self.item_price(k, p) if k else None for k in p.armory],
-                "bench": [[u["id"], u["unit"], u["star"], u["items"]] if u else None for u in p.bench],
+                "bench": [[u["id"], u["unit"], u["star"], u["items"], u["talents"]] if u else None for u in p.bench],
+                "talent_offers": [{"id": u["id"], "unit": u["unit"], "star": D.TALENT_STARS[len(u["talents"])],
+                                   "options": self.talent_offer(u)} for u in self.ordered(p) if self.talent_offer(u)],
                 "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
                 "items": p.items, "offers": p.offers, "charge": p.charge,
                 "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,
@@ -1082,7 +1106,7 @@ class Room:
         return {"id": p.id, "name": p.name, "color": p.color, "bot": p.bot, "on": p.connected,
                 "seated": p.seated, "hp": p.hp, "level": p.level, "gold": p.gold, "alive": p.alive,
                 "place": p.place, "streak": p.streak, "ready": p.ready, "results": p.results[-5:],
-                "board": [[u["id"], u["unit"], u["star"], c, r, u["items"]] for (c, r), u in p.board.items()],
+                "board": [[u["id"], u["unit"], u["star"], c, r, u["items"], u["talents"]] for (c, r), u in p.board.items()],
                 "bench": sum(1 for u in p.bench if u), "limit": p.limit(),
                 "commander": p.commander, "augments": p.augments, "items": len(p.items),
                 "traits": p.traits(), "final": p.final if self.phase == "over" else None,

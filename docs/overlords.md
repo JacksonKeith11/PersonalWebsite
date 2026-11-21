@@ -17,7 +17,8 @@ Everyone has their own 7x4 hex board, a bench of 8 and a shop of 5. Each round:
    one on the shop to sell it (back for its price times its copies). Your level (1-8) is how many units
    may stand on the board, and sets the shop's odds (`SHOP_ODDS`). Three copies of a unit at one star
    merge into the next star (x1.8 HP and attack at two stars, x3.24 at three), where the first copy on
-   the board stood. A locked shop survives into the next round.
+   the board stood, and at two and three stars its owner picks an extra ability for it (see **Extra
+   abilities**). A locked shop survives into the next round.
 2. **Fighting**: every fight of the round is simulated the moment the phase starts and sent to every
    browser whole, so anyone can watch any fight (click a player). The phase ends 3 s after the
    longest fight. The board is locked; the shop and bench still work.
@@ -135,6 +136,41 @@ Colossus swallows, Grave Digger, Sky Sprite and Grave Knight execute, Ghoul Reav
 units were added (Toad Brawler; Cinder Priest, Bog Knight, Wind Archer; Moonshadow, Bog Colossus, Rune
 Smith; Ember Wyrm, Old Mossheart, Bone Tyrant: tier 5 had no Emberforged, Thornwood or Gravebound
 unit), the items and commanders above changed, and nine artifacts came in.
+
+### Extra abilities
+
+The owner asked (November 2026), taking Guildrun's choice of abilities at each rank as the model, for
+units with special abilities and a choice of an extra one when three copies level a unit up. Every unit
+keeps its own ability; at 2 stars, and again at 3, its owner picks one more (`TALENTS`, "talents" in
+code, "extra abilities" on screen):
+- The options at a star (`talent_options`) are the extra ability of each of the unit's traits at that
+  star (every trait has one at 2 and one at 3: 32), then one that strengthens its own ability (2:
+  Empowered {ability}, 30% stronger; 3: Mastered {ability}, 30% stronger and 20% less mana;
+  `talent_name` fills in the ability's name). So every unit has three or four, and units sharing traits
+  share options. Trait ones work without the trait being active: Kindling (attacks and ability burn),
+  Deep Roots, Flowing Tide, Undying, Featherstep, Iron Skin, Starlight, Sludge, Bulwark, Momentum, Split
+  Shot, Arcane Focus, Mending, Ambusher, Bigger Brood, Stalwart; at 3 Inferno Heart, Thornmail, Tidal
+  Surge, Death Knell, Tailwind, Unbreakable, Supernova, Bog Grip (attacks mark), Challenge, Executioner,
+  Deadeye, Spellsurge, Sanctuary, Shadowstep, Grove Call (saplings), Colossal.
+- Each is `fx`, as items use, applied after items (`sim.Fight`). New fx for them: `cast_power` (the
+  ability's power, including what it summons: `boost_summon`), `cast_burn` (the ability burns what it
+  hits), `mark_on_hit` (attacks mark for `MARK_SECS`).
+- A unit dict has `"talents"` (picked keys, in star order). Nothing else is stored: what's waiting
+  (`Room.talent_offer`) is the next star in `TALENT_STARS` the unit has reached without a pick, so a
+  unit that becomes 3 stars without its 2-star pick picks that first. `choose_talent` (message
+  `{"t": "talent", "id", "k"}`) works in planning, fights and drafts and takes effect from the next fight.
+  A merge keeps the first copy's picks (else the first copy that has any); selling loses them.
+- Nothing is picked for a person: an unpicked unit fights without one. The choose overlay opens for
+  each waiting unit (after any commander or augment pick), with Later; a gold + on the unit and a
+  button on its card bring it back. On phones the floating "Choose an extra ability" button is hidden
+  (it covered the shop), so the + and the card do it. Bots pick at once (`bots.pick_talents`, favouring
+  their planned traits).
+- The browsers get them in `state.me.talent_offers` ([{id, unit, star, options}]), as the fifth field of
+  bench rows and the seventh of board rows, and as the eleventh of a fight's `start` rows (fight info).
+
+Tuned with a scratch head-to-head (one unit with each trait pick against the same board with the
+own-ability pick instead, 120 fights each): all within 43-62% after one pass (Spellsurge, Grove Call and
+Challenge were far weaker at first; Tailwind, Colossal and Featherstep stronger).
 
 ## The plan (from the owner's answers)
 
@@ -271,8 +307,8 @@ matching), the side panels fold away:
 - `bots.py`: `arrange` (melee in front, toughest in the middle; ranged at the back, assassins last)
   and the bots' turn (`play`): two traits to aim for, a level schedule, gold kept for interest from
   round 5, rerolls when rich or below their panic HP, the commander's power when charged, items on
-  their most valuable units (`equip`), and picks of commander, augment and draft. They act through the
-  same room methods as a browser.
+  their most valuable units (`equip`), and picks of commander, augment, draft and extra abilities
+  (`pick_talents`). They act through the same room methods as a browser.
 - Browser: `js/main.js` (screens, canvas, dragging and tapping, the shop, panels and phone sheets), `js/fight.js` (`Playback`:
   rebuilds a fight at any time from its timeline; switching fights catches up silently),
   `js/sound.js` (every sound synthesized with Web Audio; hits rate-limited; mute remembered). The
@@ -317,6 +353,9 @@ matching), the side panels fold away:
 - During a draft, `Room.ends` follows the current pick's deadline, so code (and the checks' clock)
   that winds to `ends` keeps moving. Draft options are held out of the pool while on offer: count them
   when checking the pool adds up.
+- Marks (abilities' `amp`, Bog Grip's `mark_on_hit`) share `Unit.amp` with the Hexer's hex, so they go
+  through `Fight.mark`: a mark never replaces a stronger one that's still on and never shortens one.
+  Before November 2026 a Mire Witch's or Forge Hound's mark cut the Hexer's all-fight hex to 4 s.
 - Trait counts ignore duplicates and summons. Summons and monsters have `"summon": True` and cost 0,
   which keeps them out of the shop and the pool.
 - `Room.clock` is swappable: the check winds it on to play whole matches instantly. Real code must
@@ -334,7 +373,9 @@ matching), the side panels fold away:
   (buying, merging, limits, moving, selling, the locked board), items (rarities, prices rising, equipping,
   taking off, emblems, the Crown), every commander power, every augment, a draft, the armory (buying,
   prices by rarity, the Forgemaster's discount, a locked shop keeps it, its odds early and late, no
-  monster drops), the first fight waiting for a commander, Exit, the match
+  monster drops), extra abilities (options at every star for every unit, picking once, kept through a
+  merge, lost with a sale, a skipped 2-star pick first, bots picking, and Stalwart, Empowered, Sludge,
+  Bog Grip and Kindling working in a fight), the first fight waiting for a commander, Exit, the match
   ending when the last person is out, and three whole bot matches with the pool conserved.
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
@@ -363,3 +404,7 @@ commanders; ~4 minutes to rerun all three):
   about 17 minutes at full timers. Commanders' average place 2.08 (Twinmaker) to 2.73 (Blademaster), and
   the Oracle at 3.11, the one outlier (already the lowest, 2.80, before the armory). These are bots' numbers: bots use powers
   as soon as they're charged and don't plan around the Oracle's, the Merchant's or the Gambler's economy.
+- Whole bot matches after extra abilities (`overlords-sim.py 300`, November 2026): still 17.8 rounds
+  (15-21), about 17 minutes. Commanders 2.15 (Sage) to 2.80 (Hexer), with two outliers: the Twinmaker
+  now 1.86 (was 2.08: it makes stars sooner, and every star is now a pick) and the Oracle 3.22. About
+  ±0.15 of noise at ~75 matches a commander.

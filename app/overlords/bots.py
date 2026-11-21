@@ -12,7 +12,8 @@ they field, else gold, items or stats), draft picks (`pick_draft`: the unit they
 their commander's power when it's charged, buy from the armory with gold left over after units
 (the dearest first, while their units have room or it beats an item they hold), and put items on their
 units: the rarest on their most valuable units, emblems only for traits they aim for, swapping a weaker
-item off a full unit for a better one.
+item off a full unit for a better one. They pick their units' extra abilities at 2 and 3 stars
+(`pick_talents`), favouring those of the traits they aim for.
 """
 
 import random
@@ -139,6 +140,7 @@ def play(room, p, rng):
         worst = spare.pop()
         room.sell_unit(p, worst)
     equip(room, p)
+    pick_talents(room, p, rng)
     units = sorted(p.units(), key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
     room.set_board(p, units)
 
@@ -179,6 +181,16 @@ def equip(room, p):
         item = p.items[best]
         if not room.equip(p, p.items.index(item), {"c": swap[0], "r": swap[1]}, False):
             break
+
+
+def pick_talents(room, p, rng):
+    """An extra ability for each unit waiting for one: rather one of a trait the bot aims for, else any."""
+    for u in p.units():
+        while room.talent_offer(u):
+            offer = room.talent_offer(u)
+            k = max(offer, key=lambda k: (D.TALENTS[k]["trait"] in (p.plan or [])) * 1.5 + rng.random())
+            if not room.choose_talent(p, u["id"], k):
+                break
 
 
 def pick_commander(p, rng):

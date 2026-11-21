@@ -138,9 +138,12 @@ Not on the games page yet (the owner can play it at `/games/overlords`); list it
   same costs (50% is right at every cost); `--traits [N]` each trait at each tier against
   cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
-Latest numbers (November 2026, 15 units, 800 random 6-unit fights): 7 ms a fight, average 18.6 s,
-1% hit the cap. Win rate rises with cost (1-cost 39-45%, 5-cost 54-63%). Worth a look in the
-balance pass: Storm Herald is weak for a 4-cost (48%), Emberforged (38%) and Duelist (42%) lag,
-Summoner (69%) and Warden (64%) look strong, though random boards rarely build around a trait.
-Bot matches take 16-17 rounds, about 14 minutes at full timers (the target is ~20: lengthen with
-more rounds or lower loss damage once the roster is full).
+Latest numbers (November 2026, all 50 units, after the first balance pass; ~1 minute to rerun):
+- Units, 2000 cost-matched 7-unit fights: 10 ms a fight, average 20.8 s, 1% hit the cap. 44 of 50
+  units within 42-58% of their cost; just outside: Ashling 41%, Kraken Caller 40% (weak), Tide
+  Acolyte 59%, Storm Herald 60%, Moss Brute 58%, Lava Giant 58% (strong).
+- Traits, 120 fights a tier (about ±4.5%): every trait rises tier by tier; first tiers 41-58%, the
+  4-tiers of the 2/4 traits 59-86%, the top tiers of 6 at 76-91%. Lowest first tiers (41-43%):
+  Duelist, Ranger, Assassin, Arcanist, Summoner, Mirefolk. Gravebound 6 (91%) is the strongest top.
+- Bot matches take 17-18 rounds, about 15 minutes at full timers (the target is ~20: lengthen with
+  more rounds or lower loss damage once items and augments are in).

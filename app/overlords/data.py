@@ -86,7 +86,7 @@ TRAITS = {
     "tidecallers": {
         "name": "Tidecallers", "kind": "origin", "levels": [2, 4],
         "text": "Tidecallers gain mana every second; at 4, so does the whole board.",
-        "fx": [{"mana_regen": 5}, {"who": "team", "mana_regen": 6}]},
+        "fx": [{"mana_regen": 5}, {"who": "team", "mana_regen": 5}]},
     "gravebound": {
         "name": "Gravebound", "kind": "origin", "levels": [2, 4, 6],
         "text": "The first time a Gravebound unit dies, it rises again with part of its HP.",
@@ -94,7 +94,7 @@ TRAITS = {
     "skyborne": {
         "name": "Skyborne", "kind": "origin", "levels": [2, 4],
         "text": "Skyborne units dodge some attacks and attack faster.",
-        "fx": [{"dodge": 0.25, "aspd_pct": 0.1}, {"dodge": 0.45, "aspd_pct": 0.25}]},
+        "fx": [{"dodge": 0.25, "aspd_pct": 0.1}, {"dodge": 0.4, "aspd_pct": 0.2}]},
     "ironhold": {
         "name": "Ironhold", "kind": "origin", "levels": [2, 4, 6],
         "text": "Ironhold units gain armor and magic resist.",
@@ -123,16 +123,16 @@ TRAITS = {
     "arcanist": {
         "name": "Arcanist", "kind": "class", "levels": [2, 4, 6],
         "text": "The whole board's abilities hit harder and heal more.",
-        "fx": [{"who": "team", "ap": 20}, {"who": "team", "ap": 45}, {"who": "team", "ap": 90}]},
+        "fx": [{"who": "team", "ap": 25}, {"who": "team", "ap": 45}, {"who": "team", "ap": 90}]},
     "mystic": {
         "name": "Mystic", "kind": "class", "levels": [2, 4],
         "text": "The whole board gains magic resist and regrows a little HP every second.",
-        "fx": [{"who": "team", "mr": 30, "regen": 0.008}, {"who": "team", "mr": 60, "regen": 0.018}]},
+        "fx": [{"who": "team", "mr": 30, "regen": 0.012}, {"who": "team", "mr": 60, "regen": 0.018}]},
     "assassin": {
         "name": "Assassin", "kind": "class", "levels": [2, 4, 6],
         "text": "Assassins leap to the enemy's back line at the start, and crit more often and harder.",
         "fx": [{"leap": 1, "crit": 0.2, "critdmg": 0.3}, {"leap": 1, "crit": 0.3, "critdmg": 0.4},
-               {"leap": 1, "crit": 0.45, "critdmg": 0.6}]},
+               {"leap": 1, "crit": 0.5, "critdmg": 0.7}]},
     "summoner": {
         "name": "Summoner", "kind": "class", "levels": [2, 4],
         "text": "What Summoners call up has more HP and damage.",
@@ -140,7 +140,7 @@ TRAITS = {
     "warden": {
         "name": "Warden", "kind": "class", "levels": [2, 4, 6],
         "text": "Wardens gain max HP.",
-        "fx": [{"hp_pct": 0.25}, {"hp_pct": 0.5}, {"hp_pct": 0.9}]},
+        "fx": [{"hp_pct": 0.25}, {"hp_pct": 0.5}, {"hp_pct": 0.75}]},
 }
 
 
@@ -202,16 +202,16 @@ UNITS = {
     "deep_priest": U("Deep Priest", 5, ["tidecallers", "summoner", "arcanist"], 950, 74, 0.7, 4, 30, 40, 100, 40,
                      A("Tidal Wave", "A wave crashes down round its target, stunning everything it hits.",
                        {"do": "hit", "to": "around_target:2", "dmg": [400, 600, 2500], "stun": [1.5, 2, 4]})),
-    "iron_colossus": U("Iron Colossus", 5, ["ironhold", "vanguard"], 1450, 108, 0.6, 1, 60, 50, 120, 60,
+    "iron_colossus": U("Iron Colossus", 5, ["ironhold", "vanguard"], 1600, 115, 0.6, 1, 60, 50, 120, 60,
                        A("Earthshaker", "Stamps, stunning every enemy near it.",
-                         {"do": "hit", "to": "around_self:2", "dmg": [200, 300, 1200], "stun": [1.5, 2, 6]})),
+                         {"do": "hit", "to": "around_self:2", "dmg": [300, 450, 1500], "stun": [1.5, 2, 6]})),
     "star_queen": U("Star Queen", 5, ["starlit", "mystic"], 900, 68, 0.7, 4, 30, 40, 100, 30,
                     A("Starfall Ward", "Shields the whole board for 5 s and heals the most hurt ally.",
                       {"do": "shield", "to": "allies", "amt": [350, 525, 2000], "secs": 5},
                       {"do": "heal", "to": "lowest_ally", "amt": [300, 450, 2000]})),
     # ================================================================ the rest of the roster
     # ---------------------------------------------------------------- cost 1
-    "ember_squire": U("Ember Squire", 1, ["emberforged", "vanguard"], 700, 62, 0.6, 1, 45, 25, 80, 30,
+    "ember_squire": U("Ember Squire", 1, ["emberforged", "vanguard"], 660, 62, 0.6, 1, 45, 25, 80, 30,
                       A("Ember Guard", "Shields itself, then flares, scorching enemies beside it.",
                         {"do": "shield", "to": "self", "amt": [200, 300, 450], "secs": 4},
                         {"do": "hit", "to": "around_self:1", "dmg": [120, 180, 270]})),
@@ -251,7 +251,7 @@ UNITS = {
                         {"do": "hit", "to": "target", "type": "phys", "dmg": [220, 330, 500], "burn": 0.02})),
     "moss_brute": U("Moss Brute", 2, ["thornwood", "warden"], 850, 66, 0.6, 1, 40, 30, 90, 40,
                     A("Overgrow", "Regrows HP and tangles enemies beside it.",
-                      {"do": "heal", "to": "self", "amt": [300, 450, 700]},
+                      {"do": "heal", "to": "self", "amt": [250, 375, 580]},
                       {"do": "hit", "to": "around_self:1", "dmg": [100, 150, 220], "slow": 0.25})),
     "ghoul_reaver": U("Ghoul Reaver", 2, ["gravebound", "assassin"], 620, 80, 0.8, 1, 25, 20, 60, 0,
                       A("Feast", "Tears into the most hurt enemy, healing for part of it.",
@@ -329,8 +329,8 @@ UNITS = {
     # ---------------------------------------------------------------- cost 5
     "tempest_roc": U("Tempest Roc", 5, ["skyborne", "ranger"], 1000, 100, 0.8, 4, 30, 30, 90, 20,
                      A("Tempest", "Storm feathers rake five random enemies; it attacks faster for 5 s.",
-                       {"do": "hit", "to": "random:5", "type": "phys", "dmg": [300, 450, 2000]},
-                       {"do": "buff", "to": "self", "stat": "aspd_pct", "amt": [0.5, 0.7, 2.0], "secs": 5})),
+                       {"do": "hit", "to": "random:5", "type": "phys", "dmg": [250, 375, 2000]},
+                       {"do": "buff", "to": "self", "stat": "aspd_pct", "amt": [0.4, 0.6, 2.0], "secs": 5})),
     "mire_mother": U("Mire Mother", 5, ["mirefolk", "summoner", "arcanist"], 1100, 66, 0.7, 3, 35, 45, 110, 40,
                      A("Spawning Pool", "Spawns three mire spawn and floods the ground round its target.",
                        {"do": "summon", "unit": "mire_spawn", "count": [2, 2, 4]},

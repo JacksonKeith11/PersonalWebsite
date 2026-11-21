@@ -38,6 +38,24 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #draft-options button small { color: var(--dim); }
 #draft-options button .by { color: var(--gold); font-weight: 600; }
 #draft-options button.taken { opacity: 0.5; }
+/* the auction (main.js renderAuction): a panel over the board like the draft's */
+#auction { position: absolute; inset: 6% 5%; background: rgba(20, 24, 36, 0.95); border: 1px solid var(--gold); border-radius: 10px; padding: 14px 18px; overflow: auto; }
+#auction h2 { margin: 0 0 4px; font: 600 1.2rem/1.3 "Source Serif 4", Georgia, serif; }
+#auction > p { margin: 0 0 10px; color: var(--dim); }
+#auction-lots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+#auction-lots .lot { display: flex; flex-direction: column; gap: 4px; border: 2px solid var(--cc, #555); border-radius: 8px; padding: 8px 10px; background: var(--slate2); }
+#auction-lots .lot .art { display: flex; align-items: center; gap: 6px; min-height: 48px; }
+#auction-lots .lot .what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#auction-lots .lot b { font-size: 0.98rem; }
+#auction-lots .lot small { color: var(--dim); font-size: 0.82rem; line-height: 1.3; }
+#auction-lots .lot .kind { color: var(--gold); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+#auction-lots .bidder { display: flex; align-items: center; gap: 4px; margin-top: auto; }
+#auction-lots .bidder button { min-width: 34px; padding: 4px 0; }
+#auction-lots .bidder input { width: 100%; min-width: 0; text-align: center; font: 600 1rem/1.2 "Source Sans 3", sans-serif; padding: 4px; }
+#auction .auction-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; position: sticky; bottom: -14px; padding: 8px 0; background: rgba(20, 24, 36, 0.98); }
+#auction .auction-foot span { margin-right: auto; }
+#auction .auction-foot .over { color: #ff8b7b; }
+#auction-status { margin: 6px 0 0; }
 #itembar { flex: none; display: flex; align-items: center; gap: 10px; min-height: 38px; }
 #itembar .label { color: var(--dim); font-size: 0.85rem; }
 #itembar .hint { color: var(--dim); font-size: 0.78rem; margin-left: auto; }
@@ -351,6 +369,14 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
   #game .choices3 button { min-height: 0; padding: 10px 12px; }
   .overlay .row { flex-wrap: wrap; }
   #draft { position: fixed; inset: 56px 8px 8px; z-index: 25; padding: 12px 14px; }
+  #auction { position: fixed; inset: 56px 8px 8px; z-index: 25; padding: 12px 14px; }
+  #auction-lots { grid-template-columns: 1fr; gap: 6px; }
+  #auction-lots .lot { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  #auction-lots .lot { padding: 6px 8px; gap: 2px 8px; }
+  #auction-lots .lot .art { min-height: 0; }
+  #auction-lots .lot .what { flex: 1 1 60%; }
+  #auction > p { font-size: 0.85rem; margin-bottom: 6px; }
+  #auction-lots .bidder { flex: 1 1 100%; }
   #draft-options { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
   #choose-show { top: auto; bottom: 12px; }
   #choose-show.talent { display: none; }

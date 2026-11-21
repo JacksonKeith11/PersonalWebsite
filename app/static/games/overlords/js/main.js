@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=20';
-import { isMuted, play, setMuted } from './sound.js?v=20';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=20';
+import { Playback } from './fight.js?v=23';
+import { isMuted, play, setMuted } from './sound.js?v=23';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=23';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -180,6 +180,7 @@ function render() {
   renderCommander();
   renderChoose();
   renderDraft();
+  renderAuction();
   renderEnd();
   renderSheets();
   checkPinned();
@@ -433,6 +434,90 @@ function renderDraft() {
   }));
 }
 
+// The auction (rounds 6 and 11): three lots, sealed bids. Your bids live in S.bids until you place them
+// (and may be changed until it closes); each is 0 or at least the minimum, together no more than your gold.
+function renderAuction() {
+  const st = S.st, a = st.auction, mine = seatedMe();
+  $('auction').hidden = st.phase !== 'auction' || !a || !mine?.alive;
+  if ($('auction').hidden) { S.bids = null; return; }
+  const key = `${st.round}`;
+  if (!S.bids || S.bids.key !== key) S.bids = { key, v: st.me?.bids ? [...st.me.bids] : a.lots.map(() => 0), sent: !!st.me?.bids };
+  const bids = S.bids.v, min = a.min;
+  $('auction-note').textContent = `Bid on any of these, in secret, at least ${min} gold each (or more where a lot says). The highest bid takes a lot and pays what it bid (a tie goes to the lower HP), and nobody wins more than one lot: your highest winning bid counts. Unsold lots are lost.`;
+  const lots = $('auction-lots');
+  if (lots.dataset.key !== key) { // build the cards once an auction; the bid boxes are updated in place
+    lots.dataset.key = key;
+    if (COMPACT.matches) pin(null); // a phone's card would cover the auction's top
+    lots.replaceChildren(...a.lots.map((lot, i) => {
+      const card = el('div', 'lot');
+      const art = el('div', 'art'), what = el('div', 'what');
+      let kind, name, text, hover = null;
+      if (lot.kind === 'unit') {
+        const u = S.cfg.units[lot.unit], it = S.cfg.items[lot.item];
+        card.style.setProperty('--cc', COST_COLORS[u.tier]);
+        art.append(sprite(lot.unit, 48), icon('item:' + lot.item, 24));
+        kind = 'Unit';
+        name = `${u.name} ${'★'.repeat(lot.star)}`;
+        text = `${u.traits.map(t => S.cfg.traits[t].name).join(' · ')}, holding ${it.name}: ${it.text}`;
+        hover = () => ({ kind: 'shop', key: lot.unit, star: lot.star, items: [lot.item] });
+      } else if (lot.kind === 'item') {
+        const it = S.cfg.items[lot.item];
+        card.style.setProperty('--cc', rarityColor(lot.item));
+        art.append(icon('item:' + lot.item, 32));
+        kind = 'Relic: only here';
+        name = it.name;
+        text = it.text + (it.fx ? ` ${describeFx(Object.fromEntries(Object.entries(it.fx).filter(([k]) => ['hp', 'ad', 'ap', 'armor', 'mr', 'aspd_pct', 'crit', 'mana'].includes(k))))}.` : '');
+        hover = () => ({ kind: 'item', item: lot.item });
+      } else {
+        const g = S.cfg.augments[lot.augment];
+        card.style.setProperty('--cc', '#f2c230');
+        art.append(el('span', 'kind', '✦'));
+        kind = 'Auction augment';
+        name = g.name;
+        text = g.text;
+      }
+      what.append(el('span', 'kind', kind), el('b', '', name), el('small', '', text));
+      if (hover) { hoverInfo(art, hover); hoverInfo(what, hover); } // not the bid buttons: a long press there would fight them
+      const bidder = el('div', 'bidder');
+      const less = el('button', '', '−'), more = el('button', '', '+');
+      less.type = more.type = 'button';
+      less.setAttribute('aria-label', 'Bid less'); more.setAttribute('aria-label', 'Bid more');
+      const box = el('input');
+      box.type = 'number'; box.min = 0; box.inputMode = 'numeric';
+      box.setAttribute('aria-label', `Your bid on ${name}`);
+      const least = lot.min || min;
+      if (least > min) what.append(el('small', 'kind', `Bids start at ${least} gold`));
+      const set = v => { S.bids.v[i] = v <= 0 ? 0 : Math.max(least, Math.floor(v)); S.bids.sent = false; renderAuction(); };
+      less.addEventListener('click', () => set(bids[i] <= least ? 0 : bids[i] - 1));
+      more.addEventListener('click', () => set(bids[i] ? bids[i] + 1 : least));
+      box.addEventListener('change', () => set(+box.value || 0));
+      bidder.append(less, box, more);
+      card.append(art, what, bidder);
+      return card;
+    }));
+  }
+  [...lots.querySelectorAll('.lot input')].forEach((box, i) => { if (document.activeElement !== box) box.value = bids[i]; });
+  const total = bids.reduce((x, y) => x + y, 0);
+  const over = total > mine.gold;
+  $('auction-total').innerHTML = `Your bids: <b class="${over ? 'over' : ''}">${total}</b> of ${mine.gold} gold`;
+  $('auction-send').disabled = over;
+  $('auction-send').textContent = S.bids.sent ? 'Bids placed ✓' : 'Place bids';
+  const others = (a.bid || []).filter(id => id !== room.you).map(id => esc(player(id)?.name));
+  $('auction-status').innerHTML = (S.bids.sent ? 'Your bids are in: you can change them until the auction closes. ' : '')
+    + (others.length ? `Bids in from ${others.join(', ')}.` : '');
+}
+
+function sendBids(zero) {
+  if (!S.bids) return;
+  if (zero) S.bids.v = S.bids.v.map(() => 0);
+  room.send({ t: 'bid', bids: S.bids.v });
+  S.bids.sent = true;
+  play('buy');
+  renderAuction();
+}
+$('auction-send').addEventListener('click', () => sendBids(false));
+$('auction-pass').addEventListener('click', () => sendBids(true));
+
 function renderLobby() {
   const st = S.st;
   const seats = $('seats');
@@ -535,7 +620,7 @@ function tickHud() {
   const waiting = st.phase === 'plan' && left <= 0 && st.choosing?.length;
   const phase = waiting ? (st.choosing.includes(room.you) ? 'Waiting for you' : 'Waiting')
     : st.phase === 'plan' ? `Planning · ${left}s` : st.phase === 'fight' ? 'Fighting'
-    : st.phase === 'draft' ? `Draft · ${left}s` : 'Game over';
+    : st.phase === 'draft' ? `Draft · ${left}s` : st.phase === 'auction' ? `Auction · ${left}s` : 'Game over';
   $('hud-phase').textContent = phase;
   $('hud-phase').classList.toggle('hurry', st.phase === 'plan' && left <= 5);
   banner();
@@ -570,6 +655,15 @@ function banner() {
       if (names.length) parts.push(`<span class="hint">Waiting for ${names.join(' and ')} to choose a commander</span>`);
     }
     const foe = nextFoe();
+    const ar = st.auction_results;
+    if (ar) {
+      const said = ar.results.map(([i, by, price]) => {
+        const lot = ar.lots[i];
+        const name = lot.kind === 'unit' ? S.cfg.units[lot.unit].name : lot.kind === 'item' ? S.cfg.items[lot.item].name : S.cfg.augments[lot.augment].name;
+        return by ? `<b>${by === room.you ? 'you' : esc(player(by)?.name)}</b> took ${esc(name)} for ${price}` : `${esc(name)} went unsold`;
+      });
+      parts.push('Auction: ' + said.join(', '));
+    }
     if (st.pve) parts.push(S.watch === room.you ? 'Monsters this round: they stand on the top half' : 'Monsters this round');
     else if (foe && player(foe.id) && mine2?.alive) {
       const name = esc(player(foe.id).name);
@@ -2089,7 +2183,7 @@ $('again').addEventListener('click', () => room.send({ t: 'again' }));
 const leaveRoom = () => { location.href = '/games/overlords'; };
 $('exit').addEventListener('click', () => {
   const mine = seatedMe();
-  if (!mine || !mine.alive || !['plan', 'fight', 'draft'].includes(S.st?.phase)) { leaveRoom(); return; }
+  if (!mine || !mine.alive || !['plan', 'fight', 'draft', 'auction'].includes(S.st?.phase)) { leaveRoom(); return; }
   const standing = S.st.players.filter(p => p.seated && p.alive).length;
   $('exit-text').textContent = `You'll be knocked out now and finish ${ordinal(standing)} of ${S.st.players.filter(p => p.seated).length}`
     + `, and your units go back to the pool. You can't come back into this match.`;

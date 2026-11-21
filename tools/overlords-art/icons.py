@@ -873,6 +873,61 @@ def quicksilver():
     return g.strings(), p
 
 
+# ------------------------------------------------------------------ relics (won only at the auction)
+def mountain_heart():
+    """A craggy grey stone with a glowing amber heart."""
+    p = P(glow='#ffd070')
+    g = G(p)
+    g.tri([(1, 14), (7, 2), (14, 14)], 'M')
+    g.tri([(3, 14), (8, 4), (13, 14)], 'm')
+    g.line(7, 2, 9, 5, 'l')
+    g.rect(1, 14, 14, 14, 'M')
+    g.ell(7.5, 10, 2.4, 2.2, 'f')
+    g.ell(7.5, 9.6, 1.2, 1.1, 'y')
+    g.px(7, 9, '*')
+    return g.strings(), p
+
+
+def star_blade():
+    """A long silver sword with a star on its point and a gold guard."""
+    p = P(glow='#fff4b0')
+    g = G(p)
+    sword(g, blade='i', guard='g', grip='v', long=8, gem='y')
+    for x, y in ((13, 1), (12, 2), (14, 2), (13, 3), (13, 0), (11, 2), (15, 2), (13, 4)):
+        g.px(x, y, 'y')
+    g.px(13, 2, '*')
+    return g.strings(), p
+
+
+def wellspring():
+    """A deep-blue orb on a little gold stand, with a bright drop rising from it."""
+    p = P(glow='#c0f0ff')
+    g = G(p)
+    g.ell(7.5, 8.5, 5, 4.8, 'b')
+    g.ell(6.5, 7.5, 3, 2.6, 'z')
+    g.px(5, 6, '*')
+    g.px(6, 6, '*')
+    g.rect(4, 13, 11, 14, 'g')
+    g.rect(6, 12, 9, 12, 'G')
+    g.rows(7, 0, [(0, 1), (0, 1)], 'i')
+    return g.strings(), p
+
+
+def twinfang():
+    """Two curved white fangs crossed over a dark band."""
+    p = P(glow='#ffffff')
+    g = G(p)
+    g.line(2, 2, 7, 13, 'h', 2)
+    g.line(13, 2, 8, 13, 'h', 2)
+    g.line(2, 2, 4, 6, 'l')
+    g.line(13, 2, 11, 6, 'l')
+    g.rect(3, 9, 12, 10, 'd')
+    g.px(7, 10, 'r')
+    g.px(8, 10, 'r')
+    g.px(3, 3, '*')
+    return g.strings(), p
+
+
 ITEM_ICONS = {
     'sword': sword_c, 'bow': bow_c, 'rod': rod_c, 'tear': tear_c, 'vest': vest_c, 'cloak': cloak_c, 'belt': belt_c,
     'sigil': sigil_c, 'greatsword': greatsword, 'ravager': ravager, 'spellblade': spellblade, 'mana_edge': mana_edge,
@@ -884,6 +939,7 @@ ITEM_ICONS = {
     'colossus_belt': colossus_belt, 'crown': crown, 'hourglass': hourglass, 'soulreaver': soulreaver,
     'phoenix_feather': phoenix_feather, 'warhorn': warhorn, 'witherbloom': witherbloom, 'echo_tome': echo_tome,
     'executioner': executioner, 'world_seed': world_seed, 'quicksilver': quicksilver,
+    'mountain_heart': mountain_heart, 'star_blade': star_blade, 'wellspring': wellspring, 'twinfang': twinfang,
 }
 PROJECTILES = {
     'arrow': p_arrow, 'bolt': p_bolt, 'fire': p_fire, 'water': p_water, 'bone': p_bone, 'star': p_star,

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/overlords/game.css?v=20">
+  <link rel="stylesheet" href="/static/games/overlords/game.css?v=23">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -49,7 +49,7 @@
           <li>Then everyone fights at once. Your units move and attack on their own, and cast their ability when their mana fills. Lose and you lose HP: more for every enemy left standing.</li>
           <li>Some rounds are monster rounds, everyone against the same monsters, for gold.</li>
           <li>Once every person in the room is knocked out, the match ends: the bots don't play it out.</li>
-          <li>You earn gold every round, plus 1 for every 6 you've saved (up to 5, so saving 30 earns the most), plus a bonus for a winning or losing streak.</li>
+          <li>You earn gold every round, plus 1 for every 8 you've saved (up to 5, so saving 40 earns the most), plus a bonus for a winning or losing streak.</li>
           <li>Click a player on the left to watch their fight, or to see their board while you plan.</li>
           <li>While you plan, the player you'll fight next is marked in the list, and their board shows faded on the top half of yours, where it will stand when the fight starts: place your units against it (hover or tap one of theirs to read it). On monster rounds the monsters show there.</li>
           <li>Buy items in the armory, beside your item bench, and drag one onto a unit (or click it, then the unit); a unit holds three. Items come in four rarities: Common (plain stats, 2 gold), Rare (a trick and a stat, 4), Epic (a stronger trick and two stats, or an emblem: its holder gains a trait, 6) and Legendary (artifacts, and the Crown: one more place on your board, 9). Rarer items turn up as the rounds go on; the armory restocks every round. Click or tap a unit to take its items off again.</li>
@@ -57,7 +57,8 @@
           <li>A unit's card shows its numbers as it would start the next fight, with what traits, items, augments and your commander add in green beside each (hover a number for what it means), each of its traits and what it's doing for it, its ability's damage with its ability power counted, and what each of its items does. The trait list says what each trait gives right now, or what it would give once it's on.</li>
           <li>During a fight the right panel charts each unit's damage dealt, taken and healed; it keeps the last fight while you plan.</li>
           <li>At the start you pick a commander: a passive, and a power that charges over a few rounds (use it from the left panel while planning). The first fight waits until everyone has picked.</li>
-          <li>At rounds 3, 8 and 13 you pick one of three augments; at rounds 4, 9 and 14 everyone drafts a unit holding an item (Rare, then Epic, then a Legendary artifact) from a shared set, the lowest HP picking first.</li>
+          <li>At rounds 3, 8 and 13 you pick one of three augments; at rounds 4, 9 and 14 everyone drafts a unit holding an item (Rare, then Epic, then a Legendary artifact) from a shared set, the lowest HP picking first. Some augments grow with your board: so much for each Mystic you field, say, or your units' extra HP turned into attack.</li>
+          <li>Rounds 6 and 11 close an act with an auction: three lots (a two-star unit holding an item, a relic you can't get anywhere else, and an auction augment). Everyone bids at once, in secret, on any of them; your bids together can't be more than your gold. The highest bid takes each lot and pays what it bid, but nobody wins more than one. Saved gold buys you power there.</li>
           <li>Exit (top right) leaves a match for good: you're knocked out on the spot.</li>
           <li>Keys: D reroll · F buy XP · E sell the unit under the pointer · Space ready.</li>
         </ul>
@@ -146,6 +147,17 @@
             <p id="draft-note"></p>
             <div id="draft-options"></div>
           </div>
+          <div id="auction" hidden>
+            <h2>Auction</h2>
+            <p id="auction-note"></p>
+            <div id="auction-lots"></div>
+            <div class="auction-foot">
+              <span id="auction-total"></span>
+              <button id="auction-pass" type="button">Pass</button>
+              <button id="auction-send" class="primary" type="button">Place bids</button>
+            </div>
+            <p id="auction-status" class="note"></p>
+          </div>
         </div>
         <div id="itembar">
           <span class="label">Items</span>
@@ -230,6 +242,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/overlords/js/main.js?v=20"></script>
+  <script type="module" src="/static/games/overlords/js/main.js?v=23"></script>
 </body>
 </html>

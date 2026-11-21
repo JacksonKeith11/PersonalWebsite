@@ -255,6 +255,8 @@ def copies(room):
     total = sum(room.pool.values())
     if room.phase == "draft" and room.draft:  # options on offer are held out of the pool
         total += sum(1 for o in room.draft["options"] if o["by"] is None)
+    if room.phase == "auction" and room.auction:  # so is the auction's unit (three copies)
+        total += sum(3 for lot in room.auction["lots"] if lot["kind"] == "unit")
     for p in room.seated():
         total += sum(3 ** (u["star"] - 1) for u in p.units())
     return total
@@ -361,6 +363,128 @@ def pairing():
     check(len(room.alive()) % 2 == 0 or any(g for _, _, g in room.next_pairs), "an odd number means a ghost fight")
     while not q.empty():
         q.get_nowait()
+
+
+def auction():
+    """The auction at D.AUCTION_ROUNDS: three lots, sealed bids checked, the highest bid wins and pays,
+    unsold units go back to the pool, results shown while planning; relics only here."""
+    room = game.Room("AUCT")
+    room.rng.seed(8)
+    room.clock = Clock()
+    room.saving = False
+    me, q = browser(room, "Ann", "a")
+    room.handle(me, {"t": "set", "bots": True, "level": "normal"})
+    room.handle(me, {"t": "start"})
+    room.handle(me, {"t": "commander", "k": me.offers[0]})
+    full = copies(room)
+    while room.phase != "auction" and room.round < 12:
+        room.clock.t = room.ends + 0.01
+        room.tick()
+        if me.aug_offer:
+            room.handle(me, {"t": "augment", "k": me.aug_offer[0]})
+        if not me.alive:
+            break
+    check(room.phase == "auction" and room.round == D.AUCTION_ROUNDS[0], f"an auction at round {D.AUCTION_ROUNDS[0]}")
+    if room.phase != "auction":
+        return
+    lots = room.auction["lots"]
+    check([lot["kind"] for lot in lots] == ["unit", "item", "augment"], "three lots: a unit, a relic, an augment")
+    check(lots[0]["star"] == 2 and D.ITEMS[lots[1]["item"]]["kind"] == "relic" and D.AUGMENTS[lots[2]["augment"]]["tier"] == 4,
+          "a two-star unit, a relic and an auction augment")
+    check(copies(room) == full, "the auction's unit is held out of the pool")
+    st = last_state(q)
+    check(st and st["phase"] == "auction" and len(st["auction"]["lots"]) == 3 and "bids" not in st["auction"],
+          "the browsers see the lots but not the bids")
+    me.gold = 200
+    check(not room.bid(me, [150, 30, 21]) and not room.bid(me, [2, 0, 0]) and not room.bid(me, [5, 5]),
+          "bids over your gold, under the minimum or the wrong length are refused")
+    check(room.bid(me, [150, 30, 20]), "a fair set of bids is taken")
+    room.handle(me, {"t": "buy", "i": 0})
+    check(me.gold == 200, "no shopping during the auction")
+    room.tick()  # every person has bid: it closes at once
+    check(room.phase in ("plan", "draft"), "the auction closes once everyone has bid")
+    won = [r for r in room.auction_results["results"] if r[1] == me.id]
+    check(won == [[0, me.id, 150]] and me.gold == 50, f"Ann's top bid takes its lot and she pays it, one lot only ({won})")
+    check(lots[1]["item"] not in me.items and lots[2]["augment"] not in me.augments, "the other lots aren't Ann's")
+    check(any(u["unit"] == lots[0]["unit"] and lots[0]["item"] in u["items"] for u in me.units())
+          or lots[0]["item"] in me.items, "the unit joins Ann's bench with its item")
+    check(copies(room) == full, "the pool still adds up after the auction")
+    st = last_state(q)
+    check(st and st.get("auction_results"), "the results are shown while planning")
+    relics = {k for k, i in D.ITEMS.items() if i["kind"] == "relic"}
+    drawn = {room.random_item(r) for r in (1, 2, 3, 4) for _ in range(300)}
+    check(not (relics & drawn), "relics never turn up in the armory")
+    # nobody bids: the unit goes back to the pool
+    room2 = game.Room("AUC2")
+    room2.rng.seed(9)
+    room2.clock = Clock()
+    room2.saving = False
+    room2.bots = True
+    room2.start()
+    while room2.round < D.AUCTION_ROUNDS[0] - 1:
+        room2.clock.t = room2.ends + 0.01
+        room2.tick()
+    for p in room2.alive():
+        p.gold = 0
+    full2 = copies(room2)
+    while room2.phase != "auction":
+        room2.clock.t = room2.ends + 0.01
+        room2.tick()
+    for p in room2.alive():
+        room2.auction["bids"][p.id] = [0, 0, 0]
+    room2.clock.t = room2.ends + 0.01
+    room2.tick()
+    check(all(r[1] is None for r in room2.auction_results["results"]) and copies(room2) == full2,
+          "unsold lots: the unit goes back to the pool")
+    while not q.empty():
+        q.get_nowait()
+
+
+def build_arounds():
+    """Augments that grow with the board work out right, reach the fight and the unit cards; auction
+    augments never come up at the usual augment rounds."""
+    room = game.Room("BLD")
+    p = game.Player(1, "Ann", "#fff")
+    p.level = 6
+    units = [("ember_mage", 2, (3, 0)), ("star_queen", 1, (2, 0)), ("iron_sentinel", 2, (3, 3)),
+             ("iron_recruit", 1, (2, 3)), ("ashling", 1, (4, 3))]
+    for key, star, h in units:
+        p.board[h] = room.new_unit(key, star)
+    casters = p.build_count("units:arcanist,mystic,summoner")
+    check(p.build_count("front") == 3, "a build-around counts the front row")
+    p.augments = ["spellweave", "shield_wall", "war_chest", "elite_guard", "giants_heart"]
+    p.gold = 31
+    ex = p.extras()
+    check(ex["team"].get("ap") == 10 * casters and casters >= 1, f"Spellweave: 10 ability power a caster ({casters})")
+    check(ex["front"].get("armor") == 24 and ex["team"].get("ad") == 10, "Shield Wall's front row; War Chest's gold")
+    check(ex["stars"] == [[2, D.AUGMENTS["elite_guard"]["stars"]["fx"]]] and ex["convert"] == {"hp_to_ad": [200, 20]},
+          "Elite Guard and Giant's Heart reach the fight")
+    cards = p.card_stats()
+    plain = game.Player(2, "Bo", "#000")
+    plain.board = p.board
+    bare = plain.card_stats()
+    sentinel = p.board[(3, 3)]["id"]
+    check(cards[sentinel]["ad"] > bare[sentinel]["ad"] and cards[sentinel]["hp"] > bare[sentinel]["hp"],
+          "the unit cards count build-arounds")
+    f = sim.Fight([B("iron_sentinel", 3, 3, 1, ["belt", "vest"])], [B("wolf", 3, 3)], 1,
+                  ({"convert": {"hp_to_ad": [200, 20], "res_to_ap": 0.5}}, {}))
+    u = next(u for u in f.units if u.key == "iron_sentinel")
+    check(round(u.ad) == round(D.UNITS["iron_sentinel"]["ad"] + 20) and round(u.ap) == 120,
+          "conversions turn extra HP into attack and armor into ability power")
+    p.augments = []
+    room.apply_augment(p, "legion")
+    check(p.limit() == p.level + 1, "Legion: one more board place")
+    room.apply_augment(p, "iron_will")
+    check(p.extras()["front"].get("cc_immune") == 1, "Iron Will reaches the front row")
+    room.round = 13
+    offered = set()
+    for _ in range(200):
+        p.augments = []
+        room.offer_augments(p)
+        offered.update(p.aug_offer)
+    check(not any(D.AUGMENTS[k]["tier"] == 4 for k in offered), "auction augments never come up as an ordinary pick")
+    check(any(k in offered for k in ("giants_heart", "runeplate", "quickening", "melting_pot", "elite_guard")),
+          "grand build-arounds do come up")
 
 
 def matches(n=3):
@@ -827,6 +951,8 @@ card_numbers()
 draft()
 room_rules()
 pairing()
+auction()
+build_arounds()
 matches()
 every_ability_fires()
 mechanics()

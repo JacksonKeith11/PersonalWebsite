@@ -29,7 +29,7 @@ standing wins, except that once every person in the room is out, the match ends 
 still standing are placed by HP (`only_bots_left`, `finish`; the owner asked for a loss to end it at once
 rather than wait on the bots). A room of bots alone, as in the checks and the simulator, plays out.
 Rounds 1, 2, 6 and 11 are monster rounds (`PVE`): everyone fights the same monsters, for gold
-(`PVE_GOLD`: 3, 4, 6 and 8 to a winner; no items, which come from the armory). Income each round: 3, 4, then 5 gold, plus 1 per 6 saved (up to 5; per 10 until late November 2026, see Gotchas), plus
+(`PVE_GOLD`: 3, 4, 6 and 8 to a winner; no items, which come from the armory). Income each round: 3, 4, then 5 gold, plus 1 per 8 saved (up to 5; per 10, then 6, until late November 2026, see Gotchas), plus
 1-3 for a win or loss streak of 2+. Everyone starts with one free 1-cost unit. Before each fight,
 bench units fill any empty board places up to the level (`fill_board`), so forgetting to place isn't
 fatal. Copies come out of a shared pool (`POOL`, by tier) and go back when sold or when their owner
@@ -40,7 +40,7 @@ scale with it in a straight line (the owner asked, November 2026): 1, 2, 3, 5 an
 Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_POWER`, applied in
 `U()`) to earn the steeper price. In code, `"tier"` is the tier and `"cost"` the price.
 
-### Items, commanders, augments and drafts
+### Items, commanders, augments, drafts and the auction
 
 - **Items** (`ITEMS`) are bought whole in the **armory**, in four rarities of rising power and price
   (November 2026: first the owner moved components from monster drops into a shop, then asked for the
@@ -89,18 +89,45 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   (3-5 rounds) and is used from the left panel while planning. Powers for "next fight" go in
   `player.next_fx` and are spent at the fight's start. All of it is in `game.py` (`extras`,
   `use_power`, and the odd line in income, rolls and damage).
-- **Augments** (`AUGMENTS`, 66, with Ancient Armory and Relic Hunter from the roster review): one of three at rounds 3, 8 and 13, all of one tier (lesser, greater,
+- **Augments** (`AUGMENTS`, 80: 66 from the roster review, ten build-arounds and four for the auction): one of three at rounds 3, 8 and 13, all of one tier (lesser, greater,
   grand, by `AUGMENT_TIER_ODDS`), with one reroll. Trait augments (Heart +1, Crest an emblem, Soul +2 to
   a trait's count) are only offered for traits among your units when there are enough of them. Their
   cards also say what the trait does at each tier (`traitLine` in `main.js`; the owner asked for the
   emblems to be explained), as do emblems' info cards, and the augments in the commander panel show the
   trait on hover or tap. Unpicked offers are taken (the first) when the fight starts.
+- **Build-around augments** (ten, the owner asked for Guildrun-style ones, late November 2026): they
+  grow with the board, worked out every fight in `Player.extras` (`build_arounds`, `build_count`), so the
+  unit cards show them. `per`: so much for each unit counted (Kinship: your most common origin;
+  Spellweave: Arcanists, Mystics and Summoners; Bladework: Duelists, Rangers and Assassins; Shield Wall:
+  units on the front row, for the front row; War Chest: gold held, per 3, up to 20). `when`: once a
+  condition holds (Melting Pot: five different origins). `stars`: units of at least that star (Elite
+  Guard; `extras["stars"]`). `convert`: one stat into another once everything else is counted
+  (`Fight.convert`: Giant's Heart, extra max HP into attack; Runeplate, extra armor and resist into
+  ability power; Quickening, extra attack speed into mana a second; "extra" is beyond the unit's own
+  numbers, `Unit.raw`). Bots rate them by what their board would get now (`pick_augment`).
 - **Drafts** (`DRAFT_ROUNDS`: 4, 9 and 14): a phase `draft` before planning. One unit per player plus
   two (tiers by `DRAFT_TIERS`), each holding a random item (`DRAFT_ITEM_RARITY`: Rare at 4, Epic at 9,
   an artifact at 14), held out of the pool; lowest HP picks first, 8 s a person (then at random), bots
   after 0.8 s. A pick with no bench room is sold on the spot and its item kept. What's left goes back to the pool.
+- **The auction** (`AUCTION_ROUNDS`: 6 and 11, the monster rounds that close each act; the owner asked for
+  it, after Guildrun's end-of-act auction, late November 2026): a phase `auction` before planning (and
+  before that round's draft, had it one). Three lots (`start_auction`): a two-star unit of
+  `AUCTION_UNIT`'s tier holding an item of its rarity (Epic at 6, an artifact at 11; its three copies held
+  out of the pool), a relic (kind `relic`: four Legendary items won nowhere else, `RELICS`) and an
+  auction augment (tier 4, never offered at the augment rounds: Legion, one more board place,
+  `Player.slots`, bids from 12 (`AUCTION_LOT_MIN`); War Banner; Ancestral Echo; Iron Will, the front row's `Player.front_fx`). Sealed
+  bids (`bid`: each 0 or at least the lot's `min`, `AUCTION_MIN` unless `AUCTION_LOT_MIN` says more, together no more than your gold; resent bids replace the
+  last); the state shows the lots and who has bid, never amounts. It closes after `AUCTION_TIME` or once
+  every connected person has bid (bots bid at once, so a room of bots doesn't wait); the highest bid of
+  all takes its lot (ties to the lower HP) and pays it, that bidder drops out, and so on: nobody wins
+  more than one lot (`resolve_auction`; without that rule saving bots won everything and the saver style
+  led at 2.0; `award`: a unit with no bench
+  room is sold on the spot, its item kept); unsold units go back. No shopping during it. The results ride
+  in `state.auction_results` while planning (the banner lists them). Bots bid each lot's worth to them,
+  more for their style's favourite (`AUCTION_LIKES`), with some luck, and keep `AUCTION_SAVE` gold the
+  round before.
 - In a fight these reach `sim.Fight` as each side's `extras`: `bonus` (augment trait counts), `team`
-  (fx for everyone), `front`, `revive_first`, `summon`, `rally`, `fallen_rally` (the Warlord), and the
+  (fx for everyone), `front`, `stars`, `convert`, `revive_first`, `summon`, `rally`, `fallen_rally` (the Warlord), and the
   ones aimed at the *other* side: `hex_strongest`, `hex_all` (the Hexer) and `drain` (the Chronomancer).
 
 ### Units and traits
@@ -398,7 +425,10 @@ matching), the side panels fold away:
   the style tournament (`tools/overlords-styles.py`: every match seats the four styles, shuffled; 300
   normal matches a try, about ±0.07) chose 1 per 6 (`INTEREST_PER`): per 10 had the saver last at 2.82, per 8 at 2.73, per 7 at 2.56,
   per 6 at 2.45 (second, and winning as often as the leader), per 5 first at 2.24 (too much). Dearer XP
-  (5 gold) made the saver worse. Retest with the tournament before touching `income`, interest or XP.
+  (5 gold) made the saver worse. Then the auction gave saved gold a second use and the saver led at
+  2.0-2.1 even with one lot each (without auctions the four styles were 2.41-2.66), so interest went to
+  1 per 8: saver 2.33, fast 2.45, trait 2.46, tempo 2.76 (per 7 with weaker unit lots came out the same).
+  Retest with the tournament before touching `income`, interest, XP or the auction.
 - **Three-stars of cheap units are out of reach.** The reroller bot kept 10 gold, stayed on level 5 and
   rerolled the rest for up to three cheap targets: with about 7 gold a round it reached 8 of 9 copies of
   its best by round 11, too late, and placed 3.1-3.3 whatever was tried (level 6, 1-gold rerolls, pools
@@ -415,6 +445,11 @@ matching), the side panels fold away:
   cast while dead and a dash crashed the fight (`occ` had no hex for it). The check covers it.
 - Trait counts ignore duplicates and summons. Summons and monsters have `"summon": True` and cost 0,
   which keeps them out of the shop and the pool.
+- The auction holds its unit's three copies out of the pool, like a draft's options: the checks' `copies`
+  counts them. Relics are kind `relic` so `random_item` (the armory, drafts, augments, powers) never
+  draws one; keep it that way for anything auction-only.
+- The simulator winds the clock to `Room.ends`, so its minutes count each auction's full 25 s, though a
+  bots-only auction closes at once (nobody to wait for).
 - `Room.clock` is swappable: the check winds it on to play whole matches instantly. Real code must
   use `self.clock()`, not `time.monotonic()`, for phase timers.
 - A mana-from-damage loop once let a lone 1-star Star Queen shield herself for 25 s against six
@@ -436,7 +471,10 @@ matching), the side panels fold away:
   none worked out in a room of bots), the first fight waiting for a commander, Exit, the match
   ending when the last person is out, opponents paired when planning starts (the fights follow them, the
   browsers see them, a hard bot tries every arrangement, someone leaving re-pairs), a unit killed in its
-  own turn not acting, and three whole bot matches with the pool conserved.
+  own turn not acting, the auction (three lots, bids checked, the winner pays, no shopping meanwhile,
+  unsold units back in the pool, results shown, relics never in the armory), build-around augments (the
+  counts, the front row, gold, stars and conversions in `extras`, the fight and the unit cards; auction
+  augments never offered as an ordinary pick), and three whole bot matches with the pool conserved.
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
   bought in the armory and dragged onto a unit.
@@ -453,8 +491,9 @@ matching), the side panels fold away:
   same costs (50% is right at every cost); `--traits [N]` each trait at each tier against
   cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
-Latest numbers (late November 2026, after interest went to 1 per 6, bot styles and a second balance pass;
-~6 minutes to rerun the three tools, plus the style tournament):
+Latest numbers (late November 2026: units and traits after the second balance pass; whole matches after
+the auction, build-around augments and interest at 1 per 8; ~6 minutes to rerun the three tools, plus the
+style tournament):
 - Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 18 ms a fight, average
   21 s, 1.7% hit the cap. 58 of 60 within 42-58% (each about ±2.5% at ~400 fights): just outside,
   Thornling 40% (weak) and Bone Tyrant 58.5%. This pass: Duelist's stacks 0.13/0.14/0.16 (was
@@ -466,9 +505,14 @@ Latest numbers (late November 2026, after interest went to 1 per 6, bot styles a
 - Traits, 120 fights a tier (`--traits 120`, about ±4.5%, and noisier than that in practice: Assassin 2
   read 42% here and 56% in a 300-a-tier spot run): first tiers 42-57%, the 4-tiers of the 2/4 traits
   58-82%, the top tiers of 6 at 66-82%. Every ladder rises.
-- Whole bot matches (`overlords-sim.py 300`, normal bots, a random style each): 17.4 rounds (14-21), about
-  16 minutes at full timers. Commanders 2.17 (Twinmaker) to 2.78 (Hexer), the tightest spread yet; the
-  Merchant is back mid-table (2.48) now that saving pays. About ±0.15 of noise at ~75 matches a commander.
-- The style tournament (`overlords-styles.py 300`; every match seats the four styles, shuffled), interest per 6:
-  normal bots, 300 matches: fast 2.31, econ 2.43 (the most wins, 100 of 300), trait 2.58, tempo 2.68.
-  Hard bots, 120 matches: fast 2.27, trait 2.35, tempo 2.59, econ 2.78 (about ±0.1).
+- Whole bot matches (`overlords-sim.py 300`, normal bots, a random style each, after the auction and
+  build-arounds): 17.4 rounds (14-21), about 17 minutes at full timers (the simulator counts each
+  auction's 25 s). Commanders 2.11 (Gambler) to 2.78 (Beastmaster). About ±0.15 of noise.
+- New augments, 200 matches (small samples, about ±0.25 at 20 picks): Bladework 1.92 over 51 picks and
+  Elite Guard 1.86 over 21 were trimmed afterwards (4% to 3% a unit; 20% and 20 to 15% and 15, not yet
+  rerun); the rest 2.1-3.0, within noise. Bots rarely take Kinship or Spellweave (their boards seldom
+  count enough). At the auction, unit lots always sell (14-17 gold), relics most of the time (7-11),
+  auction augments about half the time.
+- The style tournament (`overlords-styles.py 300`), interest per 8 with auctions: econ 2.33, fast 2.45,
+  trait 2.46, tempo 2.76. (Before the auction, at per 6: fast 2.31, econ 2.43, trait 2.58, tempo 2.68;
+  hard bots then: fast 2.27, trait 2.35, tempo 2.59, econ 2.78.)

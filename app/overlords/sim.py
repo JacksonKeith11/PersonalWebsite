@@ -139,6 +139,7 @@ class Unit:
         self.max = u["hp"] * m
         self.hp = self.max
         self.ad = u["ad"] * m
+        self.raw = (self.max, u["armor"], u["mr"])  # its own numbers, for conversions (Fight.convert)
         self.base_as = u["as"]
         self.range = u["range"]
         self.armor = u["armor"]
@@ -273,6 +274,7 @@ class Fight:
         """home and away: lists of {"unit", "star", "col", "row", "items"} in each player's own
         coordinates. `extras`, one dict a side, is what commanders and augments add: `bonus` ({trait:
         n} on top of the board's counts), `team` (fx for every unit), `front` (fx for the front row),
+        `stars` ([[least star, fx]]: fx for units of at least that star), `convert` (see `convert`),
         `revive_first` (the first unit to die rises with that share of HP), `summon` ([key, star], a
         unit that starts on the side's half), `rally` ([attack speed, seconds] for everyone at the
         start)."""
@@ -315,6 +317,9 @@ class Fight:
                     self.give(u, ex["team"])
                 if ex.get("front") and u.own_row == 3:
                     self.give(u, ex["front"])
+                for least, fx in ex.get("stars", ()):
+                    if u.star >= least:
+                        self.give(u, fx)
                 if ex.get("rally"):
                     u.buffs.append(["aspd_pct", ex["rally"][0], ex["rally"][1]])
             self.first_revive[side] = ex.get("revive_first", 0.0)
@@ -341,6 +346,10 @@ class Fight:
                         s.max *= 1 + ex["team"]["summon_boost"]
                         s.hp = s.max
                         s.ad *= 1 + ex["team"]["summon_boost"]
+        for side in (0, 1):
+            if extras[side].get("convert"):
+                for u in [u for u in self.units if u.side == side]:
+                    self.convert(u, extras[side]["convert"])
         for u in self.units:
             if u.team_mana:
                 for f in self.units:
@@ -451,6 +460,20 @@ class Fight:
                 setattr(u, k, getattr(u, k) + v)
             elif k in ("on_kill", "grow_hp", "last_stand", "summon_every", "horn"):
                 setattr(u, k, list(v))
+
+    def convert(self, u, conv):
+        """Build-around augments that turn one stat into another, once everything else is counted:
+        `hp_to_ad` [per, attack]: attack for every `per` max HP beyond the unit's own; `res_to_ap` share:
+        ability power for armor and resist beyond its own; `aspd_to_mana` n: mana a second per 100% attack
+        speed beyond its own."""
+        raw_max, raw_armor, raw_mr = u.raw
+        if "hp_to_ad" in conv:
+            per, amt = conv["hp_to_ad"]
+            u.ad += amt * (max(0.0, u.max - raw_max) // per)
+        if "res_to_ap" in conv:
+            u.ap += conv["res_to_ap"] * max(0.0, (u.armor - raw_armor) + (u.mr - raw_mr))
+        if "aspd_to_mana" in conv and u.ability:
+            u.mana_regen += conv["aspd_to_mana"] * max(0.0, u.aspd_pct)
 
     def do_leap(self, u):
         foes = [f for f in self.units if f.alive and f.side != u.side]

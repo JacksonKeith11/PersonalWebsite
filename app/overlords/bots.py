@@ -11,7 +11,8 @@ and try a few arrangements of their board against the one they fight next (`plac
 decides opponents when planning starts), keeping the one that does best.
 
 Bots also pick a commander (`pick_commander`), augments (`pick_augment`: hearts and souls of traits
-they field, else gold, items or stats), draft picks (`pick_draft`: the unit they value most), use
+they field, build-arounds by what their board would get, else gold, items or stats), auction bids
+(`auction_bids`: each lot's worth to them, never more than their gold), draft picks (`pick_draft`: the unit they value most), use
 their commander's power when it's charged (powers that give gold, rerolls, XP, units or items before
 they shop, fight powers only against players), buy from the armory with gold left over after units
 (the dearest first, while their units have room or it beats an item they hold), and put items on their
@@ -48,6 +49,7 @@ STYLES = ("tempo", "econ", "fast", "trait")
 ROLL_ABOVE = 50  # anyone rerolls with more gold than this over what they keep
 ECON_FROM, ECON_SPEND_HP = 4, 30
 TRAIT_PICK_BY = 5  # all-in trait bots settle on their trait by this round
+AUCTION_SAVE = 10  # gold every style keeps on the round before an auction
 LEFT = list(range(7))
 RIGHT = LEFT[::-1]
 # Hard bots' arrangements to try against their next opponent: (front-row order, back-row order).
@@ -111,9 +113,12 @@ def value(p, key, star=1):
 
 
 def keep_gold(p, rnd, panic):
-    """Gold the bot won't spend on units, rerolls or items this round (it may dip 10 under it for XP)."""
+    """Gold the bot won't spend on units, rerolls or items this round (it may dip 10 under it for XP):
+    by style, and AUCTION_SAVE on the round before an auction."""
     if panic:
         return 0
+    if rnd + 1 in D.AUCTION_ROUNDS and p.style != "econ":
+        return AUCTION_SAVE
     if p.style == "econ":
         cap = (p.interest_cap + 2 * (p.commander == "merchant")) * D.INTEREST_PER
         spend = p.level >= D.MAX_LEVEL or p.hp < ECON_SPEND_HP
@@ -338,14 +343,56 @@ def pick_commander(p, rng):
 
 
 def pick_augment(p, offer, rng):
-    """Hearts and souls of a trait the bot fields or aims for, then crests of one, then the rest."""
+    """Hearts and souls of a trait the bot fields or aims for, then crests of one; build-arounds by how
+    much its board would get from them now; then the rest."""
     mine = set(p.traits()) | set(p.plan or [])
     def score(k):
         a = D.AUGMENTS[k]
         if a.get("trait"):
             return 3 if a["trait"] in mine else 0
+        if "per" in a:
+            return 1 + 0.5 * min(5, p.build_count(a["per"]["count"]) / (3 if a["per"]["count"].startswith("gold") else 1))
+        if "when" in a:
+            return 3.5 if p.build_count("origins") >= a["when"]["origins"] - 1 else 0.5
+        if "stars" in a:
+            return 1 + 0.6 * sum(1 for u in p.units() if u["star"] >= a["stars"]["min"])
         return 2
     return max(offer, key=lambda k: (score(k), rng.random()))
+
+
+AUCTION_WORTH = {"item": 12, "legion": 16, "war_banner": 11, "ancestral_echo": 9, "iron_will": 9}
+AUCTION_LIKES = {"econ": "war_banner", "fast": "legion", "tempo": "item"}  # each style's favourite lot
+
+
+def auction_bids(room, p, lots, rng):
+    """Sealed bids on the auction's lots: each lot's worth to the bot (a unit by `value`, plus its item;
+    more for its style's favourite, AUCTION_LIKES), with some luck so bots don't all want the same lot
+    the best lots first, never more than its gold."""
+    worth = []
+    for lot in lots:
+        if lot["kind"] == "unit":
+            w = value(p, lot["unit"], lot["star"]) + 2 * D.ITEMS[lot["item"]]["rarity"]
+        elif lot["kind"] == "item":
+            w = AUCTION_WORTH["item"]
+        else:
+            w = AUCTION_WORTH.get(lot["augment"], 9)
+            if lot["augment"] == "legion" and p.level < 6:
+                w -= 5
+        name = lot.get("augment") or lot["kind"]
+        if AUCTION_LIKES.get(p.style) == name or (p.style == "trait" and lot["kind"] == "unit"
+                                                   and p.plan and p.plan[0] in D.UNITS[lot["unit"]]["traits"]):
+            w *= 1.6
+        worth.append(w * rng.uniform(0.7, 1.3))
+    bids, left = [0] * len(lots), p.gold
+    for i in sorted(range(len(lots)), key=lambda i: -worth[i]):
+        b = round(worth[i] * rng.uniform(0.5, 1.0))
+        if p.bot == "easy":
+            b = rng.randint(0, 10)
+        b = min(b, left)
+        if b >= lots[i]["min"]:
+            bids[i] = b
+            left -= b
+    return bids
 
 
 def pick_draft(p, options, rng):

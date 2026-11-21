@@ -66,8 +66,8 @@ LEVEL_XP = {1: 2, 2: 2, 3: 6, 4: 10, 5: 20, 6: 32, 7: 50}  # XP from each level 
 SHOP_ODDS = {1: (100, 0, 0, 0, 0), 2: (100, 0, 0, 0, 0), 3: (75, 25, 0, 0, 0), 4: (55, 30, 15, 0, 0),
              5: (45, 33, 20, 2, 0), 6: (30, 40, 25, 5, 0), 7: (19, 30, 35, 15, 1), 8: (15, 20, 35, 25, 5)}
 POOL = {1: 12, 2: 10, 3: 9, 4: 7, 5: 5}  # copies of each unit in a room, by tier
-# 1 gold per 6 saved, at most 5 (was per 10): saving now pays (docs/overlords.md, Checks and numbers)
-INTEREST_PER, MAX_INTEREST = 6, 5
+# 1 gold per 8 saved, at most 5 (was per 10, then 6 before the auction gave saved gold a use: docs/overlords.md)
+INTEREST_PER, MAX_INTEREST = 8, 5
 PLAN_TIME, FIRST_PLAN = 30, 20
 RESULT_PAUSE = 3.0  # seconds after the last fight ends before the next round
 START_LEVEL = 1
@@ -650,6 +650,18 @@ ARTIFACTS = [
     ("quicksilver", "Quicksilver Draught", {"mana": 200, "aspd_pct": 0.2}, "Starts the fight with full mana, and attacks 20% faster."),
 ]
 
+# Relics (Legendary, kind "relic"): won only at the auction (AUCTION_ROUNDS), never in the armory or a draft.
+RELICS = [
+    ("mountain_heart", "Mountain's Heart", {"hp": 400, "armor": 30, "mr": 30, "taunt_start": 4},
+     "Enemies within 3 hexes must attack it for the first 4 s."),
+    ("star_blade", "Starforged Blade", {"ad": 35, "crit": 0.25, "critdmg": 0.35, "ability_crit": 1},
+     "Crits often and hard, and its abilities can crit."),
+    ("wellspring", "Wellspring Orb", {"ap": 40, "mana": 30, "cast_mana": 40, "cast_share": 20},
+     "After casting, it starts again with 40 mana and the two nearest allies get 20."),
+    ("twinfang", "Twinfang", {"aspd_pct": 0.3, "multishot": 0.7, "mana_on_hit": 4},
+     "Each attack also strikes a second enemy near the target for 70%, and gives 4 more mana."),
+]
+
 
 def _sum_fx(*fxs):
     out = {}
@@ -670,6 +682,8 @@ for _k, _name, _r, _lines, _fx, _text in _TRICKS:
                  "stats": ", ".join(_STAT_TEXT[n].format(v * 100 if n == "aspd_pct" else v) for n, v in _stats.items())}
 for _k, _name, _fx, _text in ARTIFACTS:
     ITEMS[_k] = {"name": _name, "kind": "artifact", "rarity": 4, "fx": dict(_fx), "text": _text}
+for _k, _name, _fx, _text in RELICS:
+    ITEMS[_k] = {"name": _name, "kind": "relic", "rarity": 4, "fx": dict(_fx), "text": _text}
 for _t in TRAITS:  # every trait has an emblem
     ITEMS["emblem_" + _t] = {"name": TRAITS[_t]["name"] + " Emblem", "kind": "emblem", "rarity": 3, "trait": _t,
                              "fx": {"hp": 150}, "text": f"Its holder is also {TRAITS[_t]['name']}.", "stats": "+150 HP"}
@@ -762,7 +776,7 @@ COMMANDER_CHOICES = 3
 # fight rises with that share of HP), `crown` (a Crown item).
 AUGMENT_ROUNDS = (3, 8, 13)
 AUGMENT_TIER_ODDS = {3: (60, 35, 5), 8: (20, 60, 20), 13: (5, 40, 55)}
-AUGMENT_TIER_NAMES = {1: "Lesser", 2: "Greater", 3: "Grand"}
+AUGMENT_TIER_NAMES = {1: "Lesser", 2: "Greater", 3: "Grand", 4: "Auction"}
 AUGMENTS = {
     # lesser
     "pocket_change": {"tier": 1, "name": "Pocket Change", "text": "Gain 6 gold.", "gold": 6},
@@ -789,6 +803,43 @@ AUGMENTS = {
                        "artifacts": 1},
     "relic_hunter": {"tier": 2, "name": "Relic Hunter", "text": "Gain a random Legendary artifact; lose 6 HP.",
                      "artifacts": 1, "heal": -6},
+    # build-arounds (the owner asked for Guildrun-style ones, November 2026): they grow with the board you
+    # build (`per`: so much for each unit counted; `when`: once a condition holds; `stars`: units of at
+    # least that star; `convert`: one stat turned into another at a fight's start). Player.extras works
+    # them out each fight, so the unit cards show them.
+    "kinship": {"tier": 1, "name": "Kinship", "text": "Your units have 25 more HP for each unit of your "
+                "most common origin you field.", "per": {"count": "kin", "fx": {"hp": 25}}},
+    "spellweave": {"tier": 2, "name": "Spellweave", "text": "Your units have 10 more ability power for each "
+                   "Arcanist, Mystic and Summoner you field.",
+                   "per": {"count": "units:arcanist,mystic,summoner", "fx": {"ap": 10}}},
+    "bladework": {"tier": 2, "name": "Bladework", "text": "Your units attack 3% faster for each Duelist, "
+                  "Ranger and Assassin you field.",
+                  "per": {"count": "units:duelist,ranger,assassin", "fx": {"aspd_pct": 0.03}}},
+    "shield_wall": {"tier": 2, "name": "Shield Wall", "text": "Your front row has 8 armor and magic resist "
+                    "for each unit standing on it.", "per": {"count": "front", "fx": {"armor": 8, "mr": 8},
+                                                             "front": True}},
+    "war_chest": {"tier": 2, "name": "War Chest", "text": "When a fight starts, your units have 1 more attack "
+                  "for every 3 gold you hold (up to 20).", "per": {"count": "gold:3", "fx": {"ad": 1}, "max": 20}},
+    "melting_pot": {"tier": 3, "name": "Melting Pot", "text": "If you field units of five or more different "
+                    "origins, your units have 15% more HP and attack 15% faster.",
+                    "when": {"origins": 5, "fx": {"hp_pct": 0.15, "aspd_pct": 0.15}}},
+    "elite_guard": {"tier": 3, "name": "Elite Guard", "text": "Your units of two stars or more have 15% more HP "
+                    "and 15 more attack.", "stars": {"min": 2, "fx": {"hp_pct": 0.15, "ad": 15}}},
+    "giants_heart": {"tier": 3, "name": "Giant's Heart", "text": "Every 200 max HP a unit has beyond its own "
+                     "becomes 20 attack.", "convert": {"hp_to_ad": [200, 20]}},
+    "runeplate": {"tier": 3, "name": "Runeplate", "text": "Armor and magic resist your units have beyond "
+                  "their own become ability power (1 for every 2).", "convert": {"res_to_ap": 0.5}},
+    "quickening": {"tier": 3, "name": "Quickening", "text": "Every 10% attack speed a unit has beyond its own "
+                   "gives it 2 mana a second.", "convert": {"aspd_to_mana": 20}},
+    # auction only (tier 4: never offered at AUGMENT_ROUNDS)
+    "legion": {"tier": 4, "name": "Legion", "text": "One more unit may stand on your board, for the rest of "
+               "the match.", "slots": 1},
+    "war_banner": {"tier": 4, "name": "War Banner", "text": "Your units have 10% more HP and attack 10% faster.",
+                   "team": {"hp_pct": 0.1, "aspd_pct": 0.1}},
+    "ancestral_echo": {"tier": 4, "name": "Ancestral Echo", "text": "Each of your units' first ability in a "
+                       "fight echoes: it goes off again at half strength.", "team": {"echo_first": 0.5}},
+    "iron_will": {"tier": 4, "name": "Iron Will", "text": "Your front row can't be stunned or swallowed, and "
+                  "starts each fight with a 300 shield.", "front": {"cc_immune": 1, "shield": 300}},
 }
 for _t, _d in TRAITS.items():
     AUGMENTS["heart_" + _t] = {"tier": 1, "name": _d["name"] + " Heart", "trait": _t, "bonus": 1,
@@ -808,6 +859,19 @@ DRAFT_TIERS = {4: (1, 2), 9: (2, 3), 14: (3, 4)}
 DRAFT_ITEM_RARITY = {4: 2, 9: 3, 14: 4}  # the rarity of the items the draft's units hold (14: artifacts)
 DRAFT_TURN = 8  # seconds a person has for their pick
 DRAFT_EXTRA = 2  # options beyond one each
+
+# ------------------------------------------------------------------ the auction
+# At AUCTION_ROUNDS (the monster rounds that close each act), before planning, three lots go under a
+# sealed-bid auction: a two-star unit of AUCTION_UNIT's tier holding an item of its rarity, a relic (won
+# nowhere else) and an auction augment (tier 4). Everyone bids on any of them at once, at least
+# AUCTION_MIN each, the bids together no more than their gold; the highest bid of all takes its lot and
+# pays what it bid (ties to the lower HP), and so on down, nobody winning more than one lot (so saving
+# up can't buy the lot). AUCTION_TIME seconds, or until every person has bid.
+AUCTION_ROUNDS = (6, 11)
+AUCTION_UNIT = {6: (3, 3), 11: (4, 4)}  # round: (unit tier, item rarity)
+AUCTION_MIN = 3
+AUCTION_LOT_MIN = {"legion": 12}  # lots with a higher reserve than AUCTION_MIN (by augment)
+AUCTION_TIME = 25
 
 
 def shop_units():

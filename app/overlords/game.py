@@ -15,8 +15,10 @@ of the room's shared pool when bought and go back when sold or when their owner 
 Around that (step 4 of the plan in docs/overlords.md): items (bought whole in the armory, in four
 rarities, and held by draft picks; a unit holds three, and they can be taken off again), a commander
 each (picked from three in round 1: a passive and a power that charges over rounds), augments (one
-of three at D.AUGMENT_ROUNDS), and shared drafts (phase "draft" before planning at D.DRAFT_ROUNDS:
-lowest HP picks first). What commanders and augments do in a fight reaches sim.py as `extras`.
+of three at D.AUGMENT_ROUNDS, some growing with the board: build-arounds), shared drafts (phase
+"draft" before planning at D.DRAFT_ROUNDS: lowest HP picks first) and auctions (phase "auction" at
+D.AUCTION_ROUNDS: sealed bids on three lots). What commanders and augments do in a fight reaches
+sim.py as `extras`.
 """
 
 import asyncio
@@ -79,6 +81,8 @@ class Player:
         self.bonus = {}  # trait -> extra count (augments)
         self.team_fx = {}  # fx for every unit in every fight (augments)
         self.interest_cap = D.MAX_INTEREST
+        self.slots = 0  # extra board places (the Legion augment)
+        self.front_fx = {}  # fx for the front row in every fight (the Iron Will augment)
         self.revive_first = 0.0
         self.next_fx = {}  # extras for the next fight only (commander powers)
         self.free_rerolls = 0
@@ -98,7 +102,7 @@ class Player:
 
     def limit(self):
         """How many units may stand on the board: the level, plus one for each Crown standing there."""
-        return self.level + sum(u["items"].count("crown") for u in self.board.values())
+        return self.level + self.slots + sum(u["items"].count("crown") for u in self.board.values())
 
     def shop_size(self):
         return D.SHOP_SIZE + (self.commander == "quartermaster")
@@ -118,6 +122,46 @@ class Player:
                                 "talents": list(u["talents"])}], [])
                 out[u["id"]] = f.units[0].stats()
         return out
+
+    def aug_defs(self):
+        return [D.AUGMENTS[k] for k in self.augments if k in D.AUGMENTS]
+
+    def build_count(self, what):
+        """What a build-around augment counts on this board: "units:a,b" (units carrying any of those
+        traits), "front" (units on the front row), "gold:n" (gold held, per n), "kin" (units of the most
+        common origin) or "origins" (different origins fielded)."""
+        if what.startswith("gold:"):
+            return self.gold // int(what[5:])
+        if what == "front":
+            return sum(1 for (c, r) in self.board if r == 3)
+        if what.startswith("units:"):
+            want = set(what[6:].split(","))
+            return sum(1 for u in self.board.values() if want & set(D.unit_traits(u["unit"], u["items"])))
+        counts = D.trait_counts([(u["unit"], u["items"]) for u in self.board.values()])
+        origins = [counts.get(t, 0) for t, d in D.TRAITS.items() if d["kind"] == "origin"]
+        if what == "kin":
+            return max(origins or [0])
+        if what == "origins":
+            return sum(1 for n in origins if n)
+        return 0
+
+    def build_arounds(self, team, front):
+        """Adds what this player's build-around augments give this fight (`per` and `when`) to the team's
+        and the front row's fx."""
+        def add(fx, into):
+            for k, v in fx.items():
+                into[k] = into.get(k, 0) + v
+        for a in self.aug_defs():
+            if "per" in a:
+                per = a["per"]
+                n = self.build_count(per["count"])
+                n = min(n, per.get("max", n))
+                if n:
+                    add({k: v * n for k, v in per["fx"].items()}, front if per.get("front") else team)
+            if "when" in a:
+                w = a["when"]
+                if self.build_count("origins") >= w.get("origins", 0):
+                    add(w["fx"], team)
 
     def traits(self):
         return D.trait_counts([(u["unit"], u["items"]) for u in self.board.values()], self.bonus)
@@ -140,10 +184,21 @@ class Player:
             add("mana", 20)
         for k, v in self.next_fx.get("team", {}).items():
             add(k, v)
+        front = dict(self.front_fx)
+        if c == "warlord":
+            front["hp_pct"] = front.get("hp_pct", 0) + 0.12
+        self.build_arounds(team, front)
         ex = {"bonus": dict(self.bonus), "team": team,
               "revive_first": max(self.revive_first, 0.4 if c == "necromancer" else 0.0)}
+        if front:
+            ex["front"] = front
+        stars = [[a["stars"]["min"], a["stars"]["fx"]] for a in self.aug_defs() if "stars" in a]
+        if stars:
+            ex["stars"] = stars
+        convert = {k: v for a in self.aug_defs() for k, v in a.get("convert", {}).items()}
+        if convert:
+            ex["convert"] = convert
         if c == "warlord":
-            ex["front"] = {"hp_pct": 0.12}
             ex["fallen_rally"] = 0.1
         if c == "hexer":
             ex["hex_strongest"] = 0.3
@@ -159,7 +214,7 @@ class Room:
         self.players: dict[int, Player] = {}
         self.next_id = 1
         self.host = None
-        self.phase = "lobby"  # lobby, draft, plan, fight, over
+        self.phase = "lobby"  # lobby, auction, draft, plan, fight, over
         self.bots = True
         self.bot_level = "normal"
         self.round = 0
@@ -177,6 +232,8 @@ class Room:
         self.saving = True  # the checks and the simulator turn records off
         self.holding = False  # the first fight's timer has run out, but someone is still choosing a commander
         self.next_pairs = []  # [(home id, away id, away is a ghost copy)]: decided when planning starts
+        self.auction = None  # during the auction phase: {"lots", "bids": {player id: [gold a lot]}}
+        self.auction_results = None  # the round's auction, shown while planning: {"lots", "results"}
 
     # ------------------------------------------------------------ plumbing
 
@@ -290,11 +347,14 @@ class Room:
                 self.to_lobby()
             else:
                 return
-        elif p.seated and p.alive and self.phase in ("plan", "fight", "draft") and t == "forfeit":
+        elif p.seated and p.alive and self.phase in ("plan", "fight", "draft", "auction") and t == "forfeit":
             self.forfeit(p)
             return
         elif p.seated and p.alive and self.phase == "draft" and t == "pick":
             if not self.pick(p, msg.get("i")):
+                return
+        elif p.seated and p.alive and self.phase == "auction":
+            if t != "bid" or not self.bid(p, msg.get("bids")):
                 return
         elif p.seated and p.alive and self.phase in ("plan", "fight", "draft"):
             fighting = self.phase != "plan"
@@ -413,7 +473,10 @@ class Room:
             if rnd in D.AUGMENT_ROUNDS:
                 self.offer_augments(p)
         self.fights = []
-        if rnd in D.DRAFT_ROUNDS:
+        self.auction_results = None
+        if rnd in D.AUCTION_ROUNDS:
+            self.start_auction()
+        elif rnd in D.DRAFT_ROUNDS:
             self.start_draft()
         else:
             self.start_plan()
@@ -630,6 +693,8 @@ class Room:
             self.end_fight()
         elif self.phase == "draft":
             self.draft_tick()
+        elif self.phase == "auction":
+            self.auction_tick()
 
     async def run(self):
         try:
@@ -833,7 +898,8 @@ class Room:
 
     def set_board(self, p, units):
         """Bots: put exactly these units on the board (arranged), the rest on the bench."""
-        units = units[:p.level + sum(u["items"].count("crown") for u in units[:p.level])]
+        n = p.level + p.slots
+        units = units[:n + sum(u["items"].count("crown") for u in units[:n])]
         rest = [u for u in p.units() if all(u is not x for x in units)]
         p.board = {(c, r): u for u, c, r in B.arrange(units)}
         p.bench = (rest + [None] * D.BENCH)[:D.BENCH]
@@ -1026,6 +1092,11 @@ class Room:
         if key not in p.aug_offer:
             return False
         p.aug_offer = []
+        self.apply_augment(p, key)
+        return True
+
+    def apply_augment(self, p, key):
+        """Gives player p augment `key` (picked at AUGMENT_ROUNDS, or won at the auction)."""
         p.augments.append(key)
         a = D.AUGMENTS[key]
         p.gold += a.get("gold", 0)
@@ -1055,7 +1126,9 @@ class Room:
         p.interest_cap += a.get("interest", 0)
         p.revive_first = max(p.revive_first, a.get("revive_first", 0.0))
         p.items.extend(["crown"] * a.get("crown", 0))
-        return True
+        p.slots += a.get("slots", 0)
+        for k, v in a.get("front", {}).items():
+            p.front_fx[k] = p.front_fx.get(k, 0) + v
 
     # ------------------------------------------------------------ shared drafts
 
@@ -1127,6 +1200,112 @@ class Room:
                     self.pool[o["unit"]] += 1
             self.start_plan()
 
+    # ------------------------------------------------------------ the auction
+
+    def start_auction(self):
+        """Three lots under a sealed-bid auction (D.AUCTION_ROUNDS): a two-star unit holding an item, a
+        relic and an auction augment. Bots bid at once; people have D.AUCTION_TIME seconds."""
+        rnd = self.round
+        tier, rarity = D.AUCTION_UNIT[rnd]
+        lots = []
+        for t in (tier, tier - 1, tier - 2):
+            keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == t and self.pool.get(k, 0) >= 3]
+            if keys:
+                k = self.rng.choice(keys)
+                self.pool[k] -= 3  # held out of the pool until the lot is won (or back, unsold)
+                item = self.random_item(rarity, ("artifact",) if rarity == 4 else ("item",))
+                lots.append({"kind": "unit", "unit": k, "star": 2, "item": item})
+                break
+        lots.append({"kind": "item", "item": self.rng.choice(D.items_of(4, ("relic",)))})
+        owned = {k for q in self.alive() for k in q.augments}
+        augs = [k for k, a in D.AUGMENTS.items() if a["tier"] == 4 and k not in owned] or \
+               [k for k, a in D.AUGMENTS.items() if a["tier"] == 4]
+        aug = self.rng.choice(augs)
+        lots.append({"kind": "augment", "augment": aug, "min": D.AUCTION_LOT_MIN.get(aug, D.AUCTION_MIN)})
+        for lot in lots:
+            lot.setdefault("min", D.AUCTION_MIN)
+        self.phase = "auction"
+        self.draft = None
+        self.auction = {"lots": lots, "bids": {}}
+        self.ends = self.clock() + D.AUCTION_TIME
+        for p in self.alive():
+            if p.bot:
+                try:
+                    self.bid(p, B.auction_bids(self, p, lots, self.rng))
+                except Exception:
+                    log.exception("overlords: bot %s failed to bid in room %s", p.name, self.code)
+        self.send_state()
+
+    def bid(self, p, bids):
+        """Player p's sealed bids, one a lot (0 for none): each 0 or at least the lot's minimum, together
+        no more than their gold. A new set replaces the last, until the auction closes."""
+        a = self.auction
+        if a is None or not isinstance(bids, list) or len(bids) != len(a["lots"]):
+            return False
+        if any(type(b) is not int or b < 0 or 0 < b < lot["min"] for b, lot in zip(bids, a["lots"])) or sum(bids) > p.gold:
+            return False
+        a["bids"][p.id] = list(bids)
+        return True
+
+    def auction_tick(self):
+        people = [p for p in self.alive() if p.bot is None and p.connected]
+        if self.clock() >= self.ends or all(p.id in self.auction["bids"] for p in people):
+            self.resolve_auction()
+
+    def resolve_auction(self):
+        """The highest bid of all takes its lot (ties to the lower HP, then at random) and pays it; that
+        bidder is out of the rest, and so on, so nobody wins more than one lot. Then planning (or the
+        round's draft)."""
+        a = self.auction
+        offers = []
+        for pid, bids in a["bids"].items():
+            q = self.players.get(pid)
+            if q is None or not q.alive:
+                continue
+            for i, lot in enumerate(a["lots"]):
+                if lot["min"] <= bids[i] <= q.gold:
+                    offers.append((bids[i], -q.hp, self.rng.random(), i, q))
+        offers.sort(key=lambda o: o[:3], reverse=True)
+        won, results = set(), {}
+        for price, _, _, i, q in offers:
+            if i in results or q.id in won:
+                continue
+            q.gold -= price
+            self.award(q, a["lots"][i])
+            won.add(q.id)
+            results[i] = [i, q.id, price]
+        for i, lot in enumerate(a["lots"]):
+            if i not in results:
+                if lot["kind"] == "unit":
+                    self.pool[lot["unit"]] += 3
+                results[i] = [i, None, 0]
+        self.auction_results = {"lots": self.lot_rows(a["lots"]), "results": [results[i] for i in sorted(results)]}
+        self.auction = None
+        if self.round in D.DRAFT_ROUNDS:
+            self.start_draft()
+        else:
+            self.start_plan()
+
+    def award(self, p, lot):
+        if lot["kind"] == "item":
+            p.items.append(lot["item"])
+        elif lot["kind"] == "augment":
+            self.apply_augment(p, lot["augment"])
+        else:
+            u = self.new_unit(lot["unit"], lot["star"], [lot["item"]])
+            free = next((j for j, x in enumerate(p.bench) if x is None), None)
+            if free is not None:
+                p.bench[free] = u
+                self.merge(p, lot["unit"])
+            else:  # no room: sold on the spot, its item kept
+                p.gold += D.UNITS[lot["unit"]]["cost"] * 3
+                self.pool[lot["unit"]] += 3
+                p.items.append(lot["item"])
+
+    @staticmethod
+    def lot_rows(lots):
+        return [{k: v for k, v in lot.items()} for lot in lots]
+
     # ------------------------------------------------------------ what the browsers see
 
     def private(self, p):
@@ -1141,7 +1320,8 @@ class Room:
                 "items": p.items, "offers": p.offers, "charge": p.charge,
                 "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,
                 "aug_rerolled": p.aug_rerolled, "free_rerolls": p.free_rerolls, "next_fx": bool(p.next_fx),
-                "income": self.income_parts(p, self.round + 1), "reroll_cost": self.reroll_cost(p)}
+                "income": self.income_parts(p, self.round + 1), "reroll_cost": self.reroll_cost(p),
+                "bids": self.auction["bids"].get(p.id) if self.auction else None}
 
     def fights_msg(self):
         return {"t": "fights", "round": self.round, "elapsed": round(self.clock() - self.fight_started, 2),
@@ -1164,12 +1344,17 @@ class Room:
 
     def send_state(self):
         base = {"t": "state", "phase": self.phase, "host": self.host, "round": self.round,
-                "left": round(max(0.0, self.ends - self.clock()), 1) if self.phase in ("plan", "fight", "draft") else None,
+                "left": round(max(0.0, self.ends - self.clock()), 1) if self.phase in ("plan", "fight", "draft", "auction") else None,
                 "bots": self.bots, "level": self.bot_level, "pve": self.round in D.PVE,
                 "next_pve": self.round + 1 in D.PVE, "settled": self.settled,
                 "choosing": [p.id for p in self.choosing()] if self.phase == "plan" else [],
                 "pairs": self.next_pairs if self.phase == "plan" else [],
                 "players": [self.public(p) for p in self.players.values()]}
+        if self.phase == "auction" and self.auction:
+            base["auction"] = {"lots": self.lot_rows(self.auction["lots"]), "min": D.AUCTION_MIN,
+                               "bid": sorted(self.auction["bids"])}
+        if self.phase == "plan" and self.auction_results:
+            base["auction_results"] = self.auction_results
         if self.phase == "draft" and self.draft:
             d = self.draft
             base["draft"] = {"options": [[o["unit"], o["item"], o["by"]] for o in d["options"]],

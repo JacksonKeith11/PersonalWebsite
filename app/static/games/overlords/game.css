@@ -26,7 +26,35 @@ body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(
 #banner b { color: var(--text); }
 #banner .won { color: #7be08a; }
 #banner .lost { color: #ff8b7b; }
+.board-wrap { flex: 1; min-height: 0; position: relative; display: flex; }
 #board { flex: 1; min-height: 0; width: 100%; display: block; border-radius: 8px; background: #20283a; cursor: default; }
+#draft { position: absolute; inset: 8% 6%; background: rgba(20, 24, 36, 0.94); border: 1px solid var(--gold); border-radius: 10px; padding: 16px 20px; overflow: auto; }
+#draft h2 { margin: 0 0 4px; font: 600 1.2rem/1.3 "Source Serif 4", Georgia, serif; }
+#draft p { margin: 0 0 12px; color: var(--dim); }
+#draft-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+#draft-options button { text-align: left; display: flex; flex-direction: column; gap: 3px; border-width: 2px; border-color: var(--cc); padding: 8px 10px; }
+#draft-options button small { color: var(--dim); }
+#draft-options button .by { color: var(--gold); font-weight: 600; }
+#draft-options button.taken { opacity: 0.5; }
+#itembar { flex: none; display: flex; align-items: center; gap: 10px; min-height: 38px; }
+#itembar .label { color: var(--dim); font-size: 0.85rem; }
+#itembar .hint { color: var(--dim); font-size: 0.78rem; margin-left: auto; }
+#items { display: flex; gap: 6px; flex-wrap: wrap; }
+#items .item { width: 34px; height: 34px; padding: 0; border-radius: 6px; font: 700 0.8rem/1 "Source Sans 3", sans-serif; touch-action: none; }
+#items .item.picked { outline: 2px solid var(--gold); }
+#items .none { color: var(--dim); font-size: 0.85rem; }
+#commander-box button { width: 100%; margin: 4px 0; }
+#commander-box h2 { margin-bottom: 2px; }
+.augments { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; display: flex; flex-direction: column; gap: 3px; }
+.augments li { cursor: default; }
+.augments li small { color: var(--dim); }
+.overlay .card.wide { min-width: 640px; max-width: 860px; }
+.choices3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+#game .choices3 button { background: #fff; color: var(--fg); border: 2px solid var(--rule); text-align: left; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; }
+#game .choices3 button:hover { border-color: var(--accent); background: #fffaf0; }
+.choices3 b { font: 600 1.05rem/1.25 "Source Serif 4", Georgia, serif; }
+.choices3 small { color: var(--muted); }
+.choices3 .tag { color: var(--accent); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
 aside { width: 250px; flex: none; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 aside section { background: var(--slate2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 aside h2 { margin: 0 0 6px; font: 600 1rem/1.3 "Source Serif 4", Georgia, serif; }
@@ -50,7 +78,7 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 #shopbar { flex: none; display: flex; gap: 10px; align-items: stretch; }
 .shop-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 230px; flex: none; }
 .shop-buttons button { padding: 6px 8px; }
-#shop { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; border-radius: 8px; }
+#shop { flex: 1; display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 8px; border-radius: 8px; }
 #shop.sell { outline: 2px dashed #ff8b7b; outline-offset: 3px; }
 #shop .card { height: 86px; padding: 6px 8px; border-radius: 8px; text-align: left; display: flex; flex-direction: column; gap: 2px; border-width: 2px; border-color: var(--cc); position: relative; }
 #shop .card b { font-size: 0.95rem; padding-right: 22px; line-height: 1.2; }

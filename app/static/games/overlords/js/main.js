@@ -43,7 +43,8 @@ const seatedMe = () => { const m = me(); return m && m.seated ? m : null; };
 
 function receive(m) {
   if (m.t === 'welcome') {
-    S.cfg = { units: m.units, traits: m.traits, rules: m.rules };
+    S.cfg = { units: m.units, traits: m.traits, rules: m.rules, items: m.items, commanders: m.commanders,
+              augments: m.augments, augTiers: m.aug_tiers };
     $('room-code').textContent = m.code;
     $('game-code').textContent = m.code;
     S.watch = m.you;
@@ -101,7 +102,133 @@ function render() {
   renderPlayers();
   renderShop();
   renderTraits();
+  renderItems();
+  renderCommander();
+  renderChoose();
+  renderDraft();
   renderEnd();
+}
+
+// ------------------------------------------------------------------ items, commander, augments, draft
+
+const ITEM_COLORS = { component: '#5b6478', item: '#8a6a2a', emblem: '#2f7a6a', crown: '#b08a1a' };
+const itemLabel = key => {
+  const d = S.cfg.items[key];
+  if (d.kind === 'emblem') return S.cfg.traits[d.trait].name.slice(0, 2);
+  if (d.kind === 'crown') return '♛';
+  return d.name.split(' ').map(w => w[0]).join('').slice(0, 2);
+};
+
+function renderItems() {
+  const box = $('items'), st = S.st;
+  const items = st.me?.items || [];
+  if (S.pickedItem != null && S.pickedItem >= items.length) S.pickedItem = null;
+  if (!items.length) { box.replaceChildren(el('span', 'none', 'None yet: monster rounds drop components.')); return; }
+  box.replaceChildren(...items.map((key, i) => {
+    const d = S.cfg.items[key];
+    const b = el('button', 'item', itemLabel(key));
+    b.type = 'button';
+    b.style.background = ITEM_COLORS[d.kind];
+    b.classList.toggle('picked', S.pickedItem === i);
+    b.title = `${d.name}: ${d.text}`;
+    b.addEventListener('pointerdown', e => {
+      S.drag = { item: i, key, from: {}, moved: false };
+      S.dragStart = { x: e.clientX, y: e.clientY };
+      b.releasePointerCapture?.(e.pointerId);
+    });
+    b.addEventListener('pointerenter', () => { S.hover = { kind: 'item', item: key }; info(); });
+    b.addEventListener('pointerleave', () => { if (S.hover?.kind === 'item') { S.hover = null; info(); } });
+    return b;
+  }));
+}
+
+function renderCommander() {
+  const st = S.st, mine = seatedMe();
+  const box = $('commander-box');
+  box.hidden = !mine || !mine.commander;
+  if (!box.hidden) {
+    const c = S.cfg.commanders[mine.commander];
+    $('commander-name').textContent = c.name;
+    $('commander-passive').textContent = c.passive;
+    const charge = st.me?.charge ?? 0, need = st.me?.charge_need ?? c.charge;
+    const ready = charge >= need;
+    $('power').textContent = st.me?.next_fx ? 'Power used: ready for the next fight' : ready ? 'Use power' : `Power charging: ${charge}/${need} rounds`;
+    $('power').disabled = !ready || st.phase !== 'plan' || !mine.alive;
+    $('power').classList.toggle('primary', ready && st.phase === 'plan');
+    $('power-text').textContent = c.power;
+  }
+  const augs = (S.watch === room.you ? mine : player(S.watch))?.augments || [];
+  $('augments-box').hidden = !augs.length;
+  $('augments').replaceChildren(...augs.map(k => {
+    const a = S.cfg.augments[k];
+    const li = el('li');
+    li.append(el('b', '', a.name), el('small', '', ` · ${a.text}`));
+    return li;
+  }));
+}
+
+function renderChoose() {
+  const st = S.st, mine = seatedMe();
+  const me_ = st.me;
+  let mode = null;
+  if (mine && mine.alive && me_ && !mine.commander && me_.offers?.length && st.phase !== 'over') mode = 'commander';
+  else if (mine && mine.alive && me_?.aug_offer?.length && st.phase !== 'over') mode = 'augment';
+  const key = mode ? mode + (mode === 'commander' ? me_.offers.join() : me_.aug_offer.join()) + me_.aug_rerolled : '';
+  $('choose').hidden = !mode;
+  if (key === S.chooseKey) return;
+  S.chooseKey = key;
+  if (!mode) return;
+  const opts = $('choose-options');
+  if (mode === 'commander') {
+    $('choose-kicker').textContent = 'Before the first fight';
+    $('choose-title').textContent = 'Choose your commander';
+    $('choose-reroll').hidden = true;
+    opts.replaceChildren(...me_.offers.map(k => {
+      const c = S.cfg.commanders[k];
+      const b = el('button');
+      b.type = 'button';
+      b.append(el('b', '', c.name), el('span', '', c.passive), el('small', '', `Power (every ${c.charge} rounds): ${c.power}`));
+      b.addEventListener('click', () => { room.send({ t: 'commander', k }); play('level'); });
+      return b;
+    }));
+  } else {
+    const tier = S.cfg.augments[me_.aug_offer[0]].tier;
+    $('choose-kicker').textContent = `${S.cfg.augTiers[tier]} augment`;
+    $('choose-title').textContent = 'Choose an augment';
+    $('choose-reroll').hidden = me_.aug_rerolled;
+    opts.replaceChildren(...me_.aug_offer.map(k => {
+      const a = S.cfg.augments[k];
+      const b = el('button');
+      b.type = 'button';
+      b.append(el('span', 'tag', S.cfg.augTiers[a.tier]), el('b', '', a.name), el('span', '', a.text));
+      b.addEventListener('click', () => { room.send({ t: 'augment', k }); play('star'); });
+      return b;
+    }));
+  }
+}
+
+function renderDraft() {
+  const st = S.st, d = st.draft;
+  $('draft').hidden = st.phase !== 'draft' || !d;
+  if ($('draft').hidden) return;
+  const turn = player(d.turn);
+  const mineTurn = d.turn === room.you;
+  $('draft-title').textContent = mineTurn ? 'Your pick!' : `Draft: ${turn?.name || '…'} is picking`;
+  const order = d.order.map(id => player(id)?.name).join(' → ');
+  $('draft-note').textContent = `Lowest HP picks first: ${order}. Each unit comes holding a component.`;
+  $('draft-options').replaceChildren(...d.options.map(([key, item, by], i) => {
+    const u = S.cfg.units[key], it = S.cfg.items[item];
+    const b = el('button', by ? 'taken' : '');
+    b.type = 'button';
+    b.style.setProperty('--cc', COST_COLORS[u.tier]);
+    b.append(el('b', '', u.name), el('small', '', u.traits.map(t => S.cfg.traits[t].name).join(' · ')),
+      el('span', '', `holding a ${it.name}`));
+    if (by) b.append(el('span', 'by', `taken by ${player(by)?.name || '?'}`));
+    b.disabled = !mineTurn || !!by;
+    b.addEventListener('click', () => { room.send({ t: 'pick', i }); play('buy'); });
+    b.addEventListener('pointerenter', () => { S.hover = { kind: 'shop', key }; info(); });
+    return b;
+  }));
 }
 
 function renderLobby() {
@@ -128,14 +255,16 @@ function renderHud() {
     $('hud-hp').classList.toggle('low', mine.hp <= 20);
     $('hud-gold').innerHTML = `Gold <b>${mine.gold}</b>`;
     const need = st.me?.need;
-    $('hud-level').textContent = `Level ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · ${mine.board.length}/${mine.level} on board`;
+    $('hud-level').textContent = `Level ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · ${mine.board.length}/${mine.limit} on board`;
   } else {
     $('hud-hp').textContent = 'Watching';
     $('hud-gold').textContent = $('hud-level').textContent = '';
   }
   const can = mine && mine.alive && st.me;
   $('xp').disabled = !can || mine.gold < S.cfg.rules.xp_cost || mine.level >= S.cfg.rules.max_level;
-  $('reroll').disabled = !can || mine.gold < S.cfg.rules.reroll;
+  const free = st.me?.free_rerolls || 0;
+  $('reroll').disabled = !can || (mine.gold < S.cfg.rules.reroll && !free);
+  $('reroll').innerHTML = free ? `Reroll <small>free ×${free} · D</small>` : `Reroll <small>2g · D</small>`;
   $('lock').disabled = !can;
   $('lock').setAttribute('aria-pressed', String(!!st.me?.locked));
   $('ready').disabled = !can || st.phase !== 'plan';
@@ -148,7 +277,8 @@ function tickHud() {
   const st = S.st;
   if (!st || st.phase === 'lobby') return;
   const left = Math.max(0, Math.ceil(S.endsAt - now()));
-  const phase = st.phase === 'plan' ? `Planning · ${left}s` : st.phase === 'fight' ? 'Fighting' : 'Game over';
+  const phase = st.phase === 'plan' ? `Planning · ${left}s` : st.phase === 'fight' ? 'Fighting'
+    : st.phase === 'draft' ? `Draft · ${left}s` : 'Game over';
   $('hud-phase').textContent = phase;
   $('hud-phase').classList.toggle('hurry', st.phase === 'plan' && left <= 5);
   banner();
@@ -215,6 +345,7 @@ function renderShop() {
   const st = S.st, mine = seatedMe();
   const shop = $('shop');
   if (!mine || !st.me) { shop.replaceChildren(); return; }
+  shop.style.setProperty('--n', st.me.shop.length);
   const owned = {};
   for (const u of [...mine.board.map(u => [u[0], u[1], u[2]]), ...st.me.bench.filter(Boolean)]) {
     if (u[2] === 1) owned[u[1]] = (owned[u[1]] || 0) + 1;
@@ -224,7 +355,7 @@ function renderShop() {
     const d = S.cfg.units[key];
     const b = el('button', 'card');
     b.type = 'button';
-    b.style.setProperty('--cc', COST_COLORS[d.cost]);
+    b.style.setProperty('--cc', COST_COLORS[d.tier]);
     b.append(el('b', '', d.name), el('span', 'tr', d.traits.map(t => S.cfg.traits[t].name).join(' · ')), el('span', 'cost', `${d.cost}g`));
     if (owned[key]) b.classList.add('pair');
     b.disabled = !mine.alive || mine.gold < d.cost;
@@ -278,6 +409,18 @@ function info() {
   const box = $('info');
   const h = S.hover;
   if (!h) { box.replaceChildren(); return; }
+  if (h.kind === 'item') {
+    const d = S.cfg.items[h.item];
+    const parts = [el('h3', '', d.name), el('p', '', d.text)];
+    if (d.from) parts.push(el('p', '', `From ${d.from.map(c => S.cfg.items[c].name).join(' + ')}.`));
+    if (d.kind === 'component') {
+      const makes = Object.entries(S.cfg.items).filter(([, x]) => x.from && x.from.includes(h.item))
+        .map(([, x]) => `${x.name} (+ ${S.cfg.items[x.from[0] === h.item ? x.from[1] : x.from[0]].name})`);
+      parts.push(el('p', '', 'Makes: ' + makes.join(', ')));
+    }
+    box.replaceChildren(...parts);
+    return;
+  }
   if (h.kind === 'trait') {
     const def = S.cfg.traits[h.trait];
     box.replaceChildren(el('h3', '', def.name), el('p', '', def.text),
@@ -288,7 +431,7 @@ function info() {
   if (!d) { box.replaceChildren(); return; }
   const star = h.star || 1, m = [1, 1.8, 3.24][star - 1];
   const title = el('h3', '', `${d.name} ${'★'.repeat(star)}`);
-  const kind = d.cost ? `Costs ${d.cost} · ${d.traits.map(t => S.cfg.traits[t].name).join(', ')}` : 'Not for sale';
+  const kind = d.cost ? `Tier ${d.tier} · ${d.cost} gold · ${d.traits.map(t => S.cfg.traits[t].name).join(', ')}` : 'Not for sale';
   const dl = el('dl');
   const live = h.live;
   const stats = [
@@ -298,6 +441,7 @@ function info() {
   ];
   for (const [k, v] of stats) dl.append(el('dt', '', k), el('dd', '', String(v)));
   const parts = [title, el('p', '', kind), dl];
+  if (h.items?.length) parts.push(el('p', '', 'Items: ' + h.items.map(i => S.cfg.items[i].name).join(', ')));
   if (d.ability) {
     const ab = el('p', 'ab');
     ab.append(el('b', '', d.ability.name + ': '), document.createTextNode(d.ability.text + ' ' + abilityNumbers(d.ability, star)));
@@ -420,7 +564,7 @@ function drawUnit(x, y, key, star, opts = {}) {
   ctx.globalAlpha = opts.alpha ?? 1;
   ctx.beginPath();
   ctx.arc(x, y, R, 0, Math.PI * 2);
-  ctx.fillStyle = d.cost ? COST_COLORS[d.cost] : (d.ability === null && opts.monster ? MONSTER_COLOR : '#5c7a4a');
+  ctx.fillStyle = d.tier ? COST_COLORS[d.tier] : (d.ability === null && opts.monster ? MONSTER_COLOR : '#5c7a4a');
   ctx.fill();
   ctx.lineWidth = Math.max(2, G.R * 0.1);
   ctx.strokeStyle = opts.ring || '#11151e';
@@ -454,6 +598,18 @@ function drawUnit(x, y, key, star, opts = {}) {
       ctx.fillStyle = '#4aa3ff';
       ctx.fillRect(bx, byy + 5, (bw * Math.min(mana, maxmana)) / maxmana, 2.5);
     }
+  }
+  if (opts.items?.length) {
+    const sz = Math.max(7, R * 0.42), gap = 2;
+    const total = opts.items.length * sz + (opts.items.length - 1) * gap;
+    opts.items.forEach((it, i) => {
+      const ix = x - total / 2 + i * (sz + gap), iy = y + R * 0.72;
+      ctx.fillStyle = ITEM_COLORS[S.cfg.items[it]?.kind] || '#666';
+      ctx.fillRect(ix, iy, sz, sz);
+      ctx.strokeStyle = '#11151e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(ix, iy, sz, sz);
+    });
   }
   if (opts.stunned) {
     ctx.strokeStyle = '#ffe14a';
@@ -514,10 +670,19 @@ function draw() {
       roundRect(b.x - b.s / 2 + 3, b.y - b.s / 2 + 3, b.s - 6, b.s - 6, 8);
       ctx.fill();
       ctx.stroke();
-      if (u && !(S.drag && S.drag.from.b === i)) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color });
+      if (u && !(S.drag && S.drag.from.b === i)) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3] });
     });
   }
-  if (S.drag && S.mouse) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
+  if (S.drag?.unit && S.mouse) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
+  if (S.drag?.item != null && S.mouse && S.drag.moved) {
+    ctx.fillStyle = ITEM_COLORS[S.cfg.items[S.drag.key].kind];
+    ctx.fillRect(S.mouse.x - 12, S.mouse.y - 12, 24, 24);
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 11px "Source Sans 3", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(itemLabel(S.drag.key), S.mouse.x, S.mouse.y);
+  }
 }
 
 function roundRect(x, y, w, h, r) {
@@ -532,10 +697,10 @@ function roundRect(x, y, w, h, r) {
 
 function drawBoard(p) {
   if (!p) return;
-  for (const [id, key, star, c, r] of p.board) {
-    if (S.drag && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you) continue;
+  for (const [id, key, star, c, r, items] of p.board) {
+    if (S.drag?.unit && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you) continue;
     const [x, y] = hexXY(c, r);
-    drawUnit(x, y, key, star, { ring: p.color });
+    drawUnit(x, y, key, star, { ring: p.color, items });
   }
 }
 
@@ -575,7 +740,7 @@ function drawFight() {
     const [x, y] = where.get(u.id);
     drawUnit(x, y, u.key, u.star, {
       ring: colorOf(u.side), alpha: fade, flash: t - u.hitAt < 0.07, stunned: u.alive && t < u.stunUntil,
-      monster: f.pve && u.side === 1, friend: u.side === friendSide,
+      monster: f.pve && u.side === 1, friend: u.side === friendSide, items: u.items,
       bars: { hp: u.hp, max: u.max, mana: u.mana, maxmana: u.maxmana, shield: u.shield },
     });
   }
@@ -664,7 +829,7 @@ function myUnitAt(x, y) {
   if (!mine || !mine.alive || !st.me) return null;
   const i = benchAt(x, y);
   if (i >= 0 && st.me.bench[i]) return { from: { b: i }, unit: st.me.bench[i] };
-  if (st.phase === 'fight' || S.watch !== room.you) return null;
+  if (st.phase !== 'plan' || S.watch !== room.you) return null;
   const h = hexAt(x, y);
   if (!h) return null;
   const u = mine.board.find(b => b[3] === h[0] && b[4] === h[1]);
@@ -675,6 +840,13 @@ canvas.addEventListener('pointerdown', e => {
   if (!S.st || !S.cfg) return;
   const p = canvasXY(e);
   const got = myUnitAt(p.x, p.y);
+  if (got && S.pickedItem != null) { // an item was picked from the strip: put it on this unit
+    room.send({ t: 'equip', i: S.pickedItem, to: got.from });
+    S.pickedItem = null;
+    play('buy');
+    renderItems();
+    return;
+  }
   if (got) {
     S.drag = got;
     S.mouse = p;
@@ -688,7 +860,8 @@ addEventListener('pointermove', e => {
   const p = canvasXY(e);
   const inside = p.x >= 0 && p.y >= 0 && p.x <= canvas.clientWidth && p.y <= canvas.clientHeight;
   S.mouse = inside || S.drag ? p : null;
-  const overShop = S.drag && document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar');
+  if (S.drag?.item != null && S.dragStart && Math.hypot(e.clientX - S.dragStart.x, e.clientY - S.dragStart.y) > 6) S.drag.moved = true;
+  const overShop = S.drag?.unit && document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar');
   $('shop').classList.toggle('sell', !!overShop);
   if (!inside) {
     if (S.hover && ['board', 'bench'].includes(S.hover.kind)) { S.hover = null; info(); }
@@ -699,11 +872,11 @@ addEventListener('pointermove', e => {
   const prev = S.hover;
   if (i >= 0) {
     const u = S.st.me?.bench[i];
-    S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2] };
+    S.hover = { kind: 'bench', i, key: u?.[1], star: u?.[2], items: u?.[3] };
   } else if (h && S.st.phase !== 'fight') {
     const w = player(S.watch);
     const u = w?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-    S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2] };
+    S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5] };
   } else if (S.st.phase !== 'fight') {
     S.hover = null;
   }
@@ -715,6 +888,20 @@ addEventListener('pointerup', e => {
   if (!S.drag) return;
   const drag = S.drag;
   S.drag = null;
+  if (drag.item != null) { // an item from the strip: dropped on a unit, or a click that picks it
+    if (!drag.moved) {
+      S.pickedItem = S.pickedItem === drag.item ? null : drag.item;
+      renderItems();
+      return;
+    }
+    const p = canvasXY(e);
+    const got = myUnitAt(p.x, p.y) || (() => { // during a fight only the bench takes items
+      const i = benchAt(p.x, p.y);
+      return i >= 0 && S.st.me?.bench[i] ? { from: { b: i } } : null;
+    })();
+    if (got) { room.send({ t: 'equip', i: drag.item, to: got.from }); play('buy'); } else play('deny');
+    return;
+  }
   $('shop').classList.remove('sell');
   if (document.elementFromPoint(e.clientX, e.clientY)?.closest('#shopbar')) {
     room.send({ t: 'sell', from: drag.from });
@@ -731,7 +918,7 @@ addEventListener('pointerup', e => {
   if (h && h[1] < S.cfg.rules.rows / 2 && S.st.phase !== 'fight' && S.watch === room.you) {
     const mine = seatedMe();
     const toEmpty = !mine.board.some(b => b[3] === h[0] && b[4] === h[1]);
-    if (drag.from.b != null && toEmpty && mine.board.length >= mine.level) { play('deny'); return; }
+    if (drag.from.b != null && toEmpty && mine.board.length >= mine.limit) { play('deny'); return; }
     room.send({ t: 'move', from: drag.from, to: { c: h[0], r: h[1] } });
   }
 });
@@ -748,6 +935,8 @@ $('again').addEventListener('click', () => room.send({ t: 'again' }));
 $('start').addEventListener('click', () => room.send({ t: 'start' }));
 $('bots').addEventListener('change', () => room.send({ t: 'set', bots: $('bots').checked }));
 $('bot-level').addEventListener('change', () => room.send({ t: 'set', level: $('bot-level').value }));
+$('power').addEventListener('click', () => { room.send({ t: 'power' }); play('cast'); });
+$('choose-reroll').addEventListener('click', () => { room.send({ t: 'aug_reroll' }); play('reroll'); });
 
 addEventListener('keydown', e => {
   if ($('game').hidden || e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;

@@ -1,5 +1,5 @@
 // Plays Overlords in two headless browsers. The host makes a room and a friend joins by the link;
-// the host starts with two bots. The host buys a unit, drags it from the bench to the board and back,
+// the host starts with two bots, and both pick a commander from the three offered. The host buys a unit, drags it from the bench to the board and back,
 // and sells one by dropping it on the shop; a full board refuses another unit. Both press Ready and
 // the fight starts at once: each sees their own fight played back on the canvas, the friend switches
 // to watching another fight, and the mute button works. When the fights end, everyone's HP and the
@@ -107,6 +107,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await host.waitForSelector('#game:not([hidden])');
     await friend.waitForSelector('#game:not([hidden])');
     expect((await S(host, () => window.OV.S.st.players.filter(p => p.seated).length)) === 4, 'two bots joined');
+    for (const p of [host, friend]) {
+      await p.waitForSelector('#choose:not([hidden])');
+      await shot(p, `2b-commander-${p.who}`);
+      await p.click('#choose-options button');
+      await p.waitForSelector('#choose', { state: 'hidden' });
+      await p.waitForSelector('#commander-box:not([hidden])');
+    }
 
     // buying, dragging, selling
     let m = await me(host);
@@ -160,6 +167,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     m = await me(host);
     expect(m.me.shop.filter(Boolean).length > 0 && m.gold > 0, 'a new shop and income');
     expect(await S(host, () => window.OV.S.st.settled.length === 4), 'every player settled');
+    // a monster win drops a component: put it on a unit by dragging it from the item strip
+    m = await me(host);
+    if (m.me.items.length) {
+      const target = m.board.length ? await hexXY(host, m.board[0][3], m.board[0][4]) : await benchXY(host, m.me.bench.findIndex(Boolean));
+      const chip = await (await host.$('#items .item')).boundingBox();
+      await drag(host, { x: chip.x + chip.width / 2, y: chip.y + chip.height / 2 }, target);
+      const after = await me(host);
+      const held = [...after.board.map(u => u[5]), ...after.me.bench.filter(Boolean).map(u => u[3])].flat().length;
+      expect(after.me.items.length === m.me.items.length - 1 && held >= 1, 'an item dragged onto a unit');
+    }
     await shot(host, '6-round2');
 
     if (problems.length) throw new Error(problems.join('\n'));

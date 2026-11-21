@@ -10,8 +10,11 @@ hundred random fights finish inside the time cap without errors.
 Then the room: a pretend browser joins and the host starts with bots; buying, merging three copies
 into a star, the bench and board limits, moving and selling all follow the rules; whole matches of
 bots play to one winner on a clock the check winds on, with the shared pool never gaining or losing
-a copy, and print how long a match would take in real time. (`tools/overlords-fight.py` covers
-balance.)
+a copy, and print how long a match would take in real time. Items (every one in a fight; combining;
+emblems counting and refused on a unit with the trait; the Crown's extra place; items surviving
+merges and sales), every commander's power, every augment, and a draft (lowest HP picks first, each
+pick holds its component, the rest go back to the pool) have their own checks.
+(`tools/overlords-fight.py` covers balance.)
 """
 
 import asyncio
@@ -46,9 +49,9 @@ def data():
         for t in u["traits"]:
             check(t in D.TRAITS, f"{key}: unknown trait {t}")
         if u.get("summon"):
-            check(u["cost"] == 0, f"{key}: summons cost 0")
+            check(u["cost"] == 0 and u["tier"] == 0, f"{key}: summons cost 0")
             continue
-        check(u["cost"] in D.COSTS, f"{key}: cost")
+        check(u["tier"] in D.TIERS and u["cost"] == D.PRICE[u["tier"]], f"{key}: tier and price")
         check(2 <= len(u["traits"]) <= 3, f"{key}: an origin and one or two classes")
         check(sum(D.TRAITS[t]["kind"] == "origin" for t in u["traits"] if t in D.TRAITS) == 1, f"{key}: one origin")
         check(u["ability"] is not None and u["mana"] > u["start"] >= 0, f"{key}: an ability and its mana")
@@ -137,6 +140,8 @@ def last_state(q):
 
 def copies(room):
     total = sum(room.pool.values())
+    if room.phase == "draft" and room.draft:  # options on offer are held out of the pool
+        total += sum(1 for o in room.draft["options"] if o["by"] is None)
     for p in room.seated():
         total += sum(3 ** (u["star"] - 1) for u in p.units())
     return total
@@ -150,7 +155,7 @@ def room_rules():
     room.handle(me, {"t": "start"})
     check(room.phase == "plan" and len(room.seated()) == 4, "the host starts with three bots")
     check(sum(1 for u in me.bench if u) == 1, "everyone starts with a free unit")
-    full = sum(D.POOL[D.UNITS[k]["cost"]] for k in D.shop_units())
+    full = sum(D.POOL[D.UNITS[k]["tier"]] for k in D.shop_units())
     check(copies(room) == full, "the pool and the players hold every copy")
     st = last_state(q)
     check(st and st["me"]["shop"] and len(st["players"]) == 4, "the state carries the shop and the players")
@@ -223,7 +228,130 @@ def matches(n=3):
     print(f"bot matches: {rounds} rounds, about {sum(secs) / len(secs) / 60:.0f} minutes each at full timers")
 
 
+def items_in_fights():
+    foes = [{"unit": "iron_colossus", "star": 1, "col": c, "row": 3} for c in (2, 3, 4)]
+    for item, d in D.ITEMS.items():
+        home = [{"unit": "ashling", "star": 2, "col": 3, "row": 3, "items": [item]},
+                {"unit": "ember_mage", "star": 2, "col": 3, "row": 0, "items": [item]}]
+        try:
+            sim.fight(home, foes, 3)
+        except Exception as e:  # noqa: BLE001
+            check(False, f"item {item}: {e!r}")
+    # a few effects that must show
+    f = sim.Fight([{"unit": "iron_sentinel", "col": 3, "row": 3, "items": ["spiked_hide"]}],
+                  [{"unit": "ashling", "col": 3, "row": 3}], 1)
+    res = f.run()
+    holder = next(r[0] for r in res["start"] if r[2] == "iron_sentinel")
+    check(any(e[0] == "d" and e[2] == holder and e[5] == 1 for e in res["events"]), "Spiked Hide hurts attackers")
+    f = sim.Fight([{"unit": "ashling", "col": 3, "row": 3, "items": ["veil"]}],
+                  [{"unit": "iron_colossus", "star": 3, "col": 3, "row": 3}], 1)
+    res = f.run()
+    ash = next(r[0] for r in res["start"] if r[2] == "ashling")
+    check(not any(e[0] == "st" and e[2] == ash for e in res["events"]), "the Veil stops stuns")
+    counts = D.trait_counts([("ashling", ["emblem_ranger"]), ("thornling", [])])
+    check(counts.get("ranger") == 2, "an emblem counts towards its trait")
+    check(D.combine("sword", "bow") == "ravager" and D.combine("sigil", "sigil") == "crown", "recipes")
+
+
+def room_items_and_powers():
+    room = game.Room("ITEM")
+    room.clock = Clock()
+    me, q = browser(room, "Ann", "a")
+    room.handle(me, {"t": "set", "bots": True})
+    room.handle(me, {"t": "start"})
+    check(len(me.offers) == D.COMMANDER_CHOICES and not me.commander, "three commanders to pick from")
+    room.handle(me, {"t": "commander", "k": me.offers[0]})
+    check(me.commander is not None, "a commander picked")
+    for u in me.units():
+        room.sell_unit(me, u)
+    me.items = []
+    me.gold, me.level = 100, 4
+    me.shop = ["ashling"] * len(me.shop)
+    room.handle(me, {"t": "buy", "i": 0})
+    room.handle(me, {"t": "move", "from": {"b": 0}, "to": {"c": 3, "r": 3}})
+    me.items = ["sword", "bow", "sigil", "sigil", "emblem_duelist", "emblem_ranger"]
+    room.handle(me, {"t": "equip", "i": 0, "to": {"c": 3, "r": 3}})
+    room.handle(me, {"t": "equip", "i": 0, "to": {"c": 3, "r": 3}})
+    unit = me.board[(3, 3)]
+    check(unit["items"] == ["ravager"], f"two components combine (got {unit['items']})")
+    check(not room.equip(me, me.items.index("emblem_duelist"), {"c": 3, "r": 3}, False), "no emblem for a trait it has")
+    room.handle(me, {"t": "equip", "i": me.items.index("sigil"), "to": {"c": 3, "r": 3}})
+    room.handle(me, {"t": "equip", "i": me.items.index("sigil"), "to": {"c": 3, "r": 3}})
+    check("crown" in unit["items"] and me.limit() == me.level + 1, "a Crown adds a place on the board")
+    check(room.equip(me, me.items.index("emblem_ranger"), {"c": 3, "r": 3}, False), "a third item fits")
+    me.items.append("vest")
+    check(not room.equip(me, me.items.index("vest"), {"c": 3, "r": 3}, False), "three items at most")
+    # merging keeps items; selling returns them
+    room.handle(me, {"t": "buy", "i": 1})
+    room.handle(me, {"t": "buy", "i": 2})
+    merged = me.board.get((3, 3))
+    check(merged and merged["star"] == 2 and "ravager" in merged["items"], "a merged unit keeps its items")
+    n, held = len(me.items), len(merged["items"])
+    room.handle(me, {"t": "sell", "from": {"c": 3, "r": 3}})
+    check(held == 3 and len(me.items) == n + held, "selling puts its items back on the item bench")
+    # every commander's power
+    for key in D.COMMANDERS:
+        me.commander, me.charge, me.gold, me.level, me.xp = key, 99, 50, 3, 0
+        me.bench = [None] * D.BENCH
+        before = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, dict(me.next_fx))
+        ok = room.use_power(me)
+        after = (me.gold, me.hp, len(me.items), me.free_rerolls, len(me.units()), me.level, dict(me.next_fx))
+        check(ok and me.charge == 0, f"{key}: the power works when charged")
+        check(key in ("oracle", "survivor") or before != after, f"{key}: the power did something")
+        me.next_fx = {}
+    me.commander, me.charge = "merchant", 0
+    check(not room.use_power(me), "an uncharged power is refused")
+    ex = game.Player(99, "x", "#fff")
+    ex.commander, ex.bonus = "warlord", {"vanguard": 1}
+    check(ex.extras()["front"] == {"hp_pct": 0.12} and ex.extras()["bonus"] == {"vanguard": 1}, "extras")
+    # every augment
+    for key in D.AUGMENTS:
+        me.aug_offer = [key]
+        me.bench = [None] * D.BENCH
+        try:
+            check(room.choose_augment(me, key), f"augment {key} applies")
+        except Exception as e:  # noqa: BLE001
+            check(False, f"augment {key}: {e!r}")
+    check(me.bonus.get("ranger") == 3 and "emblem_ranger" in me.items and me.team_fx.get("hp"), "augments add up")
+
+
+def draft():
+    room = game.Room("DRFT")
+    room.clock = Clock()
+    me, q = browser(room, "Ann", "a")
+    room.handle(me, {"t": "start"})
+    for i, p in enumerate(room.seated()):
+        p.hp = 50 - i * 10
+        p.bench = [None] * D.BENCH
+    room.round = D.DRAFT_ROUNDS[0] - 1
+    full = copies(room)
+    room.next_round()
+    check(room.phase == "draft", "a draft round starts with the draft")
+    order = room.draft["order"]
+    check([room.players[i].hp for i in order] == sorted(p.hp for p in room.seated()), "lowest HP picks first")
+    check(len(room.draft["options"]) == len(room.seated()) + D.DRAFT_EXTRA, "one option each, and spares")
+    check(copies(room) == full, "draft options are held from the pool")
+    for _ in range(40):
+        if room.phase != "draft":
+            break
+        cur = room.players[room.draft["order"][room.draft["turn"]]]
+        if cur is me:
+            free = [i for i, o in enumerate(room.draft["options"]) if o["by"] is None]
+            check(not room.pick(room.players[order[-1]] if order[-1] != me.id else room.players[order[0]], free[0])
+                  or len(order) == 1, "only the player whose turn it is may pick")
+            room.handle(me, {"t": "pick", "i": free[0]})
+        else:
+            room.clock.t += 1
+            room.tick()
+    check(room.phase == "plan", "the draft ends in planning")
+    check(all(any(u["items"] for u in p.units()) for p in room.seated()), "every pick holds its component")
+    check(copies(room) == full, "unpicked options go back to the pool")
+
+
 data()
+items_in_fights()
+room_items_and_powers()
+draft()
 room_rules()
 matches()
 every_ability_fires()

@@ -11,6 +11,12 @@ A unit a player owns is {"id", "unit", "star"}, on their bench (a list of D.BENC
 board ({(col, row): unit}, in their own coordinates, row 3 at the front). Three copies of a unit at
 one star merge into one a star higher, wherever the first one on the board stood. Copies come out
 of the room's shared pool when bought and go back when sold or when their owner is knocked out.
+
+Around that (step 4 of the plan in docs/overlords.md): items (components drop from monster rounds
+and come with draft picks; a unit holds three, and two components on one unit combine), a commander
+each (picked from three in round 1: a passive and a power that charges over rounds), augments (one
+of three at D.AUGMENT_ROUNDS), and shared drafts (phase "draft" before planning at D.DRAFT_ROUNDS:
+lowest HP picks first). What commanders and augments do in a fight reaches sim.py as `extras`.
 """
 
 import asyncio
@@ -60,12 +66,60 @@ class Player:
         self.last_opp = None
         self.plan = None
         self.results = []  # "w", "l" or "d" each round
+        self.items = []  # the item bench: item keys not on a unit
+        self.commander = None
+        self.offers = []  # commanders to pick from
+        self.charge = 0  # rounds the commander's power has charged
+        self.augments = []
+        self.aug_offer = []
+        self.aug_rerolled = False
+        self.bonus = {}  # trait -> extra count (augments)
+        self.team_fx = {}  # fx for every unit in every fight (augments)
+        self.interest_cap = D.MAX_INTEREST
+        self.revive_first = 0.0
+        self.next_fx = {}  # extras for the next fight only (commander powers)
+        self.free_rerolls = 0
+        self.oracle_roll = False
 
     def units(self):
         return list(self.board.values()) + [u for u in self.bench if u]
 
     def fight_board(self):
-        return [{"unit": u["unit"], "star": u["star"], "col": c, "row": r} for (c, r), u in self.board.items()]
+        return [{"unit": u["unit"], "star": u["star"], "col": c, "row": r, "items": list(u["items"])}
+                for (c, r), u in self.board.items()]
+
+    def limit(self):
+        """How many units may stand on the board: the level, plus one for each Crown standing there."""
+        return self.level + sum(u["items"].count("crown") for u in self.board.values())
+
+    def shop_size(self):
+        return D.SHOP_SIZE + (self.commander == "quartermaster")
+
+    def traits(self):
+        return D.trait_counts([(u["unit"], u["items"]) for u in self.board.values()], self.bonus)
+
+    def extras(self):
+        """What this player's commander and augments add to their side of a fight (see sim.Fight)."""
+        team = dict(self.team_fx)
+        def add(k, v):
+            team[k] = team.get(k, 0) + v
+        c = self.commander
+        if c == "archmage":
+            add("ap", 15)
+        if c == "blademaster":
+            add("aspd_pct", 0.08)
+        if c == "beastmaster":
+            add("summon_boost", 0.3)
+        for k, v in self.next_fx.get("team", {}).items():
+            add(k, v)
+        ex = {"bonus": dict(self.bonus), "team": team,
+              "revive_first": max(self.revive_first, 0.4 if c == "necromancer" else 0.0)}
+        if c == "warlord":
+            ex["front"] = {"hp_pct": 0.12}
+        for k in ("summon", "rally"):
+            if k in self.next_fx:
+                ex[k] = self.next_fx[k]
+        return ex
 
 
 class Room:
@@ -74,7 +128,7 @@ class Room:
         self.players: dict[int, Player] = {}
         self.next_id = 1
         self.host = None
-        self.phase = "lobby"  # lobby, plan, fight, over
+        self.phase = "lobby"  # lobby, draft, plan, fight, over
         self.bots = True
         self.bot_level = "normal"
         self.round = 0
@@ -83,6 +137,7 @@ class Room:
         self.fights = []
         self.fight_started = 0.0
         self.settled = []  # what the last fight phase did to each player, for the browsers
+        self.draft = None
         self.next_unit = 1
         self.rng = random.Random()
         self.task = None
@@ -147,7 +202,11 @@ class Room:
                           "xp_gain": D.XP_GAIN, "max_level": D.MAX_LEVEL, "level_xp": D.LEVEL_XP,
                           "odds": D.SHOP_ODDS, "start_hp": D.START_HP, "max": MAX_PLAYERS,
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
-                          "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE)}}
+                          "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
+                          "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
+                          "draft_turn": D.DRAFT_TURN},
+                "items": D.ITEMS, "commanders": D.COMMANDERS, "augments": D.AUGMENTS,
+                "aug_tiers": D.AUGMENT_TIER_NAMES}
 
     def leave(self, p, queue):
         if p.queue is not queue or not p.connected:
@@ -195,8 +254,11 @@ class Room:
                 self.to_lobby()
             else:
                 return
-        elif p.seated and p.alive and self.phase in ("plan", "fight"):
-            fighting = self.phase == "fight"
+        elif p.seated and p.alive and self.phase == "draft" and t == "pick":
+            if not self.pick(p, msg.get("i")):
+                return
+        elif p.seated and p.alive and self.phase in ("plan", "fight", "draft"):
+            fighting = self.phase != "plan"
             if t == "buy":
                 ok = self.buy(p, msg.get("i"))
             elif t == "reroll":
@@ -215,6 +277,16 @@ class Room:
                 if all(q.ready for q in self.alive() if q.bot is None and q.connected):
                     self.ends = min(self.ends, self.clock() + 1)
                 ok = True
+            elif t == "equip":
+                ok = self.equip(p, msg.get("i"), msg.get("to"), fighting)
+            elif t == "commander":
+                ok = self.choose_commander(p, msg.get("k"))
+            elif t == "augment":
+                ok = self.choose_augment(p, msg.get("k"))
+            elif t == "aug_reroll":
+                ok = self.reroll_augments(p)
+            elif t == "power" and self.phase == "plan":
+                ok = self.use_power(p)
             else:
                 return
             if not ok:
@@ -240,16 +312,20 @@ class Room:
             if host:
                 self.send(host, {"t": "note", "msg": "You need someone to play against: turn bots on or wait for a friend."})
             return
-        self.pool = {k: D.POOL[D.UNITS[k]["cost"]] for k in D.shop_units()}
+        self.pool = {k: D.POOL[D.UNITS[k]["tier"]] for k in D.shop_units()}
         for p in self.seated():
             p.reset()
         self.round = 0
         self.settled = []
-        for p in self.seated():  # a free unit to start with
+        self.draft = None
+        for p in self.seated():  # a free unit to start with, and commanders to pick from
             key = self.draw(1)
             if key:
                 self.pool[key] -= 1
                 p.bench[0] = self.new_unit(key)
+            p.offers = self.rng.sample(sorted(D.COMMANDERS), D.COMMANDER_CHOICES)
+            if p.bot:
+                self.choose_commander(p, B.pick_commander(p, self.rng))
         self.next_round()
 
     def to_lobby(self):
@@ -263,8 +339,8 @@ class Room:
             q.alive = q.seated
         self.send_state()
 
-    def new_unit(self, key, star=1):
-        u = {"id": self.next_unit, "unit": key, "star": star}
+    def new_unit(self, key, star=1, items=()):
+        u = {"id": self.next_unit, "unit": key, "star": star, "items": list(items)}
         self.next_unit += 1
         return u
 
@@ -273,15 +349,30 @@ class Room:
         rnd = self.round
         for p in self.alive():
             if rnd > 1:
-                p.xp += D.PASSIVE_XP
+                p.xp += D.PASSIVE_XP + (p.commander == "sage")
                 self.level_up(p)
-            p.gold += D.income(rnd) + min(D.MAX_INTEREST, p.gold // D.INTEREST_PER) + D.streak_gold(p.streak)
+                if p.commander:
+                    p.charge = min(D.COMMANDERS[p.commander]["charge"], p.charge + 1)
+            cap = p.interest_cap + 2 * (p.commander == "merchant")
+            p.gold += D.income(rnd) + min(cap, p.gold // D.INTEREST_PER) + D.streak_gold(p.streak)
+            if p.commander == "alchemist" and rnd in (5, 10, 15):
+                self.give_components(p, 1)
             if not p.locked or not any(p.shop):
                 self.roll(p)
             p.locked = False
             p.ready = False
-        self.phase = "plan"
+            if rnd in D.AUGMENT_ROUNDS:
+                self.offer_augments(p)
         self.fights = []
+        if rnd in D.DRAFT_ROUNDS:
+            self.start_draft()
+        else:
+            self.start_plan()
+
+    def start_plan(self):
+        rnd = self.round
+        self.phase = "plan"
+        self.draft = None
         self.ends = self.clock() + (D.FIRST_PLAN if rnd == 1 else D.PLAN_TIME)
         for p in self.alive():
             if p.bot:
@@ -295,17 +386,25 @@ class Room:
         rnd = self.round
         alive = self.alive()
         for p in alive:
+            if not p.commander and p.offers:
+                self.choose_commander(p, p.offers[0])
+            if p.aug_offer:
+                self.choose_augment(p, p.aug_offer[0])
             self.fill_board(p)
+        extras = {p.id: p.extras() for p in alive}
+        for p in alive:
+            p.next_fx = {}
         self.fights = []
         if rnd in D.PVE:
             monsters = [{"unit": k, "star": s, "col": c, "row": r} for k, s, c, r in D.PVE[rnd]]
             for p in alive:
-                self.fights.append({"home": p.id, "away": 0, "pve": True, "ghost": False,
-                                    "res": sim.fight(p.fight_board(), monsters, self.rng.randrange(1 << 30))})
+                res = sim.Fight(p.fight_board(), monsters, self.rng.randrange(1 << 30), (extras[p.id], {})).run()
+                self.fights.append({"home": p.id, "away": 0, "pve": True, "ghost": False, "res": res})
         else:
             for a, b, ghost in self.pairings(alive):
-                self.fights.append({"home": a.id, "away": b.id, "pve": False, "ghost": ghost,
-                                    "res": sim.fight(a.fight_board(), b.fight_board(), self.rng.randrange(1 << 30))})
+                res = sim.Fight(a.fight_board(), b.fight_board(), self.rng.randrange(1 << 30),
+                                (extras[a.id], extras[b.id])).run()
+                self.fights.append({"home": a.id, "away": b.id, "pve": False, "ghost": ghost, "res": res})
                 a.last_opp = b.id
                 if not ghost:
                     b.last_opp = a.id
@@ -344,10 +443,13 @@ class Room:
             home = self.players[f["home"]]
             if f["pve"]:
                 won = res["winner"] == 0
+                drops = D.PVE_DROPS.get(rnd, 0)
                 if won:
                     home.gold += D.PVE_GOLD[rnd]
+                    self.give_components(home, drops)
                 else:
                     hurt[home.id] = hurt.get(home.id, 0) + D.loss_damage(rnd, res["survivors"][1])
+                    self.give_components(home, 1 if drops >= 2 else 0)
                 home.results.append("w" if won else "l")
                 continue
             away = self.players[f["away"]]
@@ -362,6 +464,8 @@ class Room:
                     hurt[p.id] = hurt.get(p.id, 0) + D.loss_damage(rnd, res["survivors"][1 - side])
         for p in self.alive():
             dmg = hurt.get(p.id, 0)
+            if p.commander == "survivor":
+                dmg = round(dmg * 0.75)
             p.hp -= dmg
             self.settled.append({"id": p.id, "dmg": dmg})
         out = sorted((p for p in self.alive() if p.hp <= 0), key=lambda p: p.hp)
@@ -388,6 +492,8 @@ class Room:
             self.begin_fight()
         elif self.phase == "fight" and self.clock() >= self.ends:
             self.end_fight()
+        elif self.phase == "draft":
+            self.draft_tick()
 
     async def run(self):
         try:
@@ -405,21 +511,30 @@ class Room:
 
     def draw(self, level):
         """A unit key for one shop slot at `level`, by the odds and what's left in the pool."""
-        odds = D.SHOP_ODDS[level]
-        cost = self.rng.choices(D.COSTS, odds)[0]
-        for c in range(cost, 0, -1):
-            keys = [k for k in D.shop_units() if D.UNITS[k]["cost"] == c and self.pool.get(k, 0) > 0]
+        odds = D.SHOP_ODDS[min(D.MAX_LEVEL, level)]
+        tier = self.rng.choices(D.TIERS, odds)[0]
+        for c in range(tier, 0, -1):
+            keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == c and self.pool.get(k, 0) > 0]
             if keys:
                 return self.rng.choices(keys, [self.pool[k] for k in keys])[0]
         return None
 
     def roll(self, p):
-        p.shop = [self.draw(p.level) for _ in range(D.SHOP_SIZE)]
+        level = p.level + (p.commander == "oracle")
+        p.shop = [self.draw(level) for _ in range(p.shop_size())]
+        if p.oracle_roll:  # the Oracle's power: slots favour units already owned
+            p.oracle_roll = False
+            owned = sorted({u["unit"] for u in p.units() if self.pool.get(u["unit"], 0) > 0})
+            if owned:
+                p.shop = [self.rng.choice(owned) if self.rng.random() < 0.6 else k for k in p.shop]
 
     def reroll(self, p):
-        if p.gold < D.REROLL:
+        if p.free_rerolls:
+            p.free_rerolls -= 1
+        elif p.gold < D.REROLL:
             return False
-        p.gold -= D.REROLL
+        else:
+            p.gold -= D.REROLL
         p.locked = False
         self.roll(p)
         return True
@@ -440,7 +555,7 @@ class Room:
         return True
 
     def buy(self, p, i):
-        if type(i) is not int or not 0 <= i < D.SHOP_SIZE or not p.shop[i]:
+        if type(i) is not int or not 0 <= i < len(p.shop) or not p.shop[i]:
             return False
         key = p.shop[i]
         cost = D.UNITS[key]["cost"]
@@ -477,6 +592,11 @@ class Room:
         keep = units[0]
         for u in units[1:]:
             self.remove(p, u)
+            for i in u["items"]:  # the copies' items go to the merged unit, or back to the item bench
+                if len(keep["items"]) < D.MAX_ITEMS:
+                    keep["items"].append(i)
+                else:
+                    p.items.append(i)
         keep["star"] += 1
         self.merge(p, keep["unit"])
 
@@ -492,6 +612,7 @@ class Room:
 
     def sell_unit(self, p, unit):
         self.remove(p, unit)
+        p.items.extend(unit["items"])
         copies = 3 ** (unit["star"] - 1)
         p.gold += D.UNITS[unit["unit"]]["cost"] * copies
         self.pool[unit["unit"]] += copies
@@ -530,7 +651,7 @@ class Room:
         ua, ub = self.at(p, a), self.at(p, b)
         if ua is None:
             return False
-        if a[0] == "bench" and b[0] == "board" and ub is None and len(p.board) >= p.level:
+        if a[0] == "bench" and b[0] == "board" and ub is None and len(p.board) >= p.limit():
             return False
         self.put(p, a, ub)
         self.put(p, b, ua)
@@ -548,14 +669,21 @@ class Room:
 
     def set_board(self, p, units):
         """Bots: put exactly these units on the board (arranged), the rest on the bench."""
-        units = units[:p.level]
+        units = units[:p.level + sum(u["items"].count("crown") for u in units[:p.level])]
         rest = [u for u in p.units() if all(u is not x for x in units)]
         p.board = {(c, r): u for u, c, r in B.arrange(units)}
         p.bench = (rest + [None] * D.BENCH)[:D.BENCH]
 
     def fill_board(self, p):
-        """At a fight's start, bench units fill any empty places on the board up to the level."""
-        room = p.level - len(p.board)
+        """At a fight's start, bench units fill any empty places on the board up to the limit (and a
+        board over it, after a Crown was moved off, sends its cheapest units back to the bench)."""
+        while len(p.board) > p.limit():
+            free = next((j for j, u in enumerate(p.bench) if u is None), None)
+            if free is None:
+                break
+            h = min(p.board, key=lambda h: D.UNITS[p.board[h]["unit"]]["cost"] * 3 ** (p.board[h]["star"] - 1))
+            p.bench[free] = p.board.pop(h)
+        room = p.limit() - len(p.board)
         waiting = [u for u in p.bench if u]
         if room <= 0 or not waiting:
             return
@@ -563,6 +691,226 @@ class Room:
         for u, c, r in B.arrange(waiting[:room], taken=set(p.board)):
             self.remove(p, u)
             p.board[(c, r)] = u
+
+    # ------------------------------------------------------------ items
+
+    def give_components(self, p, n):
+        keys = sorted(D.COMPONENTS)
+        weights = [D.COMPONENT_WEIGHT.get(k, 1) for k in keys]
+        for _ in range(n):
+            p.items.append(self.rng.choices(keys, weights)[0])
+
+    def equip(self, p, i, where, fighting):
+        """Puts item i from the item bench on the unit at `where`: onto a free slot, or combined with a
+        component it already holds. Emblems can't go on a unit that already has their trait."""
+        if type(i) is not int or not 0 <= i < len(p.items):
+            return False
+        s = self.spot(p, where)
+        if s is None or (fighting and s[0] == "board"):
+            return False
+        u = self.at(p, s)
+        if u is None:
+            return False
+        item = p.items[i]
+        held = next((j for j, x in enumerate(u["items"]) if D.ITEMS[x]["kind"] == "component"), None)
+        if D.ITEMS[item]["kind"] == "component" and held is not None:
+            made = D.combine(u["items"][held], item)
+            rest = u["items"][:held] + u["items"][held + 1:]
+            if not made or (D.ITEMS[made].get("trait") in D.unit_traits(u["unit"], rest)):
+                return False
+            u["items"][held] = made
+        else:
+            if len(u["items"]) >= D.MAX_ITEMS:
+                return False
+            if D.ITEMS[item].get("trait") in D.unit_traits(u["unit"], u["items"]):
+                return False
+            u["items"].append(item)
+        p.items.pop(i)
+        return True
+
+    # ------------------------------------------------------------ commanders
+
+    def choose_commander(self, p, key):
+        if p.commander or key not in p.offers:
+            return False
+        p.commander = key
+        p.offers = []
+        if key == "forgemaster":
+            self.give_components(p, 2)
+        if key == "quartermaster":
+            p.shop.append(self.draw(p.level))
+        return True
+
+    def use_power(self, p):
+        c = p.commander
+        if not c or p.charge < D.COMMANDERS[c]["charge"]:
+            return False
+        team = p.next_fx.setdefault("team", {})
+        if c == "quartermaster":
+            p.free_rerolls += 2
+        elif c == "warlord":
+            team["shield"] = team.get("shield", 0) + 300
+        elif c == "necromancer":
+            free = next((j for j, u in enumerate(p.bench) if u is None), None)
+            keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == 2 and self.pool.get(k, 0) > 0]
+            if free is None or not keys:
+                return False
+            key = self.rng.choice(keys)
+            self.pool[key] -= 1
+            p.bench[free] = self.new_unit(key)
+            self.merge(p, key)
+        elif c == "alchemist":
+            self.give_components(p, 1)
+        elif c == "merchant":
+            p.gold += 4
+        elif c == "sage":
+            if p.level >= D.MAX_LEVEL:
+                return False
+            p.xp += 6
+            self.level_up(p)
+        elif c == "beastmaster":
+            p.next_fx["summon"] = ["treant", max([u["star"] for u in p.units()] or [1])]
+        elif c == "archmage":
+            team["mana"] = team.get("mana", 0) + 40
+        elif c == "survivor":
+            p.hp = min(D.START_HP, p.hp + 8)
+        elif c == "blademaster":
+            p.next_fx["rally"] = [0.4, 6.0]
+        elif c == "forgemaster":
+            p.items.append(self.rng.choice(D.completed_items()))
+        elif c == "oracle":
+            p.oracle_roll = True
+            self.roll(p)
+        if not team:
+            p.next_fx.pop("team", None)
+        p.charge = 0
+        return True
+
+    # ------------------------------------------------------------ augments
+
+    def offer_augments(self, p):
+        odds = D.AUGMENT_TIER_ODDS[self.round]
+        tier = self.rng.choices((1, 2, 3), odds)[0]
+        mine = {t for u in p.units() for t in D.unit_traits(u["unit"], u["items"])}
+        options = [k for k, a in D.AUGMENTS.items() if a["tier"] == tier and k not in p.augments
+                   and (not a.get("trait") or a["trait"] in mine)]
+        if len(options) < D.AUGMENT_CHOICES:
+            options = [k for k, a in D.AUGMENTS.items() if a["tier"] == tier and k not in p.augments]
+        p.aug_offer = self.rng.sample(options, D.AUGMENT_CHOICES)
+        p.aug_rerolled = False
+        if p.bot:
+            self.choose_augment(p, B.pick_augment(p, p.aug_offer, self.rng))
+
+    def reroll_augments(self, p):
+        if not p.aug_offer or p.aug_rerolled:
+            return False
+        old = p.aug_offer
+        self.offer_augments(p)
+        p.aug_offer = [k for k in p.aug_offer if k not in old] + [k for k in p.aug_offer if k in old]
+        p.aug_rerolled = True
+        return True
+
+    def choose_augment(self, p, key):
+        if key not in p.aug_offer:
+            return False
+        p.aug_offer = []
+        p.augments.append(key)
+        a = D.AUGMENTS[key]
+        p.gold += a.get("gold", 0)
+        if a.get("xp"):
+            p.xp += a["xp"]
+            self.level_up(p)
+        self.give_components(p, a.get("components", 0))
+        for _ in range(a.get("items", 0)):
+            p.items.append(self.rng.choice(D.completed_items()))
+        for tier in a.get("units", ()):
+            free = next((j for j, u in enumerate(p.bench) if u is None), None)
+            keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == tier and self.pool.get(k, 0) > 0]
+            if free is not None and keys:
+                k = self.rng.choice(keys)
+                self.pool[k] -= 1
+                p.bench[free] = self.new_unit(k)
+                self.merge(p, k)
+        p.hp += a.get("heal", 0)
+        for k, v in a.get("team", {}).items():
+            p.team_fx[k] = p.team_fx.get(k, 0) + v
+        if a.get("bonus"):
+            p.bonus[a["trait"]] = p.bonus.get(a["trait"], 0) + a["bonus"]
+        if a.get("emblem"):
+            p.items.append("emblem_" + a["emblem"])
+        p.interest_cap += a.get("interest", 0)
+        p.revive_first = max(p.revive_first, a.get("revive_first", 0.0))
+        p.items.extend(["crown"] * a.get("crown", 0))
+        return True
+
+    # ------------------------------------------------------------ shared drafts
+
+    def start_draft(self):
+        """Everyone picks one unit holding a component, lowest HP first (ties at random)."""
+        alive = self.alive()
+        order = sorted(alive, key=lambda p: (p.hp, self.rng.random()))
+        tiers = D.DRAFT_TIERS[self.round]
+        options = []
+        for _ in range(len(alive) + D.DRAFT_EXTRA):
+            keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] in tiers and self.pool.get(k, 0) > 0]
+            if not keys:
+                break
+            k = self.rng.choice(keys)
+            self.pool[k] -= 1
+            comp = self.rng.choices(sorted(D.COMPONENTS), [D.COMPONENT_WEIGHT.get(c, 1) for c in sorted(D.COMPONENTS)])[0]
+            options.append({"unit": k, "item": comp, "by": None})
+        self.phase = "draft"
+        self.draft = {"options": options, "order": [p.id for p in order], "turn": 0,
+                      "turn_ends": self.clock() + D.DRAFT_TURN, "turn_start": self.clock()}
+        self.ends = self.draft["turn_ends"]
+        self.send_state()
+
+    def draft_tick(self):
+        d = self.draft
+        p = self.players.get(d["order"][d["turn"]])
+        now = self.clock()
+        if p is None or not p.alive:
+            self.next_pick()
+        elif p.bot and now - d["turn_start"] >= 0.8:
+            self.pick(p, B.pick_draft(p, d["options"], self.rng))
+        elif not p.bot and (now >= d["turn_ends"] or not p.connected):
+            free = [i for i, o in enumerate(d["options"]) if o["by"] is None]
+            self.pick(p, self.rng.choice(free))
+        else:
+            return
+        self.send_state()
+
+    def pick(self, p, i):
+        d = self.draft
+        if d is None or d["order"][d["turn"]] != p.id or type(i) is not int or not 0 <= i < len(d["options"]):
+            return False
+        o = d["options"][i]
+        if o["by"] is not None:
+            return False
+        o["by"] = p.id
+        u = self.new_unit(o["unit"], items=[o["item"]])
+        free = next((j for j, x in enumerate(p.bench) if x is None), None)
+        if free is not None:
+            p.bench[free] = u
+            self.merge(p, o["unit"])
+        else:  # no room: the unit is sold on the spot and its component kept
+            p.gold += D.UNITS[o["unit"]]["cost"]
+            self.pool[o["unit"]] += 1
+            p.items.append(o["item"])
+        self.next_pick()
+        return True
+
+    def next_pick(self):
+        d = self.draft
+        d["turn"] += 1
+        d["turn_start"] = self.clock()
+        d["turn_ends"] = self.clock() + D.DRAFT_TURN
+        self.ends = d["turn_ends"]
+        if d["turn"] >= len(d["order"]):
+            for o in d["options"]:
+                if o["by"] is None:
+                    self.pool[o["unit"]] += 1
+            self.start_plan()
 
     # ------------------------------------------------------------ what the browsers see
 
@@ -574,24 +922,35 @@ class Room:
         return {"id": p.id, "name": p.name, "color": p.color, "bot": p.bot, "on": p.connected,
                 "seated": p.seated, "hp": p.hp, "level": p.level, "gold": p.gold, "alive": p.alive,
                 "place": p.place, "streak": p.streak, "ready": p.ready, "results": p.results[-5:],
-                "board": [[u["id"], u["unit"], u["star"], c, r] for (c, r), u in p.board.items()],
-                "bench": sum(1 for u in p.bench if u),
-                "traits": D.trait_counts([u["unit"] for u in p.board.values()])}
+                "board": [[u["id"], u["unit"], u["star"], c, r, u["items"]] for (c, r), u in p.board.items()],
+                "bench": sum(1 for u in p.bench if u), "limit": p.limit(),
+                "commander": p.commander, "augments": p.augments, "items": len(p.items),
+                "traits": p.traits()}
 
     def send_state(self):
         base = {"t": "state", "phase": self.phase, "host": self.host, "round": self.round,
-                "left": round(max(0.0, self.ends - self.clock()), 1) if self.phase in ("plan", "fight") else None,
+                "left": round(max(0.0, self.ends - self.clock()), 1) if self.phase in ("plan", "fight", "draft") else None,
                 "bots": self.bots, "level": self.bot_level, "pve": self.round in D.PVE,
                 "next_pve": self.round + 1 in D.PVE, "settled": self.settled,
                 "players": [self.public(p) for p in self.players.values()]}
+        if self.phase == "draft" and self.draft:
+            d = self.draft
+            base["draft"] = {"options": [[o["unit"], o["item"], o["by"]] for o in d["options"]],
+                             "order": d["order"], "turn": d["order"][d["turn"]] if d["turn"] < len(d["order"]) else None,
+                             "left": round(max(0.0, d["turn_ends"] - self.clock()), 1)}
         text = None
         for p in self.players.values():
             if not p.connected or p.bot:
                 continue
             if p.seated:
-                mine = dict(base, me={"shop": p.shop, "bench": [[u["id"], u["unit"], u["star"]] if u else None
+                c = D.COMMANDERS.get(p.commander)
+                mine = dict(base, me={"shop": p.shop, "bench": [[u["id"], u["unit"], u["star"], u["items"]] if u else None
                                                                for u in p.bench],
-                                      "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked})
+                                      "xp": p.xp, "need": D.LEVEL_XP.get(p.level), "locked": p.locked,
+                                      "items": p.items, "offers": p.offers, "charge": p.charge,
+                                      "charge_need": c["charge"] if c else None, "aug_offer": p.aug_offer,
+                                      "aug_rerolled": p.aug_rerolled, "free_rerolls": p.free_rerolls,
+                                      "next_fx": bool(p.next_fx)})
                 self.send(p, dumps(mine))
             else:
                 text = text or dumps(base)

@@ -17,9 +17,9 @@ export class Playback {
     for (const row of this.res.start) this.addUnit(row);
   }
 
-  addUnit([id, side, key, star, c, r, max, maxmana, mana]) {
+  addUnit([id, side, key, star, c, r, max, maxmana, mana, items = []]) {
     this.units.set(id, {
-      id, side, key, star, c, r, fc: c, fr: r, moveAt: -9, hp: max, max, mana, maxmana, shield: 0,
+      id, side, key, star, c, r, fc: c, fr: r, moveAt: -9, hp: max, max, mana, maxmana, shield: 0, items,
       alive: true, deadAt: 0, stunUntil: 0, attackAt: -9, castAt: -9, hitAt: -9, target: 0,
       range: this.cfg.units[key].range,
     });

@@ -50,6 +50,9 @@
           <li>Some rounds are monster rounds, everyone against the same monsters, for gold.</li>
           <li>You earn gold every round, plus 1 for every 10 you've saved (up to 5), plus a bonus for a winning or losing streak.</li>
           <li>Click a player on the left to watch their fight, or to see their board while you plan.</li>
+          <li>Monster rounds drop item components. Drag one onto a unit: two components on one unit combine into a stronger item, and a unit holds three. A Sigil with another component makes an emblem (its holder gains that trait); two Sigils make a Crown, one more place on your board.</li>
+          <li>At the start you pick a commander: a passive, and a power that charges over a few rounds (use it from the left panel while planning).</li>
+          <li>At rounds 3, 8 and 13 you pick one of three augments; at rounds 4, 9 and 14 everyone drafts a unit holding a component from a shared set, the lowest HP picking first.</li>
           <li>Keys: D reroll · F buy XP · E sell the unit under the pointer · Space ready.</li>
         </ul>
       </details>
@@ -102,10 +105,32 @@
           <ul id="players" class="players"></ul>
           <p class="note">Click a player to watch their fight or see their board.</p>
         </section>
+        <section id="commander-box" hidden>
+          <h2 id="commander-name"></h2>
+          <p id="commander-passive" class="note"></p>
+          <button id="power" type="button"></button>
+          <p id="power-text" class="note"></p>
+        </section>
+        <section id="augments-box" hidden>
+          <h2>Augments</h2>
+          <ul id="augments" class="augments"></ul>
+        </section>
       </aside>
       <div class="stage">
         <div id="banner"></div>
-        <canvas id="board"></canvas>
+        <div class="board-wrap">
+          <canvas id="board"></canvas>
+          <div id="draft" hidden>
+            <h2 id="draft-title"></h2>
+            <p id="draft-note"></p>
+            <div id="draft-options"></div>
+          </div>
+        </div>
+        <div id="itembar">
+          <span class="label">Items</span>
+          <div id="items" role="group" aria-label="Your items"></div>
+          <span class="hint">Drag an item onto a unit (or click it, then the unit). Two components combine.</span>
+        </div>
         <div id="shopbar">
           <div class="shop-buttons">
             <button id="xp" type="button">Buy XP <small>4g · F</small></button>
@@ -123,6 +148,14 @@
         </section>
         <section id="info"></section>
       </aside>
+    </div>
+    <div id="choose" class="overlay" hidden>
+      <div class="card wide">
+        <p class="kicker" id="choose-kicker"></p>
+        <h2 id="choose-title"></h2>
+        <div id="choose-options" class="choices3"></div>
+        <div class="row"><button id="choose-reroll" type="button" hidden>Reroll (once)</button></div>
+      </div>
     </div>
     <div id="end" class="overlay" hidden>
       <div class="card">

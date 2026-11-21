@@ -79,11 +79,11 @@ def matched(rng, board, avoid=()):
     """A board of the same costs and stars as `board`, at the same places, made of other units."""
     used, out = set(avoid) | {b["unit"] for b in board}, []
     for b in board:
-        cost = D.UNITS[b["unit"]]["cost"]
-        options = [k for k in D.shop_units() if D.UNITS[k]["cost"] == cost and k not in used
+        tier = D.UNITS[b["unit"]]["tier"]
+        options = [k for k in D.shop_units() if D.UNITS[k]["tier"] == tier and k not in used
                    and not any(t in avoid for t in D.UNITS[k]["traits"])]
         if not options:
-            options = [k for k in D.shop_units() if D.UNITS[k]["cost"] == cost and k not in used] or [b["unit"]]
+            options = [k for k in D.shop_units() if D.UNITS[k]["tier"] == tier and k not in used] or [b["unit"]]
         k = rng.choice(options)
         used.add(k)
         out.append({"unit": k, "star": b["star"]})
@@ -145,8 +145,8 @@ def report(n, size, seed):
     print(f"{n} fights of {size} units: {took / n * 1000:.1f} ms each, average {sum(times) / n:.1f} s, "
           f"{capped} hit the {sim.TIME_CAP:.0f} s cap, {draws} with no winner")
     print("\nunits (cost, win rate, fights):")
-    for k in sorted(unit_n, key=lambda k: (D.UNITS[k]["cost"], -unit_w[k] / unit_n[k])):
-        print(f"  {D.UNITS[k]['cost']}  {D.UNITS[k]['name']:16} {100 * unit_w[k] / unit_n[k]:5.1f}%  {unit_n[k]}")
+    for k in sorted(unit_n, key=lambda k: (D.UNITS[k]["tier"], -unit_w[k] / unit_n[k])):
+        print(f"  {D.UNITS[k]['tier']}  {D.UNITS[k]['name']:16} {100 * unit_w[k] / unit_n[k]:5.1f}%  {unit_n[k]}")
     print("\ntraits (win rate, fights):")
     for k in sorted(trait_n, key=lambda k: -trait_w[k] / trait_n[k]):
         print(f"  {k:16} {100 * trait_w[k] / trait_n[k]:5.1f}%  {trait_n[k]}")

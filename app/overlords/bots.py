@@ -6,6 +6,11 @@ begins, through the same room methods a browser's messages reach (`buy`, `reroll
 `sell`), then sets its board directly. Its level decides how carefully: easy bots spend at random
 and level late; normal ones keep gold for interest from round 5 and level on a schedule; hard ones
 keep more, level sooner and spend everything once their HP runs low.
+
+Bots also pick a commander (`pick_commander`), augments (`pick_augment`: hearts and souls of traits
+they field, else gold, items or stats), draft picks (`pick_draft`: the unit they value most), use
+their commander's power when it's charged, and put items on their units: components on their most
+valuable unit (so they combine), emblems on a unit that lacks the trait, Crowns on anyone.
 """
 
 import random
@@ -48,8 +53,8 @@ def arrange(units, taken=()):
 
 def random_board(rng, size, max_cost=5, two_star=0.3):
     """A plausible board of `size` different units, for tests: costs weighted towards the middle."""
-    pool = [k for k in D.shop_units() if D.UNITS[k]["cost"] <= max_cost]
-    weights = [6 - abs(D.UNITS[k]["cost"] - (max_cost + 1) / 2) for k in pool]
+    pool = [k for k in D.shop_units() if D.UNITS[k]["tier"] <= max_cost]
+    weights = [6 - abs(D.UNITS[k]["tier"] - (max_cost + 1) / 2) for k in pool]
     picked = []
     while len(picked) < min(size, len(pool)):
         k = rng.choices(pool, weights)[0]
@@ -109,10 +114,60 @@ def play(room, p, rng):
         else:
             break
 
+    # the commander's power, when charged
+    if p.commander and p.charge >= D.COMMANDERS[p.commander]["charge"]:
+        room.use_power(p)
+
     # the board: the most valuable units up to the level; sell what doesn't fit on the bench
-    units = sorted(p.units(), key=lambda u: -value(p, u["unit"], u["star"]))
-    room.set_board(p, units[:p.level])
-    spare = units[p.level:]
+    units = sorted(p.units(), key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
+    room.set_board(p, units)
+    spare = [u for u in p.bench if u]
+    spare.sort(key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
     while len(spare) > D.BENCH - 2:
         worst = spare.pop()
         room.sell_unit(p, worst)
+    equip(room, p)
+    units = sorted(p.units(), key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
+    room.set_board(p, units)
+
+
+def equip(room, p):
+    """Puts the bot's items on its board: emblems where they add a trait, Crowns anywhere, components
+    and finished items on the most valuable units first (components onto one holding a component,
+    so they combine)."""
+    board = sorted(p.board.items(), key=lambda kv: -value(p, kv[1]["unit"], kv[1]["star"]))
+    for _ in range(len(p.items)):
+        done = False
+        for i, item in enumerate(p.items):
+            kind = D.ITEMS[item]["kind"]
+            for (c, r), u in board:
+                where = {"c": c, "r": r}
+                if kind == "emblem" and D.ITEMS[item]["trait"] not in (p.plan or []):
+                    continue
+                if room.equip(p, i, where, False):
+                    done = True
+                    break
+            if done:
+                break
+        if not done:
+            break
+
+
+def pick_commander(p, rng):
+    return rng.choice(p.offers)
+
+
+def pick_augment(p, offer, rng):
+    """Hearts and souls of a trait the bot fields or aims for, then crests of one, then the rest."""
+    mine = set(p.traits()) | set(p.plan or [])
+    def score(k):
+        a = D.AUGMENTS[k]
+        if a.get("trait"):
+            return 3 if a["trait"] in mine else 0
+        return 2
+    return max(offer, key=lambda k: (score(k), rng.random()))
+
+
+def pick_draft(p, options, rng):
+    free = [i for i, o in enumerate(options) if o["by"] is None]
+    return max(free, key=lambda i: (value(p, options[i]["unit"]), rng.random()))

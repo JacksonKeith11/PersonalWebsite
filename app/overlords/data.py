@@ -28,7 +28,13 @@ revive, chill, shield, duel, double, leap, summon_boost.
 """
 
 STAR_MULT = (1.0, 1.8, 3.24)  # hp and ad at one, two and three stars
-COSTS = (1, 2, 3, 4, 5)
+TIERS = (1, 2, 3, 4, 5)
+# A unit's price in gold by tier: steeper at the top (the owner asked for prices that don't scale
+# linearly), so a tier-5 unit is something to save for and three-starring one is rare.
+PRICE = {0: 0, 1: 1, 2: 2, 3: 3, 4: 5, 5: 8}
+# Tiers 4 and 5 cost more than before the curve, so their HP and attack are scaled up a little to
+# earn it. Applied by U() below, so the numbers written for each unit are before it.
+TIER_POWER = {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.08, 5: 1.15}
 
 # ------------------------------------------------------------------ the match
 START_HP = 60
@@ -39,10 +45,10 @@ XP_COST, XP_GAIN = 4, 4
 PASSIVE_XP = 2  # every round after the first
 MAX_LEVEL = 8
 LEVEL_XP = {1: 2, 2: 2, 3: 6, 4: 10, 5: 20, 6: 32, 7: 50}  # XP from each level to the next
-# Chance (%) of each cost in a shop slot, by level.
+# Chance (%) of each tier in a shop slot, by level.
 SHOP_ODDS = {1: (100, 0, 0, 0, 0), 2: (100, 0, 0, 0, 0), 3: (75, 25, 0, 0, 0), 4: (55, 30, 15, 0, 0),
              5: (45, 33, 20, 2, 0), 6: (30, 40, 25, 5, 0), 7: (19, 30, 35, 15, 1), 8: (15, 20, 35, 25, 5)}
-POOL = {1: 12, 2: 10, 3: 9, 4: 7, 5: 5}  # copies of each unit in a room, by cost
+POOL = {1: 12, 2: 10, 3: 9, 4: 7, 5: 5}  # copies of each unit in a room, by tier
 INTEREST_PER, MAX_INTEREST = 10, 5
 PLAN_TIME, FIRST_PLAN = 30, 20
 RESULT_PAUSE = 3.0  # seconds after the last fight ends before the next round
@@ -144,8 +150,12 @@ TRAITS = {
 }
 
 
-def U(name, cost, traits, hp, ad, aspd, rng, armor, mr, mana, start, ability, **extra):
-    unit = {"name": name, "cost": cost, "traits": traits, "hp": hp, "ad": ad, "as": aspd, "range": rng,
+def U(name, tier, traits, hp, ad, aspd, rng, armor, mr, mana, start, ability, **extra):
+    """A unit. `tier` (1-5, 0 for summons and monsters) sets its shop odds and pool; `cost` is its
+    price in gold (PRICE)."""
+    power = TIER_POWER[tier]
+    unit = {"name": name, "tier": tier, "cost": PRICE[tier], "traits": traits, "hp": round(hp * power),
+            "ad": round(ad * power), "as": aspd, "range": rng,
             "armor": armor, "mr": mr, "mana": mana, "start": start, "ability": ability}
     unit.update(extra)
     return unit
@@ -351,20 +361,212 @@ UNITS = {
 SELECTORS = ("target", "self", "around_target", "around_self", "line", "nearest", "farthest", "random",
              "chain", "lowest_enemy", "lowest_ally", "allies_near", "allies", "enemies")
 STEPS = ("hit", "heal", "shield", "buff", "summon", "dash", "mana")
-PLAIN_STATS = ("hp_pct", "ad_pct", "aspd_pct", "armor", "mr", "ap", "dodge", "crit", "critdmg", "mana_cut")
-SPECIAL = ("burn", "regen", "mana_regen", "revive", "chill", "shield", "duel", "double", "leap", "summon_boost")
+PLAIN_STATS = ("hp_pct", "ad_pct", "aspd_pct", "armor", "mr", "ap", "dodge", "crit", "critdmg", "mana_cut",
+               "ad", "hp", "mana")
+SPECIAL = ("burn", "regen", "mana_regen", "revive", "chill", "shield", "duel", "double", "leap", "summon_boost",
+           # items
+           "frenzy", "ability_crit", "mana_on_hit", "shred", "omnivamp", "splash", "on_hit_magic", "chill_on_hit",
+           "pct_hit", "cast_mana", "aura", "cast_heal", "team_mana", "low_heal", "dr", "thorns", "cc_immune")
+
+# ------------------------------------------------------------------ items
+# Components drop from monster rounds and come with draft picks. Two components on one unit combine
+# into an item (its `fx` plus both components' stats). A Sigil with another component makes that
+# component's emblem (the holder gains the trait); two Sigils make a Crown (one more unit may stand on
+# the board). A unit holds up to MAX_ITEMS. `fx` keys are the plain stats and specials sim.py knows
+# (flat ad, hp and mana are added; the rest as in traits).
+MAX_ITEMS = 3
+COMPONENTS = {
+    "sword": {"name": "Sword", "fx": {"ad": 12}, "text": "+12 attack"},
+    "bow": {"name": "Bow", "fx": {"aspd_pct": 0.12}, "text": "+12% attack speed"},
+    "rod": {"name": "Rod", "fx": {"ap": 15}, "text": "+15 ability power"},
+    "tear": {"name": "Tear", "fx": {"mana": 15}, "text": "+15 starting mana"},
+    "vest": {"name": "Vest", "fx": {"armor": 25}, "text": "+25 armor"},
+    "cloak": {"name": "Cloak", "fx": {"mr": 25}, "text": "+25 magic resist"},
+    "belt": {"name": "Belt", "fx": {"hp": 180}, "text": "+180 HP"},
+    "sigil": {"name": "Sigil", "fx": {"hp": 80}, "text": "+80 HP; with another component, an emblem"},
+}
+COMPONENT_WEIGHT = {"sigil": 0.5}  # how often each drops (others 1)
+_RECIPES = [
+    ("greatsword", "Greatsword", "sword", "sword", {"crit": 0.2, "critdmg": 0.3}, "Crits more often and harder."),
+    ("ravager", "Ravager", "sword", "bow", {"frenzy": 0.05}, "Each attack makes it 5% faster, up to 10 times."),
+    ("spellblade", "Spellblade", "sword", "rod", {"ability_crit": 1, "crit": 0.15}, "Its abilities can crit."),
+    ("mana_edge", "Mana Edge", "sword", "tear", {"mana_on_hit": 6}, "Each attack gives 6 more mana."),
+    ("sunder_axe", "Sunder Axe", "sword", "vest", {"shred": 30}, "Attacks strip 30 armor from the target for 3 s."),
+    ("hexblade", "Hexblade", "sword", "cloak", {"omnivamp": 0.2}, "Heals for 20% of all the damage it does."),
+    ("cleaver", "Titan Cleaver", "sword", "belt", {"splash": 0.35}, "Attacks also hit enemies beside the target for 35%."),
+    ("twin_bow", "Twin Bow", "bow", "bow", {"double": 0.3}, "Attacks have a 30% chance to strike twice."),
+    ("storm_rod", "Storm Rod", "bow", "rod", {"on_hit_magic": 45}, "Attacks deal 45 more magic damage."),
+    ("harp", "Quickcast Harp", "bow", "tear", {"mana_on_hit": 4, "aspd_pct": 0.1}, "Faster attacks that give 4 more mana."),
+    ("duel_guard", "Duelist's Guard", "bow", "vest", {"dodge": 0.25}, "Dodges a quarter of attacks."),
+    ("galeband", "Galeband", "bow", "cloak", {"chill_on_hit": 0.25}, "Attacks slow the target's attacks by 25% for 2 s."),
+    ("giant_bane", "Giant's Bane", "bow", "belt", {"pct_hit": 0.03}, "Attacks deal 3% of the target's max HP more."),
+    ("grimoire", "Grand Grimoire", "rod", "rod", {"ap": 30}, "Another +30 ability power."),
+    ("archstaff", "Archmage Staff", "rod", "tear", {"cast_mana": 25}, "After casting, starts again with 25 mana."),
+    ("ember_mantle", "Ember Mantle", "rod", "vest", {"aura": 0.012}, "Burns enemies beside it for 1.2% of their max HP a second."),
+    ("spellward", "Spellward", "rod", "cloak", {"shield": 350}, "Starts the fight with a 350 shield."),
+    ("lifebloom", "Lifebloom Staff", "rod", "belt", {"cast_heal": 180}, "Each cast also heals the most hurt ally for 180."),
+    ("chalice", "Overflowing Chalice", "tear", "tear", {"mana_regen": 4}, "4 more mana every second."),
+    ("frost_aegis", "Frost Aegis", "tear", "vest", {"chill": 0.3}, "Whoever attacks it attacks 30% slower for 2 s."),
+    ("mana_ward", "Mana Ward", "tear", "cloak", {"team_mana": 20}, "Allies beside it start with 20 more mana."),
+    ("bell", "Redemption Bell", "tear", "belt", {"low_heal": 300}, "The first time it falls below half HP, heals allies within 2 hexes for 300."),
+    ("bastion", "Bastion Plate", "vest", "vest", {"dr": 0.15}, "Takes 15% less damage."),
+    ("twin_ward", "Twin Ward", "vest", "cloak", {"dr": 0.08, "shield": 200}, "Takes 8% less damage and starts with a 200 shield."),
+    ("spiked_hide", "Spiked Hide", "vest", "belt", {"thorns": 0.35}, "Attackers take 35% of their hit back as magic damage."),
+    ("veil", "Veil of Stillness", "cloak", "cloak", {"cc_immune": 1}, "Can't be stunned."),
+    ("second_wind", "Second Wind", "cloak", "belt", {"regen": 0.02}, "Regrows 2% of its max HP every second."),
+    ("colossus_belt", "Colossus Belt", "belt", "belt", {"hp_pct": 0.15, "regen": 0.01}, "15% more max HP, and regrows 1% a second."),
+]
+EMBLEM_FROM = {"sword": "duelist", "bow": "ranger", "rod": "arcanist", "tear": "mystic", "vest": "vanguard",
+               "cloak": "warden", "belt": "summoner"}
+
+
+def _sum_fx(*fxs):
+    out = {}
+    for fx in fxs:
+        for k, v in fx.items():
+            out[k] = out.get(k, 0) + v
+    return out
+
+
+ITEMS = {}
+for _k, _c in COMPONENTS.items():
+    ITEMS[_k] = {"name": _c["name"], "kind": "component", "from": None, "fx": dict(_c["fx"]), "text": _c["text"]}
+for _k, _name, _a, _b, _fx, _text in _RECIPES:
+    ITEMS[_k] = {"name": _name, "kind": "item", "from": [_a, _b],
+                 "fx": _sum_fx(COMPONENTS[_a]["fx"], COMPONENTS[_b]["fx"], _fx), "text": _text}
+for _t in TRAITS:  # every trait has an emblem; seven can be made with a Sigil, the rest come from augments
+    _comp = next((c for c, t in EMBLEM_FROM.items() if t == _t), None)
+    ITEMS["emblem_" + _t] = {"name": TRAITS[_t]["name"] + " Emblem", "kind": "emblem", "trait": _t,
+                             "from": ["sigil", _comp] if _comp else None,
+                             "fx": _sum_fx(COMPONENTS["sigil"]["fx"], COMPONENTS[_comp]["fx"]) if _comp else {"hp": 150},
+                             "text": f"Its holder is also {TRAITS[_t]['name']}."}
+ITEMS["crown"] = {"name": "Crown", "kind": "crown", "from": ["sigil", "sigil"], "fx": {"hp": 160},
+                  "text": "One more unit may stand on your board while its holder does."}
+RECIPE = {tuple(sorted(i["from"])): k for k, i in ITEMS.items() if i["from"]}
+
+
+def combine(a, b):
+    """The item two components make, or None."""
+    return RECIPE.get(tuple(sorted((a, b))))
+
+
+def completed_items():
+    return [k for k, i in ITEMS.items() if i["kind"] == "item"]
+
+
+# Components a monster round drops to a winner (a loser gets one if it drops two or more).
+PVE_DROPS = {1: 1, 2: 1, 6: 2, 11: 2}
+
+# ------------------------------------------------------------------ commanders
+# Each player picks one of three at the start: a passive, and a power that charges over `charge`
+# rounds and is used during planning. game.py does what they say.
+COMMANDERS = {
+    "quartermaster": {"name": "The Quartermaster", "passive": "Your shop has six slots.",
+                      "power": "Two free rerolls.", "charge": 3},
+    "warlord": {"name": "The Warlord", "passive": "Units on your front row have 12% more HP.",
+                "power": "Next fight, every unit of yours starts with a 300 shield.", "charge": 4},
+    "necromancer": {"name": "The Necromancer", "passive": "The first of your units to die each fight rises with 40% HP.",
+                    "power": "Raise a random tier-2 unit onto your bench.", "charge": 4},
+    "alchemist": {"name": "The Alchemist", "passive": "A free component at rounds 5, 10 and 15.",
+                  "power": "Brew a random component.", "charge": 4},
+    "merchant": {"name": "The Merchant", "passive": "Interest goes up to 7 gold instead of 5.",
+                 "power": "Gain 4 gold.", "charge": 3},
+    "sage": {"name": "The Sage", "passive": "One more XP every round.", "power": "Gain 6 XP.", "charge": 4},
+    "beastmaster": {"name": "The Beastmaster", "passive": "Your summons have 30% more HP and attack.",
+                    "power": "Next fight, a Treant (at your highest star) fights for you.", "charge": 3},
+    "archmage": {"name": "The Archmage", "passive": "Your units have 15 more ability power.",
+                 "power": "Next fight, every unit of yours starts with 40 more mana.", "charge": 3},
+    "survivor": {"name": "The Survivor", "passive": "You lose 25% less HP when you lose a fight.",
+                 "power": "Heal 8 HP.", "charge": 5},
+    "blademaster": {"name": "The Blademaster", "passive": "Your units attack 8% faster.",
+                    "power": "Next fight, your units attack 40% faster for the first 6 s.", "charge": 3},
+    "forgemaster": {"name": "The Forgemaster", "passive": "Start with two components.",
+                    "power": "Forge a random finished item.", "charge": 5},
+    "oracle": {"name": "The Oracle", "passive": "Your shop rolls as if you were a level higher.",
+               "power": "A free reroll that favours units you already own.", "charge": 3},
+}
+COMMANDER_CHOICES = 3
+
+# ------------------------------------------------------------------ augments
+# One of three at AUGMENT_ROUNDS (one free reroll each time). All three offered are the same tier
+# (1 lesser, 2 greater, 3 grand), drawn by AUGMENT_TIER_ODDS. game.py does what they say: `gold`,
+# `xp`, `components`, `items` (random finished), `units` (random of a tier), `heal` (HP), `team`
+# (fx for all your units in every fight), `bonus` (+n to a trait you field), `emblem` (that trait's
+# emblem item), `interest` (more interest cap), `revive_first` (the first of your units to die each
+# fight rises with that share of HP), `crown` (a Crown item).
+AUGMENT_ROUNDS = (3, 8, 13)
+AUGMENT_TIER_ODDS = {3: (60, 35, 5), 8: (20, 60, 20), 13: (5, 40, 55)}
+AUGMENT_TIER_NAMES = {1: "Lesser", 2: "Greater", 3: "Grand"}
+AUGMENTS = {
+    # lesser
+    "pocket_change": {"tier": 1, "name": "Pocket Change", "text": "Gain 6 gold.", "gold": 6},
+    "study": {"tier": 1, "name": "Late-Night Study", "text": "Gain 8 XP.", "xp": 8},
+    "spare_parts": {"tier": 1, "name": "Spare Parts", "text": "Gain a random component.", "components": 1},
+    "recruits": {"tier": 1, "name": "Fresh Recruits", "text": "Gain two random tier-1 units.", "units": [1, 1]},
+    "thick_skin": {"tier": 1, "name": "Thick Skin", "text": "Heal 8 HP.", "heal": 8},
+    "whetstone": {"tier": 1, "name": "Whetstone", "text": "Your units have 8 more attack.", "team": {"ad": 8}},
+    # greater
+    "treasure": {"tier": 2, "name": "Buried Treasure", "text": "Gain 15 gold.", "gold": 15},
+    "armory": {"tier": 2, "name": "Armory", "text": "Gain two random components.", "components": 2},
+    "fast_track": {"tier": 2, "name": "Fast Track", "text": "Gain 14 XP.", "xp": 14},
+    "battle_hardened": {"tier": 2, "name": "Battle Hardened", "text": "Your units have 120 more HP.", "team": {"hp": 120}},
+    "rich": {"tier": 2, "name": "Rich Get Richer", "text": "Gain 6 gold; interest goes 2 higher.", "gold": 6, "interest": 2},
+    "second_life": {"tier": 2, "name": "Second Life", "text": "The first of your units to die each fight rises with 30% HP.",
+                    "revive_first": 0.3},
+    # grand
+    "hoard": {"tier": 3, "name": "Dragon's Hoard", "text": "Gain 30 gold.", "gold": 30},
+    "arsenal": {"tier": 3, "name": "Arsenal", "text": "Gain a random finished item and a component.", "items": 1, "components": 1},
+    "crowned": {"tier": 3, "name": "Crowned", "text": "Gain a Crown: one more unit on your board.", "crown": 1},
+    "titanic": {"tier": 3, "name": "Titanic Strength", "text": "Your units have 12% more HP and 10 more attack.",
+                "team": {"hp_pct": 0.12, "ad": 10}},
+}
+for _t, _d in TRAITS.items():
+    AUGMENTS["heart_" + _t] = {"tier": 1, "name": _d["name"] + " Heart", "trait": _t, "bonus": 1,
+                               "text": f"Counts as one more {_d['name']} unit, if you field one."}
+    AUGMENTS["crest_" + _t] = {"tier": 2, "name": _d["name"] + " Crest", "trait": _t, "emblem": _t,
+                               "text": f"Gain a {_d['name']} Emblem."}
+    AUGMENTS["soul_" + _t] = {"tier": 3, "name": _d["name"] + " Soul", "trait": _t, "bonus": 2,
+                              "text": f"Counts as two more {_d['name']} units, if you field one."}
+AUGMENT_CHOICES = 3
+
+# ------------------------------------------------------------------ shared drafts
+# At DRAFT_ROUNDS, before planning, everyone picks one unit (each holding a component) from a shared
+# set, lowest HP first. DRAFT_TIERS: the tiers on offer that round.
+DRAFT_ROUNDS = (4, 9, 14)
+DRAFT_TIERS = {4: (1, 2), 9: (2, 3), 14: (3, 4)}
+DRAFT_TURN = 8  # seconds a person has for their pick
+DRAFT_EXTRA = 2  # options beyond one each
 
 
 def shop_units():
     return [k for k, u in UNITS.items() if not u.get("summon")]
 
 
-def trait_counts(keys):
-    """{trait: how many different units carry it} for the unit keys on a board."""
+def unit_traits(key, items=()):
+    """A unit's traits, plus any its emblems give."""
+    traits = list(UNITS[key]["traits"])
+    for i in items:
+        t = ITEMS.get(i, {}).get("trait")
+        if t and t not in traits:
+            traits.append(t)
+    return traits
+
+
+def trait_counts(units, bonus=None):
+    """{trait: how many different units carry it} for a board: `units` is unit keys, or (key, items)
+    pairs so emblems count. A copy of a unit with an emblem counts for that trait once, like any
+    copy. `bonus` (augments) adds to traits the board already has."""
+    seen = {}
+    for u in units:
+        key, items = (u, ()) if isinstance(u, str) else u
+        seen.setdefault(key, set()).update(unit_traits(key, items))
     counts = {}
-    for key in set(keys):
-        for t in UNITS[key]["traits"]:
+    for traits in seen.values():
+        for t in traits:
             counts[t] = counts.get(t, 0) + 1
+    for t, n in (bonus or {}).items():
+        if counts.get(t):
+            counts[t] += n
     return counts
 
 

@@ -583,6 +583,8 @@ class Fight:
                 for f in self.foes(u):
                     if dist(f.hex, u.hex) <= 1:
                         self.deal(u, f, f.max * u.aura * DT, "burn")
+                if not u.alive:  # a foe its aura burned down took it with them (a death burst)
+                    continue
             regen = u.stat("regen", now)
             if regen and u.hp < u.max:
                 u.hp = min(u.max, u.hp + u.max * regen * DT * (0.5 if u.wound_until > now else 1))

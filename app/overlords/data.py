@@ -129,12 +129,12 @@ TRAITS = {
     "mirefolk": {
         "name": "Mirefolk", "kind": "origin", "levels": [2, 4],
         "text": "Whoever attacks a Mirefolk unit is chilled, attacking slower for 2 s.",
-        "fx": [{"chill": 0.2}, {"chill": 0.4}]},
+        "fx": [{"chill": 0.35}, {"chill": 0.42}]},
     # ---------------------------------------------------------------- classes
     "vanguard": {
         "name": "Vanguard", "kind": "class", "levels": [2, 4, 6],
         "text": "Vanguards start the fight with a shield for 10 s.",
-        "fx": [{"shield": 200}, {"shield": 450}, {"shield": 1000}]},
+        "fx": [{"shield": 260}, {"shield": 750}, {"shield": 1300}]},
     "duelist": {
         "name": "Duelist", "kind": "class", "levels": [2, 4, 6],
         "text": "Each Duelist attack speeds up their attacks, stacking up to 8 times.",
@@ -146,7 +146,7 @@ TRAITS = {
     "arcanist": {
         "name": "Arcanist", "kind": "class", "levels": [2, 4, 6],
         "text": "The whole board's abilities hit harder and heal more.",
-        "fx": [{"who": "team", "ap": 30}, {"who": "team", "ap": 60}, {"who": "team", "ap": 100}]},
+        "fx": [{"who": "team", "ap": 40}, {"who": "team", "ap": 75}, {"who": "team", "ap": 140}]},
     "mystic": {
         "name": "Mystic", "kind": "class", "levels": [2, 4],
         "text": "The whole board gains magic resist and regrows a little HP every second; at 4, abilities "
@@ -156,16 +156,16 @@ TRAITS = {
     "assassin": {
         "name": "Assassin", "kind": "class", "levels": [2, 4, 6],
         "text": "Assassins leap to the enemy's back line at the start, and crit more often and harder.",
-        "fx": [{"leap": 1, "crit": 0.3, "critdmg": 0.4}, {"leap": 1, "crit": 0.35, "critdmg": 0.45},
-               {"leap": 1, "crit": 0.5, "critdmg": 0.7}]},
+        "fx": [{"leap": 1, "crit": 0.4, "critdmg": 0.6}, {"leap": 1, "crit": 0.45, "critdmg": 0.65},
+               {"leap": 1, "crit": 0.5, "critdmg": 0.75}]},
     "summoner": {
         "name": "Summoner", "kind": "class", "levels": [2, 4],
         "text": "What Summoners call up has more HP and damage.",
         "fx": [{"summon_boost": 0.3}, {"summon_boost": 0.7}]},
     "warden": {
         "name": "Warden", "kind": "class", "levels": [2, 4, 6],
-        "text": "Wardens gain max HP.",
-        "fx": [{"hp_pct": 0.25}, {"hp_pct": 0.5}, {"hp_pct": 0.75}]},
+        "text": "Wardens gain max HP, and at 4 take less damage too.",
+        "fx": [{"hp_pct": 0.35}, {"hp_pct": 0.6, "dr": 0.1}, {"hp_pct": 0.9, "dr": 0.18}]},
 }
 
 
@@ -199,7 +199,7 @@ UNITS = {
                          {"do": "taunt", "to": "around_self:2", "secs": [2, 2.5, 3]})),
     "tide_acolyte": U("Tide Acolyte", 1, ["tidecallers", "mystic"], 500, 54, 0.65, 3, 20, 20, 70, 20,
                       A("Rising Water", "Heals the most hurt ally and washes off its burns, slows and marks.",
-                        {"do": "heal", "to": "lowest_ally", "amt": [200, 300, 450]},
+                        {"do": "heal", "to": "lowest_ally", "amt": [170, 255, 400]},
                         {"do": "cleanse", "to": "lowest_ally"})),
     "ember_squire": U("Ember Squire", 1, ["emberforged", "vanguard"], 660, 62, 0.6, 1, 45, 25, 80, 30,
                       A("Ember Guard", "Shields itself, then flares, setting enemies beside it burning.",
@@ -358,7 +358,7 @@ UNITS = {
     "phoenix_knight": U("Phoenix Knight", 4, ["emberforged", "vanguard", "duelist"], 1000, 92, 0.7, 1, 50, 40, 100, 40,
                         A("Rebirth Flame", "Bursts into flame, burning enemies beside it and healing itself.",
                           {"do": "hit", "to": "around_self:1", "dmg": [240, 360, 1000], "burn": 0.03},
-                          {"do": "heal", "to": "self", "amt": [220, 330, 1000]}),
+                          {"do": "heal", "to": "self", "amt": [180, 270, 1000]}),
                         passive={"revive": 0.3},
                         passive_text="The first time it falls, it rises from its ashes with 30% HP."),
     "elder_oak": U("Elder Oak", 4, ["thornwood", "warden", "vanguard"], 1300, 76, 0.55, 1, 55, 45, 110, 50,
@@ -413,7 +413,7 @@ UNITS = {
     "mire_mother": U("Mire Mother", 5, ["mirefolk", "summoner", "arcanist"], 1100, 66, 0.7, 3, 35, 45, 110, 40,
                      A("Spawning Pool", "Spawns mire spawn (which burst when they fall) and floods the ground round its target.",
                        {"do": "summon", "unit": "mire_spawn", "count": [2, 2, 4]},
-                       {"do": "hit", "to": "around_target:1", "dmg": [200, 300, 1200], "slow": 0.4})),
+                       {"do": "hit", "to": "around_target:1", "dmg": [260, 390, 1200], "slow": 0.4})),
     "ember_wyrm": U("Ember Wyrm", 5, ["emberforged", "ranger"], 1200, 95, 0.75, 3, 35, 35, 90, 30,
                     A("Dragonfire", "Breathes fire down a line, burning all it touches, and leaves the ground round its "
                       "target ablaze for 3 s.",
@@ -429,7 +429,7 @@ UNITS = {
                      A("Grave Decree", "Raises a skeleton from each of the fallen (up to its limit) and stuns enemies "
                        "within 2 hexes.",
                        {"do": "raise", "unit": "skeleton", "count": [2, 3, 8]},
-                       {"do": "hit", "to": "around_self:2", "dmg": [150, 225, 1500], "stun": [1.25, 1.5, 4]})),
+                       {"do": "hit", "to": "around_self:2", "dmg": [150, 225, 1500], "stun": [1.0, 1.25, 4]})),
     # ---------------------------------------------------------------- summons (never in the shop)
     "treant": U("Treant", 0, [], 900, 80, 0.6, 1, 40, 30, 0, 0, None, summon=True,
                 passive={"regen": 0.02}, passive_text="Regrows 2% of its HP a second."),
@@ -748,7 +748,7 @@ COMMANDERS = {
                      "charge": 4},
     "twinmaker": {"name": "The Twinmaker", "passive": "Each round's first shop has at least one unit you already own, "
                                                       "when the pool has one.",
-                  "power": "Twin the 1-star unit you have most copies of (the copy comes from the pool).", "charge": 5},
+                  "power": "Twin the 1-star unit you have most copies of (the copy comes from the pool).", "charge": 6},
 }
 COMMANDER_CHOICES = 3
 

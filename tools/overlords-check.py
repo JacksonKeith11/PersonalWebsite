@@ -192,6 +192,14 @@ def mechanics():
         f.tick()
         f.t += sim.DT
     check(any(u.key == "sapling" for u in f.units), "the Seed of the Elder Grove grows a sapling")
+    # an Ember Mantle's burn kills a foe whose death burst kills the holder: the holder mustn't act after
+    f = sim.Fight([B("sky_lancer", 3, 3, 1, ["ember_mantle"])], [B("bone_rattler", 3, 3)], 1)
+    h, r = first(f, "sky_lancer"), first(f, "bone_rattler", 1)
+    f.jump(r, next(n for n in sim.neighbours(h.hex) if n not in f.occ))
+    h.hp, r.hp, h.mana = 1, 0.001, h.maxmana
+    f.tick()
+    check(not h.alive and not any(e[0] == "c" and e[2] == h.id for e in f.events),
+          "a unit killed by a death burst in its own turn doesn't go on to act")
 
 
 def random_fights(n=300):
@@ -301,6 +309,58 @@ def room_rules():
     spot = next(iter(me.board))
     check(not room.move(me, {"c": spot[0], "r": spot[1]}, {"b": 7}, True), "the board is locked mid-fight")
     check(copies(room) == full, "the pool still adds up")
+
+
+def pairing():
+    """Opponents are paired when planning starts; the fights follow those pairs; hard bots arrange
+    against the board they'll meet; someone leaving mid-plan gets everyone paired again."""
+    room = game.Room("PAIR")
+    room.rng.seed(5)
+    room.clock = Clock()
+    room.saving = False
+    me, q = browser(room, "Ann", "a")
+    room.handle(me, {"t": "set", "bots": True, "level": "hard"})
+    room.handle(me, {"t": "start"})
+    room.handle(me, {"t": "commander", "k": me.offers[0]})
+    while not (room.phase == "plan" and room.round not in D.PVE):
+        room.clock.t = room.ends + 0.01
+        room.tick()
+    ids = sorted(i for pair in room.next_pairs for i in pair[:2])
+    check(ids == sorted(p.id for p in room.alive()), f"planning starts with everyone paired ({room.next_pairs})")
+    st = last_state(q)
+    check(st and st["pairs"] == [list(x) for x in room.next_pairs], "the browsers see the pairs")
+    foe = room.next_foe(me)
+    check(foe and foe[0] and foe[0].id != me.id, "next_foe names Ann's opponent")
+    bot = next(p for p in room.alive() if p.bot)
+    tried = []
+    real = game.B.sim.Fight
+    class Spy(real):
+        def run(self):
+            tried.append(1)
+            return real.run(self)
+    game.B.sim.Fight = Spy
+    try:
+        game.B.place(room, bot, room.rng)
+    finally:
+        game.B.sim.Fight = real
+    check(len(bot.board) < 2 or len(tried) == len(game.B.SHAPES), f"a hard bot tries {len(tried)} arrangements")
+    pairs = list(room.next_pairs)
+    room.clock.t = room.ends + 0.01
+    room.tick()
+    check(room.phase == "fight" and [(f["home"], f["away"], f["ghost"]) for f in room.fights] == pairs,
+          "the fights are the pairs shown while planning")
+    room.clock.t = room.ends + 0.01
+    room.tick()
+    while not (room.phase == "plan" and room.round not in D.PVE):
+        room.clock.t = room.ends + 0.01
+        room.tick()
+    gone = next(p for p in room.alive() if p.bot)
+    room.forfeit(gone)
+    ids = sorted(i for pair in room.next_pairs for i in pair[:2])
+    check(gone.id not in ids and set(ids) == {p.id for p in room.alive()}, "someone leaving gets everyone paired again")
+    check(len(room.alive()) % 2 == 0 or any(g for _, _, g in room.next_pairs), "an odd number means a ghost fight")
+    while not q.empty():
+        q.get_nowait()
 
 
 def matches(n=3):
@@ -765,6 +825,7 @@ talents()
 card_numbers()
 draft()
 room_rules()
+pairing()
 matches()
 every_ability_fires()
 mechanics()

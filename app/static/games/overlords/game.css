@@ -117,6 +117,9 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 .players .sub { grid-column: 2 / 4; font-size: 0.78rem; color: var(--dim); display: flex; gap: 8px; }
 .players .sub .w { color: #7be08a; }
 .players .sub .l { color: #ff8b7b; }
+.players .sub .next { color: #ffb07a; font-weight: 700; }
+.players li.foe { box-shadow: inset 3px 0 0 #ff9a5a; }
+.players li.foe .name::before { content: '⚔ '; color: #ffb07a; }
 
 #shopbar { flex: none; display: flex; gap: 10px; align-items: stretch; }
 .shop-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 230px; flex: none; }

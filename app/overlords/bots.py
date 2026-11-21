@@ -3,48 +3,65 @@ and the balance tools all use `arrange`).
 
 A bot picks two traits to aim for at the start and plays its turn the moment a planning phase
 begins, through the same room methods a browser's messages reach (`buy`, `reroll`, `buy_xp`,
-`sell`), then sets its board directly. Its level decides how carefully: easy bots spend at random
-and level late; normal ones keep gold for interest from round 5 and level on a schedule; hard ones
-keep more, level sooner and spend everything once their HP runs low.
+`sell`), then sets its board directly. None banks gold for interest (spending it won, see ROLL_ABOVE).
+Its level decides how carefully: easy bots spend at random and level late; normal ones buy what's
+worth it and level on a schedule; hard ones level sooner, reroll everything once their HP runs low,
+and try a few arrangements of their board against the one they fight next (`place`: Room.pair_up
+decides opponents when planning starts), keeping the one that does best.
 
 Bots also pick a commander (`pick_commander`), augments (`pick_augment`: hearts and souls of traits
 they field, else gold, items or stats), draft picks (`pick_draft`: the unit they value most), use
-their commander's power when it's charged, buy from the armory with gold left over after units
+their commander's power when it's charged (powers that give gold, rerolls, XP, units or items before
+they shop, fight powers only against players), buy from the armory with gold left over after units
 (the dearest first, while their units have room or it beats an item they hold), and put items on their
-units: the rarest on their most valuable units, emblems only for traits they aim for, swapping a weaker
-item off a full unit for a better one. They pick their units' extra abilities at 2 and 3 stars
+units (`equip`): each where it fits (`fit`: attack items on attackers, ability items on casters, armour
+on the front line), the rarest on their most valuable units, emblems only for traits they aim for,
+swapping a weaker item off a full unit for a better one. They pick their units' extra abilities at 2 and 3 stars
 (`pick_talents`), favouring those of the traits they aim for.
 """
 
 import random
 
 from . import data as D
+from . import sim
 
 FRONT, BACK = 3, 0  # rows of a player's own board
 CENTRE = [3, 2, 4, 1, 5, 0, 6]
 CORNERS = [0, 6, 1, 5, 2, 4, 3]
-SPOTS_FRONT = [(c, FRONT) for c in CENTRE] + [(c, FRONT - 1) for c in CENTRE]
-SPOTS_BACK = [(c, BACK) for c in CORNERS] + [(c, BACK + 1) for c in CORNERS]
 
 # The level a bot aims to be at by each round.
 LEVEL_PLAN = {"easy": {3: 3, 6: 4, 9: 5, 12: 6, 15: 7},
               "normal": {2: 3, 4: 4, 6: 5, 9: 6, 12: 7, 15: 8},
               "hard": {2: 3, 4: 4, 5: 5, 8: 6, 11: 7, 13: 8}}
-KEEP = {"easy": 0, "normal": 20, "hard": 30}  # gold kept for interest from round 5
+# Bots don't bank gold for interest: in head-to-heads (November 2026) bots that spent it all beat ones
+# keeping 20-30 gold from round 5, 2.18 to 2.82 in average place. They reroll only above ROLL_ABOVE.
+ROLL_ABOVE = 50
+LEFT = list(range(7))
+RIGHT = LEFT[::-1]
+# Hard bots' arrangements to try against their next opponent: (front-row order, back-row order).
+SHAPES = [(CENTRE, CORNERS), (LEFT, LEFT), (RIGHT, RIGHT), (CORNERS, CENTRE)]
+PLACE_TRIES = {"easy": 0, "normal": 0, "hard": len(SHAPES)}
+# Powers worth using before shopping (they give gold, rerolls, XP, units or items), and powers for a fight.
+SHOP_POWERS = {"quartermaster", "merchant", "gambler", "sage", "oracle", "necromancer", "twinmaker",
+               "alchemist", "forgemaster"}
+FIGHT_POWERS = {"warlord", "archmage", "blademaster", "hexer", "chronomancer", "beastmaster"}
 PANIC_HP = {"easy": 0, "normal": 25, "hard": 35}  # below this, spend it all
 
 
-def arrange(units, taken=()):
+def arrange(units, taken=(), front_cols=CENTRE, back_cols=CORNERS):
     """Places units ({"unit", "star"}, anything else is kept): melee on the front rows, the toughest
-    in the middle; ranged on the back rows, assassins last (they leap anyway). Returns
-    [(unit, col, row)], skipping `taken` spots."""
+    first (in the middle, by default); ranged on the back rows, assassins last (they leap anyway), the
+    first in the corners. `front_cols` and `back_cols` are the column orders to fill. Returns [(unit, col, row)],
+    skipping `taken` spots."""
     def melee(u):
         d = D.UNITS[u["unit"]]
         return d["range"] <= 1 and "assassin" not in d["traits"]
     front = sorted((u for u in units if melee(u)), key=lambda u: -D.UNITS[u["unit"]]["hp"] * D.STAR_MULT[u["star"] - 1])
     back = sorted((u for u in units if not melee(u)), key=lambda u: "assassin" in D.UNITS[u["unit"]]["traits"])
+    spots_front = [(c, FRONT) for c in front_cols] + [(c, FRONT - 1) for c in front_cols]
+    spots_back = [(c, BACK) for c in back_cols] + [(c, BACK + 1) for c in back_cols]
     used, out = set(taken), []
-    for group, spots in ((front, SPOTS_FRONT + SPOTS_BACK), (back, SPOTS_BACK + SPOTS_FRONT)):
+    for group, spots in ((front, spots_front + spots_back), (back, spots_back + spots_front)):
         for u in group:
             spot = next((s for s in spots if s not in used), None)
             if spot is None:
@@ -77,6 +94,10 @@ def value(p, key, star=1):
     return v + 2 * have
 
 
+def worth(p, u):
+    return value(p, u["unit"], u["star"]) + 3 * len(u["items"])
+
+
 def play(room, p, rng):
     """One planning phase's worth of decisions for bot `p`."""
     level = p.bot
@@ -85,15 +106,23 @@ def play(room, p, rng):
     rnd = room.round
     sloppy = level == "easy"
     panic = p.hp < PANIC_HP[level]
-    keep = 0 if panic or rnd < 5 else KEEP[level]
 
-    # level up on schedule
-    want = max([lv for r, lv in LEVEL_PLAN[level].items() if rnd >= r] or [1])
-    while p.level < min(want, D.MAX_LEVEL) and p.gold - D.XP_COST >= (0 if panic else keep // 2):
+    # powers that help the shopping go first
+    charged = p.commander and p.charge >= D.COMMANDERS[p.commander]["charge"]
+    if charged and (p.commander in SHOP_POWERS or sloppy):
+        charged = not room.use_power(p)
+
+    # level up on schedule (the Oracle reaches 5 a round early: its passive starts there)
+    plan = dict(LEVEL_PLAN[level])
+    if p.commander == "oracle" and not sloppy:
+        first5 = min(r for r, lv in plan.items() if lv >= 5)
+        plan[max(1, first5 - 1)] = max(plan.get(first5 - 1, 0), 5)
+    want = max([lv for r, lv in plan.items() if rnd >= r] or [1])
+    while p.level < min(want, D.MAX_LEVEL) and p.gold >= D.XP_COST:
         if not room.buy_xp(p):
             break
 
-    # buy, rerolling if rich or desperate
+    # buy, rerolling if rich or desperate (free rerolls and the Gambler's cheap one whenever they help)
     rolls = 0
     while True:
         bought = True
@@ -106,11 +135,15 @@ def play(room, p, rng):
                 options.sort(reverse=True)
             for v, i, k in options:
                 cost = D.UNITS[k]["cost"]
-                worth = v >= 3 + rnd * 0.25 or sloppy or panic
-                if worth and p.gold - cost >= keep and room.buy(p, i):
+                good = v >= 3 + rnd * 0.25 or sloppy or panic
+                if good and p.gold >= cost and room.buy(p, i):
                     bought = True
                     break
-        if p.gold - D.REROLL >= max(keep, 50 if not panic else 0) and rolls < 8 or (panic and p.gold >= D.REROLL and rolls < 12):
+        cost = 0 if p.free_rerolls else room.reroll_cost(p)
+        free_ish = not sloppy and (cost == 0 or (cost < D.REROLL and p.gold >= cost)) and rolls < 12
+        rich = p.gold - cost >= (ROLL_ABOVE if not panic else 0) and rolls < 8
+        desperate = panic and p.gold >= cost and rolls < 12
+        if (free_ish or rich or desperate) and any(u is None for u in p.bench):
             if not room.reroll(p):
                 break
             rolls += 1
@@ -124,38 +157,104 @@ def play(room, p, rng):
     for price, i in stock:
         weakest = min([D.ITEMS[it]["rarity"] for u in p.units() for it in u["items"]] or [9])
         better = D.ITEMS[p.armory[i]]["rarity"] > weakest  # worth swapping in even when every slot is full
-        if (len(p.items) < room_for or better) and p.gold - price >= keep:
+        if (len(p.items) < room_for or better) and p.gold >= price:
             room.buy_item(p, i)
 
-    # the commander's power, when charged
-    if p.commander and p.charge >= D.COMMANDERS[p.commander]["charge"]:
-        room.use_power(p)
+    # fight powers, against players (monsters aren't worth one)
+    if charged and (rnd not in D.PVE or level == "easy" or p.commander not in FIGHT_POWERS):
+        if p.commander != "survivor" or p.hp <= D.START_HP - 6:
+            room.use_power(p)
 
     # the board: the most valuable units up to the level; sell what doesn't fit on the bench
-    units = sorted(p.units(), key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
-    room.set_board(p, units)
-    spare = [u for u in p.bench if u]
-    spare.sort(key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
+    room.set_board(p, sorted(p.units(), key=lambda u: -worth(p, u)))
+    spare = sorted((u for u in p.bench if u), key=lambda u: -worth(p, u))
     while len(spare) > D.BENCH - 2:
-        worst = spare.pop()
-        room.sell_unit(p, worst)
+        room.sell_unit(p, spare.pop())
     equip(room, p)
     pick_talents(room, p, rng)
-    units = sorted(p.units(), key=lambda u: -(value(p, u["unit"], u["star"]) + 3 * len(u["items"])))
+    units = sorted(p.units(), key=lambda u: -worth(p, u))
     room.set_board(p, units)
+
+
+def place(room, p, rng):
+    """Called once every bot has played (Room.start_plan), so the boards it tries against are this round's.
+    Hard bots: fight the board they meet next (or the round's monsters) with each of SHAPES, all on one
+    seed, and keep the arrangement whose side ends best (who won, then the share of HP left on each side)."""
+    tries = PLACE_TRIES[p.bot]
+    if not tries or len(p.board) < 2:
+        return
+    foe = room.next_foe(p)
+    if room.round in D.PVE:
+        theirs = [{"unit": k, "star": s, "col": c, "row": r} for k, s, c, r in D.PVE[room.round]]
+        extras = (p.extras(), {})
+    elif foe and foe[0] and foe[0].board:
+        theirs = foe[0].fight_board()
+        extras = (p.extras(), foe[0].extras())
+    else:
+        return
+    units = list(p.board.values())
+    seed = rng.randrange(1 << 30)
+    best = None
+    for k, (front, back) in enumerate(SHAPES[:tries]):
+        spots = arrange(units, front_cols=front, back_cols=back)
+        mine = [{"unit": u["unit"], "star": u["star"], "col": c, "row": r, "items": list(u["items"]),
+                 "talents": list(u["talents"])} for u, c, r in spots]
+        f = sim.Fight(mine, theirs, seed, extras)
+        res = f.run()
+        left = [sum(x.hp / x.max for x in f.units if x.side == side and x.alive and not x.summon) for side in (0, 1)]
+        score = (res["winner"] == 0) - (res["winner"] == 1) + (left[0] / len(mine) - left[1] / max(1, len(theirs))) / 2
+        if best is None or score > best[0] + 1e-9:
+            best = (score, spots)
+    p.board = {(c, r): u for u, c, r in best[1]}
+
+
+# What each part of an item's fx is for: attacking, casting, or standing in front.
+ATTACK_FX = {"ad", "aspd_pct", "crit", "critdmg", "shred", "omnivamp", "splash", "pct_hit", "chill_on_hit",
+             "low_bonus", "frenzy", "multishot", "on_kill", "wound_on_hit", "execute", "mana_on_hit"}
+CAST_FX = {"ap", "mana", "cast_share", "cast_grow_ap", "cast_mana", "cast_heal", "ability_crit", "echo", "every3"}
+TANK_FX = {"hp", "armor", "mr", "dr", "shield", "spell_dr", "chill", "regen", "taunt_start", "thorns",
+           "cc_immune", "grow_hp", "last_stand", "revive", "low_heal", "aura", "dodge"}
+
+
+def item_role(item):
+    """(attack, cast, tank) shares of an item's fx, summing to 1 (all 0 for one that suits anyone)."""
+    fx = D.ITEMS[item]["fx"]
+    n = [sum(k in group for k in fx) for group in (ATTACK_FX, CAST_FX, TANK_FX)]
+    total = sum(n)
+    return [x / total for x in n] if total else [0, 0, 0]
+
+
+def unit_role(key):
+    """(attack, cast, tank) weights for a unit, from its classes and range."""
+    d = D.UNITS[key]
+    tr = d["traits"]
+    melee = d["range"] <= 1 and "assassin" not in tr
+    tank = 1.0 if {"vanguard", "warden"} & set(tr) else 0.6 if melee else 0.0
+    attack = 1.0 if {"duelist", "ranger", "assassin"} & set(tr) else 0.4
+    cast = 1.0 if {"arcanist", "mystic", "summoner"} & set(tr) else 0.4
+    return attack, cast, tank
+
+
+def fit(p, u, item):
+    """How much the bot wants `item` on unit u: the unit's worth, more where the item suits it."""
+    role = item_role(item)
+    if not any(role):
+        return worth(p, u)
+    match = sum(a * b for a, b in zip(role, unit_role(u["unit"])))
+    return worth(p, u) * (0.4 + match)
 
 
 def equip(room, p):
-    """Puts the bot's items on its board, rarest first onto its most valuable units: emblems only for
-    the traits it aims for, where they add the trait. When a unit is full, a rarer item from the bench
-    takes the place of its least rare one (which goes back to the bench)."""
-    board = sorted(p.board.items(), key=lambda kv: -value(p, kv[1]["unit"], kv[1]["star"]))
+    """Puts the bot's items on its board, rarest first, each on the unit it fits best (`fit`): emblems only
+    for the traits it aims for, where they add the trait. When every unit is full, a rarer item from the
+    bench takes the place of the least rare one on the unit it fits best (which goes back to the bench)."""
     usable = lambda item: D.ITEMS[item]["kind"] != "emblem" or D.ITEMS[item]["trait"] in (p.plan or [])
-    for _ in range(len(p.items) + 2 * D.MAX_ITEMS * len(board)):
+    for _ in range(len(p.items) + 2 * D.MAX_ITEMS * len(p.board)):
         order = sorted((i for i, it in enumerate(p.items) if usable(it)), key=lambda i: -D.ITEMS[p.items[i]]["rarity"])
         done = False
         for i in order:
-            for (c, r), u in board:
+            item = p.items[i]
+            for (c, r), u in sorted(p.board.items(), key=lambda kv: -fit(p, kv[1], item)):
                 if room.equip(p, i, {"c": c, "r": r}, False):
                     done = True
                     break
@@ -167,18 +266,17 @@ def equip(room, p):
         best = order[0] if order else None
         if best is None or D.ITEMS[p.items[best]]["kind"] == "emblem":
             break
-        rarity = D.ITEMS[p.items[best]]["rarity"]
+        item = p.items[best]
+        rarity = D.ITEMS[item]["rarity"]
         swap = None
-        for (c, r), u in board:
-            for k, it in enumerate(u["items"]):
-                if D.ITEMS[it]["kind"] == "item" and D.ITEMS[it]["rarity"] < rarity:
-                    swap = (c, r, k)
-                    break
-            if swap:
+        for (c, r), u in sorted(p.board.items(), key=lambda kv: -fit(p, kv[1], item)):
+            weak = [(D.ITEMS[it]["rarity"], k) for k, it in enumerate(u["items"])
+                    if D.ITEMS[it]["kind"] == "item" and D.ITEMS[it]["rarity"] < rarity]
+            if weak:
+                swap = (c, r, min(weak)[1])
                 break
         if not swap or not room.unequip(p, {"c": swap[0], "r": swap[1]}, swap[2], False):
             break
-        item = p.items[best]
         if not room.equip(p, p.items.index(item), {"c": swap[0], "r": swap[1]}, False):
             break
 

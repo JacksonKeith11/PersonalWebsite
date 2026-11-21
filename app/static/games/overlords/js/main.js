@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=18';
-import { isMuted, play, setMuted } from './sound.js?v=18';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=18';
+import { Playback } from './fight.js?v=19';
+import { isMuted, play, setMuted } from './sound.js?v=19';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=19';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -560,6 +560,7 @@ function banner() {
     b.innerHTML = text;
   } else if (st.phase === 'plan') {
     const mine = st.settled.find(s => s.id === room.you);
+    const mine2 = seatedMe();
     const parts = [];
     if (S.watch !== room.you && w) parts.push(`Looking at <b>${esc(w.name)}</b>'s board`);
     if (mine && st.round > 1 && S.watch === room.you) parts.push(mine.dmg ? `<span class="lost">Last fight cost you ${mine.dmg} HP</span>` : '<span class="won">You won your last fight</span>');
@@ -568,8 +569,13 @@ function banner() {
       if (st.choosing.includes(room.you)) parts.push('<span class="hint">Everyone is waiting for you to choose a commander</span>');
       if (names.length) parts.push(`<span class="hint">Waiting for ${names.join(' and ')} to choose a commander</span>`);
     }
-    if (st.pve) parts.push('Monsters this round');
-    const mine2 = seatedMe();
+    const foe = nextFoe();
+    if (st.pve) parts.push(S.watch === room.you ? 'Monsters this round: they stand on the top half' : 'Monsters this round');
+    else if (foe && player(foe.id) && mine2?.alive) {
+      const name = esc(player(foe.id).name);
+      parts.push(S.watch === room.you ? `Next fight: <b>${name}</b>${foe.ghost ? ' (a copy)' : ''}, their board faded on the top half`
+        : S.watch === foe.id ? `You fight <b>${name}</b> next` : `Next fight: <b>${name}</b>`);
+    }
     const waiting = (st.me?.bench || []).filter(Boolean).length;
     if (mine2?.alive && S.watch === room.you && waiting >= S.cfg.rules.bench) {
       parts.push(`<span class="hint">Your bench is full: ${COARSE.matches ? 'tap a unit and press Sell' : 'drag a unit onto the shop to sell it'}</span>`);
@@ -585,6 +591,31 @@ function banner() {
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// Who you fight next, decided when planning starts: { id, ghost } (ghost: a copy of their board), or null
+// (monsters, or nobody). Shown in the player list and the banner, and ghosted on the top half of your board.
+function nextFoe(id = room.you) {
+  for (const [a, b, ghost] of S.st?.pairs || []) {
+    if (a === id) return { id: b, ghost };
+    if (b === id && !ghost) return { id: a, ghost: false };
+  }
+  return null;
+}
+
+// The units you'll meet, where they'd stand in the fight (mirrored onto the top half), while you plan:
+// [{ key, star, items, c, r (on the canvas), own: [c, r] (on their board), id, talents, stats }].
+function foeUnits() {
+  const st = S.st;
+  if (st?.phase !== 'plan' || S.watch !== room.you || !seatedMe()?.alive) return [];
+  const { cols, rows } = S.cfg.rules;
+  if (st.pve) {
+    return (S.cfg.rules.pve_boards[st.round] || []).map(([key, star, c, r]) => ({ key, star, items: [], c: cols - 1 - c, r: rows - 1 - r, monster: true }));
+  }
+  const f = nextFoe(), p = f && player(f.id);
+  if (!p) return [];
+  return p.board.map(([id, key, star, c, r, items, talents, stats]) =>
+    ({ key, star, items, talents, stats, id, c: cols - 1 - c, r: rows - 1 - r, own: [c, r], owner: p.id }));
+}
 
 function renderPlayers() {
   const st = S.st;
@@ -610,6 +641,13 @@ function renderPlayers() {
     sub.append(el('span', '', `Lv ${p.level}`), el('span', '', `${p.gold}g`));
     if (Math.abs(p.streak) >= 2) sub.append(el('span', p.streak > 0 ? 'w' : 'l', `${p.streak > 0 ? 'win' : 'loss'} streak ${Math.abs(p.streak)}`));
     if (st.phase === 'plan' && p.ready && !p.bot) sub.append(el('span', 'w', 'ready'));
+    const foe = st.phase === 'plan' && nextFoe();
+    if (foe && foe.id === p.id) {
+      const tag = el('span', 'next', foe.ghost ? 'next: a copy' : 'next foe');
+      tag.title = foe.ghost ? 'You fight a copy of their board next (there\'s an odd number of players)' : 'You fight them next';
+      sub.prepend(tag);
+      li.classList.add('foe');
+    }
     if (p.results?.length) {
       const dots = el('span', 'results');
       dots.title = 'Their last fights: won, lost or drawn';
@@ -937,7 +975,8 @@ function unitCard(h, d) {
   const st = h.stats || h.live?.stats;
   const title = el('h3', 'with-art');
   title.append(sprite(key, COMPACT.matches ? 48 : 64), document.createTextNode(`${d.name} ${'★'.repeat(star)}`));
-  const parts = [title, el('p', 'kind', d.cost ? `Tier ${d.tier} · ${d.cost} gold${star > 1 ? ` · ${3 ** (star - 1)} copies` : ''}` : 'Not for sale')];
+  const whose = h.foe ? (h.owner ? `${player(h.owner)?.name}'s, your next opponent · ` : 'A monster you fight next · ') : '';
+  const parts = [title, el('p', 'kind', whose + (d.cost ? `Tier ${d.tier} · ${d.cost} gold${star > 1 ? ` · ${3 ** (star - 1)} copies` : ''}` : 'Not for sale'))];
   const traits = [...d.traits];
   for (const i of h.items || []) {
     const t = S.cfg.items[i]?.trait;
@@ -957,7 +996,7 @@ function unitCard(h, d) {
     const t = S.cfg.talents[tk];
     if (t) parts.push(labelled(`${talentName(tk, key)} (${'★'.repeat(t.star)} extra)`, t.text, 'ab talent'));
   }
-  if (d.ability && star < 3 && !talents.length && h.kind !== 'fight' && !talentOffer(h.id)) {
+  if (d.ability && star < 3 && !talents.length && h.kind !== 'fight' && !h.foe && !talentOffer(h.id)) {
     parts.push(el('p', 'note', 'At 2★ and 3★ it gets an extra ability of your choice.'));
   }
   if (h.items?.length) {
@@ -980,7 +1019,7 @@ function unitCard(h, d) {
 // The unit's traits: whether each is on for it, and what it gives (or would, fielded).
 function unitTraits(h, traits, d) {
   const onBoard = h.kind === 'board' || h.kind === 'fight';
-  const counts = h.kind === 'fight' ? S.pb?.res?.traits?.[h.live.side] : h.kind === 'board' ? player(S.watch)?.traits : me()?.traits;
+  const counts = h.kind === 'fight' ? S.pb?.res?.traits?.[h.live.side] : h.kind === 'board' ? (h.foe ? player(h.owner)?.traits || {} : player(S.watch)?.traits) : me()?.traits;
   const already = (me()?.board || []).some(u => u[1] === h.key);
   const ul = el('ul', 'unit-traits');
   for (const t of traits) {
@@ -1531,7 +1570,13 @@ function draw() {
   ctx.stroke();
 
   if (st.phase === 'fight' && S.pb) drawFight();
-  else drawBoard(player(S.watch));
+  else {
+    for (const u of foeUnits()) {
+      const [x, y] = hexXY(u.c, u.r);
+      drawUnit(x, y, u.key, u.star, { ring: u.monster ? MONSTER_COLOR : player(u.owner)?.color, items: u.items, flip: true, alpha: 0.5, monster: u.monster });
+    }
+    drawBoard(player(S.watch));
+  }
 
   // the bench (always yours)
   if (mine && st.me) {
@@ -1857,7 +1902,13 @@ function unitAt(x, y) {
   }
   const h = hexAt(x, y);
   const u = h && player(S.watch)?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0], stats: u[7] } : null;
+  return u ? { kind: 'board', c: h[0], r: h[1], key: u[1], star: u[2], items: u[5], talents: u[6], id: u[0], stats: u[7] } : foeAt(h);
+}
+
+// A faded unit of your next opponent's (or a monster) on the top half, as a card to read.
+function foeAt(h) {
+  const f = h && foeUnits().find(u => u.c === h[0] && u.r === h[1]);
+  return f ? { kind: 'board', foe: true, owner: f.owner, c: h[0], r: h[1], key: f.key, star: f.star, items: f.items, talents: f.talents || [], id: f.id, stats: f.stats } : null;
 }
 
 // Moves one of your units (from {b} or {c, r}) to the bench slot or own hex at (x, y). False if that's
@@ -1938,7 +1989,7 @@ addEventListener('pointermove', e => {
     } else if (h && S.st.phase !== 'fight') {
       const w = player(S.watch);
       const u = w?.board.find(b => b[3] === h[0] && b[4] === h[1]);
-      S.hover = { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5], talents: u?.[6], id: u?.[0], stats: u?.[7] };
+      S.hover = u || !foeAt(h) ? { kind: 'board', c: h[0], r: h[1], key: u?.[1], star: u?.[2], items: u?.[5], talents: u?.[6], id: u?.[0], stats: u?.[7] } : foeAt(h);
     } else if (S.st.phase !== 'fight') {
       S.hover = null;
     }
@@ -2053,5 +2104,5 @@ addEventListener('keydown', e => {
 
 addEventListener('resize', () => { if (S.st) render(); });
 COMPACT.addEventListener('change', () => { openSheet(''); if (S.st) { render(); info(); } });
-if (window.OV) Object.assign(window.OV, { G, hexXY, receive });
+if (window.OV) Object.assign(window.OV, { G, hexXY, receive, nextFoe, foeUnits });
 requestAnimationFrame(draw);

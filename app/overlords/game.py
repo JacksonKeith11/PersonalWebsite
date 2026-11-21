@@ -175,6 +175,7 @@ class Room:
         self.clock = time.monotonic  # the checks swap in a clock they can wind on
         self.saving = True  # the checks and the simulator turn records off
         self.holding = False  # the first fight's timer has run out, but someone is still choosing a commander
+        self.next_pairs = []  # [(home id, away id, away is a ghost copy)]: decided when planning starts
 
     # ------------------------------------------------------------ plumbing
 
@@ -235,6 +236,7 @@ class Room:
                           "odds": D.SHOP_ODDS, "start_hp": D.START_HP, "max": MAX_PLAYERS,
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
                           "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
+                          "pve_boards": D.PVE,
                           "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
                           "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
                           "armory_odds": D.ARMORY_ODDS},
@@ -425,10 +427,12 @@ class Room:
         self.phase = "plan"
         self.draft = None
         self.ends = self.clock() + (D.FIRST_PLAN if rnd == 1 else D.PLAN_TIME)
-        for p in self.alive():
-            if p.bot:
+        self.pair_up()
+        bots = [p for p in self.alive() if p.bot]
+        for step in (B.play, B.place):  # every bot shops and fields first; then hard bots arrange against
+            for p in bots:              # the boards they'll meet
                 try:
-                    B.play(self, p, self.rng)
+                    step(self, p, self.rng)
                 except Exception:
                     log.exception("overlords: bot %s failed in room %s", p.name, self.code)
         self.send_state()
@@ -452,7 +456,11 @@ class Room:
                 res = sim.Fight(p.fight_board(), monsters, self.rng.randrange(1 << 30), (extras[p.id], {})).run()
                 self.fights.append({"home": p.id, "away": 0, "pve": True, "ghost": False, "res": res})
         else:
-            for a, b, ghost in self.pairings(alive):
+            ids = {p.id for p in alive}
+            paired = {i for a, b, _ in self.next_pairs for i in (a, b)}
+            if paired != ids:  # someone left since planning started
+                self.pair_up()
+            for a, b, ghost in [(self.players[a], self.players[b], g) for a, b, g in self.next_pairs]:
                 res = sim.Fight(a.fight_board(), b.fight_board(), self.rng.randrange(1 << 30),
                                 (extras[a.id], extras[b.id])).run()
                 self.fights.append({"home": a.id, "away": b.id, "pve": False, "ghost": ghost, "res": res})
@@ -466,6 +474,22 @@ class Room:
         for p in self.players.values():
             self.send(p, self.fights_msg())
         self.send_state()
+
+    def pair_up(self):
+        """Decides the coming fight's opponents when planning starts, so everyone can see whose board
+        they'll meet (and bots can arrange against it). None on monster rounds."""
+        alive = self.alive()
+        self.next_pairs = [] if self.round in D.PVE or len(alive) < 2 else \
+            [(a.id, b.id, g) for a, b, g in self.pairings(alive)]
+
+    def next_foe(self, p):
+        """(the player p fights next, whether it's a ghost copy of them), or None (monsters, or nobody)."""
+        for a, b, g in self.next_pairs:
+            if a == p.id:
+                return self.players.get(b), g
+            if b == p.id and not g:
+                return self.players.get(a), False
+        return None
 
     def pairings(self, alive):
         """Who fights whom: [(home, away, away is a ghost copy)]. Nobody meets the same opponent
@@ -565,6 +589,8 @@ class Room:
         if len(alive) <= 1 or self.only_bots_left():
             self.finish()
             return
+        if self.phase == "plan":
+            self.pair_up()
         humans = [q for q in alive if q.bot is None and q.connected]
         if self.phase == "plan" and humans and all(q.ready for q in humans):
             self.ends = min(self.ends, self.clock() + 1)
@@ -1140,6 +1166,7 @@ class Room:
                 "bots": self.bots, "level": self.bot_level, "pve": self.round in D.PVE,
                 "next_pve": self.round + 1 in D.PVE, "settled": self.settled,
                 "choosing": [p.id for p in self.choosing()] if self.phase == "plan" else [],
+                "pairs": self.next_pairs if self.phase == "plan" else [],
                 "players": [self.public(p) for p in self.players.values()]}
         if self.phase == "draft" and self.draft:
             d = self.draft

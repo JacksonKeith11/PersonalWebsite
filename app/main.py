@@ -18,6 +18,7 @@ from .kingfall import routes as kingfall_routes
 from .relay import routes as relay_routes
 from .scramble import routes as scramble_routes
 from .holdfast import routes as holdfast_routes
+from .overlords import routes as overlords_routes
 from .books import epub
 from .books import routes as books_routes
 from .serials import page as serials_page
@@ -125,6 +126,7 @@ app.include_router(kingfall_routes.router)
 app.include_router(relay_routes.router)
 app.include_router(scramble_routes.router)
 app.include_router(holdfast_routes.router)
+app.include_router(overlords_routes.router)
 
 # Books are behind a username rather than the password; see app/books/routes.py.
 app.include_router(books_routes.router)

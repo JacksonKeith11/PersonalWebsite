@@ -1,0 +1,573 @@
+"""Overlords' fight: two boards on one hex battlefield, simulated to the end in one go.
+
+The server runs a whole fight the moment the fight phase starts (a few milliseconds) and sends the
+browsers its timeline of events, which they play back in step with the server's clock. So fights
+are deterministic for a seed, anyone can watch any fight, and the balance tools can run thousands.
+
+The battlefield is COLS x ROWS pointy-top hexes in "odd-r" offset coordinates (odd rows sit half a
+hex to the right). Each player's own board is COLS x 4 with row 3 at the front; the home board
+keeps its coordinates and the away board is turned round (`to_grid`), so the two front rows meet in
+the middle.
+
+Each tick (DT) every living unit, in a fixed shuffled order, casts if its mana is full, attacks its
+target if it's in range and its attack is ready, or else steps one hex along the shortest free path
+towards a hex in range. A unit that has just moved or cast is `busy` until it's done, and gains no mana for MANA_LOCK
+after a cast. From OVERTIME every hit grows, so fights end before TIME_CAP.
+
+Events, each a list starting [kind, time]:
+    m  [m, t, id, col, row]                     moved one hex (arrives MOVE_TIME later)
+    j  [j, t, id, col, row]                     jumped (dash, leap)
+    a  [a, t, id, target id]                    attacked
+    x  [x, t, id]                               dodged an attack
+    d  [d, t, source id, id, amount, type, crit, hp left]
+                                                took damage (type 0 phys, 1 magic, 2 true, 3 burn);
+                                                shields soak it before hp, so hp left may not drop
+    c  [c, t, id, target id or 0]               cast its ability
+    h  [h, t, id, amount]                       healed
+    s  [s, t, id, amount, secs]                 shielded
+    st [st, t, id, secs]                        stunned
+    sp [sp, t, unit row]                        summoned (a unit row like the start's)
+    r  [r, t, id, hp]                           rose again (Gravebound)
+    k  [k, t, id]                               died
+    v  [v, t, [[id, hp, mana, shield]...]]      every unit's numbers, every SNAP seconds
+"""
+
+import random
+
+from . import data as D
+
+COLS, ROWS = 7, 8
+DT = 0.05
+TIME_CAP = 30.0
+MOVE_TIME = 0.45
+CAST_LOCK = 0.4
+SNAP = 0.5
+MANA_PER_ATTACK = 10
+MANA_FROM_HURT = 0.04  # of damage taken after armor
+MANA_HURT_MAX = 8
+MANA_LOCK = 1.0  # seconds after a cast in which a unit gains no mana
+OVERTIME = 18.0  # from here every hit does OVERTIME_RAMP more for each second past it
+OVERTIME_RAMP = 0.25
+BURN_SECS = 3.0
+SLOW_SECS = 3.0
+CHILL_SECS = 2.0
+TRAIT_SHIELD_SECS = 10.0
+MAX_ASPD = 3.0
+DUEL_STACKS = 8
+TYPES = {"phys": 0, "magic": 1, "true": 2, "burn": 3}
+
+DIRS = ((1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1))
+
+
+def axial(h):
+    c, r = h
+    return c - (r - (r & 1)) // 2, r
+
+
+def offset(q, r):
+    return q + (r - (r & 1)) // 2, r
+
+
+def dist(a, b):
+    aq, ar = axial(a)
+    bq, br = axial(b)
+    dq, dr = aq - bq, ar - br
+    return max(abs(dq), abs(dr), abs(dq + dr))
+
+
+def on_board(h):
+    return 0 <= h[0] < COLS and 0 <= h[1] < ROWS
+
+
+def neighbours(h):
+    q, r = axial(h)
+    for dq, dr in DIRS:
+        n = offset(q + dq, r + dr)
+        if on_board(n):
+            yield n
+
+
+def to_grid(side, col, row):
+    return (col, row) if side == 0 else (COLS - 1 - col, ROWS - 1 - row)
+
+
+def line_hexes(a, b, length):
+    """`length` hexes from a (not included) in the direction of b."""
+    aq, ar = axial(a)
+    bq, br = axial(b)
+    dq, dr = bq - aq, br - ar
+    n = max(abs(dq), abs(dr), abs(dq + dr)) or 1
+    out = []
+    for i in range(1, length + 1):
+        fq, fr = aq + dq * i / n, ar + dr * i / n
+        fs = -fq - fr
+        q, r, s = round(fq), round(fr), round(fs)
+        if abs(q - fq) > abs(r - fr) and abs(q - fq) > abs(s - fs):
+            q = -r - s
+        elif abs(r - fr) > abs(s - fs):
+            r = -q - s
+        h = offset(q, r)
+        if on_board(h):
+            out.append(h)
+    return out
+
+
+def at_star(v, star):
+    return v[star - 1] if isinstance(v, list) else v
+
+
+class Unit:
+    def __init__(self, uid, side, key, star, hex_):
+        u = D.UNITS[key]
+        m = D.STAR_MULT[star - 1]
+        self.id, self.side, self.key, self.star, self.hex = uid, side, key, star, hex_
+        self.max = u["hp"] * m
+        self.hp = self.max
+        self.ad = u["ad"] * m
+        self.base_as = u["as"]
+        self.range = u["range"]
+        self.armor = u["armor"]
+        self.mr = u["mr"]
+        self.maxmana = u["mana"]
+        self.mana = u["start"]
+        self.ability = u["ability"]
+        self.traits = u["traits"]
+        self.summon = bool(u.get("summon"))
+        self.ap = 100.0
+        self.crit = 0.25
+        self.critdmg = 1.4
+        self.dodge = 0.0
+        self.aspd_pct = 0.0
+        self.shields = []  # [amount, until]
+        self.stun = 0.0
+        self.busy = 0.0
+        self.next_atk = 0.0
+        self.target = None
+        self.alive = True
+        self.burn = (0.0, 0.0, None)  # (damage per second, until, source)
+        self.slow = (0.0, 0.0)  # (fraction of attack speed lost, until)
+        self.buffs = []  # [stat, amount, until]
+        self.revive = 0.0
+        self.regen = 0.0
+        self.mana_regen = 0.0
+        self.burns = 0.0  # Emberforged: attacks set burning
+        self.chills = 0.0  # Mirefolk: attackers are chilled
+        self.duel = 0.0
+        self.stacks = 0
+        self.double = 0.0
+        self.leap = False
+        self.summon_boost = 0.0
+        self.dmg_done = 0.0
+        self.mana_lock = 0.0
+
+    def row(self):
+        """What the browsers are told about a unit at the start or when it's summoned."""
+        return [self.id, self.side, self.key, self.star, self.hex[0], self.hex[1], round(self.max),
+                self.maxmana, round(self.mana)]
+
+    def shield(self, now):
+        return sum(a for a, until in self.shields if until > now)
+
+    def stat(self, name, now):
+        return getattr(self, name) + sum(a for s, a, until in self.buffs if s == name and until > now)
+
+    def attack_speed(self, now):
+        pct = self.stat("aspd_pct", now) + self.duel * self.stacks
+        slow = self.slow[0] if self.slow[1] > now else 0.0
+        return min(MAX_ASPD, self.base_as * (1 + pct) * (1 - slow))
+
+
+class Fight:
+    def __init__(self, home, away, seed=0):
+        """home and away: lists of {"unit", "star", "col", "row"} in each player's own coordinates."""
+        self.rng = random.Random(seed)
+        self.t = 0.0
+        self.units: list[Unit] = []
+        self.occ = {}
+        self.events = []
+        self.next_id = 1
+        for side, board in ((0, home), (1, away)):
+            for b in board:
+                h = to_grid(side, b["col"], b["row"])
+                if h in self.occ or b["unit"] not in D.UNITS:
+                    continue
+                self.add(side, b["unit"], b.get("star", 1), h)
+        self.traits = [D.trait_counts([u.key for u in self.units if u.side == s and not u.summon]) for s in (0, 1)]
+        for side in (0, 1):
+            self.apply_traits(side)
+        self.rng.shuffle(self.units)
+        for u in self.units:
+            u.next_atk = 0.2 + 0.3 * self.rng.random()
+        self.start = [u.row() for u in sorted(self.units, key=lambda u: u.id)]
+        for u in list(self.units):
+            if u.leap:
+                self.do_leap(u)
+        self.since_snap = SNAP
+
+    # ------------------------------------------------------------ setting up
+
+    def add(self, side, key, star, h):
+        u = Unit(self.next_id, side, key, star, h)
+        self.next_id += 1
+        self.units.append(u)
+        self.occ[h] = u
+        return u
+
+    def apply_traits(self, side):
+        for trait, count in self.traits[side].items():
+            level = D.trait_level(trait, count)
+            if level < 0:
+                continue
+            fx = D.TRAITS[trait]["fx"][level]
+            team = fx.get("who") == "team"
+            for u in self.units:
+                if u.side == side and (team or trait in u.traits):
+                    self.give(u, fx)
+
+    def give(self, u, fx):
+        for k, v in fx.items():
+            if k == "who":
+                continue
+            if k == "hp_pct":
+                u.max *= 1 + v
+                u.hp = u.max
+            elif k == "ad_pct":
+                u.ad *= 1 + v
+            elif k == "mana_cut":
+                u.maxmana = round(u.maxmana * (1 - v))
+            elif k in ("armor", "mr", "ap", "dodge", "crit", "critdmg", "aspd_pct"):
+                setattr(u, k, getattr(u, k) + v)
+            elif k == "burn":
+                u.burns = max(u.burns, v)
+            elif k == "regen":
+                u.regen += v
+            elif k == "mana_regen":
+                u.mana_regen += v
+            elif k == "revive":
+                u.revive = max(u.revive, v)
+            elif k == "chill":
+                u.chills = max(u.chills, v)
+            elif k == "shield":
+                u.shields.append([v, TRAIT_SHIELD_SECS])
+            elif k == "duel":
+                u.duel = max(u.duel, v)
+            elif k == "double":
+                u.double = max(u.double, v)
+            elif k == "leap":
+                u.leap = True
+            elif k == "summon_boost":
+                u.summon_boost = max(u.summon_boost, v)
+
+    def do_leap(self, u):
+        foes = [f for f in self.units if f.alive and f.side != u.side]
+        if not foes:
+            return
+        far = max(foes, key=lambda f: (dist(u.hex, f.hex), -f.id))
+        spot = self.free_near(far.hex)
+        if spot:
+            self.jump(u, spot)
+            u.target = far
+
+    # ------------------------------------------------------------ helpers
+
+    def ev(self, *e):
+        self.events.append([e[0], round(self.t, 2), *e[1:]])
+
+    def alive(self, side):
+        return [u for u in self.units if u.alive and u.side == side]
+
+    def foes(self, u):
+        return [f for f in self.units if f.alive and f.side != u.side]
+
+    def friends(self, u):
+        return [f for f in self.units if f.alive and f.side == u.side]
+
+    def nearest(self, u, among):
+        return min(among, key=lambda f: (dist(u.hex, f.hex), f.id), default=None)
+
+    def free_near(self, h):
+        """A free hex next to h, else the nearest free hex."""
+        free = [n for n in neighbours(h) if n not in self.occ]
+        if free:
+            return self.rng.choice(sorted(free))
+        rest = [(c, r) for c in range(COLS) for r in range(ROWS) if (c, r) not in self.occ]
+        return min(rest, key=lambda n: (dist(n, h), n), default=None)
+
+    def jump(self, u, h):
+        del self.occ[u.hex]
+        u.hex = h
+        self.occ[h] = u
+        self.ev("j", u.id, h[0], h[1])
+
+    def path_step(self, u, target):
+        """The first hex of the shortest free path to a hex within range of target, or None."""
+        start = u.hex
+        if dist(start, target.hex) <= u.range:
+            return None
+        prev = {start: None}
+        frontier = [start]
+        while frontier:
+            nxt = []
+            for h in frontier:
+                for n in neighbours(h):
+                    if n in prev or n in self.occ:
+                        continue
+                    prev[n] = h
+                    if dist(n, target.hex) <= u.range:
+                        while prev[n] != start:
+                            n = prev[n]
+                        return n
+                    nxt.append(n)
+            frontier = nxt
+        return None
+
+    # ------------------------------------------------------------ the fight
+
+    def run(self):
+        while self.t < TIME_CAP and self.alive(0) and self.alive(1):
+            self.tick()
+            self.t += DT
+        self.snap()
+        left = [self.alive(0), self.alive(1)]
+        winner = 0 if left[0] and not left[1] else 1 if left[1] and not left[0] else None
+        return {
+            "winner": winner,
+            "time": round(self.t, 2),
+            "start": self.start,
+            "events": self.events,
+            "traits": self.traits,
+            "survivors": [[[u.key, u.star] for u in side if not u.summon] for side in left],
+            "dmg": {u.id: round(u.dmg_done) for u in self.units},
+        }
+
+    def tick(self):
+        now = self.t
+        self.since_snap += DT
+        if self.since_snap >= SNAP:
+            self.since_snap = 0.0
+            self.snap()
+        for u in list(self.units):
+            if not u.alive:
+                continue
+            dps, until, src = u.burn
+            if until > now and dps:
+                self.deal(src, u, dps * DT, "burn")
+                if not u.alive:
+                    continue
+            if u.regen and u.hp < u.max:
+                u.hp = min(u.max, u.hp + u.max * u.regen * DT)
+            if u.mana_regen and u.ability and now >= u.mana_lock:
+                u.mana += u.mana_regen * DT
+            if now < u.stun or now < u.busy:
+                continue
+            if u.ability and u.mana >= u.maxmana:
+                self.cast(u)
+                continue
+            foes = self.foes(u)
+            if not foes:
+                return
+            t = u.target
+            if t is None or not t.alive or dist(u.hex, t.hex) > u.range:
+                t = u.target = self.nearest(u, foes)
+            if dist(u.hex, t.hex) <= u.range:
+                if now >= u.next_atk:
+                    self.attack(u, t)
+                    u.next_atk = now + 1 / u.attack_speed(now)
+                continue
+            step = None
+            for f in sorted(foes, key=lambda f: (dist(u.hex, f.hex), f.id)):
+                step = self.path_step(u, f)
+                if step:
+                    u.target = f
+                    break
+            if step:
+                del self.occ[u.hex]
+                u.hex = step
+                self.occ[step] = u
+                u.busy = now + MOVE_TIME
+                u.next_atk = max(u.next_atk, u.busy)
+                self.ev("m", u.id, step[0], step[1])
+
+    def snap(self):
+        now = self.t
+        self.ev("v", [[u.id, round(u.hp), round(u.mana), round(u.shield(now))] for u in self.units if u.alive])
+
+    def attack(self, u, t):
+        self.ev("a", u.id, t.id)
+        if u.ability and self.t >= u.mana_lock:
+            u.mana = min(u.maxmana, u.mana + MANA_PER_ATTACK)
+        if u.duel:
+            u.stacks = min(DUEL_STACKS, u.stacks + 1)
+        hits = 2 if u.double and self.rng.random() < u.double else 1
+        for _ in range(hits):
+            if not t.alive:
+                break
+            if t.dodge and self.rng.random() < t.dodge:
+                self.ev("x", t.id)
+                continue
+            crit = self.rng.random() < u.crit
+            self.deal(u, t, u.stat("ad", self.t) * (u.critdmg if crit else 1), "phys", crit)
+            if u.burns and t.alive:
+                t.burn = (t.max * u.burns, self.t + BURN_SECS, u)
+        if t.chills:
+            u.slow = (max(t.chills, u.slow[0] if u.slow[1] > self.t else 0), self.t + CHILL_SECS)
+
+    def deal(self, src, dst, amount, kind, crit=False):
+        if not dst.alive or amount <= 0:
+            return 0
+        now = self.t
+        if kind == "phys":
+            amount *= 100 / (100 + max(0, dst.stat("armor", now)))
+        elif kind == "magic":
+            amount *= 100 / (100 + max(0, dst.stat("mr", now)))
+        if now > OVERTIME:
+            amount *= 1 + OVERTIME_RAMP * (now - OVERTIME)
+        rest = amount
+        for sh in dst.shields:
+            if sh[1] > now and rest > 0:
+                take = min(sh[0], rest)
+                sh[0] -= take
+                rest -= take
+        dst.shields = [sh for sh in dst.shields if sh[0] > 0 and sh[1] > now]
+        dst.hp -= rest
+        if kind != "burn" or amount >= 1:
+            self.ev("d", src.id if src else 0, dst.id, round(amount), TYPES[kind], int(crit), max(0, round(dst.hp)))
+        if dst.ability and kind != "burn" and now >= dst.mana_lock:
+            dst.mana = min(dst.maxmana, dst.mana + min(MANA_HURT_MAX, amount * MANA_FROM_HURT))
+        if src is not None:
+            src.dmg_done += amount
+        if dst.hp <= 0:
+            self.die(dst)
+        return amount
+
+    def die(self, u):
+        if u.revive:
+            u.hp = u.max * u.revive
+            u.revive = 0.0
+            u.burn = (0.0, 0.0, None)
+            u.stun = self.t + 1.0
+            self.ev("r", u.id, round(u.hp))
+            return
+        u.alive = False
+        u.hp = 0
+        del self.occ[u.hex]
+        self.ev("k", u.id)
+
+    # ------------------------------------------------------------ abilities
+
+    def cast(self, u):
+        foes = self.foes(u)
+        t = u.target if u.target is not None and u.target.alive else self.nearest(u, foes)
+        u.target = t
+        u.mana = 0.0
+        self.ev("c", u.id, t.id if t else 0)
+        for step in u.ability["steps"]:
+            getattr(self, "step_" + step["do"])(u, step)
+        u.busy = self.t + CAST_LOCK
+        u.mana_lock = self.t + MANA_LOCK
+        u.next_atk = max(u.next_atk, u.busy)
+
+    def select(self, u, sel):
+        name, _, n = sel.partition(":")
+        n = int(n) if n else 0
+        t = u.target if u.target is not None and u.target.alive else None
+        foes = self.foes(u)
+        if name == "target":
+            return [t] if t else []
+        if name == "self":
+            return [u]
+        if name == "around_target":
+            return [f for f in foes if dist(f.hex, t.hex) <= n] if t else []
+        if name == "around_self":
+            return [f for f in foes if dist(f.hex, u.hex) <= n]
+        if name == "line":
+            if not t:
+                return []
+            hexes = set(line_hexes(u.hex, t.hex, n))
+            return [f for f in foes if f.hex in hexes]
+        if name == "nearest":
+            return sorted(foes, key=lambda f: (dist(u.hex, f.hex), f.id))[:n]
+        if name == "farthest":
+            return [max(foes, key=lambda f: (dist(u.hex, f.hex), -f.id))] if foes else []
+        if name == "random":
+            return self.rng.sample(foes, min(n, len(foes)))
+        if name == "chain":
+            if not t:
+                return []
+            hit = [t]
+            while len(hit) < n:
+                left = [f for f in foes if f not in hit and dist(f.hex, hit[-1].hex) <= 3]
+                if not left:
+                    break
+                hit.append(min(left, key=lambda f: (dist(f.hex, hit[-1].hex), f.id)))
+            return hit
+        friends = self.friends(u)
+        if name == "lowest_ally":
+            return [min(friends, key=lambda f: (f.hp / f.max, f.id))]
+        if name == "allies_near":
+            return [f for f in friends if dist(f.hex, u.hex) <= n]
+        if name == "allies":
+            return friends
+        if name == "enemies":
+            return foes
+        raise ValueError(sel)
+
+    def step_hit(self, u, st):
+        kind = st.get("type", "magic")
+        amount = at_star(st["dmg"], u.star) * u.ap / 100
+        for f in self.select(u, st["to"]):
+            self.deal(u, f, amount, kind)
+            if not f.alive:
+                continue
+            if "stun" in st:
+                secs = at_star(st["stun"], u.star)
+                f.stun = max(f.stun, self.t + secs)
+                self.ev("st", f.id, secs)
+            if "slow" in st:
+                f.slow = (at_star(st["slow"], u.star), self.t + SLOW_SECS)
+            if "burn" in st:
+                f.burn = (f.max * at_star(st["burn"], u.star), self.t + BURN_SECS, u)
+
+    def step_heal(self, u, st):
+        amount = at_star(st["amt"], u.star) * u.ap / 100
+        for f in self.select(u, st["to"]):
+            gain = min(amount, f.max - f.hp)
+            f.hp += gain
+            self.ev("h", f.id, round(gain))
+
+    def step_shield(self, u, st):
+        amount = at_star(st["amt"], u.star) * u.ap / 100
+        secs = at_star(st["secs"], u.star)
+        for f in self.select(u, st["to"]):
+            f.shields.append([amount, self.t + secs])
+            self.ev("s", f.id, round(amount), secs)
+
+    def step_buff(self, u, st):
+        amount = at_star(st["amt"], u.star)
+        for f in self.select(u, st["to"]):
+            f.buffs.append([st["stat"], amount, self.t + at_star(st["secs"], u.star)])
+
+    def step_summon(self, u, st):
+        h = self.free_near(u.hex)
+        if h is None:
+            return
+        s = self.add(u.side, st["unit"], u.star, h)
+        if u.summon_boost:
+            s.max *= 1 + u.summon_boost
+            s.hp = s.max
+            s.ad *= 1 + u.summon_boost
+        s.next_atk = self.t + 0.5
+        self.ev("sp", s.row())
+
+    def step_dash(self, u, st):
+        picked = self.select(u, st["to"])
+        if not picked:
+            return
+        spot = self.free_near(picked[0].hex)
+        if spot:
+            self.jump(u, spot)
+        u.target = picked[0]
+
+
+def fight(home, away, seed=0):
+    return Fight(home, away, seed).run()

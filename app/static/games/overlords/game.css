@@ -1,0 +1,86 @@
+/* Overlords. The menu and lobby are the shared paper card (shared/lobby.css); the game is dark slate. */
+:root {
+  --slate: #1b1f2b; --slate2: #252b3a; --line: #3a4258; --text: #e8eaf2; --dim: #9aa3b8; --gold: #f2c230;
+  --c1: #9aa3b0; --c2: #4fb85f; --c3: #3f8fe8; --c4: #b05be0; --c5: #f2a23a;
+}
+body { background: var(--slate) radial-gradient(ellipse at top, #2f2840 0%, var(--slate) 65%) fixed; }
+
+#game { height: 100vh; height: 100dvh; display: flex; flex-direction: column; color: var(--text); min-width: 1000px; }
+.top { display: flex; gap: 16px; align-items: center; padding: 8px 14px; background: rgba(0, 0, 0, 0.3); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.top .spacer { flex: 1; }
+.top .code { color: var(--gold); }
+#hud-phase.hurry { color: #ff8b7b; font-weight: 700; }
+#hud-hp b { color: #7be08a; }
+#hud-hp.low b { color: #ff8b7b; }
+#hud-gold b { color: var(--gold); }
+#game button { background: var(--slate2); color: var(--text); border-color: var(--line); }
+#game button:hover:not(:disabled) { background: #313a50; }
+#game button.primary { background: var(--gold); border-color: var(--gold); color: #2a2000; }
+#game button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+#game button small { opacity: 0.7; font-weight: 400; }
+#mute { padding: 4px 10px; }
+
+.main { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px; }
+.stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+#banner { min-height: 1.5em; text-align: center; font-weight: 600; color: var(--dim); }
+#banner b { color: var(--text); }
+#banner .won { color: #7be08a; }
+#banner .lost { color: #ff8b7b; }
+#board { flex: 1; min-height: 0; width: 100%; display: block; border-radius: 8px; background: #20283a; cursor: default; }
+aside { width: 250px; flex: none; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+aside section { background: var(--slate2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+aside h2 { margin: 0 0 6px; font: 600 1rem/1.3 "Source Serif 4", Georgia, serif; }
+aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
+
+.players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.players li { padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; display: grid; grid-template-columns: 12px 1fr auto; gap: 2px 8px; align-items: center; }
+.players li:hover { background: #2d3446; }
+.players li.watched { border-color: var(--gold); }
+.players li.out { opacity: 0.45; }
+.players li.off .name { font-style: italic; }
+.players .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.players .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.players .hp { font-variant-numeric: tabular-nums; font-weight: 700; }
+.players .bar { grid-column: 2 / 4; height: 5px; background: #11151e; border-radius: 3px; overflow: hidden; }
+.players .bar i { display: block; height: 100%; background: #6fd17e; }
+.players .sub { grid-column: 2 / 4; font-size: 0.78rem; color: var(--dim); display: flex; gap: 8px; }
+.players .sub .w { color: #7be08a; }
+.players .sub .l { color: #ff8b7b; }
+
+#shopbar { flex: none; display: flex; gap: 10px; align-items: stretch; }
+.shop-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 230px; flex: none; }
+.shop-buttons button { padding: 6px 8px; }
+#shop { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; border-radius: 8px; }
+#shop.sell { outline: 2px dashed #ff8b7b; outline-offset: 3px; }
+#shop .card { height: 86px; padding: 6px 8px; border-radius: 8px; text-align: left; display: flex; flex-direction: column; gap: 2px; border-width: 2px; border-color: var(--cc); position: relative; }
+#shop .card b { font-size: 0.95rem; padding-right: 22px; line-height: 1.2; }
+#shop .card .tr { font-size: 0.75rem; color: var(--dim); font-weight: 400; }
+#shop .card .cost { position: absolute; right: 8px; top: 6px; color: var(--gold); }
+#shop .card.pair { box-shadow: 0 0 0 2px var(--gold) inset; }
+#shop .card.pair::after { content: "pair"; position: absolute; right: 8px; bottom: 6px; font-size: 0.7rem; color: var(--gold); }
+#shop .empty { border: 1px dashed var(--line); border-radius: 8px; }
+#shop .sold { display: flex; align-items: center; justify-content: center; color: #ff8b7b; font-weight: 700; }
+
+.traits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.traits li { display: grid; grid-template-columns: 1fr auto; font-size: 0.88rem; color: var(--dim); cursor: default; }
+.traits li.on { color: var(--text); }
+.traits li.on b { color: var(--gold); }
+.traits li .lv { font-variant-numeric: tabular-nums; }
+.traits .steps { grid-column: 1 / 3; display: flex; gap: 3px; }
+.traits .steps i { font-style: normal; font-size: 0.72rem; padding: 0 4px; border-radius: 3px; border: 1px solid var(--line); }
+.traits .steps i.on { border-color: var(--gold); color: var(--gold); }
+#info:empty { display: none; }
+#info h3 { margin: 0 0 4px; font-size: 1rem; }
+#info p { margin: 0 0 6px; font-size: 0.85rem; color: var(--dim); }
+#info p.ab b { color: var(--text); }
+#info dl { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 1px 8px; margin: 0 0 6px; font-size: 0.82rem; }
+#info dt { color: var(--dim); }
+#info dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; }
+.overlay .card { background: var(--paper); color: var(--fg); padding: 28px 36px; border-radius: 6px; min-width: 360px; }
+.overlay .kicker { margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.8rem; }
+.overlay h2 { margin: 4px 0 12px; font: 700 1.8rem/1.2 "Source Serif 4", Georgia, serif; }
+.overlay ol { padding-left: 22px; }
+.overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+#game .overlay button { background: #fff; color: var(--accent); border-color: var(--accent); }

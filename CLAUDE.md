@@ -40,12 +40,15 @@ Changes that need someone at the Mac (say so in the commit message and to the us
   course every round from seventy-five kinds of segment, items to hit each other with or leave on the course; each browser runs its own physics, a FastAPI WebSocket server relays, decides items and scores) at `/games/scramble`
 - `app/holdfast/` and `app/static/games/holdfast/`: Holdfast, co-op tower defence for 1-4 players (one map, separate
   purses, thirty waves, fifteen towers with two crosspathable upgrade paths and a final evolution each, real projectiles, damage types and immunities, layered enemies, boss events, one-use items, a levelling hero each, eight maps (some with forks and gates that open later), endless mode, saves and records in `data/holdfast.db`; the fight runs on a FastAPI WebSocket server) at `/games/holdfast`
-- `app/rooms.py` and `app/static/games/shared/net.js`: what the seven multiplayer games share (the WebSocket loop,
+- `app/overlords/` and `app/static/games/overlords/`: Overlords, an auto-battler for 2-4 players with bots (a shop,
+  bench and hex board each, units that merge into stars, sixteen traits; every fight is simulated on a FastAPI
+  WebSocket server and played back in every browser, so anyone can watch any fight) at `/games/overlords`
+- `app/rooms.py` and `app/static/games/shared/net.js`: what the eight multiplayer games share (the WebSocket loop,
   sending, room codes; the browser's identity and reconnecting socket); `games/shared/lobby.js` and `lobby.css`:
-  the menu and lobby Scramble and Holdfast share
+  the menu and lobby Scramble, Holdfast and Overlords share
 - `tools/`: dev scripts (the tactics game's headless autoplay test, `threefold-art/`, the Python that draws its
   sprites, `song-guesser-check.js`, which checks Song Guesser's arrangements, and `song-guesser-midi/`, which
-  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `scramble-*`, Scramble's; `holdfast-*`, Holdfast's; `check-all.sh`, every fast check, and
+  turns MIDI transcriptions into Song Guesser choruses, `arena-*`, Frag Arena's checks, `brawl-*`, Board Brawl's, and `saltbound-*` plus `saltbound-art/`, Saltbound's; `kingfall-*` plus `kingfall-art/`, Kingfall's; `relay-*`, Sketch Relay's; `scramble-*`, Scramble's; `holdfast-*`, Holdfast's; `overlords-*`, Overlords'; `check-all.sh`, every fast check, and
   `bump-version.py`, the cache versions)
 - `data/`: runtime data (SQLite, books, audio); gitignored
 
@@ -69,6 +72,7 @@ up front. Read the matching one before you change something in that area:
 | `app/relay/`, `app/static/games/relay/`, `tools/relay-*` | `docs/relay.md` |
 | `app/scramble/`, `app/static/games/scramble/`, `tools/scramble-*` | `docs/scramble.md` |
 | `app/holdfast/`, `app/static/games/holdfast/`, `tools/holdfast-*` | `docs/holdfast.md` |
+| `app/overlords/`, `app/static/games/overlords/`, `tools/overlords-*` | `docs/overlords.md` |
 | Game sprites (`tools/threefold-art/`, `js/sprites.js`) | `docs/game-art.md` too |
 
 When a change alters how an area works or turns up a new gotcha, update its doc in the same commit.

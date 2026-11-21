@@ -1,4 +1,4 @@
-/* The menu and lobby of a room-code game (Scramble, Holdfast): the site's paper card. The game's
+/* The menu and lobby of a room-code game (Scramble, Holdfast, Overlords): the site's paper card. The game's
    own stylesheet sets the page background and everything after the lobby. */
 :root {
   --paper: #fbf7ef;

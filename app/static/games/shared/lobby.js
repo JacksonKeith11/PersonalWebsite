@@ -1,4 +1,4 @@
-// The start of a room-code game, shared by Scramble and Holdfast: the menu (a name, make a room or
+// The start of a room-code game, shared by Scramble, Holdfast and Overlords: the menu (a name, make a room or
 // join one by code), the connection, and the messages every such game gets (welcome, reload,
 // error). The page needs elements with these ids: menu, name, create, code, join, status, and
 // (in its lobby) share and copy. Styles are in lobby.css.

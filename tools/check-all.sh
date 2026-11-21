@@ -2,7 +2,7 @@
 # The fast checks, before a push (every push to main goes live). About seven and a half minutes.
 #     tools/check-all.sh
 # The other games' browser smoke tests need a running server and aren't included: see each area's doc.
-# Kingfall's, Sketch Relay's, Scramble's and Holdfast's start their own server, and are skipped where Playwright isn't installed.
+# Kingfall's, Sketch Relay's, Scramble's, Holdfast's and Overlords' start their own server, and are skipped where Playwright isn't installed.
 set -u
 cd "$(dirname "$0")/.."
 fail=0
@@ -40,4 +40,6 @@ run "Scramble: in two browsers"      node tools/scramble-smoke.js --serve
 run "Holdfast: the room's rules"     python3 tools/holdfast-check.py
 run "Holdfast: a game on each map"   python3 tools/holdfast-sim.py --fast
 run "Holdfast: in two browsers"      node tools/holdfast-smoke.js --serve
+run "Overlords: rules, fights, bots" python3 tools/overlords-check.py
+run "Overlords: in two browsers"     node tools/overlords-smoke.js --serve
 exit $fail

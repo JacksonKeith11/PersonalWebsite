@@ -33,8 +33,9 @@ Rounds 1, 2, 6 and 11 are monster rounds (`PVE`): everyone fights the same monst
 1-3 for a win or loss streak of 2+. **Spoils** (the owner asked for gold earned in fights, after Guildrun, late
 November 2026): after a fight against a player, 1 gold for every `SPOILS_PER` (3) of their units brought down,
 at most `SPOILS_MAX` (3), paid in `end_fight` from the result's `fallen` counts (summons left out; a ghost's
-owner gets nothing; monster rounds pay `PVE_GOLD` instead). About 0.85 gold a player a fight; the banner
-says what you took (`settled[].gold`). Everyone starts with one free 1-cost unit. Before each fight,
+owner gets nothing; monster rounds pay `PVE_GOLD` instead). About 0.85 gold a player a fight. Beating a
+player also pays `WIN_GOLD` (1; added when spoils alone hardly helped the style that spends everything). The
+banner says what you took (`settled[].gold` for spoils, `settled[].win` for the win). Everyone starts with one free 1-cost unit. Before each fight,
 bench units fill any empty board places up to the level (`fill_board`), so forgetting to place isn't
 fatal. Copies come out of a shared pool (`POOL`, by tier) and go back when sold or when their owner
 is knocked out.
@@ -85,7 +86,10 @@ Tier-4 and tier-5 units have 8% and 15% more HP and attack than written (`TIER_P
   artifact).
 - **Commanders** (`COMMANDERS`, 16; the roster review added the Gambler, the Hexer, the Chronomancer and
   the Twinmaker, and gave the Warlord, Archmage, Blademaster and Survivor passives that do more than add
-  a stat): three offered at the start, picked on a screen before the first
+  a stat; a pass in late November 2026 hexed two units for the Hexer (`HEXER_TARGETS`) and 30% on its power,
+  raised the Warlord to 20% front-row HP, a 15% rally and a 400 shield (`WARLORD_*`), cut the Gambler's
+  roll to 1-6 gold, and gave the Twinmaker 7 rounds of charge and a passive that offers only units owned
+  at one star): three offered at the start, picked on a screen before the first
   fight. The first fight waits for everyone still connected to pick (the owner asked for no auto-pick
   while someone thinks): when the timer runs out, `tick` holds the phase while `choosing()` is non-empty,
   the browsers get `state.choosing` and say who they wait for; anyone who disconnects gets the first
@@ -131,7 +135,9 @@ if they aim for a trait it counts; going by today's count alone, they almost nev
   more than one lot (`resolve_auction`; without that rule saving bots won everything and the saver style
   led at 2.0; `award`: a unit with no bench
   room is sold on the spot, its item kept); unsold units go back. No shopping during it. The results ride
-  in `state.auction_results` while planning (the banner lists them). Bots bid each lot's worth to them,
+  in `state.auction_results` while planning, with every bid once it's closed (`bids`: [[player, bids]]); the
+  banner lists who took what and the other bids on each lot, marking bids that lost only because the bidder
+  took another lot (phones show just the runner-up, to keep the banner short). Bots bid each lot's worth to them,
   more for their style's favourite (`AUCTION_LIKES`), with some luck, and keep `AUCTION_SAVE` gold the
   round before.
 - In a fight these reach `sim.Fight` as each side's `extras`: `bonus` (augment trait counts), `team`
@@ -428,6 +434,8 @@ matching), the side panels fold away:
   which flickered. Phones keep it fixed at the top, at most 42% of the screen and scrolling, with Sell and
   the pick button moved up under the unit's name: any taller and it covered the hexes tap-to-move needs
   (the phone check caught it).
+- On desktop the "Choose ..." reminder (`#choose-show`) sits in the stage's flow above the banner; it
+  floated (fixed) over the banner's text until late November 2026. Phones keep it fixed at the bottom.
 - **Interest** was 1 per 10 saved, and saving lost: in head-to-heads normal bots that spent everything
   placed 2.18 against 2.82 for ones keeping 20-30 gold. So the owner asked for saving to be worth it, and
   the style tournament (`tools/overlords-styles.py`: every match seats the four styles, shuffled; 300
@@ -437,7 +445,8 @@ matching), the side panels fold away:
   2.0-2.1 even with one lot each (without auctions the four styles were 2.41-2.66), so interest went to
   1 per 8: saver 2.33, fast 2.45, trait 2.46, tempo 2.76 (per 7 with weaker unit lots came out the same).
   Then each bid only had to fit your gold (not all of them together), spoils came in and Legion's reserve fell
-  to 10: fast 2.32, trait 2.43, econ 2.51, tempo 2.74. Spoils (about 0.85 gold a fight) hardly moved tempo.
+  to 10: fast 2.32, trait 2.43, econ 2.51, tempo 2.74. Spoils (about 0.85 gold a fight) hardly moved tempo;
+  1 gold a win then gave fast 2.33, trait 2.40, econ 2.58, tempo 2.68.
   Retest with the tournament before touching `income`, interest, XP or the auction.
 - **Three-stars of cheap units are out of reach.** The reroller bot kept 10 gold, stayed on level 5 and
   rerolled the rest for up to three cheap targets: with about 7 gold a round it reached 8 of 9 copies of
@@ -483,9 +492,10 @@ matching), the side panels fold away:
   browsers see them, a hard bot tries every arrangement, someone leaving re-pairs), a unit killed in its
   own turn not acting, the auction (three lots, bids checked, the winner pays, no shopping meanwhile,
   unsold units back in the pool, results shown, relics never in the armory; each bid may be up to all your
-  gold), build-around augments (the counts, the front row, gold, stars and conversions in `extras`, the fight
+  gold; every bid shown once it closes), build-around augments (the counts, the front row, gold, stars and conversions in `extras`, the fight
   and the unit cards, the counts the browsers get, bots counting on their planned traits; auction augments
-  never offered as an ordinary pick), spoils (each side's fallen counted, gold paid to match), and three whole bot matches with the pool conserved.
+  never offered as an ordinary pick), spoils (each side's fallen counted, gold paid to match) and the
+  win's gold, the Hexer's two targets, and three whole bot matches with the pool conserved.
 - `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
   bought in the armory and dragged onto a unit.
@@ -504,7 +514,7 @@ matching), the side panels fold away:
   cost-matched boards; `--show SEED` prints one fight. Both together: about a minute.
 
 Latest numbers (late November 2026: units and traits after the second balance pass; whole matches after
-spoils, bids each up to your gold and bots weighing build-arounds ahead; ~6 minutes to rerun the three tools, plus the
+spoils and the win's gold, bids each up to your gold, bots weighing build-arounds ahead and the commander pass; ~6 minutes to rerun the three tools, plus the
 style tournament):
 - Units, 2000 cost-matched 7-unit fights (`overlords-fight.py 2000 --size 7`): 18 ms a fight, average
   21 s, 1.7% hit the cap. 58 of 60 within 42-58% (each about ±2.5% at ~400 fights): just outside,
@@ -517,16 +527,18 @@ style tournament):
 - Traits, 120 fights a tier (`--traits 120`, about ±4.5%, and noisier than that in practice: Assassin 2
   read 42% here and 56% in a 300-a-tier spot run): first tiers 42-57%, the 4-tiers of the 2/4 traits
   58-82%, the top tiers of 6 at 66-82%. Every ladder rises.
-- Whole bot matches (`overlords-sim.py 300`, normal bots, a random style each): 17.3 rounds (15-21), about
-  17 minutes at full timers (the simulator counts each auction's 25 s). Commanders 2.19 (Twinmaker,
-  Gambler) to 2.87 (Hexer). About ±0.15 of noise.
-- Build-arounds, same run (about ±0.15 at 100 picks, ±0.3 at 25): Elite Guard 1.87 over 39 (bots take it
+- Whole bot matches (`overlords-sim.py 300`, normal bots, a random style each): 17.2 rounds (14-21), about
+  17 minutes at full timers (the simulator counts each auction's 25 s). Commanders 2.18 (Archmage) to 2.79
+  (Necromancer): Twinmaker 2.25 (was 2.19, then 2.08 with only the longer charge), Gambler 2.49 (2.19),
+  Hexer 2.54 (2.87), Warlord 2.70 (2.80, then 2.87 at 15%/12%). About ±0.15 of noise.
+- Build-arounds, the run before the commander pass (about ±0.15 at 100 picks, ±0.3 at 25): Elite Guard 1.87 over 39 (bots take it
   once they field several two-stars, so its place flatters it; trimmed once already), Bladework 2.31 (88),
   Shield Wall 2.38 (84), Melting Pot 2.41 (49), Kinship 2.44 (106; it was hardly ever taken before
   `build_outlook`), Giant's Heart 2.54 (24), Spellweave 2.65 (49), War Chest 2.66 (29), Quickening 2.80 (30),
   Runeplate 2.87 (23). Auction augments: Legion 2.40, Iron Will 2.75, Ancestral Echo 2.84, War Banner 2.87.
-- The auction, same run: units, relics, Iron Will, Ancestral Echo and War Banner always sell (14.8, 10.8,
+- The auction, the same: units, relics, Iron Will, Ancestral Echo and War Banner always sell (14.8, 10.8,
   7.5, 7.6 and 11.1 gold), Legion 72% of the time (13.0). Spoils: 0.85 gold a player a fight.
-- The style tournament (`overlords-styles.py 300`): fast 2.32, trait 2.43, econ 2.51, tempo 2.74. (Before
-  spoils and bids each up to your gold, interest per 8: econ 2.33, fast 2.45, trait 2.46, tempo 2.76.) (Before the auction, at per 6: fast 2.31, econ 2.43, trait 2.58, tempo 2.68;
+- The style tournament (`overlords-styles.py 300`), with the win's gold: fast 2.33, trait 2.40, econ 2.58,
+  tempo 2.68. (Spoils without it: fast 2.32, trait 2.43, econ 2.51, tempo 2.74; before spoils and bids each up
+  to your gold: econ 2.33, fast 2.45, trait 2.46, tempo 2.76.) (Before the auction, at per 6: fast 2.31, econ 2.43, trait 2.58, tempo 2.68;
   hard bots then: fast 2.27, trait 2.35, tempo 2.59, econ 2.78.)

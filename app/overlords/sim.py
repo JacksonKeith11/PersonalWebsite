@@ -324,9 +324,10 @@ class Fight:
                     u.buffs.append(["aspd_pct", ex["rally"][0], ex["rally"][1]])
             self.first_revive[side] = ex.get("revive_first", 0.0)
             foes = [u for u in self.units if u.side != side]
-            if ex.get("hex_strongest") and foes:  # the Hexer: the enemy's best unit takes more all fight
-                best = max(foes, key=lambda u: (u.star, D.UNITS[u.key]["cost"], len(u.items), -u.id))
-                best.amp = (ex["hex_strongest"], TIME_CAP + 1)
+            if ex.get("hex_strongest") and foes:  # the Hexer: the enemy's best units take more all fight
+                ranked = sorted(foes, key=lambda u: (u.star, D.UNITS[u.key]["cost"], len(u.items), -u.id), reverse=True)
+                for best in ranked[:D.HEXER_TARGETS]:
+                    best.amp = (ex["hex_strongest"], TIME_CAP + 1)
             if ex.get("hex_all"):
                 amt, secs = ex["hex_all"]
                 for f in foes:

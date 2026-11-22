@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=24';
-import { isMuted, play, setMuted } from './sound.js?v=24';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=24';
+import { Playback } from './fight.js?v=25';
+import { isMuted, play, setMuted } from './sound.js?v=25';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=25';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -670,7 +670,8 @@ function banner() {
     if (S.watch !== room.you && w) parts.push(`Looking at <b>${esc(w.name)}</b>'s board`);
     if (mine && st.round > 1 && S.watch === room.you) {
       parts.push(mine.dmg ? `<span class="lost">Last fight cost you ${mine.dmg} HP</span>` : '<span class="won">You won your last fight</span>');
-      if (mine.gold) parts.push(`<span class="won">+${mine.gold} gold in spoils</span> (1 for every ${S.cfg.rules.spoils_per} units you brought down)`);
+      const won = mine.win || 0, spoils = mine.gold || 0;
+      if (won || spoils) parts.push(`<span class="won">+${won + spoils} gold</span> (${[won && `${won} for the win`, spoils && `${spoils} in spoils, 1 for every ${S.cfg.rules.spoils_per} units you brought down`].filter(Boolean).join(', ')})`);
     }
     if (st.choosing?.length && S.endsAt - now() <= 0) {
       const names = st.choosing.filter(id => id !== room.you).map(id => esc(player(id)?.name));
@@ -683,9 +684,14 @@ function banner() {
       const said = ar.results.map(([i, by, price]) => {
         const lot = ar.lots[i];
         const name = lot.kind === 'unit' ? S.cfg.units[lot.unit].name : lot.kind === 'item' ? S.cfg.items[lot.item].name : S.cfg.augments[lot.augment].name;
-        return by ? `<b>${by === room.you ? 'you' : esc(player(by)?.name)}</b> took ${esc(name)} for ${price}` : `${esc(name)} went unsold`;
+        const who = id => id === room.you ? 'you' : esc(player(id)?.name);
+        const took = new Set(ar.results.filter(r => r[1] && r[0] !== i).map(r => r[1])); // won another lot
+        const also = (ar.bids || []).filter(([id, b]) => id !== by && b[i]).sort((x, y) => y[1][i] - x[1][i])
+          .map(([id, b]) => `${who(id)} ${b[i]}${took.has(id) && b[i] >= price ? ' (took another lot)' : ''}`);
+        const rest = !also.length ? '' : COMPACT.matches ? ` (next: ${also[0]})` : ` (also bid: ${also.join(', ')})`; // phones: just the runner-up
+        return by ? `<b>${who(by)}</b> took ${esc(name)} for ${price}${rest}` : `${esc(name)} went unsold${rest}`;
       });
-      parts.push('Auction: ' + said.join(', '));
+      parts.push('Auction: ' + said.join('; '));
     }
     if (st.pve) parts.push(S.watch === room.you ? 'Monsters this round: they stand on the top half' : 'Monsters this round');
     else if (foe && player(foe.id) && mine2?.alive) {

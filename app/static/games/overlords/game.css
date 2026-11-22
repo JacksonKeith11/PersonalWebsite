@@ -279,7 +279,8 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
 .trait-units li .sprite { margin: -6px -2px -6px -4px; }
 .trait-units li.on { color: var(--gold); font-weight: 600; }
 .trait-units li.bench { color: var(--text); }
-#choose-show { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 20; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5); }
+/* desktop: in the stage's flow above the banner (it floated over the banner's text until late November 2026) */
+#choose-show { flex: none; align-self: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5); }
 #choose-note { margin: 8px 0 0; font-size: 0.82rem; }
 
 /* ------------------------------------------------------------------ phones and small windows
@@ -379,7 +380,7 @@ aside .note { color: var(--dim); font-size: 0.82rem; margin: 6px 0 0; }
   #auction > p { font-size: 0.85rem; margin-bottom: 6px; }
   #auction-lots .bidder { flex: 1 1 100%; }
   #draft-options { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
-  #choose-show { top: auto; bottom: 12px; }
+  #choose-show { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 20; }
   #choose-show.talent { display: none; }
 }
 

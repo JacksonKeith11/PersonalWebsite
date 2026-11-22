@@ -201,7 +201,7 @@ class Player:
             add(k, v)
         front = dict(self.front_fx)
         if c == "warlord":
-            front["hp_pct"] = front.get("hp_pct", 0) + 0.12
+            front["hp_pct"] = front.get("hp_pct", 0) + D.WARLORD_FRONT
         self.build_arounds(team, front)
         ex = {"bonus": dict(self.bonus), "team": team,
               "revive_first": max(self.revive_first, 0.4 if c == "necromancer" else 0.0)}
@@ -214,7 +214,7 @@ class Player:
         if convert:
             ex["convert"] = convert
         if c == "warlord":
-            ex["fallen_rally"] = 0.1
+            ex["fallen_rally"] = D.WARLORD_RALLY
         if c == "hexer":
             ex["hex_strongest"] = 0.3
         for k in ("summon", "rally", "hex_all", "drain"):
@@ -310,7 +310,7 @@ class Room:
                           "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
                           "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
                           "pve_boards": D.PVE, "interest_per": D.INTEREST_PER, "max_interest": D.MAX_INTEREST,
-                          "spoils_per": D.SPOILS_PER, "spoils_max": D.SPOILS_MAX,
+                          "spoils_per": D.SPOILS_PER, "spoils_max": D.SPOILS_MAX, "win_gold": D.WIN_GOLD,
                           "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
                           "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
                           "armory_odds": D.ARMORY_ODDS},
@@ -592,7 +592,7 @@ class Room:
     def end_fight(self):
         rnd = self.round
         self.settled = []
-        hurt, spoils = {}, {}
+        hurt, spoils, wins = {}, {}, {}
         for f in self.fights:
             res = f["res"]
             home = self.players[f["home"]]
@@ -611,6 +611,8 @@ class Room:
                 p.gold += gold
                 spoils[p.id] = spoils.get(p.id, 0) + gold
                 if res["winner"] == side:
+                    p.gold += D.WIN_GOLD
+                    wins[p.id] = D.WIN_GOLD
                     p.streak = max(1, p.streak + 1)
                     p.results.append("w")
                 else:
@@ -623,7 +625,7 @@ class Room:
                 dmg = round(dmg * 0.85)
             p.hp -= dmg
             p.hp_log.append(max(0, p.hp))
-            self.settled.append({"id": p.id, "dmg": dmg, "gold": spoils.get(p.id, 0)})
+            self.settled.append({"id": p.id, "dmg": dmg, "gold": spoils.get(p.id, 0), "win": wins.get(p.id, 0)})
         out = sorted((p for p in self.alive() if p.hp <= 0), key=lambda p: p.hp)
         left = len(self.alive())
         for p in out:
@@ -747,8 +749,8 @@ class Room:
             owned = sorted({u["unit"] for u in p.units() if self.pool.get(u["unit"], 0) > 0})
             if owned:
                 p.shop = [self.rng.choice(owned) if self.rng.random() < 0.75 else k for k in p.shop]
-        if p.commander == "twinmaker" and p.first_roll:  # the round's first shop has a unit already owned
-            owned = sorted({u["unit"] for u in p.units() if self.pool.get(u["unit"], 0) > 0})
+        if p.commander == "twinmaker" and p.first_roll:  # the round's first shop has a unit owned at one star
+            owned = sorted({u["unit"] for u in p.units() if u["star"] == 1 and self.pool.get(u["unit"], 0) > 0})
             if owned and not any(k in owned for k in p.shop):
                 p.shop[self.rng.randrange(len(p.shop))] = self.rng.choice(owned)
 
@@ -1024,7 +1026,7 @@ class Room:
         if c == "quartermaster":
             p.free_rerolls += 3
         elif c == "warlord":
-            team["shield"] = team.get("shield", 0) + 300
+            team["shield"] = team.get("shield", 0) + D.WARLORD_SHIELD
         elif c == "necromancer":
             free = next((j for j, u in enumerate(p.bench) if u is None), None)
             keys = [k for k in D.shop_units() if D.UNITS[k]["tier"] == 2 and self.pool.get(k, 0) > 0]
@@ -1057,9 +1059,9 @@ class Room:
             p.oracle_roll = True
             self.roll(p)
         elif c == "gambler":
-            p.gold += self.rng.randint(1, 8)
+            p.gold += self.rng.randint(1, 6)
         elif c == "hexer":
-            p.next_fx["hex_all"] = [0.25, 10.0]
+            p.next_fx["hex_all"] = [0.3, 10.0]
         elif c == "chronomancer":
             p.next_fx["drain"] = [0.5, 8.0]
         elif c == "twinmaker":
@@ -1299,7 +1301,10 @@ class Room:
                 if lot["kind"] == "unit":
                     self.pool[lot["unit"]] += 3
                 results[i] = [i, None, 0]
-        self.auction_results = {"lots": self.lot_rows(a["lots"]), "results": [results[i] for i in sorted(results)]}
+        # once it's closed, every bid is shown (sealed only while it ran), so people learn what lots go for
+        bids = sorted([pid, b] for pid, b in a["bids"].items() if any(b))
+        self.auction_results = {"lots": self.lot_rows(a["lots"]), "results": [results[i] for i in sorted(results)],
+                                "bids": bids}
         self.auction = None
         if self.round in D.DRAFT_ROUNDS:
             self.start_draft()

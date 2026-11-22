@@ -77,6 +77,7 @@ START_LEVEL = 1
 # against a player, 1 gold for every SPOILS_PER of their units yours brought down, at most SPOILS_MAX
 # (summons don't count; monster rounds pay PVE_GOLD instead).
 SPOILS_PER, SPOILS_MAX = 3, 3
+WIN_GOLD = 1  # and this for beating a player (spoils alone hardly helped the style that spends everything)
 
 
 def spoils(fallen):
@@ -737,9 +738,9 @@ def armory_odds(rnd):
 COMMANDERS = {
     "quartermaster": {"name": "The Quartermaster", "passive": "Your shop has six slots.",
                       "power": "Three free rerolls.", "charge": 3},
-    "warlord": {"name": "The Warlord", "passive": "Units on your front row have 12% more HP. Each time one falls, "
-                                                  "the rest of your units attack 10% faster.",
-                "power": "Next fight, every unit of yours starts with a 300 shield.", "charge": 4},
+    "warlord": {"name": "The Warlord", "passive": "Units on your front row have 20% more HP. Each time one falls, "
+                                                  "the rest of your units attack 15% faster.",
+                "power": "Next fight, every unit of yours starts with a 400 shield.", "charge": 4},
     "necromancer": {"name": "The Necromancer", "passive": "The first of your units to die each fight rises with 40% HP.",
                     "power": "Raise a random tier-2 unit onto your bench.", "charge": 4},
     "alchemist": {"name": "The Alchemist", "passive": "A free Rare item at rounds 5, 10 and 15.",
@@ -764,18 +765,20 @@ COMMANDERS = {
                "power": "A free reroll that favours units you already own.", "charge": 2},
     # added in the roster review (November 2026)
     "gambler": {"name": "The Gambler", "passive": "Your first reroll each round costs 1 gold instead of 2.",
-                "power": "Roll the bones: gain 1 to 8 gold.", "charge": 3},
-    "hexer": {"name": "The Hexer", "passive": "Each fight, the enemy's best unit (most stars, then price) is hexed: "
-                                              "it takes 30% more damage.",
-              "power": "Next fight, every enemy unit is hexed too (25% more damage) for the first 10 s.", "charge": 2},
+                "power": "Roll the bones: gain 1 to 6 gold.", "charge": 3},
+    "hexer": {"name": "The Hexer", "passive": "Each fight, the enemy's two best units (most stars, then price) are "
+                                              "hexed: they take 30% more damage.",
+              "power": "Next fight, every enemy unit is hexed too (30% more damage) for the first 10 s.", "charge": 2},
     "chronomancer": {"name": "The Chronomancer", "passive": "Your units start fights with 20 more mana.",
                      "power": "Next fight, the enemy's units start with no mana, and gain it half as fast for 8 s.",
                      "charge": 4},
-    "twinmaker": {"name": "The Twinmaker", "passive": "Each round's first shop has at least one unit you already own, "
-                                                      "when the pool has one.",
-                  "power": "Twin the 1-star unit you have most copies of (the copy comes from the pool).", "charge": 6},
+    "twinmaker": {"name": "The Twinmaker", "passive": "Each round's first shop has at least one unit you own at one "
+                                                      "star, when the pool has one.",
+                  "power": "Twin the 1-star unit you have most copies of (the copy comes from the pool).", "charge": 7},
 }
 COMMANDER_CHOICES = 3
+HEXER_TARGETS = 2  # the Hexer's passive hexes this many of the enemy's best units (one until late November 2026)
+WARLORD_FRONT, WARLORD_RALLY, WARLORD_SHIELD = 0.2, 0.15, 400  # the Warlord's front-row HP, and attack speed each time one falls
 
 # ------------------------------------------------------------------ augments
 # One of three at AUGMENT_ROUNDS (one free reroll each time). All three offered are the same tier

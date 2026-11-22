@@ -182,11 +182,13 @@ def mechanics():
     hp = w.hp
     f.die(r)
     check(w.hp < hp, "a death burst hurts the enemies beside it")
-    f = sim.Fight([B("ashling", 3, 3, 2), B("ember_mage", 3, 0)], [B("ashling", 3, 3, 2), B("ember_mage", 3, 0)], 1,
+    f = sim.Fight([B("ashling", 3, 3, 2), B("ember_mage", 3, 0)],
+                  [B("ashling", 3, 3, 2), B("ember_mage", 3, 0), B("iron_recruit", 2, 3)], 1,
                   ({"hex_strongest": 0.2, "drain": [0.5, 8]}, {}))
     foe = [u for u in f.units if u.side == 1]
-    check(any(u.amp[0] == 0.2 for u in foe) and all(u.mana == 0 and u.mana_slow[0] == 0.5 for u in foe),
-          "the Hexer's and the Chronomancer's effects reach the enemy")
+    hexed = sorted(u.key for u in foe if u.amp[0] == 0.2)
+    check(hexed == ["ashling", "ember_mage"] and all(u.mana == 0 and u.mana_slow[0] == 0.5 for u in foe),
+          f"the Hexer's (its {D.HEXER_TARGETS} best: {hexed}) and the Chronomancer's effects reach the enemy")
     f = sim.Fight([B("sky_lancer", 3, 3, 1, ["world_seed"])], [B("stone_golem", 3, 3)], 1)
     for _ in range(int(6.2 / sim.DT)):
         f.tick()
@@ -352,7 +354,7 @@ def pairing():
     room.tick()
     check(room.phase == "fight" and [(f["home"], f["away"], f["ghost"]) for f in room.fights] == pairs,
           "the fights are the pairs shown while planning")
-    want = {}
+    want, winners = {}, set()
     for f in room.fights:
         res = f["res"]
         boards = [len(room.players[f["home"]].board), len(room.players[f["away"]].board)]
@@ -360,11 +362,15 @@ def pairing():
               "a fight counts each side's fallen units (summons left out)")
         for pid, side in [(f["home"], 0)] + ([] if f["ghost"] else [(f["away"], 1)]):
             want[pid] = want.get(pid, 0) + min(D.SPOILS_MAX, res["fallen"][1 - side] // D.SPOILS_PER)
+            if res["winner"] == side:
+                winners.add(pid)
     room.clock.t = room.ends + 0.01
     room.tick()
     got = {s_["id"]: s_["gold"] for s_ in room.settled}
     check(got == {i: want.get(i, 0) for i in got} and any(got.values()),
           f"spoils: 1 gold for every {D.SPOILS_PER} enemy units brought down ({got})")
+    won = {s_["id"] for s_ in room.settled if s_["win"] == D.WIN_GOLD}
+    check(won == winners and winners, f"the winners get {D.WIN_GOLD} gold for it ({won})")
     while not (room.phase == "plan" and room.round not in D.PVE):
         room.clock.t = room.ends + 0.01
         room.tick()
@@ -423,6 +429,8 @@ def auction():
     check(copies(room) == full, "the pool still adds up after the auction")
     st = last_state(q)
     check(st and st.get("auction_results"), "the results are shown while planning")
+    shown = dict((pid, b) for pid, b in st["auction_results"]["bids"]) if st and st.get("auction_results") else {}
+    check(shown.get(me.id) == [150, 140, 120] and len(shown) > 1, "every bid is shown once the auction closes")
     relics = {k for k, i in D.ITEMS.items() if i["kind"] == "relic"}
     drawn = {room.random_item(r) for r in (1, 2, 3, 4) for _ in range(300)}
     check(not (relics & drawn), "relics never turn up in the armory")
@@ -641,7 +649,7 @@ def room_items_and_powers():
     check(not room.use_power(me), "an uncharged power is refused")
     ex = game.Player(99, "x", "#fff")
     ex.commander, ex.bonus = "warlord", {"vanguard": 1}
-    check(ex.extras()["front"] == {"hp_pct": 0.12} and ex.extras()["bonus"] == {"vanguard": 1}, "extras")
+    check(ex.extras()["front"] == {"hp_pct": D.WARLORD_FRONT} and ex.extras()["bonus"] == {"vanguard": 1}, "extras")
     # every augment
     for key in D.AUGMENTS:
         me.aug_offer = [key]

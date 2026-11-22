@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, WebSocket
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from ..rooms import Refused, page_version, serve
 from . import game
@@ -18,6 +18,12 @@ router = APIRouter()
 @router.get("/games/overlords", include_in_schema=False)
 def page():
     return FileResponse(PAGE)
+
+
+@router.get("/games/overlords/guide.json", include_in_schema=False)
+def guide():
+    """The game's data for the menu's guide (the same as a room's welcome sends)."""
+    return JSONResponse(game.game_data(), headers={"Cache-Control": "public, max-age=300"})
 
 
 def enter(hello, queue):

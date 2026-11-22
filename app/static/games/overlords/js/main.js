@@ -4,9 +4,9 @@
 // reroll, buy XP, move and sell.
 
 import { person, startRoom } from '../../shared/lobby.js?v=1';
-import { Playback } from './fight.js?v=25';
-import { isMuted, play, setMuted } from './sound.js?v=25';
-import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=25';
+import { Playback } from './fight.js?v=26';
+import { isMuted, play, setMuted } from './sound.js?v=26';
+import { ATLAS_URL, GROUND_AWAY, GROUND_HOME, ICON_COLS, ICONS, ICONS_URL, PORTRAITS, PORTRAITS_URL, POSES, ROWS } from './atlas.js?v=26';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -118,6 +118,7 @@ function receive(m) {
     const before = S.st;
     S.st = m;
     S.endsAt = m.left != null ? now() + m.left : 0;
+    if (!before || before.phase !== m.phase || before.round !== m.round || (m.left || 0) > (S.phaseLen || 0)) S.phaseLen = m.left || 0; // the timer bar's full length
     if (!player(S.watch) || (before && before.phase === 'lobby' && m.phase !== 'lobby')) S.watch = room.you;
     if (m.phase !== 'fight') {
       if (S.fights.length) S.lastFights = S.fights; // the damage chart keeps showing the last round's fights
@@ -582,22 +583,39 @@ function renderRecords() {
 
 function renderHud() {
   const st = S.st, mine = seatedMe();
-  $('hud-round').textContent = `Round ${st.round}${st.pve ? ' · Monsters' : ''}`;
+  const show = (id, html, title = '') => { $(id).innerHTML = html; $(id).title = title; };
+  const w = $('hud').clientWidth, narrow = w < 760; // a narrow bar (small windows, phones): shorter words, one line
+  $('hud').classList.toggle('short', narrow);
+  $('hud').classList.toggle('tiny', w < 440);
+  const L = (long, brief) => `<span class="l">${narrow ? brief : long}</span>`;
   if (mine) {
-    $('hud-hp').innerHTML = `HP <b>${Math.max(0, mine.hp)}</b>`;
-    $('hud-hp').classList.toggle('low', mine.hp <= 20);
+    show('st-hp', `${L('HP', 'HP')}<b>${Math.max(0, mine.hp)}</b>`, `Your health: at 0 you're out. Losing a fight costs 1 + round / 3, plus a point for each star left standing on the board that beat you.`);
+    $('st-hp').classList.toggle('low', mine.hp <= 20);
     const inc = st.me?.income;
-    $('hud-gold').innerHTML = `Gold <b>${mine.gold}</b>` + (inc && mine.alive ? ` <small>+${inc[0] + inc[1] + inc[2]} next round</small>` : '');
-    $('hud-gold').title = inc ? `Next round: ${inc[0]} income, ${inc[1]} interest (1 for every ${S.cfg.rules.interest_per} gold you keep, up to ${S.cfg.rules.max_interest})`
-      + (inc[2] ? `, ${inc[2]} for your ${mine.streak > 0 ? 'winning' : 'losing'} streak` : '') : '';
-    const need = st.me?.need;
-    $('hud-level').textContent = COMPACT.matches
-      ? `Lv ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · Board ${mine.board.length}/${mine.limit}`
-      : `Level ${mine.level}${need ? ` · ${st.me.xp}/${need} XP` : ''} · ${mine.board.length}/${mine.limit} on board`;
-    $('hud-level').title = 'Your level is how many units may stand on your board. Buy XP to level up; you also get 2 XP a round.';
+    show('st-gold', `${L('Gold', 'Gold')}<b>${mine.gold}</b>` + (inc && mine.alive ? ` <small>+${inc[0] + inc[1] + inc[2]}${narrow ? '' : ' next'}</small>` : ''),
+      inc ? `Next round: ${inc[0]} income, ${inc[1]} interest (1 for every ${S.cfg.rules.interest_per} gold you keep, up to ${S.cfg.rules.max_interest})`
+        + (inc[2] ? `, ${inc[2]} for your ${mine.streak > 0 ? 'winning' : 'losing'} streak` : '') + `. Fights against players also pay ${S.cfg.rules.win_gold} for a win and spoils.` : '');
+    const need = st.me?.need, xp = st.me?.xp ?? 0;
+    show('st-level', `${L('Level', 'Lv')}<b>${mine.level}</b>` + (need
+      ? ` <i class="bar"><i style="width:${Math.min(100, (100 * xp) / need)}%"></i></i> <small>${xp}/${need}${narrow ? '' : ' XP'}</small>` : ' <small>max</small>'),
+      'Your level is how many units may stand on your board, and sets the shop odds. Buy XP to level up; you also get 2 XP a round.');
+    $('st-level').classList.add('xp');
+    const short = mine.alive && mine.board.length < mine.limit;
+    show('st-board', `${L('Board', 'Units')}<b>${mine.board.length}/${mine.limit}</b>`,
+      short ? `${mine.limit - mine.board.length} empty place${mine.limit - mine.board.length === 1 ? '' : 's'}: bench units fill them when the fight starts.` : 'Units on your board / units your level allows.');
+    $('st-board').classList.toggle('short', short);
+    const n = Math.abs(mine.streak || 0);
+    $('st-streak').hidden = n < 2 || !mine.alive;
+    if (n >= 2) show('st-streak', `<span class="${mine.streak > 0 ? 'w' : 'lo'}">${narrow ? `${mine.streak > 0 ? 'W' : 'L'}${n}` : `${n} ${mine.streak > 0 ? 'wins' : 'losses'}`}</span>${narrow ? '' : ' <small>in a row</small>'}`,
+      `A ${mine.streak > 0 ? 'winning' : 'losing'} streak of ${n}: ${S.cfg.rules.streak_gold[Math.min(n, 6)]} more gold a round while it lasts.`);
+    const foe = nextFoe();
+    const fname = foe && player(foe.id) ? esc(player(foe.id).name) + (foe.ghost ? ' <small>(a copy)</small>' : '') : '';
+    show('st-foe', !mine.alive ? '' : st.pve && ['plan', 'fight', 'auction'].includes(st.phase) ? '<span class="l">Next</span><b>Monsters</b>'
+      : fname && st.phase === 'plan' ? `<span class="l">Next</span><b>${fname}</b>` : '', 'Whose board you fight next: it shows faded on the top half of yours.');
   } else {
-    $('hud-hp').textContent = 'Watching';
-    $('hud-gold').textContent = $('hud-level').textContent = '';
+    show('st-hp', '<b>Watching</b>');
+    for (const id of ['st-gold', 'st-level', 'st-board', 'st-foe']) show(id, '');
+    $('st-streak').hidden = true;
   }
   const can = mine && mine.alive && st.me;
   $('xp').disabled = !can || mine.gold < S.cfg.rules.xp_cost || mine.level >= S.cfg.rules.max_level;
@@ -639,10 +657,17 @@ function tickHud() {
   const left = Math.max(0, Math.ceil(S.endsAt - now()));
   const waiting = st.phase === 'plan' && left <= 0 && st.choosing?.length;
   const phase = waiting ? (st.choosing.includes(room.you) ? 'Waiting for you' : 'Waiting')
-    : st.phase === 'plan' ? `Planning · ${left}s` : st.phase === 'fight' ? 'Fighting'
-    : st.phase === 'draft' ? `Draft · ${left}s` : st.phase === 'auction' ? `Auction · ${left}s` : 'Game over';
-  $('hud-phase').textContent = phase;
-  $('hud-phase').classList.toggle('hurry', st.phase === 'plan' && left <= 5);
+    : st.phase === 'plan' ? `Planning ${left}s` : st.phase === 'fight' ? 'Fighting'
+    : st.phase === 'draft' ? `Draft ${left}s` : st.phase === 'auction' ? `Auction ${left}s` : 'Game over';
+  const box = $('st-round');
+  const brief = $('hud').classList.contains('short');
+  const text = `<span class="l">${brief ? 'R' : 'Round'}</span><b>${st.round}</b> ${brief ? phase.replace('Planning ', '').replace('Fighting', 'Fight').replace('Game over', 'Over') : phase}`;
+  if (box.dataset.text !== text) { box.querySelector('.txt').innerHTML = text; box.dataset.text = text; }
+  const total = S.phaseLen || 1, frac = st.phase === 'fight' || st.phase === 'over' ? 0 : Math.max(0, Math.min(1, (S.endsAt - now()) / total));
+  box.querySelector('.bar i').style.width = `${(frac * 100).toFixed(1)}%`;
+  box.querySelector('.bar').hidden = !frac;
+  box.classList.toggle('hurry', st.phase === 'plan' && left <= 5 && !waiting);
+  box.title = 'The round, what is happening and the time left.';
   banner();
 }
 
@@ -823,6 +848,7 @@ function renderShop() {
       tr.append(one);
     }
     b.append(sprite(key, 64), el('b', '', d.name), tr, el('span', 'cost', `${d.cost}g`));
+    if (d.ability) { const t = tagChips(d.ability, 2); t.title = `${d.ability.name}: ${d.ability.text}`; b.append(t); }
     const n = owned[key] || 0;
     if (n) {
       b.classList.add('pair');
@@ -1117,14 +1143,10 @@ function unitCard(h, d) {
     const t = S.cfg.items[i]?.trait;
     if (t && !traits.includes(t)) traits.push(t);
   }
+  parts.push(vitals(d, star, st, h.live));
+  if (d.ability) parts.push(abilityBox(d.ability, star, st));
   if (traits.length) parts.push(unitTraits(h, traits, d));
   parts.push(...statBlock(d, star, st, h.live));
-  if (d.ability) {
-    const ab = el('p', 'ab');
-    const nums = abilityNumbers(d.ability, star, st);
-    ab.append(el('b', '', `${d.ability.name} (ability): `), document.createTextNode(`${d.ability.text} ${nums}`));
-    parts.push(ab);
-  }
   if (d.passive_text) parts.push(labelled('Always', d.passive_text, 'ab'));
   const talents = h.talents || h.live?.talents || [];
   for (const tk of talents) {
@@ -1149,6 +1171,91 @@ function unitCard(h, d) {
     parts.push(list);
   }
   return parts;
+}
+
+// What an ability does, in a few words (main.js shows them on shop cards and unit cards): from its steps.
+const TAG_COLORS = { dmg: '#ff8b7b', cc: '#d29bff', help: '#7be08a', summon: '#e2b46a', move: '#8fb4ff' };
+const AREA_TO = ['around_self', 'around_target', 'chain', 'cluster', 'line', 'random'];
+function abilityTags(ab) {
+  const tags = new Map();
+  const add = (name, kind) => { if (!tags.has(name)) tags.set(name, kind); };
+  for (const s of ab?.steps || []) {
+    const to = String(s.to || '').split(':')[0];
+    const allies = to.startsWith('allies') || to === 'lowest_ally' || to === 'nearest_allies';
+    if (s.do === 'hit' || (s.do === 'zone' && s.dmg) || (s.do === 'dash' && s.dmg)) add(AREA_TO.includes(to) || s.do === 'zone' ? 'Area damage' : 'Damage', 'dmg');
+    if (s.stun) add('Stun', 'cc');
+    if (s.do === 'taunt') add('Taunt', 'cc');
+    if (s.do === 'pull') add('Pull', 'cc');
+    if (s.do === 'devour') add('Swallow', 'cc');
+    if (s.knock) add('Knockback', 'cc');
+    if (s.slow) add('Slow', 'cc');
+    if (s.burn) add('Burn', 'dmg');
+    if (s.execute) add('Execute', 'dmg');
+    if (s.amp) add('Mark', 'cc');
+    if (s.mana_burn) add('Mana drain', 'cc');
+    if (s.wound) add('Wound', 'cc');
+    if (s.do === 'heal' || s.heal_frac || (s.do === 'zone' && s.heal)) add(allies ? 'Heal allies' : to === 'self' ? 'Heal self' : 'Heal', 'help');
+    if (s.do === 'shield') add(allies ? 'Shield allies' : 'Shield self', 'help');
+    if (s.do === 'buff' || s.do === 'grow') add(allies ? 'Buff allies' : 'Buff self', 'help');
+    if (s.do === 'cleanse') add('Cleanse', 'help');
+    if (s.do === 'mana') add('Mana to allies', 'help');
+    if (s.do === 'summon' || s.do === 'raise') add('Summon', 'summon');
+    if (s.do === 'dash') add('Dash', 'move');
+    if (s.do === 'vanish') add('Vanish', 'move');
+  }
+  return [...tags];
+}
+function tagChips(ab, max = 9) {
+  const box = el('span', 'tags');
+  for (const [name, kind] of abilityTags(ab).slice(0, max)) {
+    const t = el('i', '', name);
+    t.style.setProperty('--tc', TAG_COLORS[kind]);
+    box.append(t);
+  }
+  return box;
+}
+
+// Health and mana at a glance: big numbers with bars (HP ticked every 300, mana in tens, an attack's worth).
+function vitals(d, star, st, live) {
+  const m = [1, 1.8, 3.24][star - 1];
+  const hp = live ? live.hp : st?.hp ?? Math.round(d.hp * m), max = live ? live.max : hp;
+  const base = Math.round(d.hp * m);
+  const mana = live ? live.mana : st?.mana ?? d.start, maxmana = live ? live.maxmana : st?.maxmana ?? d.mana;
+  const box = el('div', 'vitals');
+  const row = (cls, label, value, note, frac, ticks) => {
+    const r = el('div', 'vital ' + cls);
+    const top = el('div', 'vt');
+    top.append(el('span', 'l', label), el('b', '', value));
+    if (note) top.append(el('small', note.startsWith('−') ? 'down' : note.startsWith('+') ? 'up' : '', note));
+    const bar = el('i', 'vbar');
+    const fill = el('i');
+    fill.style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+    bar.append(fill);
+    if (ticks) bar.style.setProperty('--tick', `${ticks}%`);
+    r.append(top, bar);
+    box.append(r);
+  };
+  const extra = Math.round(max - base);
+  row('hp', 'Health', live ? `${Math.round(hp)} / ${Math.round(max)}` : String(hp), live || !extra ? '' : `${extra > 0 ? '+' : '−'}${Math.abs(extra)}`,
+    live ? hp / Math.max(1, max) : 1, Math.max(1.5, (300 / Math.max(1, max)) * 100));
+  if (maxmana) {
+    const attacks = Math.ceil(Math.max(0, maxmana - mana) / 10);
+    row('mana', 'Mana', `${Math.round(mana)} / ${maxmana}`, live ? '' : mana ? `starts with ${mana}` : '',
+      mana / maxmana, (10 / maxmana) * 100);
+    box.lastChild.title = `It casts its ability at ${maxmana} mana: it gains 10 an attack and some when hurt, so about ${attacks} attack${attacks === 1 ? '' : 's'} from the start.`;
+    box.lastChild.querySelector('.vt').append(el('small', 'hint', `≈ ${attacks} attack${attacks === 1 ? '' : 's'} to cast`));
+  } else box.append(el('p', 'note', 'No ability to cast.'));
+  box.firstChild.title = 'Its health, with traits, items and augments counted. Each notch on the bar is 300 HP.';
+  return box;
+}
+
+// Its ability, first and plain: the name, what kind of thing it does, then the words with its numbers.
+function abilityBox(ab, star, st) {
+  const box = el('div', 'abox');
+  const head = el('div', 'ahead');
+  head.append(el('b', '', `✦ ${ab.name}`), tagChips(ab));
+  box.append(head, el('p', '', `${ab.text} ${abilityNumbers(ab, star, st)}`));
+  return box;
 }
 
 // The unit's traits: whether each is on for it, and what it gives (or would, fielded).
@@ -1190,16 +1297,11 @@ function statBlock(d, star, st, live) {
     box.append(t);
   };
   const diff = (a, b, unit = '') => (Math.round(a - b) ? `${a > b ? '+' : '−'}${Math.abs(Math.round(a - b))}${unit}` : '');
-  tile('HP', live ? `${Math.round(live.hp)}/${Math.round(live.max)}` : String(s.hp), live ? '' : diff(s.hp, base.hp), 'Health.');
   tile('Attack', String(s.ad), diff(s.ad, base.ad), 'Physical damage each attack (armor reduces it).');
   tile('Attack speed', `${s.as.toFixed(2)}/s`, diff(s.as / base.as * 100, 100, '%'), 'Attacks a second.');
   tile('Range', s.range > 1 ? `${s.range} hexes` : 'Melee', '', 'How far away it can attack.');
   tile('Armor', String(s.armor), diff(s.armor, base.armor), `Takes ${cut(s.armor)}% less physical damage.`);
   tile('Resist', String(s.mr), diff(s.mr, base.mr), `Magic resist: takes ${cut(s.mr)}% less magic damage.`);
-  const manaDelta = s.maxmana !== base.maxmana ? `${s.maxmana < base.maxmana ? '−' : '+'}${Math.abs(base.maxmana - s.maxmana)} to cast`
-    : diff(s.mana, base.mana, ' at start');
-  tile('Mana', live ? `${Math.round(live.mana)}/${live.maxmana}` : `${s.mana}/${s.maxmana}`, live ? '' : manaDelta,
-    'Starting mana / mana to cast its ability. It gains 10 mana an attack and some when hurt.');
   tile('Ability power', String(s.ap), diff(s.ap, 100), `Its ability's damage, healing and shields ×${(s.ap / 100).toFixed(2)} (100 is as written).`);
   tile('Crit', `${Math.round(s.crit * 100)}%`, s.crit !== 0.25 || s.critdmg !== 1.4 ? `×${s.critdmg.toFixed(2)} damage` : '',
     `${Math.round(s.crit * 100)}% of attacks crit, for ×${s.critdmg.toFixed(2)} damage.`);
@@ -1558,22 +1660,31 @@ function drawUnit(x, y, key, star, opts = {}) {
     ctx.font = `${Math.round(R * 0.36)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('★'.repeat(star), x, head - (opts.bars ? R * 0.42 : R * 0.1));
+    ctx.fillText('★'.repeat(star), x, head - (opts.bars ? R * 0.5 : R * 0.1));
   }
-  if (opts.bars) {
-    const bw = R * 1.15, bx = x - bw / 2, byy = head - R * 0.18;
+  if (opts.bars) { // health (a notch every 300 HP, so tough units read as tough) and mana (a notch every 10: an attack's worth)
+    const bw = R * 1.3, bx = x - bw / 2, byy = head - R * 0.24;
+    const hh = Math.max(4, Math.round(R * 0.15)), mh = Math.max(3, Math.round(R * 0.09));
     const { hp, max, mana, maxmana, shield } = opts.bars;
+    const total = Math.max(1, max + shield);
     ctx.fillStyle = '#11151e';
-    ctx.fillRect(bx - 1, byy - 1, bw + 2, 9);
+    ctx.fillRect(bx - 1, byy - 1, bw + 2, hh + (maxmana ? mh + 3 : 2));
     ctx.fillStyle = opts.friend ? '#5fd170' : '#e8584f';
-    ctx.fillRect(bx, byy, (bw * Math.max(0, hp)) / Math.max(1, max + shield), 4);
+    ctx.fillRect(bx, byy, (bw * Math.max(0, hp)) / total, hh);
     if (shield > 0) {
       ctx.fillStyle = '#eef3ff';
-      ctx.fillRect(bx + (bw * Math.max(0, hp)) / (max + shield), byy, (bw * shield) / (max + shield), 4);
+      ctx.fillRect(bx + (bw * Math.max(0, hp)) / total, byy, (bw * shield) / total, hh);
     }
+    ctx.fillStyle = 'rgba(17, 21, 30, 0.75)';
+    if (bw * 300 / total >= 2.5) for (let k = 300; k < total; k += 300) ctx.fillRect(Math.round(bx + (bw * k) / total), byy, 1, hh);
     if (maxmana) {
+      const my = byy + hh + 1;
+      ctx.fillStyle = '#2a3550';
+      ctx.fillRect(bx, my, bw, mh);
       ctx.fillStyle = '#4aa3ff';
-      ctx.fillRect(bx, byy + 5, (bw * Math.min(mana, maxmana)) / maxmana, 2.5);
+      ctx.fillRect(bx, my, (bw * Math.min(mana, maxmana)) / maxmana, mh);
+      ctx.fillStyle = 'rgba(17, 21, 30, 0.85)';
+      if (bw * 10 / maxmana >= 2.5) for (let k = 10; k < maxmana; k += 10) ctx.fillRect(Math.round(bx + (bw * k) / maxmana), my, 1, mh);
     }
   }
   if (opts.items?.length) {
@@ -1709,7 +1820,8 @@ function draw() {
     const foes = foeUnits();
     for (const u of foes) {
       const [x, y] = hexXY(u.c, u.r);
-      drawUnit(x, y, u.key, u.star, { ring: u.monster ? MONSTER_COLOR : player(u.owner)?.color, items: u.items, flip: true, alpha: 0.5, monster: u.monster });
+      drawUnit(x, y, u.key, u.star, { ring: u.monster ? MONSTER_COLOR : player(u.owner)?.color, items: u.items, flip: true, alpha: 0.5, monster: u.monster,
+        bars: planBars(u.key, u.star, u.stats, false) });
     }
     drawBoard(player(S.watch));
     // your front row stands in front of (and partly hides) whoever is right across the line, so their
@@ -1737,7 +1849,7 @@ function draw() {
       roundRect(b.x - b.s / 2 + 3, b.y - b.s / 2 + 3, b.s - 6, b.s - 6, 8);
       ctx.fill();
       ctx.stroke();
-      if (u && !(S.drag && S.drag.from.b === i && (S.drag.moved || !touchy()))) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3], pick: !!talentOffer(u[0]) });
+      if (u && !(S.drag && S.drag.from.b === i && (S.drag.moved || !touchy()))) drawUnit(b.x, b.y, u[1], u[2], { ring: mine.color, items: u[3], pick: !!talentOffer(u[0]), bars: planBars(u[1], u[2], u[5]), friend: true });
     });
   }
   if (S.drag?.unit && S.mouse && (S.drag.moved || !touchy())) drawUnit(S.mouse.x, S.mouse.y, S.drag.unit[1], S.drag.unit[2], { ring: mine?.color, alpha: 0.85 });
@@ -1760,12 +1872,21 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+// A unit's bars while planning: full health and its starting mana, from the card numbers (traits, items and
+// augments counted) when the server sent them, else the unit's own.
+function planBars(key, star, stats, friend = true) {
+  const d = S.cfg.units[key];
+  const hp = stats?.hp ?? Math.round(d.hp * [1, 1.8, 3.24][star - 1]);
+  return { hp, max: hp, mana: stats?.mana ?? d.start ?? 0, maxmana: d.ability ? stats?.maxmana ?? d.mana : 0, shield: 0, friend };
+}
+
 function drawBoard(p) {
   if (!p) return;
-  for (const [id, key, star, c, r, items] of p.board) {
+  for (const [id, key, star, c, r, items, , stats] of p.board) {
     if (S.drag?.unit && S.drag.from.c === c && S.drag.from.r === r && p.id === room.you && (S.drag.moved || !touchy())) continue;
     const [x, y] = hexXY(c, r);
-    drawUnit(x, y, key, star, { ring: p.color, items, bob: bob(id), pick: p.id === room.you && !!talentOffer(id) });
+    drawUnit(x, y, key, star, { ring: p.color, items, bob: bob(id), pick: p.id === room.you && !!talentOffer(id),
+      bars: planBars(key, star, stats), friend: true });
   }
 }
 
@@ -2192,6 +2313,235 @@ addEventListener('pointerup', e => {
 
 addEventListener('pointercancel', () => { S.drag = null; S.over = null; $('shop').classList.remove('sell'); });
 
+// ------------------------------------------------------------------ the guide
+// Rules, numbers, every trait, unit, commander, item and augment, from the game's own data (a room's welcome,
+// or /games/overlords/guide.json on the menu), so it never drifts from the game.
+
+const G_TABS = ['basics', 'traits', 'units', 'commanders', 'items', 'augments'];
+let guideTab = 'basics';
+
+async function guideData() {
+  if (S.cfg) return S.cfg;
+  const m = await (await fetch('/games/overlords/guide.json')).json();
+  S.cfg = { units: m.units, traits: m.traits, rules: m.rules, items: m.items, commanders: m.commanders,
+            augments: m.augments, augTiers: m.aug_tiers, talents: m.talents }; // a room's welcome replaces it
+  return S.cfg;
+}
+
+async function openGuide(tab) {
+  $('guide').hidden = false;
+  document.body.classList.add('guide-on');
+  if (tab) guideTab = tab;
+  try { await guideData(); } catch { $('guide-body').replaceChildren(el('p', '', "The guide couldn't load: try again in a moment.")); return; }
+  renderGuide();
+  $('guide-close').focus();
+}
+function closeGuide() { $('guide').hidden = true; document.body.classList.remove('guide-on'); }
+
+function renderGuide() {
+  for (const b of document.querySelectorAll('#guide-tabs button')) b.setAttribute('aria-pressed', String(b.dataset.tab === guideTab));
+  const body = $('guide-body');
+  body.replaceChildren(...{ basics: guideBasics, traits: guideTraits, units: guideUnits, commanders: guideCommanders,
+    items: guideItems, augments: guideAugments }[guideTab]());
+  body.scrollTop = 0;
+}
+
+const gSection = (title, ...kids) => { const s = el('section', 'gsec'); s.append(el('h3', '', title), ...kids); return s; };
+const gList = lines => { const ul = el('ul'); for (const l of lines) { const li = el('li'); li.innerHTML = l; ul.append(li); } return ul; };
+function gTable(head, rows) {
+  const t = el('table', 'gtable');
+  const tr = el('tr');
+  for (const h of head) tr.append(el('th', '', h));
+  t.append(tr);
+  for (const r of rows) {
+    const row = el('tr');
+    r.forEach((c, i) => { const td = el(i ? 'td' : 'th', '', String(c)); row.append(td); });
+    t.append(row);
+  }
+  return t;
+}
+const rounds = list => list.join(', ');
+
+function guideBasics() {
+  const R = S.cfg.rules;
+  const streak = [];
+  for (let n = 2; n < R.streak_gold.length; n++) if (R.streak_gold[n] !== R.streak_gold[n - 1]) streak.push(`${n}+ in a row: +${R.streak_gold[n]}`);
+  const levels = Object.entries(R.level_xp).map(([lv, xp]) => `${lv}→${+lv + 1}: ${xp}`);
+  return [
+    gSection('A round',
+      gList([`<b>Plan</b> (${R.plan_time} s, less in round 1): buy units, move them between bench and board, buy XP, reroll the shop (${R.reroll} gold), buy items in the armory. Press Ready to end it early once everyone is ready.`,
+        `<b>Fight</b>: every board fights another player's (or the round's monsters) on its own. Your units move, attack and cast their ability when their mana fills. Bench units fill empty board places first.`,
+        `<b>Losing</b> costs 1 + round ÷ 3 HP, plus a point for each star still standing on the board that beat you (more from round 16). Everyone starts on ${R.start_hp} HP; the last one standing wins.`,
+        `Fights get deadlier after 18 s (every hit grows) and stop at 30 s: a fight that reaches it is lost by both.`])),
+    gSection('Gold',
+      gList([`Each round: ${R.income[0]}, then ${R.income[1]}, then ${R.income[2]} gold.`,
+        `<b>Interest</b>: 1 gold for every ${R.interest_per} you keep, up to ${R.max_interest} (saving ${R.interest_per * R.max_interest} earns the most).`,
+        `<b>Streaks</b> of wins or losses pay extra: ${streak.join(', ')}.`,
+        `<b>Fights against players</b> pay ${R.win_gold} for a win, plus spoils: 1 gold for every ${R.spoils_per} of their units you bring down (up to ${R.spoils_max}).`,
+        `<b>Monster rounds</b> (${rounds(R.pve)}) pay ${R.pve.map(r => R.pve_gold[r]).join(', ')} gold to a winner.`,
+        `Selling gives a unit's price back for every copy in it.`])),
+    gSection('Levels and the shop',
+      gList([`Your level is how many units may stand on your board (up to ${R.max_level}). Buy ${R.xp_gain} XP for ${R.xp_cost} gold; you also get ${R.passive_xp} XP every round.`,
+        `XP to the next level: ${levels.join(' · ')}.`,
+        `Higher levels find dearer units. Each slot of the shop, by level:`]),
+      gTable(['Level', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'], Object.entries(R.odds).map(([lv, o]) => [lv, ...o.map(p => (p ? `${p}%` : '·'))])),
+      gTable(['Tier', 'Price', 'Copies of each'], [1, 2, 3, 4, 5].map(t => [t, `${R.price[t]} gold`, R.pool[t]])),
+      el('p', 'note', 'Copies come out of one pool the whole room shares, and go back when sold or when their owner is knocked out.')),
+    gSection('Stars and extra abilities',
+      gList(['Three copies of a unit merge into a two-star (×1.8 HP and attack); three two-stars make a three-star (×3.24).',
+        'At two and three stars you choose an extra ability for the unit: one for each of its traits, or a stronger version of its own. A gold + marks a unit still waiting for its pick.'])),
+    gSection('Traits',
+      gList(['Every unit has an origin and one or two classes. Field enough <i>different</i> units sharing one and its trait switches on, stronger at each tier (see the Traits tab).',
+        'Emblems (Epic items) give the unit holding them a trait; some augments count as extra units of a trait.'])),
+    gSection('Special rounds',
+      gList([`<b>Monsters</b> at rounds ${rounds(R.pve)}: everyone fights the same monsters, for gold.`,
+        `<b>Augments</b> at rounds ${rounds(R.augment_rounds)}: choose one of three lasting bonuses (one reroll). Some grow with your board.`,
+        `<b>Drafts</b> at rounds ${rounds(R.draft_rounds)}: everyone picks a unit holding an item from a shared set, lowest HP first.`,
+        `<b>Auctions</b> at rounds ${rounds(R.auction_rounds)}: three lots (a two-star unit with an item, a relic, an auction augment). Sealed bids of at least ${R.auction_min} gold, each up to all your gold; the highest bid takes a lot and pays it, and nobody wins more than one.`,
+        'At the start you choose a <b>commander</b>: a passive, and a power that charges over a few rounds.'])),
+    gSection('Items',
+      gList([`Bought whole in the armory (four a round): ${Object.entries(R.rarities).map(([r, n]) => `${n} ${R.item_price[r]} gold`).join(', ')}. Rarer ones turn up as the rounds go on.`,
+        `A unit holds ${R.max_items}. Drag one onto a unit (or click it, then the unit); click a unit to take its items off again.`])),
+    gSection('Reading the board',
+      gList(['Above each unit: a green bar for health (a notch every 300 HP) and a blue one for mana (a notch every 10, an attack\'s worth). It casts its ability when the blue bar fills.',
+        'The status bar above the shop has the round and its timer, your HP, gold (and next round\'s income), level and XP, how many units you field, your streak and who you fight next.',
+        'While you plan, your next opponent\'s board shows faded on the top half, where it will stand.',
+        'Keys: D reroll · F buy XP · E sell the unit under the pointer · Space ready.'])),
+  ];
+}
+
+function guideTraits() {
+  const T = S.cfg.traits, U = S.cfg.units;
+  const out = [];
+  for (const kind of ['origin', 'class']) {
+    const grid = el('div', 'ggrid');
+    for (const [t, def] of Object.entries(T).filter(([, d]) => d.kind === kind)) {
+      const card = el('article', 'gcard');
+      const h = el('h4');
+      h.append(icon('trait:' + t, 20), document.createTextNode(def.name));
+      const tiers = el('ol', 'gtiers');
+      def.levels.forEach((n, i) => {
+        const li = el('li');
+        li.append(el('b', '', String(n)), document.createTextNode(describeFx(def.fx[i]) + (def.fx[i].who === 'team' ? ' (whole board)' : '')));
+        tiers.append(li);
+      });
+      const who = el('div', 'gunits');
+      for (const [k, u] of Object.entries(U).filter(([, u]) => u.cost && u.traits.includes(t)).sort((a, b) => a[1].tier - b[1].tier)) {
+        const chip = el('span', 'gchip');
+        chip.style.setProperty('--cc', COST_COLORS[u.tier]);
+        chip.append(sprite(k, 28), document.createTextNode(u.name));
+        who.append(chip);
+      }
+      card.append(h, el('p', '', def.text), tiers, who);
+      grid.append(card);
+    }
+    out.push(gSection(kind === 'origin' ? 'Origins' : 'Classes', grid));
+  }
+  return out;
+}
+
+function guideUnits() {
+  const U = S.cfg.units, R = S.cfg.rules;
+  const find = el('input', 'gfind');
+  find.type = 'search';
+  find.placeholder = 'Find a unit, trait or ability…';
+  find.setAttribute('aria-label', 'Find a unit');
+  const lists = [];
+  for (let tier = 1; tier <= 5; tier++) {
+    const list = el('div', 'gunitlist');
+    for (const [k, u] of Object.entries(U).filter(([, u]) => u.cost && u.tier === tier).sort((a, b) => a[1].name.localeCompare(b[1].name))) {
+      const row = el('article', 'gunit');
+      row.style.setProperty('--cc', COST_COLORS[tier]);
+      const head = el('div', 'guh');
+      const names = el('div');
+      const tr = el('small', 'gtr', u.traits.map(t => S.cfg.traits[t].name).join(' · '));
+      names.append(el('b', '', u.name), tr);
+      head.append(sprite(k, 48), names);
+      const nums = el('div', 'gnums', `${u.hp} HP · ${u.ad} attack · ${u.as}/s · ${u.range > 1 ? `range ${u.range}` : 'melee'} · ${u.armor} armor · ${u.mr} resist`);
+      row.append(head, nums);
+      if (u.ability) {
+        const ab = el('div', 'gab');
+        const ah = el('div', 'ahead');
+        ah.append(el('b', '', `✦ ${u.ability.name}`), tagChips(u.ability), el('small', '', `${u.start ? `${u.start}/` : ''}${u.mana} mana`));
+        ab.append(ah, el('p', '', `${u.ability.text} ${abilityNumbers(u.ability, 1, null)}`));
+        row.append(ab);
+      }
+      if (u.passive_text) row.append(el('p', 'gpass', `Always: ${u.passive_text}`));
+      row.dataset.find = `${u.name} ${u.traits.map(t => S.cfg.traits[t].name).join(' ')} ${u.ability?.name || ''} ${abilityTags(u.ability).map(t => t[0]).join(' ')}`.toLowerCase();
+      list.append(row);
+    }
+    lists.push(gSection(`Tier ${tier} · ${R.price[tier]} gold · ${R.pool[tier]} copies each`, list));
+  }
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    for (const sec of lists) {
+      let any = false;
+      for (const row of sec.querySelectorAll('.gunit')) { const show = !q || row.dataset.find.includes(q); row.hidden = !show; any ||= show; }
+      sec.hidden = !any;
+    }
+  });
+  return [el('p', 'note', 'Numbers are at one star (×1.8 at two, ×3.24 at three). Ability numbers grow with ability power.'), find, ...lists];
+}
+
+function guideCommanders() {
+  const grid = el('div', 'ggrid');
+  for (const [k, c] of Object.entries(S.cfg.commanders)) {
+    const card = el('article', 'gcard');
+    const h = el('h4');
+    h.append(portrait(k, 32), document.createTextNode(c.name));
+    card.append(h, el('p', '', c.passive));
+    const pw = el('p');
+    pw.innerHTML = `<b>Power</b> (charges in ${c.charge} rounds): ${esc(c.power)}`;
+    card.append(pw);
+    grid.append(card);
+  }
+  return [el('p', 'note', 'Three are offered at the start; the first fight waits until everyone has chosen.'), grid];
+}
+
+function guideItems() {
+  const I = S.cfg.items, R = S.cfg.rules;
+  const out = [];
+  const groups = [[1, ['item'], 'Common: plain stats'], [2, ['item'], 'Rare: a trick and a stat line'], [3, ['item'], 'Epic: a stronger trick and two stat lines'],
+    [3, ['emblem'], 'Epic emblems: the holder gains a trait'], [4, ['artifact', 'crown'], 'Legendary: artifacts and the Crown'], [4, ['relic'], 'Relics: won only at the auction']];
+  for (const [r, kinds, title] of groups) {
+    const grid = el('div', 'gitems');
+    for (const [k, it] of Object.entries(I).filter(([, i]) => i.rarity === r && kinds.includes(i.kind))) {
+      const row = el('div', 'gitem');
+      row.style.setProperty('--rc', RARITY_COLORS[r]);
+      const what = el('div');
+      what.append(el('b', '', it.name), el('small', '', it.text + (it.stats ? ` ${it.stats}.` : '')));
+      row.append(icon('item:' + k, 28), what);
+      grid.append(row);
+    }
+    out.push(gSection(`${title}${kinds.includes('relic') ? '' : ` · ${R.item_price[r]} gold`}`, grid));
+  }
+  return out;
+}
+
+function guideAugments() {
+  const A = S.cfg.augments;
+  const out = [el('p', 'note', `Offered at rounds ${S.cfg.rules.augment_rounds.join(', ')}: three of one tier, with one reroll. Every trait also has a Heart (counts as one more unit of it, lesser), a Crest (its emblem, greater) and a Soul (two more, grand), offered when you field enough of it.`)];
+  for (const tier of [1, 2, 3, 4]) {
+    const grid = el('div', 'gitems');
+    for (const a of Object.values(A).filter(a => a.tier === tier && !a.trait).sort((x, y) => x.name.localeCompare(y.name))) {
+      const row = el('div', 'gitem aug');
+      const what = el('div');
+      what.append(el('b', '', a.name), el('small', '', a.text));
+      row.append(what);
+      grid.append(row);
+    }
+    out.push(gSection(tier === 4 ? 'Auction augments (only at the auction)' : `${S.cfg.augTiers[tier]} augments`, grid));
+  }
+  return out;
+}
+
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('guide').hidden) closeGuide(); });
+$('guide-open').addEventListener('click', () => openGuide());
+$('guide-btn').addEventListener('click', () => { openGuide(); play('click'); });
+$('guide-close').addEventListener('click', closeGuide);
+$('guide').addEventListener('click', e => { if (e.target === $('guide')) closeGuide(); });
+for (const b of document.querySelectorAll('#guide-tabs button')) b.addEventListener('click', () => { guideTab = b.dataset.tab; renderGuide(); });
+
 // ------------------------------------------------------------------ buttons and keys
 
 const act = (t, sound) => { room.send({ t }); if (sound) play(sound); };
@@ -2241,6 +2591,7 @@ for (const b of document.querySelectorAll('.sheet .sheet-close')) b.addEventList
 addEventListener('keydown', e => {
   if ($('game').hidden || e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  if (!$('guide').hidden) return;
   if (k === 'escape' && S.pinned) { pin(null); return; }
   if (k === 'd' && !$('reroll').disabled) act('reroll', 'reroll');
   else if (k === 'f' && !$('xp').disabled) act('xp');

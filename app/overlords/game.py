@@ -303,19 +303,7 @@ class Room:
         return p
 
     def welcome(self, p):
-        return {"t": "welcome", "you": p.id, "code": self.code, "units": D.UNITS, "traits": D.TRAITS,
-                "rules": {"bench": D.BENCH, "shop": D.SHOP_SIZE, "reroll": D.REROLL, "xp_cost": D.XP_COST,
-                          "xp_gain": D.XP_GAIN, "max_level": D.MAX_LEVEL, "level_xp": D.LEVEL_XP,
-                          "odds": D.SHOP_ODDS, "start_hp": D.START_HP, "max": MAX_PLAYERS,
-                          "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
-                          "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
-                          "pve_boards": D.PVE, "interest_per": D.INTEREST_PER, "max_interest": D.MAX_INTEREST,
-                          "spoils_per": D.SPOILS_PER, "spoils_max": D.SPOILS_MAX, "win_gold": D.WIN_GOLD,
-                          "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
-                          "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
-                          "armory_odds": D.ARMORY_ODDS},
-                "items": D.ITEMS, "commanders": D.COMMANDERS, "augments": D.AUGMENTS,
-                "aug_tiers": D.AUGMENT_TIER_NAMES, "talents": D.TALENTS}
+        return {"t": "welcome", "you": p.id, "code": self.code, **game_data()}
 
     def leave(self, p, queue):
         if p.queue is not queue or not p.connected:
@@ -1409,6 +1397,28 @@ class Room:
             else:
                 text = text or dumps(base)
                 self.send(p, text)
+
+
+def game_data():
+    """Everything a browser needs to know about the game itself (units, traits, items, the match's
+    numbers): sent in each room's welcome, and to the menu's guide (/games/overlords/guide.json)."""
+    return {"units": D.UNITS, "traits": D.TRAITS,
+            "rules": {"bench": D.BENCH, "shop": D.SHOP_SIZE, "reroll": D.REROLL, "xp_cost": D.XP_COST,
+                      "xp_gain": D.XP_GAIN, "max_level": D.MAX_LEVEL, "level_xp": D.LEVEL_XP,
+                      "odds": D.SHOP_ODDS, "start_hp": D.START_HP, "max": MAX_PLAYERS,
+                      "cols": sim.COLS, "rows": sim.ROWS, "move_time": sim.MOVE_TIME,
+                      "bot_levels": BOT_LEVELS, "pve": sorted(D.PVE), "max_items": D.MAX_ITEMS,
+                      "pve_boards": D.PVE, "pve_gold": D.PVE_GOLD, "interest_per": D.INTEREST_PER,
+                      "max_interest": D.MAX_INTEREST, "spoils_per": D.SPOILS_PER, "spoils_max": D.SPOILS_MAX,
+                      "win_gold": D.WIN_GOLD, "income": [D.income(r) for r in (1, 2, 3)],
+                      "streak_gold": [D.streak_gold(n) for n in range(0, 7)], "passive_xp": D.PASSIVE_XP,
+                      "pool": D.POOL, "price": D.PRICE, "plan_time": D.PLAN_TIME,
+                      "augment_rounds": D.AUGMENT_ROUNDS, "draft_rounds": D.DRAFT_ROUNDS,
+                      "auction_rounds": D.AUCTION_ROUNDS, "auction_min": D.AUCTION_MIN,
+                      "draft_turn": D.DRAFT_TURN, "rarities": D.RARITIES, "item_price": D.ITEM_PRICE,
+                      "armory_odds": D.ARMORY_ODDS},
+            "items": D.ITEMS, "commanders": D.COMMANDERS, "augments": D.AUGMENTS,
+            "aug_tiers": D.AUGMENT_TIER_NAMES, "talents": D.TALENTS}
 
 
 ROOMS = Codes(ROOM_KEEP)

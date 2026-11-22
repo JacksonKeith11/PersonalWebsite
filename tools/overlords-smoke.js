@@ -1,4 +1,4 @@
-// Plays Overlords in two headless browsers. The host makes a room and a friend joins by the link;
+// Plays Overlords in two headless browsers. The host opens the guide from the menu, makes a room and a friend joins by the link;
 // the host starts with two bots, and both pick a commander from the three offered. The host buys a unit, drags it from the bench to the board and back,
 // and sells one by dropping it on the shop; a full board refuses another unit. Both press Ready and
 // the fight starts at once: each sees their own fight played back on the canvas, the friend switches
@@ -96,6 +96,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   try {
     const host = await open('Ada', `${BASE}/games/overlords?debug`);
     await shot(host, '1-menu');
+    // the guide, from the menu: every tab draws from the game's data
+    await host.click('#guide-open');
+    await host.waitForSelector('#guide-body .gsec');
+    await host.click('#guide-tabs [data-tab=traits]');
+    expect((await host.$$eval('#guide-body .gcard', x => x.length)) === 16, 'the guide lists all sixteen traits');
+    await host.click('#guide-tabs [data-tab=units]');
+    expect((await host.$$eval('#guide-body .gunit', x => x.length)) === 60, 'the guide lists all sixty units');
+    await shot(host, '1b-guide');
+    await host.click('#guide-close');
     await host.click('#create');
     await host.waitForSelector('#lobby:not([hidden])');
     const link = await host.inputValue('#share');
@@ -115,6 +124,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       await p.waitForSelector('#choose', { state: 'hidden' });
       await p.waitForSelector('#commander-box:not([hidden])');
     }
+
+    // the status bar above the shop: round, HP, gold, level and board together
+    const hud = (await host.textContent('#hud')).replace(/\s+/g, ' ');
+    expect(/(Round|R) ?1/.test(hud) && /HP ?60/.test(hud) && /Gold ?\d/.test(hud) && /(Level|Lv) ?1/.test(hud) && /(Board|Units) ?\d\/1/.test(hud), `the status bar (${hud})`);
 
     // buying, dragging, selling
     let m = await me(host);

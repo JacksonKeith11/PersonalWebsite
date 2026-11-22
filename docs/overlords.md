@@ -367,8 +367,31 @@ matching), the side panels fold away:
   over and spends it all at level 8 or under 30 HP; `fast` levels a round early all match and favours dear
   units; `trait` goes all in on whichever trait it has most units of by round 5. A fifth, a reroller
   (stay low, three-star cheap units), was tried and dropped: see Gotchas.
+- **The status bar** (`#hud` above the shop; `renderHud`, `tickHud`; the owner asked for the important
+  at-a-glance information in one place, late November 2026): the round with what's happening and a timer bar,
+  HP, gold with next round's income (the breakdown on hover), level with an XP bar, units fielded of the limit
+  (gold-tinted when places are empty), a win or loss streak of 2+, and the next opponent. The top bar keeps
+  only the title, Fights speed, Guide, mute, Exit and the room code. Below 760 px wide the bar uses short
+  words (`short`: R, Lv, Units, W3) and drops the next opponent (the player list marks them); below 440 px
+  (`tiny`) it drops the bars too, so it stays on one line on a phone held upright (two in the landscape
+  column). Shop odds stayed beside the items, hidden below 1280 px wide (the guide has the table).
+- **Health and mana at a glance**: every unit has its bars while planning as well as fighting (`planBars`
+  from the card numbers, else the unit's own): green health with a notch every 300 HP, so tough units read
+  as tough, and blue mana with a notch every 10 (an attack's worth). Abilities get tags worked out from their
+  steps (`abilityTags`: Damage, Area damage, Stun, Heal allies, Summon..., coloured by kind: harm, control,
+  support, summons, movement), on shop cards (two, desktop only) and the unit card.
+- **The guide** (`openGuide`; the owner asked for one on the main menu with all the important information
+  and traits): a paper overlay from the menu's button and the game's Guide button, with tabs for the basics
+  (every number from `rules`: income, interest, streaks, spoils, the XP table, shop odds, prices and pools,
+  the special rounds, items, how to read the board), traits (each tier in words and its units), units (by
+  tier, with numbers, ability tags and a search box), commanders, items by rarity and augments by tier. On the
+  menu it fetches `/games/overlords/guide.json` (`routes.guide`, the same `game_data()` a room's welcome
+  sends) into `S.cfg`; a welcome replaces it.
 - **The info card** (`infoBody` in `main.js`: `unitCard`, `itemCard`, `traitCard`; the owner asked for a
-  UI pass in November 2026 so item descriptions, unit stats and trait bonuses read clearly). A unit's
+  UI pass in November 2026 so item descriptions, unit stats and trait bonuses read clearly, and in late
+  November for a unit's ability, health and mana to read at a glance: a unit's card now opens with health and
+  mana bars (`vitals`: what traits and items add, the start and cast mana, about how many attacks to cast) and
+  its ability in a gold box with its tags (`abilityBox`), before its traits and the other numbers). A unit's
   numbers are the server's: `Player.card_stats` sets a fight up (`sim.Fight`, not run) with the player's
   board and `extras` and reads `sim.Unit.stats()` (traits, items, picks, augments and the commander
   counted; bench units get items and picks only, as they don't fight). They ride as the eighth field of
@@ -469,6 +492,8 @@ matching), the side panels fold away:
   draws one; keep it that way for anything auction-only.
 - The simulator winds the clock to `Room.ends`, so its minutes count each auction's full 25 s, though a
   bots-only auction closes at once (nobody to wait for).
+- The menu already has a `#status` line (the shared lobby's messages): the status bar is `#hud`. It was
+  `#status` for an hour and drew nothing, as `getElementById` found the menu's first.
 - `Room.clock` is swappable: the check winds it on to play whole matches instantly. Real code must
   use `self.clock()`, not `time.monotonic()`, for phase timers.
 - A mana-from-damage loop once let a lone 1-star Star Queen shield herself for 25 s against six
@@ -496,7 +521,8 @@ matching), the side panels fold away:
   and the unit cards, the counts the browsers get, bots counting on their planned traits; auction augments
   never offered as an ordinary pick), spoils (each side's fallen counted, gold paid to match) and the
   win's gold, the Hexer's two targets, and three whole bot matches with the pool conserved.
-- `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): two browsers, a room with two
+- `node tools/overlords-smoke.js --serve` (~30 s, in `check-all.sh`): the guide from the menu (all sixteen
+  traits and sixty units), the status bar's numbers, two browsers, a room with two
   bots, commanders picked, buy/drag/sell, a fight played back and watched, the next round, an item
   bought in the armory and dragged onto a unit.
 - `node tools/overlords-phone.js --serve` (~15 s, in `check-all.sh`): an emulated phone with touch,

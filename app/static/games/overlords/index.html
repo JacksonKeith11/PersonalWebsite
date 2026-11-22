@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/games/shared/lobby.css?v=1">
-  <link rel="stylesheet" href="/static/games/overlords/game.css?v=25">
+  <link rel="stylesheet" href="/static/games/overlords/game.css?v=26">
 </head>
 <body>
   <div id="menu" class="screen paperish">
@@ -39,6 +39,7 @@
         </section>
       </div>
       <p id="status" role="status"></p>
+      <button id="guide-open" class="guide-open" type="button">📖 The guide: rules, numbers, every trait and unit</button>
       <details class="how">
         <summary>How to play</summary>
         <ul>
@@ -50,6 +51,8 @@
           <li>Some rounds are monster rounds, everyone against the same monsters, for gold.</li>
           <li>Once every person in the room is knocked out, the match ends: the bots don't play it out.</li>
           <li>You earn gold every round, plus 1 for every 8 you've saved (up to 5, so saving 40 earns the most), plus a bonus for a winning or losing streak. Fights against players pay too: 1 gold for a win, and spoils, 1 gold for every 3 of their units you bring down (up to 3).</li>
+          <li>The bar above the shop has everything worth a glance: the round and its timer, your HP, gold (and next round's income), level and XP, how many units you field, your streak and who you fight next. Above every unit, a green bar shows its health (a notch every 300 HP) and a blue one its mana (a notch every 10, an attack's worth): it casts when the blue bar fills.</li>
+          <li>The Guide (here on the menu, and top right in a game) has the rules, the numbers, every trait, unit, commander, item and augment.</li>
           <li>Click a player on the left to watch their fight, or to see their board while you plan.</li>
           <li>While you plan, the player you'll fight next is marked in the list, and their board shows faded on the top half of yours, where it will stand when the fight starts: place your units against it (hover or tap one of theirs to read it). On monster rounds the monsters show there.</li>
           <li>Buy items in the armory, beside your item bench, and drag one onto a unit (or click it, then the unit); a unit holds three. Items come in four rarities: Common (plain stats, 2 gold), Rare (a trick and a stat, 4), Epic (a stronger trick and two stats, or an emblem: its holder gains a trait, 6) and Legendary (artifacts, and the Crown: one more place on your board, 9). Rarer items turn up as the rounds go on; the armory restocks every round. Click or tap a unit to take its items off again.</li>
@@ -103,16 +106,31 @@
     </div>
   </div>
 
+  <!-- the guide (main.js openGuide): opened from the menu or the game's Guide button -->
+  <div id="guide" class="guide" hidden role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="guide-card">
+      <div class="guide-head">
+        <h2 id="guide-title">The Overlords guide</h2>
+        <button id="guide-close" type="button" aria-label="Close the guide">×</button>
+      </div>
+      <nav id="guide-tabs" class="guide-tabs" aria-label="Guide sections">
+        <button type="button" data-tab="basics">Basics</button>
+        <button type="button" data-tab="traits">Traits</button>
+        <button type="button" data-tab="units">Units</button>
+        <button type="button" data-tab="commanders">Commanders</button>
+        <button type="button" data-tab="items">Items</button>
+        <button type="button" data-tab="augments">Augments</button>
+      </nav>
+      <div id="guide-body" class="guide-body"></div>
+    </div>
+  </div>
+
   <div id="game" class="screen" hidden>
     <header class="top">
       <b class="title">Overlords</b>
-      <span id="hud-round"></span>
-      <span id="hud-phase"></span>
       <span class="spacer"></span>
-      <span id="hud-hp"></span>
-      <span id="hud-gold"></span>
-      <span id="hud-level"></span>
       <button id="speed" type="button" title="Play fights at double speed (they still end together)" aria-pressed="false">Fights 1×</button>
+      <button id="guide-btn" type="button" title="Rules, numbers, every trait and unit">Guide</button>
       <button id="mute" type="button" aria-label="Sound on or off" aria-pressed="false">🔊</button>
       <button id="exit" type="button" title="Leave this game">Exit</button>
       <span class="room">Room <b id="game-code" class="code"></b></span>
@@ -170,6 +188,16 @@
             <button type="button" data-sheet="cmd">Commander</button>
             <button type="button" data-sheet="meter">Damage</button>
           </div>
+        </div>
+        <!-- everything worth a glance, in one bar above the shop (main.js renderHud) -->
+        <div id="hud" class="status">
+          <span id="st-round" class="st round"><span class="txt"></span><i class="bar"><i></i></i></span>
+          <span id="st-hp" class="st"></span>
+          <span id="st-gold" class="st"></span>
+          <span id="st-level" class="st"></span>
+          <span id="st-board" class="st"></span>
+          <span id="st-streak" class="st" hidden></span>
+          <span id="st-foe" class="st"></span>
         </div>
         <div id="shopbar">
           <div class="shop-buttons">
@@ -242,6 +270,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/games/overlords/js/main.js?v=25"></script>
+  <script type="module" src="/static/games/overlords/js/main.js?v=26"></script>
 </body>
 </html>
